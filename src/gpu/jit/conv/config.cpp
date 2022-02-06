@@ -408,6 +408,8 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
     ic_thr_dim = ir_utils::safe_divide(ic_tg_blk, ic_thr_blk);
     oc_thr_dim = ir_utils::safe_divide(oc_tg_blk, oc_thr_blk);
 
+    maybe_set_allow_tg_slicing(ic_thr_blk, oc_thr_blk, ic_thr_dim, oc_thr_dim);
+
     tg_grid_dim[0] = oc_thr_dim;
     tg_grid_dim[1] = ic_thr_dim;
     tg_grid_dim[2] = 1;
@@ -957,6 +959,50 @@ void conv_config_t::maybe_set_ow_kw_grf_cache() {
     if (max_iw_blk > iw_blk_limit) return;
 
     use_ow_kw_grf_cache = true;
+}
+
+void conv_config_t::maybe_set_allow_tg_slicing(
+        int m_blk, int n_blk, int m_tg_dim, int n_tg_dim) {
+    if (!is_bwd_w) return;
+    if (!utils::everyone_is(a_data_type, b_data_type, data_type::bf16)) return;
+    if (!is_dp_fma()) return;
+
+    // Enable only for layouts with batch blocking.
+    int src_mb_blk = src_layout.inner_block(0);
+    int src_ic_blk = src_layout.inner_block(2);
+    int dst_mb_blk = dst_layout.inner_block(0);
+    int dst_oc_blk = dst_layout.inner_block(2);
+    if (src_mb_blk < 16 || dst_mb_blk < 16) return;
+
+    int k_blk = 16; // Assume bfloat16.
+    int tg_size = m_tg_dim * n_tg_dim;
+
+    // Backward by weights with dpas layouts requires GRF reorders for A/B
+    // (e.g. 2c*16n16c -> 32c16n). When SLM is used, such reorders are
+    // generated after load from GMEM and before store to SLM. For optimal
+    // performance we need load/store layouts to have large dense blocks. This
+    // means that in some cases we have to use only a sub-grid of thread group
+    // (i.e. rely on TG slicing) to perform load-store operation, otherwise we
+    // may end up with reorders like 8n16c -> 16c*8n which result in scattered
+    // loads/stores).
+    // At the same time using sub-grids results in higher GRF consumption so we
+    // only enable TG slicing when the resulting sub-grid consists of at least
+    // half of the total threads.
+    int src_reorder_elems = k_blk * src_ic_blk;
+    int src_tg_elems = m_blk * m_tg_dim * k_blk;
+    if (src_tg_elems % tg_size != 0) return;
+    int src_elems_per_thr = src_tg_elems / tg_size;
+    int src_slices = utils::div_up(src_reorder_elems, src_elems_per_thr);
+    if (src_slices > 2) return;
+
+    int dst_reorder_elems = k_blk * dst_oc_blk;
+    int dst_tg_elems = n_blk * n_tg_dim * k_blk;
+    if (dst_tg_elems % tg_size != 0) return;
+    int dst_elems_per_thr = dst_tg_elems / tg_size;
+    int dst_slices = utils::div_up(dst_reorder_elems, dst_elems_per_thr);
+    if (dst_slices > 2) return;
+
+    allow_slm_tg_slicing = true;
 }
 
 std::string conv_config_t::str() const {

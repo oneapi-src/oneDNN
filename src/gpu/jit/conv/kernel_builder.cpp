@@ -6684,15 +6684,22 @@ private:
             const expr_t &xp_buf, const expr_t &x_slm_buf, view_t &x_slm_view,
             const grid_info_t &load_grid, g2s_context_t &g2s_ctx) {
         bool is_a = (tag[0] == 'A');
+        abc_kind_t ab_kind = (is_a ? abc_kind_t::a : abc_kind_t::b);
 
-        auto xp_slm_layout = create_slm_layout(
-                x_gmem_view, is_a ? abc_kind_t::a : abc_kind_t::b, load_grid);
+        auto xp_slm_layout = create_slm_layout(x_gmem_view, ab_kind, load_grid);
 
         auto grid_cond = load_grid.slice_condition();
 
+        // Per-thread tile and view to load from GMEM and store to SLM.
         tensor_t thr_tile;
-        // Per-thread view to load from GMEM to SLM.
-        auto x_g2s_view = x_gmem_view.split(load_grid, thr_tile);
+        view_t x_g2s_view;
+        if (cfg_.allow_slm_tg_slicing) {
+            x_g2s_view = x_gmem_view.split(load_grid, thr_tile);
+        } else {
+            thr_tile = xp_slm_layout.split(load_grid);
+            x_g2s_view = x_gmem_view.create_sub_view(thr_tile);
+        }
+
         auto slm_thr_layout = xp_slm_layout.map(thr_tile);
 
         // Ensure that each thread writes a dense region to SLM. If the layout

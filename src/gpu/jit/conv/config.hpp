@@ -357,6 +357,7 @@ public:
         use_ow_kw_grf_cache = false;
         fuse_spatial = false;
         hoist_masks_from_compute_loop = false;
+        allow_slm_tg_slicing = false;
         a_sub_tiles = 1;
         b_sub_tiles = 1;
 
@@ -641,6 +642,7 @@ public:
     bool use_ow_kw_grf_cache; // Whether to use GRF cache to reuse source for ow/kw pairs.
     bool fuse_spatial; // Apply blocking to fused spatial (otherwise only `w` is blocked).
     bool hoist_masks_from_compute_loop; // Whether to move send mask initialization out of compute loop.
+    bool allow_slm_tg_slicing; // Whether to allow thread group split for SLM load/store.
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 
@@ -871,6 +873,8 @@ private:
     void maybe_set_hoist_masks_from_compute_loop();
     void maybe_set_bwd_d_stride_optimization(int iw_thr_blk);
     void maybe_set_ow_kw_grf_cache();
+    void maybe_set_allow_tg_slicing(
+            int m_blk, int n_blk, int m_tg_dim, int n_tg_dim);
 
     void init_zero_points_default_config() {
         zp_cfg.do_src_compensation = false;
