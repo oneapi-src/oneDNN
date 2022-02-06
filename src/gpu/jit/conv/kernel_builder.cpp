@@ -1418,7 +1418,7 @@ private:
         ir_assert(e.type().is_bool()) << e;
 
         if (e.type().elems() > 16) return e;
-        if (is_shuffle_const(e)) return e;
+        if (is_const(e) || is_shuffle_const(e)) return e;
 
         // Can't hoist a mask containing loop vars.
         auto vars = find_objects<var_t>(e);
