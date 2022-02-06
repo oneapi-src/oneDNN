@@ -88,6 +88,28 @@ ngen::DataType to_ngen(const type_t &type) {
     return ngen::DataType::invalid;
 }
 
+// ngen::DataType to type_t convertor.
+type_t to_ir(ngen::DataType type) {
+#define CASE(_kind, ngen_enum) \
+    if (type == ngen::DataType::ngen_enum) return type_t::_kind();
+
+    CASE(bf16, bf);
+    CASE(f16, hf);
+    CASE(f32, f);
+    CASE(s16, w);
+    CASE(s32, d);
+    CASE(s64, q);
+    CASE(s8, b);
+    CASE(u16, uw);
+    CASE(u32, ud);
+    CASE(u64, uq);
+    CASE(u8, ub);
+
+#undef CASE
+    ir_error_not_expected();
+    return type_t::undef();
+}
+
 ngen::Immediate to_ngen(
         const expr_t &expr, const type_t &type = type_t::undef()) {
     ir_assert(expr.type().is_scalar()) << "Vector types are not supported.";
@@ -3636,6 +3658,82 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return;
     }
 
+    // Handle mov(src.uw(x)(1), dst.uw(y)(2).
+    if (src_type_size == 2 && dst_type_size == 2 && src_stride == 2
+            && dst_stride == 1) {
+        int step = get_step();
+        auto tmp = scope.alloc_reg_buf_data(
+                utils::div_up(step * src_type_size * src_stride, grf_size));
+        for (int i = 0; i < width; i += step) {
+            int esize = std::min(step, width - i);
+            ir_assert(math::is_pow2(esize));
+            auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
+                    esize, src_stride);
+            auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
+                    esize, dst_stride);
+            if (s.offset() != 0) {
+                auto t = tmp.format(0, src_type, esize, src_stride);
+                host->emov(esize, t, s);
+                s = t;
+            }
+            host->emov(esize, d, s);
+        }
+        return;
+    }
+
+    // Perform FP to FP move.
+    // Float pipe has some register regioning limitations. If mov is not
+    // allowed then fix regioning by switching to integer pipe which has
+    // less limitations.
+    if (src_xf || dst_xf) {
+        int step = get_step();
+        for (int i = 0; i < width; i += step) {
+            int esize = std::min(step, width - i);
+            ir_assert(math::is_pow2(esize));
+            auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
+                    esize, src_stride);
+            auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
+                    esize, dst_stride);
+            auto d_old = d;
+
+            bool do_d0_align = (esize > 1 && dst_bf
+                    && !utils::one_of(d.byte_offset(), 0, grf_size / 2));
+            if (do_d0_align) {
+                d = scope.alloc_reg_data(to_ir(dst_type).with_elems(esize));
+            }
+
+            bool do_align = false;
+            if (esize > 1 && s.hs() != 0 && s.offset() != d.offset())
+                do_align = true;
+            if (do_align) {
+                bool s_half_grf_aligned = (src_hf || src_bf)
+                        && utils::one_of(s.byte_offset(), 0, grf_size / 2);
+                bool d_half_grf_aligned = (dst_hf || dst_bf)
+                        && utils::one_of(d.byte_offset(), 0, grf_size / 2);
+                if (dst_f && d.offset() == 0 && s_half_grf_aligned)
+                    do_align = false;
+                if (src_f && s.offset() == 0 && d_half_grf_aligned)
+                    do_align = false;
+            }
+
+            if (do_align) {
+                auto i_type = to_ngen(type_t::u(ngen::getBytes(src_type) * 8));
+                s = s.reinterpret(i_type);
+                align_src_dst_offset(host, scope, esize, d, s);
+                s = s.reinterpret(src_type);
+            }
+            host->emov(esize, d, s);
+
+            if (do_d0_align) {
+                auto i_type = to_ngen(type_t::u(ngen::getBytes(dst_type) * 8));
+                auto d_int = d_old.reinterpret(i_type);
+                auto s_int = d.reinterpret(i_type);
+                host->emov(esize, d_int, s_int);
+            }
+        }
+        return;
+    }
+
     // Perform regular move.
     int step = get_step();
     for (int i = 0; i < width; i += step) {
@@ -3645,25 +3743,6 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 esize, src_stride);
         auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
                 esize, dst_stride);
-        // Float pipe has some register regioning limitations. If mov is not
-        // allowed then fix regioning by switching to integer pipe which has
-        // less limitations.
-        if (esize > 1 && s.hs() != 0 && (src_xf || dst_xf)
-                && s.offset() != d.offset()) {
-            bool ok = false;
-            bool s_half_grf_aligned = (src_hf || src_bf)
-                    && utils::one_of(s.byte_offset(), 0, grf_size / 2);
-            bool d_half_grf_aligned = (dst_hf || dst_bf)
-                    && utils::one_of(d.byte_offset(), 0, grf_size / 2);
-            if (dst_f && d.offset() == 0 && s_half_grf_aligned) ok = true;
-            if (src_f && s.offset() == 0 && d_half_grf_aligned) ok = true;
-            if (!ok) {
-                auto i_type = to_ngen(type_t::u(ngen::getBytes(src_type) * 8));
-                s = s.reinterpret(i_type);
-                align_src_dst_offset(host, scope, esize, d, s);
-                s = s.reinterpret(src_type);
-            }
-        }
         host->emov(esize, d, s);
     }
 }
