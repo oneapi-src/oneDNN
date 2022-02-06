@@ -430,7 +430,7 @@ inline std::ostream &operator<<(std::ostream &out, const block_t &b) {
 
 class layout_t {
 public:
-    static const int max_ndims = 6;
+    static const int max_ndims = 16;
 
     layout_t() : type_(type_t::undef()), ndims_(0), offset_(0) {
         sanity_check();

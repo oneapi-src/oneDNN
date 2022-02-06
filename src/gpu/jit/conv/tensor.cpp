@@ -438,6 +438,7 @@ void layout_t::sanity_check() const {
         ir_assert(b.block > 0) << "Incorrect block size.";
         MAYBE_UNUSED(b);
     }
+    ir_assert(ndims_ <= max_ndims);
 }
 
 layout_t layout_t::split_into_multi_blocks_impl(
