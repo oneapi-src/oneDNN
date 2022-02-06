@@ -712,8 +712,9 @@ std::vector<dim_t> normalize_conv_dims(std::vector<dim_t> &dims,
 }
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
-        layout_t &dst_layout, bool with_groups, int groups, bool is_dw,
-        int reduced_dim, bool fuse_spatial, bool add_groups) {
+        layout_t &dst_layout, layout_t &bia_layout, bool with_groups,
+        int groups, bool is_dw, int reduced_dim, bool fuse_spatial,
+        bool add_groups) {
     src_layout = normalize_conv_layout(src_layout, /*with_groups=*/false,
             groups, is_dw, reduced_dim, fuse_spatial, add_groups,
             /*is_wei=*/false);
@@ -722,6 +723,10 @@ void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
     dst_layout = normalize_conv_layout(dst_layout, /*with_groups=*/false,
             groups, is_dw, reduced_dim, fuse_spatial, add_groups,
             /*is_wei=*/false);
+    if (add_groups && !bia_layout.is_empty()) {
+        ir_assert(bia_layout.ndims() == 1) << bia_layout;
+        bia_layout = split_dimension(bia_layout, 0, groups);
+    }
 }
 
 } // namespace jit

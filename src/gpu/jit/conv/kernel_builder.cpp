@@ -6004,7 +6004,7 @@ public:
             const tensor_t &sub_tile = tensor_t()) {
         auto reduction_stmt
                 = jit::create_reduce_stmt(b_layout, b_reduced_reg_layout_,
-                        b_buf, b_reduced_reg_buf_, sub_tile, (1 << 1));
+                        b_buf, b_reduced_reg_buf_, sub_tile, reduction_mask_);
         return reduction_stmt;
     }
 
@@ -6047,7 +6047,7 @@ private:
     layout_t b_reduced_reg_layout_;
     int b_reduced_size_ = 0;
 
-    uint32_t reduction_mask_ = (1 << 1);
+    uint32_t reduction_mask_ = (1 << 1) | (1 << 2);
 };
 
 class load_multiply_builder_t {
