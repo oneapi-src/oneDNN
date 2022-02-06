@@ -4006,9 +4006,13 @@ public:
 
         std::vector<bool> seen(src_layout_.size() * src_type.size());
 
-        tensor_t tile = find_1d_tile();
+        int src_stride = -1;
+        tensor_t tile = find_1d_tile(src_stride);
+        int tile_elems = (int)tile.elems();
         src_layout_.for_each_tile(
                 tile, [&](const std::vector<dim_t> &src_start) {
+                    ngen_register_scope_t tile_scope(
+                            scope.register_allocator());
                     auto dst_start = src_start;
                     for (int i = 0; i < dst_layout_.ndims(); i++) {
                         if (dst_layout_.dims()[i] == 1) dst_start[i] = 0;
@@ -4026,17 +4030,30 @@ public:
                         if (same_src_dst) return;
                     }
 
-                    auto sub_src
-                            = src_rd.subregister(src_off, to_ngen(src_type));
-                    auto sub_dst
-                            = dst_rd.subregister(dst_off, to_ngen(dst_type));
-                    host->add(int(tile.elems()), sub_dst(1), sub_dst(1),
-                            sub_src(1));
+                    auto d = dst_rd.format(
+                            dst_off, to_ngen(dst_type), tile_elems, 1);
+                    auto s = src_rd.format(
+                            src_off, to_ngen(src_type), tile_elems, src_stride);
+
+                    if (src_stride != 1) {
+                        auto tmp_type = src_type;
+                        if (d.offset() != 0 && src_type.is_bf16()) {
+                            tmp_type = type_t::f32();
+                        }
+                        auto tmp = tile_scope.alloc_reg_data(
+                                tmp_type.with_elems(tile_elems));
+                        emit_reorder_1d_tile(hw_, host, tile_scope, tile_elems,
+                                s, src_stride, tmp, 1);
+                        s = tmp.format(0, to_ngen(tmp_type), tile_elems, 1);
+                    }
+                    align_src_dst_offset(host, tile_scope, tile_elems, d, s);
+                    host->add(tile_elems, d.reg_data(), d.reg_data(),
+                            s.reg_data());
                 });
     }
 
 private:
-    tensor_t find_1d_tile() const {
+    tensor_t find_1d_tile(int &src_stride) const {
         auto a = src_layout_;
         auto b = dst_layout_;
         layout_t::align_layouts(a, b);
@@ -4047,8 +4064,12 @@ private:
         auto &a0 = a.blocks()[0];
         auto &b0 = b.blocks()[0];
 
-        ir_assert(a0.is_equal(b0)) << "Incompatible layouts for reduction.";
-        ir_assert(dim_t(a0.stride) == 1) << "Reduction is not supported.";
+        ir_assert(a0.dim_idx == b0.dim_idx && a0.block == b0.block)
+                << "Incompatible layouts for reduction.";
+
+        src_stride = a0.stride;
+        ir_assert(dim_t(b0.stride) == 1)
+                << "Reduction is not supported for non-unit dst stride.";
 
         int grf_size = ngen::GRF::bytes(hw_);
         int a_grf_elems = grf_size / a.type().size();
