@@ -1590,6 +1590,19 @@ static inline void adjust_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs) {
     double gemm_cycles = m * n * k / fp_per_cycle;
     gemm_cycles *= is_f32 ? 2.0 : 8.0;
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    if (is_avx512 && is_f32) {
+        auto l2_cache_per_thread = platform::get_per_core_cache_size(2);
+        int n_cores_per_socket = static_cast<int>(platform::get_num_cores());
+        auto l2_cache_socket = l2_cache_per_thread * n_cores_per_socket;
+        auto problem_memory_footprint = (m * n + m * k + n * k) * sizeof(float);
+        if (l2_cache_socket > problem_memory_footprint) {
+            *nthrs = nstl::min(*nthrs, n_cores_per_socket);
+            return;
+        }
+    }
+#endif
+
     int i = *nthrs;
 
     // Use a different model for omp overheads if nthrs is <= 4
