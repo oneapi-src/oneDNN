@@ -723,12 +723,13 @@ inline std::pair<dnnl::prelu_forward::primitive_desc, bool> create_prelu_pd(
     return {pd, true};
 }
 
-inline std::pair<dnnl::softmax_forward::primitive_desc, bool> create_softmax_pd(
-        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+inline std::pair<dnnl::softmax_v2_forward::primitive_desc, bool>
+create_softmax_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache,
+        dnnl::algorithm algo) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::softmax_forward::primitive_desc &>(
+        return {static_cast<dnnl::softmax_v2_forward::primitive_desc &>(
                         pd_cache.at(op.get())),
                 false};
     }
@@ -742,13 +743,16 @@ inline std::pair<dnnl::softmax_forward::primitive_desc, bool> create_softmax_pd(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
 
     int64_t axis = op->get_attr<int64_t>("axis");
     if (axis < 0) { axis += src.data.ndims; }
 
-    dnnl::softmax_forward::primitive_desc pd;
-    pd = dnnl::softmax_forward::primitive_desc(
-            {prop_kind::forward_inference, src, static_cast<int>(axis)},
+    dnnl::softmax_v2_forward::primitive_desc pd;
+    pd = dnnl::softmax_v2_forward::primitive_desc(
+            {prop_kind::forward_inference, algo, src, dst,
+                    static_cast<int>(axis)},
             prm_attr, p_engine);
 
     pd_cache.insert({op.get(), pd});
@@ -756,13 +760,13 @@ inline std::pair<dnnl::softmax_forward::primitive_desc, bool> create_softmax_pd(
     return {pd, true};
 }
 
-inline std::pair<dnnl::softmax_backward::primitive_desc, bool>
+inline std::pair<dnnl::softmax_v2_backward::primitive_desc, bool>
 create_softmax_bwd_pd(std::shared_ptr<impl::op_t> &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
+        pd_cache_t &pd_cache, dnnl::algorithm algo) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::softmax_backward::primitive_desc &>(
+        return {static_cast<dnnl::softmax_v2_backward::primitive_desc &>(
                         pd_cache.at(op.get())),
                 false};
     }
@@ -777,79 +781,8 @@ create_softmax_bwd_pd(std::shared_ptr<impl::op_t> &op,
     auto dst = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
 
-    const auto rank = op->get_output_value(0)->get_logical_tensor().ndims;
-    const auto res
-            = utils::try_reverse_axis(op->get_attr<int64_t>("axis"), rank);
-    assertm(res.first, "Incorrect axis value.");
-    const auto axis = res.second;
-
-    auto hint_fwd_pd = dnnl::softmax_forward::primitive_desc(
-            {prop_kind::forward_training, dst, static_cast<int>(axis)},
-            prm_attr, p_engine);
-
-    auto pd = dnnl::softmax_backward::primitive_desc(
-            {diff_dst, dst, static_cast<int>(axis)}, prm_attr, p_engine,
-            hint_fwd_pd);
-
-    pd_cache.insert({op.get(), pd});
-
-    return {pd, true};
-}
-
-inline std::pair<dnnl::logsoftmax_forward::primitive_desc, bool>
-create_logsoftmax_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
-    // first look up the cache
-    if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::logsoftmax_forward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
-    }
-
-    dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
-    }
-    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-
-    auto src = make_dnnl_memory_desc(
-            op->get_input_value(0)->get_logical_tensor());
-
-    int64_t axis = op->get_attr<int64_t>("axis");
-    if (axis < 0) { axis += src.data.ndims; }
-
-    dnnl::logsoftmax_forward::primitive_desc pd;
-    pd = dnnl::logsoftmax_forward::primitive_desc(
-            {prop_kind::forward_inference, src, static_cast<int>(axis)},
-            prm_attr, p_engine);
-
-    pd_cache.insert({op.get(), pd});
-
-    return {pd, true};
-}
-
-inline std::pair<dnnl::logsoftmax_backward::primitive_desc, bool>
-create_logsoftmax_bwd_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
-        pd_cache_t &pd_cache) {
-    // first look up the cache
-    if (pd_cache.find(op.get()) != pd_cache.end()) {
-        return {static_cast<dnnl::logsoftmax_backward::primitive_desc &>(
-                        pd_cache.at(op.get())),
-                false};
-    }
-
-    dnnl::primitive_attr prm_attr;
-    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-
-    auto diff_dst = make_dnnl_memory_desc(
-            op->get_input_value(0)->get_logical_tensor());
-    diff_dst = to_format_any(diff_dst);
-
-    auto dst = make_dnnl_memory_desc(
-            op->get_input_value(1)->get_logical_tensor());
+    auto diff_src = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
 
     const auto rank = op->get_output_value(0)->get_logical_tensor().ndims;
     const auto res
@@ -857,13 +790,19 @@ create_logsoftmax_bwd_pd(std::shared_ptr<impl::op_t> &op,
     assertm(res.first, "Incorrect axis value.");
     const auto axis = res.second;
 
-    auto hint_fwd_pd = dnnl::logsoftmax_forward::primitive_desc(
-            {prop_kind::forward_training, dst, static_cast<int>(axis)},
+    // construct src with layout information from dst and data type information
+    // from diff_src.
+    dnnl::memory::desc src = dst;
+    src.data.data_type = diff_src.data.data_type;
+
+    auto hint_fwd_pd = dnnl::softmax_v2_forward::primitive_desc(
+            {prop_kind::forward_training, algo, src, dst,
+                    static_cast<int>(axis)},
             prm_attr, p_engine);
 
-    auto pd = dnnl::logsoftmax_backward::primitive_desc(
-            {diff_dst, dst, static_cast<int>(axis)}, prm_attr, p_engine,
-            hint_fwd_pd);
+    auto pd = dnnl::softmax_v2_backward::primitive_desc(
+            {algo, diff_src, diff_dst, dst, static_cast<int>(axis)}, prm_attr,
+            p_engine, hint_fwd_pd);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1730,8 +1669,10 @@ struct softmax_executable_t : public op_executable_t {
     softmax_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_softmax_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
-        prim_ = dnnl::softmax_forward(pd_);
+        pd_ = create_softmax_pd(op, p_engine, prm_attr_mgr, pd_cache,
+                dnnl::algorithm::softmax_accurate)
+                      .first;
+        prim_ = dnnl::softmax_v2_forward(pd_);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -1742,16 +1683,18 @@ struct softmax_executable_t : public op_executable_t {
     }
 
 private:
-    dnnl::softmax_forward::primitive_desc pd_;
-    dnnl::softmax_forward prim_;
+    dnnl::softmax_v2_forward::primitive_desc pd_;
+    dnnl::softmax_v2_forward prim_;
 };
 
 struct softmax_bwd_executable_t : public op_executable_t {
     softmax_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_softmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
-        prim_ = dnnl::softmax_backward(pd_);
+        pd_ = create_softmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache,
+                dnnl::algorithm::softmax_accurate)
+                      .first;
+        prim_ = dnnl::softmax_v2_backward(pd_);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -1762,16 +1705,18 @@ struct softmax_bwd_executable_t : public op_executable_t {
     }
 
 private:
-    dnnl::softmax_backward::primitive_desc pd_;
-    dnnl::softmax_backward prim_;
+    dnnl::softmax_v2_backward::primitive_desc pd_;
+    dnnl::softmax_v2_backward prim_;
 };
 
 struct logsoftmax_executable_t : public op_executable_t {
     logsoftmax_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_logsoftmax_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
-        prim_ = dnnl::logsoftmax_forward(pd_);
+        pd_ = create_softmax_pd(op, p_engine, prm_attr_mgr, pd_cache,
+                dnnl::algorithm::softmax_log)
+                      .first;
+        prim_ = dnnl::softmax_v2_forward(pd_);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -1782,17 +1727,18 @@ struct logsoftmax_executable_t : public op_executable_t {
     }
 
 private:
-    dnnl::logsoftmax_forward::primitive_desc pd_;
-    dnnl::logsoftmax_forward prim_;
+    dnnl::softmax_v2_forward::primitive_desc pd_;
+    dnnl::softmax_v2_forward prim_;
 };
 
 struct logsoftmax_bwd_executable_t : public op_executable_t {
     logsoftmax_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_logsoftmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache)
+        pd_ = create_softmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache,
+                dnnl::algorithm::softmax_log)
                       .first;
-        prim_ = dnnl::logsoftmax_backward(pd_);
+        prim_ = dnnl::softmax_v2_backward(pd_);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -1803,8 +1749,8 @@ struct logsoftmax_bwd_executable_t : public op_executable_t {
     }
 
 private:
-    dnnl::logsoftmax_backward::primitive_desc pd_;
-    dnnl::logsoftmax_backward prim_;
+    dnnl::softmax_v2_backward::primitive_desc pd_;
+    dnnl::softmax_v2_backward prim_;
 };
 
 struct reduction_executable_t : public op_executable_t {

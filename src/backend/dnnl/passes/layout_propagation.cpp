@@ -895,8 +895,8 @@ static void layout_propagation_for_softmax(op_ptr &op,
     assertm(!ltw(src->get_logical_tensor()).is_any(),
             "softmax's src can't be any layout now");
 
-    const auto &pd_flag_pair
-            = create_softmax_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd_flag_pair = create_softmax_pd(op, p_engine, prm_attr_mgr,
+            pd_cache, dnnl::algorithm::softmax_accurate);
     const auto &pd = pd_flag_pair.first;
     const auto is_first_time = pd_flag_pair.second;
 
@@ -918,8 +918,8 @@ static void layout_propagation_for_softmax_bwd(op_ptr &op,
     assertm(!ltw(dst->get_logical_tensor()).is_any(),
             "softmax bwd's dst can't be any layout now");
 
-    const auto &pd_flag_pair
-            = create_softmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd_flag_pair = create_softmax_bwd_pd(op, p_engine, prm_attr_mgr,
+            pd_cache, dnnl::algorithm::softmax_accurate);
 
     const auto &pd = pd_flag_pair.first;
     const auto is_first_time = pd_flag_pair.second;
@@ -946,8 +946,8 @@ static void layout_propagation_for_logsoftmax(op_ptr &op,
     assertm(!ltw(src->get_logical_tensor()).is_any(),
             "logsoftmax's src can't be any layout now");
 
-    const auto &pd_flag_pair
-            = create_logsoftmax_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd_flag_pair = create_softmax_pd(
+            op, p_engine, prm_attr_mgr, pd_cache, dnnl::algorithm::softmax_log);
     const auto &pd = pd_flag_pair.first;
     const auto is_first_time = pd_flag_pair.second;
 
@@ -969,8 +969,8 @@ static void layout_propagation_for_logsoftmax_bwd(op_ptr &op,
     assertm(!ltw(dst->get_logical_tensor()).is_any(),
             "logsoftmax bwd's dst can't be any layout now");
 
-    const auto &pd_flag_pair
-            = create_logsoftmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd_flag_pair = create_softmax_bwd_pd(
+            op, p_engine, prm_attr_mgr, pd_cache, dnnl::algorithm::softmax_log);
     const auto &pd = pd_flag_pair.first;
     const auto is_first_time = pd_flag_pair.second;
 
