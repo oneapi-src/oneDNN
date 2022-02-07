@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,11 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
 
     s << prb.attr;
+    if (canonical || prb.ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << prb.ctx_init << " ";
+    if (canonical || prb.ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << prb.ctx_exe << " ";
+
     s << static_cast<prb_vdims_t>(prb);
 
     return s;

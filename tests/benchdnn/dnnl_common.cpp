@@ -426,11 +426,12 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
     return OK;
 }
 
-int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args) {
+int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
+        args_t &args) {
     int ret = OK;
     if (is_bench_mode(PERF)) {
         const auto &engine = get_test_engine();
-        stream_t stream(engine);
+        stream_t stream(engine, ctx.get_interop_obj());
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);
 
@@ -439,20 +440,23 @@ int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args) {
         // For DPCPP CPU and GPU: measure iterations in batches to hide driver
         // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
         if (is_cpu() && !is_sycl_engine(engine))
-            ret = measure_perf_individual(t, stream, perf_func, dnnl_args);
+            ret = execute_in_thr_ctx(ctx, measure_perf_individual, t, stream,
+                    perf_func, dnnl_args);
         else
-            ret = measure_perf_aggregate(t, stream, perf_func, dnnl_args);
+            ret = execute_in_thr_ctx(ctx, measure_perf_aggregate, t, stream,
+                    perf_func, dnnl_args);
 
         if (ret == OK) execute_map_args(args);
     }
     return ret;
 }
 
-int measure_perf(res_t *res, dnnl_primitive_t prim, args_t &args) {
+int measure_perf(
+        const thr_ctx_t &ctx, res_t *res, dnnl_primitive_t prim, args_t &args) {
     perf_function_t perf_func = std::bind(&primitive_executor, prim,
             std::placeholders::_1, std::placeholders::_2);
 
-    return measure_perf(res, perf_func, args);
+    return measure_perf(ctx, res, perf_func, args);
 }
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
@@ -1072,11 +1076,13 @@ engine_t::~engine_t() {
     if (is_owner_) DNN_SAFE_V(dnnl_engine_destroy(engine_));
 }
 
-stream_t::stream_t(dnnl_engine_t engine) {
+stream_t::stream_t(dnnl_engine_t engine, void *interop_obj) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     if (is_cpu(engine)) {
-        SAFE_V(dnnl_threadpool_interop_stream_create(
-                &stream_, engine, dnnl::testing::get_threadpool()));
+        auto tp = static_cast<dnnl::threadpool_interop::threadpool_iface *>(
+                interop_obj);
+        if (tp == nullptr) tp = dnnl::testing::get_threadpool();
+        SAFE_V(dnnl_threadpool_interop_stream_create(&stream_, engine, tp));
         return;
     }
 #endif

@@ -83,7 +83,8 @@ struct settings_t : public base_settings_t {
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &tag, alg_t alg,
-            const attr_t &attr, int64_t mb = 0)
+            const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe, int64_t mb = 0)
         : desc_t(desc)
         , dir(dir)
         , sdt(sdt)
@@ -91,6 +92,8 @@ struct prb_t : public desc_t {
         , tag(tag)
         , alg(alg)
         , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe)
         , user_mb(mb) {
         if (mb) this->mb = mb;
     }
@@ -101,6 +104,7 @@ struct prb_t : public desc_t {
     std::string tag;
     alg_t alg;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
     int64_t user_mb;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
@@ -129,6 +133,8 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     const int64_t *user_mb() const override { return &p_->user_mb; }
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }

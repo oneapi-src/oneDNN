@@ -108,7 +108,8 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
     }
 
     return std::unique_ptr<prb_t>(new prb_t((desc_t)*prb, prb->dir, prb->cfg,
-            prb->stag, prb->wtag, tag::any, prb->alg, attr, prb->mb));
+            prb->stag, prb->wtag, tag::any, prb->alg, attr, prb->ctx_init,
+            prb->ctx_exe, prb->mb));
 }
 
 std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
@@ -168,7 +169,8 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     cd.init_pad_r();
 
     return std::unique_ptr<prb_t>(new prb_t(cd, prb->dir, p_dw_cfg, tag::any,
-            tag::any, prb->dtag, alg_t::DIRECT, fusion_attr, prb->mb));
+            tag::any, prb->dtag, alg_t::DIRECT, fusion_attr, prb->ctx_init,
+            prb->ctx_exe, prb->mb));
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
@@ -192,7 +194,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Original problem with fusion attributes
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
@@ -447,7 +449,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    return measure_perf(res, prim, args);
+    return measure_perf(prb->ctx_exe, res, prim, args);
 }
 
 } // namespace conv_dw_fusion

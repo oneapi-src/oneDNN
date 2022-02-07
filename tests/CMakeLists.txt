@@ -86,11 +86,7 @@ if(NOT DNNL_ENABLE_PRIMITIVE_CACHE)
     add_definitions_with_host_compiler(-DDNNL_DISABLE_PRIMITIVE_CACHE)
 endif()
 
-if ("${DNNL_CPU_THREADING_RUNTIME}" STREQUAL "THREADPOOL")
-    # Only enable this for threadpool runtime to avoid complaints about empty
-    # object files.
-    set(TEST_THREAD ${CMAKE_CURRENT_SOURCE_DIR}/test_thread.cpp)
-endif()
+set(TEST_THREAD ${CMAKE_CURRENT_SOURCE_DIR}/test_thread.cpp)
 
 # Switch on threading layer for GPU only configurations to speed up testing.
 # For non-dppcp compilers OpenMP threading will be used which is handled in

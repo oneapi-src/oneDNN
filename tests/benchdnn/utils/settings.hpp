@@ -31,6 +31,8 @@ struct base_settings_t {
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             dnnl_scratchpad_mode_library};
     std::vector<dnnl_fpmath_mode_t> fpmath_mode {dnnl_fpmath_mode_strict};
+    std::vector<thr_ctx_t> ctx_init {default_thr_ctx};
+    std::vector<thr_ctx_t> ctx_exe {default_thr_ctx};
     const char *pattern = NULL;
 
     const char *perf_template_csv_base(const std::string &driver_args) const {

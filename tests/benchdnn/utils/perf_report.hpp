@@ -54,6 +54,8 @@ struct base_perf_report_t {
     virtual const std::string *wtag() const { return nullptr; }
     virtual const dnnl_prop_kind_t *prop() const { return nullptr; }
     virtual const int64_t *user_mb() const { return nullptr; }
+    virtual const thr_ctx_t *ctx_init() const { return nullptr; }
+    virtual const thr_ctx_t *ctx_exe() const { return nullptr; }
 
     /* designed to be overloaded in reorder only to match verbose output */
     virtual void dump_engine(std::ostream &s) const;

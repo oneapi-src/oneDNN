@@ -16,9 +16,39 @@
 
 #include "tests/test_thread.hpp"
 
+std::ostream &operator<<(std::ostream &os, const thr_ctx_t &ctx) {
+    if (ctx.max_concurrency == default_thr_ctx.max_concurrency)
+        os << "auto:";
+    else
+        os << ctx.max_concurrency << ":";
+
+    if (ctx.core_type == default_thr_ctx.core_type)
+        os << "auto:";
+    else
+        os << ctx.core_type << ":";
+
+    if (ctx.nthr_per_core == default_thr_ctx.nthr_per_core)
+        os << "auto";
+    else
+        os << ctx.nthr_per_core;
+
+    return os;
+}
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+void *thr_ctx_t::get_interop_obj() const {
+    return dnnl::testing::get_threadpool(*this);
+}
+#else
+void *thr_ctx_t::get_interop_obj() const {
+    return nullptr;
+}
+#endif
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
 #include <mutex>
+#include <unordered_map>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -71,6 +101,10 @@ inline int read_num_threads_from_env() {
 #include "unsupported/Eigen/CXX11/ThreadPool"
 
 #if EIGEN_WORLD_VERSION + 10 * EIGEN_MAJOR_VERSION < 33
+#define STR_(x) #x
+#define STR(x) STR_(x)
+#pragma message("EIGEN_WORLD_VERSION " STR(EIGEN_WORLD_VERSION))
+#pragma message("EIGEN_MAJOR_VERSION " STR(EIGEN_MAJOR_VERSION))
 #error Unsupported Eigen version (need 3.3.x or higher)
 #endif
 
@@ -124,7 +158,7 @@ namespace testing {
 
 class threadpool_t : public dnnl::threadpool_interop::threadpool_iface {
 public:
-    explicit threadpool_t(int num_threads = 0) { (void)num_threads; }
+    explicit threadpool_t(int num_threads) { (void)num_threads; }
     int get_num_threads() const override {
         return tbb::this_task_arena::max_concurrency();
     }
@@ -295,9 +329,16 @@ namespace dnnl {
 
 namespace testing {
 // Threadpool singleton
-dnnl::threadpool_interop::threadpool_iface *get_threadpool() {
-    static dnnl::testing::threadpool_t tp;
-    return &tp;
+dnnl::threadpool_interop::threadpool_iface *get_threadpool(
+        const thr_ctx_t &ctx) {
+    // global default threadpool is returned when thr context is
+    // default
+    static std::unordered_map<int, dnnl::testing::threadpool_t> tp_map;
+    auto ret_val = tp_map.find(ctx.max_concurrency);
+    if (ret_val != tp_map.end()) return &(ret_val->second);
+    auto new_val = tp_map.emplace(ctx.max_concurrency, ctx.max_concurrency);
+    if (!new_val.second) printf("get_threadpool is behaving weirdly\n");
+    return &(new_val.first->second);
 }
 
 } // namespace testing

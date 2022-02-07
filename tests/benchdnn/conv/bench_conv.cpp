@@ -40,12 +40,14 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
+    for_(const auto &i_ctx_init : s.ctx_init)
+    for_(const auto &i_ctx_exe : s.ctx_exe)
     for (const auto &i_mb : s.mb) {
         auto attr = settings_t::get_attr(i_oscale, i_zero_points, i_post_ops,
                 i_scratchpad_mode, i_fpmath_mode);
 
         const prb_t prb(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
-                attr, i_mb);
+                attr, i_ctx_init, i_ctx_exe, i_mb);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -91,6 +93,8 @@ int bench(int argc, char **argv) {
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_attr_fpmath_mode(
                         s.fpmath_mode, def.fpmath_mode, argv[0])
+                || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
+                || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv(), argv[0])

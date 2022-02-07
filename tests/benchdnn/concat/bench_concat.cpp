@@ -33,7 +33,9 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_axis : s.axis)
     for_(const auto &i_scales : s.scales)
-    for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
+    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for_(const auto &i_ctx_init : s.ctx_init)
+    for (const auto &i_ctx_exe : s.ctx_exe) {
         const int n_stags = static_cast<int>(i_stag.size());
         const int n_inputs = s.prb_vdims.n_inputs();
         if (n_stags != n_inputs && n_stags != 1) {
@@ -46,8 +48,8 @@ void check_correctness(const settings_t &s) {
 
         auto attr = settings_t::get_attr(i_scales, i_scratchpad_mode);
 
-        const prb_t prb(
-                s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_axis, attr);
+        const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_axis, attr,
+                i_ctx_init, i_ctx_exe);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -82,6 +84,8 @@ int bench(int argc, char **argv) {
                 || parse_attr_scales(s.scales, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
+                || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
+                || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv(), argv[0])
                 || parse_reset(s, argv[0]) || parse_help(argv[0]);

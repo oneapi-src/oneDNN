@@ -451,7 +451,8 @@ void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     // Update prb descriptor to re-use convolution reference.
     prb_t prb_tr((desc_t)*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
-            prb->dtag, prb->alg, prb->attr, prb->mb);
+            prb->dtag, prb->alg, prb->attr, prb->ctx_init, prb->ctx_exe,
+            prb->mb);
     std::swap(prb_tr.ic, prb_tr.oc);
     std::swap(prb_tr.ih, prb_tr.oh);
     std::swap(prb_tr.id, prb_tr.od);

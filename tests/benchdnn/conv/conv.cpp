@@ -405,7 +405,7 @@ int init_prim_ref(
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
     prb_t prb_cpu {*prb, prb->dir, conf_f32, tag::abx, tag::abx, tag::abx,
-            DIRECT, cpu_attr, prb->mb};
+            DIRECT, cpu_attr, prb->ctx_init, prb->ctx_exe, prb->mb};
 
     init_pd_args_t<prb_t> init_pd_args(
             /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
@@ -498,7 +498,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
@@ -640,7 +640,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    return measure_perf(res, prim, args);
+    return measure_perf(prb->ctx_exe, res, prim, args);
 }
 
 } // namespace conv

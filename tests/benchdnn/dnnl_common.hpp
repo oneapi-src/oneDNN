@@ -39,6 +39,8 @@ int check_primitive_cache(dnnl_primitive_t p);
 #include "utils/dims.hpp"
 #include "utils/dnnl_query.hpp"
 
+#include "tests/test_thread.hpp"
+
 #define for_ for
 
 #define DNN_SAFE(f, s) \
@@ -231,7 +233,7 @@ private:
 };
 
 struct stream_t {
-    stream_t(dnnl_engine_t engine);
+    stream_t(dnnl_engine_t engine, void *interop_obj = nullptr);
     ~stream_t();
     operator dnnl_stream_t() const { return stream_; }
 
@@ -562,7 +564,6 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     if (res->state == SKIPPED) return OK;
     skip_invalid_prb(prb, res);
     if (res->state == SKIPPED) return OK;
-
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
         // The first primitive creation using a temporary engine.
@@ -626,6 +627,19 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
 
     user_prim.reset(primw.release());
     return OK;
+}
+
+template <typename func_t, typename prb_t>
+int init_prim(const thr_ctx_t &thr_ctx,
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
+        const func_t &init_pd_func, prb_t *prb, res_t *res,
+        dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr,
+        bool is_service_prim = false) {
+    int (*f)(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &, const func_t &,
+            prb_t *, res_t *, dir_t, const_dnnl_primitive_desc_t, bool)
+            = &init_prim<func_t, prb_t>;
+    return create_in_thr_ctx(thr_ctx, f, user_prim, init_pd_func, prb, res, dir,
+            hint, is_service_prim);
 }
 
 // `check_correctness` function is designed to be called from every driver where
@@ -729,8 +743,10 @@ int execute_and_wait(
         dnnl_primitive_t prim, const args_t &args, res_t *res = nullptr);
 
 void reset_gpu_profiling();
-int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args);
-int measure_perf(res_t *res, dnnl_primitive_t prim, args_t &args);
+int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
+        args_t &args);
+int measure_perf(
+        const thr_ctx_t &ctx, res_t *res, dnnl_primitive_t prim, args_t &args);
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
         const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales);

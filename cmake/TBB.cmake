@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2021 Intel Corporation
+# Copyright 2018-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ macro(handle_tbb_target)
     # XXX: this is to make "ctest" working out-of-the-box with TBB
     string(REPLACE "/lib/" "/redist/" _tbb_redist_dir "${_tbb_lib_dir}")
     append_to_windows_path_list(CTESTCONFIG_PATH "${_tbb_redist_dir}")
+    add_compile_definitions(TBB_PREVIEW_TASK_ARENA_CONSTRAINTS_EXTENSION=1)
 endmacro()
 
 if(NOT DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
