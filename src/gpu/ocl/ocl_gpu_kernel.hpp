@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #define GPU_OCL_OCL_GPU_KERNEL_HPP
 
 #include <assert.h>
-#include <atomic>
 #include <string>
 #include <CL/cl.h>
 
@@ -29,6 +28,8 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+class ocl_gpu_kernel_cache_t;
 
 class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
@@ -89,12 +90,7 @@ public:
 
 protected:
     ocl_gpu_kernel_t(cl_kernel ocl_kernel,
-            const std::vector<gpu::compute::scalar_type_t> &arg_types)
-        : state_(state_t::kernel)
-        , ocl_kernel_(ocl_kernel)
-        , arg_types_(arg_types) {
-        OCL_CHECK_V(clRetainKernel(ocl_kernel_));
-    }
+            const std::vector<gpu::compute::scalar_type_t> &arg_types);
 
     state_t state_;
     cl_kernel ocl_kernel_;
@@ -107,8 +103,7 @@ protected:
 
     std::vector<gpu::compute::scalar_type_t> arg_types_;
 
-    // Used to protect cl_kernel before enqueueing to set arguments.
-    std::atomic<bool> is_locked_ {false};
+    std::shared_ptr<ocl_gpu_kernel_cache_t> cache_;
 };
 
 } // namespace ocl
