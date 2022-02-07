@@ -354,24 +354,50 @@ static inline data_t set_value(
 }
 
 template <typename data_t>
-static void fill_data(const memory::dim size, data_t *data, data_t mean,
+static void fill_data(const memory::dim nelems, data_t *data, data_t mean,
         data_t deviation, double sparsity = 1.) {
-    dnnl::impl::parallel_nd(size, [&](memory::dim n) {
+    dnnl::impl::parallel_nd(nelems, [&](memory::dim n) {
         data[n] = set_value<data_t>(n, mean, deviation, sparsity);
     });
 }
 
 template <typename data_t>
-static void fill_data(const memory::dim size, const memory &mem, data_t mean,
+static void fill_data(const memory::dim nelems, const memory &mem, data_t mean,
         data_t deviation, double sparsity = 1.) {
     auto data_ptr = map_memory<data_t>(mem);
-    fill_data<data_t>(size, data_ptr, mean, deviation, sparsity);
+    fill_data<data_t>(nelems, data_ptr, mean, deviation, sparsity);
+}
+
+inline void fill_data(memory::data_type dt, const memory &mem, float mean,
+        float deviation, double sparsity = 1.) {
+    size_t nelems = mem.get_desc().get_size() / memory::data_type_size(dt);
+    switch (dt) {
+        case memory::data_type::f32:
+            fill_data<float>(nelems, mem, mean, deviation, sparsity);
+            break;
+        case memory::data_type::bf16:
+            fill_data<bfloat16_t>(nelems, mem, mean, deviation, sparsity);
+            break;
+        case memory::data_type::f16:
+            fill_data<float16_t>(nelems, mem, mean, deviation, sparsity);
+            break;
+        case memory::data_type::s32:
+            fill_data<int>(nelems, mem, mean, deviation, sparsity);
+            break;
+        case memory::data_type::s8:
+            fill_data<int8_t>(nelems, mem, mean, deviation, sparsity);
+            break;
+        case memory::data_type::u8:
+            fill_data<uint8_t>(nelems, mem, mean, deviation, sparsity);
+            break;
+        default: assert(!"unsupported data type"); break;
+    }
 }
 
 template <typename data_t>
-static void fill_data(const memory::dim size, data_t *data,
+static void fill_data(const memory::dim nelems, data_t *data,
         double sparsity = 1., bool init_negs = false) {
-    dnnl::impl::parallel_nd(size, [&](memory::dim n) {
+    dnnl::impl::parallel_nd(nelems, [&](memory::dim n) {
         data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
 
         if (init_negs && n % 4 == 0)
@@ -381,10 +407,10 @@ static void fill_data(const memory::dim size, data_t *data,
 }
 
 template <typename data_t>
-static void fill_data(const memory::dim size, const memory &mem,
+static void fill_data(const memory::dim nelems, const memory &mem,
         double sparsity = 1., bool init_negs = false) {
     auto data_ptr = map_memory<data_t>(mem);
-    fill_data<data_t>(size, data_ptr, sparsity, init_negs);
+    fill_data<data_t>(nelems, data_ptr, sparsity, init_negs);
 }
 
 template <typename data_t>
