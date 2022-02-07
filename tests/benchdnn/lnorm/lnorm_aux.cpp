@@ -64,6 +64,11 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
         s << "--inplace=" << bool2str(prb.inplace) << " ";
 
     s << prb.attr;
+    if (canonical || prb.ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << prb.ctx_init << " ";
+    if (canonical || prb.ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << prb.ctx_exe << " ";
+
     s << static_cast<prb_dims_t>(prb);
 
     return s;

@@ -59,7 +59,8 @@ struct prb_t : public prb_vdims_t {
     prb_t(const prb_vdims_t &prb_vdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
             const std::vector<std::string> &stag, std::string dtag, alg_t alg,
-            bool inplace, const attr_t &attr)
+            bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe)
         : prb_vdims_t(prb_vdims)
         , sdt(sdt)
         , ddt(ddt)
@@ -67,7 +68,9 @@ struct prb_t : public prb_vdims_t {
         , dtag(dtag)
         , alg(alg)
         , inplace(inplace)
-        , attr(attr) {}
+        , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe) {}
     ~prb_t() {}
 
     dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
@@ -78,6 +81,7 @@ struct prb_t : public prb_vdims_t {
     alg_t alg;
     bool inplace;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -103,6 +107,8 @@ struct perf_report_t : public base_perf_report_t {
         return &p_->sdt;
     }
     const attr_t *attr() const override { return &p_->attr; }
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
     const std::vector<std::string> *stag() const override { return &stag_; }

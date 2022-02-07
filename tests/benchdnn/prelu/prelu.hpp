@@ -52,14 +52,22 @@ struct settings_t : public base_settings_t {
 struct prb_t : public prb_vdims_t {
     prb_t(const prb_vdims_t &prb_vdims, dir_t dir,
             const std::vector<dnnl_data_type_t> &sdt,
-            const std::vector<std::string> &stag, const attr_t &attr)
-        : prb_vdims_t(prb_vdims), dir(dir), sdt(sdt), stag(stag), attr(attr) {}
+            const std::vector<std::string> &stag, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
+        : prb_vdims_t(prb_vdims)
+        , dir(dir)
+        , sdt(sdt)
+        , stag(stag)
+        , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe) {}
     ~prb_t() {}
 
     dir_t dir;
     std::vector<dnnl_data_type_t> sdt;
     std::vector<std::string> stag;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -77,6 +85,8 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
+    const thr_ctx_t *ctx_init() const override { return &prb_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &prb_->ctx_exe; }
     const std::string *name() const override { return &prb_->name; }
     const dir_t *dir() const override { return &prb_->dir; }
     const std::vector<dnnl_data_type_t> *sdt() const override {

@@ -28,6 +28,7 @@
 
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
+#include "tests/test_thread.hpp"
 #include "utils/dims.hpp"
 
 namespace parser {
@@ -197,6 +198,11 @@ bool parse_attr_scratchpad_mode(
 bool parse_attr_fpmath_mode(std::vector<dnnl_fpmath_mode_t> &fpmath_mode,
         const std::vector<dnnl_fpmath_mode_t> &def_fpmath_mode, const char *str,
         const std::string &option_name = "attr-fpmath");
+
+bool parse_ctx_init(std::vector<thr_ctx_t> &ctx,
+        const std::vector<thr_ctx_t> &def_ctx, const char *str);
+bool parse_ctx_exe(std::vector<thr_ctx_t> &ctx,
+        const std::vector<thr_ctx_t> &def_ctx, const char *str);
 
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name = "axis");

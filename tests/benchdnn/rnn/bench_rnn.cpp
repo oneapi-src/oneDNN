@@ -45,6 +45,8 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_n_iter : s.n_iter)
     for_(const auto &i_mb : s.mb)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for_(const auto &i_ctx_init : s.ctx_init)
+    for_(const auto &i_ctx_exe : s.ctx_exe)
     for (const auto &i_fpmath_mode : s.fpmath_mode) {
         if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
 
@@ -66,9 +68,9 @@ void check_correctness(const settings_t &s) {
 
         const prb_t prb(s.desc, dt_conf_t::create(i_cfg, attr), i_prop, i_alg,
                 i_with_peephole, i_with_projection, i_direction, i_scale_policy,
-                i_scale_proj_policy, s.flags, i_activation, attr, s.alpha,
-                s.beta, i_skip_nonlinear, i_trivial_strides, i_n_layer,
-                i_n_iter, i_mb);
+                i_scale_proj_policy, s.flags, i_activation, attr, i_ctx_init,
+                i_ctx_exe, s.alpha, s.beta, i_skip_nonlinear, i_trivial_strides,
+                i_n_layer, i_n_iter, i_mb);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -152,6 +154,8 @@ int bench(int argc, char **argv) {
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_attr_fpmath_mode(
                         s.fpmath_mode, def.fpmath_mode, argv[0])
+                || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
+                || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv(), argv[0])
                 || parse_reset(s, argv[0]) || parse_help(argv[0]);

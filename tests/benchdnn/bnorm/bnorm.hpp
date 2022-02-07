@@ -91,7 +91,9 @@ struct settings_t : public base_settings_t {
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, flags_t flags, bool inplace,
-            const attr_t &attr, check_alg_t check_alg, bool debug_check_ws)
+            const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe, check_alg_t check_alg,
+            bool debug_check_ws)
         : desc_t(desc)
         , check_alg(check_alg)
         , debug_check_ws(debug_check_ws)
@@ -101,6 +103,8 @@ struct prb_t : public desc_t {
         , flags(flags)
         , inplace(inplace)
         , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe)
         , user_mb(mb) {
         if (mb) this->mb = mb;
     }
@@ -115,6 +119,7 @@ struct prb_t : public desc_t {
     flags_t flags;
     bool inplace;
     attr_t attr;
+    const thr_ctx_t ctx_init, ctx_exe;
     int64_t user_mb;
 
     bool need_ws() const {
@@ -152,6 +157,8 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     const attr_t *attr() const override { return &p_->attr; }
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const int64_t *user_mb() const override { return &p_->user_mb; }
     const std::string *name() const override { return &p_->name; }
     const dir_t *dir() const override { return &p_->dir; }

@@ -57,7 +57,8 @@ struct prb_t : public prb_dims_t {
     prb_t(const prb_dims_t &prb_dims, const std::vector<dnnl_data_type_t> &sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
             const std::string &dtag, const std::vector<float> &input_scales,
-            bool inplace, const attr_t &attr)
+            bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe)
         : prb_dims_t(prb_dims)
         , sdt(sdt)
         , ddt(ddt)
@@ -65,7 +66,9 @@ struct prb_t : public prb_dims_t {
         , dtag(dtag)
         , input_scales(input_scales)
         , inplace(inplace)
-        , attr(attr) {
+        , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe) {
         // Broadcast tag if needed
         if (stag.size() == 1) {
             const auto val = stag[0]; // Need a copy here.
@@ -88,6 +91,7 @@ struct prb_t : public prb_dims_t {
     std::vector<float> input_scales;
     bool inplace;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
 
     int n_inputs() const { return (int)sdt.size(); }
 };
@@ -109,6 +113,8 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const std::vector<dnnl_data_type_t> *sdt() const override {
         return &p_->sdt;

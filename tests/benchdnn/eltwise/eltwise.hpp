@@ -58,7 +58,8 @@ struct settings_t : public base_settings_t {
 struct prb_t : public prb_dims_t {
     prb_t(const prb_dims_t &prb_dims, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, alg_t alg, float alpha, float beta,
-            bool inplace, const attr_t &attr, int64_t mb = 0)
+            bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe, int64_t mb = 0)
         : prb_dims_t(prb_dims)
         , dir(dir)
         , dt(dt)
@@ -68,6 +69,8 @@ struct prb_t : public prb_dims_t {
         , beta(beta)
         , inplace(inplace)
         , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe)
         , user_mb(mb) {
         if (mb) dims[0] = mb;
     }
@@ -80,6 +83,7 @@ struct prb_t : public prb_dims_t {
     float alpha, beta;
     bool inplace;
     attr_t attr;
+    const thr_ctx_t ctx_init, ctx_exe;
     int64_t user_mb;
 
     bool use_dst() const {
@@ -105,6 +109,8 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }

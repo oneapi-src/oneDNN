@@ -153,7 +153,7 @@ struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
             const std::string &stag, const std::string &wtag,
             const std::string &dtag, alg_t alg, const attr_t &attr,
-            int64_t mb = 0)
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe, int64_t mb = 0)
         : desc_t(desc)
         , dir(dir)
         , cfg(cfg)
@@ -162,6 +162,8 @@ struct prb_t : public desc_t {
         , dtag(dtag)
         , alg(alg)
         , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe)
         , user_mb(mb)
         , ops(0)
         , scales(NULL)
@@ -184,6 +186,7 @@ struct prb_t : public desc_t {
     std::string stag, wtag, dtag;
     alg_t alg;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
     int64_t user_mb;
 
     double ops;
@@ -246,6 +249,8 @@ struct perf_report_t : public base_perf_report_t {
 
     double ops() const override { return p_->ops; }
     const attr_t *attr() const override { return &p_->attr; }
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const int64_t *user_mb() const override { return &p_->user_mb; }
     const std::string *name() const override { return &p_->name; }
     const dir_t *dir() const override { return &p_->dir; }

@@ -55,14 +55,17 @@ struct settings_t : public base_settings_t {
 struct prb_t : public prb_vdims_t {
     prb_t(const prb_vdims_t &prb_vdims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
-            const std::string &dtag, int axis, const attr_t &attr)
+            const std::string &dtag, int axis, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
         : prb_vdims_t(prb_vdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
         , axis(axis)
-        , attr(attr) {
+        , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe) {
         // If dst is omitted by `dtag = tag::undef`, omit `ddt` as well.
         if (dtag == tag::undef) this->ddt = dnnl_data_type_undef;
 
@@ -82,6 +85,7 @@ struct prb_t : public prb_vdims_t {
     std::string dtag;
     int axis;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
 
     int64_t axis_size() const {
         int64_t as = 0;
@@ -109,6 +113,8 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const int *axis() const override { return &p_->axis; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }

@@ -258,7 +258,8 @@ struct prb_t : public desc_t {
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, policy_t scale_policy,
             policy_t scale_proj_policy, unsigned int flags,
-            activation_t activation, const attr_t &attr, float alpha,
+            activation_t activation, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe, float alpha,
             float beta, bool skip_nonlinear, bool trivial_strides,
             int64_t n_layer, int64_t n_iter, int64_t mb = 0)
         : desc_t(desc)
@@ -274,6 +275,8 @@ struct prb_t : public desc_t {
         , flags(flags)
         , activation(activation)
         , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe)
         , user_mb(mb)
         , alpha(alpha)
         , beta(beta)
@@ -399,6 +402,7 @@ struct prb_t : public desc_t {
     unsigned int flags;
     activation_t activation;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
     int64_t user_mb;
     float alpha;
     float beta;
@@ -455,6 +459,8 @@ struct perf_report_t : public base_perf_report_t {
 
     double ops() const override { return p_->ops; }
     const int64_t *user_mb() const override { return &p_->user_mb; }
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const dnnl_prop_kind_t *prop() const override { return &p_->prop; }
 

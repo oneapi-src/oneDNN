@@ -83,6 +83,7 @@ struct prb_t : public prb_dims_t {
     prb_t(const prb_dims_t &prb_dims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &stag,
             const std::string &dtag, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
             const std::vector<flag_t> &oflag, cross_engine_t cross_engine,
             unsigned runtime_dim_mask)
         : prb_dims_t(prb_dims)
@@ -91,6 +92,8 @@ struct prb_t : public prb_dims_t {
         , stag(stag)
         , dtag(dtag)
         , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe)
         , oflag(oflag)
         , cross_engine(cross_engine)
         , runtime_dim_mask(runtime_dim_mask) {
@@ -108,6 +111,7 @@ struct prb_t : public prb_dims_t {
     dnnl_data_type_t sdt, ddt;
     std::string stag, dtag;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
     std::vector<flag_t> oflag;
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
@@ -154,6 +158,8 @@ struct perf_report_t : public base_perf_report_t {
     void dump_flags(std::ostream &s) const override { s << p_->oflag; }
 
     const attr_t *attr() const override { return &p_->attr; }
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
     const dnnl_data_type_t *ddt() const override { return &p_->ddt; }

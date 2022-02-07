@@ -69,7 +69,8 @@ struct prb_t : public prb_vdims_t {
             const std::string &stag, const std::string &wtag,
             const std::string &dtag, const vdims_t &strides,
             dnnl_data_type_t bia_dt, int bia_mask,
-            const std::vector<dims_mask_t> &rt_dims_masks, const attr_t &attr)
+            const std::vector<dims_mask_t> &rt_dims_masks, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
         : prb_vdims_t(prb_vdims)
         , dt(dt)
         , stag(stag)
@@ -80,6 +81,8 @@ struct prb_t : public prb_vdims_t {
         , bia_mask(bia_mask)
         , rt_dims_masks(rt_dims_masks)
         , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe)
         , scales(NULL) {
 
         // Broadcast data types if needed
@@ -124,6 +127,7 @@ struct prb_t : public prb_vdims_t {
     std::vector<dims_mask_t> rt_dims_masks;
 
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
 
     double ops;
     float *scales;
@@ -203,6 +207,8 @@ struct perf_report_t : public base_perf_report_t {
         return &p_->dt;
     }
     const attr_t *attr() const override { return &p_->attr; }
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const std::vector<std::string> *stag() const override { return &stag_; }
     const std::string *wtag() const override { return &wtag_; }

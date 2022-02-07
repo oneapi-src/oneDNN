@@ -58,14 +58,17 @@ struct settings_t : public base_settings_t {
 
 struct prb_t : public prb_dims_t {
     prb_t(const prb_dims_t &prb_dims, dir_t dir, dnnl_data_type_t dt,
-            const std::string &tag, int axis, int64_t group, const attr_t &attr)
+            const std::string &tag, int axis, int64_t group, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
         : prb_dims_t(prb_dims)
         , dir(dir)
         , dt(dt)
         , tag(tag)
         , axis(axis)
         , group(group)
-        , attr(attr) {}
+        , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe) {}
     ~prb_t() {}
 
     dir_t dir;
@@ -74,6 +77,7 @@ struct prb_t : public prb_dims_t {
     int axis;
     int64_t group;
     attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -89,6 +93,8 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
+    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
+    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const int *axis() const override { return &p_->axis; }
     const int64_t *group() const override { return &p_->group; }

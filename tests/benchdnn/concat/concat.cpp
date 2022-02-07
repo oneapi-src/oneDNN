@@ -121,7 +121,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
@@ -173,7 +173,7 @@ int doit(const prb_t *prb, res_t *res) {
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
-    return measure_perf(res, prim, args);
+    return measure_perf(prb->ctx_exe, res, prim, args);
 }
 
 } // namespace concat
