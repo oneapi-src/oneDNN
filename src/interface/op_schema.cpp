@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,6 +152,15 @@ shape_infer_fn op_schema_t::get_shape_inference_function() const {
     return tensor_inference_function_;
 }
 
+op_schema_t &op_schema_t::set_type_constraint_function(type_constraint_fn fn) {
+    op_type_constraint_function_ = std::move(fn);
+    return *this;
+}
+
+type_constraint_fn op_schema_t::get_type_constraint_function() const {
+    return op_type_constraint_function_;
+}
+
 bool op_schema_t::verify_param_num(size_t actual_num,
         const std::set<size_t> &expected_num, param_num_option option) const {
     switch (option) {
@@ -270,6 +279,10 @@ bool op_schema_t::verify(const op_t *l_op) const {
 
     param_dtype_verify_result = verify_param_dtype(l_op->get_output_values(),
             outputs_, outputs_option, dtype_constraints);
+    if (!param_dtype_verify_result) { return false; }
+
+    type_constraint_fn tc_fn = get_type_constraint_function();
+    if (tc_fn) { param_dtype_verify_result = tc_fn(l_op); }
     if (!param_dtype_verify_result) { return false; }
 
     bool attr_verify_result

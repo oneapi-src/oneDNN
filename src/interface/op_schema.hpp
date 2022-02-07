@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ namespace impl {
 using opset_version = size_t;
 using shape_infer_fn = std::function<status_t(op_t *,
         std::vector<logical_tensor_t *> &, std::vector<logical_tensor_t *> &)>;
+using type_constraint_fn = std::function<bool(const op_t *)>;
 
 class op_schema_t {
 public:
@@ -202,6 +203,12 @@ public:
     /*! @brief Get shape inference function of the op schema. */
     shape_infer_fn get_shape_inference_function() const;
 
+    /*! @brief Set type constraint function of the op schema. */
+    op_schema_t &set_type_constraint_function(type_constraint_fn fn);
+
+    /*! @brief Get type constraint function of the op schema. */
+    type_constraint_fn get_type_constraint_function() const;
+
     /*! @brief Get inputs of the op schema. */
     const std::vector<op_parameter_t> &get_inputs() const;
 
@@ -267,6 +274,7 @@ private:
     std::vector<op_parameter_t> outputs_;
     std::unordered_map<std::string, attribute_t> attributes_;
     shape_infer_fn tensor_inference_function_;
+    type_constraint_fn op_type_constraint_function_;
 };
 
 using op_kind_version_schema_map

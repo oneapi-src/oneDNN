@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
 
     logical_tensor conv0_src_desc {logical_id[0], data_type::bf16, input_dims, layout_type::strided};
     logical_tensor conv0_weight_desc {logical_id[1], data_type::bf16, weight_dims, layout_type::strided};
-    logical_tensor conv0_bias_desc {logical_id[2], data_type::f32, bias_dims, layout_type::strided};
+    logical_tensor conv0_bias_desc {logical_id[2], data_type::bf16, bias_dims, layout_type::strided};
     logical_tensor conv0_dst_desc {logical_id[3], data_type::bf16, dst_dims, layout_type::strided};
     
     op conv0 {0, op::kind::Convolution, {conv0_src_desc, conv0_weight_desc}, {conv0_dst_desc}, "conv0"};
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
     op relu0 {2, op::kind::ReLU, {conv0_bias_add_dst_desc}, {relu0_dst_desc}, "relu0"};
 
     logical_tensor conv1_weight_desc {logical_id[5], data_type::bf16, weight1_dims, layout_type::strided};
-    logical_tensor conv1_bias_desc {logical_id[6], data_type::f32, bias1_dims, layout_type::strided};
+    logical_tensor conv1_bias_desc {logical_id[6], data_type::bf16, bias1_dims, layout_type::strided};
     logical_tensor conv1_dst_desc {logical_id[7], data_type::bf16, dst_dims, layout_type::strided};
     
     op conv1 {3, op::kind::Convolution, {relu0_dst_desc, conv1_weight_desc}, {conv1_dst_desc}, "conv1"};

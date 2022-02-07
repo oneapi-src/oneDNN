@@ -3552,3 +3552,72 @@ TEST(OpSchema, InferInterpolateBackpropShape) {
     std::vector<int64_t> expected_out_shape = {8, 7, 6, 5};
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 }
+
+TEST(OpSchema, FailToTypecastBf16ToF16) {
+    const op_schema_t *schema
+            = op_schema_registry_t::get_op_schema(op_kind::TypeCast);
+
+    op_t typecast {0, op_kind::TypeCast, std::string("typecast")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t lt_output = logical_tensor_init(1, data_type::f16);
+
+    typecast.add_input(lt_data);
+    typecast.add_output(lt_output);
+
+    EXPECT_FALSE(schema->verify(&typecast));
+}
+
+TEST(OpSchema, FailToTypecastF32ToF32) {
+    const op_schema_t *schema
+            = op_schema_registry_t::get_op_schema(op_kind::TypeCast);
+
+    op_t typecast {0, op_kind::TypeCast, std::string("typecast")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_output = logical_tensor_init(1, data_type::f32);
+
+    typecast.add_input(lt_data);
+    typecast.add_output(lt_output);
+
+    EXPECT_FALSE(schema->verify(&typecast));
+}
+
+TEST(OpSchema, FailToAddBn) {
+    const op_schema_t *schema
+            = op_schema_registry_t::get_op_schema(op_kind::BatchNormInference);
+
+    op_t bn {0, op_kind::BatchNormInference, std::string("bn")};
+    bn.set_attr("epsilon", 0.001f);
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::bf16);
+    logical_tensor_t lt_beta = logical_tensor_init(2, data_type::bf16);
+    logical_tensor_t lt_mean = logical_tensor_init(3, data_type::bf16);
+    logical_tensor_t lt_var = logical_tensor_init(4, data_type::bf16);
+    logical_tensor_t lt_output = logical_tensor_init(5, data_type::f32);
+
+    bn.add_input(lt_data);
+    bn.add_input(lt_gamma);
+    bn.add_input(lt_beta);
+    bn.add_input(lt_mean);
+    bn.add_input(lt_var);
+    bn.add_output(lt_output);
+
+    EXPECT_FALSE(schema->verify(&bn));
+}
+
+TEST(OpSchema, FailToAddLn) {
+    const op_schema_t *schema
+            = op_schema_registry_t::get_op_schema(op_kind::LayerNorm);
+
+    op_t ln {0, op_kind::LayerNorm, std::string("ln")};
+    logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::bf16);
+    logical_tensor_t lt_beta = logical_tensor_init(2, data_type::bf16);
+    logical_tensor_t lt_output = logical_tensor_init(5, data_type::f32);
+
+    ln.add_input(lt_data);
+    ln.add_input(lt_gamma);
+    ln.add_input(lt_beta);
+    ln.add_output(lt_output);
+
+    EXPECT_FALSE(schema->verify(&ln));
+}

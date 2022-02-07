@@ -22,6 +22,7 @@
 
 #include "op_schema.hpp"
 #include "shape_infer.hpp"
+#include "type_constraint.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -138,7 +139,8 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
-                .set_shape_inference_function(infer_identity_output_shape))
+                .set_shape_inference_function(infer_identity_output_shape)
+                .set_type_constraint_function(check_bn_fwd_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
         op_schema_t()
@@ -176,7 +178,8 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
-                .set_shape_inference_function(infer_bn_fwd_train_output_shape))
+                .set_shape_inference_function(infer_bn_fwd_train_output_shape)
+                .set_type_constraint_function(check_bn_fwd_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
         op_schema_t()
@@ -220,23 +223,22 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
-                .set_shape_inference_function(infer_bn_bwd_output_shape))
+                .set_shape_inference_function(infer_bn_bwd_output_shape)
+                .set_type_constraint_function(check_bn_bwd_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "data tensor", "T1")
-                .set_input(1, "bias", "1D tensor", "T2")
-                .set_output(0, "output", "sum of input and bias", "T1")
+                .set_input(0, "input", "data tensor", "T")
+                .set_input(1, "bias", "1D tensor", "T")
+                .set_output(0, "output", "sum of input and bias", "T")
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
                 .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints(
-                        "T2", {data_type::f32, data_type::bf16, data_type::f16})
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_bias_add_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(BiasAddBackprop, 1,
@@ -304,14 +306,12 @@ DNNL_GRAPH_OP_SCHEMA(Convolution, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "filter", "filter tensor", "T1")
-                .set_input(2, "bias", "bias tensor", "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "input", "input tensor", "T")
+                .set_input(1, "filter", "filter tensor", "T")
+                .set_input(2, "bias", "bias tensor", "T")
+                .set_output(0, "output", "output tensor", "T")
                 .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints(
-                        "T2", {data_type::f32, data_type::bf16, data_type::f16})
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_conv_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
@@ -620,7 +620,8 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
-                .set_shape_inference_function(infer_norm_output_shape))
+                .set_shape_inference_function(infer_norm_output_shape)
+                .set_type_constraint_function(check_ln_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
         op_schema_t()
@@ -667,7 +668,8 @@ DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
-                .set_shape_inference_function(infer_norm_bprop_output_shape))
+                .set_shape_inference_function(infer_norm_bprop_output_shape)
+                .set_type_constraint_function(check_ln_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(Log, 1,
         op_schema_t()
@@ -714,14 +716,12 @@ DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor", "T1")
-                .set_input(1, "b", "second input tensor", "T1")
-                .set_input(2, "bias", "bias tensor", "T2")
-                .set_output(0, "output", "output tensor", "T1")
+                .set_input(0, "a", "first input tensor", "T")
+                .set_input(1, "b", "second input tensor", "T")
+                .set_input(2, "bias", "bias tensor", "T")
+                .set_output(0, "output", "output tensor", "T")
                 .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints(
-                        "T2", {data_type::f32, data_type::bf16, data_type::f16})
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_MATMUL_COMMON_ATTRS)
 
@@ -1302,7 +1302,8 @@ DNNL_GRAPH_OP_SCHEMA(TypeCast, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints(
                         "T2", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_identity_output_shape))
+                .set_shape_inference_function(infer_identity_output_shape)
+                .set_type_constraint_function(check_typecast_data_type))
 
 DNNL_GRAPH_OP_SCHEMA(StaticReshape, 1,
         op_schema_t()
