@@ -31,6 +31,7 @@
 #include "interface/op.hpp"
 
 #include "utils/attribute_value.hpp"
+#include "utils/rw_mutex.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -294,6 +295,7 @@ private:
     /* !@brief Returns the static op_kind_version_schema_map.*/
     static op_kind_version_schema_map &get_map_without_ensuring_registration();
     static op_kind_version_schema_map &get_map();
+    static utils::rw_mutex_t &get_rw_mutex();
 };
 
 #ifdef GNUC

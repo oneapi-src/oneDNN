@@ -361,14 +361,25 @@ op_schema_registry_t::op_schema_registry_once_t::op_schema_registry_once_t(
     const op_kind_t kind = schema.get_op_kind();
     opset_version op_version = schema.get_since_version();
 
+    // The schema registry may be being written by one thread to register
+    // internal ops for a backend. At the same time, the schema registry may
+    // also be being read by another thread to add a spec op into a graph. So,
+    // we use the read/write lock here to avoid data race.
+    get_rw_mutex().lock_write();
     op_map[kind].insert(std::pair<opset_version, op_schema_t &&>(
             op_version, std::move(schema)));
+    get_rw_mutex().unlock_write();
 }
 
 op_kind_version_schema_map &
 op_schema_registry_t::get_map_without_ensuring_registration() {
     static op_kind_version_schema_map op_map;
     return op_map;
+}
+
+utils::rw_mutex_t &op_schema_registry_t::get_rw_mutex() {
+    static utils::rw_mutex_t mutex;
+    return mutex;
 }
 
 op_kind_version_schema_map &op_schema_registry_t::get_map() {
@@ -385,11 +396,11 @@ op_kind_version_schema_map &op_schema_registry_t::get_map() {
 
 const op_schema_t *op_schema_registry_t::get_op_schema(op_kind_t kind) {
     auto &op_map = get_map();
-    if (op_map.count(kind)) {
-        return &op_map[kind].rbegin()->second;
-    } else {
-        return nullptr;
-    }
+    op_schema_t *schema = nullptr;
+    get_rw_mutex().lock_read();
+    if (op_map.count(kind)) { schema = &op_map[kind].rbegin()->second; }
+    get_rw_mutex().unlock_read();
+    return schema;
 }
 
 void register_schema(op_schema_t &&schema) {
