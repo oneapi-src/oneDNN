@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -418,13 +418,13 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(
 template struct jit_uni_eltwise_fwd_t<sse41, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx2, data_type::f32>;
-template struct jit_uni_eltwise_fwd_t<avx512_common, data_type::f32>;
+template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::bf16>;
 
 template struct jit_uni_eltwise_bwd_t<sse41, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx2, data_type::f32>;
-template struct jit_uni_eltwise_bwd_t<avx512_common, data_type::f32>;
+template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::bf16>;
 
 } // namespace x64

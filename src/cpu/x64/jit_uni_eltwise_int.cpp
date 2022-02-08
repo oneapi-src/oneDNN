@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel {
         assert(utils::one_of(desc.alg_kind, alg_kind::eltwise_relu,
                 alg_kind::eltwise_linear));
         assert(utils::one_of(data_type(), s32, s8, u8));
-        assert(utils::one_of(isa, sse41, avx2, avx512_common));
+        assert(utils::one_of(isa, sse41, avx2, avx512_core));
     }
 
     void generate() override {
@@ -99,7 +99,7 @@ struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel {
 
         uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
         xor_(reg_int8, reg_int8);
-        if (isa == avx512_common) {
+        if (isa == avx512_core) {
             mov(reg_int8.cvt8(), 0x01);
             kmovw(k_mask_int8, reg_int8.cvt32());
         }
@@ -138,11 +138,11 @@ private:
     Xmm xmm_alpha = Xmm(13);
     Xmm xmm_beta = Xmm(14);
 
-    Vmm vmm_tmp = Vmm(isa == avx512_common ? 26 : 11);
-    Vmm vmm_alpha = Vmm(isa == avx512_common ? 27 : 13);
-    Vmm vmm_beta = Vmm(isa == avx512_common ? 28 : 14);
-    Vmm vmm_zero = Vmm(isa == avx512_common ? 29 : 15);
-    Vmm vmm_mask = Vmm(isa == avx512_common ? 30 : 12);
+    Vmm vmm_tmp = Vmm(isa == avx512_core ? 26 : 11);
+    Vmm vmm_alpha = Vmm(isa == avx512_core ? 27 : 13);
+    Vmm vmm_beta = Vmm(isa == avx512_core ? 28 : 14);
+    Vmm vmm_zero = Vmm(isa == avx512_core ? 29 : 15);
+    Vmm vmm_mask = Vmm(isa == avx512_core ? 30 : 12);
 
     opmask_t k_mask = k1;
     opmask_t k_mask_int8 = k2; // Mask for store 1 byte in case of AVX512
@@ -304,7 +304,7 @@ void jit_uni_subkernel_int_t<avx2>::process_relu(
 }
 
 template <>
-void jit_uni_subkernel_int_t<avx512_common>::process_relu(
+void jit_uni_subkernel_int_t<avx512_core>::process_relu(
         const Vmm &vr_to, const Vmm &vr_from) {
 
     vcvtdq2ps(vr_from, vr_from);
@@ -377,7 +377,7 @@ void jit_uni_subkernel_int_t<avx2>::store_8bit(const bool vectorize,
 }
 
 template <>
-void jit_uni_subkernel_int_t<avx512_common>::store_8bit(const bool vectorize,
+void jit_uni_subkernel_int_t<avx512_core>::store_8bit(const bool vectorize,
         const Address &mem_to, const Vmm &vr_to, bool is_signed) {
     if (vectorize) {
         // store full Vmm size
@@ -463,15 +463,15 @@ using namespace data_type;
 
 template struct jit_uni_eltwise_int_fwd_t<sse41, s32>;
 template struct jit_uni_eltwise_int_fwd_t<avx2, s32>;
-template struct jit_uni_eltwise_int_fwd_t<avx512_common, s32>;
+template struct jit_uni_eltwise_int_fwd_t<avx512_core, s32>;
 
 template struct jit_uni_eltwise_int_fwd_t<sse41, s8>;
 template struct jit_uni_eltwise_int_fwd_t<avx2, s8>;
-template struct jit_uni_eltwise_int_fwd_t<avx512_common, s8>;
+template struct jit_uni_eltwise_int_fwd_t<avx512_core, s8>;
 
 template struct jit_uni_eltwise_int_fwd_t<sse41, u8>;
 template struct jit_uni_eltwise_int_fwd_t<avx2, u8>;
-template struct jit_uni_eltwise_int_fwd_t<avx512_common, u8>;
+template struct jit_uni_eltwise_int_fwd_t<avx512_core, u8>;
 
 } // namespace x64
 } // namespace cpu
