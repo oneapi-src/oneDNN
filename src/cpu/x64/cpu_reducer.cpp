@@ -263,7 +263,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
     }
 
     void generate() override {
-        assert(isa == avx2 || isa == avx512_common);
+        static_assert(isa == avx2 || isa == avx512_core, "unsupported CPU ISA");
 
         this->preamble();
 
@@ -287,8 +287,8 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
 template <impl::data_type_t data_type>
 inline reducer_2d_driver_t<data_type> *create_reduce_2d_drv(int n_src,
         size_t src_ld, size_t src_step, size_t dst_step, bool nullify_dst) {
-    if (mayiuse(avx512_common))
-        return new reducer_2d_driver_f_s_32_t<data_type, avx512_common>(
+    if (mayiuse(avx512_core))
+        return new reducer_2d_driver_f_s_32_t<data_type, avx512_core>(
                 n_src, src_ld, src_step, dst_step, nullify_dst);
     else if (mayiuse(avx2))
         return new reducer_2d_driver_f_s_32_t<data_type, avx2>(
