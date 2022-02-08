@@ -3718,7 +3718,11 @@ void compute_reorder_block2block(const context_ptr &ctx,
                     expr(0),
                     no_padding ? dst.get_shape()[i]
                                : dim2unsigned(output_blocking_dims[i]),
-                    expr(1), std::move(body), true, for_type::NORMAL);
+                    i == static_cast<int>(output_blocking_dims.size()) - 1
+                                    && can_vectorize
+                            ? expr(static_cast<int>(step))
+                            : expr(1),
+                    std::move(body), true, for_type::NORMAL);
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
