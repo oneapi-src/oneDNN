@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_common), brg(abrd) {
+    : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core), brg(abrd) {
 
     if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 

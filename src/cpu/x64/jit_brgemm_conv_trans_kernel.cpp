@@ -41,7 +41,7 @@ jit_avx512_core_brgemm_conv_trans_kernel_t::
     dst_w_offset = jcp.kh_sets * jcp.kw_sets * ic_block_sz;
     dst_h_offset = dst_stride * dst_w_offset;
     iw_size = inp_dsz * jcp.ngroups * jcp.ic_without_padding;
-    VL = cpu_isa_traits<avx512_common>::vlen;
+    VL = cpu_isa_traits<avx512_core>::vlen;
     n_vec = jcp.ic_block / jcp.simd_w;
     n_tail_vec = (jcp.ic_without_padding % jcp.ic_block) / jcp.simd_w;
 }

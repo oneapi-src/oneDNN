@@ -305,7 +305,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     save_state, reserved_eltwise_gpr, reserved_eltwise_maskr};
 
             postops_injector_ = utils::make_unique<
-                    injector::jit_uni_postops_injector_t<avx512_common>>(
+                    injector::jit_uni_postops_injector_t<avx512_core>>(
                     this, attr.post_ops_, bsp, esp);
         }
 
@@ -336,7 +336,7 @@ private:
     data_type_t out_dt_;
     data_type_t bia_dt_;
 
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_common>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
     const bool with_binary_per_oc_bcast_;
 

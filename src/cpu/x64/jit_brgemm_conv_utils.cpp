@@ -1665,7 +1665,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
 
-    jcp.simd_w = cpu_isa_traits<avx512_common>::vlen / jcp.src_dsz;
+    jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / jcp.src_dsz;
     jcp.amx_h = 16;
     jcp.amx_w = 64 / jcp.src_dsz;
 

@@ -794,7 +794,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     const memory_desc_wrapper dst_d(&dst_md);
 
     using namespace prop_kind;
-    if (!mayiuse(avx512_common)) return status::unimplemented;
+    if (!mayiuse(avx512_core)) return status::unimplemented;
 
     int ndims = src_d.ndims();
     if (weights_d.ndims() != ndims || dst_d.ndims() != 2)

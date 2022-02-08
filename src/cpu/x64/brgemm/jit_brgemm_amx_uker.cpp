@@ -38,7 +38,7 @@ using namespace Xbyak;
 
 struct jit_brgemm_amx_uker_base_t : public jit_generator {
     jit_brgemm_amx_uker_base_t(const brgemm_t &abrg)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_common)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core)
         , brg(abrg)
         , postops_injector_(nullptr) {
 
