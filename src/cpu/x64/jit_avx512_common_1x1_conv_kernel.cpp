@@ -68,7 +68,7 @@ jit_avx512_common_1x1_conv_kernel::jit_avx512_common_1x1_conv_kernel(
                 this->param1, rhs_arg_static_params};
 
         postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<avx512_common>>(
+                injector::jit_uni_postops_injector_t<avx512_core>>(
                 this, jcp.post_ops, static_params);
     }
 }
@@ -329,7 +329,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
         };
 
         Label unaligned_store, end_store;
-        test(aux_reg_output_data, cpu_isa_traits<avx512_common>::vlen - 1);
+        test(aux_reg_output_data, cpu_isa_traits<avx512_core>::vlen - 1);
         jnz(unaligned_store, T_NEAR);
         store_output(true);
         jmp(end_store, T_NEAR);
@@ -544,7 +544,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, int nthreads, bool reduce_src) {
-    if (!mayiuse(avx512_common)) return status::unimplemented;
+    if (!mayiuse(avx512_core)) return status::unimplemented;
 
     if (!everyone_is(data_type::f32, src_d.data_type(), weights_d.data_type(),
                 dst_d.data_type()))
@@ -553,7 +553,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.nthr = nthreads;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    const int simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    const int simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     const int ndims = src_d.ndims();
 
     jcp.prop_kind = cd.prop_kind;
@@ -639,9 +639,9 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = true;
     static constexpr bool sum_requires_zp_zero = true;
-    const bool post_ops_ok_ = post_ops_ok({avx512_common,
-            {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
-            sum_requires_scale_one, sum_requires_zp_zero});
+    const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
+            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
+            sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == required_dat_tag

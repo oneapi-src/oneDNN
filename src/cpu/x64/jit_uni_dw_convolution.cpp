@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,8 +163,7 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
 REG_AVX512_ISA(
         template struct jit_uni_dw_convolution_fwd_t<avx512_core, bf16, f32>);
 REG_AVX512_ISA(template struct jit_uni_dw_convolution_fwd_t<avx512_core, bf16>);
-REG_AVX512_ISA(
-        template struct jit_uni_dw_convolution_fwd_t<avx512_common, f32>);
+REG_AVX512_ISA(template struct jit_uni_dw_convolution_fwd_t<avx512_core, f32>);
 REG_AVX2_ISA(template struct jit_uni_dw_convolution_fwd_t<avx2, f32>);
 REG_SSE41_ISA(template struct jit_uni_dw_convolution_fwd_t<sse41, f32>);
 
@@ -309,7 +308,7 @@ REG_AVX512_ISA(template struct jit_uni_dw_convolution_bwd_data_t<avx512_core,
 REG_AVX512_ISA(
         template struct jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16>);
 REG_AVX512_ISA(
-        template struct jit_uni_dw_convolution_bwd_data_t<avx512_common, f32>);
+        template struct jit_uni_dw_convolution_bwd_data_t<avx512_core, f32>);
 REG_AVX2_ISA(template struct jit_uni_dw_convolution_bwd_data_t<avx2, f32>);
 REG_SSE41_ISA(template struct jit_uni_dw_convolution_bwd_data_t<sse41, f32>);
 
@@ -963,8 +962,7 @@ REG_AVX512_ISA(template struct jit_uni_dw_convolution_bwd_weights_t<avx512_core,
 REG_AVX512_ISA(template struct jit_uni_dw_convolution_bwd_weights_t<avx512_core,
         bf16, f32>);
 REG_AVX512_ISA(
-        template struct jit_uni_dw_convolution_bwd_weights_t<avx512_common,
-                f32>);
+        template struct jit_uni_dw_convolution_bwd_weights_t<avx512_core, f32>);
 REG_AVX2_ISA(template struct jit_uni_dw_convolution_bwd_weights_t<avx2, f32>);
 REG_SSE41_ISA(template struct jit_uni_dw_convolution_bwd_weights_t<sse41, f32>);
 } // namespace x64

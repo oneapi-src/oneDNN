@@ -156,7 +156,7 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward_thr(
 
     auto p = jit_1x1_conv_call_s();
 
-    auto rp = rtus_driver_t<avx512_common>::call_params_t();
+    auto rp = rtus_driver_t<avx512_core>::call_params_t();
     const int nb_oc = jcp.nb_load;
     const int nb_ic = jcp.nb_reduce;
     // override some constants for fused dw_conv

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -150,7 +150,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
 
     auto p = jit_1x1_conv_call_s();
 
-    auto rp = rtus_driver_t<avx512_common>::call_params_t();
+    auto rp = rtus_driver_t<avx512_core>::call_params_t();
 
     const int nb_oc = jcp.nb_load;
     const int nb_ic = jcp.nb_reduce;
@@ -498,7 +498,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
 
     auto p = jit_1x1_conv_call_s();
 
-    auto rp = rtus_driver_t<avx512_common>::call_params_t();
+    auto rp = rtus_driver_t<avx512_core>::call_params_t();
     const int nb_ic = jcp.nb_load;
     const int nb_oc = jcp.nb_reduce;
     const int os_block = jcp.bcast_block;
@@ -659,7 +659,7 @@ jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::init(
         }
     }
 
-    CHECK(init_rtus_driver<avx512_common>(this));
+    CHECK(init_rtus_driver<avx512_core>(this));
     return status::success;
 }
 
@@ -834,7 +834,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                         const src_data_t *local_src = diff_src;
 
                         auto p = jit_1x1_conv_call_s();
-                        auto rp = rtus_driver_t<avx512_common>::call_params_t();
+                        auto rp = rtus_driver_t<avx512_core>::call_params_t();
 
                         p.output_stride = utils::rnd_up(jcp.ic, jcp.oc_block)
                                 * jcp.oc_block * jcp.typesize_out;

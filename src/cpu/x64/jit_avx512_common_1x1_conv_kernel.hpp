@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,11 +48,11 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_common>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
 
     constexpr static int isa_simd_width_
-            = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+            = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     using reg64_t = const Xbyak::Reg64;
     using zmm_t = const Xbyak::Zmm;
 

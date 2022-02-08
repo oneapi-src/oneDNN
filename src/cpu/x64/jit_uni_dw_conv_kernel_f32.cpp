@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -652,7 +652,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
     if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
-template struct jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;
+template struct jit_uni_dw_conv_fwd_kernel_f32<avx512_core>;
 template struct jit_uni_dw_conv_fwd_kernel_f32<avx2>;
 template struct jit_uni_dw_conv_fwd_kernel_f32<sse41>;
 
@@ -670,7 +670,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx2>::load_vmm(
     load_bytes(vmm, addr, bytes);
 }
 template <>
-inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>::load_vmm(
+inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx512_core>::load_vmm(
         Vmm &vmm, const Xbyak::Address &addr, bool tail) {
     Zmm masked_vmm = tail ? vmm | k_ch_tail_mask | T_z : vmm;
     vmovups(masked_vmm, addr);
@@ -690,7 +690,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx2>::store_vmm(
     store_bytes(vmm, addr, bytes);
 }
 template <>
-inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>::store_vmm(
+inline void jit_uni_dw_conv_bwd_data_kernel_f32<avx512_core>::store_vmm(
         Vmm &vmm, const Xbyak::Address &addr, bool tail) {
     Zmm masked_vmm = tail ? vmm | k_ch_tail_mask : vmm;
     vmovups(addr, masked_vmm);
@@ -950,7 +950,7 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
     mov(reg_ur_str_w, ptr[this->param1 + GET_OFF(ur_str_w)]);
 
     if (is_dsrc_layout_nxc()) {
-        if (isa == avx512_common && (jcp.ch_tail > 0)) {
+        if (isa == avx512_core && (jcp.ch_tail > 0)) {
             Label masking_done;
             const size_t channel_step = jcp.nb_ch_blocking * jcp.ch_block;
             kxnorw(k_ch_tail_mask, k_ch_tail_mask,
@@ -985,7 +985,7 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
 }
 #undef GET_OFF
 
-template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>;
+template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx512_core>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx2>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<sse41>;
 
@@ -1006,7 +1006,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>::load_xmm(
     load_bytes(vmm, addr, bytes);
 }
 template <>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>::load_xmm(
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_core>::load_xmm(
         Vmm &vmm, const Xbyak::Address &addr, bool compute_tail) {
     Zmm masked_vmm = compute_tail ? vmm | k_ch_tail_mask | T_z : vmm;
     vmovups(masked_vmm, addr);
@@ -1027,7 +1027,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>::store_xmm(
     store_bytes(vmm, addr, bytes);
 }
 template <>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>::store_xmm(
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_core>::store_xmm(
         Vmm &vmm, const Xbyak::Address &addr, bool compute_tail) {
     Zmm masked_vmm = compute_tail ? vmm | k_ch_tail_mask : vmm;
     vmovups(addr, masked_vmm);
@@ -1052,7 +1052,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>::addps_xmm(
     }
 }
 template <>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>::addps_xmm(
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_core>::addps_xmm(
         Vmm &vmm_dst, Vmm &vmm_src, const Xbyak::Address &addr,
         bool compute_tail) {
     Zmm masked_vmm = compute_tail ? vmm_src | k_ch_tail_mask | T_z : vmm_src;
@@ -1150,7 +1150,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_unroll_ow_step_nxc(
         int unroll_w, int l_pad, int pad_offset, int ow_block,
         int nb_ch_blocking, bool is_last_ch) {
 
-    assert(one_of(isa, avx2, avx512_common));
+    assert(one_of(isa, avx2, avx512_core));
 
     const size_t ch_step = jcp.ngroups;
     const int iw_block = ow_block * jcp.stride_w;
@@ -2007,7 +2007,7 @@ void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
 }
 #undef GET_OFF
 
-template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>;
+template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_core>;
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>;
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sse41>;
 

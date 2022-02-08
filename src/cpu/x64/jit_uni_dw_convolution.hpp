@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ private:
 };
 
 using jit_avx512_common_dw_convolution_fwd_t
-        = jit_uni_dw_convolution_fwd_t<avx512_common, data_type::f32>;
+        = jit_uni_dw_convolution_fwd_t<avx512_core, data_type::f32>;
 using jit_avx2_dw_convolution_fwd_t
         = jit_uni_dw_convolution_fwd_t<avx2, data_type::f32>;
 using jit_sse41_dw_convolution_fwd_t
@@ -165,7 +165,7 @@ private:
 };
 
 using jit_avx512_common_dw_convolution_bwd_data_t
-        = jit_uni_dw_convolution_bwd_data_t<avx512_common, data_type::f32>;
+        = jit_uni_dw_convolution_bwd_data_t<avx512_core, data_type::f32>;
 using jit_avx2_dw_convolution_bwd_data_t
         = jit_uni_dw_convolution_bwd_data_t<avx2, data_type::f32>;
 using jit_sse41_dw_convolution_bwd_data_t
@@ -265,7 +265,7 @@ private:
 };
 
 using jit_avx512_common_dw_convolution_bwd_weights_t
-        = jit_uni_dw_convolution_bwd_weights_t<avx512_common, data_type::f32>;
+        = jit_uni_dw_convolution_bwd_weights_t<avx512_core, data_type::f32>;
 using jit_avx2_dw_convolution_bwd_weights_t
         = jit_uni_dw_convolution_bwd_weights_t<avx2, data_type::f32>;
 using jit_sse41_dw_convolution_bwd_weights_t

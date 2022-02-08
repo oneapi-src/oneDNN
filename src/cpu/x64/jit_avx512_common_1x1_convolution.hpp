@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
             if (copy(other) != status::success) is_initialized_ = false;
         }
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_common, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_core, ""),
                 jit_avx512_common_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
@@ -223,7 +223,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
                     dw_conv_buffer_size_,
                     types::data_type_size(dw_conv_pd_->src_md()->data_type));
 
-            jit_uni_dw_conv_fwd_kernel<avx512_common,
+            jit_uni_dw_conv_fwd_kernel<avx512_core,
                     data_type::f32>::init_scratchpad(dw_scratchpad, jcp_dw);
 
             return status::success;
@@ -253,7 +253,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
             CHECK(kernel_dw_->create_kernel());
         }
 
-        CHECK(init_rtus_driver<avx512_common>(this));
+        CHECK(init_rtus_driver<avx512_core>(this));
         return status::success;
     }
 
@@ -274,8 +274,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_avx512_common_1x1_conv_kernel> kernel_;
-    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
-    using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;
+    std::unique_ptr<rtus_driver_t<avx512_core>> rtus_driver_;
+    using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<avx512_core>;
     std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
 };
 
@@ -293,7 +293,7 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
             , jcp_()
             , rtus_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_common, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_core, ""),
                 jit_avx512_common_1x1_convolution_bwd_data_t);
 
         status_t init(engine_t *engine) {
@@ -355,7 +355,7 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
                 new jit_avx512_common_1x1_conv_kernel(
                         pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         CHECK(kernel_->create_kernel());
-        CHECK(init_rtus_driver<avx512_common>(this));
+        CHECK(init_rtus_driver<avx512_core>(this));
         return status::success;
     }
 
@@ -369,7 +369,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_avx512_common_1x1_conv_kernel> kernel_;
-    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
+    std::unique_ptr<rtus_driver_t<avx512_core>> rtus_driver_;
 };
 
 using jit_avx512_common_1x1_convolution_bwd_data_f32_t
@@ -383,7 +383,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
             , jcp_()
             , rtus_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_common, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_core, ""),
                 jit_avx512_common_1x1_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine) {
@@ -470,7 +470,7 @@ private:
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
     std::unique_ptr<cpu_reducer_t<data_type::f32>> reducer_bias_;
     std::unique_ptr<jit_transpose4x16_src> trans_kernel_;
-    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
+    std::unique_ptr<rtus_driver_t<avx512_core>> rtus_driver_;
 };
 
 } // namespace x64

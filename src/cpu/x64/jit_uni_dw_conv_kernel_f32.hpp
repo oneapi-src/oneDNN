@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,8 +84,7 @@ private:
     inline Vmm get_ker_reg(int idx) { return Vmm(idx + 0); }
     inline Vmm get_src_reg(int idx) { return Vmm(idx + 1); }
     inline int get_acc_reg_idx(int idx) {
-        const int max_regs
-                = utils::one_of(jcp.isa, avx512_common, avx512_core) ? 32 : 16;
+        const int max_regs = jcp.isa == avx512_core ? 32 : 16;
         return idx + (max_regs - jcp.ur_w * jcp.nb_ch_blocking * max_repeats());
     }
     inline Vmm get_acc_reg(int idx) { return Vmm(get_acc_reg_idx(idx)); }

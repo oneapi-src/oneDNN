@@ -195,7 +195,6 @@ struct rtus_driver_t : public jit_generator {
                 switch (isa) {
                     case sse41: res = Xmm(idx); break;
                     case avx2: res = Ymm(idx); break;
-                    case avx512_common:
                     case avx512_core: res = Zmm(idx); break;
                     default: assert(!"Not supported isa"); res = Xmm(idx);
                 }
@@ -217,7 +216,6 @@ struct rtus_driver_t : public jit_generator {
                             res = Ymm(idx);
                     }
                     break;
-                case avx512_common:
                 case avx512_core:
                     switch (typesize) {
                         case 4: res = Zmm(idx); break;
@@ -311,7 +309,7 @@ struct rtus_driver_t : public jit_generator {
         mov(reg_cur_src, reg_src);
         mov(reg_cur_iw, reg_iw_start);
 
-        if (isa == avx512_common) {
+        if (isa == avx512_core) {
             push(rcx); // preserve rcx, used for shift
             mov(reg_icb_remainder, reg_icb);
             and_(reg_icb_remainder,
@@ -331,7 +329,7 @@ struct rtus_driver_t : public jit_generator {
 
         auto load_reg = [=](const Xmm &vreg, const Reg64 &reg,
                                 const int64_t offset, const int load_size) {
-            if (isa == avx512_common) {
+            if (isa == avx512_core) {
                 const Address &addr = ptr[reg + offset];
                 switch (typesize_) {
                     case 4: vmovups(vreg, addr); break;
@@ -352,7 +350,7 @@ struct rtus_driver_t : public jit_generator {
 
         auto store_reg = [=](const Reg64 &reg, const Xmm &vreg,
                                  const int64_t offset, const int store_size) {
-            if (isa == avx512_common) {
+            if (isa == avx512_core) {
                 const Address &addr = ptr[reg + offset];
                 switch (typesize_) {
                     case 4: vmovups(addr, vreg); break;
@@ -379,7 +377,7 @@ struct rtus_driver_t : public jit_generator {
                 ? typesize_ == 4 ? 16 : 8
                 : typesize_ == 4 ? 32 : 16;
         const size_t load_store_size
-                = isa == avx512_common ? vlen_ : max_load_store_bytes;
+                = isa == avx512_core ? vlen_ : max_load_store_bytes;
         size_t load_store_tail_size = (typesize_ == 1 ? max_load_store_bytes
                                                       : ic_tail_ * typesize_);
 
@@ -493,7 +491,7 @@ struct rtus_driver_t : public jit_generator {
 
     void generate() override {
         using namespace Xbyak;
-        assert(utils::one_of(isa, sse41, avx2, avx512_common, avx512_core));
+        assert(utils::one_of(isa, sse41, avx2, avx512_core));
 
         preamble();
 #define READ_PARAM(what) \

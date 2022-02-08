@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -293,7 +293,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             CHECK(kernel_dw_->create_kernel());
         }
 
-        CHECK(init_rtus_driver<avx512_common>(this));
+        CHECK(init_rtus_driver<avx512_core>(this));
         return status::success;
     }
 
@@ -313,7 +313,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_avx512_core_bf16_1x1_conv_kernel> kernel_;
-    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
+    std::unique_ptr<rtus_driver_t<avx512_core>> rtus_driver_;
     using dw_conv_kernel_t
             = jit_uni_dw_conv_fwd_kernel<avx512_core, data_type::bf16>;
     std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
@@ -390,7 +390,7 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
                 new jit_avx512_core_bf16_1x1_conv_kernel(
                         pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         CHECK(kernel_->create_kernel());
-        CHECK(init_rtus_driver<avx512_common>(this));
+        CHECK(init_rtus_driver<avx512_core>(this));
         return status::success;
     }
 
@@ -408,7 +408,7 @@ private:
 
     std::unique_ptr<jit_avx512_core_bf16_1x1_conv_kernel> kernel_;
     /* reduction to unit stride */
-    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
+    std::unique_ptr<rtus_driver_t<avx512_core>> rtus_driver_;
 };
 
 template <impl::data_type_t diff_weights_type>
@@ -501,7 +501,7 @@ private:
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
 
     /* reduction to unit stride */
-    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
+    std::unique_ptr<rtus_driver_t<avx512_core>> rtus_driver_;
 
     std::unique_ptr<jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t> tr_reorder_;
     std::unique_ptr<jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t>

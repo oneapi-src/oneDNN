@@ -45,10 +45,8 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
 
     jcp.prop_kind = cd.prop_kind;
 
-    const auto blocked_tag
-            = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
-    const auto wei_tag
-            = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
+    const auto blocked_tag = isa == avx512_core ? nChw16c : nChw8c;
+    const auto wei_tag = isa == avx512_core ? Goihw16g : Goihw8g;
     const auto nxc_tag = nhwc;
     const auto def_tag
             = (mayiuse(avx512_core)
@@ -96,7 +94,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
         return status::unimplemented;
 
-    const int simd_w = one_of(isa, avx512_common, avx512_core) ? 16 : 8;
+    const int simd_w = isa == avx512_core ? 16 : 8;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     if (!with_groups) return status::unimplemented;
@@ -142,21 +140,19 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     jcp.loop_order = loop_ngcw;
 
     jcp.ur_w = is_bf16 ? (isa_has_bf16(jcp.isa) ? 6 : 4)
-                       : isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
+                       : isa == avx512_core ? 6 : isa == avx2 ? 4 : 3;
     jcp.ur_w = nstl::min(jcp.ur_w, jcp.ow);
 
     jcp.ch_block = simd_w;
     jcp.nb_ch = div_up(jcp.oc, jcp.ch_block);
-    jcp.nb_ch_blocking
-            = one_of(isa, avx512_common, avx512_core) ? 4 : isa == avx2 ? 3 : 2;
+    jcp.nb_ch_blocking = isa == avx512_core ? 4 : isa == avx2 ? 3 : 2;
     if (jcp.nb_ch < jcp.nb_ch_blocking) jcp.nb_ch_blocking = jcp.nb_ch;
 
     if (is_data_layout_nxc) {
         jcp.loop_order = loop_nhwcg;
         const int resrc_depthwise_ur_w = (31 - jcp.kw + jcp.stride_w)
                 / (jcp.nb_ch_blocking + jcp.stride_w);
-        jcp.is_resrc_depthwise = (!is_bf16)
-                && one_of(isa, avx512_common, avx512_core)
+        jcp.is_resrc_depthwise = (!is_bf16) && isa == avx512_core
                 && jcp.stride_w < jcp.kw && jcp.kw <= 5 && jcp.dilate_w == 0
                 && resrc_depthwise_ur_w >= 2;
         if (jcp.is_resrc_depthwise) {
@@ -230,7 +226,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
 
     const bool ok_to_pad_channels = true && !is_data_layout_nxc
             && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
-            && one_of(isa, avx512_common, avx512_core, avx2);
+            && one_of(isa, avx512_core, avx2);
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, simd_w);
         jcp.ic = rnd_up(jcp.oc, simd_w);
@@ -318,10 +314,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
     const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
-    const auto dat_tag_blocked
-            = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
-    const auto wei_tag
-            = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
+    const auto dat_tag_blocked = isa == avx512_core ? nChw16c : nChw8c;
+    const auto wei_tag = isa == avx512_core ? Goihw16g : Goihw8g;
 
     auto curr_src_tag
             = diff_src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
@@ -361,11 +355,10 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
 
     // note: sse41 uses 'ch_block = 8' where the value is derived
     // from: 'simd_w_ * reg_repeats_ = 4 * 2'
-    jcp.ch_block = one_of(isa, avx512_common, avx512_core) ? 16 : 8;
+    jcp.ch_block = isa == avx512_core ? 16 : 8;
 
     bool ok_to_pad_channels = !is_data_layout_nxc && jcp.oc == jcp.ngroups
-            && jcp.ic == jcp.ngroups
-            && one_of(isa, avx512_common, avx512_core, avx2);
+            && jcp.ic == jcp.ngroups && one_of(isa, avx512_core, avx2);
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, jcp.ch_block);
         jcp.ic = rnd_up(jcp.oc, jcp.ch_block);
@@ -386,14 +379,13 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     jcp.typesize_in = types::data_type_size(diff_dst_d.data_type());
 
     jcp.ur_w = is_bf16 ? (isa_has_bf16(jcp.isa) ? 6 : 4)
-                       : isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
+                       : isa == avx512_core ? 6 : isa == avx2 ? 4 : 3;
 
     jcp.loop_order = is_data_layout_nxc ? loop_nhwcg : loop_ngcw;
 
     jcp.ch_tail = jcp.ngroups % jcp.ch_block;
     jcp.nb_ch = div_up(jcp.ic, jcp.ch_block);
-    jcp.nb_ch_blocking
-            = one_of(isa, avx512_common, avx512_core) ? 4 : isa == avx2 ? 3 : 2;
+    jcp.nb_ch_blocking = isa == avx512_core ? 4 : isa == avx2 ? 3 : 2;
     if (jcp.nb_ch < jcp.nb_ch_blocking) jcp.nb_ch_blocking = jcp.nb_ch;
 
     return status::success;
@@ -472,11 +464,9 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
     const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
-    const auto dat_tag_blocked = one_of(isa, avx512_common, avx512_core)
-            ? nChw16c
-            : nChw8c; // dnnl_aBcd16b
-    const auto wei_tag
-            = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
+    const auto dat_tag_blocked
+            = isa == avx512_core ? nChw16c : nChw8c; // dnnl_aBcd16b
+    const auto wei_tag = isa == avx512_core ? Goihw16g : Goihw8g;
     auto curr_src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
     auto curr_dst_tag
             = diff_dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
@@ -519,12 +509,12 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
             CHECK(memory_desc_init_by_tag(diff_bias_md, x));
     }
 
-    jcp.ch_block = one_of(isa, avx512_common, avx512_core) ? 16 : 8;
+    jcp.ch_block = isa == avx512_core ? 16 : 8;
     jcp.ch_tail = jcp.oc_without_padding % jcp.ch_block;
 
     // note: bf16 to be supported in the next commit
-    bool ok_to_pad_channels = !is_data_layout_nxc
-            && one_of(isa, avx512_common, avx512_core, avx2);
+    bool ok_to_pad_channels
+            = !is_data_layout_nxc && one_of(isa, avx512_core, avx2);
     if (ok_to_pad_channels) { jcp.ngroups = rnd_up(jcp.ngroups, jcp.ch_block); }
 
     bool args_ok = true
@@ -541,9 +531,9 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     // for byte_load.
     // TODO: enable 'is_fast_depthwise' for bf16 if it offers performance
     // improvement.
-    jcp.is_fast_depthwise = !is_bf16 && is_data_layout_nxc
-            && one_of(isa, avx512_common, avx2);
-    constexpr int max_registers = isa == avx512_common ? 32 : 16;
+    jcp.is_fast_depthwise
+            = !is_bf16 && is_data_layout_nxc && one_of(isa, avx512_core, avx2);
+    constexpr int max_registers = isa == avx512_core ? 32 : 16;
     // Note: anything larger than 4 didn't show significant speedup
     const int max_isa_unroll = jcp.is_fast_depthwise ? 4 : 1;
     int max_ch_unroll = nstl::min(max_isa_unroll, max_registers / (2 * jcp.kw));
@@ -772,21 +762,21 @@ void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::partition_nthr_nxc(
 }
 
 REG_AVX512_ISA(template struct jit_uni_dw_conv_fwd_kernel<avx512_core, bf16>);
-REG_AVX512_ISA(template struct jit_uni_dw_conv_fwd_kernel<avx512_common, f32>);
+REG_AVX512_ISA(template struct jit_uni_dw_conv_fwd_kernel<avx512_core, f32>);
 REG_AVX2_ISA(template struct jit_uni_dw_conv_fwd_kernel<avx2, f32>);
 REG_SSE41_ISA(template struct jit_uni_dw_conv_fwd_kernel<sse41, f32>);
 
 REG_AVX512_ISA(
         template struct jit_uni_dw_conv_bwd_data_kernel<avx512_core, bf16>);
 REG_AVX512_ISA(
-        template struct jit_uni_dw_conv_bwd_data_kernel<avx512_common, f32>);
+        template struct jit_uni_dw_conv_bwd_data_kernel<avx512_core, f32>);
 REG_AVX2_ISA(template struct jit_uni_dw_conv_bwd_data_kernel<avx2, f32>);
 REG_SSE41_ISA(template struct jit_uni_dw_conv_bwd_data_kernel<sse41, f32>);
 
 REG_AVX512_ISA(
         template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_core, bf16>);
 REG_AVX512_ISA(
-        template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_common, f32>);
+        template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_core, f32>);
 REG_AVX2_ISA(template struct jit_uni_dw_conv_bwd_weights_kernel<avx2, f32>);
 REG_SSE41_ISA(template struct jit_uni_dw_conv_bwd_weights_kernel<sse41, f32>);
 } // namespace x64

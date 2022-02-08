@@ -112,7 +112,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
     auto p = jit_1x1_conv_call_s();
 
-    auto rp = rtus_driver_t<avx512_common>::call_params_t();
+    auto rp = rtus_driver_t<avx512_core>::call_params_t();
 
     const int nb_oc = jcp.nb_load;
     const int nb_ic = jcp.nb_reduce;
@@ -479,7 +479,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         auto p = jit_1x1_conv_call_s();
-        auto rp = rtus_driver_t<avx512_common>::call_params_t();
+        auto rp = rtus_driver_t<avx512_core>::call_params_t();
 
         int bcast_start {0}, bcast_end {0}, icb_start {0}, icb_end {0};
         balance2D(nthr, ithr, work_amount, bcast_start, bcast_end, jcp.nb_load,
@@ -609,7 +609,7 @@ status_t jit_avx512_common_1x1_convolution_bwd_weights_t ::init(
     CHECK(acc_ker_->create_kernel());
     CHECK(reducer_bias_->create_kernel());
 
-    CHECK(init_rtus_driver<avx512_common>(this));
+    CHECK(init_rtus_driver<avx512_core>(this));
     return status::success;
 }
 
@@ -786,7 +786,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         const data_t *local_src = diff_src;
 
                         auto p = jit_1x1_conv_call_s();
-                        auto rp = rtus_driver_t<avx512_common>::call_params_t();
+                        auto rp = rtus_driver_t<avx512_core>::call_params_t();
 
                         p.output_stride = utils::rnd_up(jcp.ic, jcp.ic_block)
                                 * jcp.oc_block * jcp.typesize_out;

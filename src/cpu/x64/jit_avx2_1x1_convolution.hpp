@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -175,7 +175,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             // for dw: Always fuse with same ISA.
             // Caveat: May be a better dw conv exists.
 
-            bool ok = true && (!mayiuse(avx512_common))
+            bool ok = true && (!mayiuse(avx512_core))
                     && (attr_1x1.post_ops_.find(primitive_kind::sum) == -1)
                     // TODO: Below may be further tuned.
                     && (l2_cache * 2 < src_d.size())
