@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -249,7 +249,7 @@ jit_prelu_forward_kernel_t *jit_prelu_forward_kernel_t::create(
     const auto &wei_dt = pd->weights_md(0)->data_type;
     const auto &dst_dt = pd->dst_md(0)->data_type;
 
-    if (is_superset(isa, avx512_common))
+    if (is_superset(isa, avx512_core))
         return new jit_uni_prelu_forward_kernel_t<Xbyak::Zmm>(pd, isa);
     else if (is_superset(isa, avx))
         if (isa == avx && prelu::is_s8u8({src_dt, wei_dt, dst_dt}))

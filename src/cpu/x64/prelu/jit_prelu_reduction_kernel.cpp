@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -200,7 +200,7 @@ jit_prelu_reduction_kernel_t *jit_prelu_reduction_kernel_t::create(
 
     const auto isa = prelu::get_supported_isa();
 
-    if (is_superset(isa, avx512_common))
+    if (is_superset(isa, avx512_core))
         return new jit_uni_prelu_reduction_kernel_t<Xbyak::Zmm>(pd, isa);
     else if (is_superset(isa, avx))
         if (isa == avx && prelu::is_s8u8({pd->diff_weights_md(0)->data_type}))

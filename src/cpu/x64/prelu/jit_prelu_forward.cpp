@@ -41,7 +41,7 @@ status_t jit_prelu_fwd_t::pd_t::init(engine_t *engine) {
             && !has_zero_dim_memory() && src_d.is_dense(true)
             && weights_d.is_dense(true) && attr()->has_default_values()
             && utils::one_of(prelu::get_supported_isa(), avx512_core_bf16,
-                    avx512_core, avx512_common, avx2, avx, sse41);
+                    avx512_core, avx2, avx, sse41);
 
     return ok ? status::success : status::unimplemented;
 }

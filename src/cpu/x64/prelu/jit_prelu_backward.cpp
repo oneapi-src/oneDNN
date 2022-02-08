@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ status_t jit_prelu_bwd_t::pd_t::init(engine_t *engine) {
             && weights_diff_d.is_dense(true) && dst_diff_d.is_dense(true)
             && !has_zero_dim_memory()
             && utils::one_of(prelu::get_supported_isa(), avx512_core_bf16,
-                    avx512_core, avx512_common, avx2, avx, sse41);
+                    avx512_core, avx2, avx, sse41);
 
     const auto bcast = prelu::get_bcast_type(src_diff_d, weights_diff_d);
 

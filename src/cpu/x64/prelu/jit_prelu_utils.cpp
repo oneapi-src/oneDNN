@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,8 +32,6 @@ cpu_isa_t get_supported_isa() {
         return avx512_core_bf16;
     else if (mayiuse(avx512_core))
         return avx512_core;
-    else if (mayiuse(avx512_common))
-        return avx512_common;
     else if (mayiuse(avx2))
         return avx2;
     else if (mayiuse(avx))
@@ -49,8 +47,6 @@ static int get_vlen(const cpu_isa_t &isa) noexcept {
         return cpu_isa_traits<avx512_core_bf16>::vlen;
     else if (isa == avx512_core)
         return cpu_isa_traits<avx512_core>::vlen;
-    else if (isa == avx512_common)
-        return cpu_isa_traits<avx512_common>::vlen;
     else if (isa == avx2)
         return cpu_isa_traits<avx2>::vlen;
     else if (isa == avx)
@@ -63,8 +59,6 @@ int get_n_vregs(const cpu_isa_t &isa) noexcept {
         return cpu_isa_traits<avx512_core_bf16>::n_vregs;
     else if (isa == avx512_core)
         return cpu_isa_traits<avx512_core>::n_vregs;
-    else if (isa == avx512_common)
-        return cpu_isa_traits<avx512_common>::n_vregs;
     else if (isa == avx2)
         return cpu_isa_traits<avx2>::n_vregs;
     else if (isa == avx)
