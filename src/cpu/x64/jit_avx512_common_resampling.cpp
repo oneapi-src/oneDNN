@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,9 +73,8 @@ struct jit_avx512_common_resampling_kernel_t
         tail_size_ = inner_stride_ % simd_w();
         stack_size_needed_ = 0;
 
-        cpu_isa_t isa = mayiuse(avx512_core_bf16)
-                ? avx512_core_bf16
-                : mayiuse(avx512_core) ? avx512_core : avx512_common;
+        cpu_isa_t isa
+                = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
 
         const io::jit_io_multi_dt_helper_t<Zmm>::data_types_t data_types {
                 src_data_type(), dst_data_type()};
@@ -741,7 +740,7 @@ private:
     }
 
     static constexpr std::size_t simd_w() {
-        return cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+        return cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     }
 
     Zmm zmm_src = Zmm(1);
@@ -808,8 +807,7 @@ data_type_t jit_avx512_common_resampling_kernel_base_t::dst_data_type() const {
 status_t jit_avx512_common_resampling_bwd_t::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
-    const bool ok = mayiuse(avx512_common) && !is_fwd()
-            && !has_zero_dim_memory()
+    const bool ok = mayiuse(avx512_core) && !is_fwd() && !has_zero_dim_memory()
             && platform::has_data_type_support(diff_dst_md()->data_type)
             && platform::has_data_type_support(diff_src_md()->data_type)
             && set_default_params() == status::success

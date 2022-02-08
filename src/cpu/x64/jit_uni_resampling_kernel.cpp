@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -219,7 +219,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::preserve_zero_padding_in_post_ops(
     const Vmm vmm_zeros(vmm_tmp_.getIdx());
 
     uni_vxorps(vmm_zeros, vmm_zeros, vmm_zeros);
-    if (is_superset(conf_.isa, avx512_common))
+    if (is_superset(conf_.isa, avx512_core))
         vblendmps(vmm_data | k_tail_mask_, vmm_zeros, vmm_data);
     else {
         std::bitset<8> tail_mask((1 << tail_size_) - 1);
@@ -510,7 +510,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::linear_ncsp_format() {
         if (conf_.with_postops) apply_postops(vmm_idx(0), is_tail);
 
         if (conf_.is_saturation_needed && conf_.ndims == 5
-                && !is_superset(conf_.isa, avx512_common)) {
+                && !is_superset(conf_.isa, avx512_core)) {
             // When saturation is needed, and the shape has
             // 5 dimensions, and we have only 16 Vmm registers,
             // we have no space for holding information for saturation
@@ -604,7 +604,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::linear_c_oriented_format(
             apply_postops(src_ftl_.getIdx(), is_tail, &reg_c);
 
         if (conf_.is_saturation_needed && conf_.ndims == 5
-                && !is_superset(conf_.isa, avx512_common)) {
+                && !is_superset(conf_.isa, avx512_core)) {
             // When saturation is needed, and the shape has
             // 5 dimensions, and we have only 16 Vmm registers,
             // we have no space for holding information for saturation
@@ -749,8 +749,8 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::generate() {
         postops_injector_->prepare_table();
 }
 
-template struct jit_uni_resampling_kernel_t<avx512_common, Zmm>;
-template struct jit_uni_resampling_kernel_t<avx512_common, Ymm>;
+template struct jit_uni_resampling_kernel_t<avx512_core, Zmm>;
+template struct jit_uni_resampling_kernel_t<avx512_core, Ymm>;
 template struct jit_uni_resampling_kernel_t<avx, Ymm>;
 template struct jit_uni_resampling_kernel_t<avx, Xmm>;
 template struct jit_uni_resampling_kernel_t<sse41, Xmm>;

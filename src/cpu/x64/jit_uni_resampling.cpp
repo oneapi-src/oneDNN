@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,14 +40,6 @@ using namespace resampling_utils;
 static cpu_isa_t get_supported_isa(bool is_blocked_8_format) {
     if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
     if (mayiuse(avx512_core)) return avx512_core;
-    // YMM registers are used for the avx512 architecture when
-    // the datastream structure is based on an 8-block format.
-    // Unfortunately, registers from 16 to 31 cannot be used
-    // with avx512_common when using YMM. If the kernel does this,
-    // it will receive a SIGILL (Illegal instruction) error.
-    // Therefore, the avx version is preferred when primitive
-    // is running on avx512_common and with the 8-block format.
-    if (mayiuse(avx512_common) && !is_blocked_8_format) return avx512_common;
     if (mayiuse(avx2)) return avx2;
     if (mayiuse(avx)) return avx;
     if (mayiuse(sse41)) return sse41;
@@ -184,15 +176,13 @@ status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_avx512(
     const format_tag_t blocked_8_tag = utils::pick(conf.ndims - 3,
             format_tag::nCw8c, format_tag::nChw8c, format_tag::nCdhw8c);
     if (memory_desc_matches_tag(*pd()->src_md(), blocked_8_tag)) {
-        assert(is_superset(conf.isa, avx512_core)
-                && "YMMs 16-31 are not available for avx512_common.");
         return safe_ptr_assign(kernel_,
-                new jit_uni_resampling_kernel_t<avx512_common, Xbyak::Ymm>(
+                new jit_uni_resampling_kernel_t<avx512_core, Xbyak::Ymm>(
                         conf, dst_md));
     }
 
     return safe_ptr_assign(kernel_,
-            new jit_uni_resampling_kernel_t<avx512_common, Xbyak::Zmm>(
+            new jit_uni_resampling_kernel_t<avx512_core, Xbyak::Zmm>(
                     conf, dst_md));
 }
 
@@ -222,7 +212,7 @@ status_t jit_uni_resampling_fwd_t::init(engine_t *engine) {
     const memory_desc_t *dst_md = pd()->dst_md();
     const jit_resampling_conf_t &conf = pd()->get_conf();
 
-    if (is_superset(conf.isa, avx512_common))
+    if (is_superset(conf.isa, avx512_core))
         CHECK(get_proper_kernel_for_avx512(dst_md, conf));
     else if (is_superset(conf.isa, avx))
         CHECK(get_proper_kernel_for_avx(dst_md, conf));

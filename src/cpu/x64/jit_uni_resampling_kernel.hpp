@@ -114,8 +114,8 @@ private:
     const Vmm vmm_sum_scale_ = Vmm(7);
     const Vmm vmm_tmp_ = Vmm(8);
     const Vmm vmm_post_op_helper_ = Vmm(9);
-    const Vmm vmm_zero_saturation_ = isa == avx512_common ? Vmm(18) : Vmm(10);
-    const Vmm vmm_saturation_ubound_ = isa == avx512_common ? Vmm(19) : Vmm(11);
+    const Vmm vmm_zero_saturation_ = isa == avx512_core ? Vmm(18) : Vmm(10);
+    const Vmm vmm_saturation_ubound_ = isa == avx512_core ? Vmm(19) : Vmm(11);
 
     const Zmm vmm_bf16_emu_1_ = Zmm(20);
     const Zmm vmm_bf16_emu_2_ = Zmm(21);
