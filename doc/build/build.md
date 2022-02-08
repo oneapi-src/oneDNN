@@ -51,7 +51,7 @@ from [here](https://apt.llvm.org/) before generating makefile for graph compiler
 
 ~~~sh
 cmake .. -DDNNL_GRAPH_BUILD_COMPILER_BACKEND=True
-~~~~
+~~~
 
 #### Build and Install the Library
 
@@ -95,7 +95,7 @@ version of graph compiler.
 ~~~cmd
 mkdir build && cd build
 cmake .. -G "Visual Studio 16 2019" -DDNNL_GRAPH_BUILD_COMPILER_BACKEND=1
-~~~~
+~~~
 
 - Build the Library
 
