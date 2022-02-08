@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    const bool ok = true && mayiuse(avx512_common)
+    const bool ok = true && mayiuse(avx512_core)
             && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && is_fwd()
             && !has_zero_dim_memory() && everyone_is(d_type, data_d.data_type())
             && data_d.ndims() == 4 && attr()->has_default_values();
@@ -84,7 +84,7 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    const bool ok = true && mayiuse(avx512_common)
+    const bool ok = true && mayiuse(avx512_core)
             && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && !is_fwd()
             && utils::everyone_is(d_type, data_d.data_type())
             && set_default_formats_common() && !has_zero_dim_memory()

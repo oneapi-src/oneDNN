@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ public:
     ~jit_uni_lrn_kernel_t();
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_kernel_t);
-    static constexpr int VECTOR_LENGTH = (isa == avx512_common ? 16 : 8);
+    static constexpr int VECTOR_LENGTH = (isa == avx512_core ? 16 : 8);
 
 protected:
     using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,

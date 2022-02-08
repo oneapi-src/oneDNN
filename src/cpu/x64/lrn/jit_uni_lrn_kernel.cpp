@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
 jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
         void *code_ptr, size_t code_size)
     : jit_generator(code_ptr, code_size, true, isa)
-    , emulate_bfloat_(isa == avx512_common
+    , emulate_bfloat_(isa == avx512_core
               && d_type == dnnl::impl::data_type::bf16
               && !mayiuse(avx512_core_bf16))
     , bf16_emu_(
@@ -190,14 +190,14 @@ void load_bf16_data(Gen generator, const Reg &reg, const Addr &p) {
 }
 
 template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_common,
+void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_core,
         dnnl::impl::data_type::bf16>>::load_data(const Vmm &reg,
         const Xbyak::Address &p) {
     load_bf16_data(this, reg, p);
 }
 
 template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_common,
+void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_core,
         dnnl::impl::data_type::bf16>>::load_data(const Vmm &reg,
         const Xbyak::Address &p) {
     load_bf16_data(this, reg, p);
@@ -222,14 +222,14 @@ void store_bf16_data(
 }
 
 template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_common,
+void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_core,
         dnnl::impl::data_type::bf16>>::store_data(const Xbyak::Address &addr,
         const Zmm &zr) {
     store_bf16_data(this, bf16_emu_.get(), addr, zr);
 }
 
 template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_common,
+void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_core,
         dnnl::impl::data_type::bf16>>::store_data(const Xbyak::Address &addr,
         const Zmm &zr) {
     store_bf16_data(this, bf16_emu_.get(), addr, zr);
@@ -318,7 +318,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
     IRB_LOOP(this->store_data(
             this->ptr[dst_ + pixel_offset + irb_off], vdst[irb]));
 
-    if (isa == avx512_common)
+    if (isa == avx512_core)
         this->reg_block_idx_ = (this->reg_block_idx_ % vsum.size()) + 1;
 }
 
@@ -436,7 +436,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(
     this->load_constant(alpha_, valpha_, xalpha_);
     this->load_constant(k_, vk_, xk_);
 
-    static const int max_reg_blocks = isa == avx512_common ? 3 : 1;
+    static const int max_reg_blocks = isa == avx512_core ? 3 : 1;
     this->within_loop(config, max_reg_blocks, pk_);
 
     this->postamble();
@@ -1644,7 +1644,7 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::generate(
 #undef GET_OFF
     this->load_constant(nalphabeta_, vnalphabeta_, xnalphabeta_);
 
-    static const int max_reg_blocks = isa == avx512_common ? 3 : 1;
+    static const int max_reg_blocks = isa == avx512_core ? 3 : 1;
     this->within_loop(config, max_reg_blocks, prop_kind::backward);
 
     this->postamble();
@@ -1720,7 +1720,7 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
     IRB_LOOP(this->store_data(
             this->ptr[diffsrc_ + pixel_offset + irb_off], a[irb]));
 
-    if (isa == avx512_common)
+    if (isa == avx512_core)
         this->reg_block_idx_ = (this->reg_block_idx_ % vsum.size()) + 1;
 }
 
@@ -1737,9 +1737,9 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::move_data_pointers(
 
 template class jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>;
 template class jit_uni_lrn_fwd_kernel_t<avx2, dnnl::impl::data_type::f32>;
-template class jit_uni_lrn_fwd_kernel_t<avx512_common,
+template class jit_uni_lrn_fwd_kernel_t<avx512_core,
         dnnl::impl::data_type::f32>;
-template class jit_uni_lrn_fwd_kernel_t<avx512_common,
+template class jit_uni_lrn_fwd_kernel_t<avx512_core,
         dnnl::impl::data_type::bf16>;
 
 template class jit_uni_lrn_kernel_t<
@@ -1747,22 +1747,22 @@ template class jit_uni_lrn_kernel_t<
 template class jit_uni_lrn_kernel_t<
         jit_uni_lrn_fwd_kernel_t<avx2, dnnl::impl::data_type::f32>>;
 template class jit_uni_lrn_kernel_t<
-        jit_uni_lrn_fwd_kernel_t<avx512_common, dnnl::impl::data_type::f32>>;
+        jit_uni_lrn_fwd_kernel_t<avx512_core, dnnl::impl::data_type::f32>>;
 template class jit_uni_lrn_kernel_t<
-        jit_uni_lrn_fwd_kernel_t<avx512_common, dnnl::impl::data_type::bf16>>;
+        jit_uni_lrn_fwd_kernel_t<avx512_core, dnnl::impl::data_type::bf16>>;
 
-template class jit_uni_lrn_bwd_kernel_t<avx512_common,
+template class jit_uni_lrn_bwd_kernel_t<avx512_core,
         dnnl::impl::data_type::f32>;
-template class jit_uni_lrn_bwd_kernel_t<avx512_common,
+template class jit_uni_lrn_bwd_kernel_t<avx512_core,
         dnnl::impl::data_type::bf16>;
 template class jit_uni_lrn_bwd_kernel_t<avx2, dnnl::impl::data_type::f32>;
 
 template class jit_uni_lrn_kernel_t<
         jit_uni_lrn_bwd_kernel_t<avx2, dnnl::impl::data_type::f32>>;
 template class jit_uni_lrn_kernel_t<
-        jit_uni_lrn_bwd_kernel_t<avx512_common, dnnl::impl::data_type::f32>>;
+        jit_uni_lrn_bwd_kernel_t<avx512_core, dnnl::impl::data_type::f32>>;
 template class jit_uni_lrn_kernel_t<
-        jit_uni_lrn_bwd_kernel_t<avx512_common, dnnl::impl::data_type::bf16>>;
+        jit_uni_lrn_bwd_kernel_t<avx512_core, dnnl::impl::data_type::bf16>>;
 
 } // namespace x64
 } // namespace cpu

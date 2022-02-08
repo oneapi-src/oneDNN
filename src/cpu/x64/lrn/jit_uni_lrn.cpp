@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -192,7 +192,7 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
          * otherwise it will result in an illegal memory read (seg-fault)
          * due to protected memory. */
             && IMPLICATION(isa == sse41 && dat_tag_ == nchw, HW >= 4)
-            && isa != avx512_common;
+            && isa != avx512_core;
 
     const int jit_max_local_size = 5; // bigger size triggers too big code size
     const bool args_ok_within = true && desc()->alg_kind == lrn_within_channel
@@ -202,8 +202,8 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && data_d.dims()[2] >= desc()->local_size
             && data_d.dims()[3] >= desc()->local_size
             && IMPLICATION(d_type == data_type::bf16, mayiuse(avx512_core))
-            && (isa == avx512_common ? one_of(dat_tag_, nhwc, nChw16c)
-                                     : one_of(dat_tag_, nhwc, nChw8c));
+            && (isa == avx512_core ? one_of(dat_tag_, nhwc, nChw16c)
+                                   : one_of(dat_tag_, nhwc, nChw8c));
 
     const auto status
             = args_ok_across || args_ok_within ? success : unimplemented;
@@ -357,7 +357,7 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
             && desc()->local_size == 5 && utils::one_of(dat_tag_, nChw8c)
             && everyone_is(data_type::f32, data_d.data_type())
-            && isa != avx512_common;
+            && isa != avx512_core;
 
     const int jit_max_local_size = 5; // bigger size triggers too big code size
     const bool args_ok_within = true && desc()->alg_kind == lrn_within_channel
@@ -367,18 +367,18 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && data_d.dims()[2] >= desc()->local_size
             && data_d.dims()[3] >= desc()->local_size
             && IMPLICATION(d_type == data_type::bf16, mayiuse(avx512_core))
-            && (isa == avx512_common ? one_of(dat_tag_, nhwc, nChw16c)
-                                     : one_of(dat_tag_, nhwc, nChw8c));
+            && (isa == avx512_core ? one_of(dat_tag_, nhwc, nChw16c)
+                                   : one_of(dat_tag_, nhwc, nChw8c));
 
     return args_ok_across || args_ok_within ? success : unimplemented;
 }
 
-template struct jit_uni_lrn_fwd_t<avx512_common, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_fwd_t<avx512_common, dnnl::impl::data_type::bf16>;
+template struct jit_uni_lrn_fwd_t<avx512_core, dnnl::impl::data_type::f32>;
+template struct jit_uni_lrn_fwd_t<avx512_core, dnnl::impl::data_type::bf16>;
 template struct jit_uni_lrn_fwd_t<avx2, dnnl::impl::data_type::f32>;
 template struct jit_uni_lrn_fwd_t<sse41, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_bwd_t<avx512_common, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_bwd_t<avx512_common, dnnl::impl::data_type::bf16>;
+template struct jit_uni_lrn_bwd_t<avx512_core, dnnl::impl::data_type::f32>;
+template struct jit_uni_lrn_bwd_t<avx512_core, dnnl::impl::data_type::bf16>;
 template struct jit_uni_lrn_bwd_t<avx2, dnnl::impl::data_type::f32>;
 
 } // namespace x64
