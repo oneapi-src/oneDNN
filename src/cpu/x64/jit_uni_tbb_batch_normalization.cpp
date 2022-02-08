@@ -135,7 +135,7 @@ struct jit_bnorm_process_tail_t {
     }
 
     void prepare_tail() {
-        if (isa == avx512_common)
+        if (isa == avx512_core)
             prepare_tail_mask_avx512_common();
         else if (isa == avx2)
             prepare_tail_mask_avx2_common();
@@ -171,8 +171,8 @@ struct jit_bnorm_process_tail_t {
 
             h_->cmp(reg_C_, 1);
             h_->jne(l_no_mask);
-            assert(isa == avx512_common || isa == avx2);
-            if (isa == avx512_common)
+            assert(isa == avx512_core || isa == avx2);
+            if (isa == avx512_core)
                 uni_vmovups_tail_avx512_common(dst, src, l_ret);
             else if (isa == avx2)
                 uni_vmovups_tail_avx2_common(dst, src, l_ret);
@@ -273,7 +273,7 @@ struct jit_bnorm_process_relu_t {
             else
                 h_->uni_vmaxps(v, v, vzero_);
         } else if (with_relu_) {
-            if (isa == avx512_common)
+            if (isa == avx512_core)
                 fwd_process_relu_avx512_common(v, off);
             else if (isa == avx2)
                 fwd_process_relu_avx2(v, off);
@@ -284,7 +284,7 @@ struct jit_bnorm_process_relu_t {
 
     void bwd_process_relu(Vmm v, const int off = 0) {
         if (with_relu_) {
-            if (isa == avx512_common)
+            if (isa == avx512_core)
                 bwd_process_relu_avx512_common(v, off);
             else if (isa == avx2)
                 bwd_process_relu_avx2(v, off);
@@ -313,7 +313,7 @@ struct jit_bnorm_process_relu_t {
     }
 
     void fwd_process_relu_alpha(Vmm vmm_dst) {
-        if (isa == avx512_common)
+        if (isa == avx512_core)
             fwd_process_relu_alpha_avx512_common(vmm_dst);
         else {
             assert(utils::one_of(isa, avx2, sse41));
@@ -459,7 +459,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     // therefore the number of registers which are used to unrolling
     // must to be divisible by two.
     static constexpr int min_idx_to_unroll_ = 4;
-    static constexpr int max_idx_to_unroll_ = isa == avx512_common ? 28 : 16;
+    static constexpr int max_idx_to_unroll_ = isa == avx512_core ? 28 : 16;
     static constexpr int number_of_vmms_to_unrolling_variables_
             = max_idx_to_unroll_ - min_idx_to_unroll_;
     static_assert(number_of_vmms_to_unrolling_variables_ % 2 == 0
@@ -717,7 +717,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         , jit_tail_(bdesc, this, reg_tmp_, reg_blk_has_tail_, reg_C_,
                   vtail_mask_, ktail_mask_)
         , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
+        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
@@ -1024,7 +1024,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_, valpha, vmask, reg_alpha_)
         , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
+        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
@@ -1312,7 +1312,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
         , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
+        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
@@ -1394,7 +1394,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
     // therefore the number of registers which are used to unrolling must to be
     // divisible by three.
     static constexpr int min_idx_to_unroll_ = 6;
-    static constexpr int max_idx_to_unroll_ = isa == avx512_common ? 27 : 15;
+    static constexpr int max_idx_to_unroll_ = isa == avx512_core ? 27 : 15;
     static constexpr int number_of_unrolled_variables_ = 3;
     static constexpr int number_of_vmms_to_unrolling_variables_
             = max_idx_to_unroll_ - min_idx_to_unroll_;
@@ -1707,7 +1707,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         , jit_relu_(bdesc, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
         , jit_bf16_emu_(bdesc, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
+        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
@@ -2246,13 +2246,13 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
     const bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
             && one_of(ndims(), 4, 5) && one_of(src_md()->data_type, f32, bf16)
             && IMPLICATION(src_md()->data_type == bf16,
-                    is_superset(isa, avx512_common) && mayiuse(avx512_core))
+                    is_superset(isa, avx512_core) && mayiuse(avx512_core))
             && check_scale_shift_data_type()
             && (attr()->has_default_values()
                     || this->with_relu_post_op(is_training()));
     if (!ok) return status::unimplemented;
 
-    const format_tag_t blocked_tag = is_superset(isa, avx512_common)
+    const format_tag_t blocked_tag = is_superset(isa, avx512_core)
             ? utils::pick(ndims() - 4, nChw16c, nCdhw16c)
             : utils::pick(ndims() - 4, nChw8c, nCdhw8c);
 
@@ -2346,7 +2346,7 @@ jit_uni_tbb_batch_normalization_fwd_t<
 
 template struct jit_uni_tbb_batch_normalization_fwd_t<sse41>;
 template struct jit_uni_tbb_batch_normalization_fwd_t<avx2>;
-template struct jit_uni_tbb_batch_normalization_fwd_t<avx512_common>;
+template struct jit_uni_tbb_batch_normalization_fwd_t<avx512_core>;
 
 /* bwd */
 template <cpu_isa_t isa>
@@ -2361,11 +2361,11 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
                     everyone_is(bf16, src_md()->data_type,
                             diff_src_md()->data_type))
             && IMPLICATION(src_md()->data_type == bf16,
-                    is_superset(isa, avx512_common) && mayiuse(avx512_core))
+                    is_superset(isa, avx512_core) && mayiuse(avx512_core))
             && check_scale_shift_data_type() && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 
-    const format_tag_t blocked_tag = is_superset(isa, avx512_common)
+    const format_tag_t blocked_tag = is_superset(isa, avx512_core)
             ? utils::pick(ndims() - 4, nChw16c, nCdhw16c)
             : utils::pick(ndims() - 4, nChw8c, nCdhw8c);
 
@@ -2456,7 +2456,7 @@ jit_uni_tbb_batch_normalization_bwd_t<
 
 template struct jit_uni_tbb_batch_normalization_bwd_t<sse41>;
 template struct jit_uni_tbb_batch_normalization_bwd_t<avx2>;
-template struct jit_uni_tbb_batch_normalization_bwd_t<avx512_common>;
+template struct jit_uni_tbb_batch_normalization_bwd_t<avx512_core>;
 } // namespace x64
 } // namespace cpu
 } // namespace impl

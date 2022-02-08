@@ -47,10 +47,10 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_BNORM_P({
         {{forward}, {
             /* fp */
-            CPU_INSTANCE_X64(jit_uni_batch_normalization_fwd_t<avx512_common>)
+            CPU_INSTANCE_X64(jit_uni_batch_normalization_fwd_t<avx512_core>)
             CPU_INSTANCE_X64(jit_uni_batch_normalization_fwd_t<avx2>)
             CPU_INSTANCE_X64(jit_uni_batch_normalization_fwd_t<sse41>)
-            CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<avx512_common>)
+            CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<avx512_core>)
             CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<avx2>)
             CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<sse41>)
             CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_fwd_t<sve_512>)
@@ -70,10 +70,10 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
-            CPU_INSTANCE_X64(jit_uni_batch_normalization_bwd_t<avx512_common>)
+            CPU_INSTANCE_X64(jit_uni_batch_normalization_bwd_t<avx512_core>)
             CPU_INSTANCE_X64(jit_uni_batch_normalization_bwd_t<avx2>)
             CPU_INSTANCE_X64(jit_uni_batch_normalization_bwd_t<sse41>)
-            CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<avx512_common>)
+            CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<avx512_core>)
             CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<avx2>)
             CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<sse41>)
             CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_bwd_t<sve_512>)

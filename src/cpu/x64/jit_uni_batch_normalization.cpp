@@ -139,18 +139,18 @@ struct jit_bnorm_t : public jit_generator {
 
     size_t unroll_blocks;
     size_t unroll_regs;
-    Vmm vbuf = Vmm(isa == avx512_common ? 20 : 5);
-    Vmm vdiff_beta = Vmm(isa == avx512_common ? 21 : 6);
-    Vmm vdiff_gamma = Vmm(isa == avx512_common ? 22 : 7);
-    Vmm vsqrtvar = Vmm(isa == avx512_common ? 23 : 8);
-    Vmm vone = Vmm(isa == avx512_common ? 24 : 9);
-    Vmm vmean = Vmm(isa == avx512_common ? 25 : 10);
-    Vmm vgamma = Vmm(isa == avx512_common ? 26 : 11);
-    Vmm vbeta = Vmm(isa == avx512_common ? 27 : 12);
-    Vmm veps = Vmm(isa == avx512_common ? 28 : 13);
-    Vmm vchan_size = Vmm(isa == avx512_common ? 29 : 14);
-    Vmm vtail_mask = Vmm(isa == avx512_common ? 30 : 15);
-    Vmm vaux = Vmm(isa == avx512_common ? 31 : 5);
+    Vmm vbuf = Vmm(isa == avx512_core ? 20 : 5);
+    Vmm vdiff_beta = Vmm(isa == avx512_core ? 21 : 6);
+    Vmm vdiff_gamma = Vmm(isa == avx512_core ? 22 : 7);
+    Vmm vsqrtvar = Vmm(isa == avx512_core ? 23 : 8);
+    Vmm vone = Vmm(isa == avx512_core ? 24 : 9);
+    Vmm vmean = Vmm(isa == avx512_core ? 25 : 10);
+    Vmm vgamma = Vmm(isa == avx512_core ? 26 : 11);
+    Vmm vbeta = Vmm(isa == avx512_core ? 27 : 12);
+    Vmm veps = Vmm(isa == avx512_core ? 28 : 13);
+    Vmm vchan_size = Vmm(isa == avx512_core ? 29 : 14);
+    Vmm vtail_mask = Vmm(isa == avx512_core ? 30 : 15);
+    Vmm vaux = Vmm(isa == avx512_core ? 31 : 5);
     Vmm vdst_aux = vdiff_gamma; // used for ReLU in AVX2 & sse41
     Vmm vmask = Vmm(0);
     Vmm vzero; // is_fwd() ? vdiff_beta : vbeta
@@ -338,7 +338,7 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void fwd_process_relu_alpha(Vmm vmm_dst) {
-        if (isa == avx512_common)
+        if (isa == avx512_core)
             fwd_process_relu_alpha_avx512_common(vmm_dst);
         else {
             assert(utils::one_of(isa, avx2, sse41));
@@ -453,8 +453,8 @@ struct jit_bnorm_t : public jit_generator {
             lea(reg_tmp, ptr[reg_coff + vlen]);
             cmp(reg_tmp, reg_coff_max);
             jl(l_no_mask);
-            assert(isa == avx512_common || isa == avx2);
-            if (isa == avx512_common)
+            assert(isa == avx512_core || isa == avx2);
+            if (isa == avx512_core)
                 uni_vmovups_tail_avx512_common(dst, src, l_ret);
             else if (isa == avx2)
                 uni_vmovups_tail_avx2_common(dst, src, l_ret);
@@ -1044,7 +1044,7 @@ struct jit_bnorm_t : public jit_generator {
                     } else
                         uni_vmaxps(v, v, vzero);
                 } else if (with_relu) { // --flags=R
-                    if (isa == avx512_common)
+                    if (isa == avx512_core)
                         fwd_process_relu_avx512_common(v, offt);
                     else
                         fwd_process_relu_avx2(v, offt, Vmm(3));
@@ -1209,7 +1209,7 @@ struct jit_bnorm_t : public jit_generator {
                         uni_vmovups_spat_data(
                                 t2, vmmword[reg_diff_dst + reg_soff + offt]);
                         if (with_relu) {
-                            if (isa == avx512_common)
+                            if (isa == avx512_core)
                                 bwd_process_relu_avx512_common(t2, offt);
                             else if (isa == avx2)
                                 bwd_process_relu_avx2(t2, offt, t3);
@@ -1272,7 +1272,7 @@ struct jit_bnorm_t : public jit_generator {
                         vmmword[reg_diff_dst + reg_soff_nspc + offt]);
 
                 if (with_relu) {
-                    if (isa == avx512_common)
+                    if (isa == avx512_core)
                         bwd_process_relu_avx512_common(Vmm(sp_idx + 1), offt);
                     else
                         assert(false);
@@ -1375,7 +1375,7 @@ struct jit_bnorm_t : public jit_generator {
                 uni_vmovups_spat_data(
                         v, vmmword[reg_diff_dst + reg_soff + offt]);
                 if (with_relu) {
-                    if (isa == avx512_common)
+                    if (isa == avx512_core)
                         bwd_process_relu_avx512_common(v, offt);
                     else if (isa == avx2)
                         bwd_process_relu_avx2(v, offt, t);
@@ -1473,7 +1473,7 @@ struct jit_bnorm_t : public jit_generator {
                             vmmword[reg_diff_dst + reg_soff_nspc + offt]);
 
                     if (with_relu) {
-                        if (isa == avx512_common)
+                        if (isa == avx512_core)
                             bwd_process_relu_avx512_common(Vmm(idx), offt);
                         else
                             assert(false);
@@ -1595,7 +1595,7 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_src, ptr[rsp + stack_off_src]);
         mov(reg_diff_dst, ptr[rsp + stack_off_diff_dst]);
         if (with_relu) {
-            assert(isa == avx2 || isa == avx512_common);
+            assert(isa == avx2 || isa == avx512_core);
             mov(reg_ws, ptr[rsp + stack_off_ws]);
         }
 
@@ -1679,7 +1679,7 @@ struct jit_bnorm_t : public jit_generator {
 
         mov(reg_diff_src, ptr[rsp + stack_off_diff_src]);
         if (with_relu) {
-            assert(isa == avx2 || isa == avx512_common);
+            assert(isa == avx2 || isa == avx512_core);
             mov(reg_ws, ptr[rsp + stack_off_ws]);
         }
 
@@ -1731,7 +1731,7 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *bdesc) : bdesc_(bdesc) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_common,
+        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 
         const int simd_w = isa == sse41
@@ -1747,8 +1747,8 @@ struct jit_bnorm_t : public jit_generator {
                 bdesc_, is_nspc_, simd_w, dt_size);
         vlen_spat_data_ = vlen / (1 + is_bf16_); // 32B of BF16 -> 64B of FP32
 
-        unroll_blocks = isa == avx512_common && !is_spatial_thr_ ? 4 : 1;
-        unroll_regs = isa == avx512_common && !is_spatial_thr_ ? 4 : 1;
+        unroll_blocks = isa == avx512_core && !is_spatial_thr_ ? 4 : 1;
+        unroll_regs = isa == avx512_core && !is_spatial_thr_ ? 4 : 1;
     }
 
     void generate() override {
@@ -1764,7 +1764,7 @@ struct jit_bnorm_t : public jit_generator {
             }
         }
 
-        if (isa == avx512_common)
+        if (isa == avx512_core)
             prepare_tail_mask_avx512_common();
         else if (isa == avx2)
             prepare_tail_mask_avx2_common();
@@ -2043,7 +2043,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
     if (!ok) return status::unimplemented;
 
     const memory_desc_wrapper src_d(src_md());
-    if (isa == avx512_common) {
+    if (isa == avx512_core) {
         if (!src_d.matches_one_of_tag(nChw16c, nCdhw16c, nhwc, ndhwc))
             return status::unimplemented;
     } else {
@@ -2156,7 +2156,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper diff_src_d(diff_src_md());
 
     format_tag_t src_tag, diff_src_tag;
-    if (isa == avx512_common) {
+    if (isa == avx512_core) {
         src_tag = src_d.matches_one_of_tag(nChw16c, nCdhw16c, nhwc, ndhwc);
         diff_src_tag
                 = diff_src_d.matches_one_of_tag(nChw16c, nCdhw16c, nhwc, ndhwc);
@@ -2255,8 +2255,8 @@ template struct jit_uni_batch_normalization_fwd_t<sse41>;
 template struct jit_uni_batch_normalization_bwd_t<sse41>;
 template struct jit_uni_batch_normalization_fwd_t<avx2>;
 template struct jit_uni_batch_normalization_bwd_t<avx2>;
-template struct jit_uni_batch_normalization_fwd_t<avx512_common>;
-template struct jit_uni_batch_normalization_bwd_t<avx512_common>;
+template struct jit_uni_batch_normalization_fwd_t<avx512_core>;
+template struct jit_uni_batch_normalization_bwd_t<avx512_core>;
 
 } // namespace x64
 } // namespace cpu
