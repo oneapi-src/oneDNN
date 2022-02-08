@@ -27,55 +27,58 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-#define CTX_IN_MEMORY(arg) \
-    static_cast<sycl::sycl_memory_storage_base_t *>(&CTX_IN_STORAGE(arg))
+#define CTX_IN_SYCL_MEMORY(arg) \
+    sycl_memory_arg<::sycl::access::mode::read>(static_cast<sycl::sycl_memory_storage_base_t *>(&CTX_IN_STORAGE(arg)), cgh)
 
-#define CTX_OUT_MEMORY(arg) \
-    static_cast<sycl::sycl_memory_storage_base_t *>(&CTX_OUT_STORAGE(arg))
+#define CTX_OUT_SYCL_MEMORY(arg) \
+    sycl_memory_arg<::sycl::access::mode::write>(static_cast<sycl::sycl_memory_storage_base_t *>(&CTX_OUT_STORAGE(arg)), cgh)
 
-#define CTX_IN_OPTIONAL_ACCESSOR(arg, memory) \
-    get_cudnn_accessor<decltype(CTX_IN_ACCESSOR(arg))>(memory, cgh)
-
-#define CTX_OUT_OPTIONAL_ACCESSOR(arg, memory) \
-    get_cudnn_accessor<decltype(CTX_OUT_ACCESSOR(arg))>(memory, cgh)
-
-template <typename T_acc>
-inline std::optional<T_acc> get_cudnn_accessor(
-        sycl::sycl_memory_storage_base_t *mem, ::sycl::handler &cgh) {
-    std::optional<T_acc> acc;
-    switch (mem->memory_kind()) {
-        case sycl::memory_kind::buffer:
-            acc.emplace(
-                    utils::downcast<sycl::sycl_buffer_memory_storage_t *>(mem)
-                            ->buffer(),
-                    cgh);
-            break;
-        case sycl::memory_kind::usm:
-            // USM storage does not use accessors, so in this case empty
-            // std:optional is returned
-            break;
-        default: assert(!"unexpected memory kind");
+template <::sycl::access_mode mode>
+class sycl_memory_arg {
+public:
+    sycl_memory_arg() = default;
+    sycl_memory_arg(
+            sycl::sycl_memory_storage_base_t *mem, ::sycl::handler &cgh) {
+        switch (mem->memory_kind()) {
+            case sycl::memory_kind::buffer:
+                acc_.emplace(
+                        utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
+                                mem)
+                                ->buffer(),
+                        cgh);
+                break;
+            case sycl::memory_kind::usm:
+                usm_mem_ = utils::downcast<
+                        const sycl::sycl_usm_memory_storage_t *>(mem);
+                break;
+            default: assert(!"unexpected memory kind");
+        }
     }
-    return acc;
-}
 
-template <typename T_acc>
-inline void *get_cudnn_ptr(cuda_sycl_scoped_context_handler_t &sc,
-        const compat::interop_handle &ih, const std::optional<T_acc> &acc,
-        sycl::sycl_memory_storage_base_t *mem) {
-    void *ptr;
-    switch (mem->memory_kind()) {
-        case sycl::memory_kind::buffer:
-            ptr = sc.memory<void *>(ih, acc.value());
-            break;
-        case sycl::memory_kind::usm:
-            ptr = utils::downcast<const sycl::sycl_usm_memory_storage_t *>(mem)
-                          ->usm_ptr();
-            break;
-        default: assert(!"unexpected memory kind");
+    template <typename T = void>
+    T *get_native_pointer(const compat::interop_handle &ih, 
+            const cuda_sycl_scoped_context_handler_t& sc) const {
+        void *raw_ptr;
+        if (usm_mem_) {
+            raw_ptr = usm_mem_->usm_ptr();
+        } else {
+            raw_ptr = sc.memory<void *>(ih, acc_.value());
+        }
+        return reinterpret_cast<T *>(raw_ptr);
     }
-    return ptr;
-}
+
+    template <typename T = void>
+    T *get_native_pointer(const compat::interop_handle &ih, 
+            const cuda_sycl_scoped_context_handler_t& sc, size_t offset) const {
+        return reinterpret_cast<T *>(
+                reinterpret_cast<uint8_t *>(get_native_pointer<T>(ih, sc))
+                + offset);
+    }
+
+private:
+    const sycl::sycl_usm_memory_storage_t *usm_mem_ = nullptr;
+    std::optional<::sycl::accessor<uint8_t, 1, mode>> acc_;
+};
 
 } // namespace nvidia
 } // namespace gpu

@@ -34,12 +34,9 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto *mem_src_0 = CTX_IN_MEMORY(DNNL_ARG_SRC_0);
-        auto *mem_src_1 = CTX_IN_MEMORY(DNNL_ARG_SRC_1);
-        auto *mem_dst = CTX_OUT_MEMORY(DNNL_ARG_DST);
-        auto src_0_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_SRC_0, mem_src_0);
-        auto src_1_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_SRC_1, mem_src_1);
-        auto dst_acc = CTX_OUT_OPTIONAL_ACCESSOR(DNNL_ARG_DST, mem_dst);
+        auto arg_src_0 = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC_0);
+        auto arg_src_1 = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC_1);
+        auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -47,9 +44,9 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            void *a = get_cudnn_ptr(sc, ih, src_0_acc, mem_src_0);
-            void *b = get_cudnn_ptr(sc, ih, src_1_acc, mem_src_1);
-            void *c = get_cudnn_ptr(sc, ih, dst_acc, mem_dst);
+            void *a = arg_src_0.get_native_pointer(ih, sc);
+            void *b = arg_src_1.get_native_pointer(ih, sc);
+            void *c = arg_dst.get_native_pointer(ih, sc);
 
             pd()->binary_impl_->execute(handle, a, b, c);
         });

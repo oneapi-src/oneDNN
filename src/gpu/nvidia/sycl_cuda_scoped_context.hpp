@@ -47,7 +47,7 @@ public:
     // This is a work-around function for reinterpret_casting the memory. This
     // will be fixed when SYCL-2020 has been implemented for Pi backend.
     template <typename T, typename U>
-    inline T memory(const compat::interop_handle &ih, U acc) {
+    inline T memory(const compat::interop_handle &ih, U acc) const {
         return compat::get_native_mem<T>(ih, acc);
     }
 };
