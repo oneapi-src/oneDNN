@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,10 +17,9 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
-#include "gpu/compute/dispatch.hpp"
-
 #include "common/utils.hpp"
 #include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/dispatch.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -28,7 +27,8 @@ namespace gpu {
 namespace compute {
 
 // Compute optimal local work size for the given global work size.
-void get_optimal_lws(const size_t *gws, size_t *lws, size_t n) {
+void get_optimal_lws(const size_t *gws, size_t *lws, const size_t n,
+        const int mapped_vec_dim_idx, const gpu_arch_t gpu_arch) {
     const size_t lws_max = 256;
     // Factors in descending order, prefer bigger sizes for local work size.
     const size_t optimal_lws_values[]
@@ -55,6 +55,18 @@ void get_optimal_lws(const size_t *gws, size_t *lws, size_t n) {
         lws[i] *= optimal_lws_values[lws_idx];
         total_lws *= optimal_lws_values[lws_idx];
         gws_copy[i] /= optimal_lws_values[lws_idx];
+    }
+
+    // Temporary WA for HW/Compiler walk order issue:
+    // starting from XE_HP, if LWS vectorized dim is not power of 2
+    // it may generate sub_groups with inconsecutive SIMD elements.
+    // TODO: remove it when the original issue fixed
+    if (mapped_vec_dim_idx != -1 && gpu_arch >= gpu_arch_t::xe_hp) {
+        if (!math::is_pow2(lws[mapped_vec_dim_idx])) {
+            for (size_t i = 0; i < n; i++) {
+                if (i != (size_t)mapped_vec_dim_idx) lws[i] = 1;
+            }
+        }
     }
 }
 
@@ -300,7 +312,9 @@ void dispatch_t::generate(bool generate_lws) {
 
     if (!with_lws) {
         // Compute the best lws.
-        get_optimal_lws(gws, lws, 3);
+        get_optimal_lws(gws, lws, 3,
+                vec_dim_idx != -1 ? dims_[vec_dim_idx].gws_index : -1,
+                dev_info->gpu_arch());
         with_lws = true;
     }
 
