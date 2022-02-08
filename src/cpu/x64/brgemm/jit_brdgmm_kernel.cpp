@@ -68,6 +68,10 @@ jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
                         dst_md_wrapper, broadcasting_strategy_t::per_oc);
         handle_binary_po_offset_ = with_binary_per_oc_bcast_;
     }
+    if (brg.is_bf16_emu)
+        bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_4);
 }
 
 jit_brdgmm_kernel_base_t::Vmm jit_brdgmm_kernel_base_t::vmm_mask(
@@ -319,6 +323,8 @@ void jit_brdgmm_kernel_base_t::store_accumulators_apply_post_ops(
                 vmm_lbound, vmm_ubound, reg_tmp, data_type::f32, brg.dt_d);
     }
 
+    if (brg.is_bf16_emu) bf16_emu_->init_vcvtneps2bf16();
+
     for (int m = 0; m < m_blocks; m++) {
         if (dt_requires_saturation) {
             for (int n = 0; n < n_blocks; n++) {
@@ -338,7 +344,10 @@ void jit_brdgmm_kernel_base_t::store_accumulators_apply_post_ops(
                 case data_type::f32:
                 case data_type::s32: vmovups(addr, r_vmm); break;
                 case data_type::bf16:
-                    vcvtneps2bf16(wmm, vmm);
+                    if (brg.is_bf16_emu)
+                        bf16_emu_->vcvtneps2bf16(wmm, vmm);
+                    else
+                        vcvtneps2bf16(wmm, vmm);
                     vmovdqu16(addr, r_wmm);
                     break;
                 case data_type::s8: vpmovsdb(addr, r_vmm); break;
@@ -377,6 +386,12 @@ void jit_brdgmm_kernel_base_t::store_accumulators_without_post_ops(
 
 void jit_brdgmm_kernel_base_t::store_accumulators(
         int m_blocks, int n_blocks, bool has_n_tail) {
+
+    if (is_fast_vnni_int8() && brg.is_bf16_emu) {
+        // load permute indices from data section
+        mov(reg_tmp, permute_index_table);
+        vmovdqu32(vmm_permute(), ptr[reg_tmp]);
+    }
 
     if (is_fast_vnni_int8()) {
         for (int m_i = 0; m_i < m_blocks; ++m_i) {
@@ -723,13 +738,14 @@ void jit_brdgmm_kernel_base_t::generate() {
     preamble();
     sub(rsp, stack_space_needed_);
 
-    Label permute_index_table;
     if (is_fast_vnni_int8()) {
         mov(reg_tmp, 0x8888444422221111);
         kmovq(kblend_mask, reg_tmp);
-        // load permute indices from data section
-        mov(reg_tmp, permute_index_table);
-        vmovdqu32(vmm_permute(), ptr[reg_tmp]);
+        if (!brg.is_bf16_emu) {
+            // load permute indices from data section
+            mov(reg_tmp, permute_index_table);
+            vmovdqu32(vmm_permute(), ptr[reg_tmp]);
+        }
     }
 
     if (n_vlen_tail() != 0) {

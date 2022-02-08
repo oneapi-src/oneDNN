@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
@@ -50,6 +51,9 @@ private:
                     Xbyak::Ymm, Xbyak::Xmm>::type;
     std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
             postops_injector_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
+
+    Xbyak::Label permute_index_table;
 
     using reg64_t = const Xbyak::Reg64;
     // Register decomposition
@@ -87,6 +91,17 @@ private:
     Xbyak::Opmask k_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
     Xbyak::Opmask kblend_mask = Xbyak::Opmask(4);
+
+    /* used for bfloat16 */
+    reg64_t bf16_emu_scratch = reg_table_base;
+    Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(0);
+    Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(1);
+    Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(2);
+    Xbyak::Zmm bf16_emu_reserv_4 = Xbyak::Zmm(3);
+    // note 1: zmm reserv_5 is not necessary since it's only used for
+    // 'vdpbf16ps'
+    // note 2: zmm0 collides with vmm_permute, hence need to write this value
+    // before every loop.
 
     constexpr static int max_vmms_ = 32;
     constexpr static int reg_batch0_addr_offs_ = 0;

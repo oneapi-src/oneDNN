@@ -352,6 +352,45 @@ status_t brgemm_blocking(brgemm_t *brg) {
 
     return status::success;
 }
+
+status_t brdgmm_blocking(brgemm_t *brg, const int max_zmm_accum) {
+
+    constexpr int simd_w = 16;
+    auto &M = brg->bcast_dim;
+    auto &N = brg->load_dim;
+
+    // In current implementation of dgmm, there is no reduce dim.
+    auto &m_vlen_blk = brg->bd_block;
+    auto &nb_m_vlen_blk = brg->bdb;
+    auto &m_vlen_tail = brg->bdb_tail;
+    auto &m_blocking = brg->bd_block2;
+    auto &nb_m_blocking = brg->bdb2;
+    auto &m_blocking_tail = brg->bdb2_tail;
+
+    auto &n_vlen_blk = brg->ld_block;
+    auto &nb_n_vlen_blk = brg->ldb;
+    auto &n_vlen_tail = brg->ldb_tail;
+    auto &n_blocking = brg->ld_block2;
+    auto &nb_n_blocking = brg->ldb2;
+    auto &n_blocking_tail = brg->ldb2_tail;
+
+    // begin blocking
+    n_vlen_blk = simd_w;
+    nb_n_vlen_blk = div_up(N, n_vlen_blk);
+    n_vlen_tail = N % n_vlen_blk;
+    n_blocking = nstl::min(4, nb_n_vlen_blk);
+    nb_n_blocking = div_up(nb_n_vlen_blk, n_blocking);
+    n_blocking_tail = nb_n_vlen_blk % n_blocking;
+
+    m_vlen_blk = 1;
+    nb_m_vlen_blk = M / m_vlen_blk;
+    m_vlen_tail = M % m_vlen_blk;
+    m_blocking = nstl::min(nb_m_vlen_blk, max_zmm_accum / n_blocking);
+    nb_m_blocking = div_up(nb_m_vlen_blk, m_blocking);
+    m_blocking_tail = nb_m_vlen_blk % m_blocking;
+
+    return status::success;
+}
 } // namespace
 
 status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
@@ -524,45 +563,14 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     brg->typesize_C = types::data_type_size(brg->dt_c);
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
-    // In current implementation of dgmm, there is no reduce dim.
-    // Also, bcast and load dimensions refer to M and N.
-
-    // auto &M = brg->bcast_dim;
-    // auto &N = brg->load_dim;
-    auto &m_vlen_blk = brg->bd_block;
-    auto &nb_m_vlen_blk = brg->bdb;
-    auto &m_vlen_tail = brg->bdb_tail;
-    auto &m_blocking = brg->bd_block2;
-    auto &nb_m_blocking = brg->bdb2;
-    auto &m_blocking_tail = brg->bdb2_tail;
-
-    auto &n_vlen_blk = brg->ld_block;
-    auto &nb_n_vlen_blk = brg->ldb;
-    auto &n_vlen_tail = brg->ldb_tail;
-    auto &n_blocking = brg->ld_block2;
-    auto &nb_n_blocking = brg->ldb2;
-    auto &n_blocking_tail = brg->ldb2_tail;
-
     brg->bcast_dim = M;
     brg->load_dim = N;
-    const int simd_w = 16;
 
-    // begin blocking
-    n_vlen_blk = simd_w;
-    nb_n_vlen_blk = div_up(N, n_vlen_blk);
-    n_vlen_tail = N % n_vlen_blk;
-    n_blocking = nstl::min(4, nb_n_vlen_blk);
-    nb_n_blocking = div_up(nb_n_vlen_blk, n_blocking);
-    n_blocking_tail = nb_n_vlen_blk % n_blocking;
-
+    const int requires_permute_dst_zmm
+            = jit_brdgmm_kernel_base_t::is_fast_vnni_int8(*brg);
     const int max_acc_zmms = 32 - 2 /*zmma, zmmb, post-ops, saturation*/
-            - jit_brdgmm_kernel_base_t::is_fast_vnni_int8(*brg) /*perm dst*/;
-    m_vlen_blk = 1;
-    nb_m_vlen_blk = M / m_vlen_blk;
-    m_vlen_tail = M % m_vlen_blk;
-    m_blocking = nstl::min(nb_m_vlen_blk, max_acc_zmms / n_blocking);
-    nb_m_blocking = div_up(nb_m_vlen_blk, m_blocking);
-    m_blocking_tail = nb_m_vlen_blk % m_blocking;
+            - requires_permute_dst_zmm;
+    CHECK(brdgmm_blocking(brg, max_acc_zmms));
 
     if (strides != nullptr) {
         brg->stride_a = strides->stride_a;
@@ -615,6 +623,16 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     if (brg->is_int8 && brg->dt_d == bf16)
         brg->is_bf16_emu = !mayiuse(avx512_core_bf16);
+
+    // Rerun blocking heuristic due to reduced zmm register count
+    if (brg->is_bf16_emu && brg->is_dgmm) {
+        constexpr int bf16_emu_zmm_count = 4;
+        const int requires_permute_dst_zmm
+                = jit_brdgmm_kernel_base_t::is_fast_vnni_int8(*brg);
+        const int max_acc_zmms
+                = 32 - bf16_emu_zmm_count - requires_permute_dst_zmm;
+        CHECK(brdgmm_blocking(brg, max_acc_zmms));
+    }
 
     if (!brg->attr) return status::success;
 
