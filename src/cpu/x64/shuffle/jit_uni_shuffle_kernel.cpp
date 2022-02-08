@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ template <cpu_isa_t isa>
 void jit_uni_shuffle_kernel_t<isa>::prepare_mask() {}
 
 template <>
-void jit_uni_shuffle_kernel_t<avx512_common>::prepare_mask() {
+void jit_uni_shuffle_kernel_t<avx512_core>::prepare_mask() {
     const size_t tail_mask = (1ULL << conf_.simd_tail) - 1ULL;
     const Reg64 &reg_tail = reg_tmp_;
     mov(reg_tail.cvt32(), tail_mask);
@@ -64,7 +64,7 @@ void jit_uni_shuffle_kernel_t<avx>::prepare_mask() {
 }
 
 template <>
-void jit_uni_shuffle_kernel_t<avx512_common>::emu_gather_data(
+void jit_uni_shuffle_kernel_t<avx512_core>::emu_gather_data(
         const Reg64 &reg_src_addr, const int indices_idx, const int data_idx,
         const bool is_tail) {
     assert(conf_.data_type == data_type::bf16);
@@ -160,7 +160,7 @@ void jit_uni_shuffle_kernel_t<sse41>::emu_gather_data(const Reg64 &reg_src_addr,
 }
 
 template <>
-void jit_uni_shuffle_kernel_t<avx512_common>::gather_data(
+void jit_uni_shuffle_kernel_t<avx512_core>::gather_data(
         const Reg64 &reg_src_addr, const int indices_idx, const int data_idx,
         const bool is_tail) {
     if (conf_.dt_size == sizeof(float)) {
@@ -217,7 +217,7 @@ void jit_uni_shuffle_kernel_t<sse41>::gather_data(const Reg64 &reg_src_addr,
 }
 
 template <>
-void jit_uni_shuffle_kernel_t<avx512_common>::store_data(const int data_idx,
+void jit_uni_shuffle_kernel_t<avx512_core>::store_data(const int data_idx,
         const Reg64 &reg_dst_addr, const int offset, const bool is_tail) {
     const auto extend_for_padding
             = is_tail && padding_size_ + conf_.simd_tail >= conf_.simd_w;
@@ -480,7 +480,7 @@ void jit_uni_shuffle_kernel_t<isa>::generate() {
 
 template struct jit_uni_shuffle_kernel_t<sse41>;
 template struct jit_uni_shuffle_kernel_t<avx>;
-template struct jit_uni_shuffle_kernel_t<avx512_common>;
+template struct jit_uni_shuffle_kernel_t<avx512_core>;
 
 #undef GET_OFF
 

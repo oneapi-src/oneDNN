@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -205,7 +205,7 @@ status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
 
 template struct jit_uni_shuffle_t<sse41>;
 template struct jit_uni_shuffle_t<avx>;
-template struct jit_uni_shuffle_t<avx512_common>;
+template struct jit_uni_shuffle_t<avx512_core>;
 
 } // namespace x64
 } // namespace cpu
