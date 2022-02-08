@@ -28,7 +28,7 @@ softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) noexcept {
     is_bwd_pass = prb->dir & FLAG_BWD;
     axis = prb->axis;
     dims = prb->dims;
-    softmax_dt = convert_dt(prb->dt);
+    softmax_dt = convert_dt(prb->sdt);
     switch (prb->alg) {
         case ::softmax::SOFTMAX:
             op_kind = (is_bwd_pass) ? graph_op::kind::SoftMaxBackprop
@@ -40,15 +40,15 @@ softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) noexcept {
             break;
         default: op_kind = graph_op::kind::LastSymbol;
     }
-    tag = prb->tag;
+    tag = prb->stag;
 }
 
 void check_known_skipped_case_graph(
         const ::softmax::prb_t *prb, res_t *res) noexcept {
-    check_known_skipped_case_common({prb->dt}, prb->dir, res);
+    check_known_skipped_case_common({prb->sdt}, prb->dir, res);
     if (res->state == SKIPPED) return;
     check_known_skipped_case_graph_common(
-            {prb->dt}, normalize_tag(prb->tag, prb->ndims), prb->dir, res);
+            {prb->sdt}, normalize_tag(prb->stag, prb->ndims), prb->dir, res);
     if (res->state == SKIPPED) return;
 }
 
@@ -127,8 +127,8 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     dnn_mem_t &dst_fp = src_fp; // in-place reference
 
-    const auto placeholder_dst_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
-    auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
+    const auto placeholder_dst_dt = make_dnn_mem(outs[0], (prb->stag).c_str());
+    auto src_dt = make_dnn_mem(ins[0], (prb->stag).c_str());
     const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
@@ -148,9 +148,9 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
             compare::compare_t cmp;
             const float trh_coeff_log
                     = prb->alg == ::softmax::LOGSOFTMAX ? 4 : 1;
-            const float trh_coeff_f32 = prb->dt == dnnl_f32 ? 10.f : 1.f;
+            const float trh_coeff_f32 = prb->sdt == dnnl_f32 ? 10.f : 1.f;
             const float trh
-                    = trh_coeff_log * trh_coeff_f32 * epsilon_dt(prb->dt);
+                    = trh_coeff_log * trh_coeff_f32 * epsilon_dt(prb->sdt);
             cmp.set_threshold(trh);
 
             const int64_t axis_size = prb->dims[prb->axis];
@@ -162,9 +162,9 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
         }
     } else if (prb->dir & FLAG_BWD) {
         auto d_dst_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
-        auto d_dst_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
+        auto d_dst_dt = make_dnn_mem(ins[0], (prb->stag).c_str());
 
-        auto placeholder_d_src_dt = make_dnn_mem(outs[0], (prb->tag).c_str());
+        auto placeholder_d_src_dt = make_dnn_mem(outs[0], (prb->stag).c_str());
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
@@ -183,8 +183,8 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
             ::softmax::compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp);
 
             compare::compare_t cmp;
-            const float trh_coeff_f32 = prb->dt == dnnl_f32 ? 10.f : 1.f;
-            const float trh = 4 * trh_coeff_f32 * epsilon_dt(prb->dt);
+            const float trh_coeff_f32 = prb->sdt == dnnl_f32 ? 10.f : 1.f;
+            const float trh = 4 * trh_coeff_f32 * epsilon_dt(prb->sdt);
             cmp.set_threshold(trh);
 
             ::softmax::add_additional_softmax_check(cmp);

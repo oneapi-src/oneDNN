@@ -1,9 +1,9 @@
 # main op
 --reset
---dt=bf16
+--sdt=bf16
 --inplace=true,false
 --dir=FWD_I,BWD_D
 --alg=SOFTMAX,LOGSOFTMAX
---tag=abx,axb
+--stag=abx,axb
 --axis=0,1,2
 8x384x1024
