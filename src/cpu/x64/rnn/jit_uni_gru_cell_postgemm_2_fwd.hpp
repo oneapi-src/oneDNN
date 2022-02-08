@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ struct jit_uni_gru_cell_postgemm_part2_fwd : public jit_uni_rnn_postgemm {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_gru_cell_postgemm_part2_fwd)
 
     using injector_t = typename utils::conditional<isa == avx512_core,
-            jit_uni_eltwise_injector_f32<avx512_common>,
+            jit_uni_eltwise_injector_f32<avx512_core>,
             jit_uni_eltwise_injector_f32<isa>>::type;
 
     jit_uni_gru_cell_postgemm_part2_fwd(

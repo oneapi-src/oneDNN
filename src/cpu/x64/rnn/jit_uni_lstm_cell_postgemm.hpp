@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,12 +33,11 @@ struct jit_uni_lstm_cell_postgemm_t {
         , tmp_id_begin_(tmp_id_begin)
         , current_tmp_id_(tmp_id_begin)
         , tmp_id_end_(cpu_isa_traits<isa>::n_vregs
-                  - (is_superset(isa, avx512_common) && use_bf16_emu ? 4 : 0)) {
-    }
+                  - (is_superset(isa, avx512_core) && use_bf16_emu ? 4 : 0)) {}
 
 protected:
     using injector_t = typename utils::conditional<isa == avx512_core,
-            jit_uni_eltwise_injector_f32<avx512_common>,
+            jit_uni_eltwise_injector_f32<avx512_core>,
             jit_uni_eltwise_injector_f32<isa>>::type;
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
     const size_t vlen_ = cpu_isa_traits<isa>::vlen;
