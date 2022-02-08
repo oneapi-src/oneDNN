@@ -143,8 +143,8 @@ void jit_uni_deconv_zp_pad_str_kernel_t<isa, Vmm>::compute_step(
         uni_vpaddd(result_acc_, result_acc_, wei_vmm);
     else if (jcp_.has_vnni)
         vpdpbusd(result_acc_, vmm_one_bytes_, wei_vmm,
-                is_superset(isa, avx512_common) ? Xbyak::EvexEncoding
-                                                : Xbyak::VexEncoding);
+                is_superset(isa, avx512_core) ? Xbyak::EvexEncoding
+                                              : Xbyak::VexEncoding);
     else {
         uni_vpmaddubsw(vmm_tmp_, vmm_one_bytes_, wei_vmm);
         uni_vpmaddwd(vmm_tmp_, vmm_tmp_, vmm_one_words_);
@@ -153,7 +153,7 @@ void jit_uni_deconv_zp_pad_str_kernel_t<isa, Vmm>::compute_step(
 }
 
 template <cpu_isa_t isa, typename Vmm,
-        typename T = std::integral_constant<bool, (isa < avx512_common)>>
+        typename T = std::integral_constant<bool, (isa < avx512_core)>>
 struct helper_store_t {
     static void store(jit_generator *gen, const Vmm &vmm,
             const Xbyak::Reg64 &reg_dst, const size_t size,
@@ -162,9 +162,9 @@ struct helper_store_t {
     }
 };
 
-using isa_at_least_avx512_common = std::false_type;
+using isa_at_least_avx512_core = std::false_type;
 template <cpu_isa_t isa, typename Vmm>
-struct helper_store_t<isa, Vmm, isa_at_least_avx512_common> {
+struct helper_store_t<isa, Vmm, isa_at_least_avx512_core> {
     static void store(jit_generator *gen, const Vmm &vmm,
             const Xbyak::Reg64 &reg_dst, const size_t size,
             const Xbyak::Opmask &opmask) {
@@ -213,7 +213,7 @@ void jit_uni_deconv_zp_pad_str_kernel_base_t::load_addresses() {
 #undef PARAM_OFF
 
 template <cpu_isa_t isa,
-        typename T = std::integral_constant<bool, (isa < avx512_common)>>
+        typename T = std::integral_constant<bool, (isa < avx512_core)>>
 struct helper_create_deconv_ker_t {
     static jit_uni_deconv_zp_pad_str_kernel_base_t *
     create_deconv_zp_pad_str_comp_ker(const jit_conv_conf_t &jcp) {
@@ -237,19 +237,19 @@ struct helper_create_deconv_ker_t {
 };
 
 template <cpu_isa_t isa>
-struct helper_create_deconv_ker_t<isa, isa_at_least_avx512_common> {
+struct helper_create_deconv_ker_t<isa, isa_at_least_avx512_core> {
     static jit_uni_deconv_zp_pad_str_kernel_base_t *
     create_deconv_zp_pad_str_comp_ker(const jit_conv_conf_t &jcp) {
         const int ch_block = jcp.is_depthwise ? jcp.ch_block : jcp.ic_block;
         switch (ch_block) {
             case 16:
-                return new jit_uni_deconv_zp_pad_str_kernel_t<avx512_common,
+                return new jit_uni_deconv_zp_pad_str_kernel_t<avx512_core,
                         Xbyak::Zmm>(jcp);
             case 8:
-                return new jit_uni_deconv_zp_pad_str_kernel_t<avx512_common,
+                return new jit_uni_deconv_zp_pad_str_kernel_t<avx512_core,
                         Xbyak::Ymm>(jcp);
             case 4:
-                return new jit_uni_deconv_zp_pad_str_kernel_t<avx512_common,
+                return new jit_uni_deconv_zp_pad_str_kernel_t<avx512_core,
                         Xbyak::Xmm>(jcp);
             default: assert(!"invalid channel blocking");
         }
@@ -383,7 +383,7 @@ create_deconv_zp_pad_str_comp_ker<sse41>(const jit_conv_conf_t &jcp);
 template jit_uni_deconv_zp_pad_str_kernel_base_t *
 create_deconv_zp_pad_str_comp_ker<avx2>(const jit_conv_conf_t &jcp);
 template jit_uni_deconv_zp_pad_str_kernel_base_t *
-create_deconv_zp_pad_str_comp_ker<avx512_common>(const jit_conv_conf_t &jcp);
+create_deconv_zp_pad_str_comp_ker<avx512_core>(const jit_conv_conf_t &jcp);
 
 } // namespace zp
 } // namespace x64

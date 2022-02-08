@@ -289,7 +289,7 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
 
         if (zp::should_calculate_deconv_zp_src_pad_str_comp(pd()->jcp_)) {
             CHECK(safe_ptr_assign(zp_src_pad_comp_kernel_,
-                    zp::create_deconv_zp_pad_str_comp_ker<avx512_common>(
+                    zp::create_deconv_zp_pad_str_comp_ker<avx512_core>(
                             pd()->jcp_)));
             const auto zp_kernel_status
                     = zp_src_pad_comp_kernel_->create_kernel();
