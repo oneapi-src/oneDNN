@@ -127,7 +127,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.ow = dst_d.dims()[ndims - 1];
     jpp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
 
-    const bool is_avx512 = utils::one_of(isa, avx512_common, avx512_core);
+    const bool is_avx512 = isa == avx512_core;
     jpp.ndims = ndims;
     jpp.mb = src_d.dims()[0];
     jpp.c_without_padding = src_d.dims()[1];
@@ -136,7 +136,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.alg = pd.alg_kind;
 
     using namespace format_tag;
-    const auto blocked_fmt_tag = utils::one_of(isa, avx512_common, avx512_core)
+    const auto blocked_fmt_tag = is_avx512
             ? utils::pick(ndims - 3, nCw16c, nChw16c, nCdhw16c)
             : utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
 
@@ -162,8 +162,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                             && !(jpp.alg == pooling_max
                                     && block_size > L3_cache_size_per_core)));
 
-    ncsp_fmt_tag = ((forward_ncsp_allowed || backward_ncsp_allowed)
-                           && isa == avx512_core && ndims <= 5)
+    ncsp_fmt_tag = ((forward_ncsp_allowed || backward_ncsp_allowed) && is_avx512
+                           && ndims <= 5)
             ? utils::pick(ndims - 3, ncw, nchw, ncdhw)
             : format_tag::undef;
 
@@ -338,7 +338,7 @@ static int reg_ind(int shift, int bc, int j, int ur_bc, int ur_w) noexcept {
 
 template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel<isa>::prepare_tail_mask() {
-    if (is_superset(isa, avx512_common)) {
+    if (is_superset(isa, avx512_core)) {
         size_t c_tail_mask = (1ULL << jpp.c_tail) - 1ULL;
         mov(tmp_gpr.cvt32(), c_tail_mask);
         kmovw(k_c_tail_mask, tmp_gpr.cvt32());
@@ -1501,7 +1501,6 @@ void jit_uni_pool_kernel<isa>::generate() {
 template struct jit_uni_pool_kernel<sse41>;
 template struct jit_uni_pool_kernel<avx>;
 template struct jit_uni_pool_kernel<avx2>;
-template struct jit_uni_pool_kernel<avx512_common>;
 template struct jit_uni_pool_kernel<avx512_core>;
 
 } // namespace x64

@@ -1269,8 +1269,6 @@ template struct jit_uni_pooling_fwd_t<avx, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<avx, data_type::f32>;
 template struct jit_uni_pooling_fwd_t<avx2, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<avx2, data_type::f32>;
-template struct jit_uni_pooling_fwd_t<avx512_common, data_type::f32>;
-template struct jit_uni_pooling_bwd_t<avx512_common, data_type::f32>;
 template struct jit_uni_pooling_fwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_pooling_fwd_t<avx512_core, data_type::bf16>;
