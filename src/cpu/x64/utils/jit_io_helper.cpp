@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
 
     static constexpr bool is_zmm = std::is_same<Vmm, Xbyak::Zmm>::value;
     MAYBE_UNUSED(is_zmm);
-    assert(IMPLICATION(!is_superset(isa_, avx512_common), !is_zmm)
+    assert(IMPLICATION(!is_superset(isa_, avx512_core), !is_zmm)
             && "This architecture does not support zmms.");
 }
 
@@ -351,7 +351,7 @@ void jit_io_helper_t<Vmm>::prepare_tail_mask() {
 
     if (!tail_conf_->tail_size_) return;
 
-    if (is_superset(isa_, avx512_common))
+    if (is_superset(isa_, avx512_core))
         prepare_opmask(tail_conf_->tail_size_, tail_conf_->reg_tmp_,
                 tail_conf_->tail_opmask_);
     else if (is_superset(isa_, avx))
@@ -367,7 +367,7 @@ void jit_io_helper_t<Vmm>::prepare_full_mask() {
             || data_type_ == data_type::u8)
         return;
 
-    if (is_superset(isa_, avx512_common))
+    if (is_superset(isa_, avx512_core))
         prepare_opmask(gather_conf_->simd_w_, gather_conf_->reg_tmp_,
                 gather_conf_->full_opmask_);
     else if (isa_ == avx2)
@@ -410,7 +410,7 @@ void jit_io_helper_t<Vmm>::gather(const Xbyak::Reg64 &src_reg,
                                        : dst_vmm | gather_conf_->full_opmask_;
 
     const bool can_use_gather_instruction
-            = isa_ == avx2 || is_superset(isa_, avx512_common);
+            = isa_ == avx2 || is_superset(isa_, avx512_core);
 
     if ((data_type_ == data_type::f32 || data_type_ == data_type::s32)
             && can_use_gather_instruction) {
@@ -448,7 +448,7 @@ void jit_io_helper_t<Vmm>::load(const Xbyak::Address &src_addr,
     assert(IMPLICATION(tail, tail_conf_.has_value())
             && "Config for tail processing is not set.");
 
-    const bool is_avx512 = is_superset(isa_, avx512_common);
+    const bool is_avx512 = is_superset(isa_, avx512_core);
 
     const auto dst_vmm = tail && is_avx512
             ? (dst_raw_vmm | tail_conf_->tail_opmask_ | host_->T_z)
@@ -496,7 +496,7 @@ void jit_io_helper_t<Vmm>::load_byte_by_byte(const Xbyak::Address &src_addr,
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::load_f32(
         const Xbyak::Address &src_addr, const Vmm &dst_vmm, const bool tail) {
-    if (tail && !is_superset(isa_, avx512_common))
+    if (tail && !is_superset(isa_, avx512_core))
         host_->vmaskmovps(
                 dst_vmm, Vmm(tail_conf_->tail_vmm_mask_idx_), src_addr);
     else
@@ -506,7 +506,7 @@ void jit_io_helper_t<Vmm>::load_f32(
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::load_s32(
         const Xbyak::Address &src_addr, const Vmm &dst_vmm, const bool tail) {
-    if (is_superset(isa_, avx512_common))
+    if (is_superset(isa_, avx512_core))
         host_->uni_vcvtdq2ps(dst_vmm, src_addr);
     else {
         load_f32(src_addr, dst_vmm, tail);
@@ -542,7 +542,7 @@ void jit_io_helper_t<Vmm>::store(const Vmm &src_raw_vmm,
     assert(!(tail && io_conf_.nt_stores_enabled_)
             && "Usage of non-temporal stores with tail leads to a general-protection exception.");
 
-    const bool is_avx512 = is_superset(isa_, avx512_common);
+    const bool is_avx512 = is_superset(isa_, avx512_core);
 
     const auto dst_addr = tail && is_avx512
             ? (dst_raw_addr | tail_conf_->tail_opmask_)
@@ -606,7 +606,7 @@ void jit_io_helper_t<Vmm>::store_f32(
         const Vmm &src_vmm, const Xbyak::Address &dst_addr, const bool tail) {
     if (io_conf_.nt_stores_enabled_)
         host_->uni_vmovntps(dst_addr, src_vmm);
-    else if (!is_superset(isa_, avx512_common) && tail)
+    else if (!is_superset(isa_, avx512_core) && tail)
         host_->vmaskmovps(
                 dst_addr, Vmm(tail_conf_->tail_vmm_mask_idx_), src_vmm);
     else
@@ -644,7 +644,7 @@ void jit_io_helper_t<Vmm>::store_bf16(
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::store_i8(
         const Vmm &src_vmm, const Xbyak::Address &dst_addr) {
-    if (!is_superset(isa_, avx512_common)) {
+    if (!is_superset(isa_, avx512_core)) {
         static constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
 
         prepare_i8_data_to_store(src_vmm);
@@ -708,7 +708,7 @@ void jit_io_helper_t<Vmm>::broadcast(
             convert_to_f32(dst_vmm, dst_vmm, data_type_);
             break;
         case data_type::s32: {
-            if (is_superset(isa_, avx512_common)) {
+            if (is_superset(isa_, avx512_core)) {
                 host_->uni_vcvtdq2ps(
                         dst_vmm, host_->ptr_b[src_addr.getRegExp()]);
             } else {
