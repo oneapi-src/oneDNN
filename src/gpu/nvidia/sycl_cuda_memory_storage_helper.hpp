@@ -28,10 +28,16 @@ namespace gpu {
 namespace nvidia {
 
 #define CTX_IN_SYCL_MEMORY(arg) \
-    sycl_memory_arg<::sycl::access::mode::read>(static_cast<sycl::sycl_memory_storage_base_t *>(&CTX_IN_STORAGE(arg)), cgh)
+    sycl_memory_arg<::sycl::access::mode::read>( \
+            static_cast<sycl::sycl_memory_storage_base_t *>( \
+                    &CTX_IN_STORAGE(arg)), \
+            cgh)
 
 #define CTX_OUT_SYCL_MEMORY(arg) \
-    sycl_memory_arg<::sycl::access::mode::write>(static_cast<sycl::sycl_memory_storage_base_t *>(&CTX_OUT_STORAGE(arg)), cgh)
+    sycl_memory_arg<::sycl::access::mode::write>( \
+            static_cast<sycl::sycl_memory_storage_base_t *>( \
+                    &CTX_OUT_STORAGE(arg)), \
+            cgh)
 
 template <::sycl::access_mode mode>
 class sycl_memory_arg {
@@ -56,8 +62,8 @@ public:
     }
 
     template <typename T = void>
-    T *get_native_pointer(const compat::interop_handle &ih, 
-            const cuda_sycl_scoped_context_handler_t& sc) const {
+    T *get_native_pointer(const compat::interop_handle &ih,
+            const cuda_sycl_scoped_context_handler_t &sc) const {
         void *raw_ptr;
         if (usm_mem_) {
             raw_ptr = usm_mem_->usm_ptr();
@@ -68,8 +74,8 @@ public:
     }
 
     template <typename T = void>
-    T *get_native_pointer(const compat::interop_handle &ih, 
-            const cuda_sycl_scoped_context_handler_t& sc, size_t offset) const {
+    T *get_native_pointer(const compat::interop_handle &ih,
+            const cuda_sycl_scoped_context_handler_t &sc, size_t offset) const {
         return reinterpret_cast<T *>(
                 reinterpret_cast<uint8_t *>(get_native_pointer<T>(ih, sc))
                 + offset);
