@@ -270,7 +270,6 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     : pp_kernel_t(
             OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum) {
     assert(IMPLICATION(this->dst_data_type_ == bf16, mayiuse(avx512_core)));
-    assert(isa != avx512_common);
 
     if (this->do_scale_) vreg_scale = Vmm(idx_compute_vreg_start_++);
 
