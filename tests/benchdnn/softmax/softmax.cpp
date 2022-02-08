@@ -35,45 +35,53 @@ namespace softmax {
 
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
-    dnnl_softmax_desc_t sd;
-    dnnl_memory_desc_t data_d;
+    dnnl_softmax_v2_desc_t sd;
+    dnnl_memory_desc_t dst_d;
 
-    SAFE(init_md(&data_d, prb->ndims, prb->dims.data(), prb->dt, prb->tag),
+    SAFE(init_md(&dst_d, prb->ndims, prb->dims.data(), prb->ddt, prb->dtag),
             CRIT);
 
+    dnnl_alg_kind_t alg_kind = dnnl_softmax_accurate;
+    if (prb->alg == LOGSOFTMAX) alg_kind = dnnl_softmax_log;
+
     if (prb->dir & FLAG_FWD) {
+        dnnl_memory_desc_t src_d;
+        SAFE(init_md(&src_d, prb->ndims, prb->dims.data(), prb->sdt, prb->stag),
+                CRIT);
+
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
 
-        if (prb->alg == SOFTMAX)
-            DNN_SAFE(dnnl_softmax_forward_desc_init(
-                             &sd, prop, &data_d, prb->axis),
-                    WARN);
-        else if (prb->alg == LOGSOFTMAX)
-            DNN_SAFE(dnnl_logsoftmax_forward_desc_init(
-                             &sd, prop, &data_d, prb->axis),
-                    WARN);
-        else
-            SAFE(FAIL, CRIT);
-    } else {
-        dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
-                         prb->dims.data(), prb->dt, dnnl_format_tag_any),
+        DNN_SAFE(dnnl_softmax_v2_forward_desc_init(
+                         &sd, prop, alg_kind, &src_d, &dst_d, prb->axis),
                 WARN);
-        if (prb->alg == SOFTMAX)
-            DNN_SAFE(dnnl_softmax_backward_desc_init(
-                             &sd, &diff_data_d, &data_d, prb->axis),
-                    WARN);
-        else if (prb->alg == LOGSOFTMAX)
-            DNN_SAFE(dnnl_logsoftmax_backward_desc_init(
-                             &sd, &diff_data_d, &data_d, prb->axis),
-                    WARN);
-        else
-            SAFE(FAIL, CRIT);
+    } else {
+        // Re-create dst_md with source tag if dst was not specified, immitating
+        // default value.
+        if (prb->dtag == tag::any) {
+            SAFE(init_md(&dst_d, prb->ndims, prb->dims.data(), prb->ddt,
+                         prb->stag),
+                    CRIT);
+        }
+
+        dnnl_memory_desc_t diff_src_d, diff_dst_d;
+        SAFE(init_md(&diff_src_d, prb->ndims, prb->dims.data(), prb->sdt,
+                     tag::any),
+                CRIT);
+        SAFE(init_md(&diff_dst_d, prb->ndims, prb->dims.data(), prb->ddt,
+                     tag::any),
+                CRIT);
+
+        DNN_SAFE(dnnl_softmax_v2_backward_desc_init(&sd, alg_kind, &diff_src_d,
+                         &diff_dst_d, &dst_d, prb->axis),
+                WARN);
     }
 
+    attr_args_t attr_args;
+    attr_args.prepare_output_scales(prb->attr, prb->scales, 1);
+
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args_t()));
+            create_dnnl_attr(prb->attr, attr_args));
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&spd, &sd, dnnl_attr, engine, nullptr);
@@ -132,8 +140,8 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
                 std::uniform_int_distribution<>(1, 1),
                 std::uniform_int_distribution<>(0, 4)};
         std::vector<std::uniform_int_distribution<>> igen_top
-                = sizeof_dt(prb->dt) == 1 ? igen_top_int8 : igen_top_fp;
-        const int sign = idx_chunk % 2 != 0 ? -1 : 1;
+                = sizeof_dt(prb->ddt) == 1 ? igen_top_int8 : igen_top_fp;
+        const int sign = (idx_chunk % 2 != 0 && prb->sdt != dnnl_u8) ? -1 : 1;
         const int exp_ovfl_arg = 88 * sign;
         std::vector<int> top_val {
                 exp_ovfl_arg + 2, exp_ovfl_arg + 1, exp_ovfl_arg};
@@ -200,7 +208,26 @@ int fill_data_bwd(
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->dt}, prb->dir, res);
+    check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
+    if (res->state == SKIPPED) return;
+
+    if (prb->inplace) {
+        check_inplace(res, prb->sdt, prb->ddt, prb->stag, prb->dtag);
+        if (res->state == SKIPPED) return;
+    }
+
+    if (is_gpu()) { // switch to `if (is_nvidia_gpu())` once resolved
+        const bool sdt_is_int8 = prb->sdt == dnnl_s8 || prb->sdt == dnnl_u8;
+        const bool ddt_is_int8 = prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8;
+        const bool dt_ok = prb->sdt == prb->ddt && !sdt_is_int8 && !ddt_is_int8;
+
+        const bool attr_ok = prb->attr.is_def();
+
+        if (!dt_ok || !attr_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 void add_additional_softmax_check(compare::compare_t &cmp) {
@@ -236,26 +263,32 @@ int doit(const prb_t *prb, res_t *res) {
                 const_pd, dnnl_query_exec_arg_md, index);
     };
 
-    const auto &data_md = q(DNNL_ARG_DST); // src_md is not defined for BWD
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
-
     const auto &test_engine = get_test_engine();
 
-    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, test_engine);
-    dnn_mem_t src_dt(data_md, test_engine);
-
-    dnn_mem_t &dst_fp = src_fp; // in-place reference
-    dnn_mem_t placeholder_dst_dt;
-    if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, test_engine); }
-    dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
-
+    dnn_mem_t src_dt, placeholder_dst_dt;
+    dnn_mem_t &dst_dt = prb->inplace && (prb->dir & FLAG_FWD)
+            ? src_dt
+            : placeholder_dst_dt;
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
+    dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
     args_t args;
 
     if (prb->dir & FLAG_FWD) {
+        const auto &src_md = q(DNNL_ARG_SRC);
+        const auto &dst_md = q(DNNL_ARG_DST);
+
+        src_dt = dnn_mem_t(src_md, test_engine);
+        if (!prb->inplace) {
+            placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
+        }
+
+        dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, test_engine);
+        dnn_mem_t &dst_fp = src_fp; // in-place reference
+
         SAFE(fill_data_fwd(prb, src_dt, src_fp), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
@@ -293,23 +326,25 @@ int doit(const prb_t *prb, res_t *res) {
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     } else {
-        const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
+        const auto &dst_md = q(DNNL_ARG_DST);
+        const auto &d_dst_md = q(DNNL_ARG_DIFF_DST);
+        const auto &d_src_md = q(DNNL_ARG_DIFF_SRC);
 
-        dnn_mem_t d_dst_fp
-                = dnn_mem_t(d_data_md, dnnl_f32, tag::abx, test_engine);
-        d_dst_dt = dnn_mem_t(d_data_md, test_engine);
-
-        dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
+        placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
+        d_dst_dt = dnn_mem_t(d_dst_md, test_engine);
         if (!prb->inplace) {
-            placeholder_d_src_dt = dnn_mem_t(d_data_md, test_engine);
+            placeholder_d_src_dt = dnn_mem_t(d_src_md, test_engine);
         }
-        dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
+
+        dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, test_engine);
+        dnn_mem_t d_dst_fp(d_dst_md, dnnl_f32, tag::abx, test_engine);
+        dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
 
         const bool neg_sign = prb->alg == SOFTMAX ? true : false;
-        SAFE(fill_data_bwd(prb, src_dt, src_fp, neg_sign), WARN);
+        SAFE(fill_data_bwd(prb, dst_dt, dst_fp, neg_sign), WARN);
         SAFE(fill_data_bwd(prb, d_dst_dt, d_dst_fp, !neg_sign), WARN);
 
-        args.set(DNNL_ARG_DST, src_dt);
+        args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
@@ -317,14 +352,14 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp));
+            TIME_REF(compute_ref_bwd(prb, dst_fp, d_dst_fp, d_src_fp));
 
             compare::compare_t cmp;
 
             const float trh_coeff_f32
-                    = data_md.data_type == dnnl_f32 ? 10.f : 1.f;
+                    = d_src_md.data_type == dnnl_f32 ? 10.f : 1.f;
             const float trh
-                    = 4 * trh_coeff_f32 * epsilon_dt(d_data_md.data_type);
+                    = 4 * trh_coeff_f32 * epsilon_dt(d_src_md.data_type);
             cmp.set_threshold(trh);
 
             add_additional_softmax_check(cmp);

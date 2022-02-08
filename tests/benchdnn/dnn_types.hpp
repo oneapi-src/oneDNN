@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -103,6 +103,7 @@ struct attr_t {
         PER_SPATIAL, // ... combination of dims[2] and dims[3] points.
         PER_TENSOR, // ... point in the tensor.
         PER_MB_W, // combination of dims[0] and dims[3] points.
+        PER_W, // ... dims[3] point.
         POLICY_TOTAL // guard
     };
 
@@ -482,6 +483,10 @@ int check_abc_tag(const std::string &tag, bool check_enum_tags_only = false);
 
 // Removes extra dimensions from a tag according to ndims.
 std::string trim_tag(const std::string &tag, int ndims);
+// Removes extra dimensions from a tag according to mask. `ndims` version is a
+// custom case of `mask` version, assuming that first `ndims` dimensions of mask
+// are non-zero.
+std::string trim_tag_by_mask(const std::string &tag, int mask);
 
 // Converts a tag/meta-tag to abc notation.
 std::string normalize_tag(const std::string &tag, int ndims = -1);
@@ -492,7 +497,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
 dnnl_engine_kind_t str2engine_kind(const char *str);
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 
-void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc);
+void maybe_oscale(
+        const attr_t &attr, float &d, const float *scales, int64_t oc);
 void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
         int64_t c, int arg, bool opposite_zero_point = false);
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,

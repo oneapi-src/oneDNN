@@ -104,7 +104,7 @@ g2ic2ih1iw2oc4oh1ow2kh1kw1ph0pw0
 mb128ic3ih230oc64oh112kh7sh2ph0
 #int8dst
 --reset
---cfg=f16f16s8,f16f16u8,bf16bf16s8,bf16bf16u8,f32f32s8
+--cfg=f16f16s8,f16f16u8,bf16bf16s8,bf16bf16u8,f32f32s8,f32f32u8
 --mb=2,16
 --dir=FWD_B --stag=any
 --batch=set_gpu

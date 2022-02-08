@@ -57,6 +57,10 @@ passed to a primitive at run-time.
                      scale factors different for {dim0, dim3} points.
                      Number of scale factors is equal to dims[0] * dims[3].
                      Currently supported only in matmul primitive.
+  - `per_w`          corresponds to `mask = 1 << 3` and means elements of dim3
+                     will be multiplied by scale factors different for each
+                     point. Number of scale factors is equal to dims[3].
+                     Currently supported only in matmul primitive.
   - `per_tensor`     means each element of original tensor will be multiplied
                      by a unique number. Number of scale factor is equal to
                      `nelems`. As of now supported only by binary post-ops.
@@ -189,7 +193,7 @@ Run a set of f32 forward convolutions without bias appending accumulation into
 destination and perform relu on the output with scale set to 0.5:
 ``` sh
     ./benchdnn --conv --cfg=f32 --dir=FWD_D \
-               --attr-post-ops=sum+relu:0.5 --batch=conv_tails
+               --attr-post-ops=sum+relu:0.5 --batch=shapes_tails
 ```
 
 Run a 1D-spatial reorder problem with s8 input data and u8 output data in four
@@ -206,7 +210,7 @@ applying scales to both inputs without any post operations:
 ``` sh
     ./benchdnn --binary --sdt=u8:s8 --ddt=u8 --stag=nc:nc \
                --attr-scales=src:common:1.5+src1:common:2.5 \
-               --attr-post-ops= 100x100:100x100
+               100x100:100x100
 ```
 
 Run a 1x1 convolution fused with depthwise convolution where output scales set
@@ -224,6 +228,6 @@ Run a convolution problem with binary post operation, first one adds single int
 value to the destination memory, second one adds a tensor of same size with
 `nhwc`-like physical memory layout with float values to the destination memory:
 ``` sh
-  ./benchdnn --conv --attr-post-ops=add:s32:common,add:f32:per_tensor:axb
+  ./benchdnn --conv --attr-post-ops=add:s32:common,add:f32:per_tensor:axb \
              ic16oc16ih4oh4kh1ph0
 ```

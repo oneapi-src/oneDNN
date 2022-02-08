@@ -49,10 +49,6 @@
 --stag=ab,ba --dtag=BA16a16b,BA16a32b,BA16a48b,BA16a64b 89x73
 --dtag=ab,ba --stag=BA16a16b,BA16a32b,BA16a48b,BA16a64b 89x73
 
---sdt=s8 --ddt=s8
---oflag=,s8s8_comp:2,zp_comp:2,s8s8_comp:2+zp_comp:2
---stag=ab,ba --dtag=BA16a16b4a,BA16a32b4a,BA16a48b4a,BA16a64b4a 89x73
-
 # simple nChw{8,16}c impl
 --sdt=f32 --ddt=f32
 --stag=aBx4b,aBx8b --dtag=aBx16b 2x71x16x16 2x72x16x16 2x73x16x16

@@ -30,7 +30,13 @@
 
 namespace softmax {
 
-enum alg_t { UNDEF, SOFTMAX, LOGSOFTMAX };
+enum alg_t {
+    UNDEF,
+    SOFTMAX,
+    LOGSOFTMAX,
+    softmax_accurate = SOFTMAX,
+    softmax_log = LOGSOFTMAX,
+};
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);
@@ -46,18 +52,19 @@ struct settings_t {
     prb_dims_t prb_dims;
 
     std::vector<dir_t> dir {FWD_D};
-    std::vector<dnnl_data_type_t> dt {dnnl_f32};
-    std::vector<std::string> tag {tag::abx};
+    std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
+    std::vector<std::string> stag {tag::abx}, dtag {tag::any};
     std::vector<alg_t> alg {SOFTMAX};
     std::vector<int> axis {1};
     std::vector<int64_t> mb {0};
     std::vector<bool> inplace {false};
+    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
-            = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%alg%,%axis%,%DESC%,%-"
-              "time%,%0time%";
+            = "perf,%engine%,%impl%,%dir%,%sdt%,%ddt%,%stag%,%dtag%,%alg%,%"
+              "axis%,%DESC%,%-time%,%0time%";
     const char *perf_template_def
             = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
@@ -66,30 +73,40 @@ struct settings_t {
 };
 
 struct prb_t : public prb_dims_t {
-    prb_t(const prb_dims_t &prb_dims, dir_t dir, dnnl_data_type_t dt,
-            const std::string &tag, alg_t alg, int axis, bool inplace,
+    prb_t(const prb_dims_t &prb_dims, dir_t dir, dnnl_data_type_t sdt,
+            dnnl_data_type_t ddt, const std::string &stag,
+            const std::string &dtag, alg_t alg, int axis, bool inplace,
             const attr_t &attr, int64_t mb = 0)
         : prb_dims_t(prb_dims)
         , dir(dir)
-        , dt(dt)
-        , tag(tag)
+        , sdt(sdt)
+        , ddt(ddt)
+        , stag(stag)
+        , dtag(dtag)
         , alg(alg)
         , axis(axis)
         , inplace(inplace)
         , attr(attr)
-        , user_mb(mb) {
+        , user_mb(mb)
+        , scales(NULL) {
         if (mb) dims[0] = mb;
+        generate_oscales();
     }
-    ~prb_t() {}
+    ~prb_t() {
+        if (scales) zfree(scales);
+    }
 
     dir_t dir;
-    dnnl_data_type_t dt;
-    std::string tag;
+    dnnl_data_type_t sdt, ddt;
+    std::string stag, dtag;
     alg_t alg;
     int axis;
     bool inplace;
     attr_t attr;
     int64_t user_mb;
+
+    float *scales;
+    void generate_oscales();
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -97,7 +114,10 @@ struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)
         : base_perf_report_t(perf_template)
         , p_(prb)
-        , tag_(normalize_tag(p_->tag, p_->ndims)) {}
+        , sdt_({p_->sdt})
+        , ddt_(p_->ddt)
+        , stag_({normalize_tag(p_->stag, p_->ndims)})
+        , dtag_(normalize_tag(p_->dtag, p_->ndims)) {}
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
@@ -109,13 +129,18 @@ struct perf_report_t : public base_perf_report_t {
 
     const int *axis() const override { return &p_->axis; }
     const dir_t *dir() const override { return &p_->dir; }
-    const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
+    const dnnl_data_type_t *ddt() const override { return &ddt_; }
     const int64_t *user_mb() const override { return &p_->user_mb; }
-    const std::string *tag() const override { return &tag_; }
+    const std::vector<std::string> *stag() const override { return &stag_; }
+    const std::string *dtag() const override { return &dtag_; }
 
 private:
     const prb_t *p_;
-    std::string tag_;
+    std::vector<dnnl_data_type_t> sdt_;
+    dnnl_data_type_t ddt_;
+    std::vector<std::string> stag_;
+    std::string dtag_;
 };
 
 inline void map_off_to_mb_ic(

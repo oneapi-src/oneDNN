@@ -7,20 +7,25 @@
 
 where *softmax-knobs* are:
 
- - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t.
+ - `--dir={FWD_D [default], FWD_I, BWD_D}` -- dnnl_prop_kind_t.
             Refer to [direction](knobs_dir.md) for details.
- - `--dt={f32 [default], bf16, f16}` -- src and dst data type.
+ - `--sdt={f32 [default], bf16, f16, s8, u8}` -- src data type.
             Refer to [data types](knobs_dt.md) for details.
- - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
+ - `--ddt={f32 [default], bf16, f16, s8, u8}` -- dst data type.
+            Refer to [data types](knobs_dt.md) for details.
+ - `--stag={abx [default], ...}` -- physical src memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--alg={SOFTMAX [default], LOGSOFTMAX}` -- algorithm type.
-            `SOFTMAX` enables softmax primitive;
-            `LOGSOFTMAX` enables logsoftmax primitive;
+ - `--dtag={any [default], ...}` -- physical dst memory layout.
+            Refer to [tags](knobs_tag.md) for details.
+ - `--alg={SOFTMAX [default], LOGSOFTMAX}` -- softmax algorithm.
+            `SOFTMAX` or `softmax_accurate` is `dnnl_softmax_accurate`;
+            `LOGSOFTMAX` or `softmax_log` is `dnnl_softmax_log`;
             Refer to [softmax primitive](https://oneapi-src.github.io/oneDNN/dev_guide_softmax.html)
-            and [logsoftmax primitive](https://oneapi-src.github.io/oneDNN/dev_guide_logsoftmax.html)
             for details.
  - `--axis=INT` -- dimension on which operation will be performed.
             Default is `1`, corresponds to channels in logical memory layout.
+ - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
+            set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -54,18 +59,19 @@ potential cancellation errors.
 
 Run the softmax set from an input file with the default settings:
 ``` sh
-    ./benchdnn --softmax --batch=inputs/softmax/shapes_ci
+    ./benchdnn --softmax --batch=shapes_ci
 ```
 
 Run a specific softmax problem with forward prop_kind, plain physical memory
-layout, f32 data type, out-place memory mode, and axis size of 1000:
+layouts, f32 source and destination data types, out-place memory mode, and axis
+size of 1000:
 ``` sh
-    ./benchdnn --softmax --dir=FWD_D --dt=f32 --tag=nc \
+    ./benchdnn --softmax --dir=FWD_D --sdt=f32 --ddt=f32 --stag=nc \
                --inplace=false --axis=1 256x1000
 ```
 
 Run a specific logsoftmax problem with backward prop_kind, default physical
-memory layout, default data type, in-place memory mode, and axis size of 64:
+memory layouts, default data types, in-place memory mode, and axis size of 64:
 ``` sh
     ./benchdnn --softmax --dir=BWD_D --inplace=true \
                --alg=LOGSOFTMAX --axis=3 1x2x112x64

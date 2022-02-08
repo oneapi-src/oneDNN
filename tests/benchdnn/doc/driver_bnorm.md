@@ -72,7 +72,7 @@ Run a set of 3D spatial bnorms with s8 src/dst data_type, inference prop_kind,
 plain physical memory layout with dense channels, and all three flags specified:
 ``` sh
     ./benchdnn --bnorm --dt=s8 --tag=ndhwc --dir=FWD_I \
-               --flags=GSR --batch=bnorm_3d
+               --flags=GSR --batch=shapes_3d
 ```
 
 More examples with different driver options can be found at

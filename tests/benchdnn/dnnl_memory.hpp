@@ -107,14 +107,15 @@ struct dnn_mem_t {
 
     int64_t nelems(bool with_padded_dims = false) const {
         auto dims = with_padded_dims ? md_.padded_dims : md_.dims;
-        if (md_.ndims == 0) return 0;
+        if (ndims() == 0) return 0;
 
         int64_t n = 1;
-        for (int i = 0; i < md_.ndims; ++i)
+        for (int i = 0; i < ndims(); ++i)
             n *= dims[i];
         return n;
     }
 
+    int ndims() const { return md_.ndims; }
     dnnl_data_type_t dt() const { return md_.data_type; }
     size_t sizeof_dt() const { return ::sizeof_dt(dt()); }
 
@@ -176,7 +177,7 @@ struct dnn_mem_t {
     }
 
     int64_t get_scale_idx(int64_t data_idx, int scale_mask) const {
-        return get_scale_idx(data_idx, scale_mask, md_.ndims);
+        return get_scale_idx(data_idx, scale_mask, ndims());
     }
 
     dnnl_engine_t engine() const { return engine_; }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int64_t N = prb->n;
     const int64_t K = prb->k;
     const int64_t MB = dst_m.nelems() / (M * N);
-    const int batch_ndims = dst_m.md_.ndims - 2;
+    const int batch_ndims = dst_m.ndims() - 2;
 
     const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
 

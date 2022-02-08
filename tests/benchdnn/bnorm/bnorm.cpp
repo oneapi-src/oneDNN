@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -365,7 +365,7 @@ int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
 }
 
 int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
-    if (ws_dt.md_.ndims == 0) return OK;
+    if (ws_dt.ndims() == 0) return OK;
 
     /* so far we know ws is just bit-mask of whether value was negative or
      * positive */

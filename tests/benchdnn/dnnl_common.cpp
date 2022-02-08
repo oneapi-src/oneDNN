@@ -570,6 +570,27 @@ void check_sum_post_ops(
     }
 }
 
+void check_inplace(res_t *res, dnnl_data_type_t sdt, dnnl_data_type_t ddt,
+        const std::string &stag, const std::string &dtag) {
+    // Note: existing implementation of dnn_mem_t doesn't allow to track the
+    // fact that two different objects pointing on the same SYCL memory should
+    // not map/unmap both objects.
+    // This leads to the restriction that memory descriptors should coincide,
+    // thus, a single memory object would be used for in-place validation.
+    // General limitation of in-place mode is having same amount of memory on
+    // input and output.
+    if (sdt != ddt) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
+
+    if (dtag == tag::any) return;
+    if (stag != dtag) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
+}
+
 // Check ensures that attributes don't cause implementation fallback
 int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr) {
     const std::string pd_no_attr_name = query_impl_info(pd_no_attr);

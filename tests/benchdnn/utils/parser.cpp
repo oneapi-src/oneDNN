@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -393,7 +393,20 @@ void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {
     size_t start_pos = 0;
     // `n` is an indicator for a name supplied with dims_t object.
     std::string dims_str = get_substr(str, start_pos, 'n');
-    parse_vector_str(prb_dims.dims, dims_t(), atoi, dims_str, 'x');
+    const auto atoi_except = [&](const char *s) {
+        std::string s_(s);
+        int64_t value = 0;
+        try {
+            value = std::stoll(s_);
+        } catch (const std::invalid_argument &) {
+            BENCHDNN_PRINT(0, "%s\n%s \'%s\';\n",
+                    "Error: dims value is expected to be an integer value.",
+                    "Given input:", s_.c_str());
+            exit(1);
+        }
+        return value;
+    };
+    parse_vector_str(prb_dims.dims, dims_t(), atoi_except, dims_str, 'x');
 
     prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
 

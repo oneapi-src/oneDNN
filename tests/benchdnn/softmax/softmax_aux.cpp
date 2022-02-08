@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,9 @@ alg_t str2alg(const char *str) {
 #define CASE(_alg) \
     if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
     CASE(SOFTMAX);
+    CASE(softmax_accurate);
     CASE(LOGSOFTMAX);
+    CASE(softmax_log);
 #undef CASE
     assert(!"unknown algorithm");
     return UNDEF;
@@ -38,13 +40,28 @@ const char *alg2str(alg_t alg) {
     return "UNDEF";
 }
 
+void prb_t::generate_oscales() {
+    if (attr.oscale.is_def()) return;
+
+    assert(attr.oscale.policy == policy_t::COMMON);
+
+    if (attr.oscale.policy == policy_t::COMMON) {
+        scales = (float *)zmalloc(sizeof(float), 4);
+        SAFE_V(scales != nullptr ? OK : FAIL);
+        scales[0] = attr.oscale.scale;
+        return;
+    }
+}
+
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
     if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
-    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
+    if (canonical || prb.ddt != def.ddt[0]) s << "--ddt=" << prb.ddt << " ";
+    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
+    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
     if (canonical || prb.alg != def.alg[0])
         s << "--alg=" << alg2str(prb.alg) << " ";
     if (canonical || prb.axis != def.axis[0]) s << "--axis=" << prb.axis << " ";

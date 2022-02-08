@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -169,25 +169,57 @@ int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
     });
 
     if (need_comp) {
+        // mostly following benchdnn/ref_reduction.cpp/compute_ref
         const auto nelems_s8_comp = s8_comp.nelems();
         const auto nelems_zp_comp = zp_comp.nelems();
         const auto nelems_comp = MAX2(nelems_s8_comp, nelems_zp_comp);
+        const auto &ndims = src.ndims();
+        const auto &src_dims = src.md_.dims;
         assert(IMPLICATION(need_s8_comp && need_zp_comp,
                 nelems_s8_comp == nelems_zp_comp));
 
+        int comp_mask = 0;
+        for (const auto &i_oflag : prb->oflag) {
+            if ((i_oflag.first == FLAG_S8S8_COMP
+                        || i_oflag.first == FLAG_ZP_COMP)
+                    && i_oflag.second != FLAG_NONE) {
+                comp_mask = i_oflag.second;
+                break;
+            }
+        }
+
+        dims_t comp_dims(ndims, 1); // src_dims with '1' at non-masked dims.
+        dims_t reduce_dims(ndims, 1); // complementary to above.
+        for (int i = 0; i < ndims; ++i) {
+            if (comp_mask & (1 << i)) {
+                comp_dims[i] = src_dims[i];
+                reduce_dims[i] = 1;
+            } else {
+                comp_dims[i] = 1;
+                reduce_dims[i] = src_dims[i];
+            }
+        }
+
         const auto nelems_reduce = nelems / nelems_comp;
-        dnnl::impl::parallel_nd(nelems_comp, [&](int64_t oc) {
+        dnnl::impl::parallel_nd(nelems_comp, [&](int64_t f) {
+            dims_t idle_pos = off2dims_idx(comp_dims, f);
+            const int64_t src_idle_off = md_off_v(src.md_, idle_pos.data());
             int comp_val = 0;
-            for (int64_t i = 0; i < nelems_reduce; ++i) {
-                const int64_t idx = oc * nelems_reduce + i;
-                const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
+            for (int64_t r = 0; r < nelems_reduce; ++r) {
+                dims_t reduce_pos = off2dims_idx(reduce_dims, r);
+                const int64_t src_reduce_off
+                        = md_off_v(src.md_, reduce_pos.data());
+                const int64_t src_off = src_idle_off + src_reduce_off;
+                const int64_t scale_idx
+                        = dst.get_scale_idx(src_off, scale_mask);
                 const float alpha = prb->scales[scale_idx];
-                const float value = src.get_elem(idx) * alpha * s8_scale_factor;
+                const float value
+                        = src.get_elem(src_off) * alpha * s8_scale_factor;
                 comp_val -= maybe_saturate(dst_dt, value);
             }
-            if (need_zp_comp) zp_comp.set_elem(oc, comp_val);
+            if (need_zp_comp) zp_comp.set_elem(f, comp_val);
             comp_val *= 128;
-            if (need_s8_comp) s8_comp.set_elem(oc, comp_val);
+            if (need_s8_comp) s8_comp.set_elem(f, comp_val);
         });
     }
     return OK;
@@ -206,35 +238,37 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
     int *comp_handle
             = reinterpret_cast<int *>((char *)mem_got + first_comp_offset);
 
-    const auto compare_compensation = [&](const dnn_mem_t &mem_ref) {
+    const auto cmp_compensation = [&](const dnn_mem_t &mem_ref, int comp_mask) {
         // Idea behind this check:
         // Using knowledge from the library where `comp_handle` starts, and that
         // memory utilizes blocking over OC and G, if present, we wrap that
         // piece of memory which is described by shortened tag coming from prb
         // into a separate memory and reorder it to plain so that it is a
         // straight comparison of values in native plain layout.
-        const int comp_ndims = mem_ref.md_.ndims;
-        int status = OK;
-        if (comp_ndims > 0) {
-            dnnl_memory_desc_t comp_md {};
-            SAFE(init_md(&comp_md, comp_ndims, mem_ref.md_.dims, mem_ref.dt(),
-                         trim_tag(prb->dtag, comp_ndims)),
-                    CRIT);
-            const auto &engine = mem_ref.engine();
-            dnn_mem_t comp_m(comp_md, engine, {false, comp_handle});
+        dnnl_memory_desc_t comp_md {};
+        SAFE(init_md(&comp_md, mem_ref.ndims(), mem_ref.md_.dims, mem_ref.dt(),
+                     trim_tag_by_mask(prb->dtag, comp_mask)),
+                CRIT);
+        const auto &engine = mem_ref.engine();
+        dnn_mem_t comp_m(comp_md, engine, {false, comp_handle});
 
-            compare::compare_t cmp;
-            cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
-            status = cmp.compare(mem_ref, comp_m, attr_t(), res, engine);
+        compare::compare_t cmp;
+        cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
+        int status = cmp.compare(mem_ref, comp_m, attr_t(), res, engine);
 
-            // Shift original compensation pointer for next compensation
-            comp_handle += comp_m.nelems(true);
-        }
+        // Shift original compensation pointer for next compensation
+        comp_handle += comp_m.nelems(true);
         return status;
     };
 
-    SAFE(compare_compensation(mem_s8_comp_ref), WARN);
-    SAFE(compare_compensation(mem_zp_comp_ref), WARN);
+    if (mem_s8_comp_ref.ndims())
+        SAFE(cmp_compensation(mem_s8_comp_ref,
+                     prb->get_compensation_mask(FLAG_S8S8_COMP)),
+                WARN);
+    if (mem_zp_comp_ref.ndims())
+        SAFE(cmp_compensation(
+                     mem_zp_comp_ref, prb->get_compensation_mask(FLAG_ZP_COMP)),
+                WARN);
 
     return res->state == FAILED ? FAIL : OK;
 }
