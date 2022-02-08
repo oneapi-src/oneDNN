@@ -112,7 +112,7 @@ _jit_avx512_common_conv_fwd_kernel<Vmm>::_jit_avx512_common_conv_fwd_kernel(
                 this->param1, rhs_args_static_params};
 
         postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<avx512_common>>(
+                injector::jit_uni_postops_injector_t<avx512_core>>(
                 this, jcp.post_ops, static_params);
     }
 }
@@ -779,7 +779,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
-    if (!mayiuse(avx512_common)) return status::unimplemented;
+    if (!mayiuse(avx512_core)) return status::unimplemented;
 
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -855,7 +855,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     bool ok_to_pad_channels = true && !is_data_layout_nxc && jcp.ngroups == 1
             && src_d.data_type() == data_type::f32;
 
-    const int full_simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
+    const int full_simd_w = cpu_isa_traits<avx512_core>::vlen / typesize;
     jcp.simd_w = full_simd_w;
     bool ok_to_try_lower_zmm = true
             && IMPLICATION(is_data_layout_nxc,
@@ -957,9 +957,9 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = true;
     static constexpr bool sum_requires_zp_zero = true;
-    const bool post_ops_ok_ = post_ops_ok({avx512_common,
-            {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
-            sum_requires_scale_one, sum_requires_zp_zero});
+    const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
+            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
+            sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
     jcp.typesize_in = typesize;
@@ -1835,7 +1835,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &diff_src_md, memory_desc_t &weights_md,
         memory_desc_t &diff_dst_md, int nthreads) {
-    if (!mayiuse(avx512_common)) return status::unimplemented;
+    if (!mayiuse(avx512_core)) return status::unimplemented;
 
     const memory_desc_wrapper diff_src_d(&diff_src_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -1919,7 +1919,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     bool ok_to_pad_channels = true && !is_data_layout_nxc && jcp.ngroups == 1
             && diff_src_d.data_type() == data_type::f32;
 
-    const int full_simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
+    const int full_simd_w = cpu_isa_traits<avx512_core>::vlen / typesize;
     jcp.simd_w = full_simd_w;
     bool ok_to_try_lower_zmm = true
             && IMPLICATION(is_data_layout_nxc,
@@ -3025,7 +3025,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::maybe_zero_kernel() {
     L(zeroing_loop);
     {
         assert(jcp.oc_block * jcp.typesize_out
-                == cpu_isa_traits<avx512_common>::vlen);
+                == cpu_isa_traits<avx512_core>::vlen);
         for (int ic1 = 0; ic1 < jcp.ic_block; ic1++)
             vmovups(ptr[reg_kernel + reg_tmp
                             + ic1 * jcp.oc_block * jcp.typesize_out],
@@ -3876,7 +3876,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &diff_weights_md,
         memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md, int nthreads) {
-    if (!mayiuse(avx512_common)) return status::unimplemented;
+    if (!mayiuse(avx512_core)) return status::unimplemented;
 
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper diff_weights_d(&diff_weights_md);
@@ -3892,7 +3892,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
 
     jcp = zero<decltype(jcp)>();
 
-    jcp.simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
+    jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / typesize;
     jcp.nthr = jcp.aligned_threads = nthreads;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;

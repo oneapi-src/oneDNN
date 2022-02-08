@@ -42,7 +42,7 @@ struct _jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
 private:
     constexpr static int isa_simd_width_
-            = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+            = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     using reg64_t = const Xbyak::Reg64;
     enum {
         typesize = sizeof(float),
@@ -109,7 +109,7 @@ private:
     Xbyak::Reg64 imm_addr64 = r15;
     Vmm vmm_wei = Vmm(31);
 
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_common>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
 
     inline void prepare_output(int ur_w);
