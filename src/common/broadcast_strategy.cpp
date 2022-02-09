@@ -150,11 +150,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
 
         if (rhs_arg_dim != 1) all_ones = false;
 
-        const auto both_one_dim
-                = (output_dims[d] == 1 && rhs_arg_md.dims[d] == 1);
-        if ((output_dims[d] != rhs_arg_md.dims[d] || output_dims[d] == 1)
-                && (!both_one_dim || all_ones))
-            mask.set(d);
+        if (output_dims[d] != rhs_arg_md.dims[d]) mask.set(d);
     }
 
     broadcasting_strategy_t bcast = broadcasting_strategy_t::unsupported;
