@@ -527,7 +527,7 @@ private:
     const rhs_arg_static_params_t rhs_arg_static_params_;
     const Xbyak::Reg64 param1_;
     const bcast_set_t supported_strategy_set_;
-    const bool is_avx512_ = is_superset(isa, avx512_common);
+    const bool is_avx512_ = is_superset(isa, avx512_core);
 
     static constexpr int sizeof_reg64 = 8;
     /*

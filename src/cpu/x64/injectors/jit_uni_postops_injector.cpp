@@ -72,7 +72,7 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
         }
     }
 
-    if (is_superset(isa, avx512_common) && is_eltwise && is_binary
+    if (is_superset(isa, avx512_core) && is_eltwise && is_binary
             && binary_static_params.rhs_arg_static_params.tail_size)
         assert(eltwise_static_params.k_mask
                 != binary_static_params.rhs_arg_static_params.tail_opmask &&
@@ -247,8 +247,6 @@ template class jit_uni_postops_injector_t<avx512_core_bf16>;
 template class jit_uni_postops_injector_t<avx512_core>;
 template class jit_uni_postops_injector_t<avx512_core, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx512_core, Xbyak::Xmm>;
-template class jit_uni_postops_injector_t<avx512_common>;
-template class jit_uni_postops_injector_t<avx512_common, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx2>;
 template class jit_uni_postops_injector_t<avx2, Xbyak::Xmm>;
 template class jit_uni_postops_injector_t<avx>;

@@ -216,37 +216,37 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::vec_shift(const Vmm &vmm_dst,
     }
 }
 
-// Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
+// Uses injector masks objects: k_mask (>= avx512_core) or vmm_mask (<= avx2).
 // Stores a mask by applying cmpps on two inputs w/ a given predicate.
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::compute_cmp_mask(
         const Vmm &vmm_src, const Xbyak::Operand &compare_operand,
         int cmp_predicate) {
-    if (has_avx512()) {
+    if (is_avx512) {
         h->vcmpps(k_mask, vmm_src, compare_operand, cmp_predicate);
     } else {
         h->uni_vcmpps(vmm_mask, vmm_src, compare_operand, cmp_predicate);
     }
 }
 
-// Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
+// Uses injector masks objects: k_mask (>= avx512_core) or vmm_mask (<= avx2).
 // Blends a result of second input into a first input w/ a stored mask.
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::blend_with_mask(
         const Vmm &vmm_dst, const Xbyak::Operand &src) {
-    if (has_avx512()) {
+    if (is_avx512) {
         h->vblendmps(vmm_dst | k_mask, vmm_dst, src);
     } else {
         h->uni_vblendvps(vmm_dst, vmm_dst, src, vmm_mask);
     }
 }
 
-// Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
+// Uses injector masks objects: k_mask (>= avx512_core) or vmm_mask (<= avx2).
 // Tests a mask for all zeros. If all zeroes occur, set ZF = 1.
 // Nicely combines with jump_if_zero (jz).
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::test_mask() {
-    if (has_avx512()) {
+    if (is_avx512) {
         h->kortestw(k_mask, k_mask);
     } else {
         h->uni_vtestps(vmm_mask, vmm_mask);
@@ -417,7 +417,6 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_fwd(
                 h->uni_vxorps(vmm_mask, vmm_mask, vmm_mask);
                 break;
             case avx512_core_bf16:
-            case avx512_common:
             case avx512_core: break;
             default: assert(!"unimplemented");
         }
@@ -455,7 +454,6 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::tanh_compute_vector_fwd(
             }
                 // use gather instruction
             case avx512_core_bf16:
-            case avx512_common:
             case avx512_core:
                 // we use vpermt2ps to not override the indices
                 // this also enables to save a register for table loading
@@ -717,7 +715,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::soft_relu_compute_vector_fwd(
     // compute 2^-(n-1)
     // vmm_src now represents n-1
     h->uni_vsubps(vmm_src, vmm_src, table_val(one));
-    if (has_avx512()) {
+    if (is_avx512) {
         h->vmulps(vmm_aux1, vmm_src, table_val(minus_one));
         h->vcvtps2dq(vmm_aux1, vmm_aux1);
     } else if (isa == avx) {
@@ -804,7 +802,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::logistic_compute_vector_fwd(
     // Now we have to apply the "symmetry" based on original sign
     h->uni_vmovups(vmm_aux2, table_val(one));
     h->uni_vsubps(vmm_aux2, vmm_aux2, vmm_src);
-    if (has_avx512()) {
+    if (is_avx512) {
         h->vptestmd(k_mask, vmm_aux3, vmm_aux3);
     } else {
         h->uni_vmovups(vmm_mask, vmm_aux3);
@@ -902,7 +900,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
                                        size_t offt = 0) {
         Xbyak::Address table_idx = h->ptr[p_table + table_start_idx + offt
                 + vmm_idxs * sizeof(float)];
-        if (has_avx512()) {
+        if (is_avx512) {
             h->kmovw(k_mask, table_val(log_full_k_reg_mask));
             h->vgatherdps(vmm_dst | k_mask, table_idx);
         } else if (isa == avx2) {
@@ -1026,7 +1024,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::pow_compute_vector_fwd(
 
         // caller obligation to save k-regs as callee may use them
         size_t n_k_regs_to_save = 8;
-        if (has_avx512()) {
+        if (is_avx512) {
             h->sub(h->rsp, n_k_regs_to_save * k_mask_size);
             for (size_t i = 0; i < n_k_regs_to_save; ++i) {
                 if (mayiuse(avx512_core))
@@ -1088,7 +1086,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::pow_compute_vector_fwd(
         h->add(h->rsp, (vecs_count + 2) * vlen);
 
         // restore k registers
-        if (has_avx512()) {
+        if (is_avx512) {
             for (int i = n_k_regs_to_save - 1; i >= 0; --i) {
                 if (mayiuse(avx512_core))
                     h->kmovq(Opmask(i), h->ptr[h->rsp + i * k_mask_size]);
@@ -2336,8 +2334,6 @@ template struct jit_uni_eltwise_injector_f32<avx512_core_bf16>;
 template struct jit_uni_eltwise_injector_f32<avx512_core>;
 template struct jit_uni_eltwise_injector_f32<avx512_core, Ymm>;
 template struct jit_uni_eltwise_injector_f32<avx512_core, Xmm>;
-template struct jit_uni_eltwise_injector_f32<avx512_common>;
-template struct jit_uni_eltwise_injector_f32<avx512_common, Xbyak::Ymm>;
 template struct jit_uni_eltwise_injector_f32<avx2>;
 template struct jit_uni_eltwise_injector_f32<avx2, Xmm>;
 template struct jit_uni_eltwise_injector_f32<avx>;

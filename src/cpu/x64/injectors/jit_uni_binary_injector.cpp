@@ -1594,7 +1594,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_no_tail(
             execute_broadcast_s8u8_no_tail(data_type, tmp_vmm, rhs_addr);
             break;
         case data_type::bf16:
-            if (is_avx512_ && is_superset(isa, avx512_core)) {
+            if (is_avx512_) {
                 host_->vpbroadcastw(tmp_vmm, rhs_addr);
                 host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
                 break;
@@ -1729,7 +1729,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_opmask(
             break;
         }
         case data_type::bf16:
-            if (is_avx512_ && is_superset(isa, avx512_core)) {
+            if (is_avx512_) {
                 host_->vpbroadcastw(tmp_vmm, rhs_addr);
                 host_->vpslld(
                         tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
@@ -2001,7 +2001,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_no_tail(
             load_rhs_i8_no_tail(data_type, tmp_vmm, rhs_addr);
             break;
         case data_type::bf16:
-            if (is_avx512_ && is_superset(isa, avx512_core)) {
+            if (is_avx512_) {
                 host_->vpmovzxwd(tmp_vmm, rhs_addr);
                 host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
                 break;
@@ -2069,7 +2069,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically_with_opmask(
             host_->vpmovzxbd(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
             break;
         case data_type::bf16:
-            if (is_avx512_ && is_superset(isa, avx512_core)) {
+            if (is_avx512_) {
                 host_->vpmovzxwd(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
                 host_->vpslld(
                         tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
@@ -2397,8 +2397,6 @@ template class jit_uni_binary_injector_t<avx512_core_bf16>;
 template class jit_uni_binary_injector_t<avx512_core>;
 template class jit_uni_binary_injector_t<avx512_core, Xbyak::Ymm>;
 template class jit_uni_binary_injector_t<avx512_core, Xbyak::Xmm>;
-template class jit_uni_binary_injector_t<avx512_common>;
-template class jit_uni_binary_injector_t<avx512_common, Xbyak::Ymm>;
 template class jit_uni_binary_injector_t<avx2, Xbyak::Ymm>;
 template class jit_uni_binary_injector_t<avx2, Xbyak::Xmm>;
 template class jit_uni_binary_injector_t<avx, Xbyak::Ymm>;
