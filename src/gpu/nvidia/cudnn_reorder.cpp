@@ -33,10 +33,8 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto *mem_src = CTX_IN_MEMORY(DNNL_ARG_SRC);
-        auto *mem_dst = CTX_OUT_MEMORY(DNNL_ARG_DST);
-        auto src_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_SRC, mem_src);
-        auto dst_acc = CTX_OUT_OPTIONAL_ACCESSOR(DNNL_ARG_DST, mem_dst);
+        auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+        auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -44,8 +42,8 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            void *src_ = get_cudnn_ptr(sc, ih, src_acc, mem_src);
-            void *dst_ = get_cudnn_ptr(sc, ih, dst_acc, mem_dst);
+            void *src_ = arg_src.get_native_pointer(ih, sc);
+            void *dst_ = arg_dst.get_native_pointer(ih, sc);
 
             auto a = static_cast<uint8_t *>(src_)
                     + pd()->reorder_->src_offset_in_bytes();
