@@ -281,7 +281,7 @@ void rnn_linear_bwd(const prb_t &prb, const float *diff_dst_layer_,
 
 #define SAFE_PTR(FN, ...) CONCAT2(FN, _) ? &(FN(__VA_ARGS__)) : nullptr
                 rnn_cell_bwd(prb, &ws_diff_src_layer(lay, dir_val, iter, 0, 0),
-                        &diff_src_layer_attention(iter - 1, 0, 0),
+                        SAFE_PTR(diff_src_layer_attention, iter - 1, 0, 0),
                         &ws_diff_src_iter(lay, dir_val, iter, 0, 0),
                         &ws_diff_src_iter_c(lay, dir_val, iter, 0, 0),
                         SAFE_PTR(diff_weights_layer, lay - 1, dir_val, 0, 0),
