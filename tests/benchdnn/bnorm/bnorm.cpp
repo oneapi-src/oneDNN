@@ -242,6 +242,19 @@ int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         if (kind == VAR) eps = 4e-7;
     }
 
+#ifdef DNNL_EXPERIMENTAL
+    const bool use_relaxed_validation
+            = dnnl::impl::experimental::use_bnorm_stats_one_pass();
+#else
+    const bool use_relaxed_validation = false;
+#endif
+    if (use_relaxed_validation) {
+        // On Intel GPUs mean and variance could be rounded incorrectly because
+        // they are calculated using fast but potentially unstable formula.
+        if (kind == MEAN) eps = 1e-7;
+        if (kind == VAR) eps = 4e-7;
+    }
+
     // Since bwd testing is done using results from forward which are random
     // fp32 values, diff_ss starts fluctuating, so we check norm for both data
     // and SS, SC and SH.
