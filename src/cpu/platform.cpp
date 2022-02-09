@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -194,7 +194,7 @@ unsigned get_max_threads_to_use() {
 int get_vector_register_size() {
 #if DNNL_X64
     using namespace x64;
-    if (mayiuse(avx512_common)) return cpu_isa_traits<avx512_common>::vlen;
+    if (mayiuse(avx512_core)) return cpu_isa_traits<avx512_core>::vlen;
     if (mayiuse(avx)) return cpu_isa_traits<avx>::vlen;
     if (mayiuse(sse41)) return cpu_isa_traits<sse41>::vlen;
 #elif DNNL_AARCH64

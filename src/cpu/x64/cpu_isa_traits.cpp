@@ -85,7 +85,7 @@ struct isa_info_t {
     isa_info_t(cpu_isa_t aisa) : isa(aisa) {};
 
     // this converter is needed as code base defines certain ISAs
-    // that the library does not expose (eg avx512_common),
+    // that the library does not expose (e.g. avx512_core_bf16_amx_int8),
     // so the internal and external enum types do not coincide.
     dnnl_cpu_isa_t convert_to_public_enum(void) const {
         switch (isa) {
@@ -97,7 +97,6 @@ struct isa_info_t {
             case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
             case avx512_core: return dnnl_cpu_isa_avx512_core;
             case avx2_vnni: return dnnl_cpu_isa_avx2_vnni;
-            case avx512_common:
             case avx2: return dnnl_cpu_isa_avx2;
             case avx: return dnnl_cpu_isa_avx;
             case sse41: return dnnl_cpu_isa_sse41;
@@ -125,7 +124,6 @@ struct isa_info_t {
             case avx512_core:
                 return "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ "
                        "extensions";
-            case avx512_common: return "Intel AVX-512";
             case avx2_vnni: return "Intel AVX2 with Intel DL Boost";
             case avx2: return "Intel AVX2";
             case avx: return "Intel AVX";
@@ -149,7 +147,6 @@ static isa_info_t get_isa_info_t(void) {
     HANDLE_CASE(avx512_core_bf16);
     HANDLE_CASE(avx512_core_vnni);
     HANDLE_CASE(avx512_core);
-    HANDLE_CASE(avx512_common);
     HANDLE_CASE(avx2_vnni);
     HANDLE_CASE(avx2);
     HANDLE_CASE(avx);
