@@ -13,7 +13,8 @@ to recognize double-precision floating-point data type.
 
 Here's the list of of the changes in library header files:
 
-    include/oneapi/dnnl/dnnl.hpp:
+include/oneapi/dnnl/dnnl.hpp:
+
     /// Data type specification.
     enum class data_type {
         /// Undefined data type (used for empty memory descriptors).
@@ -35,7 +36,8 @@ Here's the list of of the changes in library header files:
         u8 = dnnl_u8,
     };
 
-    include/oneapi/dnnl/dnnl_types.h:
+include/oneapi/dnnl/dnnl_types.h:
+
     typedef enum {
         /// Undefined data type, used for empty memory descriptors.
         dnnl_data_type_undef = 0,
@@ -58,10 +60,12 @@ Here's the list of of the changes in library header files:
 ## Some details on Convolution primitive
 
 Convolution primitive in particular has several configurations and parameters that 
-deserves to be discussed in more detail with regard to f64 data type.
-...
-
+deserves to be discussed in more detail with regards to f64 data type.
+- Table in https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html describes the supported configurations in the convolution api. We suggest adding one row, for which source, weights, destination and bias are all f64; for both forward and backward propagation.
+- Data Representation: f64 conv will be suppored for all the representations which f32 was supported on.
+- Postops & attributes: all post-ops and attributes supported for f32 configuration will be supported for f64 on GPU.
+- Scales: scaling values will remain in f32 in order to minimize API changes. These values will be upconverted to f64 (accumulate data type) and the math will occur in f64.
 
 ## Known limitations
 
-Reference computation in benchdnn is remained in f32. 
+- Reference computation in benchdnn is remained in f32. This decision is made in order to minimiaze changes in benchdnn infrastructure which uses f32 for reference computation, until some feedback is collected on this feature.
