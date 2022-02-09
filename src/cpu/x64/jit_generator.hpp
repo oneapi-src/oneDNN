@@ -190,7 +190,7 @@ public:
         }
         for (size_t i = 0; i < num_abi_save_gpr_regs; ++i)
             push(Xbyak::Reg64(abi_save_gpr_regs[i]));
-        if (is_valid_isa(avx512_common)) {
+        if (is_valid_isa(avx512_core)) {
             mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
         }
     }
@@ -1024,7 +1024,7 @@ public:
     }
     void uni_vandps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (!is_valid_isa(avx512_common) || x1.getBit() < 512)
+        if (!is_valid_isa(avx512_core) || x1.getBit() < 512)
             vandps(x1, x2, op);
         else
             vpandd(x1, x2, op);
@@ -1037,7 +1037,7 @@ public:
     }
     void uni_vorps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (!is_valid_isa(avx512_common) || x1.getBit() < 512)
+        if (!is_valid_isa(avx512_core) || x1.getBit() < 512)
             vorps(x1, x2, op);
         else
             vpord(x1, x2, op);
@@ -1054,7 +1054,7 @@ public:
     }
     void uni_vxorps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (!is_valid_isa(avx512_common) || x1.getBit() < 512)
+        if (!is_valid_isa(avx512_core) || x1.getBit() < 512)
             vxorps(x1, x2, op);
         else
             vpxord(x1, x2, op);
