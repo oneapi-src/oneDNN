@@ -1,4 +1,4 @@
-# RFC: f64 data_type support.
+# RFC: f64 data type support
 
 ## Introduction & Motivation
 
