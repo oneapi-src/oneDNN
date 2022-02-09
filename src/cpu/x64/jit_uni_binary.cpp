@@ -443,9 +443,7 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
     }
 
     const int vlen = is_avx512_core ? cpu_isa_traits<avx512_core>::vlen
-                                    : is_i8 && mayiuse(avx512_common)
-                    ? cpu_isa_traits<avx512_common>::vlen
-                    : cpu_isa_traits<avx2>::vlen;
+                                    : cpu_isa_traits<avx2>::vlen;
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                     p, src0_d, supported_strategies);
@@ -497,7 +495,7 @@ binary_kernel_t *create_binary_kernel(
     const auto &conf = pd->get_conf();
     if (mayiuse(avx512_core_bf16)) {
         if (conf.is_i8) {
-            using kernel_t = jit_uni_binary_kernel_t<avx512_common>;
+            using kernel_t = jit_uni_binary_kernel_t<avx512_core>;
             return new kernel_t(pd, conf, false);
         } else {
             using kernel_t = jit_uni_binary_kernel_t<avx512_core_bf16>;
@@ -505,15 +503,12 @@ binary_kernel_t *create_binary_kernel(
         }
     } else if (mayiuse(avx512_core)) {
         if (conf.is_i8) {
-            using kernel_t = jit_uni_binary_kernel_t<avx512_common>;
+            using kernel_t = jit_uni_binary_kernel_t<avx512_core>;
             return new kernel_t(pd, conf, false);
         } else {
             using kernel_t = jit_uni_binary_kernel_t<avx512_core>;
             return new kernel_t(pd, conf, tail_kernel);
         }
-    } else if (mayiuse(avx512_common) && conf.is_i8) {
-        using kernel_t = jit_uni_binary_kernel_t<avx512_common>;
-        return new kernel_t(pd, conf, false);
     } else if (mayiuse(avx2)) {
         using kernel_t = jit_uni_binary_kernel_t<avx2>;
         return new kernel_t(pd, conf, tail_kernel && !conf.is_i8);

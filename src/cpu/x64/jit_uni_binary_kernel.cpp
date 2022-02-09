@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -577,7 +577,6 @@ void jit_uni_binary_kernel_t<isa>::generate() {
 
 template struct jit_uni_binary_kernel_t<avx512_core_bf16>;
 template struct jit_uni_binary_kernel_t<avx512_core>;
-template struct jit_uni_binary_kernel_t<avx512_common>;
 template struct jit_uni_binary_kernel_t<avx2>;
 template struct jit_uni_binary_kernel_t<sse41>;
 

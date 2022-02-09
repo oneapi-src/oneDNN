@@ -74,12 +74,9 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
             = (isa == sse41) ? xword : ((isa == avx2) ? yword : zword);
 
     static constexpr bool is_avx512
-            = utils::one_of(isa, avx512_common, avx512_core, avx512_core_bf16);
+            = utils::one_of(isa, avx512_core, avx512_core_bf16);
     static constexpr bool is_avx512_core
             = utils::one_of(isa, avx512_core, avx512_core_bf16);
-    static constexpr bool is_avx512_common = isa == avx512_common;
-    const bool is_avx512_not_mic
-            = is_avx512_core || (is_avx512_common && !conf_.is_i8);
 
     const Reg64 reg_param_ = abi_param1;
     const Reg64 reg_src0_ = r8;
@@ -107,7 +104,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Vmm vreg_zero_ = Vmm(is_avx512 ? 18 : 10);
     const Vmm vreg_one_ = Vmm(is_avx512 ? 19 : 11);
     const Vmm vreg_saturation_ubound_ = Vmm(is_avx512 ? 20 : 12);
-    const Vmm vreg_bcast_src1_ = Vmm(is_avx512_not_mic ? 21 : 13);
+    const Vmm vreg_bcast_src1_ = Vmm(is_avx512_core ? 21 : 13);
     const Xmm xreg_bcast_src1_ = Xmm(13);
     const Vmm vreg_scales_src0_ = Vmm(is_avx512 ? 22 : 14);
     const Vmm vreg_scales_src1_ = Vmm(is_avx512 ? 23 : 15);
@@ -117,14 +114,14 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Zmm vreg_bf16_emu_3_ = Zmm(28);
     const Zmm vreg_bf16_emu_4_ = Zmm(29);
 
-    const Vmm vmm_full_mask_ = Vmm(is_avx512_not_mic ? 24 : 5);
-    const Vmm vmm_tmp_gather_ = Vmm(is_avx512_not_mic ? 25 : 6);
-    const Vmm vmm_indices_ = Vmm(is_avx512_not_mic ? 30 : 7);
-    const Vmm vmm_gathered_src_ = Vmm(is_avx512_not_mic ? 31 : 8);
+    const Vmm vmm_full_mask_ = Vmm(is_avx512_core ? 24 : 5);
+    const Vmm vmm_tmp_gather_ = Vmm(is_avx512_core ? 25 : 6);
+    const Vmm vmm_indices_ = Vmm(is_avx512_core ? 30 : 7);
+    const Vmm vmm_gathered_src_ = Vmm(is_avx512_core ? 31 : 8);
 
     const size_t unroll_regs_ = is_avx512
                     && IMPLICATION(
-                            conf_.is_src_different_layouts, is_avx512_not_mic)
+                            conf_.is_src_different_layouts, is_avx512_core)
             ? 8
             : 4;
     const size_t offt_src0_;
