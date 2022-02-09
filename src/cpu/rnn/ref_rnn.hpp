@@ -109,7 +109,11 @@ struct _ref_rnn_common_t : public primitive_t {
     struct pd_t : public base_pd_t {
         using base_pd_t::base_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", class_name, USE_GLOBAL_SCRATCHPAD);
+        const char *impl_name() const {
+            return rnn_.is_brgemm ? "brgemm" : "ref";
+        }
+
+        DECLARE_COMMON_PD_T(impl_name(), class_name, USE_GLOBAL_SCRATCHPAD);
 
         status_t init_ref(engine_t *engine) {
             using namespace prop_kind;
