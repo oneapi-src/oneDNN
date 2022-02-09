@@ -53,12 +53,11 @@ protected:
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
         static const auto isa = get_effective_cpu_isa();
-        static const bool has_avx512_common
+        static const bool has_avx512_core
                 = dnnl::is_superset(isa, cpu_isa::avx512_core);
-        input_f32.wino_supported = is_gpu || (is_cpu && has_avx512_common);
+        input_f32.wino_supported = is_gpu || (is_cpu && has_avx512_core);
         input_f16.wino_supported = is_gpu;
-        input_int8.wino_supported
-                = is_cpu && dnnl::is_superset(isa, cpu_isa::avx512_core);
+        input_int8.wino_supported = is_cpu && has_avx512_core;
         input_f32.backward_supported = is_cpu && impl::dnnl_thr_syncable();
 #elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
