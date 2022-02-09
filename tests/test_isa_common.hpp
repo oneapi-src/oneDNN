@@ -74,17 +74,15 @@ inline impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
 inline std::set<impl::cpu::x64::cpu_isa_t> masked_internal_cpu_isa(
         cpu_isa isa) {
     using namespace impl::cpu::x64;
+
     cpu_isa_t internal_isa = cvt_to_internal_cpu_isa(isa);
 
     static const std::set<cpu_isa_t> amx_isa_list {avx512_core_amx,
             avx512_core_bf16_amx_bf16, avx512_core_bf16_amx_int8, amx_bf16,
             amx_int8, amx_tile};
 
-    switch (internal_isa) {
-        case avx512_core: return {avx512_core, avx512_common}; break;
-        case avx512_core_amx: return amx_isa_list; break;
-        default: return {internal_isa}; break;
-    }
+    if (internal_isa == avx512_core_amx) return amx_isa_list;
+    return {internal_isa};
 }
 
 inline std::set<std::pair<impl::cpu::x64::cpu_isa_t, impl::cpu::x64::cpu_isa_t>>
