@@ -60,8 +60,8 @@ down-convert to a type other than the one specified as long as it is
 
 Proposal: support only hints, to allow library for optimal dispatching
 without user needing to tweak down-conversion policy for better
-performance. Also, this is more scalable as we introduce new
-data-types (e.g. if we were to introduce `tf32`).
+performance. Also, this is more scalable as we introduce new compute
+data-types (e.g. `f19` to support `tf32` mode).
 
 ## Per tensor vs per primitive setting
 This would be the granularity at which the user would allow conversion
@@ -176,9 +176,11 @@ integer computation data-type should return `invalid`. As a first
 step, we would allow implicit down-conversion only to formats that are
 at least as accurate as the format specified in the math mode (so same
 number or greater number of mantissa bits, and same or greater number
-of exponent bits). In particular, we would have this relationships:
-- `f32 > tf32 > f16`
-- and `f32 > tf32 > bf16`.
+of exponent bits) among `{f32, f19, bf16, f16}` (`f19` is placeholder
+name for `tf32` mode compute datatype ). In particular, we would have
+this relationships:
+ - `f32 > f19 > f16`
+ - and `f32 > f19 > bf16`.
 
 Note that `bf16` and `f16` are not comparable since `bf16` has a wider
 range (more exponent bits) but less accuracy (fewer mantissa
