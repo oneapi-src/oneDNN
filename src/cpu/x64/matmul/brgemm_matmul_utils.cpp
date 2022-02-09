@@ -999,7 +999,8 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     const size_t default_data_align = sizeof(char);
     if (bgmmc.brg_type == brgemm_addr)
         scratchpad.book(key_brgemm_primitive_batch,
-                bgmmc.nthr * bgmmc.brgemm_batch_element_per_thr_sz,
+                static_cast<size_t>(bgmmc.nthr)
+                        * bgmmc.brgemm_batch_element_per_thr_sz,
                 sizeof(brgemm_batch_element_t), 64);
 
     if (bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only)
@@ -1021,7 +1022,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 bgmmc.nthr * bgmmc.buffer_c_per_thread_sz, default_data_align);
 
     if (bgmmc.has_zero_point_a) {
-        const int num_elems = bgmmc.nthr * bgmmc.zp_a_comp_elems_per_thr;
+        const auto num_elems = bgmmc.nthr * bgmmc.zp_a_comp_elems_per_thr;
         scratchpad.book(key_brgemm_primitive_zp_comp_a, num_elems,
                 types::data_type_size(s32));
     }
@@ -1033,7 +1034,8 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
 
     if (one_of(bgmmc.isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16))
         scratchpad.book(key_conv_amx_tile_buffer,
-                bgmmc.nthr * bgmmc.wsp_tile_per_thr_bytes, default_data_align);
+                static_cast<size_t>(bgmmc.nthr) * bgmmc.wsp_tile_per_thr_bytes,
+                default_data_align);
 }
 
 void matmul_amx_blocking_params_t::update_k_blocking_dependent_params() {

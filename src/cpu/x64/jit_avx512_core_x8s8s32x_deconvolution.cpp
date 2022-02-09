@@ -376,7 +376,8 @@ void _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
     }
 
     if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp)) {
-        const dim_t zp_pad_comp_size = jcp.oc_without_padding * jcp.ngroups
+        const dim_t zp_pad_comp_size
+                = static_cast<size_t>(jcp.oc_without_padding) * jcp.ngroups
                 * jcp.kd * jcp.kh * jcp.kw;
         scratchpad.book<int32_t>(key_deconv_zp, zp_pad_comp_size);
     }

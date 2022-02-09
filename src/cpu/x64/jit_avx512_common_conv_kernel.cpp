@@ -4214,9 +4214,10 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
 void jit_avx512_common_conv_bwd_weights_kernel_f32::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
     if (jcp.nthr_mb > 1) {
-        const int wei_size = jcp.ngroups * rnd_up(jcp.oc, jcp.oc_block)
-                * rnd_up(jcp.ic, jcp.ic_block) * jcp.kh * jcp.kw * jcp.kd;
-        const int bia_size = jcp.ngroups * rnd_up(jcp.oc, jcp.oc_block);
+        const auto wei_size = static_cast<size_t>(jcp.ngroups)
+                * rnd_up(jcp.oc, jcp.oc_block) * rnd_up(jcp.ic, jcp.ic_block)
+                * jcp.kh * jcp.kw * jcp.kd;
+        const auto bia_size = jcp.ngroups * rnd_up(jcp.oc, jcp.oc_block);
         const size_t wei_bia_reduction_size = wei_size + bia_size;
 
         scratchpad.book(key_conv_wei_bia_reduction,

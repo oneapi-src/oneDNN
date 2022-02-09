@@ -320,11 +320,16 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     const int nscr = nstl::min(dnnl_get_max_threads(), jpp.mb * jpp.nb_c);
     if (jpp.tag_kind == jit_memory_tag_kind_t::ncsp) {
         scratchpad.book(key_pool_src_plain2blocked_cvt,
-                jpp.c_block * jpp.id * jpp.ih * jpp.iw * nscr, jpp.dt_size);
+                static_cast<size_t>(jpp.c_block) * jpp.id * jpp.ih * jpp.iw
+                        * nscr,
+                jpp.dt_size);
         scratchpad.book(key_pool_dst_plain2blocked_cvt,
-                jpp.c_block * jpp.od * jpp.oh * jpp.ow * nscr, jpp.dt_size);
+                static_cast<size_t>(jpp.c_block) * jpp.od * jpp.oh * jpp.ow
+                        * nscr,
+                jpp.dt_size);
         scratchpad.book<uint32_t>(key_pool_ind_plain2blocked_cvt,
-                jpp.c_block * jpp.od * jpp.oh * jpp.ow * nscr);
+                static_cast<size_t>(jpp.c_block) * jpp.od * jpp.oh * jpp.ow
+                        * nscr);
     }
 
     jpp.post_ops = attr.post_ops_;

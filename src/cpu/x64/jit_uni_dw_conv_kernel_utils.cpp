@@ -580,14 +580,16 @@ void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_scratchpad(
         if (jcp.nthr_mb > 1) {
             const size_t mb = jcp.dwei_dt == data_type::bf16 ? jcp.nthr_mb
                                                              : jcp.nthr_mb - 1;
-            const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
+            const size_t wei_size
+                    = static_cast<size_t>(jcp.ngroups) * jcp.kh * jcp.kw;
             scratchpad.book<float>(key_conv_wei_reduction, wei_size * mb);
 
             if (jcp.with_bias)
                 scratchpad.book<float>(key_conv_bia_reduction,
-                        jcp.ngroups * (jcp.nthr_mb - 1));
+                        static_cast<size_t>(jcp.ngroups) * (jcp.nthr_mb - 1));
         } else if (jcp.nthr_mb == 1 && jcp.dwei_dt == data_type::bf16) {
-            const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
+            const size_t wei_size
+                    = static_cast<size_t>(jcp.ngroups) * jcp.kh * jcp.kw;
             scratchpad.book<float>(key_conv_wei_reduction, wei_size);
         }
     } else if (jcp.harness == harness_nxc) {
@@ -598,7 +600,8 @@ void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_scratchpad(
 
             // note: because of weights blocked format, buffer is padded
             // across ch_block
-            const size_t wei_size = utils::rnd_up(jcp.ngroups, jcp.ch_block)
+            const size_t wei_size = static_cast<size_t>(utils::rnd_up(
+                                            jcp.ngroups, jcp.ch_block))
                     * jcp.kh * jcp.kw;
             scratchpad.book<float>(
                     key_conv_wei_reduction, wei_size * buff_count);

@@ -1818,17 +1818,17 @@ struct driver_t : public c_compatible {
             const batch_normalization_pd_t *bdesc, int nthr) {
         dim_t C_PADDED = get_c_padded(bdesc);
 
-        int sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
-        int pbuf_sz = (use_tmp_diff_scale(bdesc) + use_tmp_diff_shift(bdesc))
+        auto sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
+        auto pbuf_sz = (use_tmp_diff_scale(bdesc) + use_tmp_diff_shift(bdesc))
                 * C_PADDED;
-        int rbuf_sz = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * nthr;
+        auto rbuf_sz = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * nthr;
 
         scratchpad.book<acc_data_t>(key_bnorm_tmp_stats, sbuf_sz);
         scratchpad.book<acc_data_t>(key_bnorm_tmp_diff_ss, pbuf_sz);
         scratchpad.book<acc_data_t>(key_bnorm_reduction, rbuf_sz);
 
         if (dnnl_thr_syncable()) {
-            int n_barriers = C_PADDED / simd_w;
+            auto n_barriers = C_PADDED / simd_w;
             scratchpad.book<barrier::ctx_64_t>(key_barrier, n_barriers);
         }
     }
