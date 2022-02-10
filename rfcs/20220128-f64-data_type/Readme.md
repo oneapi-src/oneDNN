@@ -15,6 +15,7 @@ Here's the list of of the changes in library header files:
 
 include/oneapi/dnnl/dnnl.hpp:
 
+```c
     /// Data type specification.
     enum class data_type {
         /// Undefined data type (used for empty memory descriptors).
@@ -35,9 +36,11 @@ include/oneapi/dnnl/dnnl.hpp:
         /// 8-bit unsigned integer.
         u8 = dnnl_u8,
     };
+```
 
 include/oneapi/dnnl/dnnl_types.h:
 
+```c
     typedef enum {
         /// Undefined data type, used for empty memory descriptors.
         dnnl_data_type_undef = 0,
@@ -56,6 +59,7 @@ include/oneapi/dnnl/dnnl_types.h:
         **/// 64-bit/double-precision floating point.
         dnnl_f64 = 7,**
     } dnnl_data_type_t;
+```
 
 ## Some details on Convolution primitive
 
