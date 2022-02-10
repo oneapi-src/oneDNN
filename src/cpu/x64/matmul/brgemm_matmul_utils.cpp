@@ -710,7 +710,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         // - can parallelize if not enough work; notice: requires reduction!
         //
         // Batch_Size:
-        // - unsed.
+        // - unused.
 
         const matmul_avx512_blocking_params_t::matmul_params_t matmul(
                 bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
