@@ -27,8 +27,8 @@ include/oneapi/dnnl/dnnl.hpp:
         bf16 = dnnl_bf16,
         /// [32-bit/single-precision floating point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format).
         f32 = dnnl_f32,
-        **//// [64-bit/double-precision floating point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format).
-        f64 = dnnl_f64,**
+        //// [64-bit/double-precision floating point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format).
+        f64 = dnnl_f64,
         /// 32-bit signed integer.
         s32 = dnnl_s32,
         /// 8-bit signed integer.
@@ -56,8 +56,8 @@ include/oneapi/dnnl/dnnl_types.h:
         dnnl_s8 = 5,
         /// 8-bit unsigned integer.
         dnnl_u8 = 6,
-        **/// 64-bit/double-precision floating point.
-        dnnl_f64 = 7,**
+        /// 64-bit/double-precision floating point.
+        dnnl_f64 = 7,
     } dnnl_data_type_t;
 ```
 
