@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,7 +165,7 @@ public:
 
     // set enable status
     // can be used for override default value of enable_
-    pass_base &set_enable(bool enable = true) {
+    pass_base &set_enable(bool enable) {
         enable_ = enable;
         return *this;
     }

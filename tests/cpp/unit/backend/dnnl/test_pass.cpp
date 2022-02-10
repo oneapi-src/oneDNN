@@ -1861,12 +1861,7 @@ TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
         pm.run_passes(agraph, "no_config");
 
         // should not be fused
-        if (binary_kind == Multiply) {
-            // single mul and add patterns are disabled for now
-            ASSERT_EQ(agraph.get_num_partitions(), 0);
-        } else {
-            ASSERT_EQ(agraph.get_num_partitions(), 1);
-        }
+        ASSERT_EQ(agraph.get_num_partitions(), 2);
     }
 }
 
@@ -1905,12 +1900,7 @@ TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
         pm.run_passes(agraph, "no_config");
 
         // should not be fused
-        if (binary_kind == Multiply) {
-            // single mul and add patterns are disabled for now
-            ASSERT_EQ(agraph.get_num_partitions(), 0);
-        } else {
-            ASSERT_EQ(agraph.get_num_partitions(), 1);
-        }
+        ASSERT_EQ(agraph.get_num_partitions(), 2);
     }
 }
 
@@ -4682,9 +4672,6 @@ TEST(Pass, DnnlSingleOpReplacement) {
             BatchNormForwardTraining, Elu, Exp, HardTanh, Log, Multiply,
             Maximum, Minimum, Pow, Sqrt, Square, Tanh, SoftMaxBackprop};
     for (auto akind : single_op_set_supported) {
-        // disable single add and mul pattern for now
-        if (akind == Multiply || akind == Add) continue;
-
         graph_t agraph;
         op_t *op = agraph.create_op(akind);
         ASSERT_EQ(op->get_kind(), akind);
