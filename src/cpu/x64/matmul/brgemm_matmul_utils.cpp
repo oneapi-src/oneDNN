@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -695,7 +695,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         // - can parallelize if not enough work; notice: requires reduction!
         //
         // Batch_Size:
-        // - unsed.
+        // - unused.
 
         const matmul_avx512_blocking_params_t::matmul_params_t matmul(
                 bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
