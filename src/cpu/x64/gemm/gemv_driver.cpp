@@ -272,8 +272,7 @@ static inline int thread_checker(
             auto l2_cache_socket = l2_cache_per_thread * n_cores_per_socket;
             auto problem_memory_footprint = m * n * sizeof(float);
             if (l2_cache_socket > problem_memory_footprint) {
-                *nthrs = nstl::min(*nthrs, n_cores_per_socket);
-                return;
+                return nstl::min(nthr, n_cores_per_socket);
             }
         }
 #endif
