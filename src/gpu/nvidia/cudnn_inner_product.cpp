@@ -37,18 +37,12 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         using scratch_acc_t = ::sycl::accessor<uint8_t, 1,
                 ::sycl::access::mode::read_write, sycl::compat::target_device>;
-        auto *mem_src = CTX_IN_MEMORY(DNNL_ARG_SRC);
-        auto *mem_wei = CTX_IN_MEMORY(DNNL_ARG_WEIGHTS);
-        auto src_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_SRC_0, mem_src);
-        auto wei_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_WEIGHTS, mem_wei);
-        sycl::sycl_memory_storage_base_t *mem_bias = nullptr;
-        std::optional<decltype(CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS))> bias_acc;
-        if (pd()->with_bias()) {
-            mem_bias = CTX_IN_MEMORY(DNNL_ARG_BIAS);
-            bias_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_BIAS, mem_bias);
-        }
-        auto *mem_dst = CTX_OUT_MEMORY(DNNL_ARG_DST);
-        auto dst_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_DST, mem_dst);
+        auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+        auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+
+        sycl_memory_arg<::sycl::access::mode::read> arg_bias;
+        if (pd()->with_bias()) { arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS); }
+        auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
         std::shared_ptr<scratch_acc_t> ip_scratch_acc;
         std::shared_ptr<scratch_acc_t> spacial_scratch_acc;
         std::shared_ptr<scratch_acc_t> scaled_bias_scratch_acc;
@@ -75,12 +69,12 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
 
             std::vector<void *> args;
 
-            args.push_back(get_cudnn_ptr(sc, ih, src_acc, mem_src));
-            args.push_back(get_cudnn_ptr(sc, ih, wei_acc, mem_wei));
-            args.push_back(((pd()->with_bias())
-                            ? get_cudnn_ptr(sc, ih, bias_acc, mem_bias)
-                            : nullptr));
-            args.push_back(get_cudnn_ptr(sc, ih, dst_acc, mem_dst));
+            args.push_back(arg_src.get_native_pointer(ih, sc));
+            args.push_back(arg_wei.get_native_pointer(ih, sc));
+            args.push_back(
+                    ((pd()->with_bias()) ? arg_bias.get_native_pointer(ih, sc)
+                                         : nullptr));
+            args.push_back(arg_dst.get_native_pointer(ih, sc));
 
             args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()
                             ? sc.memory<void *>(ih, *ip_scratch_acc)
@@ -108,12 +102,10 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         using scratch_acc_t = ::sycl::accessor<uint8_t, 1,
                 ::sycl::access::mode::read_write, sycl::compat::target_device>;
-        auto *mem_diff_dst = CTX_IN_MEMORY(DNNL_ARG_DIFF_DST);
-        auto diff_dst_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_DIFF_DST, mem_diff_dst);
-        auto *mem_wei = CTX_IN_MEMORY(DNNL_ARG_WEIGHTS);
-        auto wei_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_WEIGHTS, mem_wei);
-        auto *mem_diff_src = CTX_OUT_MEMORY(DNNL_ARG_DIFF_SRC);
-        auto diff_src_acc = CTX_OUT_OPTIONAL_ACCESSOR(DNNL_ARG_DIFF_SRC, mem_diff_src);
+        auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
+        auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+        auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
+
         std::shared_ptr<scratch_acc_t> ip_scratch_acc;
         std::shared_ptr<scratch_acc_t> spacial_scratch_acc;
         if (pd()->inner_product_impl_->ip_using_scratchpad()) {
@@ -134,9 +126,9 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
 
             std::vector<void *> args;
 
-            args.push_back(get_cudnn_ptr(sc, ih, diff_src_acc, mem_diff_src));
-            args.push_back(get_cudnn_ptr(sc, ih, wei_acc, mem_wei));
-            args.push_back(get_cudnn_ptr(sc, ih, diff_dst_acc, mem_diff_dst));
+            args.push_back(arg_diff_src.get_native_pointer(ih, sc));
+            args.push_back(arg_wei.get_native_pointer(ih, sc));
+            args.push_back(arg_diff_dst.get_native_pointer(ih, sc));
             args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()
                             ? sc.memory<void *>(ih, *ip_scratch_acc)
                             : nullptr));
@@ -168,7 +160,7 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
                         = static_cast<sycl::sycl_memory_storage_base_t *>(
                                 &CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS));
                 switch (mem_diff_wei->memory_kind()) {
-                    case sycl::memory_kind::buffer:{
+                    case sycl::memory_kind::buffer: {
                         auto diff_wei_acc
                                 = utils::downcast<
                                         sycl::sycl_buffer_memory_storage_t *>(
@@ -180,13 +172,13 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
                         cgh.fill(diff_wei_acc, static_cast<uint8_t>(0));
                         break;
                     }
-                    case sycl::memory_kind::usm:{
+                    case sycl::memory_kind::usm: {
                         auto *diff_wei_ptr = utils::downcast<
                                 const sycl::sycl_usm_memory_storage_t *>(
                                 mem_diff_wei)
                                                      ->usm_ptr();
-                        //cgh.fill(diff_wei_ptr, static_cast<uint8_t>(0), 1);
-                        cudaMemset(static_cast<void *>(diff_wei_ptr), static_cast<uint8_t>(0), wei_sz);
+                        cudaMemset(static_cast<void *>(diff_wei_ptr),
+                                static_cast<uint8_t>(0), wei_sz);
                         break;
                     }
                     default: assert(!"unexpected memory kind");
@@ -196,12 +188,11 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
         }
         if (bias_sz != 0) {
             auto status = cuda_stream->interop_task([&](::sycl::handler &cgh) {
-
                 auto *mem_diff_bias
                         = static_cast<sycl::sycl_memory_storage_base_t *>(
                                 &CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS));
                 switch (mem_diff_bias->memory_kind()) {
-                    case sycl::memory_kind::buffer:{
+                    case sycl::memory_kind::buffer: {
                         auto diff_bias_acc
                                 = utils::downcast<
                                         sycl::sycl_buffer_memory_storage_t *>(
@@ -213,13 +204,13 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
                         cgh.fill(diff_bias_acc, static_cast<uint8_t>(0));
                         break;
                     }
-                    case sycl::memory_kind::usm:{
+                    case sycl::memory_kind::usm: {
                         auto *diff_bias_ptr = utils::downcast<
                                 const sycl::sycl_usm_memory_storage_t *>(
                                 mem_diff_bias)
                                                       ->usm_ptr();
-                        //cgh.fill(diff_bias_ptr, static_cast<uint8_t>(0), 1);
-                        cudaMemset(static_cast<void *>(diff_bias_ptr), static_cast<uint8_t>(0), bias_sz);
+                        cudaMemset(static_cast<void *>(diff_bias_ptr),
+                                static_cast<uint8_t>(0), bias_sz);
                         break;
                     }
                     default: assert(!"unexpected memory kind");
@@ -233,19 +224,14 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         using scratch_acc_t = ::sycl::accessor<uint8_t, 1,
                 ::sycl::access::mode::read_write, sycl::compat::target_device>;
-        auto *mem_src = CTX_IN_MEMORY(DNNL_ARG_SRC);
-        auto src_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_SRC, mem_src);
-        auto *mem_diff_dst = CTX_IN_MEMORY(DNNL_ARG_DIFF_DST);
-        auto diff_dst_acc = CTX_IN_OPTIONAL_ACCESSOR(DNNL_ARG_DIFF_DST, mem_diff_dst);
-        auto *mem_diff_wei = CTX_OUT_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
-        auto diff_wei_acc = CTX_OUT_OPTIONAL_ACCESSOR(DNNL_ARG_DIFF_WEIGHTS, mem_diff_wei);
-        using write_acc_t = ::sycl::accessor<uint8_t, 1,
-                ::sycl::access::mode::write, sycl::compat::target_device>;
-        sycl::sycl_memory_storage_base_t *mem_diff_bias = nullptr;
-        std::optional<write_acc_t> diff_bias_acc;
+
+        auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+        auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
+        auto arg_diff_wei = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
+
+        sycl_memory_arg<::sycl::access::mode::read> arg_bias;
         if (pd()->with_bias()) {
-            mem_diff_bias = CTX_OUT_MEMORY(DNNL_ARG_DIFF_BIAS);
-            diff_bias_acc = CTX_OUT_OPTIONAL_ACCESSOR(DNNL_ARG_DIFF_BIAS, mem_diff_bias);
+            arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
         }
         std::shared_ptr<scratch_acc_t> ip_scratch_acc;
         std::shared_ptr<scratch_acc_t> spacial_scratch_acc;
@@ -266,11 +252,11 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
             auto cublas_handle = cuda_stream->get_cublas_handle();
             std::vector<void *> args;
 
-            args.push_back(get_cudnn_ptr(sc, ih, src_acc, mem_src));
-            args.push_back(get_cudnn_ptr(sc, ih, diff_dst_acc, mem_diff_dst));
-            args.push_back(get_cudnn_ptr(sc, ih, diff_wei_acc, mem_diff_wei));
+            args.push_back(arg_src.get_native_pointer(ih, sc));
+            args.push_back(arg_diff_dst.get_native_pointer(ih, sc));
+            args.push_back(arg_diff_wei.get_native_pointer(ih, sc));
             args.push_back(
-                    ((pd()->with_bias()) ? get_cudnn_ptr(sc, ih, diff_bias_acc, mem_diff_bias)
+                    ((pd()->with_bias()) ? arg_bias.get_native_pointer(ih, sc)
                                          : nullptr));
 
             args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()

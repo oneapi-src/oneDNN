@@ -57,7 +57,8 @@ public:
                 usm_mem_ = utils::downcast<
                         const sycl::sycl_usm_memory_storage_t *>(mem);
                 break;
-            default: assert(!"unexpected memory kind");
+            default: 
+                assert(!"unexpected memory kind");
         }
     }
 
