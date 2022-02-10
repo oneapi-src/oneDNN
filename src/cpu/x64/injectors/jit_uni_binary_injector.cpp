@@ -2189,7 +2189,7 @@ void jit_uni_binary_injector_t<avx, Xbyak::Ymm>::load_rhs_tail_statically(
             const int offset = should_load_lower_half ? xmm_size_elem : 0;
             for (int i = 0; i < upper_half_data_size; i++)
                 host_->vpinsrb(tmp_xmm, tmp_xmm,
-                        host_->ptr[rhs_addr_reg + offset + i * sizeof(float)],
+                        host_->ptr[rhs_addr_reg + offset + i * sizeof(int8_t)],
                         i);
             cvt_to_dword(tmp_xmm);
         };
@@ -2210,16 +2210,14 @@ void jit_uni_binary_injector_t<avx, Xbyak::Xmm>::load_rhs_tail_statically(
     const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
     host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
 
-    const auto load_tail_avx_xmm = [&] {
+    if (data_type == data_type::f32 || data_type == data_type::s32) {
+        for (size_t i = 0; i < tail_size; i++)
+            host_->vpinsrd(tmp_vmm, tmp_vmm,
+                    host_->ptr[rhs_addr_reg + i * sizeof(float)], i);
+    } else if (data_type == data_type::u8 || data_type == data_type::s8) {
         for (size_t i = 0; i < tail_size; i++)
             host_->vpinsrb(tmp_vmm, tmp_vmm,
-                    host_->ptr[rhs_addr_reg + i * sizeof(float)], i);
-    };
-
-    if (data_type == data_type::f32 || data_type == data_type::s32) {
-        load_tail_avx_xmm();
-    } else if (data_type == data_type::u8 || data_type == data_type::s8) {
-        load_tail_avx_xmm();
+                    host_->ptr[rhs_addr_reg + i * sizeof(int8_t)], i);
         if (data_type == data_type::s8)
             host_->vpmovsxbd(tmp_vmm, tmp_vmm);
         else
