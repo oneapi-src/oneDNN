@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -220,7 +220,8 @@ struct brgemm_matmul_conf_utils_t {
         return this->is_int8() && bgmmc.dst_dt == data_type::bf16;
     }
 
-    status_t set_or_check_B_tag(memory_desc_t &B_md) const;
+    status_t set_or_check_B_tag(
+            memory_desc_t &B_md, bool init_n_tag = true) const;
     status_t update_and_check_B_tag(memory_desc_t &B_md, int n_blk_size) const;
     status_t set_or_check_tags(memory_desc_t &A_md, memory_desc_t &C_md,
             memory_desc_t &bias_md) const;
