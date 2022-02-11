@@ -17,8 +17,11 @@
 #include <cctype>
 
 #include "common/impl_registration.hpp"
-#include "gemm_recipes.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
+#include "gpu/jit/gemm/kernel_catalog.hpp"
+#include "gpu/jit/gemm/kernel_selector.hpp"
+#include "gpu/jit/gemm/strategy_parser.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -26,503 +29,74 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-namespace {
+#define _CATALOG_ gemm_catalog
+#include "gpu/jit/gemm/kernel.db"
+;
+#undef _CATALOG_
 
-char layout_char(MatrixLayout layout) {
-    switch (layout) {
-        default: assert(!"Unknown layout.");
-        case MatrixLayout::PackedColumns: return 'A';
-        case MatrixLayout::PackedRows: return 'B';
-        case MatrixLayout::Nontranspose: return 'N';
-        case MatrixLayout::Transpose: return 'T';
+status_t gen_gemm_kernel_desc_t::finalize() {
+    // Update problem alignments to match catalog entry.
+    if (!isPacked(problem_.A.layout)) {
+        problem_.A.setAlignment(
+                std::max(problem_.Ta.size(), entry_->driverInfo.alignment[0]));
     }
-}
 
-char precision_char(Type T) {
-    switch (T) {
-        default: assert(!"Unknown type.");
-        case Type::f16: return 'H';
-        case Type::bf16: return 'B';
-        case Type::f32: return 'S';
-        case Type::u8:
-        case Type::s8: return 'O';
-        case Type::u16:
-        case Type::s16: return 'W';
-        case Type::u32:
-        case Type::s32: return 'I';
+    if (!isPacked(problem_.B.layout)) {
+        problem_.B.setAlignment(
+                std::max(problem_.Tb.size(), entry_->driverInfo.alignment[1]));
     }
-}
 
-AccessType get_access_type(char c) {
-    switch (std::tolower(c)) {
-        default: assert(!"Unknown access type.");
-        case 'b': return AccessType::Block;
-        case 's': return AccessType::Scattered;
-        case 'u': return AccessType::ChannelScattered;
-        case 'm': return AccessType::Block2D;
-        case 't': return AccessType::Block2DTranspose;
-        case 'v': return AccessType::Block2DVNNI;
+    if (!isPacked(problem_.C.layout)) {
+        problem_.C.setAlignment(std::max(
+                problem_.Tc_ext.size(), entry_->restrictions.alignment[2]));
     }
-}
 
-ngen::AddressBase get_address_base(char c) {
-    switch (c) {
-        default: assert(!"Unknown address space.");
-        case 'a': return ngen::AddressBase::createA64(true);
-        case 's': return ngen::AddressBase::createBTS(0);
-    }
-}
+    problem_.CO.setAlignment(problem_.Tco.size());
 
-bool is_block_2d(AccessType t) {
-    return utils::one_of(t, AccessType::Block2D, AccessType::Block2DTranspose,
-            AccessType::Block2DVNNI);
-}
+    // Parse strategy string.
+    strategy_ = GEMMStrategy(hw_);
+    strategy_.unroll[LoopM] = entry_->driverInfo.unroll[LoopM];
+    strategy_.unroll[LoopN] = entry_->driverInfo.unroll[LoopN];
+    parseStrategy(entry_->strategy, hw_, problem_, strategy_);
+    adjustStrategy(hw_, problem_, strategy_);
 
-} // anonymous namespace
+    // Always use variable beta for global k-parallel kernels.
+    if (strategy_.kParallel) problem_.beta_real = Scalar<double>();
 
-bool gen_gemm_kernel_t::matching_hw(ngen::HW hw, ngen::HW hw_ref) {
-    using ngen::HW;
-    if (hw == hw_ref) return true;
-    if (hw == HW::XeHPG && hw_ref == HW::XeHP) return true;
-    return false;
-}
+    // Omit periodic barriers when k is small.
+    if (strategy_.barrierFreq > 0 && k_ >= 0 && k_ < 2 * strategy_.barrierFreq)
+        strategy_.barrierFreq = 0;
 
-status_t gen_gemm_kernel_t::complete_strategy() {
-    using ngen::HW;
-
-    problem_.nonuniformWGs = false;
-    problem_.fused = (hw_ >= HW::XeLP);
-    problem_.fused &= (hw_ != HW::XeHPC);
-    strategy_.emulate = EmulationStrategy(hw_);
-    strategy_.checkAdd32 = strategy_.emulate.emulate64;
-    strategy_.spf = !problem_.fused;
-
-    bool c_large_cp = (problem_.C.crosspack > 1
-            && (problem_.C.crosspack * problem_.Tc.size()) > 4);
-    bool c_col_major = utils::one_of(problem_.C.layout, MatrixLayout::N,
-                               MatrixLayout::Pc)
-            ^ c_large_cp;
-    char alt_layout_c = c_col_major ? 'N' : 'T';
-
-    for (int r = 0; r < gemm_recipe_count; r++) {
-        auto &recipe = gemm_recipes[r];
-        if (matching_hw(hw_, recipe.hw)
-                && recipe.precisions[0] == precision_char(problem_.Ta)
-                && recipe.precisions[1] == precision_char(problem_.Tb)
-                && recipe.precisions[2] == precision_char(problem_.Tc)
-                && recipe.layouts[0] == layout_char(problem_.A.layout)
-                && recipe.layouts[1] == layout_char(problem_.B.layout)
-                && utils::one_of(recipe.layouts[2],
-                        layout_char(problem_.C.layout), alt_layout_c)
-                && recipe.extra.aCP == problem_.A.crosspack
-                && recipe.extra.bCP == problem_.B.crosspack
-                && (problem_.A.alignment % recipe.extra.aAlign == 0)
-                && (problem_.B.alignment % recipe.extra.bAlign == 0)
-                && recipe.unrollM == strategy_.unroll[LoopM]
-                && recipe.unrollN == strategy_.unroll[LoopN]
-                && recipe.tag == strategy_tag_) {
-
-            // Align alignments to recipe alignments.
-            if (utils::one_of(
-                        problem_.A.layout, MatrixLayout::N, MatrixLayout::T))
-                problem_.A.setAlignment(
-                        std::max(problem_.Ta.size(), recipe.extra.aAlign));
-            if (utils::one_of(
-                        problem_.B.layout, MatrixLayout::N, MatrixLayout::T))
-                problem_.B.setAlignment(
-                        std::max(problem_.Tb.size(), recipe.extra.bAlign));
-            if (utils::one_of(
-                        problem_.C.layout, MatrixLayout::N, MatrixLayout::T))
-                problem_.C.setAlignment(problem_.Tc_ext.size());
-            problem_.CO.setAlignment(problem_.Tco.size());
-
-            auto status = read_strategy(recipe.strategyString);
-            if (status != status::success) return status;
-
-            if (problem_.batch != BatchMode::None) strategy_.persistent = false;
-
-            return status;
+    // Disable linear ordering and persistent threads if the GEMM doesn't fill the GPU.
+    if (m_ >= 0 && n_ >= 0 && eu_count_ >= 0) {
+        int wg_tile_m = strategy_.wg[LoopM] * strategy_.unroll[LoopM];
+        int wg_tile_n = strategy_.wg[LoopN] * strategy_.unroll[LoopN];
+        if (wg_tile_m > 0 && wg_tile_n > 0) {
+            dim_t thread_count = utils::div_up(m_, wg_tile_m)
+                    * utils::div_up(n_, wg_tile_n) * strategy_.wg[LoopM]
+                    * strategy_.wg[LoopN] * std::max(strategy_.wg[LoopK], 1);
+            dim_t thread_gpu = eu_count_
+                    * compute::device_info_t::threads_per_eu(
+                            arch_, strategy_.GRFs > 128);
+            if (thread_count <= thread_gpu)
+                strategy_.persistent = strategy_.hilbertOrder
+                        = strategy_.boustrophedon = false;
         }
     }
-
-    return status::unimplemented;
-}
-
-status_t gen_gemm_kernel_t::read_strategy(const char *str) {
-    using ngen::HW;
-    std::stringstream s(str);
-
-    bool override_fused_loop = false;
-    bool override_register_scheme = false;
-    bool override_c_remainder = false;
-
-    strategy_.ka_load_masked = strategy_.kb_load_masked = 0;
-    strategy_.unroll[LoopK] = 1;
-    strategy_.fmaSIMD = std::min(32,
-            2 * ngen::GRF::bytes(hw_)
-                    / std::max<int>({problem_.Ta.size(), problem_.Tb.size(),
-                            problem_.Tc.size()}));
-
-    char asA, asB, asC, accessA, accessB, accessC, eat;
-    char accessAPrefetch = 's', accessBPrefetch = 's', accessCPrefetch = 's';
-
-    s >> std::ws >> asA >> accessA >> strategy_.ka_load;
-    if (s.peek() == '/') s >> eat >> strategy_.ka_load_masked;
-    if (s.peek() == 'x') s >> eat >> strategy_.A_copies;
-    if (s.peek() == '+') {
-        strategy_.prefetchA = 1;
-        s >> eat >> accessAPrefetch >> strategy_.ka_prefetch;
-        if (s.peek() == ',') s >> eat >> strategy_.ka_pfStride;
-        if (s.peek() == '@') s >> eat >> strategy_.prefetchA;
-        if (s.peek() == '/')
-            s >> eat >> strategy_.prefetchAMasked;
-        else
-            strategy_.prefetchAMasked = strategy_.prefetchA;
-    }
-    s >> std::ws >> asB >> accessB >> strategy_.kb_load;
-    if (s.peek() == '/') s >> eat >> strategy_.kb_load_masked;
-    if (s.peek() == 'x') s >> eat >> strategy_.B_copies;
-    if (s.peek() == '+') {
-        strategy_.prefetchB = 1;
-        s >> eat >> accessBPrefetch >> strategy_.kb_prefetch;
-        if (s.peek() == ',') s >> eat >> strategy_.kb_pfStride;
-        if (s.peek() == '@') s >> eat >> strategy_.prefetchB;
-        if (s.peek() == '/')
-            s >> eat >> strategy_.prefetchBMasked;
-        else
-            strategy_.prefetchBMasked = strategy_.prefetchB;
-    }
-    s >> std::ws >> asC >> accessC;
-    if (s.peek() == '+') {
-        strategy_.prefetchC = 1;
-        s >> eat >> accessCPrefetch;
-        if (s.peek() == '@') s >> eat >> strategy_.prefetchC;
-    }
-
-    problem_.A.base = get_address_base(asA);
-    problem_.B.base = get_address_base(asB);
-    problem_.C.base = get_address_base(asC);
-    strategy_.A.accessType = get_access_type(accessA);
-    strategy_.B.accessType = get_access_type(accessB);
-    strategy_.C.accessType = get_access_type(accessC);
-
-    strategy_.A_prefetch.atomic = false;
-    strategy_.B_prefetch.atomic = false;
-    strategy_.C_prefetch.atomic = false;
-    strategy_.A_prefetch.prefetch = true;
-    strategy_.B_prefetch.prefetch = true;
-    strategy_.C_prefetch.prefetch = true;
-    strategy_.A_prefetch.accessType = get_access_type(accessAPrefetch);
-    strategy_.B_prefetch.accessType = get_access_type(accessBPrefetch);
-    strategy_.C_prefetch.accessType = get_access_type(accessCPrefetch);
-
-    strategy_.A.cachingR = ngen::CacheSettingsLSC::L1C_L3C;
-    strategy_.B.cachingR = ngen::CacheSettingsLSC::L1C_L3C;
-    strategy_.C.cachingR = ngen::CacheSettingsLSC::L1C_L3C;
-    strategy_.C.cachingW = ngen::CacheSettingsLSC::L1WB_L3WB;
-
-    strategy_.A.newDP = strategy_.B.newDP = strategy_.C.newDP
-            = strategy_.A_prefetch.newDP = strategy_.B_prefetch.newDP
-            = strategy_.C_prefetch.newDP = (hw_ >= HW::XeHPC);
-
-    strategy_.A.address2D |= is_block_2d(strategy_.A.accessType);
-    strategy_.B.address2D |= is_block_2d(strategy_.B.accessType);
-    strategy_.C.address2D |= is_block_2d(strategy_.C.accessType);
-    strategy_.A_prefetch.address2D
-            |= is_block_2d(strategy_.A_prefetch.accessType);
-    strategy_.B_prefetch.address2D
-            |= is_block_2d(strategy_.B_prefetch.accessType);
-    strategy_.C_prefetch.address2D
-            |= is_block_2d(strategy_.C_prefetch.accessType);
-
-    while (!s.eof()) {
-        std::string mod;
-        s >> mod;
-        if (mod == "cs") {
-            override_register_scheme = true;
-            strategy_.registerScheme = GEMMStrategy::CSeparate;
-        } else if (mod == "acb") {
-            override_register_scheme = true;
-            strategy_.registerScheme = GEMMStrategy::ACB;
-        } else if (mod == "bca") {
-            override_register_scheme = true;
-            strategy_.registerScheme = GEMMStrategy::BCA;
-        } else if (mod == "vnc") {
-            override_register_scheme = true;
-            strategy_.registerScheme = GEMMStrategy::VNC;
-        } else if (mod == "int") {
-            override_register_scheme = true;
-            strategy_.registerScheme = GEMMStrategy::ABInterleave;
-        } else if (mod == "nse") {
-            override_register_scheme = true;
-            strategy_.registerScheme = GEMMStrategy::NSeparate;
-        } else if (mod == "ar") {
-            override_c_remainder = true;
-            strategy_.altCRemainder = true;
-        } else if (mod == "sr") {
-            override_c_remainder = true;
-            strategy_.altCRemainder = false;
-        } else if (mod == "ac")
-            strategy_.cAccumulators = true;
-        else if (mod == "fs")
-            strategy_.fixedSystolic = strategy_.systolic = true;
-        else if (mod == "da")
-            strategy_.duplicateA = true;
-        else if (mod == "db")
-            strategy_.duplicateB = true;
-        else if (mod == "el")
-            strategy_.cLoadAhead = true;
-        else if (mod == "di")
-            strategy_.delayABInc = true;
-        else if (mod == "sc")
-            strategy_.splitCopy = true;
-        else if (mod == "sm")
-            strategy_.coopA = CoopSplit::MN;
-        else if (mod == "sn")
-            strategy_.coopB = CoopSplit::MN;
-        else if (mod == "ek")
-            strategy_.slmEarlyKMask = true;
-        else if (mod == "af")
-            strategy_.atomicFMA = true;
-        else if (mod == "pab")
-            problem_.A.padded = problem_.B.padded = true;
-        else if (mod == "nmk") {
-            strategy_.loopOrder[0] = LoopN;
-            strategy_.loopOrder[1] = LoopM;
-            strategy_.loopOrder[2] = LoopK;
-        } else if (mod == "fm") {
-            problem_.fusedLoop = LoopM;
-            override_fused_loop = true;
-        } else if (mod == "fn") {
-            problem_.fusedLoop = LoopN;
-            override_fused_loop = true;
-        } else if (mod == "kb") {
-            strategy_.kParallel = true;
-            strategy_.C.atomic = true;
-        } else if (mod == "kr")
-            strategy_.kParallelLocal = true;
-        else if (mod == "wg") {
-            char x;
-            s >> strategy_.wg[LoopM];
-            s >> std::ws >> x;
-            s >> strategy_.wg[LoopN];
-            s >> std::ws;
-            if (s.peek() == 'x') s >> x >> strategy_.wg[LoopK];
-        } else if (mod == "bo")
-            strategy_.boustrophedon = true;
-        else if (mod == "hi")
-            strategy_.hilbertOrder = true;
-        else if (mod == "pt")
-            strategy_.persistent = true;
-        else if (mod == "sys")
-            strategy_.systolic = true;
-        else if (mod == "grf256")
-            strategy_.GRFs = 256;
-        else if (mod.substr(0, 2) == "ms")
-            strategy_.mSplitThresh = stoi(mod.substr(2));
-        else if (mod.substr(0, 2) == "ns")
-            strategy_.nSplitThresh = stoi(mod.substr(2));
-        else if (mod.substr(0, 2) == "bm")
-            strategy_.blocking[LoopM] = stoi(mod.substr(2));
-        else if (mod.substr(0, 2) == "bn")
-            strategy_.blocking[LoopN] = stoi(mod.substr(2));
-        else if (mod.substr(0, 2) == "bk") {
-            strategy_.blocking[LoopK] = stoi(mod.substr(2));
-            if (strategy_.blocking[LoopK] == 0)
-                strategy_.blocking[LoopK] = 1048576;
-        } else if (mod.substr(0, 2) == "kc")
-            strategy_.kChain = stoi(mod.substr(2));
-        else if (mod.substr(0, 2) == "sb") {
-            strategy_.barrierFreq = stoi(mod.substr(2));
-            strategy_.splitBarrier = true;
-        } else {
-            switch (mod[0]) {
-                case 'c': {
-                    mod.erase(0, 1);
-                    if (mod[0] == 'a') {
-                        mod.erase(0, 1);
-                        strategy_.slmA = true;
-                    }
-                    if (mod[0] == 'b') {
-                        mod.erase(0, 1);
-                        strategy_.slmB = true;
-                    }
-                    std::stringstream ms(mod);
-                    ms >> strategy_.slmBuffers;
-                    ms >> eat;
-                    if (!ms.eof()) ms >> strategy_.slmCopies;
-                    break;
-                }
-                case 'k': {
-                    std::stringstream ms(mod);
-                    ms >> eat >> strategy_.unroll[LoopK];
-                    if (!ms.eof() && (ms.peek() == '/'))
-                        ms >> eat >> strategy_.unrollK_masked;
-                    break;
-                }
-                case 'l': strategy_.optAlignAB = stoi(mod.substr(1)); break;
-                case 'r': {
-                    bool is_a = (mod[1] == 'a');
-                    (is_a ? strategy_.ka_repack : strategy_.kb_repack)
-                            = stoi(mod.substr(2));
-                    break;
-                }
-                default: return status::runtime_error;
-            }
-        }
-    }
-
-    strategy_.remHandling[LoopM] = problem_.A.padded
-            ? RemainderHandling::General
-            : RemainderHandling::Split;
-    strategy_.remHandling[LoopN] = problem_.B.padded
-            ? RemainderHandling::General
-            : RemainderHandling::Split;
-    strategy_.remHandling[LoopK] = RemainderHandling::General;
-
-    if (is_block_2d(strategy_.A.accessType)
-            && (!strategy_.prefetchA
-                    || is_block_2d(strategy_.A_prefetch.accessType)))
-        strategy_.remHandling[LoopM] = RemainderHandling::General;
-    if (is_block_2d(strategy_.B.accessType)
-            && (!strategy_.prefetchB
-                    || is_block_2d(strategy_.B_prefetch.accessType)))
-        strategy_.remHandling[LoopN] = RemainderHandling::General;
-
-    if (!override_fused_loop) {
-        problem_.fusedLoop = strategy_.loopOrder[0];
-        if (problem_.fused) {
-            if (strategy_.wg[LoopM] == 1)
-                problem_.fusedLoop = LoopN;
-            else if (strategy_.wg[LoopN] == 1)
-                problem_.fusedLoop = LoopM;
-        }
-    }
-
-    if (!override_c_remainder) {
-        strategy_.altCRemainder = (strategy_.C.accessType == AccessType::Block)
-                || strategy_.kParallel;
-    }
-
-    if (!override_register_scheme && (hw_ == HW::XeLP)) {
-        strategy_.registerScheme
-                = (strategy_.unroll[LoopM] * problem_.Ta.size()
-                          == strategy_.unroll[LoopN] * problem_.Tb.size())
-                ? GEMMStrategy::VNC
-                : GEMMStrategy::ABInterleave;
-    }
-
-    if (strategy_.ka_load_masked == 0)
-        strategy_.ka_load_masked = strategy_.ka_load;
-    if (strategy_.kb_load_masked == 0)
-        strategy_.kb_load_masked = strategy_.kb_load;
-
-    if (strategy_.ka_pfStride == 0)
-        strategy_.ka_pfStride = strategy_.ka_prefetch;
-    if (strategy_.kb_pfStride == 0)
-        strategy_.kb_pfStride = strategy_.kb_prefetch;
 
     strategy_.preflight(hw_, problem_);
 
-    return status::success;
-}
-
-status_t gen_gemm_kernel_t::init_interface() {
-    using namespace ngen;
-
-    interface_ = NEOInterfaceHandler {hw_};
-    auto s_type_ngen = problem_.Ts.ngen();
-
-    interface_.newArgument("A", ExternalArgumentType::GlobalPtr);
-    interface_.newArgument("B", ExternalArgumentType::GlobalPtr);
-    interface_.newArgument("C", ExternalArgumentType::GlobalPtr);
-    interface_.newArgument("offset_A", DataType::q);
-    interface_.newArgument("offset_B", DataType::q);
-    interface_.newArgument("offset_C", DataType::q);
-    interface_.newArgument("lda", DataType::d);
-    interface_.newArgument("ldb", DataType::d);
-    interface_.newArgument("ldc", DataType::d);
-    interface_.newArgument("m", DataType::d);
-    interface_.newArgument("n", DataType::d);
-    interface_.newArgument("k", DataType::d);
-    interface_.newArgument("alpha_real", s_type_ngen);
-    interface_.newArgument("beta_real", s_type_ngen);
-    if (problem_.abOffset != ABOffset::None)
-        interface_.newArgument("abo", DataType::ud);
-    if (problem_.cOffset != COffset::None) {
-        interface_.newArgument("CO", ExternalArgumentType::GlobalPtr);
-        interface_.newArgument("offset_CO", DataType::d);
-    }
-    interface_.newArgument("flags", DataType::ud);
-    if (strategy_.kParallel || strategy_.kParallelLocal)
-        interface_.newArgument("k0", DataType::d);
-    if (problem_.batch == BatchMode::Strided) {
-        if (problem_.batchDims > 1) {
-            interface_.newArgument("stride_A1", DataType::d);
-            interface_.newArgument("stride_B1", DataType::d);
-            interface_.newArgument("stride_C1", DataType::d);
-        }
-        interface_.newArgument("stride_A", DataType::d);
-        interface_.newArgument("stride_B", DataType::d);
-        interface_.newArgument("stride_C", DataType::d);
-        if (problem_.batchDims > 1) {
-            interface_.newArgument("batch_size1", DataType::ud);
-            interface_.newArgument("recip_batch_size1", DataType::ud);
-        }
-    }
-    if (strategy_.linearOrder()) {
-        interface_.newArgument("group_count_m", DataType::ud);
-        interface_.newArgument("group_count_n", DataType::ud);
-    }
-    if (strategy_.hilbertOrder) {
-        interface_.newArgument("hilbert_vd", DataType::ud);
-        interface_.newArgument("hilbert_uvd_recip", DataType::ud);
-        interface_.newArgument("hilbert_bail", DataType::ud);
-    } else if (strategy_.boustrophedon) {
-        interface_.newArgument("bslice", DataType::d);
-        interface_.newArgument("bthresh", DataType::d);
-    }
-    if (strategy_.persistent)
-        interface_.newArgument("group_stride", DataType::ud);
-    if (strategy_.variableSLM())
-        interface_.newArgument("local_mem", ExternalArgumentType::LocalPtr);
-
-    interface_.externalName(kernel_name());
+    update_driver_info();
 
     return status::success;
 }
 
-cl_kernel gen_gemm_kernel_t::get_kernel(
-        cl_context context, cl_device_id device) {
-    cl_kernel ocl_kernel = nullptr;
-
-#define ARCH_DISPATCH(arch) \
-    case ngen::HW::arch: { \
-        gemm_kernel_generator_t<ngen::HW::arch> generator; \
-        generator.gemm(problem_, strategy_, interface_); \
-        ocl_kernel = generator.getKernel(context, device); \
-        break; \
-    }
-
-    switch (hw_) {
-        REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
-        REG_XELP_ISA(ARCH_DISPATCH(XeLP))
-        REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
-        REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
-        REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
-        default: assert(!"Unsupported architecture"); break;
-    }
-
-    return ocl_kernel;
-
-#undef ARCH_DISPATCH
-}
-
-CommonDriverInfo gen_gemm_kernel_t::driver_info() const {
+void gen_gemm_kernel_desc_t::update_driver_info() {
 #define ARCH_DISPATCH(arch) \
     case ngen::HW::arch: \
-        return gemm_kernel_generator_t<ngen::HW::arch>::driverInfo( \
-                problem_, strategy_);
+        driver_info_ = gemm_kernel_generator_t<ngen::HW::arch>::driverInfo( \
+                problem_, strategy_); \
+        break;
 
     switch (hw_) {
         REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
@@ -530,503 +104,214 @@ CommonDriverInfo gen_gemm_kernel_t::driver_info() const {
         REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
         REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
         REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
-        default: assert(!"Unsupported architecture"); break;
+        default:
+            assert(!"Unsupported architecture");
+            driver_info_ = entry_->driverInfo;
+            break;
     }
-
-    return CommonDriverInfo();
-
 #undef ARCH_DISPATCH
 }
 
-namespace {
+status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
+        int eu_count, int batch_dims, bool trans_a, bool trans_b,
+        bool ab_offset, bool c_offset, bool bias, float alpha, float beta,
+        const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
+        data_type_t c_type, data_type_t co_type, data_type_t acc_type,
+        int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
+        dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
+    using namespace ngen;
+    using namespace kcatalog;
 
-struct align_req_t {
-    int a, b, c;
+    arch_ = arch;
+    hw_ = convert_dnnl_arch_to_hw(arch);
+    m_ = m;
+    n_ = n;
+    k_ = k;
+    eu_count_ = eu_count;
 
-    constexpr align_req_t() : a(1), b(1), c(1) {}
-    constexpr align_req_t(int a_, int b_, int c_) : a(a_), b(b_), c(c_) {}
-};
+    align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
+    align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
+    align_c = nstl::max(align_c, int(types::data_type_size(c_type)));
 
-// clang-format off
-struct kernel_table_t {
-    int unrolls[2];
-    int max_accept[2];  // Maximum values for m/n for which this kernel will
-                        //   always be chosen. (-1 = last in list).
-    int min_reject[2];  // Minimum values for m/n beyond which this kernel will
-                        //   always be rejected (0 if none).
-    align_req_t aligns; // Alignment requirements for A/B/C, if any.
-    char tag;           // Optional tag character, to select between strategies
-                        //   with identical unrolls.
-};
-// clang-format on
+    // Set up problem structure.
+    problem_.Ta = convert_dnnl_to_kernel_type(a_type);
+    problem_.Tb = convert_dnnl_to_kernel_type(b_type);
+    problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
+    problem_.Tco = convert_dnnl_to_kernel_type(co_type);
+    problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
+    problem_.Ts = problem_.Tc;
+    problem_.A.layout = trans_a ? MatrixLayout::T : MatrixLayout::N;
+    problem_.B.layout = trans_b ? MatrixLayout::T : MatrixLayout::N;
+    problem_.C.layout = MatrixLayout::N;
+    problem_.A.crosspack = problem_.B.crosspack = problem_.C.crosspack = 1;
+    problem_.A.packSize = problem_.B.packSize = problem_.C.packSize = 0;
+    problem_.A.setAlignment(align_a);
+    problem_.B.setAlignment(align_b);
+    problem_.C.setAlignment(align_c);
+    if (batch_dims > 0) {
+        problem_.batch = BatchMode::Strided;
+        problem_.batchDims = batch_dims;
+    }
+    if (ab_offset) problem_.abOffset = ABOffset::Calc;
 
-static constexpr int always = -2;
+    if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
-bool has_alignment(data_type_t type, int alignIn, dim_t ld, int alignReq) {
-    if (alignReq == 128) {
-        // alignReq == 128 indicates 2D block is used. Verify 2D block requirements on leading dimension.
-        alignReq = 16;
-        if (ld * types::data_type_size(type) < 64) return false;
+    if (alpha == 1.0f) problem_.alpha_real = alpha;
+    if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
+
+    if (post_ops.len() > 0) {
+        problem_.post_ops = post_ops;
+        if (a_type == data_type::f16) problem_.Ts = Type::f32;
+    }
+    if (c_offset || bias) {
+        assert(!(c_offset && bias));
+        problem_.cOffset = bias ? COffset::Pre : COffset::Post;
+        problem_.CO.crosspack = 1;
+        problem_.CO.alignment = problem_.C.alignment;
     }
 
-    return (alignIn % alignReq == 0);
+    // Select a kernel from the catalog.
+    MatchParams match_params(hw_, problem_);
+
+    match_params.sizes.m = m;
+    match_params.sizes.n = n;
+    match_params.sizes.k = k;
+    match_params.sizes.batch = batch;
+
+    std::string tags(match_params.tags);
+    if (lda * problem_.Ta >= 64) tags += kcatalog::ReqBlock2DA;
+    if (ldb * problem_.Tb >= 64) tags += kcatalog::ReqBlock2DB;
+    if (ldc * problem_.Tc >= 64) tags += kcatalog::ReqBlock2DC;
+    match_params.tags = tags.c_str();
+
+    EvaluateParams eval_params;
+
+    eval_params.sizes = match_params.sizes;
+    eval_params.beta = beta;
+    eval_params.euCount = eu_count;
+
+    entry_ = select(gemm_catalog, match_params, eval_params, aux_params_);
+
+    if (!entry_) return status::unimplemented;
+
+    auto block_k = entry_->driverInfo.blocking[LoopK];
+    if (block_k > 0 && k > block_k && beta != 1.0f)
+        problem_.beta_real = Scalar<double>();
+
+    return finalize();
 }
 
-// clang-format off
-const kernel_table_t gen9_f32_nocopy_nn_table[] = {
-    {{8,  4 }, { 0,  0}, {256, 0}, {}, {}},
-    {{16, 8 }, { 0,  0}, {0,   0}, {}, {}},
-    {{16, 16}, { 0,  0}, {0,   0}, {}, {}},
-    {{32, 16}, {-1, -1}, {0,   0}, {}, {}},
-};
-
-const kernel_table_t gen9_f32_nocopy_nt_table[] = {
-    {{8,  8 }, { 0,  0}, {512, 0}, {}, {}},
-    {{16, 16}, { 0,  0}, {0,   0}, {}, {}},
-    {{32, 16}, {-1, -1}, {0,   0}, {}, {}}
-};
-
-const kernel_table_t gen9_f32_nocopy_tn_table[] = {
-    {{8,  4 }, {16, 32}, {0, 0}, {}, {}},
-    {{8,  8 }, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 8 }, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t gen9_f32_nocopy_tt_table[] = {
-    {{16, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *gen9_f32_nocopy_tables[2][2] = {
-    {gen9_f32_nocopy_nn_table, gen9_f32_nocopy_nt_table},
-    {gen9_f32_nocopy_tn_table, gen9_f32_nocopy_tt_table}
-};
-
-const kernel_table_t gen9_f16_nocopy_nn_table[] = {
-    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t gen9_f16_nocopy_nt_table[] = {
-    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t gen9_f16_nocopy_tn_table[] = {
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t gen9_f16_nocopy_tt_table[] = {
-    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *gen9_f16_nocopy_tables[2][2] = {
-    {gen9_f16_nocopy_nn_table, gen9_f16_nocopy_nt_table},
-    {gen9_f16_nocopy_tn_table, gen9_f16_nocopy_tt_table}
-};
-
-const kernel_table_t gen9_x8_nocopy_nn_table[] = {
-    {{32, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t gen9_x8_nocopy_nt_table[] = {
-    {{32, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t gen9_x8_nocopy_tn_table[] = {
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t gen9_x8_nocopy_tt_table[] = {
-    {{16, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *gen9_x8_nocopy_tables[2][2] = {
-    {gen9_x8_nocopy_nn_table, gen9_x8_nocopy_nt_table},
-    {gen9_x8_nocopy_tn_table, gen9_x8_nocopy_tt_table}
-};
-
-const kernel_table_t *gen9_bf16_nocopy_tables[2][2] = {
-    {nullptr, nullptr},
-    {nullptr, nullptr}
-};
-
-const kernel_table_t xe_lp_f32_nocopy_nn_table[] = {
-    {{8,  4 }, { 0,  0}, {0, 0}, {}, {}},
-    {{8,  8 }, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 8 }, { 0,  0}, {0, 0}, {}, {}},
-    {{32, 8 }, { 0,  0}, {0, 0}, {}, {}},
-    {{32, 12}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_f32_nocopy_nt_table[] = {
-    {{8,  4 }, { 0,  0}, {0, 0}, {}, {}},
-    {{8,  8 }, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 16}, { 0,  0}, {0, 0}, {}, {}},
-    {{32, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_f32_nocopy_tn_table[] = {
-    {{8,  4 }, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 8 }, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_f32_nocopy_tt_table[] = {
-    {{12, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *xe_lp_f32_nocopy_tables[2][2] = {
-    {xe_lp_f32_nocopy_nn_table, xe_lp_f32_nocopy_nt_table},
-    {xe_lp_f32_nocopy_tn_table, xe_lp_f32_nocopy_tt_table}
-};
-
-const kernel_table_t xe_lp_f16_nocopy_nn_table[] = {
-    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_f16_nocopy_nt_table[] = {
-    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_f16_nocopy_tn_table[] = {
-    {{32, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_f16_nocopy_tt_table[] = {
-    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *xe_lp_f16_nocopy_tables[2][2] = {
-    {xe_lp_f16_nocopy_nn_table, xe_lp_f16_nocopy_nt_table},
-    {xe_lp_f16_nocopy_tn_table, xe_lp_f16_nocopy_tt_table}
-};
-
-const kernel_table_t xe_lp_x8_nocopy_nn_table[] = {
-    {{32, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_x8_nocopy_nt_table[] = {
-    {{16, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_x8_nocopy_tn_table[] = {
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_lp_x8_nocopy_tt_table[] = {
-    {{16, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *xe_lp_x8_nocopy_tables[2][2] = {
-    {xe_lp_x8_nocopy_nn_table, xe_lp_x8_nocopy_nt_table},
-    {xe_lp_x8_nocopy_tn_table, xe_lp_x8_nocopy_tt_table}
-};
-
-const kernel_table_t *xe_lp_bf16_nocopy_tables[2][2] = {
-    {nullptr, nullptr},
-    {nullptr, nullptr}
-};
-
-const kernel_table_t xe_hp_f16_nocopy_nn_table[] = {
-    {{16,  4}, {0,   0}, {1,  0}, {}, {}},
-    {{32, 16}, {64,  0}, {64, 0}, {}, 'B'},
-    {{32, 16}, {-1, -1}, {0,  0}, {}, 'A'}
-};
-
-const kernel_table_t xe_hp_f16_nocopy_nt_table[] = {
-    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_f16_nocopy_tn_table[] = {
-    {{32,  1}, {0,   1}, {0,   1}, {}, 'k'},
-    {{16,  8}, {32, 32}, {32, 32}, {}, {}},
-    {{16, 16}, {-1, -1}, {0,   0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_f16_nocopy_tt_table[] = {
-    {{32, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *xe_hp_f16_nocopy_tables[2][2] = {
-    {xe_hp_f16_nocopy_nn_table, xe_hp_f16_nocopy_nt_table},
-    {xe_hp_f16_nocopy_tn_table, xe_hp_f16_nocopy_tt_table}
-};
-
-const kernel_table_t xe_hp_f32_nocopy_nn_table[] = {
-    {{8,  4}, { 0,  0}, {1024,  0}, {}, {}},
-    {{16, 4}, { 0,  0}, {   0, 31}, {}, {}},
-    {{16, 8}, { 0,  0}, {   0,  0}, {}, {}},
-    {{32, 8}, { 0,  0}, {   0,  0}, {}, {}},
-    {{64, 8}, {-1, -1}, {   0,  0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_f32_nocopy_nt_table[] = {
-    {{8,   8}, { 0,  0}, {128, 128}, {}, 'K'},
-    {{8,   8}, { 0,  0}, {  0,   0}, {}, {}},
-    {{16,  8}, { 0,  0}, {  0,   0}, {}, {}},
-    {{16, 16}, { 0,  0}, {  0,   0}, {}, {}},
-    {{32, 16}, {-1, -1}, {  0,   0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_f32_nocopy_tn_table[] = {
-    {{8,   4}, { 0,  0}, {0, 0}, {}, {}},
-    {{8,   8}, { 0,  0}, {0, 0}, {}, {}},
-    {{8,  16}, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_f32_nocopy_tt_table[] = {
-    {{8, 64}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *xe_hp_f32_nocopy_tables[2][2] = {
-    {xe_hp_f32_nocopy_nn_table, xe_hp_f32_nocopy_nt_table},
-    {xe_hp_f32_nocopy_tn_table, xe_hp_f32_nocopy_tt_table}
-};
-
-const kernel_table_t xe_hp_x8_nocopy_nn_table[] = {
-    {{32,  4}, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_x8_nocopy_nt_table[] = {
-    {{32, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_x8_nocopy_tn_table[] = {
-    {{32,  1}, { 0,  1}, {0, 1}, {}, 'k'},
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_x8_nocopy_tt_table[] = {
-    {{16, 16}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *xe_hp_x8_nocopy_tables[2][2] = {
-    {xe_hp_x8_nocopy_nn_table, xe_hp_x8_nocopy_nt_table},
-    {xe_hp_x8_nocopy_tn_table, xe_hp_x8_nocopy_tt_table}
-};
-
-const kernel_table_t xe_hp_bf16_nocopy_nn_table[] = {
-    {{32, 8}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_bf16_nocopy_nt_table[] = {
-    {{ 8,  8}, { 0,  0}, {128, 128}, {}, 'K'},
-    {{16, 16}, {-1, -1}, {0,     0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_bf16_nocopy_tn_table[] = {
-    {{32, 4}, { 0,  0}, {0, 0}, {}, {}},
-    {{32, 8}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hp_bf16_nocopy_tt_table[] = {
-    {{8, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *xe_hp_bf16_nocopy_tables[2][2] = {
-    {xe_hp_bf16_nocopy_nn_table, xe_hp_bf16_nocopy_nt_table},
-    {xe_hp_bf16_nocopy_tn_table, xe_hp_bf16_nocopy_tt_table}
-};
-
-const kernel_table_t xe_hpc_f16_nocopy_nn_table[] = {
-    {{16, 16}, {0,      0}, {0,  0}, {128, 128, 1}, {}},
-    {{64, 32}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t xe_hpc_f16_nocopy_nt_table[] = {
-    {{16, 16}, {0,      0}, {0,  0}, {128, 128, 1}, {}},
-    {{64, 32}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t xe_hpc_f16_nocopy_tn_table[] = {
-    {{16, 16}, {0,      0}, {0,  0}, {4, 128, 1}, {}},
-    {{64, 32}, {always, 0}, {0,  0}, {4, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},          {}}
-};
-
-const kernel_table_t xe_hpc_f16_nocopy_tt_table[] = {
-    {{32, 64}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t *xe_hpc_f16_nocopy_tables[2][2] = {
-    {xe_hpc_f16_nocopy_nn_table, xe_hpc_f16_nocopy_nt_table},
-    {xe_hpc_f16_nocopy_tn_table, xe_hpc_f16_nocopy_tt_table}
-};
-
-const kernel_table_t xe_hpc_f32_nocopy_nn_table[] = {
-    {{16,  8}, { 0,    0}, {0, 0}, {}, {}},
-    {{64, 16}, { 1024, 0}, {0, 0}, {}, {}},
-    {{64, 32}, {-1,   -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hpc_f32_nocopy_nt_table[] = {
-    {{16, 16}, { 0,  0}, {0, 0}, {}, {}},
-    {{64, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hpc_f32_nocopy_tn_table[] = {
-    {{16,  8}, { 0,  0}, {0, 0}, {}, {}},
-    {{16, 16}, { 0,  0}, {0, 0}, {}, {}},
-    {{64, 32}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t xe_hpc_f32_nocopy_tt_table[] = {
-    {{32, 64}, {-1, -1}, {0, 0}, {}, {}}
-};
-
-const kernel_table_t *xe_hpc_f32_nocopy_tables[2][2] = {
-    {xe_hpc_f32_nocopy_nn_table, xe_hpc_f32_nocopy_nt_table},
-    {xe_hpc_f32_nocopy_tn_table, xe_hpc_f32_nocopy_tt_table}
-};
-
-const kernel_table_t xe_hpc_x8_nocopy_nn_table[] = {
-    {{64, 32}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 16}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t xe_hpc_x8_nocopy_nt_table[] = {
-    {{64, 32}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 16}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t xe_hpc_x8_nocopy_tn_table[] = {
-    {{64, 32}, {always, 0}, {0,  0}, {4, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},          {}}
-};
-
-const kernel_table_t xe_hpc_x8_nocopy_tt_table[] = {
-    {{32, 64}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t *xe_hpc_x8_nocopy_tables[2][2] = {
-    {xe_hpc_x8_nocopy_nn_table, xe_hpc_x8_nocopy_nt_table},
-    {xe_hpc_x8_nocopy_tn_table, xe_hpc_x8_nocopy_tt_table}
-};
-
-const kernel_table_t xe_hpc_bf16_nocopy_nn_table[] = {
-    {{16, 16}, {0,      0}, {0,  0}, {128, 128, 1}, {}},
-    {{64, 32}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t xe_hpc_bf16_nocopy_nt_table[] = {
-    {{16, 16}, {0,      0}, {0,  0}, {128, 128, 1}, {}},
-    {{64, 32}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t xe_hpc_bf16_nocopy_tn_table[] = {
-    {{16, 16}, {0,      0}, {0,  0}, {4, 128, 1}, {}},
-    {{64, 32}, {always, 0}, {0,  0}, {4, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},          {}}
-};
-
-const kernel_table_t xe_hpc_bf16_nocopy_tt_table[] = {
-    {{32, 64}, {always, 0}, {0,  0}, {128, 128, 1}, {}},
-    {{48, 32}, {-1,    -1}, {0,  0}, {},            {}}
-};
-
-const kernel_table_t *xe_hpc_bf16_nocopy_tables[2][2] = {
-    {xe_hpc_bf16_nocopy_nn_table, xe_hpc_bf16_nocopy_nt_table},
-    {xe_hpc_bf16_nocopy_tn_table, xe_hpc_bf16_nocopy_tt_table}
-};
-
-// clang-format on
-
-} // anonymous namespace
-
-void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
-        int hw_threads, bool trans_a, bool trans_b, data_type_t a_type,
-        data_type_t b_type, data_type_t c_type, int align_a, int align_b,
-        int align_c, dim_t m, dim_t n, dim_t k, dim_t batch, int batch_dims,
-        dim_t lda, dim_t ldb, dim_t ldc, int &unroll_m, int &unroll_n,
-        char &tag, int &kernel_align_a, int &kernel_align_b,
-        int &kernel_align_c) {
-
-    unroll_m = unroll_n = 1;
-
-    using tables_t = decltype(gen9_f32_nocopy_tables);
-    const tables_t *all_tables[4][4] = {
-            {&gen9_f32_nocopy_tables, &xe_lp_f32_nocopy_tables,
-                    &xe_hp_f32_nocopy_tables, &xe_hpc_f32_nocopy_tables},
-            {&gen9_f16_nocopy_tables, &xe_lp_f16_nocopy_tables,
-                    &xe_hp_f16_nocopy_tables, &xe_hpc_f16_nocopy_tables},
-            {&gen9_bf16_nocopy_tables, &xe_lp_bf16_nocopy_tables,
-                    &xe_hp_bf16_nocopy_tables, &xe_hpc_bf16_nocopy_tables},
-            {&gen9_x8_nocopy_tables, &xe_lp_x8_nocopy_tables,
-                    &xe_hp_x8_nocopy_tables, &xe_hpc_x8_nocopy_tables}};
-
-    // clang-format off
-    int arch_idx = (arch == compute::gpu_arch_t::xe_lp) ? 1
-                 : (arch == compute::gpu_arch_t::xe_hpc) ? 3
-                 : (arch >= compute::gpu_arch_t::xe_hp) ? 2
-                 : 0;
-    int type_idx = (a_type == data_type::f32) ? 0
-                 : (a_type == data_type::f16) ? 1
-                 : (a_type == data_type::bf16) ? 2 : 3;
-    // clang-format on
-
-    const kernel_table_t *table
-            = (*all_tables[type_idx][arch_idx])[trans_a][trans_b];
-    if (!table) {
-        assert(!"Unsupported type for hardware.");
-        return;
+status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
+        compute::gpu_arch_t arch, int eu_count, int batch_dims, bool packed_c,
+        offset_t a_offset, offset_t b_offset, offset_t c_offset, offset_t bias,
+        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t co_type,
+        data_type_t acc_type, dim_t m, dim_t n, dim_t k, dim_t batch,
+        int unroll_m, int unroll_n, bool alt) {
+    using namespace ngen;
+    using namespace kcatalog;
+
+    arch_ = arch;
+    hw_ = convert_dnnl_arch_to_hw(arch);
+    m_ = m;
+    n_ = n;
+    k_ = k;
+    eu_count_ = eu_count;
+
+    if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC))
+        return status::unimplemented;
+
+    bool xehpc = (hw_ == HW::XeHPC);
+
+    auto osys = xehpc ? 16 : 8;
+    auto ksys = int(32 / types::data_type_size(a_type));
+    auto csys = int(4 / types::data_type_size(a_type));
+
+    problem_.Ta = convert_dnnl_to_kernel_type(a_type);
+    problem_.Tb = convert_dnnl_to_kernel_type(b_type);
+    problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
+    problem_.Tco = convert_dnnl_to_kernel_type(co_type);
+    problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
+    problem_.Ts = Type::f32;
+    problem_.A.layout = MatrixLayout::PackedColumns;
+    problem_.B.layout = MatrixLayout::PackedRows;
+    problem_.C.layout = MatrixLayout::N;
+    problem_.A.crosspack = csys;
+    problem_.B.crosspack = ksys;
+    problem_.C.crosspack = 1;
+    problem_.A.packSize = unroll_m;
+    problem_.B.packSize = unroll_n;
+    problem_.C.packSize = 0;
+    problem_.A.tileR = osys;
+    problem_.A.tileC = ksys;
+    problem_.A.setAlignment(32);
+    problem_.B.setAlignment(32);
+    problem_.C.setAlignment(int(types::data_type_size(c_type)));
+    if (packed_c) problem_.C = problem_.B;
+    if (batch_dims > 0) {
+        problem_.batch = BatchMode::Strided;
+        problem_.batchDims = batch_dims;
+    }
+    if (a_offset == offset_t::fixed && b_offset == offset_t::fixed)
+        problem_.abOffset = ABOffset::Load;
+    else if (a_offset != offset_t::none || b_offset != offset_t::none)
+        return status::unimplemented;
+    if (alpha == 1.0f) problem_.alpha_real = alpha;
+    if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
+    if (post_ops.len() > 0) {
+        problem_.post_ops = post_ops;
+        problem_.Ts = Type::f32;
+    }
+    if (c_offset == offset_t::runtime)
+        problem_.cOffset = COffset::Post;
+    else if (c_offset != offset_t::none)
+        return status::unimplemented;
+
+    if (bias == offset_t::runtime) {
+        if (problem_.cOffset != COffset::None) return status::unimplemented;
+        problem_.cOffset = COffset::Pre;
+    } else if (bias != offset_t::none)
+        return status::unimplemented;
+
+    if (problem_.cOffset != COffset::None) {
+        problem_.CO.crosspack = 1;
+        problem_.CO.alignment = problem_.C.alignment;
     }
 
-    // Loop through kernel set, from smallest to largest unrolls.
-    for (; table->max_accept[0] != -1; table++) {
-        // Check if kernel alignment requirements are met.
-        if (!has_alignment(a_type, align_a, lda, table->aligns.a)
-                || !has_alignment(b_type, align_b, ldb, table->aligns.b)
-                || !has_alignment(c_type, align_c, ldc, table->aligns.c))
-            continue;
+    // Find it in the catalog.
+    MatchParams match_params(hw_, problem_);
 
-        // 'K'/'k' tag kernels require k parallelization, which can't be used for batch gemm.
-        if (utils::one_of(table->tag, 'k', 'K') && (batch > 1)) continue;
+    match_params.sizes.m = m;
+    match_params.sizes.n = n;
+    match_params.sizes.k = k;
+    match_params.sizes.batch = batch;
+    match_params.unroll[LoopM] = unroll_m;
+    match_params.unroll[LoopN] = unroll_n;
 
-        // If m/n under "always use" threshold or threshold set to "always", use this kernel.
-        // If m/n over "reject" threshold, don't use this kernel.
-        if (table->max_accept[0] == always) break;
-        if (m <= table->max_accept[0] || n <= table->max_accept[1]) break;
-        if (table->min_reject[0] > 0 && m > table->min_reject[0]) continue;
-        if (table->min_reject[1] > 0 && n > table->min_reject[1]) continue;
+    const char alt_tag[2] = {kcatalog::ReqCustom1, '\0'};
+    if (alt) match_params.tags = &alt_tag[0];
 
-        // Otherwise, check if more HW threads would be spawned than are
-        // available on the GPU. If so, enlarge unrolls.
-        auto trial_unroll_m = table->unrolls[0];
-        auto trial_unroll_n = table->unrolls[1];
-        auto mnb_threads = utils::div_up(m, trial_unroll_m)
-                * utils::div_up(n, trial_unroll_n) * batch;
-        if (mnb_threads <= hw_threads) break;
-        // To reduce register pressure for specific cases, use smaller unrolls if batch_dims > 1
-        if (batch_dims > 1) {
-            if ((arch_idx == 0) && (c_type == data_type::f32)
-                    && (a_type == data_type::f32) && !(trans_a) && !(trans_b)
-                    && (trial_unroll_n == 16)) {
-                break;
-            }
-        }
-    }
+    EvaluateParams eval_params;
 
-    unroll_m = table->unrolls[0];
-    unroll_n = table->unrolls[1];
-    tag = table->tag;
-    kernel_align_a = (table->aligns.a == 128) ? 128 : align_a;
-    kernel_align_b = (table->aligns.b == 128) ? 128 : align_b;
-    kernel_align_c = (table->aligns.c == 128) ? 128 : align_c;
+    eval_params.sizes = match_params.sizes;
+    eval_params.beta = beta;
+    eval_params.euCount = eu_count;
+
+    entry_ = select(gemm_catalog, match_params, eval_params, aux_params_);
+
+    if (!entry_) return status::unimplemented;
+
+    return finalize();
 }
 
-void gen_gemm_xe_systolic_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
-        int eu_count, data_type_t a_type, data_type_t b_type,
-        data_type_t c_type, dim_t m, dim_t n, dim_t k, dim_t batch,
-        int &unroll_m, int &unroll_n, char &tag) {
+void gen_gemm_xe_systolic_kernel_desc_t::choose_unrolls(
+        compute::gpu_arch_t arch, int eu_count, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, dim_t m, dim_t n, dim_t k,
+        dim_t batch, int &unroll_m, int &unroll_n, bool &alt) {
 
     using namespace data_type;
+
+    alt = false;
 
     switch (arch) {
         case compute::gpu_arch_t::xe_hp:
@@ -1034,10 +319,7 @@ void gen_gemm_xe_systolic_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
             if (unroll_m == 0) unroll_m = 32;
             if (unroll_n == 0) unroll_n = (m * n >= 6144 * eu_count) ? 48 : 32;
 
-            if (unroll_n == 32)
-                tag = '\0';
-            else
-                tag = (m * n >= 13824 * eu_count) ? 'B' : 'A';
+            if (unroll_n == 48) alt = (m * n >= 13824 * eu_count);
             break;
         case compute::gpu_arch_t::xe_hpc:
             if (utils::one_of(a_type, f16, bf16)) {
@@ -1055,10 +337,103 @@ void gen_gemm_xe_systolic_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
                 unroll_m = 64;
                 unroll_n = 32;
             }
-            tag = 0;
             break;
         default: assert(!"Unsupported architecture.");
     }
+}
+
+void gen_gemm_kernel_t::init_interface() {
+    using namespace ngen;
+
+    auto &problem = *desc()->problem();
+    auto &strategy = *desc()->strategy();
+
+    interface_ = NEOInterfaceHandler {desc()->hw_};
+    auto s_type_ngen = problem.Ts.ngen();
+
+    interface_.newArgument("A", ExternalArgumentType::GlobalPtr);
+    interface_.newArgument("B", ExternalArgumentType::GlobalPtr);
+    interface_.newArgument("C", ExternalArgumentType::GlobalPtr);
+    interface_.newArgument("offset_A", DataType::q);
+    interface_.newArgument("offset_B", DataType::q);
+    interface_.newArgument("offset_C", DataType::q);
+    interface_.newArgument("lda", DataType::d);
+    interface_.newArgument("ldb", DataType::d);
+    interface_.newArgument("ldc", DataType::d);
+    interface_.newArgument("m", DataType::d);
+    interface_.newArgument("n", DataType::d);
+    interface_.newArgument("k", DataType::d);
+    interface_.newArgument("alpha_real", s_type_ngen);
+    interface_.newArgument("beta_real", s_type_ngen);
+    if (problem.abOffset != ABOffset::None)
+        interface_.newArgument("abo", DataType::ud);
+    if (problem.cOffset != COffset::None) {
+        interface_.newArgument("CO", ExternalArgumentType::GlobalPtr);
+        interface_.newArgument("offset_CO", DataType::d);
+    }
+    interface_.newArgument("flags", DataType::ud);
+    if (strategy.kParallel || strategy.kParallelLocal)
+        interface_.newArgument("k0", DataType::d);
+    if (problem.batch == BatchMode::Strided) {
+        if (problem.batchDims > 1) {
+            interface_.newArgument("stride_A1", DataType::d);
+            interface_.newArgument("stride_B1", DataType::d);
+            interface_.newArgument("stride_C1", DataType::d);
+        }
+        interface_.newArgument("stride_A", DataType::d);
+        interface_.newArgument("stride_B", DataType::d);
+        interface_.newArgument("stride_C", DataType::d);
+        if (problem.batchDims > 1) {
+            interface_.newArgument("batch_size1", DataType::ud);
+            interface_.newArgument("recip_batch_size1", DataType::ud);
+        }
+    }
+    if (strategy.linearOrder()) {
+        interface_.newArgument("group_count_m", DataType::ud);
+        interface_.newArgument("group_count_n", DataType::ud);
+    }
+    if (strategy.hilbertOrder) {
+        interface_.newArgument("hilbert_vd", DataType::ud);
+        interface_.newArgument("hilbert_uvd_recip", DataType::ud);
+        interface_.newArgument("hilbert_bail", DataType::ud);
+    } else if (strategy.boustrophedon) {
+        interface_.newArgument("bslice", DataType::d);
+        interface_.newArgument("bthresh", DataType::d);
+    }
+    if (strategy.persistent)
+        interface_.newArgument("group_stride", DataType::ud);
+    if (strategy.variableSLM())
+        interface_.newArgument("local_mem", ExternalArgumentType::LocalPtr);
+
+    interface_.externalName(kernel_name());
+}
+
+cl_kernel gen_gemm_kernel_t::get_kernel(
+        cl_context context, cl_device_id device) {
+    cl_kernel ocl_kernel = nullptr;
+
+    init_interface();
+
+#define ARCH_DISPATCH(arch) \
+    case ngen::HW::arch: { \
+        gemm_kernel_generator_t<ngen::HW::arch> generator; \
+        generator.gemm(*desc()->problem(), *desc()->strategy(), interface_); \
+        ocl_kernel = generator.getKernel(context, device); \
+        break; \
+    }
+
+    switch (desc()->hw_) {
+        REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
+        REG_XELP_ISA(ARCH_DISPATCH(XeLP))
+        REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
+        REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
+        REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
+        default: assert(!"Unsupported architecture"); break;
+    }
+
+    return ocl_kernel;
+
+#undef ARCH_DISPATCH
 }
 
 } // namespace jit

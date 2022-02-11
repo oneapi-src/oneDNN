@@ -63,6 +63,12 @@ struct gen_gemm_t : public gpu_gemm_t {
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();
 
+            bool check_lda
+                    = ((desc()->transa() == dnnl_notrans && desc()->lda() == 1)
+                            || (desc()->transa() == dnnl_trans));
+            swap_ab_ = (desc()->a_type() == data_type::f16 && desc()->m() == 1
+                    && desc()->ldc() == 1 && check_lda);
+
             ok = set_default_formats();
             if (!ok) return status::unimplemented;
 
@@ -158,35 +164,43 @@ struct gen_gemm_t : public gpu_gemm_t {
             ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp,
                     arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc);
 
-            // bf16 only enabled on Xe_HP+.
-            ok &= IMPLICATION(d->a_type() == bf16, arch_ >= arch_t::xe_hp);
-
             if (!ok) return status::unimplemented;
 
-            choose_kernel();
+            auto co_type = with_bias()
+                    ? d->bias_type()
+                    : (utils::one_of(eff_a_type(), s8, u8) ? s32 : d->c_type());
+            auto acc_type = utils::one_of(d->c_type(), s8, u8, f16, bf16, f32)
+                    ? (utils::one_of(eff_a_type(), s8, u8) ? s32 : d->c_type())
+                    : d->c_type();
+
+            if (acc_type == data_type::bf16)
+                acc_type = data_type::f32;
+            else if (arch_ == compute::gpu_arch_t::xe_hpc
+                    && acc_type == data_type::f16)
+                acc_type = data_type::f32;
+
+            auto status = kernel_desc_.select_kernel(arch_,
+                    dev_info_->eu_count(), batch_dims(), eff_transa(),
+                    eff_transb(), with_ab_zero_points(), with_c_zero_points(),
+                    with_bias(), alpha(), beta(), attr()->post_ops_,
+                    eff_a_type(), eff_b_type(), desc()->c_type(), co_type,
+                    acc_type, eff_align_a(), eff_align_b(), align_c(), eff_m(),
+                    eff_n(), d->k(), eff_lda(), eff_ldb(), d->ldc(),
+                    d->batch());
+
+            if (status != status::success) return status;
 
             // global k-parallel kernels don't support post-ops.
-            bool with_eltwise = (attr()->post_ops_.find(eltwise) != -1);
-            ok &= IMPLICATION(tag_ == 'K', !with_bias() && !with_eltwise);
-
             // use global k-parallel kernels only with f32 accumulation
-            ok &= IMPLICATION(tag_ == 'K', utils::one_of(d->c_type(), f32));
+            bool k_parallel_global = kernel_desc_.driver_info()->kParallel;
+            bool with_eltwise = (attr()->post_ops_.find(eltwise) != -1);
+
+            ok &= IMPLICATION(k_parallel_global,
+                    !with_bias() && !with_eltwise && d->c_type() == f32);
 
             if (!ok) return status::unimplemented;
 
             return status::success;
-        }
-
-        void choose_kernel() {
-            using kernel_t = gen_gemm_nocopy_kernel_t;
-
-            const auto &d = desc();
-            kernel_t::choose_unrolls(arch_, dev_info_->hw_threads(),
-                    eff_transa(), eff_transb(), d->a_type(), d->b_type(),
-                    d->c_type(), eff_align_a(), eff_align_b(), align_c(),
-                    eff_m(), eff_n(), d->k(), d->batch(), batch_dims(),
-                    eff_lda(), eff_ldb(), d->ldc(), unroll_m_, unroll_n_, tag_,
-                    kernel_align_a_, kernel_align_b_, kernel_align_c_);
         }
 
         bool set_default_formats() {
@@ -281,13 +295,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         bool with_ab_zero_points() const { return ab_zp_; }
 
-        bool swap_ab() const {
-            bool check_lda
-                    = ((desc()->transa() == dnnl_notrans && desc()->lda() == 1)
-                            || (desc()->transa() == dnnl_trans));
-            return (desc()->a_type() == data_type::f16 && desc()->m() == 1
-                    && desc()->ldc() == 1 && check_lda);
-        }
+        bool swap_ab() const { return swap_ab_; }
 
         int batch_dims() const {
             return nstl::max(desc()->c_desc.ndims - 2, 0);
@@ -323,19 +331,28 @@ struct gen_gemm_t : public gpu_gemm_t {
         dim_t eff_ldb() const {
             return !swap_ab() ? desc()->ldb() : desc()->lda();
         }
+        data_type_t eff_a_type() const {
+            return !swap_ab() ? desc()->a_type() : desc()->b_type();
+        }
+        data_type_t eff_b_type() const {
+            return !swap_ab() ? desc()->b_type() : desc()->a_type();
+        }
+        const gen_gemm_nocopy_kernel_desc_t *kernel_desc() const {
+            return &kernel_desc_;
+        }
 
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
         size_t dyn_offset_co = 0;
 
+        bool swap_ab_ = false;
         bool ab_zp_ = false;
-        int unroll_m_ = 0, unroll_n_ = 0;
-        char tag_ = '\0';
-        int kernel_align_a_ = 0, kernel_align_b_ = 0, kernel_align_c_ = 0;
 
         const compute::device_info_t *dev_info_;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
+
+        gen_gemm_nocopy_kernel_desc_t kernel_desc_;
     };
 
     gen_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
@@ -343,45 +360,20 @@ struct gen_gemm_t : public gpu_gemm_t {
     status_t init(engine_t *engine) override { return init_nocopy(engine); }
 
     status_t init_nocopy(engine_t *engine) {
-        using kernel_t = gen_gemm_nocopy_kernel_t;
+        using kernel_t = gen_gemm_kernel_t;
         using namespace data_type;
 
-        const auto &d = pd()->desc();
-        auto c_type = d->c_type();
-        auto co_type = pd()->with_bias()
-                ? d->bias_type()
-                : (utils::one_of(d->a_type(), s8, u8) ? s32 : c_type);
-        auto acc_type = utils::one_of(c_type, s8, u8, f16, bf16, f32)
-                ? (utils::one_of(d->a_type(), s8, u8) ? s32 : c_type)
-                : c_type;
-
-        if (acc_type == data_type::bf16)
-            acc_type = data_type::f32;
-        else if (pd()->arch_ == compute::gpu_arch_t::xe_hpc
-                && acc_type == data_type::f16)
-            acc_type = data_type::f32;
-
-        if (get_verbose() >= 2) {
-            char tag_s[2] = {pd()->tag_, 0};
-            printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%s\n",
-                    pd()->unroll_m_, pd()->unroll_n_, tag_s);
-        }
-
-        kernel_t kernel;
-
-        auto status = kernel.init(pd()->arch_, pd()->batch_dims(),
-                pd()->eff_transa(), pd()->eff_transb(),
-                pd()->with_ab_zero_points(), pd()->with_c_zero_points(),
-                pd()->with_bias(), pd()->attr()->post_ops_, d->a_type(),
-                d->b_type(), c_type, co_type, acc_type, pd()->kernel_align_a_,
-                pd()->kernel_align_b_, pd()->kernel_align_c_, pd()->unroll_m_,
-                pd()->unroll_n_, pd()->tag_);
-
-        if (status != status::success) return status;
+        auto kd = pd()->kernel_desc();
+        kernel_t kernel(*kd);
 
         create_kernel(engine, &nocopy_kernel_, &kernel);
 
-        nocopy_info_ = kernel.driver_info();
+        if (get_verbose() >= 2) {
+            auto info = kd->driver_info();
+            printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
+                    info->unroll[LoopM], info->unroll[LoopN], info->wg[LoopM],
+                    info->wg[LoopN], info->wg[LoopK]);
+        }
 
         return status::success;
     }
@@ -398,10 +390,12 @@ private:
             float alpha, float beta, int16_t ao, int16_t bo, int32_t cmask,
             bool last_k_block, bool swapab, bool disable_hilbert) const;
 
-    compute::kernel_t nocopy_kernel_;
-    CommonDriverInfo nocopy_info_;
-
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const CommonDriverInfo *nocopy_info() const {
+        return pd()->kernel_desc()->driver_info();
+    }
+
+    compute::kernel_t nocopy_kernel_;
 };
 
 } // namespace jit

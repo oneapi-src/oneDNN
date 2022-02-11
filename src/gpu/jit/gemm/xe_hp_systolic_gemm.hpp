@@ -123,7 +123,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         int unroll_m() const { return unroll_m_; }
         int unroll_n() const { return unroll_n_; }
         bool use_new_kernels() const { return use_new_kernels_; }
-        char kernel_tag() const { return kernel_tag_; }
+        bool alt() const { return alt_; }
 
         const compute::device_info_t *dev_info_ = nullptr;
 
@@ -134,7 +134,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         bool use_new_kernels_ = false;
         int unroll_m_ = 0;
         int unroll_n_ = 0;
-        char kernel_tag_ = '\0';
+        bool alt_ = false;
     };
 
     status_t init(engine_t *engine) override;

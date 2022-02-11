@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,6 +68,7 @@ public:
         u64 = 0x8A0803,
         s64 = 0x8B0803,
         bf16 = 0x0C0201,
+        tf32 = 0x0D0402,
     };
 
 private:
@@ -113,7 +114,7 @@ public:
         static const DataType table[16] = {DataType::hf, DataType::f,
                 DataType::df, DataType::invalid, DataType::ub, DataType::b,
                 DataType::uw, DataType::w, DataType::ud, DataType::d,
-                DataType::uq, DataType::q, DataType::bf, DataType::invalid,
+                DataType::uq, DataType::q, DataType::bf, DataType::tf32,
                 DataType::invalid, DataType::invalid};
         return table[(uint32_t(val) >> 16) & 0xF];
     }
@@ -146,6 +147,11 @@ enum class AccessType : uint8_t {
     Block2DTranspose, // Use 2D block messages with transposition
     Block2DVNNI, // Use 2D block messages with VNNI transform
 };
+
+static inline bool isBlock2D(AccessType t) {
+    return (t == AccessType::Block2D || t == AccessType::Block2DTranspose
+            || t == AccessType::Block2DVNNI);
+}
 
 enum class RemainderHandling : uint8_t {
     Ignore, // Assume no remainder, or handled by hardware bounds checking.
@@ -367,8 +373,6 @@ public:
 
 struct MatrixAddressing {
     MatrixLayout layout; // Layout type (N/T/Pr/Pc)
-    ngen::AddressBase base; // Base for addressing (A64/BTS/...)
-    bool padded; // Allow read/write overruns?
     uint8_t packSize; // # of elements in a packed row/column for packed layouts.
     uint8_t crosspack; // Crosspack for packed layouts.
     uint8_t alignment; // Alignment for all addresses, offsets, and leading dimensions.
@@ -380,11 +384,6 @@ struct MatrixAddressing {
                 T.size() * (isPacked(layout) ? (packSize * crosspack) : 1));
     }
 
-    ngen::GlobalAccessType getGlobalAccessType() const {
-        return base.isStateless() ? ngen::GlobalAccessType::Stateless
-                                  : ngen::GlobalAccessType::Surface;
-    }
-
 private:
     static int sanitizeAlign(int align) {
         return std::min(128, largest_pow2_divisor(align));
@@ -392,10 +391,12 @@ private:
 };
 
 struct MatrixAddressingStrategy {
+    ngen::AddressBase base; // Base for addressing (A64/BTS/...)
     AccessType accessType = AccessType::Block; // Block/scattered/etc. access
     uint8_t tileR = 0, tileC = 0; // Desired tiling (0 if none) in registers.
     ScatterSIMD smode
             = ScatterSIMD::Default; // SIMD selection for scattered accesses.
+    unsigned padded : 1; // Allow read/write overruns?
     unsigned atomic : 1; // Atomic access? (only relevant for C)
     unsigned address2D : 1; // Use 2D addressing? (media block-style loads)
     unsigned prefetch : 1; // Prefetch only?
@@ -406,9 +407,19 @@ struct MatrixAddressingStrategy {
             = ngen::CacheSettingsLSC::Default;
 
     MatrixAddressingStrategy()
-        : atomic(false), address2D(false), prefetch(false), newDP(false) {}
+        : padded(false)
+        , atomic(false)
+        , address2D(false)
+        , prefetch(false)
+        , newDP(false) {}
 
     void preflight(ngen::HW hw);
+    void forceA64();
+
+    ngen::GlobalAccessType getGlobalAccessType() const {
+        return base.isStateless() ? ngen::GlobalAccessType::Stateless
+                                  : ngen::GlobalAccessType::Surface;
+    }
 };
 
 struct VirtualFlag {
@@ -661,17 +672,17 @@ enum class MoveR0 { None, Acc, Addr, GRF };
 
 // Problem parameters shared between kernel types.
 struct CommonProblem {
-    bool nonuniformWGs = true; // Support nonuniform workgroups?
+    bool nonuniformWGs = false; // Support nonuniform workgroups?
     bool gtpinSupport = false; // Support GT-Pin?
-    bool fused = false; // Fused kernels?
 };
 
 // Strategy parameters shared between different kernel types.
 struct CommonStrategy {
     int subgroupSize = 8; // Subgroup size provided to OpenCL runtime.
-    bool dualGRF = true; // Enable two-GRF instructions
-    bool ieeeDenormals = true; // Enable IEEE-compliant denormals
-    bool spf = false; // Enable Single Program Flow (SPF) mode in EUs.
+    bool fused = false; // Fused EU handling enabled?
+    bool dualGRF = true; // Enable two-GRF instructions.
+    bool ieeeDenormals = true; // Enable IEEE-compliant denormals.
+    bool spf = true; // Enable Single Program Flow (SPF) mode in EUs.
     MoveR0 moveR0 = MoveR0::Acc; // Where to store r0 information.
     bool sipR0WA = false; // Avoid using r0 to avoid clobbering by SIP.
     bool readSuppressionWA
@@ -686,6 +697,8 @@ struct CommonStrategy {
 
     EmulationStrategy emulate;
 
+    CommonStrategy() {}
+    CommonStrategy(ngen::HW hw);
     void preflight(ngen::HW hw, const CommonProblem &problem);
 };
 
@@ -696,15 +709,6 @@ enum class UpdateType {
     UpperTriangleHermitian,
     LowerTriangle,
     LowerTriangleHermitian
-};
-
-// k loop bounds types for GEMM kernels.
-enum class KRange {
-    Full,
-    ALowerTriangle,
-    AUpperTriangle,
-    BLowerTriangle,
-    BUpperTriangle
 };
 
 // A/B offset mode.
@@ -732,9 +736,7 @@ struct GEMMProblem : public CommonProblem {
     Scalar<double> alpha_real, alpha_imag; // Alpha value, if fixed.
     Scalar<double> beta_real, beta_imag; // Beta value, if fixed.
     MatrixAddressing A, B, C, CO; // Addressing information for matrices.
-    bool backward = false; // If true, k loop is backwards.
     bool checkBeta0 = true; // If true, check for beta = 0 and handle specially.
-    LoopType fusedLoop = LoopM; // Direction of fusing if threads fused.
     ABOffset abOffset = ABOffset::None; // A/B offset mode.
     COffset cOffset = COffset::None; // C offset mode.
     BatchMode batch = BatchMode::None; // Batch mode.
@@ -756,8 +758,6 @@ struct GEMMProblem : public CommonProblem {
     bool alphaM1() const {
         return (alpha_real == -1) && (!Tc.isComplex() || (alpha_imag == 0));
     }
-    bool fusedM() const { return fused && (fusedLoop == LoopM); }
-    bool fusedN() const { return fused && (fusedLoop == LoopN); }
 
     bool needsTsConvert() const {
         if (!(alpha1() || alphaM1())) return true;
@@ -766,6 +766,9 @@ struct GEMMProblem : public CommonProblem {
         if (hasPostOp()) return true;
         return false;
     }
+
+    bool gemmt() const { return false; }
+    bool backward() const { return false; }
 };
 
 struct GEMMState;
@@ -789,20 +792,23 @@ struct GEMMStrategy : public CommonStrategy {
     int unrollK_masked = 0; // k unroll to use when masking.
     LoopType loopOrder[3] = {LoopM, LoopN,
             LoopK}; // Expected order of loops in driver code (in order from innermost to outermost).
+    LoopType fusedLoop = LoopM; // Direction of fusing if threads fused.
     bool hilbertOrder = false; // Use Hilbert-like walk order in C?
     bool boustrophedon = false; // Use panel-boustrophedon walk order in C?
     bool persistent = false; // Use persistent thread model?
     bool reverse[2] = {false, false}; // Reverse m/n walk order?
-    int fmaSIMD; // Vector length for FMA.
+    int fmaSIMD = 0; // Vector length for FMA (0 = default = 2 GRFs).
     int kChain = 1; // # of FMAs to chain in k dimension.
     int wg[3] = {0, 0,
             0}; // m/n/k workgroup sizes, 0 if unconstrained. Indexed by LoopType.
     bool forceFixedWG
             = false; // If true, always use fixed workgroup size even if not required.
-    MatrixAddressingStrategy A, B, C; // Strategies for accessing A/B/C.
+    MatrixAddressingStrategy A, B, C,
+            CO; // Strategies for accessing A/B/C/C offsets.
     int ka_load, kb_load; // How much of A/B is loaded at once, in k dimension
     int ka_load_masked = 0,
-        kb_load_masked = 0; // Same as above, when masking m/n.
+        kb_load_masked
+            = 0; // Same as above, when masking m/n (0 = default = same as ka/kb_load)
     int ka_repack = 0,
         kb_repack = 0; // How often to repack loaded A/B (when crosspacked)
     bool slmA = false, slmB = false; // Whether to copy A/B to SLM.
@@ -857,7 +863,12 @@ struct GEMMStrategy : public CommonStrategy {
     bool cLoadAhead = false; // Load C before doing FMAs?
     bool forceCopyC = false; // Force C to be copied before the update step?
     bool noJumpTables = false; // Disallow jump tables?
-    RemainderHandling remHandling[3]; // m, n, k remainder handling.
+    RemainderHandling remHandling[3] = {
+            // m, n, k remainder handling.
+            RemainderHandling::Split,
+            RemainderHandling::Split,
+            RemainderHandling::General,
+    };
     bool jointSplit
             = true; // Use remainder kernel for both m and n dimensions if both are split.
     int mSplitThresh = 0,
@@ -865,7 +876,7 @@ struct GEMMStrategy : public CommonStrategy {
             = 0; // m/n minimum thresholds for using split remainder handling. 0 means always use split.
     bool atomicFMA = false; // Use {Atomic} FMA chains.
     bool checkAdd32
-            = true; // Check inside kernel if inner loop additions can be done in 32-bit.
+            = false; // Check inside kernel if inner loop additions can be done in 32-bit.
     bool delayABInc
             = false; // Delay A/B increment a few outer products in the k loop.
     CoopSplit coopA = CoopSplit::
@@ -890,6 +901,9 @@ struct GEMMStrategy : public CommonStrategy {
 
     bool insideSK = false; // Inside a superkernel?
 
+    GEMMStrategy() {}
+    GEMMStrategy(ngen::HW hw) : CommonStrategy(hw) {}
+
     void preflight(ngen::HW hw, const GEMMProblem &problem);
     bool minimize(ngen::HW hw, const GEMMProblem &problem);
 
@@ -897,22 +911,22 @@ struct GEMMStrategy : public CommonStrategy {
         return (slmBuffers > 0) || barrierFreq || kParallelLocal;
     }
 
-    int maxKSLM(const GEMMState &state, bool isA) const;
-    int slmABufBlockSize(Type Ta, const GEMMState &state) const {
-        return fixedSystolic
-                ? 1152
-                : int(slmA) * Ta * unroll[LoopM] * maxKSLM(state, true);
+    int maxKSLM(const GEMMProblem &problem, bool isA) const;
+    int slmABufBlockSize(const GEMMProblem &problem) const {
+        return fixedSystolic ? 1152
+                             : int(slmA) * problem.Ta * unroll[LoopM]
+                        * maxKSLM(problem, true);
     }
-    int slmBBufBlockSize(Type Tb, const GEMMState &state) const {
-        return fixedSystolic
-                ? 1536
-                : int(slmB) * Tb * unroll[LoopN] * maxKSLM(state, false);
+    int slmBBufBlockSize(const GEMMProblem &problem) const {
+        return fixedSystolic ? 1536
+                             : int(slmB) * problem.Tb * unroll[LoopN]
+                        * maxKSLM(problem, false);
     }
-    int slmABufSize(Type Ta, const GEMMState &state) const {
-        return slmABufBlockSize(Ta, state) * wg[LoopM] * wg[LoopK] * slmBuffers;
+    int slmABufSize(const GEMMProblem &problem) const {
+        return slmABufBlockSize(problem) * wg[LoopM] * wg[LoopK] * slmBuffers;
     }
-    int slmBBufSize(Type Tb, const GEMMState &state) const {
-        return slmBBufBlockSize(Tb, state) * wg[LoopN] * wg[LoopK] * slmBuffers;
+    int slmBBufSize(const GEMMProblem &problem) const {
+        return slmBBufBlockSize(problem) * wg[LoopN] * wg[LoopK] * slmBuffers;
     }
     int slmSysgemmBlockSize() const {
         return 1152 * wg[LoopM] + 1536 * wg[LoopN];
@@ -931,6 +945,9 @@ struct GEMMStrategy : public CommonStrategy {
         return (barrierFreq > 0) || (slmBuffers > 0) || xParallel
                 || kParallelLocal;
     }
+
+    bool fusedM() const { return fused && (fusedLoop == LoopM); }
+    bool fusedN() const { return fused && (fusedLoop == LoopN); }
 
     bool fixedWG(const GEMMProblem &problem) const {
         return (slmBuffers > 0) || forceFixedWG
@@ -989,6 +1006,7 @@ struct GEMMState : public CommonState {
     ngen::Subregister offsetCO;
     ngen::Subregister saveOffsetA, saveOffsetB, saveOffsetC[2];
     ngen::Subregister saveOffsetCO;
+    ngen::Subregister fullK;
     ngen::Subregister effA, effB, effC[2],
             effCO; // Offsets to base of A/B/C/CO chunks for loading/storing.
     ngen::Subregister effAi, effBi;
@@ -1129,18 +1147,25 @@ struct CopyStrategy : public CommonStrategy {
     RemainderHandling remHandlingX,
             remHandlingY; // Remainder handling for X dimension (packed dimension) and Y dimension (length of panel)
     int s_load, d_load; // # of rows/columns to load from S/store to D at once
-    int s_load_masked,
-            d_load_masked; // Same as s_load/d_load, for use when masking.
+    int s_load_masked = 0,
+        d_load_masked
+            = 0; // Same as s_load/d_load, for use when masking (0 = default = same as {s,d}_load)
     int wgW = 0, wgZ = 0; // Fixed workgroup sizes (0 if variable).
 
     int unrollX, unrollY; // Unrolls for each dimension.
-    bool duplicateAlpha; // True to make two copies of alpha, one for each register bank
-    bool xLoop; // True to loop over x, false to loop over y within a kernel
+    bool duplicateAlpha
+            = true; // True to make two copies of alpha, one for each register bank
+    bool xLoop
+            = false; // True to loop over x, false to loop over y within a kernel
 
     bool zParallel = false; // Kernel parallelized in z dimension?
 
-    int barrierFreq; // If > 0, set a barrier every barrierFreq loops
-    int optionalAlignS; // If > 0, generate code to check if S is aligned to this #elements and branch to specific code for that case.
+    int barrierFreq = 0; // If > 0, set a barrier every barrierFreq loops
+    int optionalAlignS
+            = 0; // If > 0, generate code to check if S is aligned to this #elements and branch to specific code for that case.
+
+    CopyStrategy() {}
+    CopyStrategy(ngen::HW hw) : CommonStrategy(hw) {}
 
     void preflight(ngen::HW hw, const CopyProblem &problem);
 
@@ -2061,8 +2086,6 @@ protected:
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState state);
     static size_t gemmSLMSize(
             const GEMMProblem &problem, const GEMMStrategy &strategy);
-    static size_t gemmSLMSize(const GEMMProblem &problem,
-            const GEMMStrategy &strategy, const GEMMState &state);
     static size_t gemmPerKSLMSize(
             const GEMMProblem &problem, const GEMMStrategy &strategy);
     void gemmInitInterface(GEMMProblem &problem, GEMMStrategy &strategy,
@@ -2188,6 +2211,34 @@ protected:
     void initState(const CommonProblem &problem, const CommonStrategy &strategy,
             CommonState &state);
 };
+
+inline char precisionChar(Type T) {
+    switch (T) {
+        case Type::f16: return 'H';
+        case Type::f32: return 'S';
+        case Type::u8: return 'o';
+        case Type::s8: return 'O';
+        case Type::u16: return 'w';
+        case Type::s16: return 'W';
+        case Type::u32: return 'i';
+        case Type::s32: return 'I';
+        case Type::u64: return 'l';
+        case Type::s64: return 'L';
+        case Type::bf16: return 'B';
+        case Type::tf32: return 'T';
+        default: return '?';
+    }
+}
+
+inline char layoutChar(MatrixLayout layout) {
+    switch (layout) {
+        case MatrixLayout::N: return 'N';
+        case MatrixLayout::T: return 'T';
+        case MatrixLayout::Pc: return 'A';
+        case MatrixLayout::Pr: return 'B';
+        default: return '?';
+    }
+}
 
 } // namespace jit
 } // namespace gpu

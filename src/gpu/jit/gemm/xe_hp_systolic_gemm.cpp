@@ -240,7 +240,7 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
 
 bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     using namespace format_tag;
-    using new_kernel_t = gen_gemm_xe_systolic_kernel_t;
+    using new_kd_t = gen_gemm_xe_systolic_kernel_desc_t;
 
     auto sz = types::data_type_size(dt);
     const auto &d = desc();
@@ -296,7 +296,7 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
 
     unroll_m_ = 0;
     unroll_n_ = 0;
-    kernel_tag_ = 0;
+    alt_ = false;
     if (a_prepacked_16) unroll_m_ = 16;
     if (a_prepacked_32) unroll_m_ = 32;
     if (a_prepacked_64) unroll_m_ = 64;
@@ -307,9 +307,9 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     use_new_kernels_ = !with_ab_zero_points() && (d->k() >= 64);
     use_new_kernels_ |= (arch >= compute::gpu_arch_t::xe_hpc);
 
-    new_kernel_t::choose_unrolls(arch, dev_info_->eu_count(), d->a_type(),
+    new_kd_t::choose_unrolls(arch, dev_info_->eu_count(), d->a_type(),
             d->b_type(), d->c_type(), d->m(), d->n(), d->k(), d->batch(),
-            unroll_m_, unroll_n_, kernel_tag_);
+            unroll_m_, unroll_n_, alt_);
 
     format_tag_t a_packed_tag = (unroll_m_ == 64)
             ? a_packed_tag_64
@@ -417,13 +417,6 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
         default: co_kind_ = 'N'; break;
     }
 
-    if (get_verbose() >= 2) {
-        char tag_s[2] = {pd()->kernel_tag(), 0};
-        printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%s,new:%c\n",
-                pd()->unroll_m(), pd()->unroll_n(), tag_s,
-                pd()->use_new_kernels() ? 'Y' : 'N');
-    }
-
     // Initialize compute kernels (assembly)
     {
         auto status = pd()->use_new_kernels() ? init_compute_new(engine)
@@ -451,6 +444,13 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
                     copy_kernel_t::name(arch_), kernel_ctx);
             if (!copy_kernel_[copy_b][clear_sum]) return status::runtime_error;
         }
+    }
+
+    if (get_verbose() >= 2) {
+        printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d,new:%c\n",
+                pd()->unroll_m(), pd()->unroll_n(), compute_info_.wg[LoopM],
+                compute_info_.wg[LoopN], compute_info_.wg[LoopK],
+                pd()->use_new_kernels() ? 'Y' : 'N');
     }
 
     return status::success;
@@ -574,12 +574,15 @@ status_t xe_hp_systolic_gemm_t::init_compute_old(engine_t *engine) {
 }
 
 status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
-    using kernel_t = gen_gemm_xe_systolic_kernel_t;
-    using offset_t = kernel_t::offset_t;
+    using kernel_t = gen_gemm_kernel_t;
+    using kd_t = gen_gemm_xe_systolic_kernel_desc_t;
+    using offset_t = kd_t::offset_t;
 
-    auto a_type = pd()->desc()->a_type();
-    auto b_type = pd()->desc()->b_type();
-    auto c_type = pd()->desc()->c_type();
+    const auto d = pd()->desc();
+
+    auto a_type = d->a_type();
+    auto b_type = d->b_type();
+    auto c_type = d->c_type();
     auto co_type = pd()->impl_co_type();
     auto acc_type = pd()->impl_acc_type();
 
@@ -590,7 +593,7 @@ status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
     offset_t bias_offset
             = pd()->with_bias() ? offset_t::runtime : offset_t::none;
 
-    bool may_k_block = (pd()->desc()->k() > kernel_t::min_block_k(a_type));
+    bool may_k_block = (d->k() > kd_t::min_block_k(a_type));
     bool got_info = false;
 
     bool with_eltwise
@@ -618,20 +621,23 @@ status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
                     this_post_ops = &no_post_ops;
                 }
 
-                kernel_t kernel;
+                kd_t kd;
 
-                auto status = kernel.init(arch_, pd()->with_batch(), ab_offset,
+                auto status = kd.select_kernel(arch_, eu_count_,
+                        pd()->with_batch(), pd()->packed_c(), ab_offset,
                         ab_offset, this_c_offset, bias_offset, pd()->alpha(),
                         this_beta, *this_post_ops, a_type, b_type, c_type,
-                        co_type, acc_type, pd()->packed_c(), pd()->unroll_m(),
-                        pd()->unroll_n(), pd()->kernel_tag());
+                        co_type, acc_type, d->m(), d->n(), d->k(), d->batch(),
+                        pd()->unroll_m(), pd()->unroll_n(), pd()->alt());
 
                 if (status != status::success) return status;
 
                 if (!got_info) {
-                    compute_info_ = kernel.driver_info();
+                    compute_info_ = *kd.driver_info();
                     got_info = true;
                 }
+
+                kernel_t kernel(kd);
 
                 create_kernel(
                         engine, &kernel_[first_k_block][last_k_block], &kernel);

@@ -38,7 +38,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         bool swapab, bool disable_hilbert) const {
 
     uint32_t flags = 0;
-    bool k_parallel = (nocopy_info_.kParallel || nocopy_info_.kParallelLocal);
+    bool k_parallel
+            = (nocopy_info()->kParallel || nocopy_info()->kParallelLocal);
 
     auto stride_a0 = int32_t(pd()->desc()->stride_a(0));
     auto stride_b0 = int32_t(pd()->desc()->stride_b(0));
@@ -104,20 +105,20 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     size_t gws[3] = {0, 0, 1};
 
-    gws[0] = utils::div_up(m, nocopy_info_.unroll[0]);
-    gws[1] = utils::div_up(n, nocopy_info_.unroll[1]);
+    gws[0] = utils::div_up(m, nocopy_info()->unroll[LoopM]);
+    gws[1] = utils::div_up(n, nocopy_info()->unroll[LoopN]);
     gws[2] = k_parallel ? nstl::max(1, utils::div_up(k, k0))
                         : pd()->desc()->batch();
 
-    size_t lws[3] = {size_t(nocopy_info_.wg[0]), size_t(nocopy_info_.wg[1]),
-            size_t(nocopy_info_.wg[2])};
+    size_t lws[3] = {size_t(nocopy_info()->wg[0]), size_t(nocopy_info()->wg[1]),
+            size_t(nocopy_info()->wg[2])};
 
-    if (nocopy_info_.isNMK()) {
+    if (nocopy_info()->isNMK()) {
         std::swap(lws[0], lws[1]);
         std::swap(gws[0], gws[1]);
     }
 
-    if (nocopy_info_.fusedEUs() && (lws[0] > 1))
+    if (nocopy_info()->fusedEUs() && (lws[0] > 1))
         gws[0] = utils::rnd_up(gws[0], 2);
 
     int last_non_1 = 2;
@@ -126,7 +127,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         ;
 
     for (int d = 0; d < 3; d++) {
-        if (nocopy_info_.fixedWG || (gws[d] > lws[d]))
+        if (nocopy_info()->fixedWG || (gws[d] > lws[d]))
             gws[d] = utils::rnd_up(gws[d], lws[d]);
         else {
             // Workaround to avoid local ID reordering until reqd_walk_group_order implemented in UMD.
@@ -136,52 +137,53 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         }
     }
 
-    lws[1] *= nocopy_info_.wgExpand;
-    gws[1] *= nocopy_info_.wgExpand;
+    lws[1] *= nocopy_info()->wgExpand;
+    gws[1] *= nocopy_info()->wgExpand;
 
     gemm_linear_order_args(arg_list, argn, lws, gws, m, n, disable_hilbert,
-            nocopy_info_, pd()->dev_info_);
+            *nocopy_info(), pd()->dev_info_);
 
-    if (nocopy_info_.perKSLM > 0) {
-        size_t slm = nocopy_info_.slm;
-        if (lws[2] > 1) slm = nstl::max(slm, nocopy_info_.perKSLM * lws[2]);
+    if (nocopy_info()->perKSLM > 0) {
+        size_t slm = nocopy_info()->slm;
+        if (lws[2] > 1) slm = nstl::max(slm, nocopy_info()->perKSLM * lws[2]);
         arg_list.set(argn++, slm, nullptr);
     }
 
-    lws[0] *= nocopy_info_.subgroupSize;
-    gws[0] *= nocopy_info_.subgroupSize;
+    lws[0] *= nocopy_info()->subgroupSize;
+    gws[0] *= nocopy_info()->subgroupSize;
 
     auto nd_range = compute::nd_range_t(gws, lws);
     return parallel_for(ctx, nd_range, nocopy_kernel_, arg_list);
 }
 
 status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
-    auto a_type = pd()->desc()->a_type();
-    auto b_type = pd()->desc()->b_type();
-    auto c_type = pd()->desc()->c_type();
-
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
+    const auto d = pd()->desc();
+
     const bool swapab = pd()->swap_ab();
 
-    const auto m = swapab ? pd()->desc()->n() : pd()->desc()->m();
-    const auto n = swapab ? pd()->desc()->m() : pd()->desc()->n();
-    auto k = pd()->desc()->k();
+    auto a_type = pd()->eff_a_type();
+    auto b_type = pd()->eff_b_type();
+    auto c_type = d->c_type();
 
-    const bool transa = swapab ? (pd()->desc()->transb() == dnnl_notrans)
-                               : (pd()->desc()->transa() == dnnl_trans);
-    const bool transb = swapab ? false : (pd()->desc()->transb() == dnnl_trans);
+    const auto m = pd()->eff_m();
+    const auto n = pd()->eff_n();
+    auto k = d->k();
 
-    const auto lda = swapab ? pd()->desc()->ldb() : pd()->desc()->lda();
-    const auto ldb = swapab ? pd()->desc()->lda() : pd()->desc()->ldb();
-    auto ldc = pd()->desc()->ldc();
+    const bool transa = pd()->eff_transa();
+    const bool transb = pd()->eff_transb();
+
+    const auto lda = pd()->eff_lda();
+    const auto ldb = pd()->eff_ldb();
+    auto ldc = d->ldc();
 
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
 
-    bool k_parallel_global = nocopy_info_.kParallel;
-    bool k_parallel_local = nocopy_info_.kParallelLocal;
+    bool k_parallel_global = nocopy_info()->kParallel;
+    bool k_parallel_local = nocopy_info()->kParallelLocal;
 
     auto &a = swapab ? GEMM_CTX_ARG_STORAGE(a) : GEMM_CTX_ARG_STORAGE(b);
     auto &b = swapab ? GEMM_CTX_ARG_STORAGE(b) : GEMM_CTX_ARG_STORAGE(a);
@@ -230,27 +232,30 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     status_t status;
 
-    auto block_m = nocopy_info_.blocking[0];
-    auto block_n = nocopy_info_.blocking[1];
-    auto block_k = nocopy_info_.blocking[2];
+    auto block_m = nocopy_info()->blocking[0];
+    auto block_n = nocopy_info()->blocking[1];
+    auto block_k = nocopy_info()->blocking[2];
 
-    bool disable_hilbert = (k <= 64) && nocopy_info_.isHilbert();
+    bool disable_hilbert = (k <= 64) && nocopy_info()->isHilbert();
     if (disable_hilbert) {
-        block_m = nocopy_info_.blockingAlt[0];
-        block_n = nocopy_info_.blockingAlt[1];
+        block_m = nocopy_info()->blockingAlt[0];
+        block_n = nocopy_info()->blockingAlt[1];
     }
 
     if (!utils::one_of(pd()->desc()->c_type(), data_type::f32, data_type::f16))
         block_k = k;
 
-    if (k_parallel_local && !k_parallel_global)
-        block_k = utils::div_up(k, nocopy_info_.wg[2]);
+    if (k_parallel_global)
+        block_k = pd()->kernel_desc()->aux_params()->k0;
+    else if (k_parallel_local)
+        block_k = utils::div_up(k, nocopy_info()->wg[2]);
 
     block_m = utils::rnd_up(
-            block_m, nocopy_info_.wg[0] * nocopy_info_.unroll[0]);
+            block_m, nocopy_info()->wg[0] * nocopy_info()->unroll[0]);
     block_n = utils::rnd_up(
-            block_n, nocopy_info_.wg[1] * nocopy_info_.unroll[1]);
-    block_k = utils::rnd_up(block_k, nocopy_info_.unroll[2]);
+            block_n, nocopy_info()->wg[1] * nocopy_info()->unroll[1]);
+    block_k = utils::rnd_up(block_k, nocopy_info()->unroll[2]);
+    block_k = nstl::max(block_k, 2 * nocopy_info()->unroll[2]);
 
     int32_t k0 = 1;
     if (k_parallel_local || k_parallel_global) {
@@ -258,7 +263,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         block_k = k;
 
         if (k_parallel_global && beta != 1.0f
-                && (k > k0 * nocopy_info_.wg[2])) {
+                && (k > k0 * nocopy_info()->wg[2])) {
             status = launch_nocopy(ctx, compute_stream, a, b, c, *co, off_a0,
                     off_b0, off_c0, int32_t(off_co0), lda, ldb, ldc, m, n, 0, 1,
                     1.0f, beta, 0, 0, 0, false, swapab, true);

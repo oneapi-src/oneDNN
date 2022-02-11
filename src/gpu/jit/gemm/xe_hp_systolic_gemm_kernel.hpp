@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,10 +133,18 @@ public:
         info.unroll[LoopK] = this_unroll_k();
         info.wg[LoopM] = thread_group_m;
         info.wg[LoopN] = thread_group_n;
+        info.wg[LoopK] = 1;
+        info.wgExpand = 1;
         info.blocking[LoopM] = 1024;
         info.blocking[LoopN] = eu_count * 6;
         info.blocking[LoopK] = 8192 / getBytes(cfg.a_type);
         info.fixedWG = true;
+        info.kRemainderHandling = false;
+        info.kParallel = info.kParallelLocal = false;
+        info.slm = 0;
+        info.perKSLM = 0;
+        info.alignment[0] = info.alignment[1] = info.alignment[2] = 0;
+        info.support4GB[0] = info.support4GB[1] = info.support4GB[2] = true;
         return info;
     }
 

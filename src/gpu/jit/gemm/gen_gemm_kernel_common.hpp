@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,11 @@
 #define GPU_JIT_GEMM_GEN_GEMM_KERNEL_COMMON_HPP
 
 #include <string>
+
+namespace dnnl {
+namespace impl {
+namespace gpu {
+namespace jit {
 
 // Loop identifiers.
 enum LoopType : uint8_t {
@@ -40,34 +45,26 @@ enum LoopType : uint8_t {
 
 // Driver information, shared by all kernel types.
 struct CommonDriverInfo {
-    int subgroupSize
-            = 0; // Declared subgroup size (unrelated to actual SIMD lengths in kernel)
-    LoopType fusedLoop
-            = LoopNone; // Loop dimension in which EUs are fused (if any).
-    int grfCount = 128; // # of GRFs used by kernel.
-    LoopType loopOrder[3] = {LoopNone, LoopNone,
-            LoopNone}; // Loops corresponding to x/y/z dimensions of kernel dispatch.
-    int blocking[3] = {0}; // Standard blocking sizes in m/n/k dimensions.
-    int blockingAlt[3] = {0}; // Alternative blocking sizes in m/n/k dimensions.
-    int unroll[3] = {0}; // m/n/k unrolls.
-    int wg[3] = {1, 1, 1}; // HW threads per workgroup in m/n/k dimensions.
-    int wgExpand
-            = 1; // If > 1, workgroup size needs to be scaled by this factor.
-    bool fixedWG
-            = false; // True if m/n workgroup size is fixed; false if size may be reduced.
-    bool kRemainderHandling
-            = false; // True if kernel performs k remainder handling (gemm).
-    bool kParallel
-            = false; // True if gemm kernel can be parallelized in the k dimension.
-    bool kParallelLocal
-            = false; // True if gemm kernel can be parallelized in the k dimension inside a workgroup.
-    int slm = 0; // Minimum SLM allocation.
-    int perKSLM
-            = 0; // If > 0, dynamically allocate at least perKSLM * wg[LoopK] bytes of SLM.
-    int alignment[3] = {0, 0,
-            0}; // Address alignment requirements for A,B,C (gemm) or S,D (copy).
-    bool support4GB[3] = {
-            false}; // True if >4GB buffers allowed for A,B,C (gemm) or S,D (copy).
+    int subgroupSize; // Declared subgroup size (unrelated to actual SIMD lengths in kernel)
+    LoopType fusedLoop; // Loop dimension in which EUs are fused (if any).
+    int grfCount; // # of GRFs used by kernel.
+    LoopType loopOrder
+            [3]; // Loops corresponding to x/y/z dimensions of kernel dispatch.
+    int blocking[3]; // Standard blocking sizes in m/n/k dimensions.
+    int blockingAlt[3]; // Alternative blocking sizes in m/n/k dimensions.
+    int unroll[3]; // m/n/k unrolls.
+    int wg[3]; // HW threads per workgroup in m/n/k dimensions.
+    int wgExpand; // If > 1, workgroup size needs to be scaled by this factor.
+    bool fixedWG; // True if m/n workgroup size is fixed; false if size may be reduced.
+    bool kRemainderHandling; // True if kernel performs k remainder handling (gemm).
+    bool kParallel; // True if gemm kernel can be parallelized in the k dimension.
+    bool kParallelLocal; // True if gemm kernel can be parallelized in the k dimension inside a workgroup.
+    int slm; // Minimum SLM allocation.
+    int perKSLM; // If > 0, dynamically allocate at least perKSLM * wg[LoopK] bytes of SLM.
+    int alignment
+            [3]; // Address alignment requirements for A,B,C (gemm) or S,D (copy).
+    bool support4GB
+            [3]; // True if >4GB buffers allowed for A,B,C (gemm) or S,D (copy).
 
     bool fusedEUs() const { return (fusedLoop != LoopNone); }
     bool isMNK() const {
@@ -105,5 +102,10 @@ enum {
     FlagLateFusedGEMMDone = 256,
     FlagEarlyFusedGEMMDone = 512,
 };
+
+} // namespace jit
+} // namespace gpu
+} // namespace impl
+} // namespace dnnl
 
 #endif /* header guard */
