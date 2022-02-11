@@ -80,8 +80,8 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
     }
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto arg_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_SRC);
-        auto arg_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DST);
+        auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+        auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
         sycl::sycl_memory_storage_base_t *wkspace_st
                 = static_cast<sycl::sycl_memory_storage_base_t *>(
