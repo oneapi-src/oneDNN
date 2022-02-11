@@ -58,16 +58,14 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        int status = OK;
         if (attr.post_ops.convolution_index() != -1)
-            status = conv_dw_fusion::doit(&prb, &res);
+            conv_dw_fusion::doit(&prb, &res);
         else
-            status = conv::doit(&prb, &res);
+            conv::doit(&prb, &res);
 
-        bool want_perf_report = false;
-        parse_result(res, want_perf_report, status, pstr);
+        parse_result(res, pstr);
 
-        if (want_perf_report && is_bench_mode(PERF)) {
+        if (is_bench_mode(PERF)) {
             perf_report_t pr(&prb, s.perf_template);
             pr.report(&res, pstr);
         }

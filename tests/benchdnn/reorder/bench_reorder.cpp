@@ -76,12 +76,11 @@ void check_correctness(const settings_t &s) {
             BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
             res_t res {};
-            int status = doit(&prb, &res);
+            doit(&prb, &res);
 
-            bool want_perf_report = false;
-            parse_result(res, want_perf_report, status, pstr);
+            parse_result(res, pstr);
 
-            if (want_perf_report && is_bench_mode(PERF)) {
+            if (is_bench_mode(PERF)) {
                 perf_report_t pr(&prb, s.perf_template);
                 pr.report(&res, pstr);
             }

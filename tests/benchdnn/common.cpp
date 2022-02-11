@@ -88,11 +88,9 @@ const char *skip_reason2str(skip_reason_t skip_reason) {
     return "SKIP_UNKNOWN";
 }
 
-void parse_result(
-        res_t &res, bool &want_perf_report, int status, const char *pstr) {
+void parse_result(res_t &res, const char *pstr) {
     auto &bs = benchdnn_stat;
     const char *state = state2str(res.state);
-    want_perf_report = false;
 
     switch (res.state) {
         case UNTESTED:
@@ -101,11 +99,9 @@ void parse_result(
             break;
         case EXECUTED:
             if (is_bench_mode(PERF)) {
-                want_perf_report = true;
                 bs.passed++;
             } else if (is_bench_mode(RUN)) {
                 BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-                want_perf_report = false;
                 break;
             }
         case FAILED:
@@ -126,12 +122,10 @@ void parse_result(
             break;
         case MISTRUSTED:
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            want_perf_report = true;
             bs.mistrusted++;
             break;
         case PASSED:
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            want_perf_report = true;
             bs.passed++;
             break;
         case LISTED:
@@ -141,7 +135,7 @@ void parse_result(
         default: assert(!"unknown state"); SAFE_V(FAIL);
     }
 
-    if (want_perf_report && is_bench_mode(PERF)) {
+    if (is_bench_mode(PERF)) {
         using bt = timer::timer_t;
         const auto &t = res.timer_map.perf_timer();
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)

@@ -170,8 +170,7 @@ struct res_t {
     size_t ibytes, obytes;
 };
 
-void parse_result(
-        res_t &res, bool &want_perf_report, int status, const char *pstr);
+void parse_result(res_t &res, const char *pstr);
 
 /* misc */
 void init_fp_mode();
