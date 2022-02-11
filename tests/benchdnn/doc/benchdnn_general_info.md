@@ -43,20 +43,19 @@ following steps to execute any flow:
    reasonable data.
 5. Execute backend path.
 6. Correctness validation:
+   * Check that padded area, if present, is properly zeroed for each memory.
+   * For GPU: check that the backend didn't write out-of-boundary.
    * Execute reference path.
    * Setup compare object.
-   * Compare outputs of backend and reference.
-   * Check that padded area, if any, is properly zeroed.
-   * Report a test case status and repro line.
+   * Compare outputs of backend and reference and save the status.
 7. Performance validation:
-   * If correctness was requested, proceed if status is "PASSED" or
-     "MISTRUSTED".
    * Execute backend path in a loop until one of selected criterion to stop is
      triggered. Refer to [performance options](knobs_common.md) for details.
-   * Print a performance report output based on selected options and collected
-     statistics during the previous step.
-8. Repeat steps 2-7 until all setups are validated.
-9. Report the summary and return the status.
+8. Report a test case status and repro line.
+   * If performance validation was requested, print a performance report output
+     based on selected options and collected statistics.
+9. Repeat steps 2-7 until all setups are validated.
+10. Report the summary and return the status.
 
 The following modes are supported:
 * Correctness mode: This is the default driver flow. It executes steps above
