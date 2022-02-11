@@ -495,23 +495,13 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 op_kind::mul_scales,
                 op_kind::add_zps,
                 op_kind::squeeze,
-                op_kind::dnnl_constant,
                 op_kind::expand,
                 op_kind::to_group,
                 op_kind::permute,
-                op_kind::dnnl_u8_to_s8,
-                op_kind::dnnl_binary,
-                op_kind::dnnl_batchnorm,
-                op_kind::dnnl_batchnorm_bwd,
-                op_kind::dnnl_prelu,
-                op_kind::dnnl_reduction,
-                op_kind::dnnl_eltwise,
-                op_kind::dnnl_shuffle,
                 op_kind::dnnl_sum,
-                op_kind::dnnl_bn_folding,
-                op_kind::dnnl_swish,
-                op_kind::dnnl_softmax_bwd,
-                op_kind::dnnl_logsoftmax_bwd,
+                op_kind::dnnl_u8_to_s8,
+                op_kind::dnnl_constant,
+                op_kind::dnnl_batchnorm_bwd,
                 // frontend ops that need to be lower to dnnl internal ops.
                 // but now, we reuse these frontend ops and set some new attrs
                 // for them, which makes them unwell defined
@@ -522,22 +512,7 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 impl::op_kind::Dequantize,
                 impl::op_kind::MatMul,
                 impl::op_kind::Reorder,
-                impl::op_kind::Add,
-                impl::op_kind::Multiply,
-                impl::op_kind::Minimum,
-                impl::op_kind::MaxPool,
-                impl::op_kind::BatchNormInference,
                 impl::op_kind::LayerNorm,
-                impl::op_kind::PReLU,
-                impl::op_kind::ReduceL1,
-                impl::op_kind::ReduceL2,
-                impl::op_kind::ReduceMax,
-                impl::op_kind::ReduceMean,
-                impl::op_kind::ReduceMin,
-                impl::op_kind::ReduceProd,
-                impl::op_kind::ReduceSum,
-                impl::op_kind::Interpolate,
-                impl::op_kind::Concat,
                 impl::op_kind::SoftMax,
                 impl::op_kind::LogSoftmax,
         };
@@ -547,7 +522,10 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
         // all ops after refactor done
         if (ops_need_refine.count(op->get_kind()) == 0) {
             opm->set_default_attribute(op);
-            if (!opm->verify(op)) { return impl::status::invalid_op; }
+            if (!opm->verify(op)) {
+                assertm(false, "schema verify failed");
+                return impl::status::invalid_op;
+            }
 
             // Not allow undefined attributes
             const auto &expected_attrs = opm->get_attrs();
@@ -559,6 +537,7 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 bool skip = elem.first == "matched_pattern"
                         || elem.first == "backend" || elem.first == "with_sum";
                 if (!skip && expected_attrs.count(elem.first) == 0) {
+                    assertm(false, "undefined attrs");
                     return impl::status::invalid_op;
                 }
             }
@@ -573,7 +552,10 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 auto groups = op->get_attr<int64_t>("groups");
                 bool ok = data_fmt == "NCX" && filter_fmt == "OIX"
                         && groups == 1;
-                if (!ok) { return status::invalid_op; }
+                if (!ok) {
+                    assertm(false, "additional verify failed");
+                    return status::invalid_op;
+                }
             }
         } else {
             // TODO(qun)
@@ -844,7 +826,8 @@ get_post_ops_fusible_map() {
     using namespace dnnl_impl::op_kind;
     static const std::unordered_map<impl::op_kind_t,
             std::unordered_set<impl::op_kind_t>>
-            fusible_map = {// conv
+            fusible_map = {
+                    // conv
                     {dnnl_convolution,
                             {dnnl_eltwise, dnnl_binary, dnnl_convolution}},
                     // deconv
@@ -861,11 +844,13 @@ get_post_ops_fusible_map() {
                     {dnnl_batchnorm, {dnnl_eltwise}},
                     {BatchNormInference, {dnnl_eltwise}},
                     // reorder
-                    {Reorder, {dnnl_binary}}, {int8_reorder, {dnnl_binary}},
+                    {Reorder, {dnnl_binary}},
+                    {int8_reorder, {dnnl_binary}},
                     // reduction
                     {dnnl_reduction, {dnnl_eltwise, dnnl_binary}},
                     // resample
-                    {Interpolate, {dnnl_eltwise, dnnl_binary}}};
+                    {dnnl_resampling, {dnnl_eltwise, dnnl_binary}},
+            };
     return fusible_map;
 }
 

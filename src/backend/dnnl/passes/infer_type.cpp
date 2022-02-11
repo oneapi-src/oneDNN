@@ -112,7 +112,8 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
                     return impl::status::invalid_type;
                 }
             } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
-                for (size_t i = 0; i < op->num_outputs(); i++) {
+                // skip the scratchpad
+                for (size_t i = 0; i < op->num_outputs() - 1; i++) {
                     auto in_lt = op->get_input_value(i)->get_logical_tensor();
                     auto out_lt = op->get_output_value(i)->get_logical_tensor();
                     if (out_lt.data_type == impl::data_type::undef) {

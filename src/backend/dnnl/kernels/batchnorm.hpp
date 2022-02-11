@@ -85,8 +85,7 @@ public:
         });
         pass_pipeline_t pipeline(vis);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, eltwise_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, batchnorm_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);

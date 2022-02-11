@@ -202,7 +202,7 @@ static void layout_propagation_for_eltwise(op_ptr &op,
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -220,7 +220,7 @@ static void layout_propagation_for_binary(op_ptr &op,
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -239,7 +239,7 @@ static void layout_propagation_for_concat(op_ptr &op,
     insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
     fill_layout_info(op->get_output_value(0), pd.dst_desc());
 
-    auto scratchpad_val = insert_scratchpad(op);
+    auto scratchpad_val = op->get_output_value(1);
     const memory::desc scratchpad_desc = pd.scratchpad_desc();
     const memory::dims dims = scratchpad_desc.dims();
     scratchpad_val->set_dims(dims);
@@ -268,7 +268,7 @@ static void layout_propagation_for_shuffle(op_ptr &op,
     insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
     fill_layout_info(dst, pd.dst_desc());
 
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -370,7 +370,7 @@ static void layout_propagation_for_batchnorm(op_ptr &op,
     }
 
     // make scratchpad as batchnorm's last output
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = op->get_output_values().back();
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
     // if batchnorm's prop_kind is forward_training and fused with ReLU
     if (op->has_attr("fuse_relu") && op->get_attr<bool>("fuse_relu")) {
@@ -445,7 +445,7 @@ static void layout_propagation_for_prelu(op_ptr &op,
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = op->get_output_value(1);
     // make scratchpad as prelu's last output
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
@@ -784,25 +784,21 @@ static void layout_propagation_for_mul_scales(op_ptr &op) {
 
 static void layout_propagation_for_bn_folding(
         op_ptr &op, const dnnl::engine &p_engine) {
-    bool need_insert_scratchpad = false;
-    for (size_t i = 0; i < op->num_outputs(); i++) {
+    // skip the scratchpad
+    for (size_t i = 0; i < op->num_outputs() - 1; i++) {
         auto in_lt = op->get_input_value(i)->get_logical_tensor();
         auto out_lt = op->get_output_value(i)->get_logical_tensor();
         if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
             dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
             auto dst = op->get_output_value(i);
             fill_layout_info(dst, in_md);
-            need_insert_scratchpad = true;
         }
     }
 
-    if (need_insert_scratchpad) {
-        auto prm = std::make_shared<bn_folding_t>(op, p_engine);
-        // make scratchpad as bn_folding's last inputs
-        auto val = insert_scratchpad(op);
-        fill_layout_info(val,
-                dynamic_cast<bn_folding_t *>(prm.get())->scratchpad_desc());
-    }
+    auto prm = std::make_shared<bn_folding_t>(op, p_engine);
+    // scratchpad is bn_folding's last inputs
+    auto val = op->get_output_value(2);
+    fill_layout_info(val, prm->scratchpad_desc());
 }
 
 static void layout_propagation_for_conv_bwd_data(op_ptr &op,
@@ -855,7 +851,7 @@ static void layout_propagation_for_resampling(op_ptr &op,
     fill_layout_info(dst, pd.dst_desc());
 
     // make scratchpad as resampling's last output
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -1007,8 +1003,7 @@ static void layout_propagation_for_reduction(op_ptr &op,
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
-    // make scratchpad as logsoftmax's last output
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -1114,11 +1109,10 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
                 layout_propagation_for_eltwise(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == impl::op_kind::Concat) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_concat) {
                 layout_propagation_for_concat(
                         cur_op, p_engine, prm_attr_mgr, reorder_ops);
-            } else if (cur_op->get_kind() == impl::op_kind::PReLU
-                    || cur_op->get_kind() == op_kind::dnnl_prelu) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_prelu) {
                 layout_propagation_for_prelu(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::permute) {
@@ -1141,7 +1135,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 layout_propagation_for_squeeze(cur_op, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
                 layout_propagation_for_bn_folding(cur_op, p_engine);
-            } else if (cur_op->get_kind() == impl::op_kind::Interpolate) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_resampling) {
                 layout_propagation_for_resampling(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_sum) {

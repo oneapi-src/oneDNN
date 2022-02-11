@@ -161,12 +161,13 @@ public:
         });
         pass_pipeline_t pipeline(vis);
 
+        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+
         // Because we use binary post-ops for broadcast add and sum post-ops for
         // non-broadcast add. So we have to know concret shape before fuse
         // post-ops
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, eltwise_canonicalization);
 
         // fuse binary post-ops need shape and type info
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);

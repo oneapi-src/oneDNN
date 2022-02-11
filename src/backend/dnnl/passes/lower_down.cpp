@@ -55,6 +55,16 @@ static bool has_int8_support(op_kind_t kind) {
     return ops.count(kind) != 0;
 }
 
+static value_ptr insert_empty_scratchpad(op_ptr &op) {
+    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
+    value_ptr scratchpad_val
+            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
+    op->add_output(scratchpad_val);
+    scratchpad_val->set_data_type(impl::data_type::u8);
+    scratchpad_val->set_dims(impl::dims {0});
+    return scratchpad_val;
+}
+
 // TODO(xxx): extend to support other ops
 static bool is_output_scales_supported(op_kind_t kind) {
     // ops which don't support output scales
@@ -63,7 +73,8 @@ static bool is_output_scales_supported(op_kind_t kind) {
 }
 
 static std::pair<op_ptr, op_ptr> combine_scales(op_t *src_scales_op,
-        op_t *src1_scales_op, op_t *dst_scales_op, op_kind_t binary_kind) {
+        op_t *src1_scales_op, op_t *dst_scales_op,
+        dnnl::algorithm binary_kind) {
     // combines scales for int8 patterns which contain binary post-op.
     // Should be used by OPs which don't support output scales attribute.
     // The way of combining scales depends on the binary algorithm.
@@ -122,7 +133,7 @@ static std::pair<op_ptr, op_ptr> combine_scales(op_t *src_scales_op,
     const auto multiplier = std::multiplies<float>();
     const auto divider = std::divides<float>();
     switch (binary_kind) {
-        case impl::op_kind::Add:
+        case dnnl::algorithm::binary_add:
             new_src1_scales = fuse_scales(src1_scales, src_scales, divider);
             new_dst_scales
                     = fuse_scales(src_scales, inv_dst_scales, multiplier);
@@ -131,7 +142,7 @@ static std::pair<op_ptr, op_ptr> combine_scales(op_t *src_scales_op,
             std::tie(new_dst_qtype, new_dst_axis)
                     = fuse_scales_attributes({src_scales_op, dst_scales_op});
             break;
-        case impl::op_kind::Multiply:
+        case dnnl::algorithm::binary_mul:
             new_dst_scales = fuse_scales(src_scales, src1_scales, multiplier);
             new_dst_scales
                     = fuse_scales(new_dst_scales, inv_dst_scales, multiplier);
@@ -180,8 +191,12 @@ impl::status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
 
     std::set<op_t *> visited;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::BiasAdd
+        if (cur_op->get_kind() != op_kind::dnnl_binary
                 || visited.count(cur_op.get()) != 0)
+            continue;
+
+        if (!cur_op->has_attr("is_bias_add")
+                || !cur_op->get_attr<bool>("is_bias_add"))
             continue;
 
         bias_add_ops.emplace_back(cur_op.get());
@@ -414,13 +429,14 @@ impl::status_t replace_output_scales_with_binary(
         op_t *scales_op = next_op;
         op_ptr bin_mul_op = std::make_shared<op_t>(op_kind::dnnl_binary);
         bin_mul_op->set_attr<int64_t>(
-                "alg_kind", static_cast<int64_t>(impl::op_kind::Multiply));
+                "alg_kind", static_cast<int64_t>(dnnl::algorithm::binary_mul));
         auto in_val = scales_op->get_input_value(0);
         in_val->remove_consumer(*scales_op, 0);
         in_val->add_consumer(*bin_mul_op, 0);
         bin_mul_op->add_input(in_val);
         auto out_val = scales_op->get_output_value(0);
         bin_mul_op->add_output(out_val);
+        insert_empty_scratchpad(bin_mul_op);
 
         // add constant scales op
         const auto scales = scales_op->get_attr<std::vector<float>>("scales");
@@ -646,17 +662,14 @@ impl::status_t fuse_to_int8_eltwise(std::shared_ptr<subgraph_t> &sg) {
     }
     if (fusion_ops.empty()) return impl::status::success;
     for (auto &eltwise_op : fusion_ops) {
-        const auto alg_kind = static_cast<impl::op_kind_t>(
+        const auto alg_kind = static_cast<dnnl::algorithm>(
                 eltwise_op->get_attr<int64_t>("alg_kind"));
         // TODO(kgajdamo): At the moment we support only int8 eltwise relu alg.
         // Remove below check when we will support other ops.
         if (eltwise_op->get_kind() != op_kind::dnnl_eltwise
-                && alg_kind != impl::op_kind::ReLU)
+                && alg_kind != dnnl::algorithm::eltwise_relu)
             continue;
 
-        op_ptr q_eltwise_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
-        q_eltwise_op->merge_attributes(eltwise_op->get_attributes());
-        q_eltwise_op->set_attr<int64_t>("alg_kind", alg_kind);
         // mul_scales which feeds eltwise will be always removed. If binary
         // post-op will occur, src scales data will be combined with dst
         // scales data.
@@ -665,14 +678,14 @@ impl::status_t fuse_to_int8_eltwise(std::shared_ptr<subgraph_t> &sg) {
                 "the predecessor op of eltwise should be mul_scales.");
         value_ptr in_value = src_scales_op.get_input_value(0);
         in_value->remove_consumer(src_scales_op, 0);
-        q_eltwise_op->connect_input(0, in_value);
+        eltwise_op->connect_input(0, in_value);
 
         assertm(eltwise_op->get_output_value(0)->get_consumers().size() == 1,
                 "eltwise's successor op should only have one consumer.");
         op_t &eltwise_op_successor
                 = eltwise_op->get_output_value(0)->get_consumers()[0].get_op();
 
-        std::vector<const op_t *> deleted_ops {eltwise_op, &src_scales_op};
+        std::vector<const op_t *> deleted_ops {&src_scales_op};
 
         if (eltwise_op_successor.get_kind() != op_kind::dnnl_binary) {
             // standalone eltwise case: detach eltwise from the dst mul_scales
@@ -681,7 +694,7 @@ impl::status_t fuse_to_int8_eltwise(std::shared_ptr<subgraph_t> &sg) {
                     "the successor op of eltwise should be mul_scales or "
                     "binary.");
             value_ptr out_value = dst_scales_op.get_output_value(0);
-            q_eltwise_op->add_output(out_value);
+            eltwise_op->connect_output(0, out_value);
 
             deleted_ops.push_back(&dst_scales_op);
         } else {
@@ -713,13 +726,13 @@ impl::status_t fuse_to_int8_eltwise(std::shared_ptr<subgraph_t> &sg) {
             // <new_dst_scales_op, new_src1_scales_op (could be nullptr)>
             std::pair<op_ptr, op_ptr> combined_scales = combine_scales(
                     &src_scales_op, &src1_scales_op, &dst_scales_op,
-                    static_cast<op_kind_t>(
+                    static_cast<dnnl::algorithm>(
                             binary_op.get_attr<int64_t>("alg_kind")));
 
             // make new connections
             value_ptr src_bin_value
                     = binary_op.get_input_value(1 - src1_scales_offset);
-            q_eltwise_op->add_output(src_bin_value);
+            eltwise_op->connect_output(0, src_bin_value);
 
             impl::logical_tensor_t new_dst_bin_lt
                     = impl::empty_logical_tensor_with_default_id();
@@ -766,7 +779,6 @@ impl::status_t fuse_to_int8_eltwise(std::shared_ptr<subgraph_t> &sg) {
                     });
             if (pos != subgraph.end()) subgraph.erase(pos);
         }
-        subgraph.emplace_back(q_eltwise_op);
     }
     return impl::status::success;
 }
@@ -994,7 +1006,7 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
             // <new_dst_scales_op, new_src1_scales_op (could be nullptr)>
             std::pair<op_ptr, op_ptr> combined_scales = combine_scales(
                     &src_scales_op, &src1_scales_op, &dst_scales_op,
-                    static_cast<op_kind_t>(
+                    static_cast<dnnl::algorithm>(
                             binary_op.get_attr<int64_t>("alg_kind")));
 
             // make new connections
@@ -1096,6 +1108,8 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg) {
 
         shuffle->add_output(out_value);
 
+        insert_empty_scratchpad(shuffle);
+
         for (auto &del_op : fusion_group) {
             auto pos = std::find_if(subgraph.begin(), subgraph.end(),
                     [del_op](const op_ptr &f_op) {
@@ -1192,18 +1206,14 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 float alpha = 0;
                 float beta = 0;
 
-                const auto post_op_kind = static_cast<impl::op_kind_t>(
+                const auto alg = static_cast<dnnl::algorithm>(
                         post_op->get_attr<int64_t>("alg_kind"));
-                assertm(is_eltwise_kind(post_op_kind),
-                        "alg_kind of dnnl_eltwise should be able to mapped to "
-                        "eltwise op kind");
-                const auto alg = get_eltwise_alg_map().at(post_op_kind);
 
                 // for BatchNormForwardTraining, set dnnl_fuse_norm_relu flag
                 // instead of post op
                 if ((base_op->get_kind() == op_kind::dnnl_batchnorm
                             && base_op->get_attr<bool>("is_training"))
-                        && post_op_kind == impl::op_kind::ReLU) {
+                        && alg == dnnl::algorithm::eltwise_relu) {
                     base_op->set_attr<bool>("fuse_relu", true);
                     // remove the fused post_ops op
                     fuse_op_to_predecessor(
@@ -1227,9 +1237,9 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 }
                 pops.append_eltwise(scale, alg, alpha, beta);
             } else if (post_op->get_kind() == op_kind::dnnl_binary
-                    && static_cast<impl::op_kind_t>(
+                    && static_cast<dnnl::algorithm>(
                                post_op->get_attr<int64_t>("alg_kind"))
-                            == impl::op_kind::Add) {
+                            == dnnl::algorithm::binary_add) {
                 // If the other in value of Add has mul_scales producer,
                 // then this pattern is a int8 pattern
                 size_t mul_scale_op_offset = 2;
@@ -1318,15 +1328,14 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     }
                 }
             } else if (post_op->get_kind() == op_kind::dnnl_binary
-                    && static_cast<impl::op_kind_t>(
+                    && static_cast<dnnl::algorithm>(
                                post_op->get_attr<int64_t>("alg_kind"))
-                            != impl::op_kind::Add) {
+                            != dnnl::algorithm::binary_add) {
                 memory::desc post_src = make_dnnl_memory_desc(
                         post_op->get_input_value(1 - fuse_op_predecessor_offset)
                                 ->get_logical_tensor());
-                const auto algo
-                        = get_binary_alg_map().at(static_cast<impl::op_kind_t>(
-                                post_op->get_attr<int64_t>("alg_kind")));
+                const auto algo = static_cast<dnnl::algorithm>(
+                        post_op->get_attr<int64_t>("alg_kind"));
                 pops.append_binary(algo, post_src);
             } else if (post_op->get_kind() == op_kind::dnnl_convolution) {
                 const auto get_dnn_dt = [](const value_ptr &val) {
@@ -1612,9 +1621,12 @@ impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
 
     std::set<op_t *> visited;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::BatchNormInference
+        if (cur_op->get_kind() != op_kind::dnnl_batchnorm
                 || visited.count(cur_op.get()) != 0)
             continue;
+
+        // only fold bn inference
+        if (cur_op->get_attr<bool>("is_training")) continue;
 
         bn_ops.emplace_back(cur_op.get());
         visited.insert(cur_op.get());
@@ -1625,7 +1637,12 @@ impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
         if (prv_op.get_kind() != op_kind::dnnl_convolution) continue;
 
         op_ptr bn_folding_op = std::make_shared<op_t>(op_kind::dnnl_bn_folding);
-        bn_folding_op->merge_attributes(bn_op->get_attributes());
+
+        bn_folding_op->set_attr<float>(
+                "epsilon", bn_op->get_attr<float>("epsilon"));
+        bn_folding_op->set_attr<std::string>(
+                "data_format", bn_op->get_attr<std::string>("data_format"));
+
         bn_folding_op->set_attr<std::string>(
                 "filter_format", prv_op.get_attr<std::string>("filter_format"));
         bn_folding_op->set_attr<bool>("with_bias", prv_op.num_inputs() == 3);
@@ -1657,6 +1674,9 @@ impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
         bn_folding_op->add_output(updated_conv_bias);
         updated_conv_bias->add_consumer(prv_op, 2);
         prv_op.connect_input(2, updated_conv_bias);
+
+        // add scratchpad output for bn_folding
+        insert_empty_scratchpad(bn_folding_op);
 
         auto bn_out_val = bn_op->get_output_value(0);
         prv_op.connect_output(0, bn_out_val);
@@ -1748,9 +1768,14 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
     // find all swish pattern in subgraph
     std::set<op_t *> visited;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::Sigmoid
+        if (cur_op->get_kind() != op_kind::dnnl_eltwise
                 || visited.count(cur_op.get()) != 0)
             continue;
+
+        if (static_cast<dnnl::algorithm>(cur_op->get_attr<int64_t>("alg_kind"))
+                != dnnl::algorithm::eltwise_logistic)
+            continue;
+
         visited.insert(cur_op.get());
 
         /* check if the sigmoid op belongs to a swish pattern.
@@ -1768,7 +1793,11 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
         if (sigmoid_csm.size() != 1) continue;
 
         auto &csm_op = sigmoid_csm[0].get_op();
-        if (csm_op.get_kind() != impl::op_kind::Multiply) continue;
+        if (csm_op.get_kind() != op_kind::dnnl_binary) continue;
+
+        if (static_cast<dnnl::algorithm>(csm_op.get_attr<int64_t>("alg_kind"))
+                != dnnl::algorithm::binary_mul)
+            continue;
 
         size_t offset = sigmoid_csm[0].get_offset(); // offset should be 0 or 1
         size_t mul_other_offset = 1 - offset;
@@ -1790,7 +1819,9 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
         op_t *mul_op = swish_patterns[i][1];
         size_t mul_other_offset = mul_other_offsets[i];
 
-        op_ptr swish_op = std::make_shared<op_t>(op_kind::dnnl_swish);
+        op_ptr swish_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+        swish_op->set_attr<int64_t>("alg_kind",
+                static_cast<int64_t>(dnnl::algorithm::eltwise_swish));
         swish_op->set_attr<float>("alpha", (float)1.0);
 
         auto in_val = sigmoid_op->get_input_value(0);
@@ -1801,6 +1832,8 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
         auto out_val = mul_op->get_output_value(0);
         swish_op->add_output(out_val);
         out_val->set_producer(*swish_op);
+
+        insert_empty_scratchpad(swish_op);
 
         subgraph.emplace_back(swish_op);
 
@@ -1883,7 +1916,11 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::Add) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_binary
+                || static_cast<dnnl::algorithm>(
+                           cur_op->get_attr<int64_t>("alg_kind"))
+                        != dnnl::algorithm::binary_add)
+            continue;
         if (!(cur_op->get_input_value(0)->has_producer()
                     && cur_op->get_input_value(1)->has_producer()))
             continue;
@@ -1909,7 +1946,7 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
         op_t *add_op = fusion_group[0];
         op_t *typecast_op = fusion_group[1];
 
-        op_ptr new_add_op = std::make_shared<op_t>(impl::op_kind::Add);
+        op_ptr new_add_op = std::make_shared<op_t>(op_kind::dnnl_binary);
         new_add_op->merge_attributes(add_op->get_attributes());
 
         // update the connection relationship between add and typecast ops
@@ -1933,6 +1970,9 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
         auto out_val = add_op->get_output_value(0);
         new_add_op->add_output(out_val);
         out_val->set_producer(*new_add_op);
+
+        auto scratchpad_val = add_op->get_output_value(1);
+        new_add_op->connect_output(1, scratchpad_val);
 
         // delete original matmul and typecast ops
         for (auto &del_op : fusion_group) {
@@ -1995,44 +2035,6 @@ impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                     });
             if (pos != subgraph.end()) subgraph.erase(pos);
         }
-    return impl::status::success;
-}
-
-impl::status_t batchnorm_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_ptr> to_be_removed_ops, to_be_inserted_ops;
-    for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::BatchNormInference
-                && cur_op->get_kind()
-                        != impl::op_kind::BatchNormForwardTraining)
-            continue;
-
-        // create new dnnl_batchnorm
-        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_batchnorm);
-
-        // decide if this is for training or inference
-        if (cur_op->get_kind() == impl::op_kind::BatchNormInference)
-            new_op->set_attr<bool>("is_training", false);
-        else
-            new_op->set_attr<bool>("is_training", true);
-
-        // replace original oneDNN Graph ops with dnnl_batchnorm
-        replace_op(cur_op, new_op);
-        new_op->merge_attributes(cur_op->get_attributes());
-        to_be_inserted_ops.emplace_back(new_op);
-        to_be_removed_ops.emplace_back(cur_op);
-    }
-
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
     return impl::status::success;
 }
 
@@ -2147,22 +2149,21 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
 
-    const static std::set<impl::op_kind_t> binary_op_set = {impl::op_kind::Add,
-            impl::op_kind::Subtract, impl::op_kind::Multiply,
-            impl::op_kind::Divide, impl::op_kind::Minimum,
-            impl::op_kind::Maximum, impl::op_kind::BiasAdd};
-
     auto &subgraph = sg->get_mutable_ops();
 
     for (auto &cur_op : subgraph) {
-        if (!binary_op_set.count(cur_op->get_kind())) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_binary) continue;
+
+        bool is_bias_add = cur_op->has_attr("is_bias_add")
+                ? cur_op->get_attr<bool>("is_bias_add")
+                : false;
 
         // check doable
         auto src0_lt = cur_op->get_input_value(0)->get_logical_tensor();
         auto src1_lt = cur_op->get_input_value(1)->get_logical_tensor();
 
         bool shape_check_ok = true;
-        if (cur_op->get_kind() == impl::op_kind::BiasAdd) {
+        if (is_bias_add) {
             // special check for BiasAdd
             const auto &data_format = cur_op->has_attr("data_format")
                     ? cur_op->get_attr<std::string>("data_format")
@@ -2188,7 +2189,7 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
             auto expand_op = std::make_shared<op_t>(op_kind::expand);
             // for BiasAdd, use axes to specify where to insert dimension 1
-            if (cur_op->get_kind() == impl::op_kind::BiasAdd
+            if (is_bias_add
                     && (!cur_op->has_attr("data_format")
                             || cur_op->get_attr<std::string>("data_format")
                                     == "NCX")) {
@@ -2203,14 +2204,8 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             to_be_inserted_ops.emplace_back(expand_op);
         }
 
-        // replace original op to dnnl specific op
-        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_binary);
-        new_op->set_attr<int64_t>(
-                "alg_kind", static_cast<int64_t>(cur_op->get_kind()));
-        replace_op(cur_op, new_op);
-        new_op->merge_attributes(cur_op->get_attributes());
-        to_be_inserted_ops.emplace_back(new_op);
-        to_be_removed_ops.emplace_back(cur_op);
+        // set attr
+        cur_op->set_attr<bool>("canonicalized", true);
     }
 
     for (const auto &op : to_be_inserted_ops) {
@@ -2463,96 +2458,6 @@ impl::status_t fuse_typecast_to_quantize(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t eltwise_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
-
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
-        if (!is_eltwise_kind(cur_op->get_kind())) continue;
-        // replace original op to dnnl specific op
-        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
-
-        // record the original op kind, which will mapped to dnnl alg kind
-        // during compilation
-        new_op->set_attr<int64_t>(
-                "alg_kind", static_cast<int64_t>(cur_op->get_kind()));
-
-        // convert the frontend op attr to backend op attr
-        if (cur_op->has_attr("alpha")) {
-            new_op->set_attr<float>("alpha", cur_op->get_attr<float>("alpha"));
-        } else if (cur_op->has_attr("min")) {
-            new_op->set_attr<float>("alpha", cur_op->get_attr<float>("min"));
-        } else {
-            new_op->set_attr<float>("alpha", 0);
-        }
-
-        if (cur_op->has_attr("beta")) {
-            new_op->set_attr<float>("beta", cur_op->get_attr<float>("beta"));
-        } else if (cur_op->has_attr("max")) {
-            new_op->set_attr<float>("beta", cur_op->get_attr<float>("max"));
-        } else {
-            new_op->set_attr<float>("beta", 0);
-        }
-
-        replace_op(cur_op, new_op);
-        new_op->merge_attributes(cur_op->get_attributes());
-        to_be_inserted_ops.emplace_back(new_op);
-        to_be_removed_ops.emplace_back(cur_op);
-    }
-
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
-    return impl::status::success;
-}
-
-impl::status_t reduction_canonicalization(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<op_ptr> to_be_inserted_ops;
-    std::vector<op_ptr> to_be_removed_ops;
-
-    const static std::set<impl::op_kind_t> reduction_op_set
-            = {impl::op_kind::ReduceL1, impl::op_kind::ReduceL2,
-                    impl::op_kind::ReduceMax, impl::op_kind::ReduceMean,
-                    impl::op_kind::ReduceMin, impl::op_kind::ReduceProd,
-                    impl::op_kind::ReduceSum};
-
-    auto &subgraph = sg->get_mutable_ops();
-
-    for (auto &cur_op : subgraph) {
-        if (!reduction_op_set.count(cur_op->get_kind())) continue;
-
-        // replace original op with dnnl specific op
-        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_reduction);
-        new_op->set_attr<int64_t>(
-                "alg_kind", static_cast<int64_t>(cur_op->get_kind()));
-        replace_op(cur_op, new_op);
-        new_op->merge_attributes(cur_op->get_attributes());
-        to_be_inserted_ops.emplace_back(new_op);
-        to_be_removed_ops.emplace_back(cur_op);
-    }
-
-    for (const auto &op : to_be_inserted_ops) {
-        subgraph.emplace_back(op);
-    }
-
-    for (const auto &op : to_be_removed_ops) {
-        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
-        if (pos != subgraph.end()) subgraph.erase(pos);
-    }
-
-    return impl::status::success;
-}
-
 impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
 
@@ -2600,10 +2505,11 @@ impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg) {
         auto inv_scales_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
         // y = alpha*x^beta
         inv_scales_op->set_attr<int64_t>(
-                "alg_kind", static_cast<int64_t>(impl::op_kind::Pow));
+                "alg_kind", static_cast<int64_t>(dnnl::algorithm::eltwise_pow));
         inv_scales_op->set_attr<float>("alpha", 1.0f);
         inv_scales_op->set_attr<float>("beta", -1.0f);
         insert_op_before(inv_scales_op, mul_scales, 1);
+        insert_empty_scratchpad(inv_scales_op);
         to_be_inserted_ops.emplace_back(inv_scales_op);
 
         if (has_zps) {
@@ -2930,16 +2836,6 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-static value_ptr insert_empty_scratchpad(op_ptr &op) {
-    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
-    value_ptr scratchpad_val
-            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
-    op->add_output(scratchpad_val);
-    scratchpad_val->set_data_type(impl::data_type::u8);
-    scratchpad_val->set_dims(impl::dims {0});
-    return scratchpad_val;
-}
-
 impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;
@@ -2948,7 +2844,7 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
 
     for (auto &cur_op : subgraph) {
         op_ptr new_op;
-
+        bool merge_attr = true;
         if (cur_op->get_kind() == impl::op_kind::Convolution) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
         } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose) {
@@ -2968,14 +2864,82 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_softmax_bwd);
         } else if (cur_op->get_kind() == impl::op_kind::LogSoftmaxBackprop) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_logsoftmax_bwd);
+        } else if (is_binary_kind(cur_op->get_kind())) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_binary);
+            new_op->set_attr<int64_t>("alg_kind",
+                    static_cast<int64_t>(
+                            get_binary_alg_map().at(cur_op->get_kind())));
+        } else if (cur_op->get_kind() == impl::op_kind::BiasAdd) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_binary);
+            new_op->set_attr<int64_t>("alg_kind",
+                    static_cast<int64_t>(dnnl::algorithm::binary_add));
+            new_op->set_attr<bool>("is_bias_add", true);
+        } else if (is_eltwise_kind(cur_op->get_kind())) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+            // convert the frontend op attr to backend op attr instead of
+            // directly merging them.
+            merge_attr = false;
+            if (cur_op->has_attr("alpha")) {
+                new_op->set_attr<float>(
+                        "alpha", cur_op->get_attr<float>("alpha"));
+            } else if (cur_op->has_attr("min")) {
+                new_op->set_attr<float>(
+                        "alpha", cur_op->get_attr<float>("min"));
+            } else {
+                new_op->set_attr<float>("alpha", 0);
+            }
+
+            if (cur_op->has_attr("beta")) {
+                new_op->set_attr<float>(
+                        "beta", cur_op->get_attr<float>("beta"));
+            } else if (cur_op->has_attr("max")) {
+                new_op->set_attr<float>("beta", cur_op->get_attr<float>("max"));
+            } else {
+                new_op->set_attr<float>("beta", 0);
+            }
+
+            new_op->set_attr<int64_t>("alg_kind",
+                    static_cast<int64_t>(
+                            get_eltwise_alg_map().at(cur_op->get_kind())));
+        } else if (cur_op->get_kind() == impl::op_kind::BatchNormInference
+                || cur_op->get_kind()
+                        == impl::op_kind::BatchNormForwardTraining) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_batchnorm);
+
+            // decide if this is for training or inference
+            if (cur_op->get_kind() == impl::op_kind::BatchNormInference)
+                new_op->set_attr<bool>("is_training", false);
+            else
+                new_op->set_attr<bool>("is_training", true);
+        } else if (cur_op->get_kind() == impl::op_kind::PReLU) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_prelu);
+        } else if (is_reduction_kind(cur_op->get_kind())) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_reduction);
+            new_op->set_attr<int64_t>(
+                    "alg_kind", static_cast<int64_t>(cur_op->get_kind()));
+            new_op->set_attr<int64_t>("alg_kind",
+                    static_cast<int64_t>(
+                            get_reduction_alg_map().at(cur_op->get_kind())));
+            if (cur_op->get_kind() == impl::op_kind::ReduceL1)
+                new_op->set_attr<float>("p", 1.0f);
+            else if (cur_op->get_kind() == impl::op_kind::ReduceL2)
+                new_op->set_attr<float>("p", 2.0f);
+        } else if (cur_op->get_kind() == impl::op_kind::Interpolate) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_resampling);
+        } else if (cur_op->get_kind() == impl::op_kind::Concat) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_concat);
         } else {
             // TODO(xxx) Lower other ops to internal ops
             continue;
         }
 
-        new_op->merge_attributes(cur_op->get_attributes());
-
         replace_op(cur_op, new_op);
+
+        // Not all ops will merge attr, it depends on the op definition in
+        // schema. For example, dnnl_eltwise need to convert original attrs to
+        // alpha and beta attr, instead of directly merging them.
+        if (merge_attr) new_op->merge_attributes(cur_op->get_attributes());
+
         auto scratchpad_val = insert_empty_scratchpad(new_op);
         to_be_inserted_ops.emplace_back(new_op);
         to_be_removed_ops.emplace_back(cur_op);

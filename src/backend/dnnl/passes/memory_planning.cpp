@@ -184,7 +184,9 @@ void memory_planner_t::prepare_args_for_binary(op_t *op,
     exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_SRC_1, mem});
 
-    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+    dnnl::primitive_attr prm_attr
+            = (op->has_attr("primitive_attr_key")
+                      && op->get_attr<int64_t>("primitive_attr_key") != -1)
             ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
             : dnnl::primitive_attr();
     dnnl::post_ops pops = prm_attr.get_post_ops();
@@ -860,7 +862,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                 } else if (op->get_kind() == op_kind::dnnl_softmax_bwd
                         || op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
                     prepare_args_for_softmax_bwd(op, p_engine, prm_attr_mgr);
-                } else if (op->get_kind() == impl::op_kind::Concat) {
+                } else if (op->get_kind() == op_kind::dnnl_concat) {
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_eltwise
                         || op->get_kind() == op_kind::dnnl_reduction
@@ -869,12 +871,11 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::to_group
                         || op->get_kind() == op_kind::expand
                         || op->get_kind() == op_kind::squeeze
-                        || op->get_kind() == impl::op_kind::Interpolate
+                        || op->get_kind() == op_kind::dnnl_resampling
                         || op->get_kind() == impl::op_kind::StaticReshape
                         || op->get_kind() == impl::op_kind::StaticTranspose) {
                     prepare_args_for_siso_op(op, p_engine, prm_attr_mgr);
-                } else if (op->get_kind() == impl::op_kind::PReLU
-                        || op->get_kind() == op_kind::dnnl_prelu) {
+                } else if (op->get_kind() == op_kind::dnnl_prelu) {
                     prepare_args_for_prelu(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
                     bind_memory_for_bn_folding(op, p_engine);

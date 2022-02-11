@@ -39,8 +39,8 @@ using value_ptr = std::shared_ptr<impl::value_t>;
 static bool need_insert_permute(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             op_kind::dnnl_conv_depthwise, op_kind::dnnl_convtranspose,
-            op_kind::dnnl_pool, op_kind::dnnl_batchnorm, impl::op_kind::PReLU,
-            op_kind::dnnl_prelu, impl::op_kind::Interpolate};
+            op_kind::dnnl_pool, op_kind::dnnl_batchnorm, op_kind::dnnl_prelu,
+            op_kind::dnnl_resampling};
     return ops.count(kind) != 0;
 }
 
@@ -594,7 +594,7 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
 
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::PReLU) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_prelu) continue;
 
         // check doable
         auto src_lt = cur_op->get_input_value(0)->get_logical_tensor();

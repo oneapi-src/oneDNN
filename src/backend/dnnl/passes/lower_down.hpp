@@ -108,11 +108,6 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg);
 ///          | (u8/s8)
 impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
 
-/// replace all oneDNN Graph BatchNormalizationInference/
-/// BatchNormalizationTraining with dnnl_batchnorm and set corresponding
-/// attributes
-impl::status_t batchnorm_canonicalization(std::shared_ptr<subgraph_t> &sg);
-
 impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 /// translate the subgraph containing chain of Adds into dnnl_sum
@@ -126,20 +121,14 @@ impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 ///            ...
 impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg);
 
-// This pass is used to lower the oneDNN Graph binary op (like Add, Multiply,
-// ...) to DNNL backend internl dnnl_binary op and insert expand op before
-// inputs to make the input shape meet the requirement of oneDNN binary
-// primitive
+// This pass is used to insert expand op before dnnl_binary op's inputs to make
+// the input shape meet the requirement of oneDNN binary primitive
 impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 // This pass is used to fuse those adjacent reorders.
 impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_typecast_to_quantize(std::shared_ptr<subgraph_t> &sg);
-
-impl::status_t eltwise_canonicalization(std::shared_ptr<subgraph_t> &sg);
-
-impl::status_t reduction_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg);
 

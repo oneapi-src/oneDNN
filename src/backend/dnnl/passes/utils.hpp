@@ -280,7 +280,6 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
                     {impl::op_kind::Sigmoid, dnnl::algorithm::eltwise_logistic},
                     {impl::op_kind::Sqrt, dnnl::algorithm::eltwise_sqrt},
                     {impl::op_kind::Square, dnnl::algorithm::eltwise_square},
-                    {op_kind::dnnl_swish, dnnl::algorithm::eltwise_swish},
                     {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh},
                     {impl::op_kind::Pow, dnnl::algorithm::eltwise_pow}};
     return eltwise_alg_map;
@@ -304,9 +303,25 @@ inline bool is_eltwise_kind(op_kind_t kind) {
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
             impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::ReLU,
             impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
-            impl::op_kind::Square, op_kind::dnnl_swish, impl::op_kind::Tanh,
-            impl::op_kind::Pow};
+            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Pow};
     return eltwise_kinds.find(kind) != eltwise_kinds.end();
+}
+
+inline bool is_binary_kind(op_kind_t kind) {
+    const static std::set<impl::op_kind_t> binary_kinds
+            = {impl::op_kind::Add, impl::op_kind::Subtract,
+                    impl::op_kind::Multiply, impl::op_kind::Divide,
+                    impl::op_kind::Minimum, impl::op_kind::Maximum};
+    return binary_kinds.find(kind) != binary_kinds.end();
+}
+
+inline bool is_reduction_kind(op_kind_t kind) {
+    const static std::set<impl::op_kind_t> reduction_kinds
+            = {impl::op_kind::ReduceL1, impl::op_kind::ReduceL2,
+                    impl::op_kind::ReduceMax, impl::op_kind::ReduceMean,
+                    impl::op_kind::ReduceMin, impl::op_kind::ReduceProd,
+                    impl::op_kind::ReduceSum};
+    return reduction_kinds.find(kind) != reduction_kinds.end();
 }
 
 std::vector<value_t *> get_constant_block_output_values(
@@ -352,6 +367,8 @@ bool post_depthwise_conv_fusible(
 // dnnl_eltwise op can't fuse dnnl_eltwise op, but dnnl_convolution can.
 const std::unordered_map<impl::op_kind_t, std::unordered_set<impl::op_kind_t>> &
 get_post_ops_fusible_map();
+
+const std::string &kind2str(impl::op_kind_t kind);
 
 } // namespace dnnl_impl
 } // namespace impl

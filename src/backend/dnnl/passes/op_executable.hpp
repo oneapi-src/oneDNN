@@ -24,6 +24,7 @@
 #include <unordered_map>
 
 #include "dnnl.hpp"
+#include <unordered_map>
 
 #include <utils/utils.hpp>
 
@@ -323,7 +324,8 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -511,7 +513,8 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -520,17 +523,8 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
 
-    const auto op_kind
-            = static_cast<impl::op_kind_t>(op->get_attr<int64_t>("alg_kind"));
-    assertm(is_eltwise_kind(op_kind),
-            "alg_kind of dnnl_eltwise should be able to mapped to "
-            "eltwise op kind");
-
-    const auto &eltwise_alg_map = get_eltwise_alg_map();
-    const auto eltwise_alg_pos = eltwise_alg_map.find(op_kind);
-    const algorithm algo = eltwise_alg_pos != eltwise_alg_map.end()
-            ? eltwise_alg_pos->second
-            : algorithm::undef;
+    const algorithm algo
+            = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
     if (algo == algorithm::undef) {
         BACKEND_DNNL_ENFORCE(0, "Unsupported eltwise op.");
     }
@@ -587,7 +581,8 @@ inline dnnl::concat::primitive_desc create_concat_pd(
     const auto axis = res.second;
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -624,7 +619,8 @@ create_resampling_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -666,7 +662,8 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -679,9 +676,8 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    const auto op_kind
-            = static_cast<impl::op_kind_t>(op->get_attr<int64_t>("alg_kind"));
-    const algorithm algo = get_binary_alg_map().at(op_kind);
+    const algorithm algo
+            = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
 
     dnnl::binary::primitive_desc pd;
     pd = dnnl::binary::primitive_desc(
@@ -703,7 +699,8 @@ inline std::pair<dnnl::prelu_forward::primitive_desc, bool> create_prelu_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -735,7 +732,8 @@ create_softmax_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -822,7 +820,8 @@ inline std::pair<dnnl::shuffle_forward::primitive_desc, bool> create_shuffle_pd(
     const int axis = static_cast<int>(op->get_attr<int64_t>("axis"));
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -851,31 +850,20 @@ inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
-    const auto kind
-            = static_cast<impl::op_kind_t>(op->get_attr<int64_t>("alg_kind"));
-    const auto &reduction_alg_map = get_reduction_alg_map();
-    const auto reduction_alg_pos = reduction_alg_map.find(kind);
-    const algorithm alg = reduction_alg_pos != reduction_alg_map.end()
-            ? reduction_alg_pos->second
-            : algorithm::undef;
+    const algorithm alg
+            = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
     if (alg == algorithm::undef) {
         BACKEND_DNNL_ENFORCE(0, "Unsupported reduction op.");
     }
+    float p = op->get_attr<float>("p");
 
-    float p = [kind]() {
-        if (kind == impl::op_kind::ReduceL1)
-            return 1.0f;
-        else if (kind == impl::op_kind::ReduceL2)
-            return 2.0f;
-        else
-            return 0.0f;
-    }();
     float eps = 0.0f;
 
     auto src = make_dnnl_memory_desc(
