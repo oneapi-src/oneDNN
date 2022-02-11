@@ -102,11 +102,11 @@ static int compare(const dnn_mem_t &test_mem, res_t *res) {
     }
 
     int errors = 0;
-    auto status = check_zero_padding(test_mem, test_mem.dt(), &errors);
+    auto status = check_zero_padding(test_mem, test_mem.dt(), res, &errors);
     res->errors += errors;
 
     bool passed = ok && (status == OK);
-    res->state = passed ? PASSED : FAILED;
+    if (passed) res->state = PASSED;
     return passed ? OK : FAIL;
 }
 
@@ -149,7 +149,7 @@ int doit(const prb_t *prb, res_t *res) {
     perf_function_t perf_func_ = &perf_func;
 
     if (is_bench_mode(CORR)) {
-        execute_and_wait(perf_func_, test_engine, args);
+        execute_and_wait(perf_func_, test_engine, args, res);
         SAFE(compare(test_mem, res), WARN);
     }
     if (is_bench_mode(PERF)) {

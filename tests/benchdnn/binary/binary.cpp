@@ -263,7 +263,7 @@ int doit(const prb_t *prb, res_t *res) {
             input_scales_m1, prb->attr.scales.get(DNNL_ARG_SRC_1), 1, &scale1);
     args.set(DNNL_ARG_ATTR_INPUT_SCALES | DNNL_ARG_SRC_1, input_scales_m1);
 
-    SAFE(execute_and_wait(prim, args), WARN);
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
         TIME_REF(compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp));

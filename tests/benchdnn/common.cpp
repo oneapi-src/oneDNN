@@ -68,6 +68,7 @@ const char *state2str(res_state_t state) {
     CASE(UNIMPLEMENTED);
     CASE(FAILED);
     CASE(LISTED);
+    CASE(EXECUTED);
 #undef CASE
     assert(!"unknown res state");
     return "STATE_UNDEF";
@@ -95,6 +96,10 @@ void parse_result(
 
     switch (res.state) {
         case UNTESTED:
+            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            bs.failed++;
+            break;
+        case EXECUTED:
             if (is_bench_mode(PERF)) {
                 want_perf_report = true;
                 if (status == FAIL)
@@ -104,7 +109,8 @@ void parse_result(
                 break;
             } else if (is_bench_mode(RUN)) {
                 assert(status == OK);
-                BENCHDNN_PRINT(0, "%d:EXECUTED __REPRO: %s\n", bs.tests, pstr);
+                BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+                want_perf_report = false;
                 break;
             }
         case FAILED:

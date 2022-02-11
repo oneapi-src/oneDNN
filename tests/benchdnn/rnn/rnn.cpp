@@ -1018,7 +1018,7 @@ int doit(const prb_t &prb, res_t *res) {
     args.set(DNNL_ARG_WORKSPACE, workspace_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE(execute_and_wait(prim, args), WARN);
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (prb.prop != dnnl_backward) {
         if (is_bench_mode(CORR)) {
@@ -1186,7 +1186,7 @@ int doit(const prb_t &prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_BIAS, diff_bias_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(prim, args), WARN);
+        SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
             TIME_REF(compute_ref_bwd(prb, src_layer_fp, src_layer_attention_fp,

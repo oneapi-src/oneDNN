@@ -445,8 +445,9 @@ typedef std::function<dnnl_status_t(
         perf_function_t;
 
 int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
-        const args_t &args);
-int execute_and_wait(dnnl_primitive_t prim, const args_t &args);
+        const args_t &args, res_t *res = nullptr);
+int execute_and_wait(
+        dnnl_primitive_t prim, const args_t &args, res_t *res = nullptr);
 
 int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args);
 int measure_perf(res_t *res, dnnl_primitive_t prim, args_t &args);

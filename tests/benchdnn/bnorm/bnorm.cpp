@@ -371,8 +371,7 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
     }
 
     if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
+    if (res->state == EXECUTED) res->state = PASSED;
 
     return res->state == FAILED ? FAIL : OK;
 }
@@ -416,8 +415,7 @@ int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
     }
 
     if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
+    if (res->state == EXECUTED) res->state = PASSED;
 
     return res->state == FAILED ? FAIL : OK;
 }
@@ -629,7 +627,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE(execute_and_wait(prim, args), WARN);
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
     // Running ref to collect src_hat (used instead of src + mean) and ws, if
     // fuse_relu flag is requested.
@@ -690,7 +688,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(prim, args), WARN);
+        SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
             TIME_REF(compute_ref_bwd(prb, src_hat_fp, var_fp, d_dst_fp, ss_fp,

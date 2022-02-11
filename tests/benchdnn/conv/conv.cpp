@@ -228,7 +228,7 @@ inline int compare_data_norm(const prb_t *prb, data_kind_t kind,
                 non_zero, (unsigned long)res->total);
     }
 
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
+    if (res->state == EXECUTED) res->state = PASSED;
 
     return res->state == FAILED ? FAIL : OK;
 }
@@ -947,7 +947,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(binary_po_args, binary_po_dt);
         args.set(prelu_po_args, prelu_po_dt);
 
-        SAFE(execute_and_wait(prim, args), WARN);
+        SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
@@ -967,7 +967,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(prim, args), WARN);
+        SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
@@ -985,7 +985,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(prim, args), WARN);
+        SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_SRC, src_fp);

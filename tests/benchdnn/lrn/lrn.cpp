@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -186,7 +186,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE(execute_and_wait(prim, args), WARN);
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (prb->dir & FLAG_FWD) {
         if (is_bench_mode(CORR)) {
@@ -232,7 +232,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        SAFE(execute_and_wait(prim, args), WARN);
+        SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
             TIME_REF(compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp));

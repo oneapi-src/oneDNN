@@ -348,11 +348,11 @@ private:
 };
 
 // Checks that zero padding is preserved.
-int check_zero_padding(
-        const dnn_mem_t &mem, int arg, int *error_count = nullptr);
+int check_zero_padding(const dnn_mem_t &mem, int arg, res_t *res = nullptr,
+        int *error_count = nullptr);
 
 // Checks that the buffer is not overrun if it was protected by a canary.
-int check_buffer_overwrite(const dnn_mem_t &mem, int arg);
+int check_buffer_overwrite(const dnn_mem_t &mem, int arg, res_t *res = nullptr);
 
 // Returns physical offset by logical one. Logical offset is represented by an
 // array pos. If is_pos_padded is true pos represents the position in already

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -144,7 +144,8 @@ enum res_state_t {
     MISTRUSTED,
     UNIMPLEMENTED,
     FAILED,
-    LISTED
+    LISTED,
+    EXECUTED,
 };
 const char *state2str(res_state_t state);
 

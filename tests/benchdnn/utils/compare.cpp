@@ -152,7 +152,7 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                 (long)zeros.load(), (long)nelems);
     }
     if (n_errors) res->errors = n_errors, res->state = FAILED;
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
+    if (res->state == EXECUTED) res->state = PASSED;
 
     return res->state == FAILED ? FAIL : OK;
 }
