@@ -284,20 +284,22 @@ void execute_map_args(const args_t &args) {
 }
 
 int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
-        const args_t &args) {
+        const args_t &args, res_t *res) {
     stream_t stream(engine);
     std::vector<dnnl_exec_arg_t> dnnl_args;
     execute_unmap_args(args, dnnl_args);
 
     DNN_SAFE(exec_func(stream, dnnl_args), CRIT);
     DNN_SAFE(dnnl_stream_wait(stream), CRIT);
+    if (res) res->state = EXECUTED;
 
     execute_map_args(args);
 
     if (is_bench_mode(CORR)) {
         for (int i = 0; i < args.size(); ++i) {
-            SAFE(check_zero_padding(args.dnn_mem(i), args.arg(i)), WARN);
-            SAFE(check_buffer_overwrite(args.dnn_mem(i), args.arg(i)), WARN);
+            SAFE(check_zero_padding(args.dnn_mem(i), args.arg(i), res), WARN);
+            SAFE(check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res),
+                    WARN);
         }
     }
 
@@ -311,7 +313,7 @@ dnnl_status_t primitive_executor(dnnl_primitive_t prim,
             prim, stream, (int)dnnl_args.size(), dnnl_args.data());
 }
 
-int execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
+int execute_and_wait(dnnl_primitive_t prim, const args_t &args, res_t *res) {
     perf_function_t exec_func = std::bind(&primitive_executor, prim,
             std::placeholders::_1, std::placeholders::_2);
 
@@ -323,7 +325,7 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
     DNN_SAFE(
             dnnl_primitive_desc_query(pd, dnnl_query_engine, 0, &engine), CRIT);
 
-    return execute_and_wait(exec_func, engine, args);
+    return execute_and_wait(exec_func, engine, args, res);
 }
 
 bool should_stop(const timer::timer_t &t) {

@@ -371,7 +371,8 @@ static dnnl_dim_t md_off_l(dnnl_dims_t _pos, const dnnl_memory_desc_t &md,
 }
 
 template <typename T>
-int check_zero_padding_impl(const dnn_mem_t &mem, int arg, int *error_count) {
+int check_zero_padding_impl(
+        const dnn_mem_t &mem, int arg, res_t *res, int *error_count) {
     const int ndims = mem.ndims();
     const auto *dims = mem.md_.dims;
     const auto *pdims = mem.md_.padded_dims;
@@ -432,6 +433,7 @@ int check_zero_padding_impl(const dnn_mem_t &mem, int arg, int *error_count) {
 
     if (!ok) {
         BENCHDNN_PRINT(0, "@@@ [arg:%d] check_zero_padding failed\n", arg);
+        if (res) res->state = FAILED;
     }
 
     if (error_count != nullptr) *error_count = errors;
@@ -439,9 +441,10 @@ int check_zero_padding_impl(const dnn_mem_t &mem, int arg, int *error_count) {
     return ok ? OK : FAIL;
 }
 
-int check_zero_padding(const dnn_mem_t &mem, int arg, int *error_count) {
+int check_zero_padding(
+        const dnn_mem_t &mem, int arg, res_t *res, int *error_count) {
 #define CASE(dt, type) \
-    case dt: return check_zero_padding_impl<type>(mem, arg, error_count);
+    case dt: return check_zero_padding_impl<type>(mem, arg, res, error_count);
 
     switch (mem.md_.data_type) {
         case dnnl_data_type_undef:
@@ -461,7 +464,7 @@ int check_zero_padding(const dnn_mem_t &mem, int arg, int *error_count) {
     return FAIL;
 }
 
-int check_buffer_overwrite(const dnn_mem_t &mem, int arg) {
+int check_buffer_overwrite(const dnn_mem_t &mem, int arg, res_t *res) {
     if (!mem.is_canary_protected()) return OK;
 
     size_t sz = mem.size();
@@ -475,6 +478,7 @@ int check_buffer_overwrite(const dnn_mem_t &mem, int arg) {
                 "@@@ [arg:%d] check_buffer_overwrite failed. Expected: %d at "
                 "byte: %lld but found: %d\n",
                 arg, dnnl_mem_default_value, (long long)i, mem_ptr[i]);
+        if (res) res->state = FAILED;
         return FAIL;
     }
     return OK;

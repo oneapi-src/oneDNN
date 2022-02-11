@@ -755,8 +755,7 @@ int compare_dat(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     res->errors += errors;
     if (errors != 0) res->state = FAILED;
 
-    if (final_compare && res->state == UNTESTED)
-        res->state = PASSED; /* optimism */
+    if (final_compare && res->state == EXECUTED) res->state = PASSED;
 
 #ifdef BENCHDNN_RNN_PRINT_STATISTICS
     printf("dt: min(%a) max(%a) mean(%a), var(%a)\n", min_dt, max_dt,
