@@ -599,6 +599,25 @@ void memory_planner_t::prepare_args_for_softmax_bwd(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
+void memory_planner_t::prepare_args_for_resampling_bwd(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    UNUSED(prm_attr_mgr);
+    memory mem;
+    exec_args args;
+
+    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
+    args.insert({DNNL_ARG_DIFF_DST, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
+    args.insert({DNNL_ARG_DIFF_SRC, mem});
+
+    // scratchpad is always present
+    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
+    args.insert({DNNL_ARG_SCRATCHPAD, mem});
+
+    exec_args_set_.add_exec_args(args);
+}
+
 // Assign partition's input edges to user given external inputs buffer. Those
 // external inputs buffers may be used by other partition (which is under the
 // control of user), so we can't reuse them.
@@ -898,6 +917,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::dnnl_u8_to_s8
                         || op->get_kind() == impl::op_kind::TypeCast) {
                     prepare_args_for_reorder_op(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == op_kind::dnnl_resampling_bwd) {
+                    prepare_args_for_resampling_bwd(op, p_engine, prm_attr_mgr);
                 } else {
                     assertm(false, "memory planning: unsupported op");
                     return impl::status::compile_fail;

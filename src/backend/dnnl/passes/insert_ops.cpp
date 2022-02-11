@@ -40,7 +40,7 @@ static bool need_insert_permute(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             op_kind::dnnl_conv_depthwise, op_kind::dnnl_convtranspose,
             op_kind::dnnl_pool, op_kind::dnnl_batchnorm, op_kind::dnnl_prelu,
-            op_kind::dnnl_resampling};
+            op_kind::dnnl_resampling, op_kind::dnnl_resampling_bwd};
     return ops.count(kind) != 0;
 }
 
@@ -151,8 +151,13 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             // If PReLU data format is NXC, we need to permute both inputs.
             if (i > 0 && i < op->num_inputs() - num_post_binary_ops
                     && op->get_kind() != impl::op_kind::PReLU
-                    && op->get_kind() != op_kind::dnnl_prelu)
+                    && op->get_kind() != op_kind::dnnl_prelu
+                    && op->get_kind() != op_kind::dnnl_resampling_bwd)
                 continue;
+            // Skip optional non-data input for resampling backward op
+            if (i > 1 && op->get_kind() == op_kind::dnnl_resampling_bwd)
+                continue;
+
             op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
             perm_op->set_attr<std::string>("permute_kind", "permute");
             perm_op->set_attr<std::string>("from_format", "NXC");

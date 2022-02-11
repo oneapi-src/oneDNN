@@ -12098,6 +12098,7 @@ TEST(Execute, InterpolateBackwardNearest) {
 
     impl::op_t op(impl::op_kind::InterpolateBackprop);
     op.set_attr<std::string>("mode", "nearest");
+    op.set_attr<std::string>("data_format", "NCX");
     auto &op_factory = get_dnnl_kernel_registry();
     auto kernel = op_factory.create_kernel(op);
     ASSERT_TRUE(kernel);
@@ -12109,19 +12110,36 @@ TEST(Execute, InterpolateBackwardNearest) {
     impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
             2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::strided);
 
-    // compile the relu backward operator
-    std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+    op.add_input(src_lt);
+    op.add_input(diff_dst_lt);
+    op.add_output(diff_src_lt);
 
-    kernel->compile(&op, &eng, inputs, outputs);
+    impl::graph_t g(eng.kind());
+    g.add_op(&op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("interpolate_bwd_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &diff_dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_src_ts});
     strm.wait();
+
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }
@@ -12137,6 +12155,7 @@ TEST(Execute, InterpolateBackwardLinear) {
 
     impl::op_t op(impl::op_kind::InterpolateBackprop);
     op.set_attr<std::string>("mode", "linear");
+    op.set_attr<std::string>("data_format", "NCX");
     auto &op_factory = get_dnnl_kernel_registry();
     auto kernel = op_factory.create_kernel(op);
     ASSERT_TRUE(kernel);
@@ -12148,19 +12167,36 @@ TEST(Execute, InterpolateBackwardLinear) {
     impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
             2, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::strided);
 
-    // compile the relu backward operator
-    std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+    op.add_input(src_lt);
+    op.add_input(diff_dst_lt);
+    op.add_output(diff_src_lt);
 
-    kernel->compile(&op, &eng, inputs, outputs);
+    impl::graph_t g(eng.kind());
+    g.add_op(&op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("interpolate_bwd_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &diff_dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
-    kernel->execute(&op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_src_ts});
     strm.wait();
+
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
     }

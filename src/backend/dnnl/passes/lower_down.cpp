@@ -2926,6 +2926,8 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
                 new_op->set_attr<float>("p", 2.0f);
         } else if (cur_op->get_kind() == impl::op_kind::Interpolate) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_resampling);
+        } else if (cur_op->get_kind() == impl::op_kind::InterpolateBackprop) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_resampling_bwd);
         } else if (cur_op->get_kind() == impl::op_kind::Concat) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_concat);
         } else {

@@ -419,6 +419,7 @@ public:
                 impl::op_kind::LogSoftmax, impl::op_kind::LogSoftmaxBackprop,
                 // fp32 interpolate pattern
                 impl::op_kind::Interpolate, op_kind::interpolate_fusion,
+                impl::op_kind::InterpolateBackprop,
                 // concat
                 impl::op_kind::Concat,
                 // reorder

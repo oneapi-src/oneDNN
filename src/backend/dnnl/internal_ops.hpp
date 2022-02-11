@@ -218,6 +218,7 @@ namespace op_kind {
     X(dnnl_logsoftmax_bwd, Dnnl_logsoftmax_bwd) \
     X(int8_concat, INT8_concat) \
     X(dnnl_resampling, Dnnl_resampling) \
+    X(dnnl_resampling_bwd, Dnnl_resampling_bwd) \
     X(dnnl_concat, Dnnl_concat)
 
 enum {

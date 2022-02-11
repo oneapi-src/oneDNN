@@ -502,6 +502,7 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 op_kind::dnnl_u8_to_s8,
                 op_kind::dnnl_constant,
                 op_kind::dnnl_batchnorm_bwd,
+                op_kind::dnnl_resampling_bwd,
                 // frontend ops that need to be lower to dnnl internal ops.
                 // but now, we reuse these frontend ops and set some new attrs
                 // for them, which makes them unwell defined

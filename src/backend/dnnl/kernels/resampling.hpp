@@ -40,11 +40,6 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-namespace resampling_bwd {
-enum resampling_bwd_inputs { kSrc, kDiff_dst, kSizes_Scales };
-enum resampling_bwd_outputs { kDiff_src };
-} // namespace resampling_bwd
-
 struct resampling_fwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
@@ -230,120 +225,106 @@ public:
     }
 };
 
-struct resampling_backward : public dnnl::resampling_backward,
-                             public kernel_base_t {
-    using super = dnnl::resampling_backward;
-
+struct resampling_bwd_t : public kernel_base_t {
 private:
-    primitive_desc pd_;
-    resampling_forward::primitive_desc forward_hints_;
-    std::string mode_;
-    algorithm alg_;
-
-    dnnl_tensor_t expected_src_;
-    dnnl_tensor_t expected_diff_src_;
-    dnnl_tensor_t expected_diff_dst_;
-
-    // TODO(Jihui): dnnl backward not support calculate diff_scales
-    std::string shape_calculation_mode_;
-    dnnl_tensor_t expected_diff_scales_;
-
     dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
+    impl::allocator_t *g_alloc_;
+
+    std::shared_ptr<subgraph_t> subgraph_;
+    memory_planner_t memory_planner_;
+
+    std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
-    void compute(const dnnl_tensor_t &src, const dnnl_tensor_t &diff_dst,
-            dnnl_tensor_t &diff_src, impl::allocator_t *alc) {
-        if (src.get_desc() != forward_hints_.src_desc()) {
-            if (expected_src_.is_empty()) {
-                expected_src_ = dnnl_tensor_t {
-                        forward_hints_.src_desc(), p_engine_, alc};
-            }
-            src.reorder_to(p_stream_, expected_src_);
-        } else {
-            expected_src_ = src;
-        }
-
-        if (diff_dst.get_desc() != pd_.diff_dst_desc()) {
-            if (expected_diff_dst_.is_empty()) {
-                expected_diff_dst_
-                        = dnnl_tensor_t {pd_.diff_dst_desc(), p_engine_, alc};
-            }
-            diff_dst.reorder_to(p_stream_, expected_diff_dst_);
-        } else
-            expected_diff_dst_ = diff_dst;
-
-        if (diff_src.get_desc() != pd_.diff_src_desc()) {
-            if (expected_diff_src_.is_empty()) {
-                expected_diff_src_
-                        = dnnl_tensor_t {pd_.diff_src_desc(), p_engine_, alc};
-            }
-        } else {
-            expected_diff_src_ = diff_src;
-        }
-
-        exec_args args;
-
-        args.insert({DNNL_ARG_SRC, expected_src_});
-        args.insert({DNNL_ARG_DIFF_SRC, expected_diff_src_});
-        args.insert({DNNL_ARG_DIFF_DST, expected_diff_dst_});
-
-        super(pd_).execute(p_stream_, args);
-
-        if (expected_diff_src_ != diff_src) {
-            dnnl::reorder(expected_diff_src_, diff_src)
-                    .execute(p_stream_, expected_diff_src_, diff_src);
-        }
+    ~resampling_bwd_t() override {
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
 
-    impl::status_t compile_impl(const impl::op_t *op,
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) override {
-        using desc = dnnl_tensor_t::desc_t;
-        // prepare the outputs' tensors' descs
-        const desc src {inputs.at(resampling_bwd::kSrc)};
-        const desc diff_dst {inputs.at(resampling_bwd::kDiff_dst)};
-        const desc diff_src {outputs.at(resampling_bwd::kDiff_src)};
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
 
-        mode_ = op->get_attr<std::string>("mode");
-        if (mode_ == "nearest") {
-            alg_ = algorithm::resampling_nearest;
-        } else if (mode_ == "linear") {
-            alg_ = algorithm::resampling_linear;
-        } else {
-            BACKEND_DNNL_ENFORCE(0, "Unsupported resampling mode.");
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
         }
 
-        p_engine_ = make_dnnl_engine(*g_engine);
-        forward_hints_ = resampling_forward::primitive_desc(
-                {prop_kind::forward_training, alg_, src, diff_dst}, p_engine_);
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
 
-        pd_ = primitive_desc(
-                {alg_, diff_src, diff_dst}, p_engine_, forward_hints_);
-
-        const dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
-        impl::logical_tensor_t *diff_src_lt = const_cast<logical_tensor_t *>(
-                &outputs.at(resampling_bwd::kDiff_src));
-        fill_layout_info(diff_src_lt, optimal_diff_src_desc);
         return impl::status::success;
     }
 
-    impl::status_t execute_impl(const impl::op_t *op,
+    impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
-        UNUSED(op);
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
+        UNUSED(part);
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
-        dnnl_tensor_t src {inputs.at(resampling_bwd::kSrc), p_engine_, alc};
-        dnnl_tensor_t diff_dst {
-                inputs.at(resampling_bwd::kDiff_dst), p_engine_, alc};
-        dnnl_tensor_t diff_src {
-                outputs.at(resampling_bwd::kDiff_src), p_engine_, alc};
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
 
-        resampling_backward::compute(src, diff_dst, diff_src, alc);
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
+        }
+
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
+
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
+        }
+
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
+        }
+
         return impl::status::success;
     }
 };

@@ -556,33 +556,39 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
 
 DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
         op_schema_t()
-                .set_num_inputs(2)
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
                 .set_input(0, "data",
                         "Input tensor with data for interpolation", "T1")
                 .set_input(1, "output_delta",
                         "the gradient with respect to the output", "T1")
+                .set_input(2, "sizes",
+                        "(optional) tensor describing output shape for spatial "
+                        "axes",
+                        "T2")
                 .set_output(0, "input_delta",
                         "the gradient tensor with respect to the input of "
                         "interpolate",
                         "T1")
                 .set_attr("mode", "specifies type of interpolation", true,
                         attribute_kind::s)
-                .set_attr("sizes", "describing output shape for spatial axes",
-                        false, attribute_kind::is)
-                .set_attr("scales", "describing scales for spatial axes", false,
-                        attribute_kind::fs)
                 .set_attr("coordinate_transformation_mode",
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
                         false, attribute_kind::s, "half_pixel")
+                .set_attr("sizes", "describing output shape for spatial axes",
+                        false, attribute_kind::is)
+                .set_attr("scales", "describing scales for spatial axes", false,
+                        attribute_kind::fs)
                 .set_attr("data_format",
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
