@@ -48,7 +48,7 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
     // numeric_limits<dt>::lowest() to match the other backends' behaviour
     if (src_wrap.size() == 0 && dst_wrap.size() != 0) {
         return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-            auto arg_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DST);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
             compat::host_task(cgh, [=](const compat::interop_handle &ih) {
                 auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
