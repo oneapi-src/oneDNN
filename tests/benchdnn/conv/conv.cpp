@@ -671,7 +671,8 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                 continue;
             else if (e.is_eltwise_kind())
                 post_ops_ok = post_ops_ok && is_nvidia_eltwise_ok(prb->dir, e);
-            else if (e.is_binary_kind() || e.is_convolution_kind())
+            else if (e.is_binary_kind() || e.is_convolution_kind()
+                    || e.is_prelu_kind())
                 post_ops_ok = false;
             else
                 assert(!"unknown post-op type");
