@@ -155,9 +155,17 @@ __kernel void gen9_initial_reduce(
             if (n_idx >= DST_N && n_idx < DST_N_PADDED
                     || c_idx >= DST_C && c_idx < DST_C_PADDED) {
                 for (int hwd_idx = hwd_start;
+#if IS_HWD_REDUCED
+                        hwd_idx < hwd_start + FINAL_HWD_CHUNK_SIZE;
+#else
                         hwd_idx < hwd_start + INITIAL_HWD_CHUNK_SIZE;
+#endif
                         hwd_idx++) {
-                    const int dst_off = FINAL_DST_OFFSET(n_idx, c_idx, hwd_idx);
+                    int n = (!IS_C_REDUCED && IS_N_REDUCED && NDIMS == 3
+                                    && DST_N_PADDED == 1)
+                            ? 0
+                            : n_idx;
+                    const int dst_off = FINAL_DST_OFFSET(n, c_idx, hwd_idx);
                     dst[dst_off] = TO_DST(0.0f);
                 }
             }
@@ -262,7 +270,15 @@ __kernel void gen9_final_reduce(__global float *src, __global DST_DATA_T *dst) {
                 // zero pad dst memory
                 if ((n >= DST_N && n < DST_N_PADDED)
                         || (c >= DST_C && c < DST_C_PADDED)) {
+#if NDIMS == 2 && DST_N_PADDED == 1 // all reduced case for 2D
+                    const int dst_off = FINAL_DST_OFFSET(0, c, hwd);
+#elif NDIMS >= 3 && DST_N_PADDED == 1 && IS_HWD_REDUCED // hwd, n reduction
+                    const int dst_off = FINAL_DST_OFFSET(0, c, 0);
+#elif IS_HWD_REDUCED // 4D, 5D, 3D cases with hwd reduced
+                    const int dst_off = FINAL_DST_OFFSET(n, c, 0);
+#else
                     const int dst_off = FINAL_DST_OFFSET(n, c, hwd);
+#endif
                     dst[dst_off] = TO_DST(0.0f);
                 }
                 if (n < FINAL_N_DIM && c < FINAL_C_DIM) {
