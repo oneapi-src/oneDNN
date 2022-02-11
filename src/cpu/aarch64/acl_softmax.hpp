@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,6 @@ private:
     std::unique_ptr<acl_softmax_obj_t> acl_obj_;
 }; // acl_softmax_resource_t
 
-template <impl::data_type_t data_type>
 struct acl_softmax_fwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_fwd_pd_t {
         using cpu_softmax_fwd_pd_t::cpu_softmax_fwd_pd_t;
@@ -94,16 +93,17 @@ struct acl_softmax_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
 
-            // Forward only
-            if (desc()->prop_kind != dnnl_forward_inference)
-                return status::unimplemented;
-
-            if (src_md()->data_type != data_type) return status::unimplemented;
-
-            if (!attr()->has_default_values()) return status::unimplemented;
+            bool ok = desc()->prop_kind == dnnl_forward_inference
+                    // ACL only supports matching src/dst data types
+                    && src_md()->data_type == dst_md()->data_type
+                    && utils::one_of(src_md()->data_type, data_type::f32)
+                    && attr()->has_default_values()
+                    && set_default_formats() == status::success;
+            if (!ok) return status::unimplemented;
 
             // Get memory desc to find sizes and dims
             const memory_desc_wrapper src_d(src_md());
+            const data_type_t data_type = src_d.data_type();
 
             // ACL only supports plain tensors, can be permuted but not blocked
             if (!src_d.is_plain()) return status::unimplemented;
@@ -127,6 +127,7 @@ struct acl_softmax_fwd_t : public primitive_t {
             // In this context, NHWC tells ACL that the logical and physical
             // dimensions are the same
             arm_compute::DataLayout acl_layout = arm_compute::DataLayout::NHWC;
+
             const arm_compute::DataType acl_data_t
                     = acl_common_utils::get_acl_data_t(data_type);
 
@@ -224,8 +225,6 @@ struct acl_softmax_fwd_t : public primitive_t {
 
         return st;
     }
-
-    typedef typename prec_traits<data_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
