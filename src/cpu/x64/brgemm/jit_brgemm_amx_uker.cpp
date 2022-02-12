@@ -572,16 +572,19 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
     if (brg.with_binary) {
         if (handle_binary_po_offset_) {
             for (int bd = bd_start; bd < bd_finish; bd++) {
+                // We have no way to tell the injector to skip some vectors.
+                // Therefore, we must set parameters correctly for all registers.
+                // TODO: Make it possible to specify "skipped" vectors to injector
+                const auto idx = accm(bd).getIdx();
+                if (is_ld_tail) rhs_arg_params.vmm_tail_idx_.emplace(idx);
+                rhs_arg_params.vmm_idx_to_out_reg.emplace(idx, reg_D);
+
                 const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
                 if (bd_out_bd == -1) continue;
 
                 const auto d_offset = D_offset(bd_out_bd, ldb);
-                const auto idx = accm(bd).getIdx();
-
-                rhs_arg_params.vmm_idx_to_out_reg.emplace(idx, reg_D);
                 rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
                         idx, d_offset);
-                if (is_ld_tail) rhs_arg_params.vmm_tail_idx_.emplace(idx);
             }
         }
     }
