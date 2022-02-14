@@ -229,9 +229,9 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
         auto arg_diff_wei = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
 
-        sycl_memory_arg<::sycl::access::mode::read> arg_bias;
+        sycl_memory_arg<::sycl::access::mode::write> arg_bias;
         if (pd()->with_bias()) {
-            arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
+            arg_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
         }
         std::shared_ptr<scratch_acc_t> ip_scratch_acc;
         std::shared_ptr<scratch_acc_t> spacial_scratch_acc;
