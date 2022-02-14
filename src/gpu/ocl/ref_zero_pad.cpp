@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -302,9 +302,8 @@ status_t ref_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
             = utils::downcast<compute::compute_engine_t *>(
                     ctx.stream()->engine());
     const compute::device_info_t *device = engine->device_info();
-    const compute::gpu_arch_t gpu_gen = device->gpu_arch();
-    const size_t max_local_ws = static_cast<size_t>(
-            gpu_gen == compute::gpu_arch_t::gen9 ? 256 : 512);
+
+    const size_t max_local_ws = device->max_wg_size();
 
     const auto &dims = mdw.dims();
     const auto nelems = mdw.nelems(true);
