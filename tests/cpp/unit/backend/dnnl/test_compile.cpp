@@ -7074,6 +7074,15 @@ TEST(Execute, ReluBackward) {
     }
 }
 
+TEST(Execute, Sigmoid) {
+    test::vector<float> src {-5.0, -2.5, -1.0, 0.3, 0.0, 1.2};
+    test::vector<float> ref_dst = sigmoid_func(src);
+
+    dnnl::graph::impl::dims dims {1, 2, 3};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::Sigmoid, "sigmoid");
+}
+
 TEST(Execute, Sqrt) {
     test::vector<float> src {2.0, 1.5, 1.0, 0.5, 0.0, 3.5};
     test::vector<float> ref_dst = sqrt_func(src);

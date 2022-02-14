@@ -165,6 +165,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::Pow, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::ReLU, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Round, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Sigmoid, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Sqrt, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Square, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Tanh, float_eltwise_fwd)

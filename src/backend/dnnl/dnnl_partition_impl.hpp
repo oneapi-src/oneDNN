@@ -402,8 +402,9 @@ public:
                 impl::op_kind::Abs, impl::op_kind::Elu, impl::op_kind::Exp,
                 impl::op_kind::GELU, impl::op_kind::HardTanh,
                 impl::op_kind::Log, impl::op_kind::Pow, impl::op_kind::ReLU,
-                op_kind::relu_add, impl::op_kind::Round, impl::op_kind::Sqrt,
-                impl::op_kind::Square, impl::op_kind::Tanh, op_kind::dnnl_sum,
+                op_kind::relu_add, impl::op_kind::Round, impl::op_kind::Sigmoid,
+                impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh,
+                op_kind::dnnl_sum,
                 // f32 binary pattern
                 impl::op_kind::Add, op_kind::add_relu, op_kind::add_sigmoid,
                 op_kind::add_multiply, impl::op_kind::Multiply,

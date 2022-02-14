@@ -4,7 +4,7 @@
 --dir=FWD_I
 --dt=bf16
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,log,relu,sqrt,square,tanh
+--alg=abs,exp,gelu_erf,log,relu,sqrt,square,tanh,logistic
 64x512x28x28
 
 # main op - hardtanh, alpha andbeta

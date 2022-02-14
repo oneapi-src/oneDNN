@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -168,33 +168,25 @@ TEST(api_partition, unsupported_partitions) {
 
     graph g(engine_kind);
 
-    std::vector<size_t> lt_ids {0, 1, 2, 3, 4};
-    std::vector<size_t> op_ids {0, 1, 2, 3};
+    std::vector<size_t> lt_ids {0, 1, 2};
+    std::vector<size_t> op_ids {0, 1};
 
     logical_tensor input1 {lt_ids[0], logical_tensor::data_type::f32,
             logical_tensor::layout_type::undef};
-    logical_tensor sigmoid_dst {lt_ids[1], logical_tensor::data_type::f32,
+
+    logical_tensor wildcard_dst {lt_ids[2], logical_tensor::data_type::f32,
             logical_tensor::layout_type::undef};
 
-    op sigmoid {
-            op_ids[0], op::kind::Sigmoid, {input1}, {sigmoid_dst}, "sigmoid"};
-
-    logical_tensor input2 {lt_ids[2], logical_tensor::data_type::f32,
-            logical_tensor::layout_type::undef};
-    logical_tensor wildcard_dst {lt_ids[3], logical_tensor::data_type::f32,
-            logical_tensor::layout_type::undef};
-
-    op wildcard {op_ids[1], op::kind::Wildcard, {input2}, {wildcard_dst},
+    op wildcard {op_ids[0], op::kind::Wildcard, {input1}, {wildcard_dst},
             "wildcard"};
 
-    op end {op_ids[3], op::kind::End, {wildcard_dst}, {}, "end"};
+    op end {op_ids[1], op::kind::End, {wildcard_dst}, {}, "end"};
 
-    g.add_op(sigmoid);
     g.add_op(wildcard);
     g.add_op(end);
 
     std::vector<partition> partitions = g.get_partitions();
-    ASSERT_EQ(partitions.size(), 3);
+    ASSERT_EQ(partitions.size(), 2);
     for (auto &p : partitions)
         ASSERT_FALSE(p.is_supported());
 }

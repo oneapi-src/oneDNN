@@ -5,7 +5,7 @@
 --dt=f32
 --tag=abx,axb
 --alpha= --beta=
---alg=abs,clip,elu,exp,gelu_erf,log,sqrt,square,tanh
+--alg=abs,clip,elu,exp,gelu_erf,log,sqrt,square,tanh,logistic
 64x512x28x28
 
 #gelu shapes from bert_squad -TODO - add gelu_tanh???
@@ -35,6 +35,6 @@
 #--dt=f32 --tag=abx --dir=FWD_I --alpha= --beta=-1,0,0.5,1,1.5,2 --alg=pow 64x512x28x28
 
 #alg only supported ones are added. TODO- extend to others
-#--alg=clip_v2,exp_dst,hardswish,logistic,logistic_dst,logsigmoid,mish,round,sqrt_dst,
+#--alg=clip_v2,exp_dst,hardswish,logistic_dst,logsigmoid,mish,round,sqrt_dst,
 #--alg=soft_relu,tanh_dst,bounded_relu,elu_dst,relu_dst,swish
 #clip_v2_dst,linear
