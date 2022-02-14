@@ -866,6 +866,9 @@ struct jit_brgemm_conv_conf_t {
 
     bool use_buffer;
     dim_t buffer_size;
+    dim_t ker_ranges_size;
+    dim_t comp_a_buffer_size;
+    dim_t s8s8_comp_buffer_size;
 
     int is_oc_scale;
 
@@ -895,6 +898,10 @@ struct jit_brgemm_conv_conf_t {
     bool use_interleave_stores;
     brgemm_kernel_prefetching_t hint_prefetching;
     bool is_1x1;
+    bool s8s8_avx512;
+    bool src_zero_point;
+    bool dst_zero_point;
+    bool comp_with_vpads;
 };
 
 struct jit_shuffle_conf_t {

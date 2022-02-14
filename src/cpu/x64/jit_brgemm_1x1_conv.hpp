@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,6 +58,16 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
         float sum_scale;
 
         jit_brgemm_conv_conf_t jcp_;
+
+    protected:
+        bool zero_points_ok() const {
+            // Only common zero points are supported -> mask should only be 0
+            int mask_src = 0, mask_dst = 0;
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                    && mask_src == 0 && mask_dst == 0;
+        }
     };
 
     brgemm_1x1_convolution_fwd_t(const pd_t *apd)
@@ -102,8 +112,10 @@ private:
     void exec_ker(const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
             brgemm_batch_element_t *const __restrict brg_batch,
             char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
-            int od, int oh, int ow, int icc, int *last_brg_idx) const;
-    void execute_forward_all(const exec_ctx_t &ctx) const;
+            int od, int oh, int ow, int icc, int *last_brg_idx,
+            int32_t src_zp_vals, int32_t *src_zp_comp, int32_t *dst_zp_vals,
+            int32_t *s8s8_compensation) const;
+    status_t execute_forward_all(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     static int get_brg_idx(bool do_initialization, int is_M_tail,

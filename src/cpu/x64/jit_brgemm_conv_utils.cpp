@@ -1549,6 +1549,11 @@ void brg_blocking_t::calc_blocks_1x1() {
     update_blocks();
 }
 
+brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
+    return attr.zero_points_.has_default_values(arg)
+            ? brgemm_broadcast_t::none
+            : brgemm_broadcast_t::per_tensor;
+}
 status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
@@ -1638,9 +1643,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             && IMPLICATION(is_amx(jcp.isa), !jcp.is_1x1);
     if (is_grouped_small_ic) return status::unimplemented;
 
-    // TODO: support s8 in non-amx brgemm convolutions
-    if (!IMPLICATION(jcp.src_dt == s8, is_amx(jcp.isa)))
-        return status::unimplemented;
+    jcp.s8s8_avx512 = jcp.src_dt == s8 && !is_amx(jcp.isa);
 
     if (!IMPLICATION(jcp.wei_dt == s8, mayiuse(avx512_core_vnni)))
         return status::unimplemented;
@@ -1677,6 +1680,25 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
+    }
+
+    jcp.src_zero_point
+            = get_zp_type(attr, DNNL_ARG_SRC) != brgemm_broadcast_t::none;
+    jcp.dst_zero_point
+            = get_zp_type(attr, DNNL_ARG_DST) != brgemm_broadcast_t::none;
+
+    // Only common zero points for the whole output tensor is supported now
+    // TODO: Extend zero points support to AMX
+    const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
+    if (has_zero_points || jcp.s8s8_avx512) {
+        const bool params_ok = IMPLICATION(has_zero_points, !is_amx(jcp.isa))
+                && IMPLICATION(
+                        has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
+                && IMPLICATION(jcp.src_zero_point,
+                        attr.zero_points_.common(DNNL_ARG_SRC))
+                && IMPLICATION(jcp.dst_zero_point,
+                        attr.zero_points_.common(DNNL_ARG_DST));
+        if (!params_ok) return status::unimplemented;
     }
 
     jcp.nthr = nthreads;
@@ -1939,6 +1961,40 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 P4K);
     }
 
+    const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
+    const bool with_pad = jcp.f_pad > 0 || jcp.back_pad > 0 || jcp.t_pad > 0
+            || jcp.b_pad > 0 || jcp.l_pad > 0 || jcp.r_pad > 0;
+
+    if (jcp.s8s8_avx512 && !with_pad) {
+        weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
+        weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
+    }
+    if (jcp.src_zero_point && !is_amx(jcp.isa) && !with_pad) {
+        weights_md.extra.flags
+                |= memory_extra_flags::compensation_conv_asymmetric_src;
+        weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
+    }
+
+    // The threshold for the shapes with padding is experimental
+    // TODO: Remove the restriction after optimize the compensation work
+    // for the shapes with padding
+    jcp.comp_with_vpads = (jcp.src_zero_point || jcp.s8s8_avx512) && with_pad;
+    const dim_t work_amount = static_cast<dim_t>(jcp.mb) * jcp.ngroups
+            * jcp.nb_oc * jcp.od * jcp.oh * jcp.ow * jcp.icp;
+    if (jcp.comp_with_vpads && work_amount < 0.85 * brg_blocking_t::L2)
+        return status::unimplemented;
+
+    // estimate the number of kernel range combination for compensation
+    const auto kd_cnt = 1 + utils::div_up(abs(jcp.f_pad), jcp.dilate_d + 1)
+            + utils::div_up(abs(jcp.back_pad), jcp.dilate_d + 1);
+    const auto kh_cnt = 1 + utils::div_up(abs(jcp.t_pad), jcp.dilate_h + 1)
+            + utils::div_up(abs(jcp.b_pad), jcp.dilate_h + 1);
+
+    jcp.ker_ranges_size = kd_cnt * kh_cnt;
+    jcp.comp_a_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size
+            * jcp.ow * jcp.oc_block;
+    jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
+
     return status::success;
 }
 
@@ -2078,6 +2134,21 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             : 0;
     jcp.buffer_size = jcp.LDC * jcp.M;
 
+    const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
+
+    if (jcp.s8s8_avx512) {
+        weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
+        weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
+    }
+    if (jcp.src_zero_point) {
+        weights_md.extra.flags
+                |= memory_extra_flags::compensation_conv_asymmetric_src;
+        weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
+    }
+    jcp.comp_with_vpads = false;
+    jcp.s8s8_comp_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
+    jcp.comp_a_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
+
     return status::success;
 }
 
@@ -2105,6 +2176,14 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (is_amx(jcp.isa)) {
         scratchpad.book(key_conv_amx_tile_buffer, jcp.nthr * 2 * P4K,
                 sizeof(char), 0, P4K);
+    }
+    if (jcp.s8s8_avx512 && jcp.comp_with_vpads) {
+        scratchpad.book(key_brgemm_primitive_buffer_comp,
+                jcp.s8s8_comp_buffer_size, sizeof(int32_t), 0, P4K);
+    }
+    if (jcp.src_zero_point && jcp.comp_with_vpads && !is_amx(jcp.isa)) {
+        scratchpad.book(key_brgemm_primitive_zp_comp_a, jcp.comp_a_buffer_size,
+                sizeof(int32_t), 0, P4K);
     }
 }
 
