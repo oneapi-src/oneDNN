@@ -254,8 +254,7 @@ public:
         // var to disable it. The env var is for debugging purpose only and may
         // be removed without any prior notice.
         enable_memory_sharing_
-                = impl::utils::getenv_int("_DNNL_GRAPH_ENABLE_MEM_REUSE", 1)
-                > 0;
+                = impl::utils::getenv_int_internal("ENABLE_MEM_REUSE", 1) > 0;
     }
 
     memory_planner_t(memory_planner_t &&) = delete;

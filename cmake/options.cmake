@@ -30,7 +30,7 @@ option(DNNL_GRAPH_SUPPORT_CXX17 "uses features from C++ standard 17" OFF)
 # ========
 
 option(DNNL_GRAPH_VERBOSE
-    "allows oneDNN Graph library be verbose whenever DNNL_GRAPH_VERBOSE
+    "allows oneDNN Graph library be verbose whenever ONEDNN_GRAPH_VERBOSE
     environment variable set to 1, 2 or 3" ON)
 
 option(DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE
@@ -41,7 +41,7 @@ option(DNNL_GRAPH_LAYOUT_DEBUG
     layout id which helps debugging for layout propagation" OFF)
 
 option(DNNL_GRAPH_ENABLE_DUMP
-    "allows oneDNN Graph library to dump graphs and pattern file via DNNL_GRAPH_DUMP 
+    "allows oneDNN Graph library to dump graphs and pattern file via ONEDNN_GRAPH_DUMP 
     environment variable" OFF)
 
 # =============================

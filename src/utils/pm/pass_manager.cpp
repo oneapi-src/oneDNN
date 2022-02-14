@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,10 +99,10 @@ void pass_manager_t::run_passes(
             }
         } else {
             if (read_json) {
-                printf("dnnl_graph_verbose,warn,pattern,ignore config file "
+                printf("onednn_graph_verbose,warn,pattern,ignore config file "
                        "for incompatible hash id\n");
             } else {
-                printf("dnnl_graph_verbose,warn,pattern,ignore config file "
+                printf("onednn_graph_verbose,warn,pattern,ignore config file "
                        "for missing json filed\n");
             }
             fflush(stdout);

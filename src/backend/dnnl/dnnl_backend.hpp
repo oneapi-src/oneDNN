@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -399,7 +399,7 @@ public:
         // using it in their applications. Enabling the environment variable may
         // cause some tests and examples to fail.
         const bool disable_dnnl_bkd
-                = impl::utils::getenv_int("_DNNL_GRAPH_DISABLE_DNNL_BACKEND", 0)
+                = impl::utils::getenv_int_internal("DISABLE_DNNL_BACKEND", 0)
                 > 0;
         if (disable_dnnl_bkd) return status::success;
 
@@ -408,12 +408,12 @@ public:
         std::string pass_config_json = "dnnl_graph_passes.json";
         std::ifstream fs(pass_config_json.c_str());
         if (fs) {
-            printf("dnnl_graph_verbose,info,pattern,load,%s\n",
+            printf("onednn_graph_verbose,info,pattern,load,%s\n",
                     pass_config_json.c_str());
             fflush(stdout);
         } else {
-            if (impl::utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
-                printf("dnnl_graph_verbose,info,pattern,dump,%s\n",
+            if (impl::utils::getenv_int_user("DUMP", 0) > 0) {
+                printf("onednn_graph_verbose,info,pattern,dump,%s\n",
                         pass_config_json.c_str());
                 fflush(stdout);
                 pm.print_passes(pass_config_json);

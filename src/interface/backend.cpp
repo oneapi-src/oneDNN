@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,11 +63,11 @@ class constant_cache_flag_t {
     // caching, we need to change the code to call set_constant_cache(0)
     // explicitly and rebuild it, which makes testing both two configrations in
     // pre-CI inconvenient. So we add the internal env var
-    // _DNNL_GRAPH_CONSTANT_CACHE. If it's set by users, the initial status will
-    // equal to the env var value.
+    // _ONEDNN_GRAPH_CONSTANT_CACHE. If it's set by users, the initial status
+    // will equal to the env var value.
     constant_cache_flag_t() {
         // If env var is set, use it. Otherwise, use flag=1 by default.
-        int flag = utils::getenv_int("_DNNL_GRAPH_CONSTANT_CACHE", 1);
+        int flag = utils::getenv_int_internal("CONSTANT_CACHE", 1);
         store(flag);
     }
 

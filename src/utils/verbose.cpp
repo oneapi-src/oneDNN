@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,14 +76,13 @@ static setting_t<int> verbose {0};
 int get_verbose() {
 #if !defined(DNNL_GRAPH_DISABLE_VERBOSE)
     if (!verbose.initialized()) {
-        const int len = 2;
-        char var[len] = {0};
-        if (getenv("DNNL_GRAPH_VERBOSE", var, len) == 1) verbose.set(atoi(var));
-        if (!verbose.initialized()) verbose.set(0);
+        // Assumes that all threads see the same environment
+        static int val = getenv_int_user("VERBOSE", verbose.get());
+        verbose.set(val);
     }
     static bool version_printed = false;
     if (!version_printed && verbose.get() > 0) {
-        printf("dnnl_graph_verbose,info,oneDNN Graph v%d.%d.%d (commit %s)\n",
+        printf("onednn_graph_verbose,info,oneDNN Graph v%d.%d.%d (commit %s)\n",
                 dnnl_graph_version()->major, dnnl_graph_version()->minor,
                 dnnl_graph_version()->patch, dnnl_graph_version()->hash);
         version_printed = true;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -384,10 +384,10 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
 status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
         graph_t *graph, const int ignore_env_var) {
 #ifdef DNNL_GRAPH_ENABLE_DUMP
-    if (ignore_env_var || utils::getenv_int("DNNL_GRAPH_DUMP", 0) > 0) {
+    if (ignore_env_var || utils::getenv_int_user("DUMP", 0) > 0) {
         std::ofstream out;
         auto filename = "graph-" + std::to_string(graph->id()) + ".dot";
-        printf("dnnl_graph_verbose,info,visualize graph to a dot file %s\n",
+        printf("onednn_graph_verbose,info,visualize graph to a dot file %s\n",
                 filename.c_str());
         out.open(filename);
         out << "digraph G {\n";

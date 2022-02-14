@@ -193,7 +193,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
         ms = utils::get_msec() - ms;
 
         const char *cache_status = cp.second ? "cache_hit" : "cache_miss";
-        printf("dnnl_graph_verbose,compile:%s,%s,%g\n", cache_status,
+        printf("onednn_graph_verbose,compile:%s,%s,%g\n", cache_status,
                 compiled_partition->info(), ms);
         fflush(stdout);
     } else {
@@ -312,7 +312,7 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         double ms = utils::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         ms = utils::get_msec() - ms;
-        printf("dnnl_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
+        printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n",
                 compiled_partition->info(), ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
                 allocator_t::monitor_t::get_total_persist_memory(alloc),
@@ -325,7 +325,7 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         double ms = utils::get_msec();
         CHECK(compiled_partition->execute(stream, ins, outs));
         ms = utils::get_msec() - ms;
-        printf("dnnl_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
+        printf("onednn_graph_verbose,exec,%s,%g\n", compiled_partition->info(),
                 ms);
         fflush(stdout);
     } else {
@@ -662,7 +662,7 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         ret = pimpl_->execute_sycl(
                 astream, processed_inputs, processed_outputs, sycl_event);
         ms = utils::get_msec() - ms;
-        printf("dnnl_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n", this->info(),
+        printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n", this->info(),
                 ms, alloc->id(),
                 utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
                 allocator_t::monitor_t::get_total_persist_memory(alloc),
@@ -673,7 +673,7 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         ret = pimpl_->execute_sycl(
                 astream, processed_inputs, processed_outputs, sycl_event);
         ms = utils::get_msec() - ms;
-        printf("dnnl_graph_verbose,exec,%s,%g\n", this->info(), ms);
+        printf("onednn_graph_verbose,exec,%s,%g\n", this->info(), ms);
         fflush(stdout);
     } else {
         ret = pimpl_->execute_sycl(
