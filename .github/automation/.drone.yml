@@ -1,5 +1,5 @@
 # *******************************************************************************
-# Copyright 2020-2021 Arm Limited and affiliates.
+# Copyright 2020-2022 Arm Limited and affiliates.
 # Copyright 2020-2021 FUJITSU LIMITED
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,33 +17,36 @@
 # *******************************************************************************
 
 kind: pipeline
-name: Ubuntu16+ACL
+name: Ubuntu20+ACL
 
 platform:
   arch: arm64
 
 steps:
-- name: gcc-test+ACL
-  image: ubuntu:16.04
+- name: gcc10-test+ACL
+  image: ubuntu:20.04
   commands:
-  - apt-get update && apt-get install -y git build-essential cmake scons
+  - export DEBIAN_FRONTEND=noninteractive
+  - apt-get update && apt-get install -y git build-essential cmake scons gcc-10 g++-10
+  - update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 1 && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 1
   - .github/automation/build_acl.sh  --version 21.11 --arch arm64-v8a --root-dir $(pwd)/ComputeLibrary
   - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build --acl-dir $(pwd)/ComputeLibrary
   - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
 
 ---
-
 kind: pipeline
-name: Ubuntu16
+name: Ubuntu20
 
 platform:
   arch: arm64
 
 steps:
-- name: gcc-test
-  image: ubuntu:16.04
+- name: gcc10-test
+  image: ubuntu:20.04
   commands:
-  - apt-get update && apt-get install -y git build-essential cmake
+  - export DEBIAN_FRONTEND=noninteractive
+  - apt-get update && apt-get install -y git build-essential cmake gcc-10 g++-10
+  - update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 1 && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 1
   - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
   - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
 
