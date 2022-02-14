@@ -792,10 +792,10 @@ status_t infer_identity_output_shape(op_t *n,
 status_t identity_output_shape_on_pos(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs,
-        std::vector<uint32_t> &positions) {
+        std::vector<std::pair<uint32_t, uint32_t>> &positions) {
     for (auto &pos : positions) {
-        std::vector<logical_tensor_t *> ins = {inputs[pos]};
-        std::vector<logical_tensor_t *> outs = {outputs[pos]};
+        std::vector<logical_tensor_t *> ins = {inputs[pos.first]};
+        std::vector<logical_tensor_t *> outs = {outputs[pos.second]};
         auto status = infer_identity_output_shape(n, ins, outs);
         if (status != status::success) return status;
     }
@@ -902,11 +902,11 @@ status_t infer_norm_output_shape(op_t *n,
 status_t infer_norm_bprop_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    std::vector<uint32_t> identity_shapes_pos = {0};
+    std::vector<std::pair<uint32_t, uint32_t>> identity_shapes_pos = {{0, 0}};
     if (n->has_attr("use_affine") && n->get_attr<bool>("use_affine") == true) {
         // when use_affine parameter is set,
         // there will be two additional outputs
-        identity_shapes_pos.insert(identity_shapes_pos.end(), {1, 2});
+        identity_shapes_pos.insert(identity_shapes_pos.end(), {{4, 1}, {5, 2}});
     }
     return identity_output_shape_on_pos(
             n, inputs, outputs, identity_shapes_pos);

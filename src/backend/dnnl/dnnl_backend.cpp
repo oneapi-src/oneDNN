@@ -212,6 +212,7 @@ bool dnnl_backend::register_kernels() {
 
     // layernorm kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::LayerNorm, layernorm_fwd_t)
+    DNNL_REGISTER_KERNEL(impl::op_kind::LayerNormBackprop, layernorm_bwd_t)
 
     //interpolate kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::Interpolate, float_resampling_fwd)

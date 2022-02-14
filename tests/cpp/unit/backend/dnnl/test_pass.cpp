@@ -4515,9 +4515,9 @@ TEST(Pass, DnnlSingleOpReplacement) {
             BatchNormTrainingBackprop, ConvolutionBackpropData,
             ConvolutionBackpropFilters, MaxPoolBackprop, ReLUBackprop,
             GELUBackprop, LogSoftmax, LogSoftmaxBackprop, SoftMax, LayerNorm,
-            BatchNormForwardTraining, Elu, Exp, HardTanh, Log, Multiply,
-            Maximum, Minimum, Pow, Sqrt, Square, Tanh, SoftMaxBackprop,
-            DynamicQuantize, DynamicDequantize};
+            LayerNormBackprop, BatchNormForwardTraining, Elu, Exp, HardTanh,
+            Log, Multiply, Maximum, Minimum, Pow, Sqrt, Square, Tanh,
+            SoftMaxBackprop, DynamicQuantize, DynamicDequantize};
     for (auto akind : single_op_set_supported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);

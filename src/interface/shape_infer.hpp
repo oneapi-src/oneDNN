@@ -122,7 +122,7 @@ status_t infer_identity_output_shape(op_t *n,
 status_t identity_output_shape_on_pos(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs,
-        std::vector<uint32_t> &positions);
+        std::vector<std::pair<uint32_t, uint32_t>> &positions);
 
 status_t infer_bias_backprop_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,

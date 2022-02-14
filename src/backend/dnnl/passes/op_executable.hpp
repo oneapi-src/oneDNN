@@ -438,6 +438,43 @@ create_layernorm_pd(std::shared_ptr<impl::op_t> &op,
     return {pd, true};
 }
 
+inline std::pair<dnnl::layer_normalization_backward::primitive_desc, bool>
+create_layernorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<
+                        dnnl::layer_normalization_backward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto epsilon = op->get_attr<float>("epsilon");
+    auto flags = normalization_flag::none;
+    if (op->get_attr<bool>("with_gamma"))
+        flags |= normalization_flag::use_scale;
+    if (op->get_attr<bool>("with_beta")) flags |= normalization_flag::use_shift;
+
+    auto data = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    dnnl::layer_normalization_forward::primitive_desc fwd_hints(
+            {prop_kind::forward_training, data, epsilon, flags}, p_engine);
+
+    dnnl::layer_normalization_backward::primitive_desc pd(
+            {prop_kind::backward, fwd_hints.dst_desc(), data, epsilon, flags},
+            prm_attr, p_engine, fwd_hints);
+
+    pd_cache.insert({op.get(), pd});
+    return {pd, true};
+}
+
 inline std::pair<dnnl::convolution_backward_data::primitive_desc, bool>
 create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
@@ -1699,6 +1736,27 @@ struct layernorm_executable_t : public op_executable_t {
 private:
     dnnl::layer_normalization_forward::primitive_desc pd_;
     dnnl::layer_normalization_forward prim_;
+};
+
+struct layernorm_bwd_executable_t : public op_executable_t {
+    layernorm_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_layernorm_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache)
+                      .first;
+        prim_ = dnnl::layer_normalization_backward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::layer_normalization_backward::primitive_desc pd_;
+    dnnl::layer_normalization_backward prim_;
 };
 
 struct sum_executable_t : public op_executable_t {

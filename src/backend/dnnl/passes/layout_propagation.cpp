@@ -477,6 +477,73 @@ static void layout_propagation_for_layernorm(op_ptr &op,
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
+static void layout_propagation_for_layernorm_bwd(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    assertm(op->num_inputs() == 4 || op->num_inputs() == 6,
+            "Currently, we can have either both use_scale and use_shift modes "
+            "enabled or disabled!");
+
+    const auto &pd_flag_pair
+            = create_layernorm_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    size_t in_index {0};
+    insert_reorder_before(op, in_index, pd.src_desc(), reorder_ops);
+    value_ptr src = op->get_input_value(in_index++);
+    fill_layout_info(src, pd.src_desc());
+
+    insert_reorder_before(op, in_index, pd.diff_dst_desc(), reorder_ops);
+    value_ptr diff_dst = op->get_input_value(in_index++);
+    fill_layout_info(diff_dst, pd.diff_dst_desc());
+
+    insert_reorder_before(op, in_index, pd.mean_desc(), reorder_ops);
+    value_ptr mean = op->get_input_value(in_index++);
+    fill_layout_info(mean, pd.mean_desc());
+
+    insert_reorder_before(op, in_index, pd.variance_desc(), reorder_ops);
+    value_ptr var = op->get_input_value(in_index++);
+    fill_layout_info(var, pd.variance_desc());
+
+    size_t out_index {0};
+    insert_reorder_after(op, out_index, pd.diff_src_desc(), reorder_ops);
+    value_ptr diff_src = op->get_output_value(out_index++);
+    fill_layout_info(diff_src, pd.diff_src_desc());
+
+    if (op->get_attr<bool>("with_gamma")) {
+        const auto &scale_opt_mdesc
+                = pd.query_md(query::exec_arg_md, DNNL_ARG_SCALE);
+        insert_reorder_before(op, in_index, scale_opt_mdesc, reorder_ops);
+        value_ptr scale = op->get_input_value(in_index++);
+        fill_layout_info(scale, scale_opt_mdesc);
+
+        const auto &diff_scale_opt_mdesc
+                = pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SCALE);
+        insert_reorder_after(op, out_index, diff_scale_opt_mdesc, reorder_ops);
+        value_ptr diff_scale = op->get_output_value(out_index++);
+        fill_layout_info(diff_scale, diff_scale_opt_mdesc);
+    }
+    if (op->get_attr<bool>("with_beta")) {
+        const auto &shift_opt_mdesc
+                = pd.query_md(query::exec_arg_md, DNNL_ARG_SHIFT);
+        insert_reorder_before(op, in_index, shift_opt_mdesc, reorder_ops);
+        value_ptr shift = op->get_input_value(in_index++);
+        fill_layout_info(shift, shift_opt_mdesc);
+
+        const auto &diff_shift_opt_mdesc
+                = pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SHIFT);
+        insert_reorder_after(op, out_index, diff_shift_opt_mdesc, reorder_ops);
+        value_ptr diff_shift = op->get_output_value(out_index++);
+        fill_layout_info(diff_shift, diff_shift_opt_mdesc);
+    }
+
+    auto scratchpad_val = op->get_output_value(op->num_outputs() - 1);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+}
+
 static void layout_propagation_for_permute(
         op_ptr &op, std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
@@ -1123,6 +1190,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == impl::op_kind::LayerNorm) {
                 layout_propagation_for_layernorm(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_layernorm_bwd) {
+                layout_propagation_for_layernorm_bwd(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
                 layout_propagation_for_eltwise(

@@ -51,6 +51,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(avg_pool_bw_pass, dnnl, AvgPoolBackprop, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(bias_add_pass, dnnl, BiasAdd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(bn_pass, dnnl, BatchNormInference, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(ln_pass, dnnl, LayerNorm, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(ln_bw_pass, dnnl, LayerNormBackprop, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         bn_fw_train_pass, dnnl, BatchNormForwardTraining, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(

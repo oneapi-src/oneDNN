@@ -632,31 +632,30 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
 DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({1, 3, 5}))
+                .set_num_inputs(std::set<size_t>({4, 6}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 3}))
-                .set_input(0, "input", "input tensor", "T1")
-                .set_input(1, "gamma",
+                .set_input(0, "input_tensor", "input tensor", "T1")
+                .set_input(1, "output_delta", "the gradient w.r.t. the output",
+                        "T1")
+                .set_input(2, "mean", "mean of input", "T2")
+                .set_input(3, "variance", "variance of input", "T2")
+                .set_input(4, "gamma",
                         "(optional) gamma scaling for normalized value", "T2")
-                .set_input(2, "beta",
+                .set_input(5, "beta",
                         "(optional) bias added to the scaled normalized value",
                         "T2")
-                .set_input(3, "mean", "(optional) mean of input", "T2")
-                .set_input(4, "variance", "(optional) variance input", "T2")
                 .set_output(0, "input_delta",
                         "the gradient tensor with respect to the output of the "
-                        "layer "
-                        "normalization",
+                        "layer normalization",
                         "T1")
                 .set_output(1, "gamma_delta",
                         "(optional) the gradient tensor with respect to the "
-                        "gamma of "
-                        "the layer normalization",
+                        "gamma of the layer normalization",
                         "T2")
                 .set_output(2, "beta_delta",
                         "(optional) the gradient tensor with respect to the "
-                        "beta of the "
-                        "layer normalization",
+                        "beta of the layer normalization",
                         "T2")
                 .set_attr("begin_norm_axis",
                         "used to indicate which axis to perform layer "
@@ -668,9 +667,6 @@ DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
                         false, attribute_kind::b, true)
                 .set_attr("epsilon", "constant to improve numerical stability",
                         false, attribute_kind::f, 1e-5f)
-                .set_attr("use_stats",
-                        "indicate whether to use input mean and variance",
-                        false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})

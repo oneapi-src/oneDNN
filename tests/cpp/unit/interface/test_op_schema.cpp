@@ -1509,11 +1509,11 @@ TEST(OpSchema, InferLayerNormOutputShape) {
 
 TEST(OpSchema, LayerNormBackprop) {
     const op_kind_t op_kind_ = op_kind::LayerNormBackprop;
-    const size_t expected_in_size = 5;
+    const size_t expected_in_size = 6;
     const size_t expected_out_size = 3;
-    const size_t expected_attr_size = 4;
+    const size_t expected_attr_size = 3;
     const std::map<std::string, bool> attrs_data = {{"begin_norm_axis", false},
-            {"use_affine", false}, {"epsilon", false}, {"use_stats", false}};
+            {"use_affine", false}, {"epsilon", false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1536,22 +1536,24 @@ TEST(OpSchema, InferLayerNormBackpropOutputShape) {
         for (const auto &ltype : layout_types) {
             logical_tensor_t lt_data = logical_tensor_init(
                     0, {1, 256, 64, 64}, data_type::f32, ltype);
-            logical_tensor_t lt_gamma
-                    = logical_tensor_init(1, {1, 256}, data_type::f32, ltype);
-            logical_tensor_t lt_beta
-                    = logical_tensor_init(2, {1, 256}, data_type::f32, ltype);
+            logical_tensor_t lt_out_delta = logical_tensor_init(
+                    1, {1, 256, 64, 64}, data_type::f32, ltype);
             logical_tensor_t lt_mean
-                    = logical_tensor_init(3, {1, 256}, data_type::f32, ltype);
+                    = logical_tensor_init(2, {1, 256}, data_type::f32, ltype);
             logical_tensor_t lt_variance
+                    = logical_tensor_init(3, {1, 256}, data_type::f32, ltype);
+            logical_tensor_t lt_gamma
                     = logical_tensor_init(4, {1, 256}, data_type::f32, ltype);
+            logical_tensor_t lt_beta
+                    = logical_tensor_init(5, {1, 256}, data_type::f32, ltype);
             logical_tensor_t lt_in_delta = logical_tensor_init(
-                    5, data_type::f32, layout_type::strided);
-            logical_tensor_t lt_gamma_delta = logical_tensor_init(
                     6, data_type::f32, layout_type::strided);
-            logical_tensor_t lt_beta_delta = logical_tensor_init(
+            logical_tensor_t lt_gamma_delta = logical_tensor_init(
                     7, data_type::f32, layout_type::strided);
-            std::vector<logical_tensor_t *> lt_in {
-                    &lt_data, &lt_gamma, &lt_beta, &lt_mean, &lt_variance};
+            logical_tensor_t lt_beta_delta = logical_tensor_init(
+                    8, data_type::f32, layout_type::strided);
+            std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_out_delta,
+                    &lt_mean, &lt_variance, &lt_gamma, &lt_beta};
             std::vector<logical_tensor_t *> lt_out {
                     &lt_in_delta, &lt_gamma_delta, &lt_beta_delta};
 
@@ -2623,9 +2625,6 @@ TEST(OpSchema, LayerNormBackpropDefaultAttribute) {
     tmp_op.get_attr<int64_t>("begin_norm_axis", &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
-
-    tmp_op.get_attr<bool>("use_stats", &bval);
-    EXPECT_TRUE(bval);
 
     const float *fval {nullptr};
     tmp_op.get_attr<float>("epsilon", &fval);

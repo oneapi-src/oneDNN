@@ -518,6 +518,61 @@ void memory_planner_t::bind_memory_for_layernorm(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
+void memory_planner_t::bind_memory_for_layernorm_bwd(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    memory mem;
+    exec_args args;
+
+    size_t in_index {0};
+    exec_args_set_.find_value_mem_map(
+            op->get_input_value(in_index++).get(), mem);
+    args.insert({DNNL_ARG_SRC, mem});
+
+    exec_args_set_.find_value_mem_map(
+            op->get_input_value(in_index++).get(), mem);
+    args.insert({DNNL_ARG_DIFF_DST, mem});
+
+    exec_args_set_.find_value_mem_map(
+            op->get_input_value(in_index++).get(), mem);
+    args.insert({DNNL_ARG_MEAN, mem});
+
+    exec_args_set_.find_value_mem_map(
+            op->get_input_value(in_index++).get(), mem);
+    args.insert({DNNL_ARG_VARIANCE, mem});
+
+    size_t out_index {0};
+    exec_args_set_.find_value_mem_map(
+            op->get_output_value(out_index++).get(), mem);
+    args.insert({DNNL_ARG_DIFF_SRC, mem});
+
+    if (op->get_attr<bool>("with_gamma")) {
+        exec_args_set_.find_value_mem_map(
+                op->get_input_value(in_index++).get(), mem);
+        args.insert({DNNL_ARG_SCALE, mem});
+
+        exec_args_set_.find_value_mem_map(
+                op->get_output_value(out_index++).get(), mem);
+        args.insert({DNNL_ARG_DIFF_SCALE, mem});
+    }
+    if (op->get_attr<bool>("with_beta")) {
+        exec_args_set_.find_value_mem_map(
+                op->get_input_value(in_index++).get(), mem);
+        args.insert({DNNL_ARG_SHIFT, mem});
+
+        exec_args_set_.find_value_mem_map(
+                op->get_output_value(out_index++).get(), mem);
+        args.insert({DNNL_ARG_DIFF_SHIFT, mem});
+    }
+
+    if (op->num_outputs() > out_index) {
+        exec_args_set_.find_value_mem_map(
+                op->get_output_value(out_index).get(), mem);
+        args.insert({DNNL_ARG_SCRATCHPAD, mem});
+    }
+
+    exec_args_set_.add_exec_args(args);
+}
+
 void memory_planner_t::prepare_args_for_reorder_op(op_t *op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     exec_args args;
@@ -906,6 +961,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     bind_memory_for_batchnorm_bwd(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == impl::op_kind::LayerNorm) {
                     bind_memory_for_layernorm(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == op_kind::dnnl_layernorm_bwd) {
+                    bind_memory_for_layernorm_bwd(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_sum) {
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_binary) {

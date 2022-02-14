@@ -384,6 +384,9 @@ private:
     void bind_memory_for_layernorm(op_t *op, const dnnl::engine &p_engine,
             primitive_attr_mgr_t &prm_attr_mgr);
 
+    void bind_memory_for_layernorm_bwd(op_t *op, const dnnl::engine &p_engine,
+            primitive_attr_mgr_t &prm_attr_mgr);
+
     void prepare_args_for_reorder_op(op_t *op, const dnnl::engine &p_engine,
             primitive_attr_mgr_t &prm_attr_mgr);
 
