@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +40,9 @@ struct lnorm_graph_prb_t : public graph_prb_t {
 private:
     struct spec_t {
         spec_t(const ::lnorm::prb_t *prb) noexcept;
+        bool is_fwd_pass {true};
+        dnnl::graph::op::kind op_kind;
+
         bool keep_stats {true};
         int64_t begin_norm_axis {-1};
         bool use_affine {true};
@@ -56,7 +59,7 @@ private:
     fill_status_t handle_main_op_();
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::LayerNorm;
+        return spec_.op_kind;
     }
 
 public:
