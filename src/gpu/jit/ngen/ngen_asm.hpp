@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -359,11 +359,11 @@ bool AsmInstruction::getOperandRegion(autoswsb::DependencyRegion &region, int op
 
         switch (opNum) {
             case -1:
-            case 0: len = rcount; break;
+            case 0: len = (rcount * operand.reg.getBytes() + 3) >> 2; break;
             case 1: len = sdepth; break;
             case 2:
                 if (op == Opcode::dpasw) rcount = (rcount + 1) >> 1;
-                len = (operand.reg.getByteOffset() + sdepth * rcount * 4 + 31) >> 5;
+                len = GRF::bytesToGRFs(hw, operand.reg.getByteOffset() + sdepth * rcount * 4);
                 break;
             default: return false;
         }
@@ -1594,7 +1594,11 @@ public:
     Atomic atomic;
 
     void wrdep(const GRFRange &r) {
-        opX(Opcode::wrdep, DataType::ud, InstructionModifier::createAutoSWSB(), null, r);
+        int len = r.getLen();
+        for (int o = 0; o < len; o += 32) {
+            int thisLen = std::min(len - o, 32);
+            opX(Opcode::wrdep, DataType::ud, InstructionModifier::createAutoSWSB(), null, GRFRange(r.getBase(), thisLen));
+        }
     }
     void wrdep(const GRF &r) {
         wrdep(r-r);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -787,6 +787,11 @@ static inline DataType decodeRegTypecode12(unsigned dt)
     return conversionTable[dt & 0xF];
 }
 
+static inline int decodeDPASTypecodeBytes12(unsigned dt)
+{
+    return (1 << (dt & 3));
+}
+
 template <bool xeHPC>
 bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const
 {
@@ -815,15 +820,23 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             TernaryOperand12 o;
 
             switch (opNum) {
-                case -1: len = rcount; o.bits = ternary.dst; break;
-                case 0:  len = rcount; o.bits = ternary.src0; break;
+                case -1:
+                    len = (rcount * decodeDPASTypecodeBytes12(ternary.dstType) + 3) >> 2;
+                    o.bits = ternary.dst;
+                    break;
+                case 0:
+                    len = (rcount * decodeDPASTypecodeBytes12(ternary.src0Type) + 3) >> 2;
+                    o.bits = ternary.src0;
+                    break;
                 case 1:  len = sdepth; o.bits = ternary.src1; break;
                 case 2: {
                     if (op == Opcode::dpasw) rcount = (rcount + 1) >> 1;
                     o.bits = ternary.src2;
                     auto sr = o.direct.subRegNum;
-                    if (xeHPC) sr <<= 1;
-                    len = (sr + sdepth * rcount * 4 + 31) >> 5;
+                    if (xeHPC)
+                        len = ((sr << 1) + sdepth * rcount * 4 + 63) >> 6;
+                    else
+                        len = (sr + sdepth * rcount * 4 + 31) >> 5;
                     break;
                 }
                 default: return false;

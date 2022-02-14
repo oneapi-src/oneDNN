@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1416,7 +1416,11 @@ public:
     Atomic_ atomic;
 
     void wrdep(const GRFRange &r) {
-        opX(Opcode::wrdep, DataType::ud, InstructionModifier::createAutoSWSB(), null, r[0], r[r.getLen() - 1]);
+        int len = r.getLen();
+        for (int o = 0; o < len; o += 32) {
+            int thisLen = std::min(len - o, 32);
+            opX(Opcode::wrdep, DataType::ud, InstructionModifier::createAutoSWSB(), null, r[o], r[o + thisLen - 1]);
+        }
     }
     void wrdep(const GRF &r) {
         wrdep(r-r);

@@ -981,7 +981,7 @@ void DependencyRegion::dump() const
         if (size > 1)
             std::cerr << "-r" << int(base + size - 1);
 
-    auto fullMask = (hw >= HW::XeHPC) ? ~uint64_t(0) : ~uint32_t(0);
+    auto fullMask = ~uint32_t(0);
         bool partial = false;
         for (int ii = 0; ii < size; ii++)
             partial |= (masks[ii] != fullMask);
@@ -1219,8 +1219,7 @@ inline bool canDefaultPipe(HW hw, const Instruction &insn)
 //  * dependencies it consumes
 //  * whether auto SWSB requested (bool return value)
 // Assumes pipe information for this instruction already set up in consume dependency.
-template <typename Instruction>
-inline bool getSWSBDependencies(HW hw, const Instruction &insn, Dependency<false> &produce, Dependency<true> &consume)
+inline bool getSWSBDependencies(HW hw, const SWSBInfo &swsb, PipeMask defaultPipe, Dependency<false> &produce, Dependency<true> &consume)
 {
     produce.token = 0;
     produce.tokenSrc = false;
@@ -1231,18 +1230,16 @@ inline bool getSWSBDependencies(HW hw, const Instruction &insn, Dependency<false
     consume.tokenSrc = false;
     consume.tokenDst = false;
     consume.swsb = true;
-
-    SWSBInfo swsb = insn.swsb();
-    bool autoSWSB = insn.autoSWSB();
+    bool enableAutoSWSB = true;
 
     if (swsb.hasDist()) {
         auto pipe = swsb.getPipe();
         consume.depPipe =     (hw == HW::Gen12LP) ? PipeMaskA :
-                          (pipe == Pipe::Default) ? getPipe(hw, insn).inOrderPipe()
+                          (pipe == Pipe::Default) ? defaultPipe
                                                   : toMask(pipe);
         if (consume.depPipe) {      // if is here to ignore default pipe deps for OOO instructions.
             consume.dist = swsb.parts.dist;
-            autoSWSB = false;
+            enableAutoSWSB = false;
         }
     }
     if (swsb.hasToken()) {
@@ -1256,6 +1253,14 @@ inline bool getSWSBDependencies(HW hw, const Instruction &insn, Dependency<false
         }
     }
 
+    return enableAutoSWSB;
+}
+
+template <typename Instruction>
+inline bool getSWSBDependencies(HW hw, const Instruction &insn, Dependency<false> &produce, Dependency<true> &consume)
+{
+    bool autoSWSB = insn.autoSWSB();
+    autoSWSB &= getSWSBDependencies(hw, insn.swsb(), getPipe(hw, insn).inOrderPipe(), produce, consume);
     return autoSWSB;
 }
 
@@ -1586,6 +1591,11 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 generated = consumeOp;
             }
 
+            // Always wait until phase 2 to assign SWSB to {Atomic} chains --
+            //   it's not known if all dependencies for the chain have been found until the end.
+            if (inumChain >= 0 || insn.atomic())
+                foundAllDeps = false;
+
             // If token missing on OOO instruction, assign one during phase 1.
             if ((phase == 1) && isVariableLatency(hw, insn.opcode()) && (tokenInfo.token == tokenInfo.tokenTBD) && !insn.atomic()) {
                 auto newToken = chooseSBID(hw, program, inum, counters[PipeBitA], bb.incoming, bb.producers, tokenMaskDst);
@@ -1731,6 +1741,32 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
             // Clear auto-SWSB bit if it was set.
             if (phase == 2)
                 insn.clearAutoSWSB();
+
+            // Check for prior sync insertions and update tables appropriately.
+            if (phase == 2) {
+                for (const auto &sync: bb.syncs) {
+                    if (sync.inum != inum)
+                        continue;
+
+                    bool allrd = (sync.fc == SyncFunction::allrd);
+                    bool allwr = (sync.fc == SyncFunction::allwr);
+
+                    if (allrd || allwr) {
+                        auto unmatched = bb.producers.removeByTokenMask(sync.mask, allwr);
+                        preconsumeTokenSrc |= unmatched;
+                        if (allwr) preconsumeTokenDst |= unmatched;
+                    }
+
+                    if (!sync.swsb.empty()) {
+                        Dependency<false> produce;
+                        Dependency<true> consume;
+                        (void) getSWSBDependencies(hw, sync.swsb, PipeMaskNone, produce, consume);
+                        bb.producers.removeIntersections(consume);
+                        if (consume.tokenSrc) preconsumeTokenSrc |= (1 << consume.token);
+                        if (consume.tokenDst) preconsumeTokenDst |= (1 << consume.token);
+                    }
+                }
+            }
         }
 
         // First pass: record pipeline SWSB dependencies for later entry into consumer table.
