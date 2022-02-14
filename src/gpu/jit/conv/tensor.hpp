@@ -451,8 +451,7 @@ public:
     layout_t(const memory_desc_wrapper &mdw, const std::string &format,
             bool do_normalize = true)
         : layout_t(mdw.data_type(), mdw.offset0(), format,
-                std::vector<dim_t>(
-                        mdw.padded_dims(), mdw.padded_dims() + mdw.ndims()),
+                std::vector<dim_t>(mdw.dims(), mdw.dims() + mdw.ndims()),
                 do_normalize) {}
 
     layout_t(const memory_desc_wrapper &mdw, const char *format,
