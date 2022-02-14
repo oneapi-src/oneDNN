@@ -97,16 +97,25 @@ AvgPoolBackprop
   * **Default value**: *NXC*
   * **Required**: *no*
 
+* *input_shape*
+
+  * **Description**: *input_shape* denotes the shape of the forward input tensor.
+  * **Type**: s64[]
+  * **Default value**: None
+  * **Required**: *no*
+
 **Inputs**:
 
-* **1**: ``input_shape`` - the dimensions of original input. **Required.**
-
-  * **Type**: s32
-
-* **2**: ``output_delta`` - the gradient tensor with respect to output of avg
+* **1**: ``output_delta`` - the gradient tensor with respect to output of avg
   pool. **Required.**
 
   * **Type**: T
+
+* **2**: ``input_shape`` - the dimensions of forward input. **Optional**.
+  If specified, *input_shape* attribute will be ignored. If not specified,
+  users should define *input_shape* through attribute.
+
+  * **Type**: s64
 
 **Outputs**
 
