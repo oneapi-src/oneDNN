@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::StaticReshape, "static_reshape"},
                 {op_kind::StaticTranspose, "transpose"},
                 {op_kind::SoftMax, "softmax"}, {op_kind::Divide, "div"},
-                {op_kind::Multiply, "mul"}};
+                {op_kind::Reorder, "reorder"}, {op_kind::Multiply, "mul"},
+                {op_kind::TypeCast, "cast"}};
 
 sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<std::string, impl::utils::attribute_value_t>
@@ -125,6 +126,13 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
             if (i != order[i]) { axis.push_back(i); }
         }
         backend_attrs.set("axes", axis);
+        return make(compiler_backend_op.find(aop->get_kind())->second,
+                producer_lt, consumer_lt, backend_attrs);
+    } else if (aop->get_kind() == op_kind::TypeCast) {
+        backend_attrs.set("dtype",
+                convert_data_type(aop->get_output_value(0)
+                                          ->get_logical_tensor()
+                                          .data_type));
         return make(compiler_backend_op.find(aop->get_kind())->second,
                 producer_lt, consumer_lt, backend_attrs);
     }
