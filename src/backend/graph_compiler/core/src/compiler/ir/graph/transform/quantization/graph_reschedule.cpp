@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,31 +21,35 @@
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/visitor.hpp>
+#include <ops/fusible/unary_elemwise.hpp>
 #include <util/math_utils.hpp>
 namespace sc {
 namespace quantize {
 void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::bfs();
     vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
-        if (auto dequantize_node = node->dyn_cast<dequantize_op_t>()) {
-            assert(dequantize_node->get_inputs().size() == 1);
-            auto dequantize_input = dequantize_node->info_.inputs_[0];
-            auto dequantize_output = dequantize_node->get_outputs()[0];
+        if (node->isa<dequantize_op_t>()
+                || (node->isa<cast_op_t>()
+                        && node->attrs_.get_or_else("mixed_dtype", false))) {
+            assert(node->get_inputs().size() == 1);
+            auto dequantize_input = node->info_.inputs_[0];
+            auto dequantize_output = node->get_outputs()[0];
             int use_count = dequantize_output->uses_.size();
             vis.update_state_for_visited(node);
 
             auto cld_nodes = dequantize_output->uses_;
             for (auto &cld_node : cld_nodes) {
-                if (cld_node.second->isa<op_traits::may_quantize_t>()
-                        && cld_node.second
-                                   ->dyn_cast<op_traits::may_quantize_t>()
-                                   ->should_quantized_) {
+                if ((cld_node.second->isa<op_traits::may_quantize_t>()
+                            && cld_node.second
+                                       ->dyn_cast<op_traits::may_quantize_t>()
+                                       ->should_quantized_)
+                        || cld_node.second->isa<cast_op_t>()) {
                     cld_node.second->replace_input(
                             cld_node.first, dequantize_input);
                     use_count--;
                 }
             }
-            if (!use_count) { dequantize_node->remove(); }
+            if (!use_count) { node->remove(); }
         }
     });
     mgr.reset_op_ids();

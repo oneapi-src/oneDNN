@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/visitor.hpp>
+#include <ops/fusible/unary_elemwise.hpp>
 #include <unordered_set>
 
 namespace sc {
@@ -36,8 +37,9 @@ static std::vector<std::pair<int, sc_op_ptr>> find_quantize_aware_nodes(
     std::vector<std::pair<int, sc_op_ptr>> aware_nodes;
     auto child_lt = node->get_outputs()[0];
     for (const auto &child_op : child_lt->uses_) {
-        if (child_op.second->dyn_cast<op_traits::may_quantize_t>()
-                && child_op.second->attrs_.get_or_else("quantize", true)) {
+        if ((child_op.second->dyn_cast<op_traits::may_quantize_t>()
+                    && child_op.second->attrs_.get_or_else("quantize", true))
+                || child_op.second->isa<cast_op_t>()) {
             aware_nodes.emplace_back(child_op);
         }
     }
@@ -81,8 +83,6 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
                 ->should_quantized_
                 = true;
     } else {
-        has_key_and_set<sc_data_type_t>(
-                quantize_node->attrs_, "dtype", aware_node.second);
         has_key_and_set<std::vector<float>>(
                 quantize_node->attrs_, "scales", aware_node.second);
         has_key_and_set<std::vector<int>>(
@@ -101,6 +101,9 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
             channel_axis = axes[0] == channel_axis ? axes[1] : axes[0];
             aware_node.second->attrs_.set("channel_axis", channel_axis);
         }
+        has_key_and_set<bool>(
+                quantize_node->attrs_, "mixed_dtype", aware_node.second);
+
         has_key_and_set<std::vector<float>>(
                 quantize_node->attrs_, "data_scales", aware_node.second);
         has_key_and_set<std::vector<float>>(
@@ -113,9 +116,22 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
                 quantize_node->attrs_, "data_channel_axis", aware_node.second);
         has_key_and_set<int>(quantize_node->attrs_, "weight_channel_axis",
                 aware_node.second);
-        aware_node.second->dyn_cast<op_traits::may_quantize_t>()
-                ->should_quantized_
-                = true;
+        if (auto may_quantize_node
+                = aware_node.second->dyn_cast<op_traits::may_quantize_t>()) {
+            may_quantize_node->should_quantized_ = true;
+        }
+    }
+}
+
+static void check_and_set_mixed_dtype(const sc_op_ptr &cast_node) {
+    assert(cast_node->isa<cast_op_t>());
+    auto &attrs = cast_node->attrs_;
+    // if after tunable op
+    if (attrs.has_key("data_scales")) {
+        assert(attrs.has_key("weight_scales") && !attrs.has_key("scales"));
+    } else if (attrs.has_key("scales")) {
+        assert(attrs.get<sc_data_type_t>("dtype") == datatypes::bf16);
+        attrs.set("mixed_dtype", true);
     }
 }
 
@@ -217,13 +233,10 @@ SC_INTERNAL_API void quantize_info_propagation(
     change_weight_u8_to_s8(mgr, ctx);
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
     vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
-        if (auto dequantize_node = node->dyn_cast<dequantize_op_t>()) {
-            auto aware_ops = find_quantize_aware_nodes(node);
-            for (const auto &aware_op : aware_ops) {
-                propagate_quantize_info(node, aware_op);
-            }
-        } else if (auto quantized_node
-                = node->dyn_cast<op_traits::may_quantize_t>()) {
+        if (node->isa<dequantize_op_t>()
+                || node->isa<op_traits::may_quantize_t>()
+                || node->isa<cast_op_t>()) {
+            if (node->isa<cast_op_t>()) { check_and_set_mixed_dtype(node); }
             auto aware_ops = find_quantize_aware_nodes(node);
             for (const auto &aware_op : aware_ops) {
                 propagate_quantize_info(node, aware_op);

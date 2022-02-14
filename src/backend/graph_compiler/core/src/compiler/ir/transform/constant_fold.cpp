@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -631,26 +631,29 @@ public:
         bool changed = !in.ptr_same(v->in_);
         if (in.isa<constant>()) {
             auto inconst = in.as<constant_c>();
-            if (inconst->is_vector()) return expr();
-            type_category fromty = get_type_category_nothrow(inconst->dtype_);
-            type_category toty = get_type_category_nothrow(v->dtype_);
-            if (fromty != CATE_OTHER && toty != CATE_OTHER) {
-                switch (fromty) {
-                    case CATE_FLOAT:
-                        return create_cast(
-                                v->dtype_, toty, inconst->value_[0].f32);
-                        break;
-                    case CATE_UINT:
-                        return create_cast(
-                                v->dtype_, toty, inconst->value_[0].u64);
-                        break;
-                    case CATE_INT:
-                        return create_cast(
-                                v->dtype_, toty, inconst->value_[0].s64);
-                        break;
-                    default:
-                        COMPILE_ASSERT(0, "Bad cast from " << inconst->dtype_);
-                        return expr();
+            if (!inconst->is_vector()) {
+                type_category fromty
+                        = get_type_category_nothrow(inconst->dtype_);
+                type_category toty = get_type_category_nothrow(v->dtype_);
+                if (fromty != CATE_OTHER && toty != CATE_OTHER) {
+                    switch (fromty) {
+                        case CATE_FLOAT:
+                            return create_cast(
+                                    v->dtype_, toty, inconst->value_[0].f32);
+                            break;
+                        case CATE_UINT:
+                            return create_cast(
+                                    v->dtype_, toty, inconst->value_[0].u64);
+                            break;
+                        case CATE_INT:
+                            return create_cast(
+                                    v->dtype_, toty, inconst->value_[0].s64);
+                            break;
+                        default:
+                            COMPILE_ASSERT(
+                                    0, "Bad cast from " << inconst->dtype_);
+                            return expr();
+                    }
                 }
             }
         }

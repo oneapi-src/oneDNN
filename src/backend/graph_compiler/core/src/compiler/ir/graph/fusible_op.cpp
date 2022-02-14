@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -494,6 +494,9 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                        *in_bc_tsl = src[bc_input_idx];
     bool keep_dims = in_tsl->get_base_dims().size()
             == in_bc_tsl->get_base_dims().size();
+    // add output type check, manual downcast
+    sc_data_etype out_etype
+            = dst.tptr_->dtype_.get_pointer_element().as_etype();
     // use src_indices.at(0) as default
     for (unsigned i = 0; i < dst.nslice_dims(); i++) {
         // make the loop var for the for-loop
@@ -525,7 +528,14 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
     expr indexed_target_tail = builder::make_indexing(dst.tptr_, dst_idx_tail);
     expr indexed_input_tail
             = builder::make_indexing(in_tsl->tptr_, in_idx_tail);
-
+    if (!in_tsl->tptr_->dtype_.get_pointer_element().is_etype(out_etype)) {
+        indexed_input = builder::make_cast(
+                sc_data_type_t(out_etype, indexed_input->dtype_.lanes_),
+                indexed_input);
+        indexed_input_tail = builder::make_cast(
+                sc_data_type_t(out_etype, indexed_input_tail->dtype_.lanes_),
+                indexed_input);
+    }
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
     auto slice_len = get_const_as_int(
@@ -534,6 +544,9 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
     int tail = slice_len % vx_info.lanes;
     std::vector<stmt> tcur;
     stmt cur;
+    bool bc_input_cast
+            = !in_bc_tsl->tptr_->dtype_.get_pointer_element().is_etype(
+                    out_etype);
     // recover schedule loop
     for (int i = static_cast<int>(dst.get_shape().size() - 1); i >= 0; i--) {
         stmt body;
@@ -552,6 +565,12 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                     indexed_bc_input = builder::make_broadcast(
                             builder::make_indexing(in_bc_tsl->tptr_, in_bc_idx),
                             expr_c(static_cast<int>(vx_info.lanes)));
+                }
+                if (bc_input_cast) {
+                    indexed_bc_input = builder::make_cast(
+                            sc_data_type_t(
+                                    out_etype, indexed_bc_input->dtype_.lanes_),
+                            indexed_bc_input);
                 }
                 bld->push_scope();
                 cur = make_stmt<assign_node_t>(indexed_target,
@@ -576,6 +595,12 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                 }
                 expr indexed_bc_input_tail = builder::make_indexing(
                         in_bc_tsl->tptr_, in_bc_idx_tail);
+                if (bc_input_cast) {
+                    indexed_bc_input_tail = builder::make_cast(
+                            sc_data_type_t(out_etype,
+                                    indexed_bc_input_tail->dtype_.lanes_),
+                            indexed_bc_input_tail);
+                }
                 bld->push_scope();
                 cur = make_stmt<assign_node_t>(indexed_target_tail,
                         bc_input_idx == 1 ? compute(
@@ -614,7 +639,12 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
 
                 expr indexed_bc_input
                         = builder::make_indexing(in_bc_tsl->tptr_, in_bc_idx);
-
+                if (bc_input_cast) {
+                    indexed_bc_input = builder::make_cast(
+                            sc_data_type_t(
+                                    out_etype, indexed_bc_input->dtype_.lanes_),
+                            indexed_bc_input);
+                }
                 bld->push_scope();
                 cur = make_stmt<assign_node_t>(indexed_target,
                         bc_input_idx == 1
@@ -1544,29 +1574,34 @@ void binary_elementwise_op_t::compute_block(context_ptr ctx,
         auto func = [&](const std::vector<expr> &in,
                             std::vector<expr::lvalue_proxy_t> &out,
                             int mask_count, float mask_value) -> stmt {
+            auto out_dtype = out[0]->dtype_;
+            expr in0 = in[0], in1 = in[1];
+            if (in[0]->dtype_ != out_dtype) {
+                in0 = builder::make_cast(out_dtype, in[0]);
+            }
+            if (in[1]->dtype_ != out_dtype) {
+                in1 = builder::make_cast(out_dtype, in[1]);
+            }
             switch (elt_op_) {
                 case elt_operator::ADD:
-                    return builder::make_assign_unattached(
-                            out[0], in[0] + in[1]);
+                    return builder::make_assign_unattached(out[0], in0 + in1);
                 case elt_operator::SUB:
-                    return builder::make_assign_unattached(
-                            out[0], in[0] - in[1]);
+                    return builder::make_assign_unattached(out[0], in0 - in1);
                 case elt_operator::MUL:
-                    return builder::make_assign_unattached(
-                            out[0], in[0] * in[1]);
+                    return builder::make_assign_unattached(out[0], in0 * in1);
                 case elt_operator::DIV:
                     return builder::make_assign_unattached(out[0],
                             make_select_by_mask(
-                                    in[0] / in[1], mask_count, vector_lanes));
+                                    in0 / in1, mask_count, vector_lanes));
                 case elt_operator::MIN:
                     return builder::make_assign_unattached(
-                            out[0], builder::make_min(in[0], in[1]));
+                            out[0], builder::make_min(in0, in1));
                 case elt_operator::MAX:
                     return builder::make_assign_unattached(
-                            out[0], builder::make_max(in[0], in[1]));
+                            out[0], builder::make_max(in0, in1));
                 case elt_operator::SQD_DIFF:
                     return builder::make_assign_unattached(
-                            out[0], (in[0] - in[1]) * (in[0] - in[1]));
+                            out[0], (in0 - in1) * (in0 - in1));
                 default:
                     COMPILE_ASSERT(false,
                             "Unsupport elementwise op "
