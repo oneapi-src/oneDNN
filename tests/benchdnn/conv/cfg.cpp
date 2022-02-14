@@ -92,6 +92,16 @@ const _dt_conf_t conf_bf16bf16f32 = {
         {dnnl_f32},
 };
 
+const _dt_conf_t conf_bf16bf16f16 = {
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
+                0.},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
+                0.},
+        {dnnl_f16},
+};
+
 const _dt_conf_t conf_bf16bf16s8 = {
         {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
@@ -328,6 +338,7 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(u8s8s8_wino);
     CASE(u8s8u8_wino);
     CASE(bf16bf16f32);
+    CASE(bf16bf16f16);
     CASE(bf16bf16s8);
     CASE(bf16bf16u8);
     CASE(bf16bf16bf16);
@@ -373,6 +384,7 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(f16f16s8);
     CASE(f16f16u8);
     CASE(bf16bf16f32);
+    CASE(bf16bf16f16);
     CASE(bf16bf16s8);
     CASE(bf16bf16u8);
     CASE(bf16bf16bf16);
