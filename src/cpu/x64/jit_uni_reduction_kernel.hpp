@@ -124,7 +124,7 @@ private:
     static constexpr std::size_t number_of_f32_in_ymm_ = 8;
     static constexpr std::size_t number_of_f32_in_zmm_ = 16;
     const std::size_t load_tail_size_;
-    static constexpr int store_tail_size_ = 1;
+    static constexpr std::size_t store_tail_size_ = 1;
 
     io::jit_io_helper_t<Vmm> io_load_;
     io::jit_io_helper_t<Vmm> io_store_;
