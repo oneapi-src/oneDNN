@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ macro(exec_cmd_and_check CMD1 CMD2 CMD3 OUT)
 endmacro()
 
 macro(find_llvm)
-    if(SC_LLVM_CONFIG STREQUAL "AUTO")
+    if(SC_LLVM_CONFIG STREQUAL "CMAKE")
         find_package(LLVM CONFIG)
         if(NOT LLVM_FOUND)
             message(FATAL_ERROR "LLVM not found.")
@@ -51,6 +51,20 @@ macro(find_llvm)
             message(STATUS "Link static LLVM=${SC_LLVM_CONFIG_RETURN_STATIC}")
         endif()
     else()
+        if(SC_LLVM_CONFIG STREQUAL "AUTO")
+            foreach(__sc_llvm_ver RANGE 13 8 -1)
+                find_program(__sc_llvm_config llvm-config-${__sc_llvm_ver})
+                if(__sc_llvm_config)
+                    SET(SC_LLVM_CONFIG ${__sc_llvm_config})
+                endif()
+            endforeach()
+            if(SC_LLVM_CONFIG STREQUAL "AUTO")
+                find_program(SC_LLVM_CONFIG llvm-config)
+                if(SC_LLVM_CONFIG STREQUAL "AUTO")
+                    message(FATAL_ERROR "Failed to find llvm-config in AUTO mode. Please specify an llvm-config executable.")
+                endif()
+            endif()
+        endif()
         message(STATUS "Finding LLVM using ${SC_LLVM_CONFIG}")
         set(__sc_llvm_link "--link-static")
         set(SC_LLVM_CONFIG_RETURN_STATIC ON)
