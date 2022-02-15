@@ -220,14 +220,17 @@ using first_argument = typename std::decay<decltype(
  * @note simple types (e.g. int, float, bool) are allowed here
  * */
 struct any_t {
+    static constexpr size_t INLINE_BUFFER_SIZE = 64 - sizeof(void *);
+
 private:
-    // for large objects with size > 8 bytes, `any_t` will allocate a buffer on
-    // the heap for it and internally store a pointer to the object. For small
-    // objects <= 8 bytes, it will use the `inlined_buffer_` to store it.
+    // for large objects with size > INLINE_BUFFER_SIZE bytes, `any_t` will
+    // allocate a buffer on the heap for it and internally store a pointer to
+    // the object. For small objects <= INLINE_BUFFER_SIZE bytes, it will use
+    // the `inlined_buffer_` to store it.
     union buffer_or_pointer {
         char *ptr_;
-        char inlined_buffer_[sizeof(char *)];
-        buffer_or_pointer() { ptr_ = nullptr; }
+        char inlined_buffer_[INLINE_BUFFER_SIZE];
+        buffer_or_pointer() : inlined_buffer_ {0} {}
     } data_;
     const any_detail::any_vtable_t *vtable_ = nullptr;
     template <class T>
@@ -250,7 +253,7 @@ private:
 public:
     void *get_raw() {
         if (!vtable_) { return nullptr; }
-        if (vtable_->size_ <= sizeof(char *)) {
+        if (vtable_->size_ <= INLINE_BUFFER_SIZE) {
             return &data_.inlined_buffer_[0];
         } else {
             return data_.ptr_;
@@ -353,6 +356,18 @@ public:
     }
 
     template <typename T>
+    T *get_or_null() {
+        if (!isa<T>()) { return nullptr; }
+        T *ptr = reinterpret_cast<T *>(get_raw());
+        return ptr;
+    }
+
+    template <typename T>
+    const T *get_or_null() const {
+        return const_cast<any_t *>(this)->get_or_null<T>();
+    }
+
+    template <typename T>
     T &get() {
         COMPILE_ASSERT(isa<T>(),
                 "Incorrect type for any_t::get, this = "
@@ -381,14 +396,6 @@ public:
     // returns true if there is any value in this `any_t`
     bool empty() const { return !vtable_; }
 
-    bool is_to_json() const {
-        if (isa<int32_t>() || isa<uint64_t>() || isa<uint32_t>()
-                || isa<int64_t>() || isa<float>() || isa<double>()
-                || isa<bool>() || isa<const std::string>()) {
-            return true;
-        }
-        return false;
-    }
     // makes an any_t by the reflection type
     static SC_API any_t make_by_type(const reflection::type *type);
 };

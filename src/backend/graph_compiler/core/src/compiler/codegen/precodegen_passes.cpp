@@ -29,6 +29,7 @@
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <compiler/ir/transform/cpu/target_specific_lower.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
+#include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/dyn_boundary_check.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
 #include <compiler/ir/transform/index2var.hpp>
@@ -39,6 +40,7 @@
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <compiler/ir/transform/simplify.hpp>
+#include <compiler/ir/transform/ssa_transform.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/util_module_passes.hpp>
 namespace sc {
@@ -93,6 +95,10 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(utils::make_unique<module_globals_resolver_t>());
     ret.emplace_back(
             module_function_pass_t::make<local_tensor_lowering_cpu_t>(128));
+    if (ctx->flags_.ssa_passes_) {
+        ret.emplace_back(module_function_pass_t::make<ssa_transform_t>());
+        ret.emplace_back(module_function_pass_t::make<dessa_transform_t>());
+    }
     return sequential_module_pass_t(std::move(ret));
 }
 

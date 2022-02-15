@@ -17,7 +17,9 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_SSA_DATA_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_SSA_DATA_HPP
 
+#include <assert.h>
 #include <memory>
+#include <utility>
 #include "sc_stmt.hpp"
 #include <util/weakptr_utils.hpp>
 
@@ -44,6 +46,15 @@ struct ssa_data_t {
     bool is_local() { return !is_global_ && !is_param_; }
     // check if this expr is no longer used
     bool is_garbage() { return !is_global_ && !referenced_; }
+
+    bool has_owner() const { return !utils::is_uninitialized_weakptr(owner_); }
+
+    stmt get_owner() const {
+        if (utils::is_uninitialized_weakptr(owner_)) { return stmt(); }
+        auto ret = owner_.lock();
+        assert(ret);
+        return stmt(std::move(ret));
+    }
 };
 
 } // namespace sc

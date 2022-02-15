@@ -792,9 +792,9 @@ public:
                 }
             } break;
             case intrin_type::broadcast: {
-                assert(v->args_.size() == 2);
+                assert(v->args_.size() == 1);
                 auto inval1 = generate_expr(v->args_[0]);
-                auto lanes = get_expr_as_int(v->args_[1]);
+                auto lanes = v->dtype_.lanes_;
                 if (lanes != 1) {
                     current_val_ = builder_.CreateVectorSplat(lanes, inval1);
                 } else {

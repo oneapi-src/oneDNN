@@ -179,7 +179,7 @@ public:
                 // if the variable depends on a value created outside the
                 // current for loop
                 auto phi = add_def(make_expr<ssa_phi_node>(
-                        std::vector<expr> {ret->current_value}));
+                        std::vector<expr> {ret->current_value}, false));
                 rename_temp_var_with_version(phi.checked_as<var>(), v);
                 // update the local var mapping to the phi node
                 insert_local_var(v, phi)->for_loop_phi.emplace_back(phi);
@@ -271,6 +271,35 @@ public:
         }
     }
 
+    expr resolve_single_phi(const expr &val) {
+        if (val.isa<var>()) {
+            if (val->ssa_data_->is_global_
+                    || !val->ssa_data_->get_owner().defined()) {
+                return val;
+            }
+            return resolve_single_phi(val->ssa_data_->get_value_of_var());
+        }
+        if (val.isa<ssa_phi>()) {
+            auto val_phi = val.static_as<ssa_phi>();
+            if (val_phi->values_.size() == 1) {
+                return resolve_single_phi(val_phi->values_[0]);
+            }
+        }
+        return val;
+    }
+
+    bool is_same_with_parent_var(
+            const expr &val, const expr &parent_val, expr *out_same) {
+        auto v1 = resolve_single_phi(val);
+        auto v2 = resolve_single_phi(parent_val);
+        if (v1.ptr_same(v2)) {
+            // if the variable is unchanged in loop
+            if (out_same) *out_same = v1;
+            return true;
+        }
+        return false;
+    }
+
     stmt_c visit(for_loop_c v) override {
         auto begin = dispatch(v->iter_begin_);
         auto end = dispatch(v->iter_end_);
@@ -287,18 +316,25 @@ public:
             if (parent_var) {
                 // if the variable is a for-loop-phi
                 for (auto &phi : kv.second.for_loop_phi) {
-                    if (phi.ptr_same(kv.second.current_value)) {
-                        // if the variable is unchanged in loop
+                    if (is_same_with_parent_var(
+                                phi, kv.second.current_value, nullptr)) {
                         continue;
                     }
                     // if the variable is changed in loop, we need to update the
                     // phi node input
-                    phi->ssa_data_->get_value_of_var()
-                            .checked_as<ssa_phi>()
-                            ->values_.emplace_back(kv.second.current_value);
+                    auto thephi = phi->ssa_data_->get_value_of_var()
+                                          .checked_as<ssa_phi>();
+                    thephi->values_.emplace_back(kv.second.current_value);
+                    thephi->is_loop_phi_ = true;
                 }
-                auto new_var = make_expr<ssa_phi_node>(std::vector<expr> {
-                        parent_var->current_value, kv.second.current_value});
+                if (is_same_with_parent_var(kv.second.current_value,
+                            parent_var->current_value, nullptr)) {
+                    continue;
+                }
+                auto new_var = make_expr<ssa_phi_node>(
+                        std::vector<expr> {parent_var->current_value,
+                                kv.second.current_value},
+                        false);
                 auto cur_v = add_def_after_current_stmt(new_var);
                 get_local_var_for_update(kv.first)->current_value = cur_v;
                 rename_temp_var_with_version(
@@ -325,6 +361,11 @@ public:
             std::map<expr_c, std::vector<expr>, var_cmper_t> updated_vars;
             for (auto &kv : then_scope.vars_) {
                 updated_vars[kv.first].emplace_back(kv.second.current_value);
+                auto parent_var = get_local_var_nothrow(kv.first);
+                if (!parent_var) {
+                    // if it is a var defined in child scope
+                    continue;
+                }
                 // let parent for-loop to remember to reset the phi inputs
                 auto &ph = get_local_var_for_update(kv.first)->for_loop_phi;
                 ph.insert(ph.end(), kv.second.for_loop_phi.begin(),
@@ -332,12 +373,46 @@ public:
             }
             for (auto &kv : else_scope.vars_) {
                 updated_vars[kv.first].emplace_back(kv.second.current_value);
+                auto parent_var = get_local_var_nothrow(kv.first);
+                if (!parent_var) {
+                    // if it is a var defined in child scope
+                    continue;
+                }
                 auto &ph = get_local_var_for_update(kv.first)->for_loop_phi;
                 ph.insert(ph.end(), kv.second.for_loop_phi.begin(),
                         kv.second.for_loop_phi.end());
             }
             for (auto &kv : updated_vars) {
-                auto new_phi = make_expr<ssa_phi_node>(kv.second);
+                if (kv.first.isa<tensor>()) {
+                    // tensors/pointers are immutable, don't need phi
+                    continue;
+                }
+                if (kv.second.size() == 1) {
+                    auto parent_var = get_local_var_nothrow(kv.first);
+                    if (!parent_var) {
+                        // if it is a var defined in child scope
+                        continue;
+                    }
+                    if (parent_var->current_value.defined()) {
+                        kv.second.emplace_back(parent_var->current_value);
+                    }
+                }
+                if (kv.second.size() == 2) {
+                    // if both phi branches has the same value
+                    expr same_var;
+                    if (is_same_with_parent_var(
+                                kv.second[0], kv.second[1], &same_var)) {
+                        get_local_var_for_update(kv.first)->current_value
+                                = same_var;
+                        continue;
+                    }
+                }
+                if (kv.second.size() == 1) {
+                    get_local_var_for_update(kv.first)->current_value
+                            = kv.second[0];
+                    continue;
+                }
+                auto new_phi = make_expr<ssa_phi_node>(kv.second, false);
                 auto new_var = add_def_after_current_stmt(new_phi);
                 get_local_var_for_update(kv.first)->current_value = new_var;
                 rename_temp_var_with_version(
@@ -347,6 +422,14 @@ public:
             for (auto &kv : then_scope.vars_) {
                 auto parent_var = get_local_var_nothrow(kv.first);
                 if (parent_var) {
+                    if (kv.first.isa<tensor>()) {
+                        // tensors/pointers are immutable, don't need phi
+                        continue;
+                    }
+                    if (is_same_with_parent_var(kv.second.current_value,
+                                parent_var->current_value, nullptr)) {
+                        continue;
+                    }
                     auto status = get_local_var_for_update(kv.first);
                     auto &ph = status->for_loop_phi;
                     ph.insert(ph.end(), kv.second.for_loop_phi.begin(),
@@ -354,7 +437,8 @@ public:
 
                     auto new_phi = make_expr<ssa_phi_node>(
                             std::vector<expr> {parent_var->current_value,
-                                    kv.second.current_value});
+                                    kv.second.current_value},
+                            false);
                     auto new_var = add_def_after_current_stmt(new_phi);
                     status->current_value = new_var;
                     rename_temp_var_with_version(new_var.checked_as<var>(),

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <util/reflection.hpp>
 
 namespace sc {
+static_assert(sizeof(any_t) == 64, "Expecting sizeof(any_t)==64");
 
 namespace utils {
 reflection::general_ref_t any_to_general_ref(const any_t &v) {
@@ -56,7 +57,7 @@ any_vtable_t *any_vtable_t::get_vtable_by_rtti(const std::type_info *typeinfo) {
 
 void any_t::create_buffer(const any_detail::any_vtable_t *vt) {
     if (vt) {
-        if (vt->size_ > sizeof(char *)) data_.ptr_ = new char[vt->size_];
+        if (vt->size_ > INLINE_BUFFER_SIZE) data_.ptr_ = new char[vt->size_];
     }
     vtable_ = vt;
 }
@@ -124,7 +125,7 @@ void any_t::move_from(void *data, const any_detail::any_vtable_t *vt) {
 
 void any_t::clear() {
     if (vtable_) {
-        if (vtable_->size_ > sizeof(char *)) {
+        if (vtable_->size_ > INLINE_BUFFER_SIZE) {
             vtable_->destructor_(data_.ptr_);
             delete[] data_.ptr_;
         } else {
@@ -140,7 +141,7 @@ void any_t::move_from_any(any_t &&v) {
     clear();
     if (v.vtable_) {
         vtable_ = v.vtable_;
-        if (vtable_->size_ > sizeof(char *)) {
+        if (vtable_->size_ > INLINE_BUFFER_SIZE) {
             // large object, it is a pointer. Move the pointer
             data_.ptr_ = v.data_.ptr_;
             v.data_.ptr_ = nullptr;

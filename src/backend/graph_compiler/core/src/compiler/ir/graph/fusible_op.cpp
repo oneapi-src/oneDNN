@@ -572,7 +572,7 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                 else {
                     indexed_bc_input = builder::make_broadcast(
                             builder::make_indexing(in_bc_tsl->tptr_, in_bc_idx),
-                            expr_c(static_cast<int>(vx_info.lanes)));
+                            static_cast<int>(vx_info.lanes));
                 }
                 if (bc_input_cast) {
                     indexed_bc_input = builder::make_cast(

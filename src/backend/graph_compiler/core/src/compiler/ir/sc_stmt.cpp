@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,6 @@
 #include "visitable.hpp"
 #include <util/any_map.hpp>
 namespace sc {
-
-any_map_t &stmt_base_t::attr() {
-    if (!attr_) { attr_ = utils::make_unique<any_map_t>(); }
-    return *attr_;
-}
 
 stmt_base_t::~stmt_base_t() = default;
 stmt_base_t::stmt_base_t(sc_stmt_type type) : node_type_(type) {}

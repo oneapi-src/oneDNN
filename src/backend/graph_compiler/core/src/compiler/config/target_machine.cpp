@@ -160,6 +160,7 @@ context_ptr get_default_context() {
         parse_bool("SC_DEAD_WRITE_ELIMINATION", flags.dead_write_elimination_);
         parse_bool("SC_INDEX2VAR", flags.index2var_);
         parse_bool("SC_PRINT_IR", flags.print_ir_);
+        parse_bool("SC_SSA_PASSES", flags.ssa_passes_);
         parse_bool("SC_XBYAK_JIT_SAVE_OBJ", flags.xbyak_jit_save_obj_);
         parse_bool("SC_XBYAK_JIT_ASM_LISTING", flags.xbyak_jit_asm_listing_);
         parse_bool("SC_XBYAK_JIT_LOG_STACK_FRAME_MODEL",

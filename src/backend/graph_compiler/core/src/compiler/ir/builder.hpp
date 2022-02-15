@@ -414,7 +414,7 @@ expr make_reduce_mul(const expr_c &v);
  * @param lanes the lanes of input value
  * @return the created node
  * */
-expr make_broadcast(const expr_c &v, const expr_c &lanes);
+expr make_broadcast(const expr_c &v, int lanes);
 
 /**
  * Makes an fmadd node
@@ -827,7 +827,7 @@ expr make_func_addr(func_t v);
 /**
  * Makes a phi node
  * */
-expr make_phi(const std::vector<expr> &values);
+expr make_phi(const std::vector<expr> &values, bool is_loop_phi = false);
 
 /**
  * Gets the pointer of an element of the tensor as a view

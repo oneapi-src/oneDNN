@@ -39,6 +39,7 @@ struct scflags_t {
     bool kernel_optim_ = true;
     bool index2var_ = true;
     bool print_ir_ = false;
+    bool ssa_passes_ = false;
     bool brgemm_use_amx_ = false;
     std::string dump_graph_;
     std::string graph_dump_results_;

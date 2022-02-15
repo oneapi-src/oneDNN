@@ -202,8 +202,8 @@ expr make_func_addr(func_t v) {
     return make_expr<func_addr_node>(std::move(v));
 }
 
-expr make_phi(const std::vector<expr> &values) {
-    return make_expr<ssa_phi_node>(values);
+expr make_phi(const std::vector<expr> &values, bool is_loop_phi) {
+    return make_expr<ssa_phi_node>(values, is_loop_phi);
 }
 
 intrin_call remake_intrin_call(
@@ -328,10 +328,9 @@ expr make_reduce_mul(const expr_c &v) {
             std::vector<expr> {v.remove_const()}, any_map_t());
 }
 
-expr make_broadcast(const expr_c &v, const expr_c &lanes) {
+expr make_broadcast(const expr_c &v, int lanes) {
     return make_expr<intrin_call_node>(intrin_type::broadcast,
-            std::vector<expr> {v.remove_const(), lanes.remove_const()},
-            any_map_t());
+            std::vector<expr> {v.remove_const()}, any_map_t {{"lanes", lanes}});
 }
 
 expr make_fmadd(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c) {

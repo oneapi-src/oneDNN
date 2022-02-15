@@ -29,7 +29,21 @@
 #include <util/any_map.hpp>
 namespace sc {
 
-any_map_t &expr_base::attr() {
+any_t &node_base::temp_data() const {
+    if (!temp_data_) {
+        const_cast<node_base *>(this)->temp_data_ = utils::make_unique<any_t>();
+    }
+    return *temp_data_;
+}
+
+static any_t empty_any;
+
+const any_t &node_base::get_temp_data() const {
+    if (!temp_data_) { return empty_any; }
+    return *temp_data_;
+}
+
+any_map_t &node_base::attr() {
     if (!attr_) { attr_ = utils::make_unique<any_map_t>(); }
     return *attr_;
 }
@@ -641,8 +655,8 @@ bool func_addr_node::equals(expr_c v, ir_comparer &ctx) const {
     RETURN(func_ == other->func_);
 }
 
-ssa_phi_node::ssa_phi_node(const std::vector<expr> &values)
-    : expr_base(type_code_), values_(values) {
+ssa_phi_node::ssa_phi_node(const std::vector<expr> &values, bool is_loop_phi)
+    : expr_base(type_code_), values_(values), is_loop_phi_(is_loop_phi) {
     COMPILE_ASSERT(!values_.empty(), "Phi node expects non-empty inputs");
     dtype_ = values_.begin()->get()->dtype_;
     for (auto &v : values_) {
@@ -660,16 +674,18 @@ void ssa_phi_node::to_string(ostream &os) const {
         }
         os << values_.back();
     }
+    if (is_loop_phi_) { os << " loop"; }
     os << ')';
 }
 
 expr ssa_phi_node::remake() const {
-    return copy_attr(*this, make_expr<ssa_phi_node>(values_));
+    return copy_attr(*this, make_expr<ssa_phi_node>(values_, is_loop_phi_));
 }
 
 bool ssa_phi_node::equals(expr_c v, ir_comparer &ctx) const {
     ASCAST_OR_RETURN(v, other);
-    RETURN(ctx.expr_arr_equals(values_, other->values_));
+    RETURN(other->is_loop_phi_ == is_loop_phi_
+            && ctx.expr_arr_equals(values_, other->values_));
 }
 
 const std::string &get_node_name(const expr &e) {

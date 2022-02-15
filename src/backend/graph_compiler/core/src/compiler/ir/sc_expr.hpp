@@ -37,6 +37,7 @@ namespace sc {
 
 struct any_map_t;
 struct ssa_data_t;
+struct any_t;
 
 using std::ostream;
 /**
@@ -557,10 +558,29 @@ struct visitable_t : public virtual visitable_base_t<Base> {
     node_ptr<Base, Base> visited_by(ir_visitor_base_t *vis) final;
 };
 
+struct node_base {
+    // optional attributes, nullable. In most cases, use attr() to get the
+    // attributes
+    std::unique_ptr<any_map_t> attr_;
+    // temp data after analysis passes
+    std::unique_ptr<any_t> temp_data_;
+
+    // temp data after analysis passes, will create if not exists
+    any_t &temp_data() const;
+
+    // temp data after analysis passes, will return empty if not exists
+    const any_t &get_temp_data() const;
+
+    // returns attr_ if is defined or creates and sets a new any_map_t if not
+    // defined
+    any_map_t &attr();
+};
+
 /**
  * The base class of expression IR nodes
  * */
-class expr_base : public virtual visitable_base_t<expr_base>,
+class expr_base : public node_base,
+                  public virtual visitable_base_t<expr_base>,
                   public enable_node_ptr_from_this_t<expr_base>
                   SC_LEAK_CHECK(expr_base) {
 public:
@@ -572,16 +592,9 @@ public:
     sc_data_type_t dtype_ = datatypes::undef;
     // the expression type id of the IR node
     sc_expr_type node_type_ = sc_expr_type::undef;
-    // optional attributes, nullable. In most cases, use attr() to get the
-    // attributes
-    std::unique_ptr<any_map_t> attr_;
     // the additional info after SSA transformation pass. Before SSA
     // transformation, this field should be null
     std::unique_ptr<ssa_data_t> ssa_data_;
-
-    // returns attr_ if is defined or creates and sets a new any_map_t if not
-    // defined
-    any_map_t &attr();
 
     virtual ~expr_base();
     /**
@@ -1352,7 +1365,11 @@ class ssa_phi_node : public expr_base,
 public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::ssa_phi;
     std::vector<expr> values_;
-    ssa_phi_node(const std::vector<expr> &values);
+    // if the phi-node depends on a previous value in the last iteration. In
+    // traditional SSA, this means that this PHI depends on a value on critical
+    // path
+    bool is_loop_phi_;
+    ssa_phi_node(const std::vector<expr> &values, bool is_loop_phi);
     void to_string(ostream &os) const override;
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;

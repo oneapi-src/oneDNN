@@ -125,9 +125,12 @@ static void process_define_node_after_visit(const stmt_c &ret) {
     lhs->ssa_data_->owner_ = ret.weak();
     auto &rhs = def_node->init_;
     if (!lhs->ssa_data_->is_global_) {
-        assert(rhs.defined());
-        assert(rhs->ssa_data_);
-        rhs->ssa_data_->referenced_ = false;
+        if (rhs.defined()) {
+            assert(rhs->ssa_data_);
+            rhs->ssa_data_->referenced_ = false;
+        } else {
+            assert(lhs.isa<tensor>());
+        }
         lhs->ssa_data_->referenced_ = false;
     }
 }
@@ -297,7 +300,7 @@ expr_c ssa_visitor_t::visit(ssa_phi_c v) {
     std::vector<expr> newv;
     bool changed = dispatch_expr_vector(v->values_, newv);
     if (changed) {
-        return copy_attr(*v, make_expr<ssa_phi_node>(newv));
+        return copy_attr(*v, make_expr<ssa_phi_node>(newv, v->is_loop_phi_));
     } else {
         return v;
     }

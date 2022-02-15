@@ -141,10 +141,8 @@ struct reduce_mul_handler_t : public intrinsic_handler_t {
 
 struct broadcast_handler_t : public intrinsic_handler_t {
     void on_initialize(intrin_call_node &node) override {
-        assert(node.args_.size() == 2);
-        COMPILE_ASSERT(
-                node.args_[1].isa<constant>(), "Expecting constant node");
-        auto lanes = get_const_as_int(node.args_[1].static_as<constant>());
+        assert(node.args_.size() == 1);
+        auto lanes = node.intrin_attrs_->get<int>("lanes");
         COMPILE_ASSERT(lanes <= 512, "Expecting lanes<=512");
         node.dtype_ = node.args_[0]->dtype_;
         node.dtype_.lanes_ = lanes;

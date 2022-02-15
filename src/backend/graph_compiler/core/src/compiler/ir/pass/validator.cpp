@@ -333,8 +333,8 @@ void validate_impl_t::view(intrin_call_c v) {
             break;
         case intrin_type::broadcast:
             validate_type(v);
-            COMPILE_ASSERT(v->args_.size() == 2,
-                    "broadcast expects 2 argument, got " << v);
+            COMPILE_ASSERT(v->args_.size() == 1,
+                    "broadcast expects 1 argument, got " << v);
             break;
         case intrin_type::reinterpret:
             validate_type(v);

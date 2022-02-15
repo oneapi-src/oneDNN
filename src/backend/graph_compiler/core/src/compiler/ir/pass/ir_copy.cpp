@@ -149,7 +149,7 @@ void ir_copier_impl_t::view(ssa_phi_c v) {
     for (auto &i : v->values_) {
         args.emplace_back(copy(i));
     }
-    returned_expr_ = make_expr<ssa_phi_node>(args);
+    returned_expr_ = make_expr<ssa_phi_node>(args, v->is_loop_phi_);
 }
 
 void ir_copier_impl_t::view(tensor_c v) {

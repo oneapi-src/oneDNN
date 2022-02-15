@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,20 +56,15 @@ std::ostream &operator<<(std::ostream &os, sc_stmt_type val);
 /**
  * The base class of statement IR nodes
  * */
-class stmt_base_t : virtual public visitable_base_t<stmt_base_t>,
+class stmt_base_t : public node_base,
+                    virtual public visitable_base_t<stmt_base_t>,
                     public enable_node_ptr_from_this_t<stmt_base_t>
                     SC_LEAK_CHECK(stmt_base_t) {
 public:
     // the statement type id of the IR node
     sc_stmt_type node_type_ = sc_stmt_type::undef;
-    // optional attributes, nullable. In most cases, use attr() to get the
-    // attributes
-    std::unique_ptr<any_map_t> attr_;
 
     stmt_base_t(sc_stmt_type type);
-    // returns attr_ if is defined or creates and sets a new any_map_t if not
-    // defined
-    any_map_t &attr();
     virtual ~stmt_base_t();
     /**
      * Dump the IR node as string to the ostream
