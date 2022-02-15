@@ -411,7 +411,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
 
-            TIME_REF(deconv::compute_ref_fwd(&p_tr, prim_ref, ref_args));
+            TIME_REF(deconv::compute_ref(&p_tr, ref_args, prim_ref));
             SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
         }
     } else if (prb->dir == BWD_D) {
@@ -429,7 +429,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(deconv::compute_ref_bwd_d(&p_tr, prim_ref, ref_args));
+            TIME_REF(deconv::compute_ref(&p_tr, ref_args, prim_ref));
             SAFE(compare_data(prb, SRC, src_dt, src_fp, res), WARN);
         }
     } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
@@ -449,7 +449,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(deconv::compute_ref_bwd_w(&p_tr, prim_ref, ref_args));
+            TIME_REF(deconv::compute_ref(&p_tr, ref_args, prim_ref));
             SAFE(compare_data(&p_tr, WEI, wei_dt, wei_fp, res), WARN);
             if (prb->dir & FLAG_BIA)
                 SAFE(compare_data(prb, BIA, bia_dt, bia_fp, res), WARN);

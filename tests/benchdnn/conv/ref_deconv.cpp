@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 namespace deconv {
 
 void compute_ref_fwd(
-        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+        const conv::prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
         SAFE_V(execute_and_wait(prim_ref, args));
         return;
@@ -50,7 +50,7 @@ void compute_ref_fwd(
 }
 
 void compute_ref_bwd_d(
-        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+        const conv::prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
         SAFE_V(execute_and_wait(prim_ref, args));
         return;
@@ -79,7 +79,7 @@ void compute_ref_bwd_d(
 }
 
 void compute_ref_bwd_w(
-        const conv::prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+        const conv::prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
         SAFE_V(execute_and_wait(prim_ref, args));
         return;
@@ -141,6 +141,16 @@ void compute_ref_bwd_w(
             ((float *)diff_bia_m)[bia_off] = (float)sum;
         });
     }
+}
+
+void compute_ref(
+        const conv::prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    if (prb->dir & FLAG_FWD)
+        compute_ref_fwd(prb, args, prim_ref);
+    else if (prb->dir == BWD_D)
+        compute_ref_bwd_d(prb, args, prim_ref);
+    else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI)
+        compute_ref_bwd_w(prb, args, prim_ref);
 }
 
 } // namespace deconv
