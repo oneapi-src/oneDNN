@@ -64,8 +64,9 @@ include/oneapi/dnnl/dnnl_types.h:
 Convolution primitive in particular has several configurations and parameters that deserve to be discussed in more detail with regards to f64 data type.
 - Table in https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html describes the supported configurations in the convolution api. We propose adding one row, for which source, weights, destination and bias are all f64; for both forward and backward propagation.
 - Data Representation: f64 conv will be supported for all the representations which f32 is supported on.
-- Postops & attributes: all post-ops and attributes supported for f32 configuration will be supported for f64 on GPU.
+- Postops & attributes: all post-ops and attributes supported for f32 configuration will be supported for f64 on GPU; and the math will occur in f64.
 - Scales: scaling values will remain in f32 in order to minimize API changes. These values will be upconverted to f64 (accumulate data type) and the math will occur in f64 on the GPU.
+- Supported architectures: f64 configuration will not be supported on hardware that do not have double precision math capability, such as DG1 & DG2. 
 
 ## Known limitations
 
