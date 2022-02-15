@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -348,6 +348,11 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.LDA2[1] = rnn.dst_layer_ld_;
     rnn.LDA2[2] = rnn.ws_states_iter_ld;
 
+    rnn.LDA2_2[0] = rnn.dst_layer_ld_;
+    rnn.LDA2_2[1] = rnn.dst_iter_ld_;
+    rnn.LDA2_2[2] = rnn.ws_states_layer_ld;
+    rnn.LDA2_2[3] = rnn.ws_states_iter_ld;
+
     rnn.brgemm_fwd_iter_layer_fuse_possible = rnn.slc == rnn.sic;
 
     rnn.LDB1 = rnn.n_block;
@@ -504,6 +509,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
         init_brgemm(&desc_layer_b0_[i], rnn.brgemm_isa, kernel_layer_b0_[i],
                 rnn.m_block, brgemm_n, rnn.k1_block, rnn.LDA1[i], rnn.LDB1,
                 rnn.LDC, 0.0, max_bs_factor * rnn.KB1_blocks);
+
         init_brgemm(&desc_iter_b0_[i], rnn.brgemm_isa, kernel_iter_b0_[i],
                 rnn.m_block, brgemm_n, rnn.k2_block, rnn.LDA2[i], rnn.LDB2,
                 rnn.LDC, 0.0, rnn.KB2_blocks);
@@ -515,6 +521,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
                     kernel_layer_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
                     rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
                     max_bs_factor * rnn.KB1_blocks);
+
             init_brgemm(&desc_iter_N_tail_b0_[i], rnn.brgemm_isa,
                     kernel_iter_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
                     rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 0.0,
@@ -542,6 +549,27 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
             init_brgemm(&desc_iter_NK2_tail_b1_[i], rnn.brgemm_isa,
                     kernel_iter_NK2_tail_b1_[i], rnn.m_block, brgemm_n_tail,
                     rnn.k2_tail, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0, 1);
+    }
+    if (rnn.is_orig_gru) {
+        for (int i = 0; i < num_vanilla_gru_iter_part2_kernels_; i++) {
+            init_brgemm(&desc_iter_p2_b1_[i], rnn.brgemm_isa,
+                    kernel_iter_p2_b1_[i], rnn.m_block, brgemm_n, rnn.k2_block,
+                    rnn.LDA2_2[i], rnn.LDB2, rnn.LDC, 1.0, rnn.KB2_blocks);
+            if (rnn.n_tail)
+                init_brgemm(&desc_iter_p2_N_tail_b1_[i], rnn.brgemm_isa,
+                        kernel_iter_p2_N_tail_b1_[i], rnn.m_block,
+                        brgemm_n_tail, rnn.k2_block, rnn.LDA2_2[i], rnn.LDB2,
+                        rnn.LDC, 1.0, rnn.KB2_blocks);
+            if (rnn.k2_tail)
+                init_brgemm(&desc_iter_p2_K2_tail_b1_[i], rnn.brgemm_isa,
+                        kernel_iter_p2_K2_tail_b1_[i], rnn.m_block, brgemm_n,
+                        rnn.k2_tail, rnn.LDA2_2[i], rnn.LDB2, rnn.LDC, 1.0, 1);
+            if (rnn.k2_tail && rnn.n_tail)
+                init_brgemm(&desc_iter_p2_NK2_tail_b1_[i], rnn.brgemm_isa,
+                        kernel_iter_p2_NK2_tail_b1_[i], rnn.m_block,
+                        brgemm_n_tail, rnn.k2_tail, rnn.LDA2_2[i], rnn.LDB2,
+                        rnn.LDC, 1.0, 1);
+        }
     }
     if (rnn.is_lstm_projection) {
         const dim_t brgemm_np = nstl::min(rnn.Nproj, rnn.n_block);

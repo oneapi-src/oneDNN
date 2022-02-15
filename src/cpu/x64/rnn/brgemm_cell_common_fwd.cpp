@@ -506,6 +506,329 @@ void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::kernel(
     }
 }
 
+template <typename src_t, typename weights_t, typename scratch_t,
+        typename gemm_acc_t>
+brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::brgemm_gru_t(
+        const ref_rnn_brgemm_t &rnn_brgemm, const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position, const src_t *src_iter,
+        const src_t *src_layer, weights_t *w_iter0, weights_t *w_iter1,
+        weights_t *w_layer, src_t *d_layer, scratch_t *scratch_gates,
+        scratch_t *scratch_cell, gemm_acc_t *amx_scratchpad,
+        x64::brgemm_batch_element_t *addr_batch_global,
+        const postgemm_fused_t &fused_postgemm_part1,
+        const postgemm_fused_t &fused_postgemm_part2)
+    : rnn_brgemm_(rnn_brgemm)
+    , rnn_(rnn)
+    , need_gemm_layer_(rnn_.need_gemm_layer(cell_position))
+    , layer_desc_idx_(rnn_.layer_brgemm_desc(cell_position))
+    , iter_desc_idx_(rnn_.iter_brgemm_desc(cell_position))
+    , iter_part2_desc_idx_(rnn_.iter_part2_brgemm_desc(cell_position))
+    , Al_(src_layer)
+    , Ai_(src_iter)
+    , Bl_(w_layer)
+    , Bi_(w_iter0)
+    , Bi2_(w_iter1)
+    , C_gates_(scratch_gates)
+    , C_cell_(scratch_cell)
+    , Dl_(d_layer)
+    , LDAl_(rnn_.src_layer_ld(cell_position))
+    , LDAi_(rnn_.src_iter_ld(cell_position))
+    , max_nthr_(rnn_.nthr)
+    , n_blocking_((rnn_.unfused_post_gemm) ? rnn_.N_blocks * rnn_.n_gates
+                                           : rnn_.N_blocks)
+    , m_blocking_(rnn_.M_blocks)
+    , work_amount_(m_blocking_)
+    , Bl_n_offset_(rnn_.K1padded * rnn_.n_block)
+    , Bi_n_offset_(rnn_.K2padded * rnn_.n_block)
+    , Bl_g_offset_(rnn_.N_blocks * Bl_n_offset_)
+    , Bi_g_offset_(rnn_.N_blocks * Bi_n_offset_)
+    , Al_k_tail_offset_(rnn_.KB1_blocks * rnn_.k1_block)
+    , Ai_k_tail_offset_(rnn_.KB2_blocks * rnn_.k2_block)
+    , Bl_kb_offset_(rnn_.k1_block * rnn_.n_block)
+    , Bi_kb_offset_(rnn_.k2_block * rnn_.n_block)
+    , Bl_k_tail_offset_(rnn_.KB1_blocks * rnn_.k1_block * rnn_.n_block)
+    , Bi_k_tail_offset_(rnn_.KB2_blocks * rnn_.k2_block * rnn_.n_block)
+    , n_gates_(rnn.unfused_post_gemm ? 1 : rnn.n_gates)
+    , brgemm_kernel_iter_p0_main_(need_gemm_layer_
+                      ? rnn_brgemm_.kernel_iter_b1_[iter_desc_idx_].get()
+                      : rnn_brgemm_.kernel_iter_b0_[iter_desc_idx_].get())
+    , brgemm_kernel_iter_p0_n_tail_(need_gemm_layer_
+                      ? rnn_brgemm_.kernel_iter_N_tail_b1_[iter_desc_idx_].get()
+                      : rnn_brgemm_.kernel_iter_N_tail_b0_[iter_desc_idx_]
+                                .get())
+    , brgemm_kernel_iter_p0_k_tail_(
+              rnn_brgemm_.kernel_iter_K2_tail_b1_[iter_desc_idx_].get())
+    , brgemm_kernel_iter_p0_nk_tail_(
+              rnn_brgemm_.kernel_iter_NK2_tail_b1_[iter_desc_idx_].get())
+    , brgemm_kernel_iter_p1_main_(
+              rnn_brgemm_.kernel_iter_p2_b1_[iter_part2_desc_idx_].get())
+    , brgemm_kernel_iter_p1_n_tail_(
+              rnn_brgemm_.kernel_iter_p2_N_tail_b1_[iter_part2_desc_idx_].get())
+    , brgemm_kernel_iter_p1_k_tail_(
+              rnn_brgemm_.kernel_iter_p2_K2_tail_b1_[iter_part2_desc_idx_]
+                      .get())
+    , brgemm_kernel_iter_p1_nk_tail_(
+              rnn_brgemm_.kernel_iter_p2_NK2_tail_b1_[iter_part2_desc_idx_]
+                      .get())
+    , brgemm_kernel_layer_main_(
+              rnn_brgemm_.kernel_layer_b0_[layer_desc_idx_].get())
+    , brgemm_kernel_layer_n_tail_(
+              rnn_brgemm_.kernel_layer_N_tail_b0_[layer_desc_idx_].get())
+    , brgemm_kernel_layer_k_tail_(
+              rnn_brgemm_.kernel_layer_K1_tail_b1_[layer_desc_idx_].get())
+    , brgemm_kernel_layer_nk_tail_(
+              rnn_brgemm_.kernel_layer_NK1_tail_b1_[layer_desc_idx_].get())
+    , pallete_buff_iter_main_(rnn.k1_block == rnn.k2_block
+                      ? rnn_brgemm_.pallete_buff_layer_
+                      : rnn_brgemm_.pallete_buff_iter_)
+    , pallete_buff_iter_n_tail_(rnn.k1_block == rnn.k2_block
+                      ? rnn_brgemm_.pallete_buff_layer_n_tail_
+                      : rnn_brgemm_.pallete_buff_iter_n_tail_)
+    , pallete_buff_iter_k_tail_(rnn.k1_tail == rnn.k2_tail
+                      ? rnn_brgemm_.pallete_buff_k1_tail_
+                      : rnn_brgemm_.pallete_buff_k2_tail_)
+    , pallete_buff_iter_nk_tail_(rnn.k1_tail == rnn.k2_tail
+                      ? rnn_brgemm_.pallete_buff_nk1_tail_
+                      : rnn_brgemm_.pallete_buff_nk2_tail_)
+    , pallete_buff_layer_main_(rnn_brgemm_.pallete_buff_layer_)
+    , pallete_buff_layer_n_tail_(rnn_brgemm_.pallete_buff_layer_n_tail_)
+    , pallete_buff_layer_k_tail_(rnn_brgemm_.pallete_buff_k1_tail_)
+    , pallete_buff_layer_nk_tail_(rnn_brgemm_.pallete_buff_nk1_tail_)
+    , amx_scratchpad_(amx_scratchpad)
+    , addr_batch_global_(addr_batch_global)
+    , fused_postgemm_part1_(fused_postgemm_part1)
+    , fused_postgemm_part2_(fused_postgemm_part2)
+    , is_fused_layer_iter_brgemm_(true) {}
+
+template <typename src_t, typename weights_t, typename scratch_t,
+        typename gemm_acc_t>
+void brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::execute() const {
+    assert(is_fused_layer_iter_brgemm_);
+    parallel(max_nthr_, [this](const int ithr, const int nthr) {
+        this->kernel(ithr, nthr);
+    });
+}
+
+template <typename src_t, typename weights_t, typename scratch_t,
+        typename gemm_acc_t>
+void brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
+        const int ithr, const int nthr) const {
+    int start = 0, end = 0;
+    balance211(work_amount_, nthr, ithr, start, end);
+
+    const bool is_amx = rnn_.is_int8_amx() || rnn_.is_bf16_amx();
+    gemm_acc_t *const amx_buffer = is_amx
+            ? amx_scratchpad_ + rnn_.m_block * rnn_.n_block * ithr
+            : nullptr;
+    const int max_K_Block = 2
+            * nstl::max(rnn_.KB1_blocks + 1,
+                    nstl::max(rnn_.KBproj_blocks + 1, rnn_.KB2_blocks + 1));
+    brgemm_batch_element_t *const addr_batch
+            = addr_batch_global_ + ithr * max_K_Block;
+
+    const char *pallete_buff_layer = nullptr;
+    const char *pallete_buff_layer_k_tail = nullptr;
+    const char *pallete_buff_iter = nullptr;
+    const char *pallete_buff_iter_k_tail = nullptr;
+
+    amx_tile_configuration_loader_t load_cfg_if_needed;
+    while (start < end) {
+        dim_t mb = start;
+        const auto m = mb * rnn_.m_block;
+        const auto *const Al_m = Al_ + m * LDAl_;
+        const auto *const Ai_m = Ai_ + m * LDAi_;
+        const auto *const Ai2_m = Dl_ + m * LDAl_;
+
+        for (dim_t nb_i = 0; nb_i < n_blocking_; nb_i++) {
+            const auto nb
+                    = (rnn_.unfused_post_gemm) ? nb_i / rnn_.n_gates : nb_i;
+            const auto n = nb * rnn_.n_block;
+
+            const auto *const Bl_n = Bl_ + nb * Bl_n_offset_;
+            const auto *const Bi_n = Bi_ + nb * Bi_n_offset_;
+            auto *const C_gates_n = C_gates_ + m * rnn_.LDC + n;
+            auto *const C_cell_n = C_cell_ + m * rnn_.LDC + n;
+
+            const brgemm_kernel_t *brgemm_kernel_layer
+                    = brgemm_kernel_layer_main_;
+            const brgemm_kernel_t *brgemm_kernel_layer_k_tail
+                    = brgemm_kernel_layer_k_tail_;
+            const brgemm_kernel_t *brgemm_kernel_iter_p0
+                    = brgemm_kernel_iter_p0_main_;
+            const brgemm_kernel_t *brgemm_kernel_iter_p0_k_tail
+                    = brgemm_kernel_iter_p0_k_tail_;
+
+            if (is_amx) {
+                pallete_buff_layer = pallete_buff_layer_main_;
+                pallete_buff_layer_k_tail = pallete_buff_layer_k_tail_;
+                pallete_buff_iter = pallete_buff_iter_main_;
+                pallete_buff_iter_k_tail = pallete_buff_iter_k_tail_;
+            }
+
+            const bool do_n_tail = (n + rnn_.n_block) > rnn_.N;
+            if (do_n_tail) {
+                brgemm_kernel_layer = brgemm_kernel_layer_n_tail_;
+                brgemm_kernel_layer_k_tail = brgemm_kernel_layer_nk_tail_;
+                brgemm_kernel_iter_p0 = brgemm_kernel_iter_p0_n_tail_;
+                brgemm_kernel_iter_p0_k_tail = brgemm_kernel_iter_p0_nk_tail_;
+
+                if (is_amx) {
+                    pallete_buff_layer = pallete_buff_layer_n_tail_;
+                    pallete_buff_layer_k_tail = pallete_buff_layer_nk_tail_;
+                    pallete_buff_iter = pallete_buff_iter_n_tail_;
+                    pallete_buff_iter_k_tail = pallete_buff_iter_nk_tail_;
+                }
+            }
+
+            if (need_gemm_layer_) {
+                if (is_amx) load_cfg_if_needed(pallete_buff_layer);
+                for (int g = 0; g < n_gates_; g++) {
+                    const auto *const Bl_g = Bl_n + g * Bl_g_offset_;
+                    auto *const C_gates_g = C_gates_n + g * rnn_.N;
+
+                    for (int batch_idx = 0; batch_idx < rnn_.KB1_blocks;
+                            batch_idx++) {
+                        addr_batch[batch_idx].ptr.A
+                                = Al_m + batch_idx * rnn_.k1_block;
+                        addr_batch[batch_idx].ptr.B
+                                = Bl_g + batch_idx * Bl_kb_offset_;
+                    }
+                    brgemm_kernel_execute(brgemm_kernel_layer, rnn_.KB1_blocks,
+                            addr_batch, reinterpret_cast<void *>(C_gates_g),
+                            amx_buffer);
+                }
+            }
+
+            if (need_gemm_layer_ && rnn_.k1_tail > 0) {
+                if (is_amx) load_cfg_if_needed(pallete_buff_layer_k_tail);
+                for (int g = 0; g < n_gates_; g++) {
+                    const auto *const Bl_g = Bl_n + g * Bl_g_offset_;
+                    auto *const C_gates_g = C_gates_n + g * rnn_.N;
+
+                    addr_batch[0].ptr.A
+                            = Al_m + rnn_.KB1_blocks * rnn_.k1_block;
+                    addr_batch[0].ptr.B
+                            = Bl_g + rnn_.KB1_blocks * Bl_kb_offset_;
+                    brgemm_kernel_execute(brgemm_kernel_layer_k_tail, 1,
+                            addr_batch, reinterpret_cast<void *>(C_gates_g),
+                            amx_buffer);
+                }
+            }
+            if (is_amx) load_cfg_if_needed(pallete_buff_iter);
+            for (int g = 0; g < n_gates_ - 1; g++) {
+                const auto *const Bi_g = Bi_n + g * Bi_g_offset_;
+                auto *const C_gates_g = C_gates_n + g * rnn_.N;
+
+                for (int batch_idx = 0; batch_idx < rnn_.KB2_blocks;
+                        batch_idx++) {
+                    addr_batch[batch_idx].ptr.A
+                            = Ai_m + batch_idx * rnn_.k2_block;
+                    addr_batch[batch_idx].ptr.B
+                            = Bi_g + batch_idx * Bi_kb_offset_;
+                }
+
+                brgemm_kernel_execute(brgemm_kernel_iter_p0, rnn_.KB2_blocks,
+                        addr_batch, reinterpret_cast<void *>(C_gates_g),
+                        amx_buffer);
+            }
+
+            if (rnn_.k2_tail > 0) {
+                if (is_amx) load_cfg_if_needed(pallete_buff_iter_k_tail);
+                for (int g = 0; g < n_gates_ - 1; g++) {
+                    const auto *const Bi_g = Bi_n + g * Bi_g_offset_;
+                    auto *const C_gates_g = C_gates_n + g * rnn_.N;
+
+                    addr_batch[0].ptr.A
+                            = Ai_m + rnn_.KB2_blocks * rnn_.k2_block;
+                    addr_batch[0].ptr.B
+                            = Bi_g + rnn_.KB2_blocks * Bi_kb_offset_;
+
+                    brgemm_kernel_execute(brgemm_kernel_iter_p0_k_tail, 1,
+                            addr_batch, reinterpret_cast<void *>(C_gates_g),
+                            amx_buffer);
+                }
+            }
+
+            if (!rnn_.unfused_post_gemm) {
+                const auto block_step
+                        = (do_n_tail ? rnn_.n_tail : rnn_.n_block);
+                fused_postgemm_part1_(
+                        m, n, nb_i, Ai_m + n, C_gates_n, C_cell_n, block_step);
+            }
+        }
+
+        for (dim_t nb_i = 0; nb_i < n_blocking_; nb_i++) {
+            const auto nb
+                    = (rnn_.unfused_post_gemm) ? nb_i / rnn_.n_gates : nb_i;
+            const auto n = nb * rnn_.n_block;
+
+            const auto *const Bi2_n = Bi2_ + nb * Bi_n_offset_;
+            auto *const C_gates_n = C_gates_ + m * rnn_.LDC + n;
+
+            const brgemm_kernel_t *brgemm_kernel_iter_p1
+                    = brgemm_kernel_iter_p1_main_;
+            const brgemm_kernel_t *brgemm_kernel_iter_p1_k_tail
+                    = brgemm_kernel_iter_p1_k_tail_;
+
+            if (is_amx) {
+                pallete_buff_iter = pallete_buff_iter_main_;
+                pallete_buff_iter_k_tail = pallete_buff_iter_k_tail_;
+            }
+
+            const bool do_n_tail = (n + rnn_.n_block) > rnn_.N;
+            if (do_n_tail) {
+                brgemm_kernel_iter_p1 = brgemm_kernel_iter_p1_n_tail_;
+                brgemm_kernel_iter_p1_k_tail = brgemm_kernel_iter_p1_nk_tail_;
+
+                if (is_amx) {
+                    pallete_buff_iter = pallete_buff_iter_n_tail_;
+                    pallete_buff_iter_k_tail = pallete_buff_iter_nk_tail_;
+                }
+            }
+
+            if (is_amx) load_cfg_if_needed(pallete_buff_iter);
+            for (int g = 0; g < 1; g++) {
+                const auto *const Bi2_g = Bi2_n + g * Bi_g_offset_;
+                auto *const C_gates_g = C_gates_n + (n_gates_ - 1) * rnn_.N;
+
+                for (int batch_idx = 0; batch_idx < rnn_.KB2_blocks;
+                        batch_idx++) {
+                    addr_batch[batch_idx].ptr.A
+                            = Ai2_m + batch_idx * rnn_.k2_block;
+                    addr_batch[batch_idx].ptr.B
+                            = Bi2_g + batch_idx * Bi_kb_offset_;
+                }
+
+                brgemm_kernel_execute(brgemm_kernel_iter_p1, rnn_.KB2_blocks,
+                        addr_batch, reinterpret_cast<void *>(C_gates_g),
+                        amx_buffer);
+            }
+
+            if (rnn_.k2_tail > 0) {
+                if (is_amx) load_cfg_if_needed(pallete_buff_iter_k_tail);
+                for (int g = 0; g < 1; g++) {
+                    const auto *const Bi2_g = Bi2_n + g * Bi_g_offset_;
+                    auto *const C_gates_g = C_gates_n + (n_gates_ - 1) * rnn_.N;
+
+                    addr_batch[0].ptr.A
+                            = Ai2_m + rnn_.KB2_blocks * rnn_.k2_block;
+                    addr_batch[0].ptr.B
+                            = Bi2_g + rnn_.KB2_blocks * Bi_kb_offset_;
+
+                    brgemm_kernel_execute(brgemm_kernel_iter_p1_k_tail, 1,
+                            addr_batch, reinterpret_cast<void *>(C_gates_g),
+                            amx_buffer);
+                }
+            }
+            if (!rnn_.unfused_post_gemm && nb_i == n_blocking_ - 1) {
+                fused_postgemm_part2_(m, 0, 0, Ai_m, C_gates_ + m * rnn_.LDC,
+                        C_cell_ + m * rnn_.LDC, rnn_.N);
+            }
+        }
+        ++start;
+    }
+}
+
 template class brgemm_dst_layer_iter_t<uint8_t, int8_t, int32_t, int32_t>;
 template class brgemm_dst_layer_iter_t<int8_t, int8_t, int32_t, int32_t>;
 template class brgemm_dst_layer_iter_t<float, float, float, float>;
@@ -515,6 +838,11 @@ template class brgemm_dst_proj_t<float, float, float>;
 template class brgemm_dst_proj_t<bfloat16_t, bfloat16_t, float>;
 template class brgemm_dst_proj_t<int8_t, int8_t, int32_t>;
 template class brgemm_dst_proj_t<uint8_t, int8_t, int32_t>;
+
+template class brgemm_gru_t<uint8_t, int8_t, int32_t, int32_t>;
+template class brgemm_gru_t<int8_t, int8_t, int32_t, int32_t>;
+template class brgemm_gru_t<float, float, float, float>;
+template class brgemm_gru_t<bfloat16_t, bfloat16_t, float, float>;
 
 } // namespace x64
 } // namespace cpu

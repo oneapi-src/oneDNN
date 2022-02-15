@@ -38,11 +38,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::cell_execution_gru)) {
     const ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_t> scratch_gates(rnn, scratch_gates_);
+    const auto weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
 
     const auto src_layer_ld = rnn.src_layer_ld(cell_position);
     const auto src_iter_ld = rnn.src_iter_ld(cell_position);
-    const auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
-    const auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
+    const auto dst_iter_part2_ld = rnn.dst_iter_part2_ld(cell_position);
 
     // 1. gemm Wx[0-2],x
     if (rnn.need_gemm_layer(cell_position)) {
@@ -61,12 +61,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             augru_attention_, dst_layer_, nullptr, src_iter_, nullptr,
             diff_src_layer_, diff_augru_attention_, diff_src_iter_, nullptr,
             diff_dst_layer_, diff_dst_iter_, nullptr, nullptr, bias_[0],
-            nullptr, nullptr, dst_iter_, nullptr, 0);
+            nullptr, nullptr, dst_iter_, weights_scales, rnn.dhc);
 
     // 4. gemm Wh[2],h~t
     CHECK((this->*gemm_iter_func)('N', 'N', rnn.dhc, rnn.mb, rnn.sic, 1.0,
-            w_iter_[1], rnn.weights_iter_ld, dst_layer_,
-            (cell_position & last_layer) ? dst_layer_ld : dst_iter_ld, 1.0,
+            w_iter_[1], rnn.weights_iter_ld, dst_layer_, dst_iter_part2_ld, 1.0,
             &(scratch_gates(0, 2, 0)), rnn.scratch_gates_ld));
 
     // 5. activation h~t + calculate ht
@@ -74,7 +73,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             augru_attention_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
             diff_src_layer_, diff_augru_attention_, diff_src_iter_, nullptr,
             diff_dst_layer_, diff_dst_iter_, nullptr, nullptr, bias_[0],
-            nullptr, nullptr, dst_iter_, nullptr, 0);
+            nullptr, nullptr, dst_iter_, weights_scales, rnn.dhc);
 
     return dnnl_success;
 }

@@ -65,6 +65,7 @@ protected:
     const size_t gate_dt_size = types::data_type_size(src_data_t);
     const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
     const size_t vlen_qscale = vlen / qscale_dt_size;
+    const size_t vlen_elems = vlen / scratch_dt_size;
 
     const int loop_ur_max = 4;
     // We skip vmm0 as it can be used by the injector for masks on sse4.1
@@ -126,25 +127,39 @@ protected:
             return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size_ + j * vlen];
         };
 
-        const size_t loop_len = rnn_.dhc * scratch_dt_size;
-        const size_t loop_tail_bytes = loop_len % vlen;
+        const size_t loop_len = rnn_.dhc;
+        const size_t loop_tail = loop_len % vlen_elems;
         // initialize registers with addresses and constants
-        init_regs(weights_scales, vlen, loop_tail_bytes / scratch_dt_size);
+        init_regs(weights_scales, vlen, loop_tail);
 
         // both sigmoid and tanh use the same table so load address just once in rax
         sigmoid_injector_->load_table_addr();
 
-        const size_t nb_loop_len = loop_len / vlen;
+        const size_t nb_loop_len = loop_len / vlen_elems;
         size_t loop_ur_val = 1;
-        for (loop_ur_val = loop_ur_max; loop_ur_val > 1; --loop_ur_val)
-            if (nb_loop_len % loop_ur_val == 0) break;
-        const size_t loop_ur = loop_ur_val;
-        mov(loop_cnt, loop_len);
-        auto compute_loop = [=](size_t current_vlen,
-                                    size_t current_loop_unroll) {
-            Label loop_start_label;
-            Label rem_loop_start_label, rem_loop_inc_regs;
+        const bool is_brgemm = rnn_.is_brgemm && !rnn_.unfused_post_gemm;
+        if (is_brgemm) {
+#ifdef _WIN32
+            mov(loop_cnt, ptr[base_args + 40]);
+#else
+            // Here we cannot use rbp to have initial stack pointer so we
+            // use rsp and offset it with the size of pushed registers in
+            // preamble
+            const auto base_args = get_stack_params_address();
+            mov(loop_cnt, ptr[base_args + 24]);
+#endif
+        } else {
+            for (loop_ur_val = loop_ur_max; loop_ur_val > 1; --loop_ur_val)
+                if (nb_loop_len % loop_ur_val == 0) break;
 
+            mov(loop_cnt, loop_len);
+        }
+        const size_t loop_ur = loop_ur_val;
+
+        auto compute_loop = [=](size_t current_vlen_elem,
+                                    size_t current_loop_unroll) {
+            const auto current_vlen = current_vlen_elem * scratch_dt_size;
+            Label loop_start_label;
             L(loop_start_label);
             {
                 for (size_t loop_ur_idx = 0; loop_ur_idx < current_loop_unroll;
@@ -221,7 +236,7 @@ protected:
                     L(loop_inc_regs);
                 }
 
-                if (current_vlen != loop_tail_bytes) {
+                if (current_vlen_elem != loop_tail) {
                     // increment address pointers
                     const auto current_gate_size = current_vlen == vlen
                             ? vlen_dst * current_loop_unroll
@@ -246,19 +261,34 @@ protected:
                                     : qscale_dt_size);
 
                     // increment loop counter
-                    sub(loop_cnt, current_vlen * current_loop_unroll);
-                    cmp(loop_cnt, current_vlen * current_loop_unroll);
+                    sub(loop_cnt, current_vlen_elem * current_loop_unroll);
+                    cmp(loop_cnt, current_vlen_elem * current_loop_unroll);
                     jge(loop_start_label);
                 }
             }
         };
 
         // vector processing
-        if (loop_len >= vlen) { compute_loop(vlen, loop_ur); }
+        if (loop_len >= vlen_elems) {
+            Label tail_processing_or_exit_label;
+            if (is_brgemm) {
+                cmp(loop_cnt, vlen_elems * loop_ur);
+                jl(tail_processing_or_exit_label, T_NEAR);
+            }
+            compute_loop(vlen_elems, loop_ur);
+            L(tail_processing_or_exit_label);
+        }
 
         // tail processing
-        if (loop_tail_bytes > 0) {
-            compute_loop(is_avx512 ? loop_tail_bytes : scratch_dt_size, 1);
+        if (loop_tail > 0) {
+            Label exit_label;
+            if (is_brgemm) {
+                cmp(loop_cnt, 0);
+                jle(exit_label, T_NEAR);
+            }
+
+            compute_loop(is_avx512 ? loop_tail : 1, 1);
+            L(exit_label);
         }
 
         postamble();

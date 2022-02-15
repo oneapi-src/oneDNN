@@ -43,7 +43,7 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
         rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, const src_data_t *augru_attention_,
         src_data_t *dst_layer_, src_data_t *dst_iter_,
-        const src_data_t *src_iter_, const void *bias_) {
+        const src_data_t *src_iter_, const void *bias_, int block_step) {
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     const auto bias_aoc = rnn_utils::make_raw_aoc(
@@ -64,9 +64,10 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
 
     const float *scales_G1 = scales ? scales + 1 : nullptr;
 
-    parallel_nd(rnn.mb, [&](dim_t i) {
+    const auto postgemm_call = [&](int i) {
+        const int n_elem = block_step;
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dhc; j++) {
+        for (int j = 0; j < n_elem; j++) {
             const auto G0 // default func1 is sigmoid
                     = func1(scales,
                             acc_to_float(scratch_gates(i, 0, j), 0, j)
@@ -86,7 +87,14 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
                 ws_gates(i, 1, j) = to_src(G1);
             }
         }
-    });
+    };
+
+    if (rnn.is_brgemm && !rnn.unfused_post_gemm) {
+        for (int i = 0; i < rnn.m_block; i++)
+            postgemm_call(i);
+    } else {
+        parallel_nd(rnn.mb, [&](dim_t i) { postgemm_call(i); });
+    }
 }
 
 template <typename T1, typename T2, typename T3, typename T4, typename T5,
@@ -97,7 +105,7 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
         rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, const src_data_t *augru_attention_,
         src_data_t *dst_layer_, src_data_t *dst_iter_,
-        const src_data_t *src_iter_, const void *bias_) {
+        const src_data_t *src_iter_, const void *bias_, int block_step) {
     const ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     const scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     const auto bias_aoc = rnn_utils::make_raw_aoc(
@@ -119,9 +127,10 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
 
     const float *scales_G2 = scales ? scales + 2 : nullptr;
 
-    parallel_nd(rnn.mb, [&](dim_t i) {
+    const auto postgemm_call = [&](int i) {
+        const int n_elem = block_step;
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dhc; j++) {
+        for (int j = 0; j < n_elem; j++) {
             auto G0 = reinterpret_as_float(scratch_gates(i, 0, j));
             const auto G2 // default func1 is tanh
                     = func1(scales_G2,
@@ -140,7 +149,14 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
 
             if (rnn.is_training) { ws_gates(i, 2, j) = to_src(G2); }
         }
-    });
+    };
+
+    if (rnn.is_brgemm && !rnn.unfused_post_gemm) {
+        for (int i = 0; i < rnn.m_block; i++)
+            postgemm_call(i);
+    } else {
+        parallel_nd(rnn.mb, [&](dim_t i) { postgemm_call(i); });
+    }
 }
 
 template <>
@@ -158,11 +174,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm) {
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part1_postgemm_template(logistic_f, id, deq_id, id, id, scales,
                 rnn, cell_position, ws_gates_, scratch_gates_, augru_attention_,
-                dst_layer_, dst_iter_, src_iter_, bias_);
+                dst_layer_, dst_iter_, src_iter_, bias_, block_step);
     else
         gru_fwd_part1_postgemm_template(linear_f, id, deq_id, id, id, scales,
                 rnn, cell_position, ws_gates_, scratch_gates_, augru_attention_,
-                dst_layer_, dst_iter_, src_iter_, bias_);
+                dst_layer_, dst_iter_, src_iter_, bias_, block_step);
 }
 
 template <>
@@ -179,11 +195,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm) {
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part2_postgemm_template(tanh_f, id, deq_id, id, id, scales, rnn,
                 cell_position, ws_gates_, scratch_gates_, augru_attention_,
-                dst_layer_, dst_iter_, src_iter_, bias_);
+                dst_layer_, dst_iter_, src_iter_, bias_, block_step);
     else
         gru_fwd_part2_postgemm_template(linear_f, id, deq_id, id, id, scales,
                 rnn, cell_position, ws_gates_, scratch_gates_, augru_attention_,
-                dst_layer_, dst_iter_, src_iter_, bias_);
+                dst_layer_, dst_iter_, src_iter_, bias_, block_step);
 }
 
 template <>
@@ -204,12 +220,12 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part1_postgemm) {
         gru_fwd_part1_postgemm_template(logistic_f, dn_cvt_f32_bf16, deq_id,
                 up_cvt_bf16_f32, id, scales, rnn, cell_position, ws_gates_,
                 scratch_gates_, augru_attention_, dst_layer_, dst_iter_,
-                src_iter_, bias_);
+                src_iter_, bias_, block_step);
     else
         gru_fwd_part1_postgemm_template(linear_f, dn_cvt_f32_bf16, deq_id,
                 up_cvt_bf16_f32, id, scales, rnn, cell_position, ws_gates_,
                 scratch_gates_, augru_attention_, dst_layer_, dst_iter_,
-                src_iter_, bias_);
+                src_iter_, bias_, block_step);
 }
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part2_postgemm) {
@@ -228,12 +244,12 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part2_postgemm) {
         gru_fwd_part2_postgemm_template(tanh_f, dn_cvt_f32_bf16, deq_id,
                 up_cvt_bf16_f32, id, scales, rnn, cell_position, ws_gates_,
                 scratch_gates_, augru_attention_, dst_layer_, dst_iter_,
-                src_iter_, bias_);
+                src_iter_, bias_, block_step);
     else
         gru_fwd_part2_postgemm_template(linear_f, dn_cvt_f32_bf16, deq_id,
                 up_cvt_bf16_f32, id, scales, rnn, cell_position, ws_gates_,
                 scratch_gates_, augru_attention_, dst_layer_, dst_iter_,
-                src_iter_, bias_);
+                src_iter_, bias_, block_step);
 }
 
 template <>
@@ -245,7 +261,6 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part1_postgemm) {
         return logistic_fwd<float>(a);
     };
 
-    const float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
     const float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
     const float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
 
@@ -258,8 +273,8 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part1_postgemm) {
 
     const auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {
         const float wscale = pd_->attr()->rnn_weights_qparams_.mask_ == 0
-                ? weights_scales[0]
-                : weights_scales[gate * rnn.dhc + j];
+                ? weights_scales_[0]
+                : weights_scales_[gate * rnn.dhc + j];
         return saturate<float>(s) * (1.f / (wscale * data_scale));
     };
 
@@ -274,12 +289,14 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part1_postgemm) {
         gru_fwd_part1_postgemm_template(logistic_f, quantize_f32_u8,
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_f32_s32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
-                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_);
+                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_,
+                block_step);
     else
         gru_fwd_part1_postgemm_template(linear_f, quantize_f32_u8,
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_f32_s32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
-                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_);
+                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_,
+                block_step);
 }
 
 template <>
@@ -290,7 +307,6 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part2_postgemm) {
     const auto tanh_f
             = [](const float *scale, float a) { return tanh_fwd<float>(a); };
 
-    const float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
     const float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
     const float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
 
@@ -303,8 +319,8 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part2_postgemm) {
 
     const auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {
         const float wscale = pd_->attr()->rnn_weights_qparams_.mask_ == 0
-                ? weights_scales[0]
-                : weights_scales[gate * rnn.dhc + j];
+                ? weights_scales_[0]
+                : weights_scales_[gate * rnn.dhc + j];
         return saturate<float>(s) * (1.f / (wscale * data_scale));
     };
 
@@ -319,12 +335,14 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part2_postgemm) {
         gru_fwd_part2_postgemm_template(tanh_f, quantize_f32_u8,
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_s32_f32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
-                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_);
+                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_,
+                block_step);
     else
         gru_fwd_part2_postgemm_template(linear_f, quantize_f32_u8,
                 dequantize_s32_f32, dequantize_u8_f32, reinterpret_s32_f32,
                 scales, rnn, cell_position, ws_gates_, scratch_gates_,
-                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_);
+                augru_attention_, dst_layer_, dst_iter_, src_iter_, bias_,
+                block_step);
 }
 
 template <>

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ struct rnn_brgemm_base_t {
             dim_t gemm_acc_align);
     static constexpr dim_t num_base_kernels_ = 3;
     static constexpr dim_t num_proj_kernels_ = 4;
+    static constexpr dim_t num_vanilla_gru_iter_part2_kernels_ = 4;
 };
 
 template <prop_kind_t aprop>
@@ -82,10 +83,19 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     brgemm_t desc_proj_K_tail_b1_[num_proj_kernels_];
     brgemm_t desc_proj_NK_tail_b1_[num_proj_kernels_];
 
+    // Set of brgemm descriptor for 2nd part of iteration gemm in vanulla GRU
+    // cell
+    brgemm_t desc_iter_p2_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_t desc_iter_p2_N_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_t desc_iter_p2_K2_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_t desc_iter_p2_NK2_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
+
     brgemm_ker_ptr_t kernel_layer_b0_[num_base_kernels_];
+    brgemm_ker_ptr_t kernel_layer_b1_[num_base_kernels_];
     brgemm_ker_ptr_t kernel_iter_b0_[num_base_kernels_];
     brgemm_ker_ptr_t kernel_iter_b1_[num_base_kernels_];
     brgemm_ker_ptr_t kernel_layer_N_tail_b0_[num_base_kernels_];
+    brgemm_ker_ptr_t kernel_layer_N_tail_b1_[num_base_kernels_];
     brgemm_ker_ptr_t kernel_iter_N_tail_b0_[num_base_kernels_];
     brgemm_ker_ptr_t kernel_iter_N_tail_b1_[num_base_kernels_];
 
@@ -99,6 +109,15 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     brgemm_ker_ptr_t kernel_proj_N_tail_b1_[num_proj_kernels_];
     brgemm_ker_ptr_t kernel_proj_K_tail_b1_[num_proj_kernels_];
     brgemm_ker_ptr_t kernel_proj_NK_tail_b1_[num_proj_kernels_];
+
+    // Set of brgemm kernels for 2nd part of iteration gemm in vanulla GRU cell
+    brgemm_ker_ptr_t kernel_iter_p2_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_ker_ptr_t
+            kernel_iter_p2_N_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_ker_ptr_t
+            kernel_iter_p2_K2_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_ker_ptr_t
+            kernel_iter_p2_NK2_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
 
     brgemm_pallete_t pallete_buff_iter_;
     brgemm_pallete_t pallete_buff_iter_n_tail_;

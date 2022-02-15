@@ -93,12 +93,84 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         };
     }
 
-    // calculate
-    // scratch_gates_ = src_layer_ * w_layer_ + src_iter_ * w_iter_
-    const brgemm_dst_layer_iter_t dst_calc(rnn_brgemm_, rnn, cell_position,
-            src_iter_, src_layer_, w_iter_[0], w_layer_[0], scratch_gates_,
-            amx_scratchpad, addr_batch_global, fused_postgemm);
-    dst_calc.execute();
+    if (rnn.is_orig_gru) {
+        using brgemm_gru_t = x64::brgemm_gru_t<src_iter_t, weights_t, scratch_t,
+                gemm_acc_t>;
+        typename brgemm_gru_t::postgemm_fused_t fused_postgemm_gru_part1,
+                fused_postgemm_gru_part2;
+        if (!rnn.unfused_post_gemm) {
+            fused_postgemm_gru_part1 = [&](dim_t m, dim_t n, dim_t nb_i,
+                                               const src_iter_t *Ai_m,
+                                               scratch_t *C_gates_n,
+                                               scratch_t *C_cell_n,
+                                               int block_step) {
+                const auto Dpg_n = (dst_postgemm != nullptr)
+                        ? dst_postgemm + m * LDDl + n
+                        : nullptr;
+                const auto Di_n = (dst_iter_postgemm != nullptr)
+                        ? dst_iter_postgemm + m * LDDi + n
+                        : nullptr;
+                const auto Dic_n = (dst_iter_c_ != nullptr)
+                        ? inc_ptr(dst_iter_c_, rnn.dst_iter_c_dt, m * LDDic + n)
+                        : nullptr;
+
+                const auto curr_ws_gates_ = ws_gates_ + (m * rnn.ws_gates_ld)
+                        + nb_i * rnn.n_block;
+                const auto Aic_n = inc_ptr(
+                        src_iter_c_, rnn.src_iter_c_dt, m * LDAic + n);
+                const auto bias_n = inc_ptr(bias_[0], rnn.bias_dt, n);
+                auto weights_scales_n = weights_scales + (mask ? n : 0);
+                rnn_postgemm_->execute(rnn, cell_position, curr_ws_gates_,
+                        C_gates_n, augru_attention_, Dpg_n, Dic_n, Ai_m, Aic_n,
+                        diff_src_layer_, diff_augru_attention_, diff_src_iter_,
+                        diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
+                        nullptr, nullptr, bias_n, ws_grid_, C_cell_n, Di_n,
+                        weights_scales_n, block_step);
+            };
+            fused_postgemm_gru_part2 = [&](dim_t m, dim_t n, dim_t nb_i,
+                                               const src_iter_t *Ai_m,
+                                               scratch_t *C_gates_n,
+                                               scratch_t *C_cell_n,
+                                               int block_step) {
+                const auto Dpg_n = (dst_postgemm != nullptr)
+                        ? dst_postgemm + m * LDDl + n
+                        : nullptr;
+                const auto Di_n = (dst_iter_postgemm != nullptr)
+                        ? dst_iter_postgemm + m * LDDi + n
+                        : nullptr;
+                const auto Dic_n = (dst_iter_c_ != nullptr)
+                        ? inc_ptr(dst_iter_c_, rnn.dst_iter_c_dt, m * LDDic + n)
+                        : nullptr;
+
+                const auto curr_ws_gates_ = ws_gates_ + (m * rnn.ws_gates_ld)
+                        + nb_i * rnn.n_block;
+                const auto Aic_n = inc_ptr(
+                        src_iter_c_, rnn.src_iter_c_dt, m * LDAic + n);
+                const auto bias_n = inc_ptr(bias_[0], rnn.bias_dt, n);
+                auto weights_scales_n = weights_scales + (mask ? n : 0);
+                rnn_postgemm_->execute_part2(rnn, cell_position, curr_ws_gates_,
+                        C_gates_n, augru_attention_, Dpg_n, Dic_n, Ai_m, Aic_n,
+                        diff_src_layer_, diff_augru_attention_, diff_src_iter_,
+                        diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
+                        nullptr, nullptr, bias_n, ws_grid_, C_cell_n, Di_n,
+                        weights_scales_n, block_step);
+            };
+        }
+
+        const brgemm_gru_t dst_calc(rnn_brgemm_, rnn, cell_position, src_iter_,
+                src_layer_, w_iter_[0], w_iter_[1], w_layer_[0], dst_postgemm,
+                scratch_gates_, scratch_cell_, amx_scratchpad,
+                addr_batch_global, fused_postgemm_gru_part1,
+                fused_postgemm_gru_part2);
+        dst_calc.execute();
+    } else {
+        // calculate
+        // scratch_gates_ = src_layer_ * w_layer_ + src_iter_ * w_iter_
+        const brgemm_dst_layer_iter_t dst_calc(rnn_brgemm_, rnn, cell_position,
+                src_iter_, src_layer_, w_iter_[0], w_layer_[0], scratch_gates_,
+                amx_scratchpad, addr_batch_global, fused_postgemm);
+        dst_calc.execute();
+    }
 
     if (rnn.unfused_post_gemm) {
         const auto wscales_postgemm = pd_->attr()->rnn_weights_qparams_.scales_;

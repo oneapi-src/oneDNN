@@ -253,7 +253,8 @@ struct _ref_rnn_common_t : public primitive_t {
                     = this->desc()->weights_layer_desc.data_type;
 
             bool ok = one_of(cell_kind, alg_kind::vanilla_rnn,
-                              alg_kind::vanilla_lstm)
+                              alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
+                              alg_kind::vanilla_augru)
                     && IMPLICATION(aprop == prop_kind::forward,
                             one_of(this->desc()->prop_kind, forward_training,
                                     forward_inference))
@@ -281,6 +282,15 @@ struct _ref_rnn_common_t : public primitive_t {
                                            forward_training, backward),
                             (rnn_.is_bf16() || rnn_.is_f32()));
 
+            if (!ok) return status::unimplemented;
+
+            // Support for GRU / AUGRU cell in BRGEMM-based implementation is
+            // limited by forward_inference pass for now, all_f32 is disabled
+            // due to performance degradation.
+            // TODO: Improve GRU / AUGRU coverage in BRGEMM-based implementation
+            ok = IMPLICATION(rnn_.is_orig_gru,
+                    this->desc()->prop_kind == forward_inference
+                            && !rnn_.is_f32());
             if (!ok) return status::unimplemented;
 
             if (rnn_.is_f32()
@@ -527,7 +537,9 @@ struct _ref_rnn_common_t : public primitive_t {
                 break;
             case alg_kind::vanilla_gru:
             case alg_kind::vanilla_augru:
-                cell_func = &class_name::cell_execution_gru;
+                cell_func = (pd()->rnn_.is_brgemm)
+                        ? &class_name::cell_execution_brgemm_fwd
+                        : &class_name::cell_execution_gru;
                 break;
             case alg_kind::lbr_augru:
             case alg_kind::lbr_gru:

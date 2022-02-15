@@ -309,7 +309,7 @@ struct rnn_conf_t {
 
     int weights_iter_compensation_size = 0, weights_layer_compensation_size = 0;
     bool is_fwd = 0, is_training = 0, is_lbr = 0, is_lstm_peephole = 0,
-         is_lstm_projection = 0, is_augru = 0;
+         is_lstm_projection = 0, is_augru = 0, is_orig_gru = 0;
     bool use_workspace = 0;
 
     // Size of workspace for each tensor in bytes
@@ -428,6 +428,21 @@ struct rnn_conf_t {
                         : 2;
     }
 
+    // Returns index of brgemm kernel for 2nd part of iteration gemm in vanilla
+    // GRU cell for the current position.
+    // Note: this method must be aligned with dst_iter_part2_ld() and LDA2_2[]
+    // values initialization order
+    inline dim_t iter_part2_brgemm_desc(cell_position_t cell_position) const {
+        if (cell_position & last_layer) {
+            return (cell_position & last_layer) && skip_dst_layer_copy()
+                    ? 0
+                    : (cell_position & last_iter) && skip_dst_iter_copy() ? 1
+                                                                          : 2;
+        } else {
+            return (cell_position & last_iter) && skip_dst_iter_copy() ? 1 : 3;
+        }
+    }
+
     inline dim_t src_iter_c_ld(cell_position_t cell_position) const {
         return (cell_position & c_state_first_iter) ? src_iter_c_ld_
                                                     : ws_states_iter_c_ld;
@@ -459,6 +474,13 @@ struct rnn_conf_t {
         return (cell_position & last_iter) && skip_dst_iter_copy()
                 ? dst_iter_ld_
                 : ws_states_iter_ld;
+    }
+
+    // Returns dst tensor leading dimension for 2nd part of iteration gemm in
+    // vanilla GRU cell for the current position
+    inline dim_t dst_iter_part2_ld(cell_position_t cell_position) const {
+        return (cell_position & last_layer) ? dst_layer_ld(cell_position)
+                                            : dst_iter_ld(cell_position);
     }
 
     inline dim_t dst_iter_c_ld(cell_position_t cell_position) const {
@@ -496,6 +518,8 @@ struct rnn_conf_t {
     dim_t LDB1, LDB2;
     dim_t LDA1[3];
     dim_t LDA2[3];
+    // LDA for iter part2 gemm in vanilla gru cell
+    dim_t LDA2_2[4];
     dim_t LDC;
 
     dim_t m_block, M_blocks;
@@ -698,15 +722,15 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             : dst_iter_c_d.blocking_desc().strides[2];
 
     /* Set the correct number of weights parts */
-    const bool is_orig_gru = utils::one_of(
+    rnn.is_orig_gru = utils::one_of(
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::vanilla_augru);
     rnn.n_parts_weights_layer = 1;
     rnn.parts_weights_layer[0] = rnn.n_gates;
     rnn.parts_weights_layer[1] = 0;
 
-    rnn.n_parts_weights_iter = is_orig_gru ? 2 : 1;
-    rnn.parts_weights_iter[0] = is_orig_gru ? 2 : rnn.n_gates;
-    rnn.parts_weights_iter[1] = is_orig_gru ? 1 : 0;
+    rnn.n_parts_weights_iter = rnn.is_orig_gru ? 2 : 1;
+    rnn.parts_weights_iter[0] = rnn.is_orig_gru ? 2 : rnn.n_gates;
+    rnn.parts_weights_iter[1] = rnn.is_orig_gru ? 1 : 0;
 
     rnn.n_parts_weights_projection = 1;
     rnn.parts_weights_projection[0] = 1;
