@@ -245,7 +245,8 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(setup_binary_po(const_pd, binary_po_args, binary_po_dt, binary_po_fp),
             WARN);
 
-    args_t args;
+    args_t args, ref_args;
+
     args.set(DNNL_ARG_SRC_0, src0_dt);
     args.set(DNNL_ARG_SRC_1, src1_dt);
     args.set(DNNL_ARG_DST, dst_dt);
@@ -266,7 +267,12 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        TIME_REF(compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp));
+        ref_args.set(DNNL_ARG_SRC_0, src0_fp);
+        ref_args.set(DNNL_ARG_SRC_1, src1_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
+
+        TIME_REF(compute_ref(prb, ref_args));
 
         compare::compare_t cmp;
         cmp.set_threshold(epsilon_dt(dst_dt.dt()));
