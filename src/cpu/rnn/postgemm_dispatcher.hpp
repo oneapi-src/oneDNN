@@ -163,6 +163,10 @@ struct rnn_postgemm_dispatcher {
 
     // template <typename src_data_t, typename acc_data_t>
     rnn_postgemm_sig(execute) {
+        /* This block has an impact on performance in case it is executed
+         * multiple times. Be careful when changing it.
+         * XXX: The code is compiler sensitive, jit might help with that.
+         */
 #if DNNL_X64
         if (rnn_postgemm_) {
             rnn_postgemm_->execute(rnn, cell_position, ws_gates_,
@@ -172,7 +176,16 @@ struct rnn_postgemm_dispatcher {
                     diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
                     weights_peephole_, bias_, ws_grid_, scratch_cell_,
                     dst_iter_, weights_scales_, block_step);
-        } else {
+            unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
+                    augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                    block_step);
+            return;
+        }
+        if (this->postgemm_func) {
             (this->*postgemm_func)(rnn, cell_position, ws_gates_,
                     scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
                     src_iter_, src_iter_c_, diff_src_layer_,
@@ -180,15 +193,15 @@ struct rnn_postgemm_dispatcher {
                     diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
                     weights_peephole_, bias_, ws_grid_, scratch_cell_,
                     dst_iter_, weights_scales_, block_step);
+            unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
+                    augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                    block_step);
+            return;
         }
-        unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
-                augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
-                src_iter_c_, diff_src_layer_, diff_augru_attention_,
-                diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
-                diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
-                ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
-                block_step);
-        return;
 #endif
         (this->*postgemm_func)(rnn, cell_position, ws_gates_, scratch_gates_,
                 augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
@@ -201,6 +214,10 @@ struct rnn_postgemm_dispatcher {
 
     // template <typename src_data_t, typename acc_data_t>
     rnn_postgemm_sig(execute_part2) {
+        /* This block has an impact on performance in case it is executed
+         * multiple times. Be careful when changing it.
+         * XXX: The code is compiler sensitive, jit might help with that.
+         */
 #if DNNL_X64
         if (rnn_postgemm_part2_) {
             rnn_postgemm_part2_->execute(rnn, cell_position, ws_gates_,
@@ -210,7 +227,16 @@ struct rnn_postgemm_dispatcher {
                     diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
                     weights_peephole_, bias_, ws_grid_, scratch_cell_,
                     dst_iter_, weights_scales_, block_step);
-        } else {
+            unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
+                    augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                    block_step);
+            return;
+        }
+        if (this->postgemm_part2_func) {
             (this->*postgemm_part2_func)(rnn, cell_position, ws_gates_,
                     scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
                     src_iter_, src_iter_c_, diff_src_layer_,
@@ -218,15 +244,15 @@ struct rnn_postgemm_dispatcher {
                     diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
                     weights_peephole_, bias_, ws_grid_, scratch_cell_,
                     dst_iter_, weights_scales_, block_step);
+            unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
+                    augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_augru_attention_,
+                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                    block_step);
+            return;
         }
-        unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
-                augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
-                src_iter_c_, diff_src_layer_, diff_augru_attention_,
-                diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
-                diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
-                ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
-                block_step);
-        return;
 #endif
         (this->*postgemm_part2_func)(rnn, cell_position, ws_gates_,
                 scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
