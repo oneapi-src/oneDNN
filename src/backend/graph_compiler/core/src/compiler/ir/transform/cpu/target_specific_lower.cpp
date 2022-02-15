@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -330,6 +330,7 @@ public:
 
     expr_c visit(intrin_call_c v) override {
         auto ret = ir_visitor_t::visit(v);
+        ret.remove_const()->dtype_ = v->dtype_;
         auto new_args
                 = visit_need_def_args(ret.checked_as<intrin_call_c>()->args_);
         intrin_func_creator lower_func = nullptr;

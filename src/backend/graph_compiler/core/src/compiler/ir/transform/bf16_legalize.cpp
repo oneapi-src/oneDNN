@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +56,8 @@ expr_c bf16_promote_impl_t::visit(binary_c v) {
     if (changed) {
         if (is_bfloat16) {
             return copy_attr(*v,
-                    builder::make_cast(sc_data_type_t::bf16(v->dtype_.lanes_),
+                    builder::make_cast(
+                            sc_data_type_t::bf16(v->l_->dtype_.lanes_),
                             builder::remake_binary(a, b, v)));
         }
         return copy_attr(*v, builder::remake_binary(a, b, v));
@@ -97,6 +98,9 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::unpack_low:
         case intrin_type::unpack_high:
         case intrin_type::isnan:
+        case intrin_type::shuffle:
+        case intrin_type::permute:
+        case intrin_type::broadcast:
             for (size_t i = 0; i < v->args_.size(); i++) {
                 auto in = dispatch(v->args_[i]);
                 changed = changed || !in.ptr_same(v->args_[i]);
@@ -109,18 +113,10 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
             }
             if (is_bfloat16) {
                 for (size_t i = 0; i < args.size(); i++) {
-                    COMPILE_ASSERT(args[i]->dtype_.is_etype(sc_data_etype::F32),
+                    COMPILE_ASSERT(
+                            !args[i]->dtype_.is_etype(sc_data_etype::BF16),
                             "All input args should be f32 from bf16.");
                 }
-            }
-            break;
-        case intrin_type::shuffle:
-        case intrin_type::permute:
-        case intrin_type::broadcast:
-            for (size_t i = 0; i < v->args_.size(); i++) {
-                auto in = dispatch(v->args_[i]);
-                changed = changed || !in.ptr_same(v->args_[i]);
-                args.emplace_back(in.remove_const());
             }
             break;
         case intrin_type::int_and:
@@ -176,8 +172,6 @@ expr_c bf16_cast_elimination_impl_t::visit(cast_c v) {
                     && inin->in_->dtype_.is_etype(sc_data_etype::F32)) {
                 return inin->in_;
             }
-        } else if (in.isa<var>() && cvt_map_.find(in) != cvt_map_.end()) {
-            return cvt_map_[in];
         }
     }
     bool changed = !in.ptr_same(v->in_);
@@ -188,36 +182,84 @@ expr_c bf16_cast_elimination_impl_t::visit(cast_c v) {
     }
 }
 
+expr_c bf16_cast_elimination_impl_t::visit(var_c v) {
+    auto it = cvt_map_.find(v);
+    // If we find the bf16 old var, we should replace it with bf16(newv) for
+    // most ir node.
+    // If the var occurs singlely in define/assign node, directly use the newv
+    // instead(processed in define/assign node).
+    if (it != cvt_map_.end()) {
+        return builder::make_cast(
+                sc_data_type_t::bf16(v->dtype_.lanes_), it->second);
+    }
+    return v;
+}
+
 stmt_c bf16_cast_elimination_impl_t::visit(define_c v) {
-    if (v->var_.isa<var>() && v->var_->dtype_.is_etype(sc_data_etype::BF16)) {
-        expr_c newv = copy_attr(*v->var_,
-                builder::make_var(sc_data_type_t::f32(v->var_->dtype_.lanes_),
-                        v->var_.static_as<var>()->name_));
-        cvt_map_.insert({v->var_, newv});
-        return copy_attr(*v, builder::make_var_tensor_def_unattached(newv));
+    if (v->var_.isa<var>() && v->var_->dtype_.is_etype(sc_data_etype::BF16)
+            && v->var_->dtype_.lanes_
+                    <= ctx_->get_max_vector_lanes(sc_data_etype::F32)) {
+        expr_c newv = v->var_;
+        expr_c init = v->init_;
+        bool changed = false;
+        if (v->linkage_ == linkage::local) {
+            newv = copy_attr(*v->var_,
+                    builder::make_var(
+                            sc_data_type_t::f32(v->var_->dtype_.lanes_),
+                            v->var_.static_as<var>()->name_));
+            cvt_map_.insert({v->var_, newv});
+            changed = true;
+        }
+        if (v->init_.defined()) {
+            if (v->linkage_ == linkage::local) {
+                init = builder::make_cast(
+                        sc_data_type_t::f32(v->init_->dtype_.lanes_), v->init_);
+            }
+            init = dispatch(init);
+            changed |= init.ptr_same(v->init_);
+        }
+        if (changed) {
+            return copy_attr(*v,
+                    builder::make_var_tensor_def_unattached(
+                            newv, v->linkage_, init));
+        }
+        return v;
     }
     return ir_visitor_t::visit(std::move(v));
 }
 
 stmt_c bf16_cast_elimination_impl_t::visit(assign_c v) {
-    auto var = dispatch(v->var_);
-    auto val = dispatch(v->value_);
+    expr_c var, val;
+    auto varit = cvt_map_.find(v->var_);
+    // single var directly replace
+    if (varit != cvt_map_.end()) {
+        var = varit->second;
+    } else {
+        var = dispatch(v->var_);
+    }
+    auto valit = cvt_map_.find(v->value_);
+    if (valit != cvt_map_.end()) {
+        val = valit->second;
+    } else {
+        val = dispatch(v->value_);
+    }
     bool changed = !var.ptr_same(v->var_) || !val.ptr_same(v->value_);
-    if (cvt_map_.find(var) != cvt_map_.end()) {
-        assert(val->dtype_.is_etype(sc_data_etype::BF16)
-                || val->dtype_.is_etype(sc_data_etype::U16));
-        var = cvt_map_[var];
+    //  (v,a,b are bf16, v2,a2,b2 are f32) v = bf16(f32(a) + f32(b)) => v2 = a2
+    //  + b2
+    if (varit != cvt_map_.end()) {
+        assert(v->var_->dtype_.is_etype(sc_data_etype::BF16)
+                || v->var_->dtype_.is_etype(sc_data_etype::U16));
+        assert(var.ptr_same(varit->second));
         if (val.isa<cast_c>()) {
             val = val.static_as<cast_c>()->in_;
-        } else {
+        } else if (!val->dtype_.is_etype(sc_data_etype::F32)) {
             val = builder::make_cast(
                     sc_data_type_t::f32(val->dtype_.lanes_), val);
         }
         changed = true;
-    }
-    if (cvt_map_.find(val) != cvt_map_.end()) {
+    } else if (valit != cvt_map_.end()) {
         val = builder::make_cast(
-                sc_data_type_t::bf16(val->dtype_.lanes_), cvt_map_[val]);
+                sc_data_type_t::bf16(v->value_->dtype_.lanes_), val);
         changed = true;
     }
     if (changed) {
@@ -234,27 +276,39 @@ stmt_c bf16_cast_elimination_impl_t::visit(returns_c v) {
     return ir_visitor_t::visit(v);
 }
 
-func_c bf16_legalize_t::operator()(func_c f) {
+func_c bf16_legalizer_t::operator()(func_c f) {
     bf16_promote_impl_t promote_pass;
-    bf16_cast_elimination_impl_t elimination_pass;
     f = promote_pass.dispatch(f);
-    f = elimination_pass.dispatch(f);
     return f;
 }
 
-stmt_c bf16_legalize_t::operator()(stmt_c f) {
+stmt_c bf16_legalizer_t::operator()(stmt_c f) {
     bf16_promote_impl_t promote_pass;
-    bf16_cast_elimination_impl_t elimination_pass;
     f = promote_pass.dispatch(f);
-    f = elimination_pass.dispatch(f);
     return f;
 }
 
-expr_c bf16_legalize_t::operator()(expr_c f) {
+expr_c bf16_legalizer_t::operator()(expr_c f) {
     bf16_promote_impl_t promote_pass;
-    bf16_cast_elimination_impl_t elimination_pass;
     f = promote_pass.dispatch(f);
-    f = elimination_pass.dispatch(f);
+    return f;
+}
+
+func_c bf16_eliminator_t::operator()(func_c f) {
+    bf16_cast_elimination_impl_t pass(ctx_);
+    f = pass.dispatch(f);
+    return f;
+}
+
+stmt_c bf16_eliminator_t::operator()(stmt_c f) {
+    bf16_cast_elimination_impl_t pass(ctx_);
+    f = pass.dispatch(f);
+    return f;
+}
+
+expr_c bf16_eliminator_t::operator()(expr_c f) {
+    bf16_cast_elimination_impl_t pass(ctx_);
+    f = pass.dispatch(f);
     return f;
 }
 } // namespace sc

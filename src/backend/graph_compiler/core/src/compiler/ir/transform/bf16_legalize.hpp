@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,12 +42,15 @@ class bf16_cast_elimination_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
+    context_ptr ctx_;
     // need to convert bf16 var to f32
     std::unordered_map<expr_c, expr_c> cvt_map_;
     expr_c visit(cast_c v) final;
+    expr_c visit(var_c v) final;
     stmt_c visit(define_c v) final;
     stmt_c visit(assign_c v) final;
     stmt_c visit(returns_c v) final;
+    bf16_cast_elimination_impl_t(context_ptr ctx) : ctx_(ctx) {}
 };
 
 /**
@@ -58,9 +61,31 @@ public:
  * c = a + b => c = bf16(float(a)+float(b))
  * c = a + neg(b) => c = bf16(float(a), neg(float(b)))
  * */
-class bf16_legalize_t : public function_pass_t {
+class bf16_legalizer_t : public function_pass_t {
 public:
-    bf16_legalize_t(context_ptr ctx = get_default_context())
+    bf16_legalizer_t(context_ptr ctx = get_default_context())
+        : ctx_(std::move(ctx)) {}
+    func_c operator()(func_c f) override;
+    stmt_c operator()(stmt_c f);
+    expr_c operator()(expr_c f);
+
+private:
+    context_ptr ctx_;
+};
+
+/**
+ * bfloat16 elimination pass.
+ *
+ * The pass should be evaluated after bf16_legalize and recommended after
+ * index2var.
+ * It will do the two elimination:
+ * 1. Eliminate consecutive bf16 transformations, e.g. f32(bf16(f32(a))) =>
+ * f32(a)
+ * 2. Promote consecutive bf16 calculation stmt of var to f32(only for var).
+ */
+class bf16_eliminator_t : public function_pass_t {
+public:
+    bf16_eliminator_t(context_ptr ctx = get_default_context())
         : ctx_(std::move(ctx)) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f);

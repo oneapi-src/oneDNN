@@ -54,6 +54,7 @@ sequential_module_pass_t get_default_precodegen_passes(
             utils::make_unique<tensor_shrinker_t>()));
     ret.emplace_back(utils::make_unique<index_flattener_t>());
     ret.emplace_back(utils::make_unique<auto_caster_t>());
+    ret.emplace_back(module_function_pass_t::make<bf16_legalizer_t>(ctx));
     ret.emplace_back(utils::make_unique<validator_t>());
     if (ctx->flags_.trace_) {
         ret.emplace_back(utils::make_unique<trace_inserter_t>());
@@ -62,18 +63,20 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<func_inliner_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>());
     ret.emplace_back(module_function_pass_t::make<loop_merger_t>());
-    ret.emplace_back(module_function_pass_t::make<bf16_legalize_t>(ctx));
+    ret.emplace_back(
+            module_function_pass_t::make<parallel_workload_dispatcher_t>());
+
+    if (ctx->flags_.index2var_) {
+        ret.emplace_back(module_function_pass_t::make<index2var_t>());
+    }
+    ret.emplace_back(module_function_pass_t::make<bf16_eliminator_t>(ctx));
     ret.emplace_back(utils::make_unique<target_specific_lowering_cpu_t>(ctx));
     ret.emplace_back(module_function_pass_t::make<func_inliner_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>());
 
-    ret.emplace_back(
-            module_function_pass_t::make<parallel_workload_dispatcher_t>());
     ret.emplace_back(utils::make_unique<kernel_lowering_cpu_t>(
             ctx->flags_.kernel_optim_));
-    if (ctx->flags_.index2var_) {
-        ret.emplace_back(module_function_pass_t::make<index2var_t>());
-    }
+
     if (ctx->flags_.dead_write_elimination_) {
         ret.emplace_back(
                 module_function_pass_t::make<dead_write_eliminator_t>());
