@@ -737,7 +737,7 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
                       kh_bs[k] = kh_b;
                       kh_es[k] = kh_e;
                       k++;
-                      assert(k <= jcp.ker_ranges_size);
+                      assert(k <= static_cast<size_t>(jcp.ker_ranges_size));
                   };
 
         for_(int odb = 0; odb < jcp.nb_od; odb++)
