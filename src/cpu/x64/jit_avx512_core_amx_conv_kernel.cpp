@@ -2391,7 +2391,8 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     bool is_small_ic = jcp.ic_block_int_np < jcp.ic_block_int;
 
     // reduced lowering
-    jcp.is_relo = (!is_3d)
+    const bool is_trivial_3d = everyone_is(1, jcp.id, jcp.od, jcp.kd);
+    jcp.is_relo = is_trivial_3d
             && is_small_ic
             // no trivial cases
             && 1 < jcp.kh * jcp.kw
@@ -2451,7 +2452,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         using namespace memory_extra_flags;
         format_tag_t wei_tag;
         wei_tag = jcp.is_relo ? pick(with_groups + 2 * (ndims - 3), Owi16o,
-                          gOwi16o, Owhi16o, gOwhi16o) // no 3d support
+                          gOwi16o, Owhi16o, gOwhi16o, Odwhi16o, gOdwhi16o)
                               : is_bf16_convolution
                         ? pick(with_groups + 2 * (ndims - 3), OIw16i16o2i,
                                 gOIw16i16o2i, OIhw16i16o2i, gOIhw16i16o2i,

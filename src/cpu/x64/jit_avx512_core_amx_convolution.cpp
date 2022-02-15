@@ -39,12 +39,12 @@ using namespace nstl;
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
-#define mem_blk_off(md, n, c, d, h, w) \
+#define mem_blk_off(mdw, n, c, d, h, w) \
     (pd()->ndims() == 3 \
-                    ? (md).blk_off((n), (c), (w)) \
+                    ? (mdw).blk_off((n), (c), (w)) \
                     : (pd()->ndims() == 4 \
-                                    ? (md).blk_off((n), (c), (h), (w)) \
-                                    : (md).blk_off((n), (c), (d), (h), (w))))
+                                    ? (mdw).blk_off((n), (c), (h), (w)) \
+                                    : (mdw).blk_off((n), (c), (d), (h), (w))))
 
 template <typename T>
 static inline T accum_with_upper_bound(T ub, T lv, T uv) {
@@ -144,7 +144,6 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
     // Initialize the tile configuration in memory, so that each thread can
     // load this configuration from memory via `amx_tile_configure(tcfg)`.
     kernel_->tile_configure(tcfg);
-    const bool is_1d = pd()->ndims() == 3;
 
     // init zero_point padding buffer
     const bool req_zero_point_buffer = jcp.req_zero_point_buffer;
@@ -154,7 +153,7 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
     if (req_zero_point_buffer && zp_pbuff_outer_compute) {
         const size_t wei_oc_step = (size_t)jcp.kh * jcp.kw * jcp.ic_block_int_np
                 * jcp.nb_oc_blocking * jcp.oc_block;
-        const int sp_stride = dst_d.blk_off(0, 0, 0, 1);
+        const int sp_stride = mem_blk_off(dst_d, 0, 0, 0, 0, 1);
         const int dilate_h = jcp.dilate_h + 1;
         const int gen_kh = (jcp.kh - 1) * dilate_h + 1;
         const int oh_work = jcp.oh_pad;
@@ -214,7 +213,7 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
         amx_tile_configure(tcfg);
 
         const int oh_work = jcp.oh_pad;
-        const int sp_stride = dst_d.blk_off(0, 0, 0, 1);
+        const int sp_stride = mem_blk_off(dst_d, 0, 0, 0, 0, 1);
         const int dilate_h = jcp.dilate_h + 1;
         const int gen_kh = (jcp.kh - 1) * dilate_h + 1;
         const size_t wei_oc_step = (size_t)jcp.kh * jcp.kw * jcp.ic_block_int_np
@@ -317,8 +316,7 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
                 if (!is_inp_buffer_relevant) {
                     // prepare padded input buffer
                     const int icb = g * jcp.ic;
-                    size_t inp_offset = is_1d ? src_d.blk_off(mb, icb, 0)
-                                              : src_d.blk_off(mb, icb, 0, 0);
+                    size_t inp_offset = src_d.blk_off(mb, icb);
                     const int iw_step = jcp.ngroups * jcp.ic_without_padding;
                     const char *psrc = src + src_dt_size * inp_offset;
                     // calculate overlap...
@@ -359,8 +357,7 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
                 }
 
                 p.src = inp_buffer_oh;
-                size_t dst_offset = is_1d ? dst_d.blk_off(mb, ocb, ow)
-                                          : dst_d.blk_off(mb, ocb, oh, ow);
+                size_t dst_offset = mem_blk_off(dst_d, mb, ocb, 0, oh, ow);
                 p.dst = dst + dst_dt_size * dst_offset;
                 const size_t pbuff_offset
                         = zp_oh * jcp.ow_pad * sp_stride + ocb * oc_stride;
