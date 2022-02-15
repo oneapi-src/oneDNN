@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -425,6 +425,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(aBdefC16b2c, {0, 1, 3, 4, 5, 2}, {16, 2}, {1, 2});
         C(aBdefC16b4c, {0, 1, 3, 4, 5, 2}, {16, 4}, {1, 2});
         C(aBdefc8b, {0, 1, 3, 4, 5, 2}, {8}, {1});
+        C(aBdfec16b, {0, 1, 3, 5, 4, 2}, {16}, {1});
         C(aBedc16b, {0, 1, 4, 3, 2}, {16}, {1});
         C(Acb16a, {0, 2, 1}, {16}, {0});
         C(AcB16a2b, {0, 2, 1}, {16, 2}, {0, 1});
@@ -440,6 +441,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(AcdeB16a2b, {0, 2, 3, 4, 1}, {16, 2}, {0, 1});
         C(AcdeB16a4b, {0, 2, 3, 4, 1}, {16, 4}, {0, 1});
         C(Acdeb8a, {0, 2, 3, 4, 1}, {8}, {0});
+        C(Acedb16a, {0, 2, 4, 3, 1}, {16}, {0});
         C(Adcb16a, {0, 3, 2, 1}, {16}, {0});
         C(BAc16a16b, {1, 0, 2}, {16, 16}, {0, 1});
         C(BAcd16a16b, {1, 0, 2, 3}, {16, 16}, {0, 1});

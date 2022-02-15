@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -447,6 +447,7 @@ DECL_TRAITS(aBdefc16b, _B, _16b, 6);
 DECL_TRAITS(aBdefC16b2c, _BC, _16b2c, 6);
 DECL_TRAITS(aBdefC16b4c, _BC, _16b4c, 6);
 DECL_TRAITS(aBdefc8b, _B, _8b, 6);
+DECL_TRAITS(aBdfec16b, _B, _16b, 6);
 DECL_TRAITS(aBedc16b, _B, _16b, 5);
 DECL_TRAITS(Acb16a, _A, _16a, 3);
 DECL_TRAITS(AcB16a2b, _AB, _16a2b, 3);
@@ -462,6 +463,7 @@ DECL_TRAITS(Acdeb16a, _A, _16a, 5);
 DECL_TRAITS(AcdeB16a2b, _AB, _16a2b, 5);
 DECL_TRAITS(AcdeB16a4b, _AB, _16a4b, 5);
 DECL_TRAITS(Acdeb8a, _A, _8a, 5);
+DECL_TRAITS(Acedb16a, _A, _16a, 5);
 DECL_TRAITS(Adcb16a, _A, _16a, 4);
 DECL_TRAITS(BAc16a16b, _AB, _16a16b, 3);
 DECL_TRAITS(BAcd16a16b, _AB, _16a16b, 4);
