@@ -178,13 +178,6 @@ inline void inv_data_off(const prb_t *prb, size_t off, int64_t &mb, int64_t &c,
     assert(off == 0);
 }
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
-        const dnn_mem_t &sh, dnn_mem_t &ws, dnn_mem_t &dst, dnn_mem_t &src_hat);
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src_hat,
-        const dnn_mem_t &var, const dnn_mem_t &d_dst, const dnn_mem_t &ss,
-        const dnn_mem_t &sh, const dnn_mem_t &ws, dnn_mem_t &d_src,
-        dnn_mem_t &d_ss, dnn_mem_t &d_sh);
 int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
 int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
@@ -192,6 +185,9 @@ int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         const dnn_mem_t *sh = nullptr);
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
+
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

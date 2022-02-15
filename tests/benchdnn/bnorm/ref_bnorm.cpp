@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,10 +20,21 @@
 
 namespace bnorm {
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
-        const dnn_mem_t &sh, dnn_mem_t &ws, dnn_mem_t &dst,
-        dnn_mem_t &src_hat) {
+void compute_ref_fwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &mean = args.find(DNNL_ARG_MEAN);
+    const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
+    const dnn_mem_t &ss
+            = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    const dnn_mem_t &sh = args.find(DNNL_ARG_SHIFT);
+    const dnn_mem_t &ws = args.find(DNNL_ARG_WORKSPACE);
+    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+    const dnn_mem_t &src_hat = args.find(DNNL_ARG_DST_1);
+
+    uint8_t *ws_ptr = (uint8_t *)ws;
+    float *dst_ptr = (float *)dst;
+    float *src_hat_ptr = (float *)src_hat;
+
     const int64_t MB = prb->mb;
     const int64_t C = prb->ic;
     const int64_t D = prb->id;
@@ -52,18 +63,30 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
             float x_hat = (src.get_elem(off) - smean) * rcp_denom;
             float res = gamma * x_hat + beta;
             if (fuse_relu && res < 0) res = 0;
-            if (need_ws) ws.set_elem(off, !!res);
+            if (need_ws) ws_ptr[off] = !!res;
             maybe_post_ops(attr, res);
-            dst.set_elem(off, res);
-            if (prb->dir & FLAG_BWD) src_hat.set_elem(off, x_hat);
+            dst_ptr[off] = res;
+            if (prb->dir & FLAG_BWD) src_hat_ptr[off] = x_hat;
         }
     });
 }
 
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src_hat,
-        const dnn_mem_t &var, const dnn_mem_t &d_dst, const dnn_mem_t &ss,
-        const dnn_mem_t &sh, const dnn_mem_t &ws, dnn_mem_t &d_src,
-        dnn_mem_t &d_ss, dnn_mem_t &d_sh) {
+void compute_ref_bwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_hat = args.find(DNNL_ARG_DST_1);
+    const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
+    const dnn_mem_t &d_dst = args.find(DNNL_ARG_DIFF_DST);
+    const dnn_mem_t &ss
+            = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    const dnn_mem_t &ws = args.find(DNNL_ARG_WORKSPACE);
+    const dnn_mem_t &d_src = args.find(DNNL_ARG_DIFF_SRC);
+    const dnn_mem_t &d_ss = args.find(
+            prb->use_sc() ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
+    const dnn_mem_t &d_sh = args.find(DNNL_ARG_DIFF_SHIFT);
+
+    float *d_src_ptr = (float *)d_src;
+    float *d_ss_ptr = (float *)d_ss;
+    float *d_sh_ptr = (float *)d_sh;
+
     const int64_t MB = prb->mb;
     const int64_t C = prb->ic;
     const int64_t D = prb->id;
@@ -96,12 +119,12 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src_hat,
         }
 
         if (use_ss && (prb->dir & FLAG_WEI)) {
-            d_ss.set_elem(c, d_gamma);
-            d_ss.set_elem(C + c, d_beta);
+            d_ss_ptr[c] = d_gamma;
+            d_ss_ptr[C + c] = d_beta;
         }
 
-        if (use_sc && (prb->dir & FLAG_WEI)) d_ss.set_elem(c, d_gamma);
-        if (use_sh && (prb->dir & FLAG_WEI)) d_sh.set_elem(c, d_beta);
+        if (use_sc && (prb->dir & FLAG_WEI)) d_ss_ptr[c] = d_gamma;
+        if (use_sh && (prb->dir & FLAG_WEI)) d_sh_ptr[c] = d_beta;
 
         for_(int64_t mb = 0; mb < MB; ++mb)
         for_(int64_t d = 0; d < D; ++d)
@@ -115,9 +138,15 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src_hat,
             if (!glob_stats)
                 ds -= (d_beta + src_hat.get_elem(off) * d_gamma) / MB_SP;
 
-            d_src.set_elem(off, rcp_denom * ds * gamma);
+            d_src_ptr[off] = rcp_denom * ds * gamma;
         }
     });
+}
+
+void compute_ref(
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    compute_ref_fwd(prb, args);
+    if (prb->dir & FLAG_BWD) compute_ref_bwd(prb, args);
 }
 
 } // namespace bnorm
