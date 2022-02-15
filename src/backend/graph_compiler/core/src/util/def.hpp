@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,6 @@
  *******************************************************************************/
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_DEF_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_DEF_HPP
-
-#ifdef DNNL_GRAPH_DLL
-#ifndef SC_DLL
-#define SC_DLL
-#endif
-#endif
 
 #define SC_UNUSED(x) ((void)(x))
 // the macro marks that a function is the top-level API of graph-compiler
