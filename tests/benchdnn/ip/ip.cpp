@@ -402,7 +402,9 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
-            TIME_REF(compute_ref_fwd(prb, prim_ref, ref_args));
+
+            TIME_REF(compute_ref(prb, ref_args, prim_ref));
+
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[DST].eps);
             cmp.set_data_kind(DST);
@@ -422,7 +424,9 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
-            TIME_REF(compute_ref_bwd_d(prb, prim_ref, ref_args));
+
+            TIME_REF(compute_ref(prb, ref_args, prim_ref));
+
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[SRC].eps);
             cmp.set_data_kind(SRC);
@@ -444,7 +448,9 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
-            TIME_REF(compute_ref_bwd_w(prb, prim_ref, ref_args));
+
+            TIME_REF(compute_ref(prb, ref_args, prim_ref));
+
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[WEI].eps);
             cmp.set_data_kind(WEI);
