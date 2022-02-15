@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,6 +55,10 @@ endif()
 message(STATUS "Graph compiler backend is enabled.")
 if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "OMP")
     set(SC_OMP_ENABLED "ON")
+endif()
+
+if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
+    add_definitions(-DSC_DLL)
 endif()
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
