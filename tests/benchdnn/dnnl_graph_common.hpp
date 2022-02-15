@@ -116,6 +116,9 @@ inline std::string get_ou_format(const std::string &fmt_tag) {
         } \
     } while (0)
 
+#define BENCHDNNEXT_VERIFY(status) \
+    if ((status) != fill_status::DONE) return status
+
 struct id_manager_t {
     id_manager_t() : frozen_(false) {};
 

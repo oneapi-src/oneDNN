@@ -216,23 +216,39 @@ fill_status_t deconv_graph_prb_t::handle_low_precision_(
         lp_attr.set_wei_strides(strides_permuted);
     }
 
-    fill_status_t ctor_status;
-    ctor_status
-            = po_handler.deconv.low_precision_handler.handle_low_precision_src(
-                    *this, lp_attr);
-    if (ctor_status != fill_status::DONE) return ctor_status;
+    fill_status_t status;
+    status = po_handler.deconv.low_precision_handler.handle_low_precision_src(
+            *this, lp_attr);
+    BENCHDNNEXT_VERIFY(status);
 
-    ctor_status
-            = po_handler.deconv.low_precision_handler.handle_low_precision_wei(
-                    *this, lp_attr);
-    if (ctor_status != fill_status::DONE) return ctor_status;
+    status = po_handler.deconv.low_precision_handler.handle_low_precision_wei(
+            *this, lp_attr);
+    BENCHDNNEXT_VERIFY(status);
 
-    ctor_status
-            = po_handler.deconv.low_precision_handler.handle_low_precision_dst(
-                    *this, lp_attr);
-    if (ctor_status != fill_status::DONE) return ctor_status;
+    // `with_qdst == false` means that we are dealing
+    // with x8s8f32 pattern
+    const bool with_qdst = dt::f32 != spec_.dst_dt;
+    if (with_qdst) {
+        status = po_handler.deconv.low_precision_handler
+                         .handle_low_precision_dst(*this, lp_attr);
+    }
+    BENCHDNNEXT_VERIFY(status);
 
-    return ctor_status;
+    if (has_post_sum()) {
+        status = po_handler.deconv.low_precision_handler
+                         .handle_low_precision_post_sum(
+                                 *this, lp_attr, prb->attr.post_ops.entry);
+    }
+    BENCHDNNEXT_VERIFY(status);
+
+    if (has_post_bin()) {
+        status = po_handler.pool.low_precision_handler
+                         .handle_low_precision_post_bin(
+                                 *this, lp_attr, prb->attr.post_ops.entry);
+    }
+    BENCHDNNEXT_VERIFY(status);
+
+    return status;
 }
 
 int doit(const ::conv::prb_t *prb, res_t *res) {
@@ -343,10 +359,18 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
                 binary_po_args.emplace_back(
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
             }
+
+            // re-scale bias
+            dnn_mem_t bia_fp_scaled;
+            if (prb->dir == FWD_B) {
+                bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
+                scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
+            }
+
             args_t ref_args;
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
-            ref_args.set(DNNL_ARG_BIAS, bia_fp);
+            ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(binary_po_args, binary_po_fp);
