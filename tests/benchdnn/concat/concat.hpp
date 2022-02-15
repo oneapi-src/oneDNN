@@ -114,13 +114,14 @@ private:
     std::string dtag_;
 };
 
-void compute_ref(
-        const prb_t *prb, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst);
 void check_known_skipped_case(const prb_t *prb, res_t *res);
 int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp);
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
+
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
