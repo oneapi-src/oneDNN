@@ -359,7 +359,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(fill_data(prb, SRC, src_dt, src_fp), WARN);
 
-    args_t args;
+    args_t args, ref_args;
 
     dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
 
@@ -393,7 +393,11 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(binary_po_args, binary_po_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     } else {
@@ -414,25 +418,29 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-
         if (prb->use_dst()) {
-            if (is_bench_mode(CORR))
-                TIME_REF(compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp));
-            SAFE(dst_dt.reorder(dst_fp), WARN);
-            // make dst_fp of same values as for bf16, otherwise there are high
-            // relative and absolute errors due to initial difference in source
-            // values which become worse particularly when (1 - x) is used.
-            if (dst_dt.dt() != dst_fp.dt()) SAFE(dst_fp.reorder(dst_dt), WARN);
             args.set(DNNL_ARG_DST, dst_dt);
         } else {
             args.set(DNNL_ARG_SRC, src_dt);
         }
+
+        // The only driver which has reference preceding library computations.
+        // This is needed to get filling from dst_fp for use_dst case. Another
+        // approach may be to use forward pd to run backward.
+        if (is_bench_mode(CORR)) {
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
+            if (prb->use_dst()) SAFE(dst_dt.reorder(dst_fp), WARN);
+        }
+
         SAFE(execute_and_wait(prim, args, res), WARN);
 
-        if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, arg_fp, d_dst_fp, d_src_fp));
+        if (is_bench_mode(CORR))
             SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
-        }
     }
 
     return measure_perf(res, prim, args);
