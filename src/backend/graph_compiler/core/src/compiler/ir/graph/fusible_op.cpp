@@ -3884,6 +3884,7 @@ reduce_op_t::reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
             new_reduce_dims.push_back(old_reduce_dims[i]);
         }
     }
+    if (new_reduce_dims.empty()) new_reduce_dims.push_back(1);
     if (outs.empty()) {
         logical_tensor_t out;
         out = logical_tensor_t(get_reduced_format(ins[0]->details_.get_format(),
@@ -3916,9 +3917,11 @@ void reduce_op_t::query_format(context_ptr ctx,
         const auto &in_fmt = info_.inputs_[0]->details_.get_format();
         out_formats.push_back({get_reduced_format(in_fmt, plain_rd_axis_)});
     } else {
-        out_formats.push_back({sc_data_format_t::get_plain_by_dims(
-                info_.inputs_[0]->details_.get_plain_dims().size()
-                - plain_rd_axis_.size())});
+        auto out_shape_size = info_.inputs_[0]->details_.get_plain_dims().size()
+                - plain_rd_axis_.size();
+        if (out_shape_size == 0) out_shape_size = 1;
+        out_formats.push_back(
+                {sc_data_format_t::get_plain_by_dims(out_shape_size)});
     }
 }
 
