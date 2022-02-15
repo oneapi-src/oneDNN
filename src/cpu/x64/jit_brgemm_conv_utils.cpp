@@ -2113,7 +2113,13 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.adjusted_batch_size
             = div_up(rnd_up(jcp.gemm_batch_size * sc_size, P4K), sc_size);
 
-    jcp.use_uker = is_amx(isa);
+    if (is_amx(isa)) {
+        // heuristic here for small mb
+        jcp.use_uker = (jcp.mb == 1 && jcp.ic * jcp.oh <= 28 * 1024
+                               && jcp.oc * jcp.oh <= 14 * 1024)
+                ? false
+                : true;
+    }
     if (jcp.use_uker)
         jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_output1;
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
