@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -334,7 +334,7 @@ void compute_ref_direct_bwd_w(const prb_t *prb, const args_t &args) {
 }
 
 void compute_ref_fwd(
-        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
         SAFE_V(execute_and_wait(prim_ref, args));
         return;
@@ -348,7 +348,7 @@ void compute_ref_fwd(
 }
 
 void compute_ref_bwd_d(
-        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
         SAFE_V(execute_and_wait(prim_ref, args));
         return;
@@ -362,7 +362,7 @@ void compute_ref_bwd_d(
 }
 
 void compute_ref_bwd_w(
-        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
         SAFE_V(execute_and_wait(prim_ref, args));
         return;
@@ -373,6 +373,16 @@ void compute_ref_bwd_w(
     } else {
         compute_ref_direct_bwd_w(prb, args);
     }
+}
+
+void compute_ref(
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    if (prb->dir & FLAG_FWD)
+        compute_ref_fwd(prb, args, prim_ref);
+    else if (prb->dir == BWD_D)
+        compute_ref_bwd_d(prb, args, prim_ref);
+    else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI)
+        compute_ref_bwd_w(prb, args, prim_ref);
 }
 
 } // namespace conv

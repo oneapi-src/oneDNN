@@ -338,12 +338,8 @@ inline void inv_dst_off_f(const prb_t *prb, int64_t off, int64_t &mb,
 
 float oscale(const prb_t *prb, int oc);
 
-void compute_ref_fwd(
-        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
-void compute_ref_bwd_d(
-        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
-void compute_ref_bwd_w(
-        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 void compute_ref_direct_fwd(const prb_t *prb, const args_t &args);
 void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args);
