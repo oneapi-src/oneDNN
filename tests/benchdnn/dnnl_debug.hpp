@@ -42,4 +42,7 @@ const char *engine_kind2str(dnnl_engine_kind_t kind);
 /* scratchpad mode */
 const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode);
 
+/* fpmath mode */
+const char *fpmath_mode2str(dnnl_fpmath_mode_t mode);
+
 #endif

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -196,6 +196,10 @@ bool parse_attr_scratchpad_mode(
         std::vector<dnnl_scratchpad_mode_t> &scratchpad_mode,
         const std::vector<dnnl_scratchpad_mode_t> &def_scratchpad_mode,
         const char *str, const std::string &option_name = "attr-scratchpad");
+
+bool parse_attr_fpmath_mode(std::vector<dnnl_fpmath_mode_t> &fpmath_mode,
+        const std::vector<dnnl_fpmath_mode_t> &def_fpmath_mode, const char *str,
+        const std::string &option_name = "attr-fpmath");
 
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name = "axis");

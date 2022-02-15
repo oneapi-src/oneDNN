@@ -3,6 +3,7 @@
 ## Usage
 ```
     --attr-scratchpad=MODE
+    --attr-fpmath=MATHMODE
     --attr-oscale=POLICY[:SCALE[*]]
     --attr-scales=ARG:POLICY[:SCALE[*]][+...]
     --attr-zero-points=ARG:POLICY:ZEROPOINT[*][+...]
@@ -16,6 +17,11 @@
 `--attr-scratchpad` specifies the scratchpad mode to be used for benchmarking.
 `MODE` values can be `library` (the default) or `user`. Refer to
 [scratchpad primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_scratchpad.html)
+for details.
+
+`--attr-fpmath` specifies the fpmath mode to be used for benchmarking.
+`MATHMODE` values can be any of `strict` (the default), `bf16`, `f16` or `any`.
+Refer to [fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
 for details.
 
 `--attr-oscale` defines output scale primitive attribute. `POLICY` specifies the

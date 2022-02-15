@@ -47,6 +47,7 @@ typedef struct dt_conf_t {
 } _dt_conf_t[DAT_TOTAL];
 
 extern const _dt_conf_t conf_f32;
+extern const _dt_conf_t conf_bf16bf16f32;
 
 struct settings_t : public base_settings_t {
     settings_t() = default;
@@ -105,6 +106,12 @@ struct prb_t : public desc_t {
         if (ops > 0) return;
         ops = 2. * mb * ic * oc * id * ih * iw;
     };
+
+    dt_conf_t get_dt_conf(data_kind_t dk) const {
+        return (attr.fpmath_mode == dnnl_fpmath_mode_bf16 && cfg == conf_f32)
+                ? conf_bf16bf16f32[dk]
+                : cfg[dk];
+    }
 
     void generate_oscales();
 

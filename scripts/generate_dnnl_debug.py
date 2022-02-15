@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #===============================================================================
-# Copyright 2018-2021 Intel Corporation
+# Copyright 2018-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -117,6 +117,9 @@ const char *engine_kind2str(dnnl_engine_kind_t kind);
 /* scratchpad mode */
 const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode);
 
+/* fpmath mode */
+const char *fpmath_mode2str(dnnl_fpmath_mode_t mode);
+
 #endif
 ''' % body
 
@@ -153,6 +156,11 @@ const char *engine_kind2str(dnnl_engine_kind_t kind) {
 const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode) {
     return dnnl_scratchpad_mode2str(mode);
 }
+
+const char *fpmath_mode2str(dnnl_fpmath_mode_t mode) {
+    return dnnl_fpmath_mode2str(mode);
+}
+
 ''' % body.rstrip()
 
 
@@ -185,6 +193,7 @@ def sanitize_value(v):
         return 'undef'
     if 'any' in v:
         return 'any'
+    v = v.split('dnnl_fpmath_mode_')[-1]
     v = v.split('dnnl_scratchpad_mode_')[-1]
     v = v.split('dnnl_format_kind_')[-1]
     v = v.split('dnnl_')[-1]

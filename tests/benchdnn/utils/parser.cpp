@@ -212,6 +212,16 @@ bool parse_attr_scratchpad_mode(
             str2scratchpad_mode, str, option_name, help);
 }
 
+bool parse_attr_fpmath_mode(std::vector<dnnl_fpmath_mode_t> &fpmath_mode,
+        const std::vector<dnnl_fpmath_mode_t> &def_fpmath_mode, const char *str,
+        const std::string &option_name /* = "attr-fpmath"*/) {
+    static const std::string help
+            = "MODE    (Default: `strict`)\n    Specifies fpmath_mode "
+              "attribute. `MODE` values can be `strict` or `bf16`.\n";
+    return parse_vector_option(fpmath_mode, def_fpmath_mode, str2fpmath_mode,
+            str, option_name, help);
+}
+
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name /* = "axis"*/) {
     static const std::string help

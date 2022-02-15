@@ -368,7 +368,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     }
     const fpmath_mode_t &fpm = attr->fpmath_mode_;
     if (fpm != fpmath_mode_t::dnnl_fpmath_mode_strict) {
-        ss << "attr-fpmath_mode:" << dnnl_fpmath_mode2str(fpm) << " ";
+        ss << "attr-fpmath:" << dnnl_fpmath_mode2str(fpm) << " ";
     }
 
     if (attr->has_default_values()) return ss;

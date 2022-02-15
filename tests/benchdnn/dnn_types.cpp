@@ -539,7 +539,8 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 bool attr_t::is_def() const {
     return oscale.is_def() && scales.is_def() && zero_points.is_def()
             && post_ops.is_def()
-            && scratchpad_mode == dnnl_scratchpad_mode_library;
+            && scratchpad_mode == dnnl_scratchpad_mode_library
+            && fpmath_mode == dnnl_fpmath_mode_strict;
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
@@ -752,6 +753,11 @@ std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm) {
+    s << fpmath_mode2str(fm);
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.is_def()) {
         if (!attr.oscale.is_def()) s << "--attr-oscale=" << attr.oscale << " ";
@@ -762,6 +768,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-post-ops=" << attr.post_ops << " ";
         if (attr.scratchpad_mode != dnnl_scratchpad_mode_library)
             s << "--attr-scratchpad=" << attr.scratchpad_mode << " ";
+        if (attr.fpmath_mode != dnnl_fpmath_mode_strict)
+            s << "--attr-fpmath=" << attr.fpmath_mode << " ";
     }
     return s;
 }
@@ -821,6 +829,24 @@ dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str) {
 
     assert(!"not expected");
     return dnnl_scratchpad_mode_library;
+}
+
+dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
+#define CASE(fpm) \
+    param = #fpm; \
+    if (!strncasecmp(param, str, strlen(param))) return dnnl_fpmath_mode_##fpm;
+
+    const char *param;
+
+    CASE(strict);
+    CASE(bf16);
+    CASE(f16);
+    CASE(any);
+
+    assert(!"not expected");
+    return dnnl_fpmath_mode_strict;
+
+#undef CASE
 }
 
 void attr_args_t::prepare_output_scales(
@@ -1001,6 +1027,9 @@ dnnl_primitive_attr_t create_dnnl_attr(
 
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
             dnnl_attr, attr.scratchpad_mode));
+
+    DNN_SAFE_V(
+            dnnl_primitive_attr_set_fpmath_mode(dnnl_attr, attr.fpmath_mode));
 
     return dnnl_attr;
 }

@@ -1204,9 +1204,9 @@ const char *dnnl_engine_kind2str(dnnl_engine_kind_t v) {
 }
 
 const char *dnnl_fpmath_mode2str(dnnl_fpmath_mode_t v) {
-    if (v == dnnl_fpmath_mode_strict) return "fpmath_mode_strict";
-    if (v == dnnl_fpmath_mode_bf16) return "fpmath_mode_bf16";
-    if (v == dnnl_fpmath_mode_f16) return "fpmath_mode_f16";
+    if (v == dnnl_fpmath_mode_strict) return "strict";
+    if (v == dnnl_fpmath_mode_bf16) return "bf16";
+    if (v == dnnl_fpmath_mode_f16) return "f16";
     if (v == dnnl_fpmath_mode_any) return "any";
     assert(!"unknown fpmath_mode");
     return "unknown fpmath_mode";

@@ -563,6 +563,9 @@ def convert_zero_points(zero_points):
 def convert_scratchpad_mode(scratchpad_mode):
     return scratchpad_mode
 
+def convert_fpmath_mode(fpmath_mode):
+    return fpmath_mode
+
 
 def convert_attrs(exts):
     converters = {
@@ -570,7 +573,8 @@ def convert_attrs(exts):
         'attr-oscale': convert_oscale,
         'attr-scales': convert_scales,
         'attr-zero-points': convert_zero_points,
-        'attr-scratchpad': convert_scratchpad_mode
+        'attr-scratchpad': convert_scratchpad_mode,
+        'attr-fpmath': convert_fpmath_mode
     }
 
     benchdnn_attrs = ''
