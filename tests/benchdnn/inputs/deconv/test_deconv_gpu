@@ -27,6 +27,13 @@
 --attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
 --batch=set_all
 
+#mixed float->int8 (dont cover all combinations to reduce size)
+--reset
+--mb=16
+--cfg=bf16bf16s8,f32f32u8
+--dir=FWD_B
+--batch=set_all
+
 #run backward without post ops
 --attr-post-ops=
 --cfg=bf16bf16bf16 --dir=BWD_D,BWD_WB --batch=set_all

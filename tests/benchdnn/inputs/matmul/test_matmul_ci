@@ -40,9 +40,12 @@
 --attr-zero-points=
 
 # Run-time dimensions check
---stag=abx,xba --wtag=abx,xba --dtag=abx
+--stag=ab,ba --wtag=ab,ba --dtag=ab,ba
 --runtime_dims_masks=15:15
 --batch=shapes_2d_ci
+
+--stag=abc,acb --wtag=abc,acb --dtag=abc,acb
+--runtime_dims_masks=15:15
 --batch=shapes_3d
 
 # test all the supported data type configurations + bias data types

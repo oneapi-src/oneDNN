@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,6 +112,7 @@ void parse_result(
         res_t &res, bool &want_perf_report, int status, const char *pstr) {
     auto &bs = benchdnn_stat;
     const char *state = state2str(res.state);
+    want_perf_report = false;
 
     switch (res.state) {
         case UNTESTED:
@@ -125,7 +126,6 @@ void parse_result(
             } else if (is_bench_mode(RUN)) {
                 assert(status == OK);
                 BENCHDNN_PRINT(0, "%d:EXECUTED __REPRO: %s\n", bs.tests, pstr);
-                want_perf_report = false;
                 break;
             }
         case FAILED:
@@ -149,9 +149,9 @@ void parse_result(
             break;
         case MISTRUSTED:
             assert(status == OK);
-            bs.mistrusted++;
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            // bs.failed++; /* temporal workaround for some tests */
+            want_perf_report = true;
+            bs.mistrusted++;
             break;
         case PASSED:
             assert(status == OK);
@@ -162,7 +162,6 @@ void parse_result(
         case LISTED:
             assert(status == OK);
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            want_perf_report = false;
             bs.listed++;
             break;
         default: assert(!"unknown state"); SAFE_V(FAIL);
