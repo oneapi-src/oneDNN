@@ -178,13 +178,8 @@ inline void inv_data_off(const prb_t *prb, size_t off, int64_t &mb, int64_t &c,
     assert(off == 0);
 }
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
-        const dnn_mem_t &sh, dnn_mem_t &ws, dnn_mem_t &dst, dnn_mem_t &src_hat);
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src_hat,
-        const dnn_mem_t &var, const dnn_mem_t &d_dst, const dnn_mem_t &ss,
-        const dnn_mem_t &sh, const dnn_mem_t &ws, dnn_mem_t &d_src,
-        dnn_mem_t &d_ss, dnn_mem_t &d_sh);
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

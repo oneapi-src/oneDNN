@@ -617,24 +617,33 @@ int doit(const prb_t *prb, res_t *res) {
     if (use_ss || use_sc) { SAFE(ss_dt.reorder(ss_fp), WARN); }
     if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
 
-    args_t args;
+    args_t args, ref_args;
+
     args.set(DNNL_ARG_SRC, src_dt);
-    args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_MEAN, mean_dt);
     args.set(DNNL_ARG_VARIANCE, var_dt);
     args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_dt);
     args.set(DNNL_ARG_SHIFT, sh_dt);
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    args.set(DNNL_ARG_DST, dst_dt);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     // Running ref to collect src_hat (used instead of src + mean) and ws, if
     // fuse_relu flag is requested.
     if (is_bench_mode(CORR)) {
-        TIME_REF(compute_ref_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp,
-                ws_fp, dst_fp, src_hat_fp));
         if (prb->dir & FLAG_FWD) {
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_MEAN, mean_fp);
+            ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+            ref_args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_SHIFT, sh_fp);
+            ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
+
+            TIME_REF(compute_ref(prb, ref_args));
             if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
                 SAFE(compare(prb, MEAN, mean_fp, mean_dt, res), WARN);
                 SAFE(compare(prb, VAR, var_fp, var_dt, res), WARN);
@@ -676,23 +685,37 @@ int doit(const prb_t *prb, res_t *res) {
 
         args.clear();
         args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
-        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_dt);
+        args.set(DNNL_ARG_SHIFT, sh_dt);
+        args.set(DNNL_ARG_WORKSPACE, ws_dt);
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
                 d_ss_dt);
-        args.set(DNNL_ARG_SHIFT, sh_dt);
         args.set(DNNL_ARG_DIFF_SHIFT, d_sh_dt);
-        args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, src_hat_fp, var_fp, d_dst_fp, ss_fp,
-                    sh_fp, ws_fp, d_src_fp, d_ss_fp, d_sh_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_MEAN, mean_fp);
+            ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+            ref_args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_SHIFT, sh_fp);
+            ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+            ref_args.set(
+                    use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
+                    d_ss_fp);
+            ref_args.set(DNNL_ARG_DIFF_SHIFT, d_sh_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
             if ((use_ss || use_sc) && (prb->dir & FLAG_WEI)) {
                 SAFE(compare(prb, use_sc ? SC : SS, d_ss_fp, d_ss_dt, res),
                         WARN);
