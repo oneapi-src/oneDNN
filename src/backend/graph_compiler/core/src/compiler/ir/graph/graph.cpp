@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -243,6 +243,10 @@ void sc_op::replace_uses_with_and_remove(const sc_op_ptr &replacer) {
         ths_out->replace_with(replace_out);
     }
     remove();
+}
+
+bool sc_op::is_single_output_single_use() {
+    return info_.outputs_.size() == 1 && info_.outputs_[0]->uses_.size() == 1;
 }
 
 void sc_op::remove() {

@@ -23,6 +23,7 @@
 #include "../../builder.hpp"
 #include "../../content_hash.hpp"
 #include "../../visitor.hpp"
+#include "../buffer_schedule.hpp"
 #include "../index_flatten.hpp"
 #include "kernel_lower.hpp"
 #include <compiler/ir/easy_build.hpp>
@@ -47,8 +48,7 @@ using namespace brgemm;
 
 static bool check_arg_range(const std::vector<expr> &args,
         std::vector<expr_c> &out_exprs, int start, int end) {
-    out_exprs.clear();
-    out_exprs.reserve(end - start);
+    out_exprs.reserve(out_exprs.size() + end - start);
     // check the parameters, if they are all constants,
     // we can cache the kernel
     for (int i = start; i < end; i++) {
@@ -152,6 +152,8 @@ static expr get_brgemm_postops_data_arg(
         bin_ptr = builder::make_tensor(
                 "__binary_rhs_ptr", {1}, datatypes::pointer);
         ret.emplace_back(builder::make_var_tensor_def_unattached(bin_ptr));
+        ret.back().remove_const()->attr().set(
+                attr_keys::tsr_dont_buf_sched, true);
         ret.emplace_back(builder::make_assign_unattached(
                 bin_ptr[UINT64_C(0)], in_bufs[2]));
     }
@@ -176,15 +178,22 @@ static expr brgemm_init_kernel_cache(brgemm_mode mode,
         scflags_t::brgemm_t backend, const std::vector<expr> &args,
         std::vector<expr_c> &out_exprs, float beta, bool has_postop) {
     if (mode == brgemm_mode::stride) {
-        // +5 for extra cache args
-        const int expected_cache_num_args = brgemm_args::NUM_ARGS_CPU
-                + brgemm_args::extra_args_offset::cache_nargs;
+        // + extra cache args
+        const int expected_cache_org_args = brgemm_args::STRIDE_B + 1;
+        const int expected_cache_extra_start = brgemm_args::STRIDE_B
+                + brgemm::postops_data_init_func_nargs + 2;
+        const int expected_cache_extra_args
+                = brgemm_args::extra_args_offset::cache_nargs;
         // +1 for context pointer
         assert(args.size()
                 == brgemm_args::NUM_ARGS_CPU
                         + brgemm_args::extra_args_offset::nargs + 1);
         if (!check_arg_range(
-                    args, out_exprs, brgemm_args::M, expected_cache_num_args)) {
+                    args, out_exprs, brgemm_args::M, expected_cache_org_args)) {
+            return expr();
+        }
+        if (!check_arg_range(args, out_exprs, expected_cache_extra_start,
+                    expected_cache_extra_start + expected_cache_extra_args)) {
             return expr();
         }
         return get_brgemm_creator_and_call_func(mode, backend, has_postop)
@@ -209,15 +218,22 @@ static expr brgemm_init_kernel_cache(brgemm_mode mode,
                                 + brgemm_args::extra_args_offset::
                                         postops_setting]); // postops set
     } else {
-        // +5 for extra cache args
-        const int expected_cache_num_args = brgemm_args::NUM_ARGS_LIST
-                + brgemm_args::extra_args_offset::cache_nargs;
+        // + extra cache args
+        const int expected_cache_org_args = brgemm_args::LEN + 1;
+        const int expected_cache_extra_start
+                = brgemm_args::LEN + brgemm::postops_data_init_func_nargs + 2;
+        const int expected_cache_extra_args
+                = brgemm_args::extra_args_offset::cache_nargs;
         // +1 for context pointer
         assert(args.size()
                 == brgemm_args::NUM_ARGS_LIST
                         + brgemm_args::extra_args_offset::nargs + 1);
         if (!check_arg_range(
-                    args, out_exprs, brgemm_args::M, expected_cache_num_args)) {
+                    args, out_exprs, brgemm_args::M, expected_cache_org_args)) {
+            return expr();
+        }
+        if (!check_arg_range(args, out_exprs, expected_cache_extra_start,
+                    expected_cache_extra_start + expected_cache_extra_args)) {
             return expr();
         }
         return get_brgemm_creator_and_call_func(mode, backend, has_postop)

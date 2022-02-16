@@ -184,6 +184,8 @@ public:
     // get real tensors list vector in output logical tensors
     std::vector<std::vector<tensor_slice *>> get_output_tsr_slices_list(
             fusible_op_t *op, fusion_anchor_data &fdata) const;
+    // get input op index
+    int get_input_op_index(sc_op *op) const;
 };
 
 /** fusion_anchor_data vs fusion_data

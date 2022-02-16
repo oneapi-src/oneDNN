@@ -1374,4 +1374,9 @@ fusion_manager::get_output_tsr_slices_list(
     return result;
 }
 
+int fusion_manager::get_input_op_index(sc_op *v) const {
+    auto itr = input_idx_map_.find(v);
+    assert(itr != input_idx_map_.end());
+    return itr->second;
+}
 } // namespace sc

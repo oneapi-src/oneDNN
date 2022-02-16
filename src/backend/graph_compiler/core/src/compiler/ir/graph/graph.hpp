@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -199,6 +199,9 @@ public:
     // node. Will detach from the input tensors. The replacer should manually
     // attach to the input tensors when it is needed
     void replace_uses_with_and_remove(const sc_op_ptr &replacer);
+
+    // the op is single output and the output is single used
+    bool is_single_output_single_use();
 
     // Marks this node invalid and detach_use from all input tensors
     void remove();

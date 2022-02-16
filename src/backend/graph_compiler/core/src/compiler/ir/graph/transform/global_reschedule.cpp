@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +24,6 @@
 #include <ops/fusible/unary_elemwise.hpp>
 
 namespace sc {
-
-// single output is output with only one user of its output
-inline bool is_single_output_and_use(sc_op *cur) {
-    return cur->get_outputs().size() == 1
-            && cur->get_outputs()[0]->uses_.size() == 1;
-}
-
 /**
  * What is bypass: it starts from the certain op which has more than one user
  * ops, and one of them is tunable op. it means fuse op pass will reparition
@@ -64,7 +57,7 @@ static bool search_bypass(const sc_op_ptr &master, sc_op_ptr start_node,
     sc_op_ptr next_node = std::move(start_node);
     int step = 1;
     std::vector<sc_op_ptr> bypass_ops;
-    while (is_single_output_and_use(next_node.get())) {
+    while (next_node->is_single_output_single_use()) {
         // This is input fusion, rather than pre-op fusion
         if (next_node == master) return false;
         // found bypass
@@ -81,7 +74,7 @@ static sc_op_ptr search_master(sc_op_ptr start_node, int max_step = 5) {
     sc_op_ptr next_node = std::move(start_node);
     if (next_node->isa<tunable_op_t>()) return next_node;
     int step = 1;
-    while (is_single_output_and_use(next_node.get())) {
+    while (next_node->is_single_output_single_use()) {
         next_node = next_node->get_outputs()[0]->uses_[0].second;
         if (next_node->isa<tunable_op_t>()) return next_node;
         if (step >= max_step) return nullptr;

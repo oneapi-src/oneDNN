@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -372,7 +372,10 @@ public:
     stmt_c visit(define_c v) override {
         if (v->var_.isa<tensor>()) {
             // only process local tensors here
-            if (v->linkage_ == linkage::local) {
+            if (v->linkage_ == linkage::local
+                    && (!v->attr_
+                            || !v->attr_->get_or_else(
+                                    attr_keys::tsr_dont_buf_sched, false))) {
                 out_[v->var_].create_ = tick_;
                 // set scope id for thread local tensor
                 if (in_parallel_for_) {

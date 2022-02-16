@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -75,6 +75,10 @@ create_default_graph_flow() {
             "graph_simplify", graph_simplify, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("global_reschedule",
             global_reschedule, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("brgemm_fusion_transform",
+            brgemm_fusion_transform, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("const_folding",
+            graph_constant_input_folding, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass(
             "fuse_ops", fuse_ops, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("horizontal_merge",

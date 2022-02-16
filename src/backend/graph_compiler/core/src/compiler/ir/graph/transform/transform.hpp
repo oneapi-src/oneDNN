@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,6 +79,9 @@ SC_INTERNAL_API void global_reschedule(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
 SC_INTERNAL_API void inplace_transform(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
+void brgemm_fusion_transform(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 namespace quantize {
 SC_INTERNAL_API void quantize_info_propagation(

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,12 +25,6 @@
 namespace sc {
 
 SC_MODULE(graph.fuse_op);
-
-static bool is_single_output_single_use(const sc_op_ptr &cur_node) {
-    if (cur_node->get_outputs().size() != 1) { return false; }
-    if (cur_node->get_outputs()[0]->uses_.size() != 1) { return false; }
-    return true;
-}
 
 static sc_op_ptr get_single_output(const sc_op_ptr &cur_node) {
     return cur_node->get_outputs()[0]->uses_[0].second;
@@ -173,6 +167,9 @@ static void do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
                     if (cur_in_partition
                             && !in->producer_owner_->attrs_.get_or_else(
                                     op_attr_key::break_post_fuse, false)
+                            && in->producer_owner_->attrs_.get_or_else(
+                                       "constant", const_kind::not_const)
+                                    == const_kind::not_const
                             && cur_in_partition->is_ok_to_add(fusible, dep)) {
                         if (parent_partition) {
                             // merge the parent partitions

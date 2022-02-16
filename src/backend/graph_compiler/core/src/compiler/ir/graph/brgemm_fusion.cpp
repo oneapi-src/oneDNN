@@ -228,6 +228,12 @@ static bool register_out_dtype(
     return true;
 }
 
+static void update_data_c_ptr(brgemm_fusion_register *reg, expr output) {
+    if (!reg->data_.at(brgemm::binary_post_ops_rhs)->equals(get_ir_null())) {
+        reg->data_.at(brgemm::data_C_ptr) = std::move(output);
+    }
+}
+
 bool brgemm_fusion_register::register_op_infos(const sc_op_ptr &op,
         const expr &output, const expr &extra_in,
         const std::vector<expr> &extra_in_shape) {
@@ -271,6 +277,7 @@ bool brgemm_fusion_register::register_op_infos(const sc_op_ptr &op,
     if (status) {
         last_out_ = output;
         status = register_out_dtype(this, output);
+        update_data_c_ptr(this, output);
     }
     COMPILE_ASSERT(
             setting_.size() <= brgemm::postops_setting_t::max_postops_num,

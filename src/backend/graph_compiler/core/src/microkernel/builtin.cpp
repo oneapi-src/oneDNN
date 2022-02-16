@@ -154,20 +154,21 @@ static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
                     _arg_("c_buf", datatypes::pointer)};
     if (mode == brgemm_mode::stride) {
         ss << get_brgemm_name(backend) << "_brgemm";
-        func_t creator = _decl_func(ss.str() + "_func", datatypes::pointer,
-                {_arg_("M", datatypes::s32), _arg_("N", datatypes::s32),
-                        _arg_("K", datatypes::s32),
-                        _arg_("LDA", datatypes::s32),
-                        _arg_("LDB", datatypes::s32),
-                        _arg_("LDC", datatypes::s32),
-                        _arg_("stride_a", datatypes::s32),
-                        _arg_("stride_b", datatypes::s32),
-                        _arg_("beta", datatypes::f32),
-                        _arg_("dtypeA", datatypes::s32),
-                        _arg_("dtypeB", datatypes::s32),
-                        _arg_("brg_attrs", datatypes::pointer),
-                        _arg_("bd_mask", datatypes::pointer),
-                        _arg_("postops_setting", datatypes::pointer)});
+        static func_t creator
+                = _decl_func(ss.str() + "_func", datatypes::pointer,
+                        {_arg_("M", datatypes::s32), _arg_("N", datatypes::s32),
+                                _arg_("K", datatypes::s32),
+                                _arg_("LDA", datatypes::s32),
+                                _arg_("LDB", datatypes::s32),
+                                _arg_("LDC", datatypes::s32),
+                                _arg_("stride_a", datatypes::s32),
+                                _arg_("stride_b", datatypes::s32),
+                                _arg_("beta", datatypes::f32),
+                                _arg_("dtypeA", datatypes::s32),
+                                _arg_("dtypeB", datatypes::s32),
+                                _arg_("brg_attrs", datatypes::pointer),
+                                _arg_("bd_mask", datatypes::pointer),
+                                _arg_("postops_setting", datatypes::pointer)});
         auto caller_args = std::vector<std::vector<expr>> {
                 _arg_("func", datatypes::pointer),
                 _arg_("A", datatypes::pointer), _arg_("B", datatypes::pointer),
@@ -182,18 +183,19 @@ static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
         return std::pair<func_t, func_t>(creator, caller);
     } else {
         ss << get_brgemm_name(backend) << "_brgemm_list";
-        func_t creator = _decl_func(ss.str() + "_func", datatypes::pointer,
-                {_arg_("M", datatypes::s32), _arg_("N", datatypes::s32),
-                        _arg_("K", datatypes::s32),
-                        _arg_("LDA", datatypes::s32),
-                        _arg_("LDB", datatypes::s32),
-                        _arg_("LDC", datatypes::s32),
-                        _arg_("beta", datatypes::f32),
-                        _arg_("dtypeA", datatypes::s32),
-                        _arg_("dtypeB", datatypes::s32),
-                        _arg_("brg_attrs", datatypes::pointer),
-                        _arg_("bd_mask", datatypes::pointer),
-                        _arg_("postops_setting", datatypes::pointer)});
+        static func_t creator
+                = _decl_func(ss.str() + "_func", datatypes::pointer,
+                        {_arg_("M", datatypes::s32), _arg_("N", datatypes::s32),
+                                _arg_("K", datatypes::s32),
+                                _arg_("LDA", datatypes::s32),
+                                _arg_("LDB", datatypes::s32),
+                                _arg_("LDC", datatypes::s32),
+                                _arg_("beta", datatypes::f32),
+                                _arg_("dtypeA", datatypes::s32),
+                                _arg_("dtypeB", datatypes::s32),
+                                _arg_("brg_attrs", datatypes::pointer),
+                                _arg_("bd_mask", datatypes::pointer),
+                                _arg_("postops_setting", datatypes::pointer)});
         auto caller_args = std::vector<std::vector<expr>> {
                 _arg_("func", datatypes::pointer),
                 _arg_("A", datatypes::pointer), _arg_("B", datatypes::pointer),

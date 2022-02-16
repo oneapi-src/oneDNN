@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ constexpr const char *buf_sched_type = "pass.buf_sched_type";
 // scheduler will it add to current tick to calculate final tick
 constexpr const char *hint_first_access_tick = "pass.hint_first_access_tick";
 constexpr const char *hint_last_access_tick = "pass.hint_last_access_tick";
+constexpr const char *tsr_dont_buf_sched = "pass.tsr_dont_buf_sched";
 constexpr int BUF_SCHED_NONE = 0;
 constexpr int BUF_SCHED_WHOLE = 1;
 constexpr int BUF_SCHED_SIZE = 2;
