@@ -30,6 +30,7 @@
 #include <runtime/config.hpp>
 #include <runtime/memorypool.hpp> // to get the path of the runtime library
 #include <unordered_map>
+#include <util/scoped_timer.hpp>
 #include <util/string_utils.hpp>
 #include <util/utils.hpp>
 
@@ -73,6 +74,7 @@ cfake_jit_module_t::~cfake_jit_module_t() {
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         const std::string &inpath, const std::string &outpath,
         statics_table_t &&globals, bool has_generic_wrapper) {
+    auto timer = SC_SCOPED_TIMER_INFO("pass.time.cfake_jit", "");
     auto &home_path = utils::get_sc_home_path();
     if (home_path.empty()) {
         throw std::runtime_error("environment variable SC_HOME is not set");

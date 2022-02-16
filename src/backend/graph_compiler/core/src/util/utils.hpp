@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -284,6 +284,8 @@ struct SC_INTERNAL_API compiler_configs_t {
     int64_t graph_tuning_timout_;
     bool graph_tuning_logging_;
     verbose_level verbose_level_;
+    bool print_pass_time_;
+    bool print_pass_result_;
 
     static compiler_configs_t &get();
 
@@ -297,10 +299,12 @@ private:
 #define SC_INFO \
     if (auto __sc_stream_temp__ = ::sc::utils::get_info_logging_stream()) \
     (*__sc_stream_temp__.stream_)
-#define SC_MODULE_INFO \
-    if (auto __sc_stream_temp__ \
-            = ::sc::utils::get_info_logging_stream(__sc_module_name)) \
+
+#define SC_MODULE_INFO2(NAME) \
+    if (auto __sc_stream_temp__ = ::sc::utils::get_info_logging_stream(NAME)) \
     (*__sc_stream_temp__.stream_)
+
+#define SC_MODULE_INFO SC_MODULE_INFO2(__sc_module_name)
 
 #define SC_WARN \
     if (auto __sc_stream_temp__ = ::sc::utils::get_warning_logging_stream()) \

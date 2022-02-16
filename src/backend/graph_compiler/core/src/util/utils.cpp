@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -214,6 +214,9 @@ compiler_configs_t::compiler_configs_t() {
         tmp_get_verbose_level = 0;
     }
     verbose_level_ = (verbose_level)tmp_get_verbose_level;
+
+    print_pass_time_ = utils::getenv_int("SC_PRINT_PASS_TIME", 0);
+    print_pass_result_ = utils::getenv_int("SC_PRINT_PASS_RESULT", 0);
 }
 
 } // namespace utils

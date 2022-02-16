@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include <compiler/ir/builder.hpp>
 #include <microkernel/builtin.hpp>
 #include <unordered_map>
+#include <util/scoped_timer.hpp>
 
 namespace sc {
 
@@ -169,6 +170,7 @@ static graph_tensor_ptr get_linked_output_tsr(const graph_tensor_ptr &ltensor) {
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args) {
     // todo(zhichen): move to drive.
+    auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
     if (!ctx->flags_.dump_graph_.empty()) {
         SC_INFO << "visualize graph to a dot file and a json file";
         visualize(ctx->flags_.dump_graph_, graph);
@@ -400,6 +402,9 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     }
     func->params_ = std::move(params);
     func->decl_->params_ = func->params_;
+    if (utils::compiler_configs_t::get().print_pass_result_) {
+        SC_MODULE_INFO << ret_mod;
+    }
     return ret_mod;
 }
 } // namespace sc

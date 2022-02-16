@@ -30,6 +30,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
+#include <util/scoped_timer.hpp>
+#include <util/utils.hpp>
 
 namespace sc {
 static std::string get_closure_wrapper_name(const std::string &name) {
@@ -808,6 +810,8 @@ const_ir_module_ptr preprocess_module_and_make_decl(
         const const_ir_module_ptr &mod, module_pass_t &pre_passes,
         std::ostream &source) {
     auto mod_cpy = run_precodegen_passes(pre_passes, mod);
+    auto timer
+            = SC_SCOPED_TIMER_INFO("pass.time.c_generator_pass.preprocess", "");
     // stage 1, find and print all function prototypes
     std::vector<func_t> dep;
     std::unordered_set<func_t> depset;
@@ -832,6 +836,7 @@ const_ir_module_ptr c_generator_pass_t::operator()(const_ir_module_ptr mod) {
     // TODO(xxx): cfake_jit is created with default ctx, which can't pass below
     // assertion. assert(mod->ctx_ == context_);
     mod = preprocess_module_and_make_decl(mod, pre_passes_, source_);
+    auto timer = SC_SCOPED_TIMER_INFO("pass.time.c_generator_pass.codegen", "");
     for (auto &f : mod->get_contents()) {
         do_generate_c(f, source_, mod->get_module_vars(), gen_wrapper_,
                 f->attr_ && f->attr_->has_key("private"));

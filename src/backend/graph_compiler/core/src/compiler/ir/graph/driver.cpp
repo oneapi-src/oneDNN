@@ -21,6 +21,7 @@
 #include "driver.hpp"
 #include "pass/pass.hpp"
 #include <unordered_map>
+#include <util/scoped_timer.hpp>
 
 #ifdef _MSC_VER
 #include <Windows.h>
@@ -119,6 +120,37 @@ get_graph_passes() {
     return passes;
 }
 
+static void run_passes(sc_graph_t &graph, const context_ptr &ctx,
+        const std::vector<basic_graph_pass_ptr> &passes) {
+    bool need_time = utils::compiler_configs_t::get().print_pass_time_;
+    bool need_result = utils::compiler_configs_t::get().print_pass_result_;
+    for (auto &pass : passes) {
+        if (pass->enabled_) {
+            auto timer = utils::create_scoped_timer(
+                    need_time, [&pass](utils::time_duration dur) {
+                        std::string name = std::string("graph.driver.time.")
+                                + pass->name_;
+                        SC_MODULE_INFO2(name.c_str())
+                                << "took "
+                                << std::chrono::duration_cast<
+                                           std::chrono::microseconds>(dur)
+                                           .count()
+                                << " us";
+                    });
+            pass->func_(graph, ctx);
+            if (need_result) {
+                std::string name
+                        = std::string("graph.driver.debug.") + pass->name_;
+                if (auto stream
+                        = ::sc::utils::get_info_logging_stream(name.c_str())) {
+                    *stream.stream_ << "IR after this pass:\n";
+                    print_graph(graph, *stream.stream_, true, true);
+                }
+            }
+        }
+    }
+}
+
 void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         const graph_config *in_cfg, graph_config *out_cfg, int batch_size,
         int repeat, int64_t timeout, tuner_creator *tune_creator,
@@ -131,13 +163,10 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
     const std::vector<basic_graph_pass_ptr> *postpass
             = post_tune_pass ? post_tune_pass : &std::get<1>(passes_tuple);
     // run pre_processing passes
-    for (auto &pass : *prepass) {
-        if (pass->enabled_) { pass->func_(graph, ctx); }
-    }
+    run_passes(graph, ctx, *prepass);
+
     // run post tune passes
-    for (auto &pass : *postpass) {
-        pass->func_(graph, ctx);
-    }
+    run_passes(graph, ctx, *postpass);
 }
 
 void graph_driver(

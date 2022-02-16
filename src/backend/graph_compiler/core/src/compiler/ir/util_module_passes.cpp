@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,13 @@
  *******************************************************************************/
 
 #include "util_module_passes.hpp"
+#include <chrono>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
-
+#include <util/scoped_timer.hpp>
+#include <util/utils.hpp>
 namespace sc {
 sequential_module_pass_t::sequential_module_pass_t(
         std::vector<module_pass_ptr> &&passes)
@@ -28,10 +31,36 @@ sequential_module_pass_t::sequential_module_pass_t(
         sequential_module_pass_t &&other)
     : passes_(std::move(other.passes_)) {}
 
+static const char *get_pass_name(module_pass_t *pass) {
+    auto &tyid = typeid(*pass);
+    if (tyid == typeid(module_function_pass_t)) {
+        auto &ptr = *static_cast<module_function_pass_t *>(pass)->impl_;
+        return typeid(ptr).name();
+    }
+    return tyid.name();
+}
+
 const_ir_module_ptr sequential_module_pass_t::operator()(
         const_ir_module_ptr f) {
+    bool need_print_time = utils::compiler_configs_t::get().print_pass_time_;
+    bool need_result = utils::compiler_configs_t::get().print_pass_result_;
     for (auto &p : passes_) {
+        auto timer = utils::create_scoped_timer(
+                need_print_time, [&p](utils::time_duration dur) {
+                    auto diff = std::chrono::duration_cast<
+                            std::chrono::microseconds>(dur)
+                                        .count();
+                    std::string mod_name = std::string("pass.time.")
+                            + get_pass_name(p.get());
+                    SC_MODULE_INFO2(mod_name.c_str())
+                            << "The pass took " << diff << "us";
+                });
         f = (*p)(f);
+        if (need_result) {
+            std::string mod_name
+                    = std::string("pass.debug.") + get_pass_name(p.get());
+            SC_MODULE_INFO2(mod_name.c_str()) << f;
+        }
     }
     return f;
 }

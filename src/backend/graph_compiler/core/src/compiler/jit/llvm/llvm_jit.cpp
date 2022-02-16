@@ -38,6 +38,7 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <runtime/config.hpp>
 #include <runtime/runtime.hpp>
+#include <util/scoped_timer.hpp>
 
 namespace sc {
 
@@ -85,6 +86,7 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     llvm_generator_pass gen {*llvm_ctx, llvmmod, generate_wrapper};
     auto new_mod = gen(module);
 
+    auto timer = SC_SCOPED_TIMER_INFO("pass.time.llvm_jit", "");
     auto &attr_table = *new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
             ir_module_t::attr_key_t::MODULE_DATA_BUFFERS);
 

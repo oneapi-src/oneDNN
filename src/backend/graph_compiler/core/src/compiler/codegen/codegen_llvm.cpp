@@ -43,6 +43,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <util/any_map.hpp>
+#include <util/scoped_timer.hpp>
 
 #if SC_LLVM_BACKEND > 8
 #include <llvm/IR/IntrinsicsX86.h>
@@ -1113,6 +1114,7 @@ const_ir_module_ptr llvm_generator_pass::operator()(const_ir_module_ptr f) {
     codegen_llvm_vis_t vis {f->ctx_, llvm_ctx_};
     auto passes = get_default_precodegen_passes(f->ctx_, gen_wrapper_);
     auto mod = run_precodegen_passes(passes, f);
+    auto timer = SC_SCOPED_TIMER_INFO("pass.time.llvm_generator_pass", "");
     for (auto &funct : mod->get_contents()) {
         vis.dispatch(funct);
     }
