@@ -4213,7 +4213,7 @@ public:
         auto *dpas = obj.func.as_ptr<dpas_t>();
         if (!dpas) return obj;
 
-        int M = dpas->simd_size;
+        int M = dpas->exec_size;
         int N = dpas->rcount;
         int K = dpas->sdepth * 4;
 
@@ -5613,7 +5613,7 @@ private:
 
     void build_dpas(const bmnk_block_mapper_t &from_bmnk_mapper,
             const dpas_t &dpas, const multiply_desc_t &desc) {
-        int m_blk = dpas.simd_size;
+        int m_blk = dpas.exec_size;
         int n_blk = dpas.rcount;
         int k_blk = dpas.sdepth * 4 / dpas.src1_type.size();
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,14 +57,20 @@ fma_kind_t fma_kind::get_supported_kind(
 
 int fma_kind::get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c) {
+    int max_simd_size = 16;
+    int ret = 0;
     switch (kind) {
         case fma_kind_t::dp4a:
-            return mad_t::get_simd_size(a.with_elems(4), b.with_elems(4), c);
+            ret = mad_t::get_simd_size(a.with_elems(4), b.with_elems(4), c);
+            break;
         case fma_kind_t::dpas:
-        case fma_kind_t::dpasw: return hw >= ngen::HW::XeHPC ? 16 : 8;
-        case fma_kind_t::mad: return mad_t::get_simd_size(a, b, c);
-        default: return 0;
+        case fma_kind_t::dpasw: ret = hw >= ngen::HW::XeHPC ? 16 : 8; break;
+        case fma_kind_t::mad: ret = mad_t::get_simd_size(a, b, c); break;
+        default: break;
     }
+    ir_assert(ret != 0);
+    ret = std::min(ret, max_simd_size);
+    return ret;
 }
 
 type_t multiply_desc_t::get_c_type(
@@ -95,7 +101,7 @@ type_t multiply_desc_t::get_c_type(
 layout_t dpas_t::a_layout() const {
     if (src1_type.size() != 1 && src1_type.size() != 2) ir_error_not_expected();
 
-    int m_blk = simd_size;
+    int m_blk = exec_size;
     int inner_blk = 4 / src1_type.size();
     int outer_blk = sdepth;
     std::vector<std::pair<int, dim_t>> blocks
@@ -113,14 +119,14 @@ layout_t dpas_t::b_layout() const {
 }
 
 layout_t dpas_t::c_layout() const {
-    int m_blk = simd_size;
+    int m_blk = exec_size;
     int n_blk = rcount;
     std::vector<dim_t> dims = {n_blk, m_blk};
     return layout_t(dst_type, 0, dims).transpose();
 }
 
 bool dpas_t::matches(const multiply_desc_t &desc) const {
-    int m_blk = simd_size;
+    int m_blk = exec_size;
     int n_blk = rcount;
     int k_blk = sdepth * 4 / src1_type.size();
 

@@ -4330,13 +4330,13 @@ private:
 
         if (dpas_func.is_dpasw) dst = dst.unpermute();
 
-        int simd = dpas_func.simd_size;
+        int esize = dpas_func.exec_size;
 
         ngen::RegData src0;
         auto &src0_op = dpas_t::arg_src0(args);
         if (!src0_op.is_immediate()) {
             auto src0_rbd = src0_op.reg_buf_data().format(
-                    0, to_ngen(dpas_func.dst_type), simd, 1);
+                    0, to_ngen(dpas_func.dst_type), esize, 1);
             if (dpas_func.is_dpasw) src0_rbd = src0_rbd.unpermute();
             src0 = src0_rbd;
         } else {
@@ -4345,14 +4345,14 @@ private:
             src0 = host_->null.retype(to_ngen(dpas_func.dst_type));
         }
 
-        dst = dst.format(0, to_ngen(dpas_func.dst_type), simd, 1);
-        src1 = src1.format(0, to_ngen(dpas_func.src1_type), simd, 1);
-        int src2_width = (dpas_func.is_dp4a() ? 1 : simd);
+        dst = dst.format(0, to_ngen(dpas_func.dst_type), esize, 1);
+        src1 = src1.format(0, to_ngen(dpas_func.src1_type), esize, 1);
+        int src2_width = (dpas_func.is_dp4a() ? 1 : esize);
         int src2_stride = (dpas_func.is_dp4a() ? 0 : 1);
         src2 = src2.format(
                 0, to_ngen(dpas_func.src2_type), src2_width, src2_stride);
 
-        ngen::InstructionModifier mod = simd_size_;
+        ngen::InstructionModifier mod = esize;
         if (!attr.is_empty())
             mod = mod | to_ngen(attr.as<instruction_modifier_attr_t>().mod);
         check_bank_conflicts(mod, src0, src1, src2, /*is_dpas=*/true);
@@ -4384,7 +4384,7 @@ private:
         if (!src0_op.is_immediate()) {
             src0 = src0_op.reg_buf_data()
                            .format(0, to_ngen(mad_func.dst_type),
-                                   mad_func.simd_size)
+                                   mad_func.exec_size)
                            .reg_data();
         } else {
             ir_assert(src0_op.is_immediate());
@@ -4393,16 +4393,16 @@ private:
             src0.setType(to_ngen(mad_func.dst_type));
         }
 
-        dst = dst.format(0, to_ngen(mad_func.dst_type), mad_func.simd_size);
+        dst = dst.format(0, to_ngen(mad_func.dst_type), mad_func.exec_size);
 
-        int src1_width = (mad_func.src1_stride == 0 ? 1 : mad_func.simd_size);
-        int src2_width = (mad_func.src2_stride == 0 ? 1 : mad_func.simd_size);
+        int src1_width = (mad_func.src1_stride == 0 ? 1 : mad_func.exec_size);
+        int src2_width = (mad_func.src2_stride == 0 ? 1 : mad_func.exec_size);
         src1 = src1.format(0, to_ngen(mad_func.src1_type), src1_width,
                 mad_func.src1_stride);
         src2 = src2.format(0, to_ngen(mad_func.src2_type), src2_width,
                 mad_func.src2_stride);
 
-        ngen::InstructionModifier mod = simd_size_;
+        ngen::InstructionModifier mod = mad_func.exec_size;
         if (!attr.is_empty())
             mod = mod | to_ngen(attr.as<instruction_modifier_attr_t>().mod);
 

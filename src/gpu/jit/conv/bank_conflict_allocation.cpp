@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -701,7 +701,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         int src2_stride_bytes;
         if (call.func.is<dpas_t>()) {
             auto &dpas = call.func.as<dpas_t>();
-            simd = dpas.simd_size;
+            simd = dpas.exec_size;
             src0_stride_bytes = dpas.dst_type.size();
             src1_stride_bytes = dpas.src1_type.size();
             src2_stride_bytes = dpas.is_dp4a() ? 0 : dpas.src2_type.size();
@@ -711,7 +711,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
             if (!dpas.is_dp4a()) ir_assert(simd == hw_simd);
         } else if (call.func.is<mad_t>()) {
             auto &mad = call.func.as<mad_t>();
-            simd = mad.simd_size;
+            simd = mad.exec_size;
             src0_stride_bytes = mad.dst_type.size();
             src1_stride_bytes = mad.src1_stride * mad.src1_type.size();
             src2_stride_bytes = mad.src2_stride * mad.src2_type.size();

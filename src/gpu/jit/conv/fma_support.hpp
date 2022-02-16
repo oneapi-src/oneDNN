@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,15 +89,15 @@ class dpas_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(dpas_t, func_impl_t)
 
-    static func_t make(bool is_dpasw, int simd_size, int sdepth, int rcount,
+    static func_t make(bool is_dpasw, int exec_size, int sdepth, int rcount,
             const type_t &dst_type, const type_t &src1_type,
             const type_t &src2_type) {
-        return func_t(new dpas_t(is_dpasw, simd_size, sdepth, rcount, dst_type,
+        return func_t(new dpas_t(is_dpasw, exec_size, sdepth, rcount, dst_type,
                 src1_type, src2_type));
     }
 
     static func_t make_dpasw(const dpas_t &dpas) {
-        return func_t(new dpas_t(true, dpas.simd_size, dpas.sdepth, dpas.rcount,
+        return func_t(new dpas_t(true, dpas.exec_size, dpas.sdepth, dpas.rcount,
                 dpas.dst_type, dpas.src1_type, dpas.src2_type));
     }
 
@@ -135,9 +135,9 @@ public:
         return call({dst, src0, src1, src2});
     }
 
-    int dst_size() const { return simd_size * rcount * sizeof(uint32_t); }
+    int dst_size() const { return exec_size * rcount * sizeof(uint32_t); }
     int src0_size() const { return dst_size(); }
-    int src1_size() const { return simd_size * sdepth * sizeof(uint32_t); }
+    int src1_size() const { return exec_size * sdepth * sizeof(uint32_t); }
     int src2_size() const {
         const int dpas_size = sdepth * rcount * sizeof(uint32_t);
         return is_dpasw ? dpas_size / 2 : dpas_size;
@@ -154,7 +154,7 @@ public:
 
     bool is_dpasw;
 
-    int simd_size;
+    int exec_size;
     int sdepth;
     int rcount;
 
@@ -163,11 +163,11 @@ public:
     type_t src2_type;
 
 private:
-    dpas_t(bool is_dpasw, int simd_size, int sdepth, int rcount,
+    dpas_t(bool is_dpasw, int exec_size, int sdepth, int rcount,
             const type_t &dst_type, const type_t &src1_type,
             const type_t &src2_type)
         : is_dpasw(is_dpasw)
-        , simd_size(simd_size)
+        , exec_size(exec_size)
         , sdepth(sdepth)
         , rcount(rcount)
         , dst_type(dst_type)
@@ -180,10 +180,10 @@ class mad_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(mad_t, func_impl_t)
 
-    static func_t make(const type_t &dst_type, int simd_size,
+    static func_t make(const type_t &dst_type, int exec_size,
             const type_t &src1_type, int src1_stride, const type_t src2_type,
             int src2_stride) {
-        return func_t(new mad_t(dst_type, simd_size, src1_type, src1_stride,
+        return func_t(new mad_t(dst_type, exec_size, src1_type, src1_stride,
                 src2_type, src2_stride));
     }
 
@@ -193,13 +193,13 @@ public:
 
         return (dst_type == other.dst_type) && (src1_type == other.src1_type)
                 && (src2_type == other.src2_type)
-                && (simd_size == other.simd_size)
+                && (exec_size == other.exec_size)
                 && (src1_stride == other.src1_stride)
                 && (src2_stride == other.src2_stride);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(dst_type, src1_type, src2_type, simd_size,
+        return ir_utils::get_hash(dst_type, src1_type, src2_type, exec_size,
                 src2_stride, src1_stride);
     }
 
@@ -219,15 +219,15 @@ public:
         return call({dst, src0, src1, src2});
     }
 
-    int dst_size() const { return simd_size * dst_type.size(); }
+    int dst_size() const { return exec_size * dst_type.size(); }
     int src0_size() const { return dst_size(); }
     int src1_size() const {
         return std::max(
-                src1_type.size(), src1_stride * src1_type.size() * simd_size);
+                src1_type.size(), src1_stride * src1_type.size() * exec_size);
     }
     int src2_size() const {
         return std::max(
-                src2_type.size(), src2_stride * src2_type.size() * simd_size);
+                src2_type.size(), src2_stride * src2_type.size() * exec_size);
     }
 
     static bool matches_types(
@@ -246,29 +246,29 @@ public:
             max_size = max_exec_size_bytes / c.size();
         return max_size;
     }
-    int get_simd_size() const { return simd_size; }
+    int get_exec_size() const { return exec_size; }
 
     type_t dst_type;
     type_t src1_type;
     type_t src2_type;
 
-    int simd_size;
+    int exec_size;
     int src1_stride;
     int src2_stride;
 
 private:
-    mad_t(const type_t &dst_type, int simd_size, const type_t &src1_type,
+    mad_t(const type_t &dst_type, int exec_size, const type_t &src1_type,
             int src1_stride, const type_t &src2_type, int src2_stride)
         : dst_type(dst_type)
         , src1_type(src1_type)
         , src2_type(src2_type)
-        , simd_size(simd_size)
+        , exec_size(exec_size)
         , src1_stride(src1_stride)
         , src2_stride(src2_stride) {
 
-        ir_assert(math::is_pow2(simd_size));
+        ir_assert(math::is_pow2(exec_size));
 
-        ir_assert(simd_size <= max_exec_size);
+        ir_assert(exec_size <= max_exec_size);
         ir_assert(dst_size() <= max_exec_size_bytes);
         ir_assert(src1_size() <= max_exec_size_bytes);
         ir_assert(src2_size() <= max_exec_size_bytes);

@@ -79,9 +79,11 @@ public:
     int eu_count() const { return eu_count_; }
     int large_grf_support() const { return large_grf_support_; }
     int simd_size() const { return simd_size_; }
+    int vec_size() const { return vec_size_; }
     int regs() const { return regs_; }
 
     void set_simd_size(int value) { simd_size_ = value; }
+    void set_vec_size(int value) { vec_size_ = value; }
     void set_regs(int value) { regs_ = value; }
     void set_max_tg_size(int value) { max_tg_size_ = value; }
 
@@ -127,7 +129,14 @@ private:
     int eu_count_;
     size_t max_wg_size_;
     bool large_grf_support_;
-    int simd_size_ = 0; // SIMD width.
+
+    // SIMD width (used for thread dispatching).
+    int simd_size_ = 0;
+
+    // Vector size - used as the execution size for compute instructions
+    // (mad/dp4a/dpas).
+    int vec_size_ = 0;
+
     int regs_ = 0; // Number of registers.
     int max_tg_size_ = 0; // Max thread group size.
 };

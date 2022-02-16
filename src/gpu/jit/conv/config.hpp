@@ -244,7 +244,7 @@ public:
         CHECK(init_hw(engine));
         CHECK(init_abc_data_types());
         CHECK(init_acc_data_type());
-        CHECK(init_fma_kind());
+        CHECK(init_fma_kind_and_simd_size());
         CHECK(init_data_layouts(conv_pd));
 
         if (!data_types_ok()) return status::unimplemented;
@@ -1172,7 +1172,8 @@ public:
 
     bool do_b_reduction;
 
-    fma_kind_t fma_kind; // Which instruction backend to use.
+    // Which instruction backend to use.
+    fma_kind_t fma_kind = fma_kind_t::unknown;
 
     bool use_preload; // Whether to use SLM or prefetch.
     bool use_a_slm; // Whether to use SLM for A.
@@ -1436,7 +1437,7 @@ private:
         return status::success;
     }
 
-    status_t init_fma_kind() {
+    status_t init_fma_kind_and_simd_size() {
         fma_kind = fma_kind::get_supported_kind(
                 hw, a_data_type, b_data_type, acc_data_type);
 
@@ -1461,7 +1462,10 @@ private:
                 hw, fma_kind, a_data_type, b_data_type, acc_data_type);
 
 #endif
+
         if (fma_kind == fma_kind_t::unknown) return status::unimplemented;
+
+        init_simd_size();
 
         // Disable using mad instruction backend until performance parity is
         // reached with OpenCL kernels.
