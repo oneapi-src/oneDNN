@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,10 +20,15 @@
 
 namespace pool {
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst,
-        dnn_mem_t &ws) {
-    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
+void compute_ref_fwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+    const dnn_mem_t &ws = args.find(DNNL_ARG_WORKSPACE);
+
+    float *dst_ptr = (float *)dst;
+    int *ws_ptr = (int *)ws;
+
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
     auto ker = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
         const int64_t ID = prb->id, IH = prb->ih, IW = prb->iw;
         const int64_t KD = prb->kd, KH = prb->kh, KW = prb->kw;
@@ -35,7 +40,8 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         // dt due to the library initialize values with -max_dt, but not -INF.
         float max_value = lowest_dt(prb->cfg[DST].dt);
         float avg_value = 0.;
-        int ws_off = INT_MAX;
+        // Set initial value based on ws data type
+        int ws_off = prb->kernel_size() <= UINT8_MAX ? UINT8_MAX : INT_MAX;
         int num_summands = 0;
 
         for (int64_t kd = 0; kd < KD; ++kd) {
@@ -63,24 +69,15 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         float res = 0.f;
         if (prb->alg == max) {
             res = max_value;
-            if (!(prb->dir & FLAG_INF)) {
-                // Move value from int to uint8_t depending on ws data type
-                ws_off = maybe_saturate(ws.dt(), ws_off);
-                ws.set_elem(dst_off, ws_off);
-            }
+            if (!(prb->dir & FLAG_INF)) ws_ptr[dst_off] = ws_off;
         } else if (prb->alg == avg_np || prb->alg == avg_p) {
             res = avg_value / get_num_summands(prb, od, oh, ow);
         }
 
-        std::vector<float> v_binary_vals(v_bin_po_mask.size());
-        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-            const auto bin_po_offset
-                    = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
-            const float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals[d] = binary_val;
-        }
-        maybe_post_ops(prb->attr, res, 0.f, v_binary_vals);
-        dst.set_elem(dst_off, res);
+        const auto v_po_vals = prepare_po_vals(dst, args, v_po_masks, dst_off);
+
+        maybe_post_ops(prb->attr, res, 0.f, v_po_vals);
+        dst_ptr[dst_off] = res;
     };
 
     dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->od, prb->oh, prb->ow,
@@ -89,19 +86,24 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
             });
 }
 
-void compute_ref_bwd(const prb_t *prb, dnn_mem_t &diff_src,
-        const dnn_mem_t &diff_dst, const dnn_mem_t &ws) {
-    auto zero_diff_src = [&](int64_t mb, int64_t ic) {
-        for (int64_t id = 0; id < prb->id; ++id)
-            for (int64_t ih = 0; ih < prb->ih; ++ih)
-                for (int64_t iw = 0; iw < prb->iw; ++iw)
-                    diff_src.set_elem(src_off_f(prb, mb, ic, id, ih, iw), 0.);
+void compute_ref_bwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &d_dst = args.find(DNNL_ARG_DIFF_DST);
+    const dnn_mem_t &ws = args.find(DNNL_ARG_WORKSPACE);
+    const dnn_mem_t &d_src = args.find(DNNL_ARG_DIFF_SRC);
+
+    float *d_src_ptr = (float *)d_src;
+
+    auto zero_d_src = [&](int64_t mb, int64_t ic) {
+        for_(int64_t id = 0; id < prb->id; ++id)
+        for_(int64_t ih = 0; ih < prb->ih; ++ih)
+        for (int64_t iw = 0; iw < prb->iw; ++iw)
+            d_src_ptr[src_off_f(prb, mb, ic, id, ih, iw)] = 0.f;
     };
 
     auto ker = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
-        const auto diff_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
-        float diff_dst_val = diff_dst.get_elem(diff_dst_off);
-        int ws_off = (prb->alg == max) ? ws.get_elem(diff_dst_off) : 0;
+        const auto d_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
+        float d_dst_val = d_dst.get_elem(d_dst_off);
+        int ws_off = (prb->alg == max) ? ws.get_elem(d_dst_off) : 0;
 
         const int64_t ID = prb->id, IH = prb->ih, IW = prb->iw;
         const int64_t KD = prb->kd, KH = prb->kh, KW = prb->kw;
@@ -119,25 +121,30 @@ void compute_ref_bwd(const prb_t *prb, dnn_mem_t &diff_src,
                     const int64_t iw = ow * SW - PW + kw * (DW + 1);
                     if (iw < 0 || iw >= IW) continue;
 
-                    float &S = ((float *)diff_src)[src_off_f(
-                            prb, mb, ic, id, ih, iw)];
+                    float &S = d_src_ptr[src_off_f(prb, mb, ic, id, ih, iw)];
                     if (prb->alg == max) {
                         if (ws_off == ker_off_f(prb, kd, kh, kw))
-                            S += diff_dst_val;
+                            S += d_dst_val;
                     } else if (prb->alg == avg_np || prb->alg == avg_p)
-                        S += diff_dst_val / get_num_summands(prb, od, oh, ow);
+                        S += d_dst_val / get_num_summands(prb, od, oh, ow);
                 }
             }
         }
     };
 
     dnnl::impl::parallel_nd(prb->mb, prb->ic, [&](int64_t mb, int64_t ic) {
-        zero_diff_src(mb, ic);
-        for (int64_t od = 0; od < prb->od; ++od)
-            for (int64_t oh = 0; oh < prb->oh; ++oh)
-                for (int64_t ow = 0; ow < prb->ow; ++ow)
-                    ker(mb, ic, od, oh, ow);
+        zero_d_src(mb, ic);
+        for_(int64_t od = 0; od < prb->od; ++od)
+        for_(int64_t oh = 0; oh < prb->oh; ++oh)
+        for (int64_t ow = 0; ow < prb->ow; ++ow)
+            ker(mb, ic, od, oh, ow);
     });
+}
+
+void compute_ref(
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    compute_ref_fwd(prb, args);
+    if (prb->dir & FLAG_BWD) compute_ref_bwd(prb, args);
 }
 
 } // namespace pool
