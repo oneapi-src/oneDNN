@@ -113,6 +113,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::conv_simple_resblock, float_conv_fwd)
     DNNL_REGISTER_KERNEL(
             op_kind::conv_bias_post_ops_chain_fusion, float_conv_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::float_conv_fusion, float_conv_fwd)
 
     DNNL_REGISTER_KERNEL(impl::op_kind::ConvolutionBackpropData, conv_bwd_data)
 

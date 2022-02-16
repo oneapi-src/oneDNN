@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1222,143 +1222,409 @@ inline void construct_chained_relu(
     agraph->add_op(&relu9);
 }
 
-#define UTILS_SET_Q_DQ_DATA_ATTR(q_dq_data) \
-    q_dq_data.set_attr<std::string>("qtype", "per_tensor"); \
-    q_dq_data.set_attr<std::vector<int64_t>>("zps", {zp_src}); \
-    q_dq_data.set_attr<std::vector<float>>("scales", {scale_src}); \
-    q_dq_data.set_attr<int64_t>("axis", 0);
+class id_generator {
+public:
+    id_generator() : id_(0) {};
+    size_t get_id() { return id_++; }
 
-#define UTILS_SET_Q_DQ_WEIGHT_ATTR(q_dq_weight) \
-    q_dq_weight.set_attr<std::string>("qtype", "per_channel"); \
-    q_dq_weight.set_attr<std::vector<int64_t>>("zps", zp_wei); \
-    q_dq_weight.set_attr<std::vector<float>>("scales", scale_wei); \
-    q_dq_weight.set_attr<int64_t>("axis", 0);
+private:
+    size_t id_;
+};
 
-#define UTILS_SET_CONV_ATTR(conv, nd) \
-    conv.set_attr<impl::dims>("strides", impl::dims(nd, 1)); \
-    conv.set_attr<impl::dims>("dilations", impl::dims(nd, 1)); \
-    conv.set_attr<impl::dims>("pads_begin", impl::dims(nd, 0)); \
-    conv.set_attr<impl::dims>("pads_end", impl::dims(nd, 0)); \
-    conv.set_attr<std::string>("data_format", "NCX"); \
-    conv.set_attr<std::string>("filter_format", "OIX");
+inline impl::logical_tensor_t create_convolution(id_generator &id_gen,
+        impl::graph_t &agraph, const impl::logical_tensor_t &src, int64_t ic,
+        int64_t ks, int64_t oc, int64_t groups, const impl::dims &strides,
+        const impl::dims &dilations, const impl::dims &pads_begin,
+        const impl::dims &pads_end, const std::string &data_format,
+        const std::string &filter_format, bool with_bias = false,
+        bool with_bn = false, float epsilon = 1e-6f, bool with_relu = false) {
+    impl::op_t conv(id_gen.get_id(), impl::op_kind::Convolution, "conv");
+    conv.set_attr<int64_t>("groups", groups);
+    conv.set_attr<impl::dims>("strides", strides);
+    conv.set_attr<impl::dims>("dilations", dilations);
+    conv.set_attr<impl::dims>("pads_begin", pads_begin);
+    conv.set_attr<impl::dims>("pads_end", pads_end);
+    conv.set_attr<std::string>("data_format", data_format);
+    conv.set_attr<std::string>("filter_format", filter_format);
 
-#define UTILS_SET_Q_DQ_OUT_ATTR(q_dq_out) \
-    q_dq_out.set_attr<std::string>("qtype", "per_tensor"); \
-    q_dq_out.set_attr<std::vector<int64_t>>("zps", {zp_out}); \
-    q_dq_out.set_attr<std::vector<float>>("scales", {scale_out}); \
-    q_dq_out.set_attr<int64_t>("axis", 0);
+    impl::dims wei_shape = (filter_format == "OIX")
+            ? impl::dims {oc, ic, ks, ks}
+            : impl::dims {ks, ks, ic, oc};
 
-inline void construct_int8_conv_block(dnnl::graph::impl::graph_t *agraph) {
-    int64_t in_channel = 8, out_channel = 8;
-    int64_t kernel_size = 1;
-    std::vector<int64_t> src_shape {1, in_channel, 12, 12};
-    std::vector<int64_t> weight_shape {
-            out_channel, in_channel, kernel_size, kernel_size};
-    std::vector<int64_t> bias_shape {out_channel};
-    std::vector<int64_t> dst_shape {1, out_channel, 12, 12};
+    auto wei = utils::logical_tensor_init(
+            id_gen.get_id(), wei_shape, src.data_type);
+    wei.property = impl::property_type::constant;
+    auto dst = utils::logical_tensor_init(id_gen.get_id(), src.data_type);
 
-    float scale_src = 1 / 255.f; // map to 0~255
-    float scale_out = 1;
-    int64_t zp_src = 0;
-    int64_t zp_out = 78;
+    conv.add_input(src);
+    conv.add_input(wei);
+    if (with_bias) {
+        auto bias = utils::logical_tensor_init(
+                id_gen.get_id(), impl::dims {oc}, src.data_type);
+        bias.property = impl::property_type::constant;
+        conv.add_input(bias);
+    }
+    conv.add_output(dst);
+    agraph.add_op(&conv);
 
-    size_t lt_id = 0;
+    if (with_bn) {
+        impl::op_t bn_op(
+                id_gen.get_id(), impl::op_kind::BatchNormInference, "bn");
+        bn_op.set_attr<std::string>("data_format", data_format);
+        bn_op.set_attr<float>("epsilon", epsilon);
 
-    std::vector<float> scale_wei(out_channel, 1 / 127.f);
-    std::vector<int64_t> zp_wei(out_channel, 0);
+        int64_t bn_ic = oc;
+        auto bn_src = dst;
+        auto scale = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, src.data_type);
+        auto shift = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, src.data_type);
+        auto mean = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, src.data_type);
+        auto var = utils::logical_tensor_init(
+                id_gen.get_id(), {bn_ic}, src.data_type);
 
-    // first conv relu
-    impl::op_t dqdata_node0(lt_id++, impl::op_kind::Dequantize, "dqdata_node0");
-    UTILS_SET_Q_DQ_DATA_ATTR(dqdata_node0)
-    impl::op_t dqweight_node0(
-            lt_id++, impl::op_kind::Dequantize, "dqweight_node0");
-    UTILS_SET_Q_DQ_WEIGHT_ATTR(dqweight_node0)
-    impl::op_t conv_node0(lt_id++, impl::op_kind::Convolution, "conv_node0");
-    UTILS_SET_CONV_ATTR(conv_node0, 2)
-    impl::op_t relu_node0(lt_id++, impl::op_kind::ReLU, "relu_node0");
-    impl::op_t qout_node0(lt_id++, impl::op_kind::Quantize, "qout_node0");
-    UTILS_SET_Q_DQ_OUT_ATTR(qout_node0)
+        scale.property = impl::property_type::constant;
+        shift.property = impl::property_type::constant;
+        mean.property = impl::property_type::constant;
+        var.property = impl::property_type::constant;
 
-    // second conv relu
-    impl::op_t dqdata_node1(lt_id++, impl::op_kind::Dequantize, "dqdata_node1");
-    UTILS_SET_Q_DQ_DATA_ATTR(dqdata_node1)
-    impl::op_t dqweight_node1(
-            lt_id++, impl::op_kind::Dequantize, "dqweight_node1");
-    UTILS_SET_Q_DQ_WEIGHT_ATTR(dqweight_node1)
-    impl::op_t conv_node1(lt_id++, impl::op_kind::Convolution, "conv_node1");
-    UTILS_SET_CONV_ATTR(conv_node1, 2)
-    impl::op_t relu_node1(lt_id++, impl::op_kind::ReLU, "relu_node1");
-    impl::op_t qout_node1(lt_id++, impl::op_kind::Quantize, "qout_node1");
-    UTILS_SET_Q_DQ_OUT_ATTR(qout_node1)
+        dst = utils::logical_tensor_init(id_gen.get_id(), src.data_type);
 
-    auto src_u80 = utils::logical_tensor_init(
-            lt_id++, src_shape, impl::data_type::u8);
-    auto src_f32_dq0 = utils::logical_tensor_init(
-            lt_id++, src_shape, impl::data_type::f32);
-    auto weight_s80 = utils::logical_tensor_init(
-            lt_id++, weight_shape, impl::data_type::s8);
-    auto weight_f32_dq0 = utils::logical_tensor_init(
-            lt_id++, weight_shape, impl::data_type::f32);
-    auto dst_f320 = utils::logical_tensor_init(
-            lt_id++, dst_shape, impl::data_type::f32);
-    auto dst_relu_f320 = utils::logical_tensor_init(
-            lt_id++, dst_shape, impl::data_type::f32);
-    auto dst_s80 = utils::logical_tensor_init(
-            lt_id++, dst_shape, impl::data_type::s8);
-    auto bias_f320 = utils::logical_tensor_init(
-            lt_id++, bias_shape, impl::data_type::f32);
+        bn_op.add_input(bn_src);
+        bn_op.add_input(scale);
+        bn_op.add_input(shift);
+        bn_op.add_input(mean);
+        bn_op.add_input(var);
+        bn_op.add_output(dst);
 
-    auto src_f32_dq1 = utils::logical_tensor_init(
-            lt_id++, src_shape, impl::data_type::f32);
-    auto weight_s81 = utils::logical_tensor_init(
-            lt_id++, weight_shape, impl::data_type::s8);
-    auto weight_f32_dq1 = utils::logical_tensor_init(
-            lt_id++, weight_shape, impl::data_type::f32);
-    auto dst_f321 = utils::logical_tensor_init(
-            lt_id++, dst_shape, impl::data_type::f32);
-    auto dst_relu_f321 = utils::logical_tensor_init(
-            lt_id++, dst_shape, impl::data_type::f32);
-    auto dst_s81 = utils::logical_tensor_init(
-            lt_id++, dst_shape, impl::data_type::s8);
-    auto bias_f321 = utils::logical_tensor_init(
-            lt_id++, bias_shape, impl::data_type::f32);
+        agraph.add_op(&bn_op);
+    }
 
-    dqdata_node0.add_input(src_u80);
-    dqdata_node0.add_output(src_f32_dq0);
-    dqweight_node0.add_input(weight_s80);
-    dqweight_node0.add_output(weight_f32_dq0);
-    conv_node0.add_input(src_f32_dq0);
-    conv_node0.add_input(weight_f32_dq0);
-    conv_node0.add_input(bias_f320);
-    conv_node0.add_output(dst_f320);
-    relu_node0.add_input(dst_f320);
-    relu_node0.add_output(dst_relu_f320);
-    qout_node0.add_input(dst_relu_f320);
-    qout_node0.add_output(dst_s80);
+    if (with_relu) {
+        impl::op_t relu_op(id_gen.get_id(), impl::op_kind::ReLU, "relu");
+        auto relu_src = dst;
+        dst = utils::logical_tensor_init(id_gen.get_id(), src.data_type);
+        relu_op.add_input(relu_src);
+        relu_op.add_output(dst);
+        agraph.add_op(&relu_op);
+    }
 
-    dqdata_node1.add_input(dst_s80);
-    dqdata_node1.add_output(src_f32_dq1);
-    dqweight_node1.add_input(weight_s81);
-    dqweight_node1.add_output(weight_f32_dq1);
-    conv_node1.add_input(src_f32_dq1);
-    conv_node1.add_input(weight_f32_dq1);
-    conv_node1.add_input(bias_f321);
-    conv_node1.add_output(dst_f321);
-    relu_node1.add_input(dst_f321);
-    relu_node1.add_output(dst_relu_f321);
-    qout_node1.add_input(dst_relu_f321);
-    qout_node1.add_output(dst_s81);
+    return dst;
+}
 
-    agraph->add_op(&dqdata_node0);
-    agraph->add_op(&dqweight_node0);
-    agraph->add_op(&conv_node0);
-    agraph->add_op(&relu_node0);
-    agraph->add_op(&qout_node0);
-    agraph->add_op(&dqdata_node1);
-    agraph->add_op(&dqweight_node1);
-    agraph->add_op(&conv_node1);
-    agraph->add_op(&relu_node1);
-    agraph->add_op(&qout_node1);
+inline impl::logical_tensor_t create_add(id_generator &id_gen,
+        impl::graph_t &agraph, const impl::logical_tensor_t &src0,
+        const impl::logical_tensor_t &src1) {
+    impl::op_t add(id_gen.get_id(), impl::op_kind::Add, "add");
+    auto dst = utils::logical_tensor_init(id_gen.get_id(), src0.data_type);
+    add.add_input(src0);
+    add.add_input(src1);
+    add.add_output(dst);
+    agraph.add_op(&add);
+    return dst;
+}
+
+inline impl::logical_tensor_t create_relu(id_generator &id_gen,
+        impl::graph_t &agraph, const impl::logical_tensor_t &src) {
+    impl::op_t relu_op(id_gen.get_id(), impl::op_kind::ReLU, "relu");
+    auto dst = utils::logical_tensor_init(id_gen.get_id(), src.data_type);
+    relu_op.add_input(src);
+    relu_op.add_output(dst);
+    agraph.add_op(&relu_op);
+    return dst;
+}
+
+inline impl::logical_tensor_t create_dequantize(id_generator &id_gen,
+        impl::graph_t &agraph, const impl::logical_tensor_t &src,
+        const std::string &qtype, const std::vector<int64_t> &zps,
+        const std::vector<float> &scales, int64_t axis) {
+    impl::op_t dq_op(id_gen.get_id(), impl::op_kind::Dequantize, "dequantize");
+    dq_op.set_attr<std::string>("qtype", qtype);
+    dq_op.set_attr<std::vector<int64_t>>("zps", zps);
+    dq_op.set_attr<std::vector<float>>("scales", scales);
+    dq_op.set_attr<int64_t>("axis", axis);
+
+    auto dst
+            = utils::logical_tensor_init(id_gen.get_id(), impl::data_type::f32);
+    dq_op.add_input(src);
+    dq_op.add_output(dst);
+    agraph.add_op(&dq_op);
+    return dst;
+}
+
+inline impl::logical_tensor_t create_quantize(id_generator &id_gen,
+        impl::graph_t &agraph, const impl::logical_tensor_t &src,
+        impl::data_type_t dst_dtype, const std::string &qtype,
+        const std::vector<int64_t> &zps, const std::vector<float> &scales,
+        int64_t axis) {
+    impl::op_t q_op(id_gen.get_id(), impl::op_kind::Quantize, "quantize");
+    q_op.set_attr<std::string>("qtype", qtype);
+    q_op.set_attr<std::vector<int64_t>>("zps", zps);
+    q_op.set_attr<std::vector<float>>("scales", scales);
+    q_op.set_attr<int64_t>("axis", axis);
+
+    auto dst = utils::logical_tensor_init(id_gen.get_id(), dst_dtype);
+    q_op.add_input(src);
+    q_op.add_output(dst);
+    agraph.add_op(&q_op);
+    return dst;
+}
+
+inline impl::logical_tensor_t create_int8_convolution(id_generator &id_gen,
+        impl::graph_t &agraph, const impl::logical_tensor_t &src, int64_t ic,
+        int64_t ks, int64_t oc, int64_t groups, const impl::dims &strides,
+        const impl::dims &dilations, const impl::dims &pads_begin,
+        const impl::dims &pads_end, const std::string &data_format,
+        const std::string &filter_format, bool with_bias, bool with_bn,
+        float epsilon, bool with_relu,
+        // args for int8 conv
+        float src_scale, int64_t src_zp, float dst_scale, int64_t dst_zp,
+        const std::vector<float> &wei_scales, impl::data_type_t dst_dtype,
+        bool is_quantize_dst = true) {
+    assertm(!with_bn, "int8 conv not support bn now");
+
+    auto dq_src = create_dequantize(
+            id_gen, agraph, src, "per_tensor", {src_zp}, {src_scale}, 0);
+
+    impl::op_t conv(id_gen.get_id(), impl::op_kind::Convolution, "conv");
+    conv.set_attr<int64_t>("groups", groups);
+    conv.set_attr<impl::dims>("strides", strides);
+    conv.set_attr<impl::dims>("dilations", dilations);
+    conv.set_attr<impl::dims>("pads_begin", pads_begin);
+    conv.set_attr<impl::dims>("pads_end", pads_end);
+    conv.set_attr<std::string>("data_format", data_format);
+    conv.set_attr<std::string>("filter_format", filter_format);
+
+    impl::dims wei_shape = (filter_format == "OIX")
+            ? impl::dims {oc, ic, ks, ks}
+            : impl::dims {ks, ks, ic, oc};
+
+    auto int8_wei = utils::logical_tensor_init(
+            id_gen.get_id(), wei_shape, impl::data_type::s8);
+    int8_wei.property = impl::property_type::constant;
+    auto dq_wei = create_dequantize(id_gen, agraph, int8_wei, "per_channel",
+            std::vector<int64_t>(oc, 0), wei_scales,
+            (filter_format == "OIX") ? 0 : 3);
+
+    auto dst = utils::logical_tensor_init(id_gen.get_id(), dq_src.data_type);
+
+    conv.add_input(dq_src);
+    conv.add_input(dq_wei);
+    if (with_bias) {
+        auto bias = utils::logical_tensor_init(
+                id_gen.get_id(), impl::dims {oc}, dq_src.data_type);
+        bias.property = impl::property_type::constant;
+        conv.add_input(bias);
+    }
+    conv.add_output(dst);
+    agraph.add_op(&conv);
+
+    if (with_relu) {
+        impl::op_t relu_op(id_gen.get_id(), impl::op_kind::ReLU, "relu");
+        auto relu_src = dst;
+        dst = utils::logical_tensor_init(id_gen.get_id(), dq_src.data_type);
+        relu_op.add_input(relu_src);
+        relu_op.add_output(dst);
+        agraph.add_op(&relu_op);
+    }
+
+    if (is_quantize_dst) {
+        dst = create_quantize(id_gen, agraph, dst, dst_dtype, "per_tensor",
+                {dst_zp}, {dst_scale}, 0);
+    }
+
+    return dst;
+}
+
+inline void construct_convolutional_bottleneck_resblock(
+        dnnl::graph::impl::graph_t *agraph, id_generator &id_gen) {
+    auto input = utils::logical_tensor_init(
+            id_gen.get_id(), {8, 64, 56, 56}, impl::data_type::f32);
+    auto conv0 = create_convolution(id_gen, *agraph, input, 64, 1, 64, 1,
+            {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            true);
+    auto conv1 = create_convolution(id_gen, *agraph, conv0, 64, 3, 64, 1,
+            {1, 1}, {1, 1}, {1, 1}, {1, 1}, "NCX", "OIX", true, false, 1e-6f,
+            true);
+    auto conv2 = create_convolution(id_gen, *agraph, input, 64, 1, 256, 1,
+            {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            false);
+    auto conv3 = create_convolution(id_gen, *agraph, conv1, 64, 1, 256, 1,
+            {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            false);
+    auto add = create_add(id_gen, *agraph, conv3, conv2);
+    auto relu3 = create_relu(id_gen, *agraph, add);
+    (void)(relu3);
+}
+
+inline void construct_int8_conv_bias_relu_conv_bias_relu_block(
+        dnnl::graph::impl::graph_t *agraph, id_generator &id_gen) {
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    float scale_src = 1 / 255.f, scale_out = 1;
+    int64_t zp_src = 0, zp_out = 78;
+    std::vector<float> scale_wei(oc, 1 / 127.f);
+
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), src_shape, impl::data_type::u8);
+
+    auto int8_conv0 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+    auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    (void)(int8_conv1);
+}
+
+inline void construct_int8_identical_bottleneck_resblock(
+        dnnl::graph::impl::graph_t *agraph, id_generator &id_gen) {
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    float scale_src = 1 / 255.f, scale_out = 1;
+    int64_t zp_src = 0, zp_out = 78;
+    std::vector<float> scale_wei(oc, 1 / 127.f);
+
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), src_shape, impl::data_type::u8);
+
+    auto int8_conv0 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+    auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    auto int8_conv2 = create_int8_convolution(id_gen, *agraph, int8_conv1, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, /*no relu*/ false, scale_src, zp_src, scale_out,
+            zp_out, scale_wei, impl::data_type::u8,
+            /*not quantize dst*/ false);
+    auto dq3 = create_dequantize(
+            id_gen, *agraph, src, "per_tensor", {zp_src}, {scale_src}, 0);
+    auto add0 = create_add(id_gen, *agraph, int8_conv2, dq3);
+    auto relu0 = create_relu(id_gen, *agraph, add0);
+    auto q2 = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+            "per_tensor", std::vector<int64_t> {zp_out},
+            std::vector<float> {scale_out}, 0);
+    (void)(q2);
+}
+
+inline void construct_int8_convolutional_bottleneck_resblock(
+        dnnl::graph::impl::graph_t *agraph, id_generator &id_gen) {
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    float scale_src = 1 / 255.f, scale_out = 1;
+    int64_t zp_src = 0, zp_out = 78;
+    std::vector<float> scale_wei(oc, 1 / 127.f);
+
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), src_shape, impl::data_type::u8);
+
+    auto int8_conv0 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+    auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    auto int8_conv2 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            /*no relu*/ false, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    auto int8_conv3 = create_int8_convolution(id_gen, *agraph, int8_conv1, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, /*no relu*/ false, scale_src, zp_src, scale_out,
+            zp_out, scale_wei, impl::data_type::u8,
+            /*not quantize dst*/ false);
+    auto dq3 = create_dequantize(id_gen, *agraph, int8_conv2, "per_tensor",
+            {zp_src}, {scale_src}, 0);
+    auto add0 = create_add(id_gen, *agraph, int8_conv3, dq3);
+    auto relu0 = create_relu(id_gen, *agraph, add0);
+    auto q2 = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+            "per_tensor", std::vector<int64_t> {zp_out},
+            std::vector<float> {scale_out}, 0);
+    (void)(q2);
+}
+
+inline void construct_int8_resnet50_stage2_block(
+        dnnl::graph::impl::graph_t *agraph, id_generator &id_gen,
+        size_t three_conv_block_num = 2) {
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    float scale_src = 1 / 255.f, scale_out = 1;
+    int64_t zp_src = 0, zp_out = 78;
+    std::vector<float> scale_wei(oc, 1 / 127.f);
+
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), src_shape, impl::data_type::u8);
+
+    // 4-conv block
+    auto int8_conv0 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+    auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    auto int8_conv2 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            /*no relu*/ false, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    auto int8_conv3 = create_int8_convolution(id_gen, *agraph, int8_conv1, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, /*no relu*/ false, scale_src, zp_src, scale_out,
+            zp_out, scale_wei, impl::data_type::u8,
+            /*not quantize dst*/ false);
+    auto dq3 = create_dequantize(id_gen, *agraph, int8_conv2, "per_tensor",
+            {zp_src}, {scale_src}, 0);
+    auto add0 = create_add(id_gen, *agraph, int8_conv3, dq3);
+    auto relu0 = create_relu(id_gen, *agraph, add0);
+    auto q2 = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+            "per_tensor", std::vector<int64_t> {zp_out},
+            std::vector<float> {scale_out}, 0);
+
+    // Two 3-conv block
+    impl::logical_tensor_t tmp = q2;
+    for (size_t i = 0; i < three_conv_block_num; i++) {
+        auto int8_conv0 = create_int8_convolution(id_gen, *agraph, tmp, ic, ks,
+                oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+                false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out,
+                scale_wei, impl::data_type::u8);
+        auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0,
+                ic, ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX",
+                true, false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out,
+                scale_wei, impl::data_type::u8);
+
+        auto int8_conv2 = create_int8_convolution(id_gen, *agraph, int8_conv1,
+                ic, ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX",
+                true, false, 1e-6f, /*no relu*/ false, scale_src, zp_src,
+                scale_out, zp_out, scale_wei, impl::data_type::u8,
+                /*not quantize dst*/ false);
+        auto dq3 = create_dequantize(
+                id_gen, *agraph, tmp, "per_tensor", {zp_src}, {scale_src}, 0);
+        auto add0 = create_add(id_gen, *agraph, int8_conv2, dq3);
+        auto relu0 = create_relu(id_gen, *agraph, add0);
+        tmp = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+                "per_tensor", std::vector<int64_t> {zp_out},
+                std::vector<float> {scale_out}, 0);
+    }
 }
 
 } // namespace utils

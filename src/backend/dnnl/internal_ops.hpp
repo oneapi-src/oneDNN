@@ -220,7 +220,8 @@ namespace op_kind {
     X(dnnl_resampling, Dnnl_resampling) \
     X(dnnl_resampling_bwd, Dnnl_resampling_bwd) \
     X(dnnl_concat, Dnnl_concat) \
-    X(dnnl_layernorm_bwd, Dnnl_layernorm_bwd)
+    X(dnnl_layernorm_bwd, Dnnl_layernorm_bwd) \
+    X(float_conv_fusion, Float_conv_fusion)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

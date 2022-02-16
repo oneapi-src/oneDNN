@@ -17,6 +17,7 @@
 #include <cmath>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
@@ -1455,9 +1456,13 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg) {
         auto out_val = zp_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
         bool is_input_zps = consumers.size() == 1
-                && has_int8_support(consumers[0].get_op().get_kind());
+                && has_int8_support(consumers[0].get_op().get_kind())
+                && out_val->get_logical_tensor().id
+                        == std::numeric_limits<size_t>::max();
         bool is_output_zps = in_val->has_producer()
-                && has_int8_support(in_val->get_producer().get_kind());
+                && has_int8_support(in_val->get_producer().get_kind())
+                && in_val->get_logical_tensor().id
+                        == std::numeric_limits<size_t>::max();
 
         if (is_input_zps) {
             auto &next_op = consumers[0].get_op();
@@ -2964,6 +2969,111 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
+
+    return impl::status::success;
+}
+
+impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+
+    // Eliminate two equal reorder with same input
+    auto cse_func = [](std::vector<op_ptr> &subgraph, bool &changed) {
+        std::vector<op_t *> fusion;
+
+        // find two fusible ops
+        for (auto &op : subgraph) {
+            if (op->get_kind() != impl::op_kind::Reorder) continue;
+
+            auto ins = op->get_input_values();
+            // equal op must share same inputs, so it's enough to only look up
+            // ins[0]'s consumers.
+            auto csms = ins[0]->get_consumers();
+            bool found_equal_op = false;
+            for (auto csm : csms) {
+                auto &csm_op = csm.get_op();
+                // the same op, skip
+                if (&csm_op == op.get()) continue;
+
+                // not equal op, skip
+                bool equal_op = op->get_kind() == csm_op.get_kind()
+                        && op->has_same_attr_values(csm_op);
+                if (!equal_op) continue;
+
+                // not same inputs, skip
+                auto csm_ins = csm_op.get_input_values();
+                if (csm_ins.size() != ins.size()) continue;
+                size_t i;
+                for (i = 0; i < csm_ins.size(); i++) {
+                    if (csm_ins[i].get() != ins[i].get()) break;
+                }
+                if (i < csm_ins.size()) continue;
+
+                // not equal outputs, skip
+                auto &outs = op->get_output_values();
+                auto &csm_outs = csm_op.get_output_values();
+                if (csm_outs.size() != outs.size()) continue;
+                for (i = 0; i < csm_outs.size(); i++) {
+                    auto lt1 = csm_outs[i]->get_logical_tensor();
+                    auto lt2 = outs[i]->get_logical_tensor();
+                    if (make_dnnl_memory_desc(lt1)
+                            != make_dnnl_memory_desc(lt2))
+                        break;
+                }
+                if (i < csm_outs.size()) continue;
+
+                // all condition matched
+                fusion.emplace_back(op.get());
+                fusion.emplace_back(&csm_op);
+                found_equal_op = true;
+                break;
+            }
+            if (found_equal_op) break;
+        }
+
+        if (fusion.empty()) {
+            changed = false;
+            return impl::status::success;
+        }
+
+        // remove op2 and add it's consumers to op1
+        auto op1 = fusion[0], op2 = fusion[1];
+        auto op2_ins = op2->get_input_values();
+        for (size_t i = 0; i < op2_ins.size(); i++) {
+            op2_ins[i]->remove_consumer(*op2, i);
+        }
+
+        auto op1_outs = op1->get_output_values();
+        auto op2_outs = op2->get_output_values();
+        for (size_t i = 0; i < op2_outs.size(); i++) {
+            auto &csms = op2_outs[i]->get_consumers();
+            for (auto &csm : csms) {
+                op1_outs[i]->add_consumer(csm.get_op(), csm.get_offset());
+                csm.get_op().connect_input(csm.get_offset(), op1_outs[i]);
+            }
+        }
+
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op2](const op_ptr &tmp) { return op2 == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+
+        changed = true;
+        return impl::status::success;
+    };
+
+    int cnt = 0;
+    const int max_iter_num = static_cast<int>(sg->num_ops());
+
+    bool changed = true;
+    do {
+        auto ret = cse_func(subgraph, changed);
+        if (ret != impl::status::success) return ret;
+        cnt++;
+    } while (changed && cnt <= max_iter_num);
+
+    assertm(cnt <= max_iter_num + 1,
+            "Failed to eliminate common reorders since the pass can't "
+            "converge.");
+    if (cnt > max_iter_num + 1) return impl::status::unsupported;
 
     return impl::status::success;
 }

@@ -217,6 +217,7 @@ public:
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+        BACKEND_DNNL_ADD_PASS(pipeline, common_reorder_elimination);
 
         // constant propagation
         if (enable_constant_cache_) {

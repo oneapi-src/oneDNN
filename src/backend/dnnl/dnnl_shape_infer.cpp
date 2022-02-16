@@ -30,7 +30,7 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
 
     auto backup_wei_shape = *inputs[1];
     auto backup_groups = n->get_attr<int64_t>("groups");
-    if (n->get_attr<bool>("canonicalized")
+    if (n->has_attr("canonicalized") && n->get_attr<bool>("canonicalized")
             && (ltw(inputs[1]).ndims() == ltw(inputs[0]).ndims() + 1)) {
         auto ndims = ltw(inputs[1]).ndims() - 1;
         auto dims = ltw(inputs[1]).vdims();

@@ -17281,6 +17281,9 @@ TEST(Execute, Int8Mha) {
         inputs.emplace_back(&lt);
     }
     for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
         outputs.emplace_back(&lt);
     }
 
@@ -17292,16 +17295,19 @@ TEST(Execute, Int8Mha) {
     std::vector<test::vector<float>> inputs_data, outputs_data;
     std::vector<impl::tensor_t> inputs_ts, outputs_ts;
 
-    for (auto &lt : partition_inputs) {
+    for (auto &lt : inputs) {
         inputs_data.emplace_back(
                 test::vector<float>(utils::product(ltw(lt).vdims())));
-        inputs_ts.emplace_back(lt, &eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
     }
 
-    for (auto &lt : partition_outputs) {
-        outputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        outputs_ts.emplace_back(lt, &eng, outputs_data.back().data());
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
     }
 
     ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
@@ -17337,6 +17343,9 @@ TEST(Execute, F32Mha) {
         inputs.emplace_back(&lt);
     }
     for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
         outputs.emplace_back(&lt);
     }
 
@@ -17348,16 +17357,19 @@ TEST(Execute, F32Mha) {
     std::vector<test::vector<float>> inputs_data, outputs_data;
     std::vector<impl::tensor_t> inputs_ts, outputs_ts;
 
-    for (auto &lt : partition_inputs) {
+    for (auto &lt : inputs) {
         inputs_data.emplace_back(
                 test::vector<float>(utils::product(ltw(lt).vdims())));
-        inputs_ts.emplace_back(lt, &eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
     }
 
-    for (auto &lt : partition_outputs) {
-        outputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        outputs_ts.emplace_back(lt, &eng, outputs_data.back().data());
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
     }
 
     ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
@@ -17483,12 +17495,13 @@ TEST(Execute, ChainedReLU) {
     strm.wait();
 }
 
-TEST(Execute, Int8ConvBlock) {
+TEST(Execute, Int8ConvBiasReluConvBiasReluBlock) {
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
+    utils::id_generator id_gen;
     impl::graph_t g(eng.kind());
-    utils::construct_int8_conv_block(&g);
+    utils::construct_int8_conv_bias_relu_conv_bias_relu_block(&g, id_gen);
     g.build_graph();
 
     ASSERT_EQ(g.get_ops().size(), 10);
@@ -17513,6 +17526,9 @@ TEST(Execute, Int8ConvBlock) {
         inputs.emplace_back(&lt);
     }
     for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
         outputs.emplace_back(&lt);
     }
 
@@ -17524,16 +17540,19 @@ TEST(Execute, Int8ConvBlock) {
     std::vector<test::vector<float>> inputs_data, outputs_data;
     std::vector<impl::tensor_t> inputs_ts, outputs_ts;
 
-    for (auto &lt : partition_inputs) {
+    for (auto &lt : inputs) {
         inputs_data.emplace_back(
                 test::vector<float>(utils::product(ltw(lt).vdims())));
-        inputs_ts.emplace_back(lt, &eng, inputs_data.back().data());
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
     }
 
-    for (auto &lt : partition_outputs) {
-        outputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        outputs_ts.emplace_back(lt, &eng, outputs_data.back().data());
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
     }
 
     ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
@@ -18613,4 +18632,342 @@ TEST(Compile, EltwiseGetInplacePair) {
     ASSERT_EQ(pairs.size(), 1);
     ASSERT_EQ(pairs[0].input, 0);
     ASSERT_EQ(pairs[0].output, 1);
+}
+
+TEST(Execute, F32ConvolutionalBottleneckResBlock) {
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    utils::id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    utils::construct_convolutional_bottleneck_resblock(&g, id_gen);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 8);
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("convolutional_bottleneck_resblock_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 10);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        // skip alias inputs
+        auto pos = std::find_if(inputs.begin(), inputs.end(),
+                [&](const impl::logical_tensor_t *item) {
+                    return item->id == lt.id;
+                });
+        if (pos != inputs.end()) continue;
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    std::cout << "-------------------\n";
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+
+    strm.wait();
+}
+
+TEST(Execute, Int8IdenticalBottleneckResBlock) {
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    utils::id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    utils::construct_int8_identical_bottleneck_resblock(&g, id_gen);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 17);
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_identical_bottleneck_resblock_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 8);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
+TEST(Execute, Int8ConvBiasReluConvBiasReluConvBiasConvBiasAddReluBlock) {
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    utils::id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    utils::construct_int8_convolutional_bottleneck_resblock(&g, id_gen);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 21);
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_convolutional_bottleneck_resblock_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 10);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
+TEST(Execute, Int8Resnet50Stage2Block) {
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    utils::id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    utils::construct_int8_resnet50_stage2_block(&g, id_gen, 3);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 72);
+
+    impl::pass::pass_base_ptr apass = get_pass("int8_resnet50_stage_2_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 28);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
+TEST(Compile, Int8ConvBlockGetInplacePair) {
+    impl::engine_t &eng = get_engine();
+
+    utils::id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    utils::construct_int8_convolutional_bottleneck_resblock(&g, id_gen);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 21);
+
+    impl::pass::pass_base_ptr apass1
+            = get_pass("int8_identical_bottleneck_resblock_fusion");
+    impl::pass::pass_base_ptr apass2 = get_pass("int8_conv_bias_fusion");
+    apass1->run(g);
+    apass2->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 2);
+    auto part0 = g.get_partitions()[0];
+    auto part1 = g.get_partitions()[1];
+
+    // compile part1 (single conv)
+    impl::partition_t p1;
+    p1.init(part1);
+
+    auto partition_inputs1 = p1.get_inputs();
+    auto partition_outputs1 = p1.get_outputs();
+    ASSERT_EQ(partition_inputs1.size(), 3);
+    ASSERT_EQ(partition_outputs1.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs1, outputs1;
+    for (auto &lt : partition_inputs1) {
+        inputs1.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs1) {
+        // set output to be any
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::any);
+        outputs1.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp1(p1);
+    ASSERT_EQ(p1.compile(&cp1, inputs1, outputs1, &eng), impl::status::success);
+
+    // compile part0 (three conv, one with sum)
+    impl::partition_t p0;
+    p0.init(part0);
+
+    auto partition_inputs0 = p0.get_inputs();
+    auto partition_outputs0 = p0.get_outputs();
+    ASSERT_EQ(partition_inputs0.size(), 8);
+    ASSERT_EQ(partition_outputs0.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs0, outputs0;
+    for (auto &lt : partition_inputs0) {
+        if (lt.id == outputs1[0]->id) {
+            // use precursor's output
+            cp1.query_logical_tensor(lt.id, &lt);
+        }
+        inputs0.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs0) {
+        // set output to be any
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::any);
+        outputs0.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp0(p0);
+    ASSERT_EQ(p0.compile(&cp0, inputs0, outputs0, &eng), impl::status::success);
+    auto pairs = cp0.get_inplace_pairs();
+    ASSERT_EQ(pairs.size(), 1);
+    ASSERT_EQ(pairs[0].input, outputs1[0]->id);
+    ASSERT_EQ(pairs[0].output, outputs0[0]->id);
 }

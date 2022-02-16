@@ -59,7 +59,8 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->get_attr<int64_t>("primitive_attr_key") != -1) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }

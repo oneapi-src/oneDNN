@@ -43,18 +43,6 @@ inline impl::status_t get_ordered_inputs_outputs(const impl::op_t *work_op,
         const std::vector<impl::logical_tensor_t> &given,
         std::vector<impl::logical_tensor_t> &ordered,
         std::map<size_t, size_t> &permutation) {
-    // FIXME(qun) Workaround: op in this list can have repeated inputs
-    const std::set<impl::op_kind_t> s_whitelist {
-            impl::op_kind::Multiply, impl::op_kind::Add};
-
-    // to support arbitrary re-connection in FWK graph, we need to
-    // find required and ordered input and output logical tensors from the
-    // out-of-order inputs / outputs
-    if (given.size() < expected.size()
-            && s_whitelist.count(work_op->get_kind()) == 0) {
-        return impl::status::miss_ins_outs;
-    }
-
     ordered.reserve(expected.size());
     for (size_t i = 0; i < expected.size(); i++) {
         for (size_t j = 0; j < given.size(); j++) {
@@ -76,18 +64,6 @@ status_t get_ordered_inputs_outputs(const op_t *work_op,
         const std::vector<logical_tensor_t> &expected,
         const std::vector<RCONT *> &origin,
         std::vector<logical_tensor_t *> &ordered) {
-    // FIXME(qun) Workaround: op in this list can have repeated inputs
-    const std::set<impl::op_kind_t> s_whitelist {
-            impl::op_kind::Multiply, impl::op_kind::Add};
-
-    // to support arbitrary re-connection in FWK graph, we need to
-    // find required and ordered input and output logical tensors from the
-    // out-of-order inputs / outputs
-    if (origin.size() < expected.size()
-            && s_whitelist.count(work_op->get_kind()) == 0) {
-        return status::miss_ins_outs;
-    }
-
     ordered.reserve(expected.size());
     for (auto &&val : expected) {
         auto pos = std::find_if(origin.begin(), origin.end(),
@@ -443,7 +419,8 @@ public:
                 impl::op_kind::DynamicDequantize,
                 // single partition multi primitives
                 op_kind::conv_simple_resblock, op_kind::int8_MHA,
-                op_kind::f32_MHA, op_kind::chained_relu};
+                op_kind::f32_MHA, op_kind::chained_relu,
+                op_kind::float_conv_fusion};
 
         // compile will transform the subgraph in partition, so we make
         // a copy

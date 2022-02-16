@@ -1398,3 +1398,84 @@ TEST(SubgraphPass, FuseTypecastToQuantize) {
     dnnl_impl::fuse_typecast_to_quantize(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 1);
 }
+
+TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
+    impl::engine_t &eng = get_engine();
+
+    id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    construct_convolutional_bottleneck_resblock(&g, id_gen);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 8);
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("convolutional_bottleneck_resblock_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // prepare inputs/outputs
+    impl::partition_t p;
+    p.init(part);
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 10);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<impl::logical_tensor_t> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        // skip alias inputs
+        auto pos = std::find_if(inputs.begin(), inputs.end(),
+                [&](const impl::logical_tensor_t &item) {
+                    return item.id == lt.id;
+                });
+        if (pos != inputs.end()) continue;
+        inputs.emplace_back(lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be any
+        lt = logical_tensor_init(lt.id, lt.data_type, impl::layout_type::any);
+        outputs.emplace_back(lt);
+    }
+
+    // run subgraph passes
+    dnnl::engine p_eng = dnnl_impl::make_dnnl_engine(eng);
+    auto subgraph
+            = std::make_shared<dnnl_impl::subgraph_t>(part->get_ops(), p_eng);
+
+    dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
+
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::check_with_bias(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::binary_canonicalization(subgraph),
+            impl::status::success);
+    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::insert_permute(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::insert_to_group_for_conv_or_deconv(subgraph),
+            impl::status::success);
+    ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::common_reorder_elimination(subgraph),
+            impl::status::success);
+    ASSERT_EQ(dnnl_impl::constant_propagation(subgraph), impl::status::success);
+
+    dnnl_impl::memory_planner_t memory_planner;
+    ASSERT_EQ(memory_planner.run(subgraph), impl::status::success);
+
+    dnnl_impl::subgraph_visualizer_t vis(0, [&](const value_t *val) {
+        return memory_planner.get_memory_info(val);
+    });
+    vis.run(subgraph, "SubgraphPass.MemoryPlanningAllowReuseOutputBuffer", true,
+            true);
+
+    // external output buffer will be used for subgraph's output as well as the
+    // conv-sum's post-src
+    auto ext_out_mem_offkeys = memory_planner.get_exec_args_set()
+                                       .get_mems_use_external_outputs();
+    ASSERT_EQ(ext_out_mem_offkeys.size(), 2);
+}

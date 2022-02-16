@@ -144,6 +144,15 @@ impl::status_t softmax_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg);
 
+/// A simple common reorder elimination pass which can perform the following
+/// optimization if two reorder ops are equal:
+///              val             val
+///             /   \             |
+///        reorder reorder  --> reorder
+///             |    |          /   \  ...
+///            op3  op4        op3  op4
+impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

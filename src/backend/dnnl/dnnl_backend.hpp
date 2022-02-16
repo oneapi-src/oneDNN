@@ -397,7 +397,26 @@ public:
                 > 0;
         if (disable_dnnl_bkd) return status::success;
 
-        impl::pass::pass_manager_t pm(get_pass_registry());
+        // Note: This environment variable is internal and for test/debug
+        // purpose. It can be changed or removed without prior notice. Users
+        // should avoid using it in their applications. Enabled by default.
+        const bool enable_large_partition
+                = impl::utils::getenv_int_internal("ENABLE_LARGE_PARTITION", 1)
+                > 0;
+
+        // FIXME(xx): Here we only changes the passes in registry. If json file
+        // existed, pm will run passes according to the json file, the env var
+        // will not take effect.
+        const float priority_ths = 20.f;
+        impl::pass::pass_registry_t filtered_registry;
+        for (auto &pass : get_pass_registry().get_passes()) {
+            const bool is_large_partition
+                    = pass->get_priority() >= priority_ths;
+            if (!enable_large_partition && is_large_partition) continue;
+            filtered_registry.register_pass(pass);
+        }
+
+        impl::pass::pass_manager_t pm(filtered_registry);
 #ifdef DNNL_GRAPH_ENABLE_DUMP
         std::string pass_config_json = "dnnl_graph_passes.json";
         std::ifstream fs(pass_config_json.c_str());
