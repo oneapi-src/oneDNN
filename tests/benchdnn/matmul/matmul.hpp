@@ -217,8 +217,8 @@ inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t n) {
     return (mb * prb->m + m) * prb->n + n;
 }
 
-void compute_ref(
-        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args);
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int doit(const prb_t *prb, res_t *res);
 

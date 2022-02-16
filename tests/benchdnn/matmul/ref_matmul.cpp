@@ -80,7 +80,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
 }
 
 void compute_ref(
-        const prb_t *prb, dnnl_primitive_t prim_ref, const args_t &args) {
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
         SAFE_V(execute_and_wait(prim_ref, args));
         return;
