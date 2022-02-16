@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,6 +52,52 @@ typedef struct dt_conf_t {
     double eps; /* acceptable error */
 } _dt_conf_t[CFG_DT_MAX];
 
+enum tensor_desc {
+    QINT8_SRC = 0, //v1,v2,v3 - INT8 input
+    QSRC, //v1,v2,v3 - input
+    QTSRC, //v1 - transpose input
+    QDST, //v1, v2, v3 - input to QK matmul
+    KINT8_SRC, //v1,v2,v3 - INT8 input
+    KSRC, //v1,v2,v3 - input
+    KTSRC, //v1 - transpose input
+    KT2SRC, //v1 - k2 transpose input
+    VINT8_SRC, //v1,v2,v3 - INT8 input
+    VSRC, //v1,v2,v3 - input
+    VTSRC, //v1 - transpose input
+    VDST, //v1, v2, v3 - input to QKV matmul
+    KDST, //v1, v2, v3 - input to QK matmul
+    QKMATMULDST, //v1, v2, v3 - output QK matmul
+    QKDIVSCALE, //v1, v2, v3 - score scale
+    QKDIVDST, //v1, v2, v3 - score output
+    QKATTN,
+    QKADD,
+    QKSOFTMAX, //v1,v2,v3 - softmax output
+    QKSOFTMAXQUANCAST, //v3 - softmax cast
+    QKSOFTMAXQUAN, //v1 (int8), v2(int8), v3
+    QKSOFTMAXDEQUAN, //v1 (int8), v2(int8), v3
+    QKSOFTMAXDEQUANCAST, //v3 -  cast
+    QKVMATMUL, //v1,v2,v3 - QKVmatmul ouput
+    QKVTDST, //v1,v2,v3 - QKVmatmul transpose
+    QKVDST, //v1,v2,v3 - QKVmatmul output
+    QKVCASTDST, //v3 - QKVmatmul cast output
+    QKVINT8DST, //v1 (int8), v2(int8), v3- final ouput
+    TENSOR_DESC_TYPES_TOTAL,
+};
+
+static const std::string tensor_desc_str[] = {"QINT8_SRC", "QSRC", "QTSRC",
+        "QDST", "KINT8_SRC", "KSRC", "KTSRC", "KT2SRC", "VINT8_SRC", "VSRC",
+        "VTSRC", "VDST", "KDST", "QKMATMULDST", "QKDIVSCALE", "QKDIVDST",
+        "QKATTN", "QKADD", "QKSOFTMAX", "QKSOFTMAXQUANCAST", "QKSOFTMAXQUAN",
+        "QKSOFTMAXDEQUAN", "QKSOFTMAXDEQUANCAST", "QKVMATMUL", "QKVTDST",
+        "QKVDST", "QKVCASTDST", "QKVINT8DST"};
+
+typedef struct tensor_desc_info {
+    bool isavailable;
+    std::string tensor_desc_name;
+    graph_dt dt;
+    dims_t dims;
+} _tensor_desc_info[TENSOR_DESC_TYPES_TOTAL];
+
 const int int_max_exact = 1 << 24;
 const _dt_conf_t cfg = {
         {graph_dt::f32, -int_max_exact, int_max_exact, -128, 128, 0, 1.0,
@@ -72,10 +118,12 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
+    const char *pattern = nullptr;
     prb_dims_t prb_dims;
     std::vector<int> heads {16};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
+
     std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
     std::vector<attr_t::scale_t> quan_oscale {attr_t::scale_t()};
     std::vector<attr_t::scale_t> dequan_oscale {attr_t::scale_t()};
@@ -95,10 +143,12 @@ struct settings_t {
 };
 
 struct mha_graph_spec_t {
-    mha_graph_spec_t(const dims_t &dims, const int ndims, const int &head,
-            const dnnl_data_type_t &dt, const attr_t &quan_attr,
-            const attr_t &dequan_attr, float quan_scale, float dequan_scale)
-        : dims(dims)
+    mha_graph_spec_t(std::string pattern, const dims_t &dims, const int ndims,
+            const int &head, const dnnl_data_type_t &dt,
+            const attr_t &quan_attr, const attr_t &dequan_attr,
+            float quan_scale, float dequan_scale)
+        : mha_pattern(pattern)
+        , dims(dims)
         , ndims(ndims)
         , head(head)
         , mha_inout_dt(benchdnnext::convert_dt(dt))
@@ -112,17 +162,19 @@ struct mha_graph_spec_t {
         generate_scales();
         generate_zero_points();
         MHA_int8 = mha_inout_dt == graph_dt::u8 || mha_inout_dt == graph_dt::s8;
-        if (mha_inout_dt != graph_dt::bf16)
-            mha_dt = graph_dt::f32;
-        else
-            mha_dt = graph_dt::bf16;
+        mha_dt = (mha_inout_dt == graph_dt::bf16 || mha_pattern == "v3")
+                ? graph_dt::bf16
+                : graph_dt::f32;
     }
     ~mha_graph_spec_t() {}
 
+    std::string mha_pattern;
     dims_t dims;
     int ndims;
     int head;
-    dnnl::graph::logical_tensor::data_type mha_dt, mha_inout_dt;
+    int query_sz;
+    dnnl::graph::logical_tensor::data_type mha_dt, mha_inout_dt,
+            mha_quan_dt {graph_dt::f32};
     std::string tag;
     bool MHA_int8 {false};
     attr_t quan_attr, dequan_attr;
@@ -160,7 +212,22 @@ struct mha_graph_prb_t : public ::benchdnnext::graph_prb_t {
     fill_status_t ctor_status;
 
     ~mha_graph_prb_t() {}
+    void build_tensor_desc(const mha_graph_spec_t &spec);
     fill_status_t build_mha_subgraph(const mha_graph_spec_t &spec);
+
+private:
+    void addDequanOp(const mha_graph_spec_t &spec, const std::string src,
+            const std::string dst);
+    void addStaticReshapeOp(const mha_graph_spec_t &spec, const std::string src,
+            const std::string dst, const dims_t shape);
+    void addStaticTransposeOp(const mha_graph_spec_t &spec,
+            const std::string src, const std::string, dims_t axis);
+    void addQuanOp(const mha_graph_spec_t &spec, const std::string src,
+            const std::string dst);
+    void addTypecastOp(const std::string src, const std::string dst);
+    void addReorderOp(const std::string src, const std::string dst);
+
+public:
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::MatMul;
     }
