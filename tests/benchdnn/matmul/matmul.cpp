@@ -513,7 +513,7 @@ int doit(const prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
         ref_args.set(binary_po_args, binary_po_fp);
 
-        TIME_REF(compute_ref(prb, prim_ref, ref_args));
+        TIME_REF(compute_ref(prb, ref_args, prim_ref));
         compare::compare_t cmp;
         cmp.set_threshold(prb->cfg[DST].eps);
         cmp.set_data_kind(DST);
