@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,28 @@ arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
 arm_compute::ActivationLayerInfo get_acl_act(const eltwise_desc_t &ed);
 bool acl_act_ok(alg_kind_t eltwise_activation);
 void acl_thread_bind();
+
+// Convert a memory desc to an arm_compute::TensorInfo. Note that memory desc
+// must be blocking format, plain, dense and have no zero dimensions.
+status_t tensor_info(arm_compute::TensorInfo &info, const memory_desc_t &md);
+status_t tensor_info(
+        arm_compute::TensorInfo &info, const memory_desc_wrapper &md);
+
+// Insert a dimension of size 1 at the index dim_i of TensorInfo
+status_t insert_singleton_dimension(arm_compute::TensorInfo &ti, size_t dim_i);
+
+// Copy the memory descs {d0, d1, d2} to {d0_perm, d1_perm, d2_perm}, but with
+// the dimensions permuted so that their last logical dimensions are all dense
+// (stride of 1). The function finds the highest indexed dimension with a
+// stride of 1 for all descs (common). Then it permutes this to be the last
+// dimension. Note that the last dimension is the one that is dense in an
+// unpermuted tensor, in this case it would copy the descs unchanged. The
+// function may fail to find a common dense dimension, and will return
+// unimplemented.
+status_t permute_common_dense_dimension_to_last(memory_desc_t *d0_permed,
+        memory_desc_t *d1_permed, memory_desc_t *d2_permed,
+        const memory_desc_t *d0, const memory_desc_t *d1,
+        const memory_desc_t *d2);
 
 #define MAYBE_REPORT_ACL_ERROR(msg) \
     do { \
