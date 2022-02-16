@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1339,9 +1339,14 @@ void jit_avx512_core_amx_fwd_kernel_t::cvt2ps(data_type_t type_in,
         case data_type::s32: vmovups(zmm, op); break;
         case data_type::s8: vpmovsxbd(zmm, op); break;
         case data_type::u8: vpmovzxbd(zmm, op); break;
+        case data_type::bf16:
+            vpmovzxwd(zmm, op);
+            vpslld(zmm, zmm, 0x10);
+            break;
         default: assert(!"unsupported data type");
     }
-    if (type_in != data_type::f32) vcvtdq2ps(zmm_in, zmm_in);
+    if (!utils::one_of(type_in, data_type::f32, data_type::bf16))
+        vcvtdq2ps(zmm_in, zmm_in);
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::apply_sum(const Zmm &zmm_out,

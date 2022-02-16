@@ -10,4 +10,5 @@
 --cfg=s8s8f32 --batch=shapes_googlenet_v3 --batch=shapes_regression_1x1
 --cfg=s8s8s32 --batch=shapes_vgg_19
 --cfg=s8s8s32 --batch=shapes_large_padding
+--cfg=u8s8bf16 --batch=set_conv_all
 --cfg=u8s8u8 --stag=axb --dtag=axb --batch=shapes_1x1   # nhwc in rtus
