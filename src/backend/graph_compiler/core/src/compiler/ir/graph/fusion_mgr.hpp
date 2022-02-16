@@ -26,9 +26,67 @@
 #include <unordered_map>
 #include <util/utils.hpp>
 namespace sc {
-// fusion mgr data is the set of internal data of fusion manager
-struct fusion_anchor_data;
 class fusible_op_t;
+struct fuse_state_t;
+
+// fusion_data_t is related to buffer and slice range info of fusible op
+struct fusion_data_t {
+    // the number of uses of the tensor in the graph. TODO: Should be replaced
+    // by uses_.size()
+    int use_count_ = 0;
+    bool need_alloc_ = true;
+    fusion_data_t() = default;
+    fusion_data_t(const fusion_data_t &) = delete;
+    const expr &get_buffer() const { return buffer_; };
+    const tensor get_allocated_tensor() const {
+        auto buf = buffer_;
+        while (!buf.isa<tensor>()) {
+            COMPILE_ASSERT(buf.isa<tensorptr>(),
+                    "tensor_slice only accepts a tensor or tensorptr, got: "
+                            << buf);
+            auto base = buf.static_as<tensorptr>()->base_;
+            COMPILE_ASSERT(base.isa<indexing>(),
+                    "tensor_ptr base should be indexing, but got: " << base);
+            buf = base.checked_as<indexing>()->ptr_;
+        }
+        COMPILE_ASSERT(buf.isa<tensor>(), "Tensor type is expected")
+        return buf.static_as<tensor>();
+    };
+
+private:
+    expr buffer_;
+    friend class fusion_manager;
+    friend void set_buffer_reuse_hint(
+            int64_t &, fdata_map &, const sc_op_ptr &, const expr &, bool);
+};
+
+// the map based on graph_tensor key
+template <typename keyT>
+struct gt_map_t {
+    std::unordered_map<graph_tensor *, keyT> datamap_;
+    keyT &get(graph_tensor *);
+    keyT &get(const graph_tensor_ptr &);
+    void clear() { datamap_.clear(); }
+    gt_map_t &operator=(const gt_map_t &other) = delete;
+};
+
+struct fuse_state_t {
+    fdata_map fdmap_;
+    std::vector<fslice_map> fsmap_list_;
+    fuse_state_t() = default;
+};
+
+struct fuse_anchor_t {
+    stmts anchor_position_;
+    std::pair<std::vector<tensor_slice>, std::vector<tensor_slice>>
+            anchor_slice_;
+    fuse_anchor_t() = default;
+    fuse_anchor_t(stmts pos,
+            std::pair<std::vector<tensor_slice>, std::vector<tensor_slice>>
+                    slice)
+        : anchor_position_(std::move(pos)), anchor_slice_(std::move(slice)) {};
+};
+
 class fusion_manager {
 protected:
     // input tensor index, increases 1 when a input_op constructs
@@ -49,52 +107,39 @@ protected:
     std::unordered_map<sc_op *, int> output_idx_map_;
     // the maximum anchor id fusion manager use
     int max_anchor_;
-    // the list record output anchor position, which will be inserted real
-    // generated code commited by fusion.manager.
-    // TODO(xxx): extend to the vector
-    std::vector<stmts> output_anchor_position_;
-    // the list record output anchor slice, which will be used by
-    // compute_xxx_block of each fusible op.
-    std::vector<std::pair<std::vector<tensor_slice>, std::vector<tensor_slice>>>
-            output_anchor_slice_;
+    std::vector<fuse_anchor_t> fanchor_list_;
     // fusion manager will manager the sorted ops by rules
     std::vector<sc_op_ptr> sorted_ops_;
     // register for fusion inside brgemm.
     brgemm_fusion_register brg_fusion_reg_;
     // Get basic dfs topology sequence of graph op to initialize sorted_ops
     void init_sorted_ops();
-    // calls prepare_fusion_data() on every op
-    void do_query(const context_ptr &ctx,
-            std::vector<fusion_anchor_data> &fdata_list, bool legacy_mode,
-            int anchor_id = 0);
     // prepare fusion data
-    void do_prepare_fusion_data(const context_ptr &ctx,
-            std::vector<fusion_anchor_data> &fdata_list, int anchor_id = 0);
-    // infer the slice range for input args.
-    void do_infer_slice_ranges(std::vector<fusion_anchor_data> &fdata_list,
-            std::vector<sc_op_ptr> &failed_ops, int anchor_id = 0);
-    // pre-allocate tensors to logical tensors
-    void do_allocate_tensor(std::vector<fusion_anchor_data> &fdata_list,
-            int anchor_id = 0, const std::vector<expr> &outs = {},
-            const std::vector<expr> &inargs = {});
-    // schedules the real tensors to logical tensors
-    void do_shedule_tensor(std::vector<fusion_anchor_data> &fdata_list);
-    // define all the real tensors in suitable fusion anchor
-    void do_declare_tensor(std::vector<fusion_anchor_data> &fdata_list);
-    // commit compute_xxx_block
-    void do_compute_block(const context_ptr &ctx,
-            std::vector<fusion_anchor_data> &fdata_list);
-    // dispatch fusion anchor for each fusible op, it will return tbd_op_list
-    std::vector<sc_op_ptr> dispatch_fusion_anchor(const context_ptr &ctx,
-            std::vector<fusion_anchor_data> &fdata_list,
+    void do_prepare_fusion_data(fdata_map &fdmap);
+    // pre-allocate tensors to logical tensors, NOTE that this stage has no
+    // relation with fusion anchor.
+    void do_allocate_tensor(fdata_map &fdmap,
             const std::vector<expr> &outs = {},
             const std::vector<expr> &inargs = {});
+    // dispatch fusion anchor for each fusible op, it will return tbd_op_list
+    std::vector<sc_op_ptr> dispatch_fusion_anchor(
+            std::vector<fslice_map> &fsmap_list, const context_ptr &ctx);
+    // infer the slice range for input args.
+    void do_infer_slice_ranges(
+            fslice_map &fsmap, int anchor_id, infer_status_map_t &stat_map);
+
+    // commit compute_xxx_block
+    void do_compute_block(const context_ptr &ctx, fuse_state_t &fstate);
+
+    // define all the real tensors in suitable fusion anchor
+    void do_declare_tensor(fuse_state_t &fstate);
+
     // reschedules the anchor, use_one_anchor can be treated as a tuning option
-    void do_reshedule_anchor(std::vector<fusion_anchor_data> &fdata_list,
-            bool use_one_anchor = false);
+    void do_reshedule_anchor(
+            std::vector<fslice_map> &fsmap_list, bool use_one_anchor = false);
 
     // allocates a temp tensor for the result of the op
-    void allocate_tensor(graph_tensor_ptr, fusion_anchor_data &fdata);
+    void allocate_tensor(graph_tensor_ptr, fdata_map &);
 
 public:
     int get_input_op_count() const { return input_op_count_; }
@@ -106,6 +151,9 @@ public:
     }
     void break_brgemm_fusion();
     bool can_register_brgemm_fusion(const stmt &body);
+
+    int get_input_idx(sc_op *) const;
+    int get_output_idx(sc_op *) const;
 
     template <typename T, typename... Args>
     std::shared_ptr<T> make(Args &&... args) {
@@ -145,14 +193,13 @@ public:
      * @return if checking passes, returns empty vector. Otherwise, returns the
      * ops that cause the failure
      * */
-    std::vector<sc_op_ptr> prepare_and_check(const context_ptr &ctx,
-            std::vector<fusion_anchor_data> &fdata_list,
-            const std::vector<expr> &outs = {},
-            const std::vector<expr> &inargs = {});
+    std::vector<sc_op_ptr> prepare_and_check(
+            const context_ptr &ctx, fuse_state_t &fstate);
 
     // the graph based fusion commit api
-    void commit(const ir_module_ptr &modu,
-            std::vector<fusion_anchor_data> &fdata_list);
+    void commit(const ir_module_ptr &modu, fuse_state_t &fstate,
+            const std::vector<expr> &outs = {},
+            const std::vector<expr> &inargs = {});
 
     /**
      * create_output_fusion_anchor does not really generate code here at once,
@@ -179,68 +226,11 @@ public:
     fusion_manager(fusion_manager &&other);
     fusion_manager &operator=(const fusion_manager &other) = delete;
     // get real tensors list vector in input logical tensors
-    std::vector<std::vector<const tensor_slice *>> get_input_tsr_slices_list(
-            fusible_op_t *op, fusion_anchor_data &fdata) const;
+    std::vector<std::vector<tensor_slice>> get_input_tsr_slices_list(
+            fusible_op_t *op, fdata_map &fdmap, fslice_map &fsmap) const;
     // get real tensors list vector in output logical tensors
-    std::vector<std::vector<tensor_slice *>> get_output_tsr_slices_list(
-            fusible_op_t *op, fusion_anchor_data &fdata) const;
-    // get input op index
-    int get_input_op_index(sc_op *op) const;
-};
-
-/** fusion_anchor_data vs fusion_data
- *  1. fusion_anchor_data: is from the view of fusion manager, which can manager
- * some overall information fusion_data in the *certain fusion anchor*.
- *  2. fusion_data: focus on those infos related to fusion,  especially
- * tensor_slice
- * */
-
-// fusion_data is related to tensor slice of fusible op
-struct fusion_data {
-    // the number of uses of the tensor in the graph. TODO: Should be replaced
-    // by uses_.size()
-    int use_count_ = 0;
-    /**
-     * @TODO: remove shape, because it can not represent multi-slice semantics,
-     * we can use original_ranges_list_ to replace shape_
-     * */
-    // the tensor slice shape
-    std::vector<expr> shape_;
-    // original_ranges_list_ means the slice range for the original whole
-    // buffer, ignoring any writer_cache or temp_buffer
-    std::vector<std::vector<std::pair<expr, expr>>> original_ranges_list_;
-    bool need_alloc_ = true;
-    // judge whether the tsr_slice is contiguous, if tsr_slice_list have
-    // more than two size, return false.
-    bool is_contiguous();
-    fusion_data() = default;
-    fusion_data(const fusion_data &) = delete;
-
-private:
-    // deal with multi-slice
-    std::vector<tensor_slice> tsr_slice_list_;
-    friend class fusion_manager;
-    friend void set_buffer_reuse_hint(int64_t &, fusion_anchor_data &,
-            const sc_op_ptr &, const expr &, bool);
-};
-
-// fusion_anchor_data is related to fusion manager in the certain fusion anchor
-struct fusion_anchor_data {
-    std::unordered_map<graph_tensor *, fusion_data> datamap_;
-    // input op => the index of tensor slice in src of commit(...)
-    std::unordered_map<sc_op *, int> *input_idx_map_ = nullptr;
-    // input op => the index of tensor slice in src of commit(...)
-    std::unordered_map<sc_op *, int> *output_idx_map_ = nullptr;
-    // the number of src tensor slices when fusion_manager::commit is called
-    int num_commit_src_ = 0;
-    fusion_data &get(graph_tensor *);
-    fusion_data &get(const graph_tensor_ptr &);
-    int get_input_idx(sc_op *) const;
-    int get_output_idx(sc_op *) const;
-    // judge input_op whether is the additional arg
-    bool is_arg_input(input_op *op) const {
-        return get_input_idx(op) >= num_commit_src_;
-    }
+    std::vector<std::vector<tensor_slice>> get_output_tsr_slices_list(
+            fusible_op_t *op, fdata_map &fdmap, fslice_map &fsmap) const;
 };
 
 // todo: remove and use standard graph::make

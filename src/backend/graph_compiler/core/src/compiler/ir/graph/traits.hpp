@@ -26,8 +26,8 @@
 namespace sc {
 
 class fusion_manager;
-struct fusion_anchor_data;
 struct brgemm_fusion_register;
+
 namespace op_traits {
 struct may_broadcast_t : public virtual op_base_trait_t {
     // returns the input index of the logical tensor that will be broadcast
@@ -91,7 +91,7 @@ struct brgemm_fusion_acceptable_t : public virtual op_base_trait_t {
     virtual bool register_brgemm_fusion(const context_ptr &ctx,
             const std::vector<tensor_slice *> &outputs,
             const std::vector<const tensor_slice *> &inputs,
-            fusion_anchor_data &fdata, brgemm_fusion_register &brg_reg)
+            brgemm_fusion_register &brg_reg)
             = 0;
 };
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -184,15 +184,13 @@ public:
      * @param f_fule (Version 2) user-defined lambda rule function.
      * */
     static void visit_by_rules(sc_graph_t &graph,
-            std::vector<fusion_anchor_data> &fdata_list,
             const std::function<void(sc_op_ptr)> &f,
             std::vector<sort_rule> rules);
     static void visit_by_rules(sc_graph_t &graph,
             const std::function<void(sc_op_ptr)> &f, const rule_func &f_rule);
 
-    static std::vector<sc_op_ptr> sort_by_rules(sc_graph_t &graph,
-            std::vector<fusion_anchor_data> &fdata_list,
-            std::vector<sort_rule> rules);
+    static std::vector<sc_op_ptr> sort_by_rules(
+            sc_graph_t &graph, std::vector<sort_rule> rules);
     static std::vector<sc_op_ptr> sort_by_rules(
             sc_graph_t &graph, const rule_func &f_rule);
 
@@ -205,8 +203,7 @@ public:
 
     static rule_func create_fusion_anchor_rule();
 
-    static rule_func create_preop_fusion_rule(
-            std::vector<fusion_anchor_data> &fdata_list);
+    static rule_func create_preop_fusion_rule();
 };
 
 } // namespace sc

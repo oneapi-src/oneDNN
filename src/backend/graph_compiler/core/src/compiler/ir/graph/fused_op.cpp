@@ -262,7 +262,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     // =======================
     // End of building function body
     // =======================
-    std::vector<fusion_anchor_data> fuse_state;
+    fuse_state_t fstate;
     std::vector<expr> fuse_outs;
     if (keep_outputs_[0]) {
         assert(real_outs.size() > 1);
@@ -270,8 +270,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     } else {
         fuse_outs = real_outs;
     }
-    out_failed = mgr_->prepare_and_check(
-            ctx, fuse_state, fuse_outs, additional_ins);
+    out_failed = mgr_->prepare_and_check(ctx, fstate);
     if (!out_failed.empty()) {
         mgr_->clear_anchor();
         return nullptr;
@@ -282,7 +281,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     }
     bool can_in_brg = mgr_->can_register_brgemm_fusion(body);
     if (!can_in_brg) { mgr_->break_brgemm_fusion(); }
-    mgr_->commit(modu, fuse_state);
+    mgr_->commit(modu, fstate, fuse_outs, additional_ins);
     // register fusion in brgemm.
     if (can_in_brg) {
         body = mgr_->get_brgemm_fusion_register()

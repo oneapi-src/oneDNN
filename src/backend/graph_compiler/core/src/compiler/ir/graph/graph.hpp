@@ -45,9 +45,9 @@ using graph_tensor_ptr = std::shared_ptr<graph_tensor>;
 using sc_op_ptr = std::shared_ptr<sc_op>;
 
 // the additional data related to fusion manager, attached to logical_tensor_t
-struct fusion_anchor_data;
 struct tensor_slice;
-struct fusion_data;
+struct fusion_data_t;
+struct fuse_state_t;
 
 /** VConst struct record possible varible in constant value, e.g.
  *
@@ -139,8 +139,6 @@ struct sc_op_info_t {
     /* the map of <output index, input index vector> decribes the sharing
      relationship between input and output tensors */
     std::unordered_map<int, std::vector<int>> tensor_share_info_;
-    // additional arguments of this op
-    std::vector<expr> args_;
 };
 
 struct op_base_trait_t {};
@@ -157,6 +155,8 @@ constexpr const char *break_post_fuse = "break_post_fuse";
 // Boolean. If true, don't break the fusion partition before this Op
 // (this Op can still be fused with post Ops). Default = false
 constexpr const char *break_pre_fuse = "break_pre_fuse";
+// Fuse Anchor
+constexpr const char *inner_anchor = "inner_anchor";
 }; // namespace op_attr_key
 
 class SC_INTERNAL_API sc_op : public virtual op_base_trait_t,

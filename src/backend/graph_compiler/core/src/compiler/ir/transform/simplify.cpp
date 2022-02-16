@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 #include "../visitor.hpp"
+#include "constant_fold.hpp"
 #include <compiler/ir/builder.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -141,6 +142,9 @@ class if_loop_simplify_impl_t : public ir_consistent_visitor_t {
     stmt_c visit(if_else_c v) override {
         stmt_c then_case, else_case;
         expr_c condition;
+        COMPILE_ASSERT(
+                v->condition_.defined(), "if_else node should have condition")
+        condition = constant_folder_t()(dispatch(v->condition_));
         if (v->condition_.defined()) condition = dispatch(v->condition_);
         if (v->then_case_.defined()) then_case = dispatch(v->then_case_);
         if (v->else_case_.defined()) else_case = dispatch(v->else_case_);

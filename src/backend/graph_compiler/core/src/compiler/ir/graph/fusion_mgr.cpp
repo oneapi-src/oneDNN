@@ -35,54 +35,36 @@
 #include <ops/fusible/unary_elemwise.hpp>
 #include <util/any_map.hpp>
 
+SC_MODULE(graph.fusion);
+
 namespace sc {
 
-static bool slice_full_on_axes(
-        const sc_dims &dim, slice_range ranges, const std::vector<int> &axes) {
-    for (auto &ax : axes) {
-        if (!ranges[ax].first.isa<constant>()
-                || !ranges[ax].second.isa<constant>()) {
-            return false;
-        }
-        if (get_const_as_int(ranges[ax].first.checked_as<constant>()) != 0
-                || get_const_as_int(ranges[ax].second.checked_as<constant>())
-                        != dim[ax]) {
-            return false;
-        }
-    }
-    return true;
+int fusion_manager::get_input_idx(sc_op *v) const {
+    auto itr = input_idx_map_.find(v);
+    assert(itr != input_idx_map_.end());
+    return itr->second;
+}
+int fusion_manager::get_output_idx(sc_op *v) const {
+    auto itr = output_idx_map_.find(v);
+    assert(itr != output_idx_map_.end());
+    return itr->second;
 }
 
-bool fusion_data::is_contiguous() {
-    if (tsr_slice_list_.size() > 1) return false;
-    auto &tsr_slice = tsr_slice_list_[0];
-    return tsr_slice.is_full();
-}
-
-fusion_data &fusion_anchor_data::get(graph_tensor *v) {
-    auto itr = this->datamap_.find(v);
-    if (itr != this->datamap_.end()) { return itr->second; }
-    auto &ret = this->datamap_[v];
-    ret.shape_ = dims_to_expr(v->details_.get_blocking_dims());
+template <typename keyT>
+keyT &gt_map_t<keyT>::get(graph_tensor *v) {
+    auto itr = datamap_.find(v);
+    if (itr != datamap_.end()) { return itr->second; }
+    auto &ret = datamap_[v];
     return ret;
 }
 
-int fusion_anchor_data::get_input_idx(sc_op *v) const {
-    assert(input_idx_map_);
-    auto itr = input_idx_map_->find(v);
-    assert(itr != input_idx_map_->end());
-    return itr->second;
-}
-int fusion_anchor_data::get_output_idx(sc_op *v) const {
-    assert(output_idx_map_);
-    auto itr = output_idx_map_->find(v);
-    assert(itr != output_idx_map_->end());
-    return itr->second;
-}
-
-fusion_data &fusion_anchor_data::get(const graph_tensor_ptr &v) {
+template <typename keyT>
+keyT &gt_map_t<keyT>::get(const graph_tensor_ptr &v) {
     return get(v.get());
 }
+
+template struct gt_map_t<fusion_data_t>;
+template struct gt_map_t<slice_range_list>;
 
 template <>
 std::shared_ptr<input_op> fusion_manager::make<input_op>() {
@@ -174,8 +156,8 @@ fusion_manager::fusion_manager(fusion_manager &&other)
  * schedule tensor pass
  * */
 void fusion_manager::allocate_tensor(
-        graph_tensor_ptr output, fusion_anchor_data &fdata) {
-    auto &fdetail = fdata.get(output);
+        graph_tensor_ptr output, fdata_map &fdmap) {
+    auto &fdetail = fdmap.get(output);
     fusible_op_t *fop = output->producer_owner_->dyn_cast<fusible_op_t>();
     tensor tsr;
     auto allocate_ =
@@ -183,249 +165,143 @@ void fusion_manager::allocate_tensor(
                     sc::address_space addrspace = sc::address_space::automatic,
                     const std::shared_ptr<static_data_t> &init_value = nullptr,
                     bool global = false) {
-                bool forbidden_shrink = false;
-                // This situation can not shrink output
-                if (fop->isa<reorder_op_t>()) {
-                    if (fop->dyn_cast<reorder_op_t>()->check_padding()
-                            || fdetail.original_ranges_list_.size() > 1) {
-                        forbidden_shrink = true;
-                    }
+                tsr = builder::make_tensor(
+                        name + std::to_string(alloc_tensor_count_++), shapes,
+                        output->details_.dtype_, addrspace, init_value)
+                              .checked_as<tensor>();
+                if (global) {
+                    auto def = builder::make_var_tensor_def_unattached(
+                            tsr, linkage::private_global)
+                                       .static_as<define>();
+                    global_defines_.emplace_back(def);
+                } else {
+                    allocated_tensors_.emplace_back(tsr);
                 }
-                for (auto &range : fdetail.original_ranges_list_) {
-                    if (!(forbidden_shrink && tsr.defined())) {
-                        tsr = builder::make_tensor(
-                                name + std::to_string(alloc_tensor_count_++),
-                                shapes, output->details_.dtype_, addrspace,
-                                init_value)
-                                      .checked_as<tensor>();
-                        if (global) {
-                            auto def = builder::make_var_tensor_def_unattached(
-                                    tsr, linkage::private_global)
-                                               .static_as<define>();
-                            global_defines_.emplace_back(def);
-                        } else {
-                            allocated_tensors_.emplace_back(tsr);
-                        }
-                    }
-                    if (!forbidden_shrink && !tsr->init_value_) {
-                        // The tensor to shrink should not have init value
-                        tsr->attr()[tensor_shrinker_attrs::should_shrink]
-                                = tensor_shrinker_t::shrink_info_t {
-                                        /*base*/ get_slice_idx(range),
-                                        /*shape*/ get_slice_shape(range),
-                                        stmts()};
-                    }
-                    fdetail.tsr_slice_list_.emplace_back(
-                            tensor_slice(tsr, slice_range(range)));
-                }
+
+                fdetail.buffer_ = tsr;
             };
     // TODO(xxx): remove this reorder judgement
-    if (output->producer_owner_->dyn_cast<reorder_op_t>()) {
-        allocate_("_reorder_buf_",
-                dims_to_expr(output->details_.get_blocking_dims()));
-    } else if (auto const_op
-            = output->producer_owner_->dyn_cast<constant_op_t>()) {
+    if (auto const_op = output->producer_owner_->dyn_cast<constant_op_t>()) {
         auto const_value = const_op->get_constant_values();
-        allocate_("_const_buf_", fdetail.shape_, address_space::automatic,
-                const_value, true);
-    } else if (output->producer_owner_->dyn_cast<unary_elementwise_op_t>()
-            || output->producer_owner_->dyn_cast<binary_elementwise_op_t>()
-            || output->producer_owner_->dyn_cast<reduce_op_t>()) {
-        allocate_("_fuse_buf_",
+        allocate_("_const_buf_",
+                dims_to_expr(output->details_.get_blocking_dims()),
+                address_space::automatic, const_value, true);
+    } else {
+        allocate_("_" + output->producer_owner_->op_name_ + "_buf_",
                 dims_to_expr(output->details_.get_blocking_dims()));
-    }
-    // TODO(xxx): adapte to other movement type. As the workaround, we just
-    // maintain current style
-    else {
-        tsr = builder::make_tensor(std::string("_fuse_buf_")
-                        + std::to_string(alloc_tensor_count_++),
-                fdetail.shape_, output->details_.dtype_)
-                      .checked_as<tensor>();
-        allocated_tensors_.emplace_back(tsr);
-        fdetail.tsr_slice_list_ = {tensor_slice(tsr)};
     }
 }
 
 std::vector<sc_op_ptr> fusion_manager::dispatch_fusion_anchor(
-        const context_ptr &ctx, std::vector<fusion_anchor_data> &fdata_list,
-        const std::vector<expr> &outs, const std::vector<expr> &inargs) {
-    // to be decided op list contains ops that have not found suitable anchor
-    std::vector<sc_op_ptr> tbd_op_list;
-    if (graph_.empty()) { return tbd_op_list; }
+        std::vector<fslice_map> &fsmap_list, const context_ptr &ctx) {
+    if (graph_.empty()) { return {}; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
-    COMPILE_ASSERT(
-            !output_anchor_position_.empty() && !output_anchor_slice_.empty(),
+    COMPILE_ASSERT(!fanchor_list_.empty(),
             "no output anchor found, please create them before commit");
-    auto dispatcher = [&](const sc_op_ptr &cur, int anchor_id) -> bool {
-        if (cur->isa<reduce_op_t>()) {
-            auto rd_axes = cur->dyn_cast<reduce_op_t>()->get_rd_axis();
-            auto original_ranges = fdata_list[anchor_id]
-                                           .get(cur->get_inputs()[0])
-                                           .original_ranges_list_;
-            auto &src_dim = cur->get_inputs()[0]->details_.get_blocking_dims();
 
-            // check the slice range whether meet the least demand of reduce op
-            for (auto &src_range : original_ranges) {
-                if (!slice_full_on_axes(src_dim, src_range, rd_axes)) {
-                    if (!(std::find(tbd_op_list.begin(), tbd_op_list.end(), cur)
-                                != tbd_op_list.end())) {
-                        cur->attrs_.set(op_attr_key::fused_mode_hint,
-                                op_attr_key::break_pre_fuse);
-                        tbd_op_list.emplace_back(cur);
-                    }
-                    return false;
-                }
-            }
-            cur->dyn_cast<fusible_op_t>()->anchor_id = anchor_id;
-        } else {
-            cur->dyn_cast<fusible_op_t>()->anchor_id = 0;
-        }
-        return true;
-    };
-
-    for (size_t anchor_id = 0; anchor_id < output_anchor_position_.size();
-            anchor_id++) {
-        // skip
-        if (anchor_id > 0) do_prepare_fusion_data(ctx, fdata_list, anchor_id);
-        std::vector<sc_op_ptr> failed_infer_ops;
-        do_infer_slice_ranges(fdata_list, failed_infer_ops, anchor_id);
-        if (!failed_infer_ops.empty()) {
-            tbd_op_list.insert(tbd_op_list.end(), failed_infer_ops.begin(),
-                    failed_infer_ops.end());
-            return tbd_op_list;
-        }
-        do_allocate_tensor(fdata_list, anchor_id, outs, inargs);
-        if (anchor_id == 0) {
-            for (auto &cur : sorted_ops_) {
-                dispatcher(cur, anchor_id);
-            }
-        } else {
-            for (auto iter = tbd_op_list.begin(); iter != tbd_op_list.end();) {
-                bool is_success = dispatcher(*iter, anchor_id);
-                if (is_success) {
-                    // clear hint if necessary
-                    if ((*iter)->attrs_.has_key(op_attr_key::fused_mode_hint)) {
-                        (*iter)->attrs_.remove(op_attr_key::fused_mode_hint);
-                    }
-                    iter = tbd_op_list.erase(iter);
-                    continue;
-                }
-                iter++;
-            }
-        }
+    infer_status_map_t stat_map;
+    for (size_t anchor_id = 0; anchor_id < fanchor_list_.size(); anchor_id++) {
+        stat_map.clear();
         // record max anchor fusion manager use.
         max_anchor_ = anchor_id;
-        if (tbd_op_list.empty()) break;
+        auto &fsmap = fsmap_list[anchor_id];
+        do_infer_slice_ranges(fsmap, anchor_id, stat_map);
+        if (stat_map.is_fail()) {
+            auto &failes_ops
+                    = stat_map.get_ops_by_status(infer_status_code::FAIL);
+            assert(!failes_ops.empty());
+            SC_MODULE_INFO << "Dispatch fusion anchor failed. Anchor id: "
+                           << anchor_id
+                           << ", Op Name: " << failes_ops[0]->op_name_;
+            return failes_ops;
+        }
+        // set anchor
+        for (auto &cur : stat_map.get_ops_by_status(infer_status_code::OK)) {
+            if (cur->dyn_cast<fusible_op_t>()->anchor_id_ == -1) {
+                if (cur->attrs_.has_key(op_attr_key::fused_mode_hint)) {
+                    cur->attrs_.remove(op_attr_key::fused_mode_hint);
+                }
+                cur->dyn_cast<fusible_op_t>()->anchor_id_ = anchor_id;
+            }
+        }
+        if (stat_map.is_ok()) return {};
     }
-    return tbd_op_list;
-}
-
-void fusion_manager::do_query(const context_ptr &ctx,
-        std::vector<fusion_anchor_data> &fdata_list, bool legacy_mode,
-        int anchor_id) {
-    if (graph_.empty()) { return; }
-    COMPILE_ASSERT(!sorted_ops_.empty(),
-            "sorted ops are expected to be ready, please initilize it first");
-    for (auto &cur : sorted_ops_) {
-        auto src = output_anchor_slice_[anchor_id].first;
-        auto dst = output_anchor_slice_[anchor_id].second;
-        cur->dyn_cast<fusible_op_t>()->prepare_fusion_data(
-                ctx, src, dst, fdata_list[anchor_id]);
-    }
+    auto &retry_ops = stat_map.get_ops_by_status(infer_status_code::RETRY);
+    assert(!retry_ops.empty());
+    SC_MODULE_INFO << "Could not find suitable anchor for "
+                   << retry_ops[0]->op_name_ << " to commit in total "
+                   << fanchor_list_.size() << " anchors";
+    return retry_ops;
 }
 
 void fusion_manager::do_infer_slice_ranges(
-        std::vector<fusion_anchor_data> &fdata_list,
-        std::vector<sc_op_ptr> &failed_ops, int anchor_id) {
+        fslice_map &fsmap, int anchor_id, infer_status_map_t &stat_map) {
     if (graph_.empty()) { return; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
 
-    auto validate_slice_range = [&fdata_list, &failed_ops, &anchor_id](
-                                        const sc_op_ptr &fop) -> bool {
-        if (fop->isa<input_op>() || fop->isa<output_op>()
-                || fop->isa<constant_op_t>())
-            return true;
-        // check legalize, except for reorder_op, all slice of inputs and
-        // outputs should be equal
-        size_t common_slice_size = fdata_list[anchor_id]
-                                           .get(fop->get_inputs()[0])
-                                           .original_ranges_list_.size();
-        if (common_slice_size == 0) {
-            // usually occurs in pre-op fusion
-            if (fop->isa<tensor_view_op_t>() || fop->isa<reorder_op_t>()) {
-                failed_ops.emplace_back(fop);
-                return false;
-            } else {
-                COMPILE_ASSERT(common_slice_size > 0,
-                        "input slice size is expected larger than 0 for "
-                                << fop->op_name_ << " op")
-            }
+    // set input slice firstly
+    for (auto &cur : sorted_ops_) {
+        if (auto input_cur = cur->dyn_cast<input_op>()) {
+            auto src = fanchor_list_[anchor_id].anchor_slice_.first;
+            int input_idx = get_input_idx(input_cur);
+            // set input slice range
+            if (input_idx < static_cast<int>(src.size()))
+                fsmap.get(cur->get_outputs()[0])
+                        = {src[input_idx].get_ranges()};
+            stat_map.append_ops_by_status(cur.get(), infer_status_code::OK);
         }
-        if (common_slice_size > 1 && fop->isa<reorder_op_t>()) {
-            failed_ops.emplace_back(fop);
-            return false;
-        }
-        for (auto &ins : fop->get_inputs()) {
-            if (common_slice_size
-                    != fdata_list[anchor_id]
-                               .get(ins)
-                               .original_ranges_list_.size()) {
-                failed_ops.emplace_back(fop);
-                return false;
-            }
-        }
-        for (auto &out : fop->get_outputs()) {
-            if (common_slice_size
-                    != fdata_list[anchor_id]
-                               .get(out)
-                               .original_ranges_list_.size()) {
-                // Currently, only reorder op will generate multi-slice
-                if (!fop->isa<reorder_op_t>()) {
-                    failed_ops.emplace_back(fop);
-                    return false;
-                } else if (fdata_list[anchor_id]
-                                   .get(out)
-                                   .original_ranges_list_.empty()) {
-                    for (auto &user : fop->get_outputs()[0]->uses_) {
-                        if (user.second->isa<output_op>()) {
-                            continue;
-                        } else {
-                            user.second->attrs_.set(
-                                    op_attr_key::fused_mode_hint,
-                                    op_attr_key::break_pre_fuse);
-                            failed_ops.emplace_back(user.second);
-                        }
-                    }
-                    if (!failed_ops.empty()) return false;
-                }
-            }
-        }
-        return true;
-    };
-
+    }
     // To enable pre-op fusion, it is allowed that infer ops list maybe not a
     // topology sequence.
-    auto infer_ops_list = op_sorting_visitor_t::sort_by_rules(graph_,
-            fdata_list, {op_sorting_visitor_t::sort_rule::preop_fusion});
+    auto infer_ops_list = op_sorting_visitor_t::sort_by_rules(
+            graph_, {op_sorting_visitor_t::sort_rule::preop_fusion});
     for (auto &cur : infer_ops_list) {
-        cur->dyn_cast<fusible_op_t>()->infer_slice_ranges(
-                fdata_list[anchor_id]);
-        if (!validate_slice_range(cur)) return;
+        auto fusible_cur = cur->dyn_cast<fusible_op_t>();
+        fusible_cur->infer_slice_ranges(fsmap, stat_map);
+        if (stat_map.is_fail()) return;
+        if (stat_map.is_retry()) {
+            auto &retry_list
+                    = stat_map.get_ops_by_status(infer_status_code::RETRY);
+            if (retry_list.end()
+                    != std::find(retry_list.begin(), retry_list.end(), cur)) {
+                continue;
+            }
+        }
+        stat_map.append_ops_by_status(cur.get(), infer_status_code::OK);
+    }
+
+    // set output slice lastly
+    for (auto &cur : sorted_ops_) {
+        if (auto output_cur = cur->dyn_cast<output_op>()) {
+            auto dst = fanchor_list_[anchor_id].anchor_slice_.second;
+            int output_idx = get_output_idx(output_cur);
+            // set output slice range
+            if (!dst.empty()) {
+                fsmap.get(cur->get_inputs()[0])
+                        = {dst[output_idx].get_ranges()};
+            } else {
+                auto out_dims = output_cur->get_inputs()[0]
+                                        ->details_.get_blocking_dims();
+                slice_range out_ranges;
+                for (auto &d : out_dims) {
+                    out_ranges.emplace_back(std::make_pair(0, dim2unsigned(d)));
+                }
+                if (fsmap.get(cur->get_inputs()[0]).empty())
+                    fsmap.get(cur->get_inputs()[0]) = {out_ranges};
+            }
+            stat_map.append_ops_by_status(cur.get(), infer_status_code::OK);
+        }
     }
 }
 
-void fusion_manager::do_prepare_fusion_data(const context_ptr &ctx,
-        std::vector<fusion_anchor_data> &fdata_list, int anchor_id) {
+void fusion_manager::do_prepare_fusion_data(fdata_map &fdmap) {
     if (graph_.empty()) { return; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
     for (auto &cur : sorted_ops_) {
-        auto src = output_anchor_slice_[anchor_id].first;
-        auto dst = output_anchor_slice_[anchor_id].second;
-        cur->dyn_cast<fusible_op_t>()->prepare_fusion_data(
-                ctx, src, dst, fdata_list[anchor_id]);
+        cur->dyn_cast<fusible_op_t>()->prepare_fusion_data(fdmap);
     }
 }
 
@@ -447,19 +323,17 @@ void reset_buffer_reuse_first_access_hint(const expr &tsr) {
 // hint_last_access_tick]. first_access of a tensor is defined as tick of tensor
 // create. last_access of a tensor is defined as maximum tick of its uses.
 // access_has_updated is a boolean, used when tensor_slice_list.size() > 1
-void set_buffer_reuse_hint(int64_t &hint_tick, fusion_anchor_data &fdata,
+void set_buffer_reuse_hint(int64_t &hint_tick, fdata_map &fdmap,
         const sc_op_ptr &node, const expr &tsr,
         bool access_has_updated = false) {
     // tick self add, if node is input op, last access == 1
     if (!access_has_updated) { hint_tick++; }
     // update inp tsrs' last access to maximum last access
     for (auto &in : node->get_inputs()) {
-        auto &in_detail = fdata.get(in);
-        if (!in_detail.tsr_slice_list_.empty()) {
-            for (auto &tsr_slice : in_detail.tsr_slice_list_) {
-                auto in_tsr = tsr_slice.tptr_->base_->ptr_;
-                in_tsr->attr().set(attr_keys::hint_last_access_tick, hint_tick);
-            }
+        auto &in_detail = fdmap.get(in);
+        if (in_detail.buffer_.defined()) {
+            auto in_tsr = in_detail.buffer_;
+            in_tsr->attr().set(attr_keys::hint_last_access_tick, hint_tick);
         }
     }
     // skip complex cases, don't do schedule.
@@ -478,30 +352,24 @@ void set_buffer_reuse_hint(int64_t &hint_tick, fusion_anchor_data &fdata,
     }
 }
 
-void fusion_manager::do_allocate_tensor(
-        std::vector<fusion_anchor_data> &fdata_list, int anchor_id,
+void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
         const std::vector<expr> &outs, const std::vector<expr> &inargs) {
     if (graph_.empty()) { return; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
     auto ths = this;
-    auto alloc_func = [ths, &fdata_list, &outs, &inargs](
-                              const sc_op_ptr &cur_node,
+    auto alloc_func = [ths, &fdmap, &outs, &inargs](const sc_op_ptr &cur_node,
                               const std::vector<sc::tensor_slice> &src,
                               const std::vector<sc::tensor_slice> &dst,
-                              int anchor_id, int64_t &hint_tick) {
+                              int64_t &hint_tick) {
         auto cur = cur_node->dyn_cast<fusible_op_t>();
-        auto &fdata = fdata_list[anchor_id];
-        if (dynamic_cast<input_op *>(cur)) {
+        if (auto input_cur = cur->dyn_cast<input_op>()) {
             // if it is the input node
-
+            int input_idx = ths->get_input_idx(input_cur);
+            int arg_idx = input_idx - static_cast<int>(src.size());
             // if there is only one input node and only one output node, we need
             // to copy the src tensor to dst tensor, not inplemented
             assert(ths->graph_.ops_.size() > 2);
-            auto input_cur = static_cast<input_op *>(cur);
-            auto &input_cur_out_detail = fdata.get(input_cur->get_outputs()[0]);
-            int input_idx = fdata.get_input_idx(input_cur);
-            int arg_idx = input_idx - static_cast<int>(src.size());
             // for input node, use the input tensor
             if (arg_idx >= 0) {
                 expr tsr;
@@ -515,25 +383,16 @@ void fusion_manager::do_allocate_tensor(
                                     input_cur->get_outputs()[0]
                                             ->details_.get_blocking_dims()),
                             input_cur->get_outputs()[0]->details_.dtype_);
-                    input_cur->info_.args_.emplace_back(arg_tsr);
                     tsr = arg_tsr;
                 }
-                for (size_t i = 0;
-                        i < input_cur_out_detail.original_ranges_list_.size();
-                        i++) {
-                    auto &range = input_cur_out_detail.original_ranges_list_[i];
-                    input_cur_out_detail.tsr_slice_list_.emplace_back(
-                            tensor_slice(tsr, slice_range(range)));
-                }
+                fdmap.get(cur->get_outputs()[0]).buffer_
+                        = tsr.checked_as<tensor>();
             } else {
-                // TODO(xxx): need to consider multi-slice from create_anchor
-                // stage
-                input_cur_out_detail.tsr_slice_list_ = {src[input_idx]};
+                auto buf = src[input_idx].get_real_tensor();
                 // may reuse input buffer, e.g. originalout
-                set_buffer_reuse_hint(hint_tick, fdata, cur_node,
-                        src[input_idx].tptr_->base_->ptr_);
-                reset_buffer_reuse_first_access_hint(
-                        src[input_idx].tptr_->base_->ptr_);
+                set_buffer_reuse_hint(hint_tick, fdmap, cur_node, buf);
+                reset_buffer_reuse_first_access_hint(buf);
+                fdmap.get(cur->get_outputs()[0]).buffer_ = buf;
             }
             return;
         } else if (dynamic_cast<output_op *>(cur)) {
@@ -543,19 +402,20 @@ void fusion_manager::do_allocate_tensor(
             // to copy the src tensor to dst tensor, not inplemented
             assert(ths->graph_.ops_.size() > 2);
             auto output_cur = static_cast<output_op *>(cur);
-            auto &output_cur_in_detail = fdata.get(output_cur->get_inputs()[0]);
-            int output_idx = fdata.get_output_idx(output_cur);
+            auto &output_cur_in_detail = fdmap.get(output_cur->get_inputs()[0]);
+            int output_idx = ths->get_output_idx(output_cur);
 
             // for output node, use the output tensor
             if (!dst.empty()) {
                 // TODO(xxx): need to consider multi-slice from create_anchor
                 // stage
-                output_cur_in_detail.tsr_slice_list_ = {dst[output_idx]};
+                output_cur_in_detail.buffer_
+                        = dst[output_idx].get_real_tensor();
             } else {
                 expr tsr;
                 // query if outs is given by outside
                 if (!outs.empty()) {
-                    tsr = outs[fdata.get_output_idx(output_cur)];
+                    tsr = outs[ths->get_output_idx(output_cur)];
                 } else {
                     // Here, it will not be pushed into allocated_tensors_,
                     // because
@@ -566,88 +426,36 @@ void fusion_manager::do_allocate_tensor(
                                     cur->get_inputs()[0]
                                             ->details_.get_blocking_dims()),
                             cur->get_inputs()[0]->details_.dtype_);
-                    cur->info_.args_ = {arg_tsr};
                     tsr = arg_tsr;
                 }
 
                 // output will inplace the last buffer, so we need to clear it
                 // firstly.
-                output_cur_in_detail.tsr_slice_list_.clear();
-                if (output_cur->get_inputs()[0]
-                                ->producer_owner_->isa<reorder_op_t>()
-                        && output_cur_in_detail.original_ranges_list_.empty()) {
-                    output_cur_in_detail.tsr_slice_list_.emplace_back(
-                            tensor_slice(tsr));
-                } else {
-                    for (size_t i = 0; i
-                            < output_cur_in_detail.original_ranges_list_.size();
-                            i++) {
-                        auto &range
-                                = output_cur_in_detail.original_ranges_list_[i];
-                        output_cur_in_detail.tsr_slice_list_.emplace_back(
-                                tensor_slice(tsr, slice_range(range)));
-                    }
-                }
+                output_cur_in_detail.buffer_ = tsr.checked_as<tensor>();
             }
             // update tensors' last_access
-            set_buffer_reuse_hint(hint_tick, fdata, cur_node, expr());
+            set_buffer_reuse_hint(hint_tick, fdmap, cur_node, expr());
             return;
         } else if (dynamic_cast<tensor_view_op_t *>(cur)) {
-            auto &cur_in_detail = fdata.get(cur->get_inputs()[0]);
-            auto &cur_out_detail = fdata.get(cur->get_outputs()[0]);
+            auto &cur_in_detail = fdmap.get(cur->get_inputs()[0]);
+            auto &cur_out_detail = fdmap.get(cur->get_outputs()[0]);
             auto reshape_cur = static_cast<tensor_view_op_t *>(cur);
             cur_out_detail.need_alloc_ = false;
-            cur_out_detail.tsr_slice_list_ = cur_in_detail.tsr_slice_list_;
-            COMPILE_ASSERT(cur_out_detail.tsr_slice_list_.size()
-                            == cur_out_detail.original_ranges_list_.size(),
-                    "Unexpected size found");
-            for (size_t i = 0; i < cur_out_detail.tsr_slice_list_.size(); i++) {
-                auto &tsr_slice = cur_out_detail.tsr_slice_list_[i];
-                auto &range = cur_out_detail.original_ranges_list_[i];
-                // get based tensor
-                auto based_tsr = tsr_slice.get_real_tensor();
-                // get reshaped base tensor
-                auto reshaped_base_tsr = builder::tensor_ptr(based_tsr,
-                        std::vector<expr>(based_tsr->dims_.size(), 0),
-                        dims_to_expr(reshape_cur->get_shapes()));
-                // attach shrink info for reshaped base
-                // tensor(tensorptr) if necessary
-                if (based_tsr->attr().has_key(
-                            tensor_shrinker_attrs::should_shrink)
-                        || based_tsr->attr().has_key(
-                                tensor_shrinker_attrs::may_shrink)) {
-                    reshaped_base_tsr
-                            ->attr()[tensor_shrinker_attrs::should_shrink]
-                            = tensor_shrinker_t::shrink_info_t {
-                                    /*base*/ get_slice_idx(range),
-                                    /*shape*/ get_slice_shape(range), stmts()};
-                }
-                tsr_slice = tensor_slice(reshaped_base_tsr, std::move(range));
-                // TODO(xxx): can be removed in the future
-                cur_out_detail.shape_ = tsr_slice.get_shape();
-            }
-            // set buffer reuse hint for loop lifetime analysis
-            if (!cur_out_detail.tsr_slice_list_.empty()) {
-                bool access_has_updated = false;
-                for (auto &tsr_slice : cur_out_detail.tsr_slice_list_) {
-                    set_buffer_reuse_hint(hint_tick, fdata, cur_node,
-                            cur_out_detail.need_alloc_
-                                    ? tsr_slice.tptr_->base_->ptr_
-                                    : expr(),
-                            access_has_updated);
-                    access_has_updated = true;
-                }
-            }
+            cur_out_detail.buffer_ = builder::tensor_ptr(cur_in_detail.buffer_,
+                    std::vector<expr>(
+                            cur_in_detail.buffer_.checked_as<tensor>()
+                                    ->dims_.size(),
+                            0),
+                    dims_to_expr(reshape_cur->get_shapes()));
+            bool access_has_updated = false;
+            set_buffer_reuse_hint(hint_tick, fdmap, cur_node,
+                    cur_out_detail.need_alloc_ ? cur_out_detail.buffer_
+                                               : expr(),
+                    access_has_updated);
             return;
         } else if (dynamic_cast<constant_op_t *>(cur)) {
-            auto &cur_out_detail = fdata.get(cur->get_outputs()[0]);
-            if (cur_out_detail.shape_.empty()) {
-                // TODO(xxx): default use index-0
-                for (auto &r : cur_out_detail.original_ranges_list_[0]) {
-                    cur_out_detail.shape_.emplace_back(r.second);
-                }
-            }
-            ths->allocate_tensor(cur->get_outputs()[0], fdata);
+            auto &cur_out_detail = fdmap.get(cur->get_outputs()[0]);
+            ths->allocate_tensor(cur->get_outputs()[0], fdmap);
             return;
         } else {
             // for every sub-node that the current node can share buffer
@@ -656,45 +464,50 @@ void fusion_manager::do_allocate_tensor(
             auto &outputs = cur->get_outputs();
             auto &inputs = cur->get_inputs();
             for (unsigned i = 0; i < outputs.size(); i++) {
-                auto &out_i_detail = fdata.get(outputs[i]);
+                auto &out_i_detail = fdmap.get(outputs[i]);
                 for (auto j : share_map[i]) {
-                    auto &in_j_detail = fdata.get(inputs[j]);
+                    auto &in_j_detail = fdmap.get(inputs[j]);
                     if (in_j_detail.use_count_ == 1
                             && !dynamic_cast<constant_op_t *>(
                                     inputs[j]->producer_owner_)) {
                         if (auto inp = inputs[j]
                                                ->producer_owner_
                                                ->dyn_cast<input_op>()) {
-                            if (fdata.is_arg_input(inp)) continue;
+                            if (inp->is_arg_input()
+                                    || in_j_detail.buffer_->attr().get_or_else(
+                                            "read_buffer", false))
+                                continue;
                         }
+                        // check whether the output is one of the users
+                        bool used_by_output = false;
+                        for (auto &user : inputs[j]->uses_) {
+                            if (user.second->isa<output_op>()) {
+                                used_by_output = true;
+                                break;
+                            }
+                        }
+                        if (used_by_output) continue;
                         // if the subnode is used only once, we can reuse
                         // its buffer
                         out_i_detail.need_alloc_ = false;
                         in_j_detail.use_count_++;
                         // inplace tsr_slice_list_
-                        out_i_detail.tsr_slice_list_
-                                = in_j_detail.tsr_slice_list_;
+                        out_i_detail.buffer_ = in_j_detail.buffer_;
                         break;
                     }
                 }
                 // no node can share buffer with the current node
                 if (out_i_detail.need_alloc_) {
-                    ths->allocate_tensor(outputs[i], fdata);
+                    ths->allocate_tensor(outputs[i], fdmap);
                 }
                 // set buffer reuse hint for loop lifetime analysis
                 // out_i_detail.tsr_slice_list may be empty when next op is
                 // output op
-                if (!out_i_detail.tsr_slice_list_.empty()) {
-                    bool access_has_updated = false;
-                    for (auto &tsr_slice : out_i_detail.tsr_slice_list_) {
-                        set_buffer_reuse_hint(hint_tick, fdata, cur_node,
-                                out_i_detail.need_alloc_
-                                        ? tsr_slice.tptr_->base_->ptr_
-                                        : expr(),
-                                access_has_updated);
-                        access_has_updated = true;
-                    }
-                }
+                bool access_has_updated = false;
+                set_buffer_reuse_hint(hint_tick, fdmap, cur_node,
+                        out_i_detail.need_alloc_ ? out_i_detail.buffer_
+                                                 : expr(),
+                        access_has_updated);
             }
             return;
         }
@@ -703,17 +516,16 @@ void fusion_manager::do_allocate_tensor(
     // start hint tick is 0, and when encounter an op, tick increases by 1.
     int64_t hint_tick = 0;
     for (auto &cur : sorted_ops_) {
-        auto src = output_anchor_slice_[anchor_id].first;
-        auto dst = output_anchor_slice_[anchor_id].second;
-        alloc_func(cur, src, dst, anchor_id, hint_tick);
+        // allocate tensor stage is not anchor-senstive
+        auto src = fanchor_list_[0].anchor_slice_.first;
+        auto dst = fanchor_list_[0].anchor_slice_.second;
+        alloc_func(cur, src, dst, hint_tick);
     }
     for (auto &op : sorted_ops_) {
         if (dynamic_cast<constant_op_t *>(op.get())) { continue; }
-        for (auto &tsr_slices : ths->get_output_tsr_slices_list(
-                     op->dyn_cast<fusible_op_t>(), fdata_list[anchor_id])) {
-            for (auto &buf : tsr_slices) {
-                assert(buf->tptr_.defined());
-            }
+        for (auto &out : op->get_outputs()) {
+            auto buf = fdmap.get(out).buffer_;
+            assert(buf.defined());
         }
     }
 }
@@ -750,26 +562,63 @@ static stmt get_parent_loop_body(stmt anchor) {
     return node;
 }
 
-void fusion_manager::do_declare_tensor(
-        std::vector<fusion_anchor_data> &fdata_list) {
+void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
     if (graph_.empty()) { return; }
+    auto &fdmap = fstate.fdmap_;
+    auto &fsmap_list = fstate.fsmap_list_;
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
     // declare tptr_ of real tensor in fdata, and put it at the beginning of ss
-    auto declare_ = [&](fusion_data &fdetail, std::vector<stmt> &ss) {
-        for (auto &tsr_slice : fdetail.tsr_slice_list_) {
-            auto tsr = tsr_slice.get_real_tensor();
-            if (tsr->attr_ && tsr->attr_->has_key("declared")) break;
-            // Only temp buffer need to be declared
-            std::vector<sc::tensor>::iterator tensor_iter = std::find_if(
-                    allocated_tensors_.begin(), allocated_tensors_.end(),
-                    [tsr](sc::tensor &t) { return t.ptr_same(tsr); });
+    auto declare_ = [&](const graph_tensor_ptr &gt_ptr, std::vector<stmt> &ss,
+                            int anchor_id) {
+        auto &tsr = fdmap.get(gt_ptr).buffer_;
+        if (tsr->attr_ && tsr->attr_->has_key("temp.declared")) return;
+        // Only temp buffer need to be declared
+        if (tsr.isa<tensor>()) {
+            std::vector<sc::tensor>::iterator tensor_iter
+                    = std::find_if(allocated_tensors_.begin(),
+                            allocated_tensors_.end(), [tsr](sc::tensor &t) {
+                                return t.ptr_same(tsr.static_as<tensor>());
+                            });
             if (tensor_iter != allocated_tensors_.end()) {
                 ss.emplace(ss.begin(),
                         builder::make_var_tensor_def_unattached(tsr));
-                tsr->attr()["declared"] = true;
+                tsr->attr()["temp.declared"] = true;
+            } else {
+                // Only declared tensor need shrink info
+                return;
             }
         }
+
+        // set shrink info if necessary
+        if (gt_ptr->producer_owner_->isa<input_op>()
+                || gt_ptr->producer_owner_->isa<constant_op_t>())
+            return;
+        for (auto &user : gt_ptr->uses_) {
+            if (user.second->isa<output_op>()) return;
+        }
+        if (auto reo_op = gt_ptr->producer_owner_->dyn_cast<reorder_op_t>()) {
+            if (reo_op->check_padding()) return;
+        }
+        // if tsr is not tensor
+        if (tsr.isa<tensorptr>()) {
+            auto base = tsr.static_as<tensorptr>()->base_;
+            COMPILE_ASSERT(base.isa<indexing>(),
+                    "tensorptr base should be indexing, but got: " << base);
+            auto att = base.static_as<indexing>()->ptr_->attr();
+            if (!att.has_key(tensor_shrinker_attrs::should_shrink)
+                    && !att.has_key(tensor_shrinker_attrs::may_shrink))
+                return;
+        }
+        auto range_list = fsmap_list[anchor_id].get(gt_ptr);
+        COMPILE_ASSERT(!range_list.empty(), "empty range list found")
+        if (range_list.size() > 1) return;
+
+        // The tensor to shrink should not have init value
+        tsr->attr()[tensor_shrinker_attrs::should_shrink]
+                = tensor_shrinker_t::shrink_info_t {
+                        /*base*/ get_slice_idx(range_list[0]),
+                        /*shape*/ get_slice_shape(range_list[0]), stmts()};
     };
 
     for (int i = static_cast<int>(sorted_ops_.size()) - 1; i >= 0; i--) {
@@ -777,21 +626,16 @@ void fusion_manager::do_declare_tensor(
         // TODO(xxx): when constant op support tensor mode, it can be removed
         // here.
         if (cur_op->isa<output_op>() || cur_op->isa<constant_op_t>()) continue;
-        int anchor_id = cur_op->anchor_id;
-        fusion_anchor_data &fdata = fdata_list[anchor_id];
-
+        int anchor_id = cur_op->anchor_id_;
         if (cur_op->isa<input_op>()) {
             auto &out = cur_op->get_outputs()[0];
-            auto &fdetail = fdata.get(out);
+
             // shrink tensor from the input of fusion manager may also need to
             // move its definition place, we need to provide an anchor to it.
 
-            auto &tsr_slice = fdetail.tsr_slice_list_[0];
-            auto tsr = tsr_slice.get_real_tensor();
+            auto tsr = fdmap.get(out).buffer_;
             if (tsr->attr_
                     && tsr->attr_->has_key(tensor_shrinker_attrs::may_shrink)) {
-                COMPILE_ASSERT(fdetail.original_ranges_list_.size() == 1,
-                        "shrink tensor is expected to have one range");
                 // search real input anchor
                 int real_anchor = anchor_id;
                 for (int64_t j = static_cast<int64_t>(sorted_ops_.size()) - 1;
@@ -800,31 +644,22 @@ void fusion_manager::do_declare_tensor(
                     if (tmp_op->isa<input_op>() || tmp_op->isa<output_op>()
                             || tmp_op->isa<constant_op_t>())
                         continue;
-                    int tmp_anchor = tmp_op->anchor_id;
-                    auto &tmp_fdetail = fdata_list[tmp_anchor];
+                    int tmp_anchor = tmp_op->anchor_id_;
                     bool found = false;
                     for (auto &ins : tmp_op->get_inputs()) {
-                        auto &tmp_fdetail = fdata.get(ins);
-                        for (auto &tmp_tsr_slice :
-                                tmp_fdetail.tsr_slice_list_) {
-                            if (tmp_tsr_slice.get_real_tensor().ptr_same(tsr)) {
-                                real_anchor = tmp_anchor;
-                                found = true;
-                                break;
-                            }
+                        if (fdmap.get(ins).buffer_.ptr_same(tsr)) {
+                            real_anchor = tmp_anchor;
+                            found = true;
+                            break;
                         }
                         if (found) break;
                     }
                     if (found) break;
-                    for (auto &outs : tmp_op->get_outputs()) {
-                        auto &tmp_fdetail = fdata.get(outs);
-                        for (auto &tmp_tsr_slice :
-                                tmp_fdetail.tsr_slice_list_) {
-                            if (tmp_tsr_slice.get_real_tensor().ptr_same(tsr)) {
-                                real_anchor = tmp_anchor;
-                                found = true;
-                                break;
-                            }
+                    for (auto &out : tmp_op->get_outputs()) {
+                        if (fdmap.get(out).buffer_.ptr_same(tsr)) {
+                            real_anchor = tmp_anchor;
+                            found = true;
+                            break;
                         }
                         if (found) break;
                     }
@@ -832,10 +667,8 @@ void fusion_manager::do_declare_tensor(
                 }
 
                 // set input tensor shrink info
-                auto range = fdata_list[real_anchor]
-                                     .get(out)
-                                     .tsr_slice_list_[0]
-                                     .get_ranges();
+                auto range = fsmap_list[real_anchor].get(out)[0];
+
                 tsr->attr()[tensor_shrinker_attrs::should_shrink]
                         = tensor_shrinker_t::shrink_info_t {
                                 /*base*/ get_slice_idx(range),
@@ -843,7 +676,7 @@ void fusion_manager::do_declare_tensor(
 
                 // set declare info
                 auto &decl_anchor_stmt
-                        = output_anchor_position_.at(real_anchor);
+                        = fanchor_list_.at(real_anchor).anchor_position_;
                 stmts decl_body = get_parent_loop_body(decl_anchor_stmt)
                                           .checked_as<stmts>();
                 stmts place_holder = builder::make_stmts_unattached({})
@@ -856,11 +689,12 @@ void fusion_manager::do_declare_tensor(
                         = tsr->attr_->get<tensor_shrinker_t::shrink_info_t>(
                                 tensor_shrinker_attrs::should_shrink);
                 shrink_info.move_def_ = place_holder;
+                tsr->attr()["temp.declared"] = true;
             }
             continue;
         }
 
-        auto &anchor = output_anchor_position_[anchor_id];
+        auto &anchor = fanchor_list_.at(anchor_id).anchor_position_;
         // get decl_body, if anchor_id=0, just put it in
         // beginning of the first anchor. Otherwise, we need to get current
         // anchor nearest parent loop body.
@@ -871,19 +705,19 @@ void fusion_manager::do_declare_tensor(
         // beginning of this sequence.
         auto &ss = decl_body->seq_;
         for (auto &ins : cur_op->get_inputs()) {
-            auto &fdetail = fdata.get(ins);
-            declare_(fdetail, ss);
+            declare_(ins, ss, anchor_id);
         }
 
         for (auto &out : cur_op->get_outputs()) {
-            auto &fdetail = fdata.get(out);
-            declare_(fdetail, ss);
+            declare_(out, ss, anchor_id);
         }
     }
+
+    allocated_tensors_.clear();
 }
 
 void fusion_manager::do_compute_block(
-        const context_ptr &ctx, std::vector<fusion_anchor_data> &fdata_list) {
+        const context_ptr &ctx, fuse_state_t &fstate) {
     if (graph_.empty()) { return; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
@@ -897,17 +731,10 @@ void fusion_manager::do_compute_block(
      * address single slice. (@note: reorder can produce multi slice outputs,
      * but not inputs)
      * */
-    auto compute_wrapper_ = [&](fusible_op_t *cur, const sc::context_ptr &ctx,
-                                    sc::fusion_anchor_data &result) {
-        // Here is the op which does not overwrite compute block virtual
-        // function
-        if (cur->isa<input_op>() || cur->isa<output_op>()
-                || cur->isa<constant_op_t>()) {
-            return;
-        }
-
-        auto dst = get_output_tsr_slices_list(cur, result);
-        auto inputs = get_input_tsr_slices_list(cur, result);
+    auto compute_wrapper_ = [&](const sc::context_ptr &ctx, fusible_op_t *cur,
+                                    fdata_map &fdmap, fslice_map &fsmap) {
+        auto dst = get_output_tsr_slices_list(cur, fdmap, fsmap);
+        auto inputs = get_input_tsr_slices_list(cur, fdmap, fsmap);
         COMPILE_ASSERT(
                 !inputs.empty(), "Op " << cur->op_name_ << "has no input");
 
@@ -919,14 +746,14 @@ void fusion_manager::do_compute_block(
                         << in.size() << " and " << in_slice_size);
         }
 
-        // elementwise op and reduce op should ensure their output have same
-        // slice size with input
+        // Currently, except reorder op, other kinds of op should ensure their
+        // output have same slice size with input
         if (!cur->isa<reorder_op_t>()) {
             for (auto &out : dst) {
                 COMPILE_ASSERT(out.size() == in_slice_size,
                         "slice size of output "
                         "should be equal to "
-                        "Inputs, except for movement op, but got "
+                        "Inputs, except for reorder op, but got "
                                 << out.size() << " and " << in_slice_size);
             }
         }
@@ -942,15 +769,15 @@ void fusion_manager::do_compute_block(
                     std::vector<tensor_slice *> brg_outputs(dst.size());
                     std::transform(inputs.begin(), inputs.end(),
                             brg_inputs.begin(),
-                            [](const std::vector<const tensor_slice *> &ins) {
-                                return ins[0];
+                            [](std::vector<tensor_slice> &ins) {
+                                return &ins[0];
                             });
                     std::transform(dst.begin(), dst.end(), brg_outputs.begin(),
-                            [](const std::vector<tensor_slice *> &ins) {
-                                return ins[0];
+                            [](std::vector<tensor_slice> &out) {
+                                return &out[0];
                             });
                     if (brg_cur->register_brgemm_fusion(ctx, brg_outputs,
-                                brg_inputs, result, brg_fusion_reg_)) {
+                                brg_inputs, brg_fusion_reg_)) {
                         brg_fusion_reg_.can_register_next_ = true;
                         return;
                     }
@@ -960,33 +787,287 @@ void fusion_manager::do_compute_block(
         // unwrapper tensor slice, for compute_block, it just accpet single
         // tensor_slice
         for (size_t i = 0; i < in_slice_size; i++) {
-            std::vector<const tensor_slice *> new_inputs_ptr;
-            new_inputs_ptr.reserve(inputs.size());
+            std::vector<const tensor_slice *> new_inputs_ptr(inputs.size());
+            std::vector<tensor_slice *> new_outputs_ptr(dst.size());
+            std::transform(inputs.begin(), inputs.end(), new_inputs_ptr.begin(),
+                    [&i](std::vector<tensor_slice> &ins) { return &ins[i]; });
 
-            for (auto &in : inputs) {
-                new_inputs_ptr.emplace_back(in[i]);
-            }
-            std::vector<tensor_slice *> new_outputs_ptr;
-            new_outputs_ptr.reserve(dst.size());
-
-            for (auto &out : dst) {
-                new_outputs_ptr.emplace_back(out[i]);
-            }
-            cur->compute_block(ctx, new_outputs_ptr, new_inputs_ptr, result);
+            std::transform(dst.begin(), dst.end(), new_outputs_ptr.begin(),
+                    [&i](std::vector<tensor_slice> &out) { return &out[i]; });
+            cur->compute_block(ctx, new_outputs_ptr, new_inputs_ptr);
         }
     };
 
-    // automatically skip input/output/constant
+    // check continuous load/store memory access
+    auto check_continuous_memory_access
+            = [&](const sc_op_ptr &fop, fslice_map &fsmap) -> bool {
+        // check whether continuous
+        auto is_continuous = [&](const graph_tensor_ptr &gt_ptr) -> bool {
+            auto &inner_ranges = fsmap.get(gt_ptr);
+            sc_dims buf_dims;
+            auto buf = fstate.fdmap_.get(gt_ptr).get_buffer();
+            if (buf.isa<tensor>()) {
+                buf_dims = get_expr_to_dims(buf.static_as<tensor>()->dims_);
+            } else if (buf.isa<tensorptr>()) {
+                buf_dims = get_expr_to_dims(buf.static_as<tensorptr>()->shape_);
+            }
+            auto tsr = fstate.fdmap_.get(gt_ptr).get_allocated_tensor();
+            size_t dtsize
+                    = utils::get_sizeof_etype(tsr->elem_dtype_.type_code_);
+            static constexpr int page_size = 4096;
+            // will not access across pages.
+            if (get_dims_product(buf_dims) * dtsize < page_size) return true;
+            static constexpr int least_bytes_in_page = 512;
+            for (auto &range : inner_ranges) {
+                COMPILE_ASSERT(buf_dims.size() == range.size(),
+                        "Unmatched slice range and dims size: "
+                                << utils::print_vector(buf_dims) << " and "
+                                << utils::print_pair_vector(range))
+                bool expect_end = false;
+                sc_dim continuous_dim = 1;
+                for (int j = static_cast<int>(range.size() - 1); j >= 0; j--) {
+                    if (!range[j].second.isa<constant>()) return false;
+                    sc_dim cur_dim = get_expr_as_int(range[j].second);
+                    if (expect_end && cur_dim > 1) {
+                        /** In most cases, the inner anchor can
+                         * extend more fine-grained fusion ability for
+                         * following ops. However, if we take performance
+                         * into consideration, the continuous load/store
+                         * memory access has more higher proirty
+                         * */
+                        if (continuous_dim * dtsize < least_bytes_in_page)
+                            return false;
+                    }
+                    if (!expect_end) {
+                        continuous_dim *= cur_dim;
+                        if (cur_dim == 1 && buf_dims[j] != 1) {
+                            expect_end = true;
+                        }
+                    }
+                }
+            }
+            return true;
+        };
+
+        for (auto &ins : fop->get_inputs()) {
+            if (!is_continuous(ins)) { return false; }
+        }
+        for (auto &out : fop->get_outputs()) {
+            if (!is_continuous(out)) { return false; }
+        }
+        return true;
+    };
+
+    /** Currently, the new workflow of compute_block can be concluded as below:
+     * 1. start from anchor 0, the 0-th op generate its IR as before. but it
+     * will generate inner anchor for post ops.
+     * 2. from the 1-th to i-th op, it shuold insert its generated IR into inner
+     * anchor above. Meanwhile, it should re-infer its slice range.
+     * 3. when reach the first op of anchor 1 (j-th), it still use anchor 1
+     * 4. from j-th to k-th in anchor 1, repeat 2.
+     * 5. repeat 1-4 for following ops in larger anchor (more than 2).
+     * */
+    auto check_inner_anchor
+            = [&](fslice_map &fsmap, const sc_op_ptr &begin_op) -> bool {
+        op_dep_matrix_t dep(graph_);
+        infer_status_map_t stat_map;
+        int begin_anchor_id = begin_op->dyn_cast<fusible_op_t>()->anchor_id_;
+        auto begin_iter
+                = std::find(sorted_ops_.begin(), sorted_ops_.end(), begin_op);
+        COMPILE_ASSERT(begin_iter != sorted_ops_.end(),
+                "begin op is not found in graph")
+
+        for (auto iter = begin_iter + 1; iter != sorted_ops_.end(); iter++) {
+            if ((*iter)->isa<input_op>() || (*iter)->isa<constant_op_t>())
+                continue;
+            if (dep.lookup(begin_op, (*iter)) == 0) return false;
+            auto fop = (*iter)->dyn_cast<fusible_op_t>();
+            // use output case is not supported for inner anchor
+            if (auto reo = fop->dyn_cast<reorder_op_t>()) {
+                if (reo->use_output_loop()) return false;
+            }
+            if (fop->anchor_id_ > begin_anchor_id) break;
+            fop->infer_slice_ranges(fsmap, stat_map);
+            if (!stat_map.is_ok()) {
+                bool can_be_ignored = true;
+                // if not ok op is not in current anchor id, it can be ignored
+                for (auto &op :
+                        stat_map.get_ops_by_status(infer_status_code::FAIL)) {
+                    if (op->dyn_cast<fusible_op_t>()->anchor_id_
+                            != begin_anchor_id)
+                        continue;
+                    else {
+                        can_be_ignored = false;
+                        break;
+                    }
+                }
+                for (auto &op :
+                        stat_map.get_ops_by_status(infer_status_code::RETRY)) {
+                    if (op->dyn_cast<fusible_op_t>()->anchor_id_
+                            != begin_anchor_id)
+                        continue;
+                    else {
+                        can_be_ignored = false;
+                        break;
+                    }
+                }
+                if (!can_be_ignored) return false;
+            }
+            if (fop->isa<output_op>()) {
+                auto &inner_ranges = fsmap.get(fop->get_inputs()[0]);
+                auto &orig_ranges = fstate.fsmap_list_[fop->anchor_id_].get(
+                        fop->get_inputs()[0]);
+                if (inner_ranges.size() != orig_ranges.size()) return false;
+                for (size_t i = 0; i < inner_ranges.size(); i++) {
+                    if (inner_ranges[i].size() != orig_ranges[i].size())
+                        return false;
+                    for (size_t j = 0; j < inner_ranges[i].size(); j++) {
+                        // if not modified, means outside inner anchor
+                        bool modified = true;
+                        if (inner_ranges[i][j].first.isa<constant>()
+                                && orig_ranges[i][j].first.isa<constant>()) {
+                            if (get_expr_as_int(inner_ranges[i][j].first)
+                                    == get_expr_as_int(
+                                            inner_ranges[i][j].first))
+                                modified = false;
+                        } else if (inner_ranges[i][j].first.ptr_same(
+                                           orig_ranges[i][j].first)) {
+                            modified = false;
+                        }
+                        if (modified) {
+                            // add output offset
+                            if (orig_ranges[i][j].first.isa<constant>()
+                                    && get_expr_as_int(orig_ranges[i][j].first)
+                                            == 0)
+                                continue;
+                            inner_ranges[i][j].first = inner_ranges[i][j].first
+                                    + orig_ranges[i][j].first;
+                        }
+                    }
+                }
+            }
+            // performance check
+            if (!check_continuous_memory_access((*iter), fsmap)) {
+                SC_MODULE_INFO
+                        << "Take performance effect into consideration, "
+                        << (*iter)->op_name_
+                        << "could not be committed into the inner anchor "
+                           "created by "
+                        << begin_op->op_name_
+                        << ". Please check whether its memory access is "
+                           "continuous enough";
+                return false;
+            }
+        }
+        return true;
+    };
+
+    auto copy_inner_slice = [&](fslice_map &orig_fsmap, fslice_map &inner_fsmap,
+                                    const sc_op_ptr &begin_op) {
+        int begin_anchor_id = begin_op->dyn_cast<fusible_op_t>()->anchor_id_;
+        auto begin_iter
+                = std::find(sorted_ops_.begin(), sorted_ops_.end(), begin_op);
+        COMPILE_ASSERT(begin_iter != sorted_ops_.end(),
+                "begin op is not found in graph")
+
+        for (auto iter = begin_iter; iter != sorted_ops_.end(); iter++) {
+            if ((*iter)->isa<input_op>() || (*iter)->isa<output_op>()
+                    || (*iter)->isa<constant_op_t>())
+                continue;
+            auto fop = (*iter)->dyn_cast<fusible_op_t>();
+            if (fop->anchor_id_ > begin_anchor_id) return;
+            // copy inner_fsmap to orig_fsmap for further tensor shrink
+            for (auto &ins : fop->get_inputs()) {
+                if (!ins->producer_owner_->isa<input_op>()
+                        && ins->producer_owner_->dyn_cast<fusible_op_t>()
+                                        ->anchor_id_
+                                == begin_anchor_id) {
+                    orig_fsmap.get(ins) = inner_fsmap.get(ins);
+                }
+            }
+            for (auto &out : fop->get_outputs()) {
+                bool can_be_rewrited = true;
+                for (auto &user : out->uses_) {
+                    if (user.second->dyn_cast<fusible_op_t>()->anchor_id_
+                                    != begin_anchor_id
+                            || user.second->isa<output_op>()) {
+                        can_be_rewrited = false;
+                        break;
+                    }
+                }
+                if (can_be_rewrited) orig_fsmap.get(out) = inner_fsmap.get(out);
+            }
+        }
+    };
+
+    bool cross_anchor = false;
+    int previous_anchor_id = -1;
+    stmts inner_anchor;
+    fslice_map inner_fsmap;
     for (auto &cur : sorted_ops_) {
         fusible_op_t *fop = cur->dyn_cast<fusible_op_t>();
-        int anchor_id = fop->anchor_id;
+        // Here is the op which does not overwrite compute block virtual
+        // function
+        if (cur->isa<input_op>() || cur->isa<output_op>()
+                || cur->isa<constant_op_t>()) {
+            continue;
+        }
+        int anchor_id = fop->anchor_id_;
+        cross_anchor = (anchor_id > previous_anchor_id);
+        // For any first op those cross anchor, it should try to generate its
+        // inner anchor
+        if (cross_anchor
+                && fstate.fsmap_list_[anchor_id]
+                                .get(fop->get_outputs()[0])
+                                .size()
+                        == 1) {
+            fop->attrs_.set(op_attr_key::inner_anchor, fuse_anchor_t());
+            // reset
+            inner_anchor = stmts();
+            inner_fsmap.clear();
+        }
+
         builder::ir_builder_t dummy_builder;
         dummy_builder.push_scope();
-        compute_wrapper_(fop, ctx, fdata_list[anchor_id]);
+        compute_wrapper_(ctx, fop, fstate.fdmap_,
+                inner_anchor.defined() ? inner_fsmap
+                                       : fstate.fsmap_list_[anchor_id]);
         auto s = dummy_builder.pop_scope().checked_as<stmts>();
-        auto anchor_pos = output_anchor_position_[anchor_id];
+        auto anchor_pos = inner_anchor.defined()
+                ? inner_anchor
+                : fanchor_list_[anchor_id].anchor_position_;
         anchor_pos->seq_.insert(
                 anchor_pos->seq_.end(), s->seq_.begin(), s->seq_.end());
+
+        // if new inner anchor was found, redirect anchor position and re-infer
+        // following ops' slice range until cross-anchor case
+        if (fop->attrs_.has_key(op_attr_key::inner_anchor)) {
+            auto fanchor
+                    = fop->attrs_.get<fuse_anchor_t>(op_attr_key::inner_anchor);
+            inner_anchor = fanchor.anchor_position_;
+            // inner anchor created sucessfully
+            if (inner_anchor.defined()) {
+                COMPILE_ASSERT(fop->get_outputs().size() == 1,
+                        "Currently only support single output op")
+                auto tsl = fanchor.anchor_slice_.first[0];
+                auto &outranges = inner_fsmap.get(fop->get_outputs()[0]);
+                outranges = slice_range_list {tsl.get_ranges()};
+
+                if (check_inner_anchor(inner_fsmap, cur)) {
+                    SC_MODULE_INFO << cur->op_name_
+                                   << " is creating inner anchor\n";
+                    // rewrite fsmap for tensor shrink info update
+                    copy_inner_slice(
+                            fstate.fsmap_list_[anchor_id], inner_fsmap, cur);
+                } else {
+                    // reset
+                    inner_anchor = stmts();
+                    inner_fsmap.clear();
+                }
+            }
+        }
+
+        previous_anchor_id = anchor_id;
     }
 }
 
@@ -995,16 +1076,16 @@ void fusion_manager::create_output_fusion_anchor(
         const std::vector<tensor_slice> &dst) {
     COMPILE_ASSERT(!src.empty(), "No src tensor slice is found");
 
-    // append to output_anchor_position
     auto bld = builder::get_current_builder();
     auto s = bld->push_anchor();
-    output_anchor_position_.emplace_back(std::move(s));
-    // append to output_anchor_slice
-    output_anchor_slice_.emplace_back(std::make_pair(src, dst));
+    auto fanchor = fuse_anchor_t(s, std::make_pair(src, dst));
+    // append to fuse anchor
+    fanchor_list_.emplace_back(std::move(fanchor));
 }
 
 void fusion_manager::clear_anchor() {
-    for (auto &anchor : output_anchor_position_) {
+    for (auto &fanchor : fanchor_list_) {
+        auto anchor = fanchor.anchor_position_;
         stmt parent = get_parent_node(anchor);
         auto &ss_parent = parent.checked_as<stmts>()->seq_;
         // find anchor iter
@@ -1025,134 +1106,7 @@ void fusion_manager::clear_anchor() {
         ss_parent.erase(anchor_iter);
     }
     // clear anchor status
-    output_anchor_position_.clear();
-    output_anchor_slice_.clear();
-}
-
-/**
- * this function is designed to dispatch suitable tensor_slice for each
- * graph_tensor. For instance:
- *
- * Anchor 1         |  Anchor 0          |  Fusible Op | Anchor id
- * outA_1 = inA_1   |  outA_0 = inA_0    |  Op1        |     0
- * outB_1 = outA_1  |  outB_0 = outA_0   |  Op2        |     0
- * outC_1 = outB_1  |  outC_0 = outB_0   |  Op3        |     1
- *
- * @note: outX_i represents different tensor X on anchor i
- *
- * For two ops (Op2 and Op3) like above, they should be rescheduled to below:
- * Anchor 1         |  Anchor 0          |  Fusible Op | Anchor id
- *                  |  outA_0 = inA_0    |  Op1        |     0
- *                  |  outB_1 = outA_0   |  Op2        |     0
- * outC_1 = outB_1  |                    |  Op3        |     1
- *
- * We will find all outB_0 in previous anchor and then replace them with outB_1
- * by tensor_ptr.
- *
- * @note: replacement only occurs in cross-anchor condition.
- * */
-void fusion_manager::do_shedule_tensor(
-        std::vector<fusion_anchor_data> &fdata_list) {
-    if (graph_.empty()) { return; }
-    COMPILE_ASSERT(!sorted_ops_.empty(),
-            "sorted ops are expected to be ready, please initilize it first");
-
-    /**
-     * replace_: suppport multi-slice mode (except movement type op).
-     * For non-movement type op, if they are dealing with multi-slice, one
-     * certain slice on different anchor should be similar, which means they
-     * should have same numbers of tensor one by one.
-     * For movement type op, currently, if they generate multi-slice,
-     * use_one_anchor should be turned on in reschedule anchor pass. as the
-     * result, this function will never be called.
-     * */
-    auto replace_ = [](fusion_data &prev_data, fusion_data &cur_data,
-                            const tensor &target_tsr) {
-        if (prev_data.tsr_slice_list_.size()
-                == cur_data.tsr_slice_list_.size()) {
-            for (size_t i = 0; i < cur_data.tsr_slice_list_.size(); i++) {
-                auto tsr_in_cur_anchor
-                        = cur_data.tsr_slice_list_[i].get_real_tensor();
-                // if cur_op and prev_op share the same buffer
-                // in cur anchor, we ned to use the shared
-                // buffer to replace prev op tensor in prev
-                // anchor
-                if (target_tsr.ptr_same(tsr_in_cur_anchor)) {
-                    auto &prev_tptr = prev_data.tsr_slice_list_[i].tptr_;
-                    // use current tensorptr original tensor
-                    // and previous tensorptr offset
-                    prev_tptr = builder::tensor_ptr(
-                            target_tsr, prev_tptr->base_->idx_, {}, true)
-                                        .static_as<tensorptr>();
-                    // reset boundary tensor's first access
-                    // hint
-                    reset_buffer_reuse_first_access_hint(target_tsr);
-                }
-            }
-        } else {
-            COMPILE_ASSERT(0,
-                    "It seems that one movement type op generate multi-slice, "
-                    "please turn on 'use_one_anchor' flag during reschedule "
-                    "anchor "
-                    "pass");
-        }
-    };
-
-    for (size_t i = 0; i < sorted_ops_.size(); i++) {
-        // get current fusible op
-        auto cur_op = sorted_ops_[i]->dyn_cast<fusible_op_t>();
-        // get anchor id
-        int cur_op_anchor = cur_op->anchor_id;
-        // auto skip
-        if (cur_op_anchor == 0) continue;
-        for (auto &cur_op_ins : cur_op->get_inputs()) {
-            // get cur op tsr
-            for (auto &tsr_slice :
-                    fdata_list[cur_op_anchor].get(cur_op_ins).tsr_slice_list_) {
-                auto cur_op_tsr = tsr_slice.get_real_tensor();
-                // visit all previous anchor
-                for (int anchor_id = cur_op_anchor - 1; anchor_id >= 0;
-                        anchor_id--) {
-                    // check all op before cur op
-                    for (size_t j = 0; j < i; j++) {
-                        auto prev_op = sorted_ops_[j]->dyn_cast<fusible_op_t>();
-                        // get previous anchor
-                        int prev_op_anchor = prev_op->anchor_id;
-                        // auto skip
-                        if (prev_op_anchor != anchor_id) continue;
-                        // check its inputs and outputs, whether exist tensor
-                        // which need to be reppalced by new tensor in
-                        // cur_anchor, to ensure buffer sharing.
-                        for (auto &prev_op_ins : prev_op->get_inputs()) {
-                            auto &prev_op_data_in_cur_anchor
-                                    = fdata_list[cur_op_anchor].get(
-                                            prev_op_ins);
-                            auto &prev_op_data_in_prev_anchor
-                                    = fdata_list[prev_op_anchor].get(
-                                            prev_op_ins);
-                            replace_(prev_op_data_in_prev_anchor,
-                                    prev_op_data_in_cur_anchor, cur_op_tsr);
-                        }
-                        for (auto &prev_op_out : prev_op->get_outputs()) {
-                            auto &prev_op_data_in_cur_anchor
-                                    = fdata_list[cur_op_anchor].get(
-                                            prev_op_out);
-                            auto &prev_op_data_in_prev_anchor
-                                    = fdata_list[prev_op_anchor].get(
-                                            prev_op_out);
-                            replace_(prev_op_data_in_prev_anchor,
-                                    prev_op_data_in_cur_anchor, cur_op_tsr);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // push all tensor definition to suitable anchor
-    do_declare_tensor(fdata_list);
-    // clear allocated_tensors
-    allocated_tensors_.clear();
+    fanchor_list_.clear();
 }
 
 void fusion_manager::init_sorted_ops() {
@@ -1162,19 +1116,25 @@ void fusion_manager::init_sorted_ops() {
     // default sorted by dfs_topology_sort
     op_visitor_t::dfs_topology_sort(graph_.ops_.size())
             .visit_graph(graph_, [&](const sc_op_ptr &cur) {
+                if (cur->isa<input_op>()) {
+                    if (get_input_idx(cur.get()) >= static_cast<int>(
+                                fanchor_list_[0].anchor_slice_.first.size())) {
+                        cur->attrs_.set("temp.arg_input", true);
+                    }
+                }
                 sorted_ops_.emplace_back(cur);
             });
 }
 
 void fusion_manager::do_reshedule_anchor(
-        std::vector<fusion_anchor_data> &fdata_list, bool use_one_anchor) {
+        std::vector<fslice_map> &fsmap_list, bool use_one_anchor) {
     if (graph_.empty()) { return; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
 
     for (size_t i = 0; i < sorted_ops_.size(); i++) {
         auto cur_op = sorted_ops_[i]->dyn_cast<fusible_op_t>();
-        int cur_anchor = cur_op->anchor_id;
+        int cur_anchor = cur_op->anchor_id_;
         /**
          * TODO(xxx): For those moememnt ops, they may generate completely
          * different multi-slice in *different anchor*, it is hard to replace
@@ -1189,8 +1149,7 @@ void fusion_manager::do_reshedule_anchor(
                     if (!user.second->isa<output_op>()) { is_last_op = false; }
                 }
                 if (is_last_op) continue;
-                if (fdata_list[cur_anchor].get(out).original_ranges_list_.size()
-                        > 1) {
+                if (fsmap_list[cur_anchor].get(out).size() > 1) {
                     use_one_anchor = true;
                     break;
                 }
@@ -1199,12 +1158,9 @@ void fusion_manager::do_reshedule_anchor(
                             || user.second->isa<constant_op_t>())
                         continue;
                     int user_anchor_id
-                            = user.second->dyn_cast<fusible_op_t>()->anchor_id;
+                            = user.second->dyn_cast<fusible_op_t>()->anchor_id_;
                     if (user_anchor_id > cur_anchor
-                            && fdata_list[user_anchor_id]
-                                            .get(out)
-                                            .original_ranges_list_.size()
-                                    > 1) {
+                            && fsmap_list[user_anchor_id].get(out).size() > 1) {
                         use_one_anchor = true;
                         break;
                     }
@@ -1214,17 +1170,17 @@ void fusion_manager::do_reshedule_anchor(
         }
     }
 
-    int tmp_anchor = sorted_ops_[0]->dyn_cast<fusible_op_t>()->anchor_id;
+    int tmp_anchor = sorted_ops_[0]->dyn_cast<fusible_op_t>()->anchor_id_;
     for (size_t i = 0; i < sorted_ops_.size(); i++) {
         auto cur_op = sorted_ops_[i]->dyn_cast<fusible_op_t>();
         // if use_one_anchor is on, just set max_anchor to each op anchor
         if (use_one_anchor)
-            cur_op->anchor_id = max_anchor_;
+            cur_op->anchor_id_ = max_anchor_;
         else {
-            if (cur_op->anchor_id > tmp_anchor)
-                tmp_anchor = cur_op->anchor_id;
-            else if (cur_op->anchor_id < tmp_anchor)
-                cur_op->anchor_id = tmp_anchor;
+            if (cur_op->anchor_id_ > tmp_anchor)
+                tmp_anchor = cur_op->anchor_id_;
+            else if (cur_op->anchor_id_ < tmp_anchor)
+                cur_op->anchor_id_ = tmp_anchor;
         }
     }
 }
@@ -1287,57 +1243,50 @@ std::vector<std::vector<int>> fusion_manager::query_inplace() {
     return inplace_list;
 }
 
-std::vector<sc_op_ptr> fusion_manager::prepare_and_check(const context_ptr &ctx,
-        std::vector<fusion_anchor_data> &fdata_list,
-        const std::vector<expr> &outs, const std::vector<expr> &inargs) {
+std::vector<sc_op_ptr> fusion_manager::prepare_and_check(
+        const context_ptr &ctx, fuse_state_t &fstate) {
     if (graph_.empty()) return {};
-    COMPILE_ASSERT(
-            !output_anchor_position_.empty() && !output_anchor_slice_.empty(),
+    COMPILE_ASSERT(!fanchor_list_.empty(),
             "no output anchor found, please create them firstly");
-    fdata_list
-            = std::vector<fusion_anchor_data>(output_anchor_position_.size());
+    fstate.fsmap_list_ = std::vector<fslice_map>(fanchor_list_.size());
 
     // check all output_anchor_slice have same src size
-    size_t common_src_size = output_anchor_slice_[0].first.size();
-    for (auto &slice : output_anchor_slice_) {
-        COMPILE_ASSERT(slice.first.size() == common_src_size,
+    size_t common_src_size = fanchor_list_[0].anchor_slice_.first.size();
+    for (auto &fanchor : fanchor_list_) {
+        COMPILE_ASSERT(fanchor.anchor_slice_.first.size() == common_src_size,
                 "all output_anchor_slice should have same src size");
-    }
-
-    for (auto &fdata : fdata_list) {
-        fdata.input_idx_map_ = &input_idx_map_;
-        fdata.output_idx_map_ = &output_idx_map_;
-        fdata.num_commit_src_ = common_src_size;
     }
 
     // Init sorted_ops sequence
     init_sorted_ops();
-    // The old query, should be removed in future
-    do_query(ctx, fdata_list, false);
     // dispatch suitable commit anchor for each fusible op
-    return dispatch_fusion_anchor(ctx, fdata_list, outs, inargs);
+    return dispatch_fusion_anchor(fstate.fsmap_list_, ctx);
 };
 
-void fusion_manager::commit(const ir_module_ptr &modu,
-        std::vector<fusion_anchor_data> &fdata_list) {
+void fusion_manager::commit(const ir_module_ptr &modu, fuse_state_t &fstate,
+        const std::vector<expr> &outs, const std::vector<expr> &inargs) {
     if (graph_.empty()) { return; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
 
     // sorted by rules
-    sorted_ops_ = op_sorting_visitor_t::sort_by_rules(graph_, fdata_list,
+    sorted_ops_ = op_sorting_visitor_t::sort_by_rules(graph_,
             {op_sorting_visitor_t::sort_rule::same_kind,
                     op_sorting_visitor_t::sort_rule::fusion_anchor});
 
+    // prepare fusion
+    do_prepare_fusion_data(fstate.fdmap_);
+    // allocate tensor
+    do_allocate_tensor(fstate.fdmap_, outs, inargs);
     // reschedule anchor
-    do_reshedule_anchor(fdata_list);
-    // shedule tensor
-    do_shedule_tensor(fdata_list);
+    do_reshedule_anchor(fstate.fsmap_list_);
     // generate real code in IR
-    do_compute_block(modu->ctx_, fdata_list);
-    add_to_module(modu);
+    do_compute_block(modu->ctx_, fstate);
+    // define tensor in according position by anchor
+    do_declare_tensor(fstate);
     // remove empty anchor in avoid to loop fuse/reorder error
     clear_anchor();
+    add_to_module(modu);
 }
 
 void fusion_manager::add_to_module(const ir_module_ptr &mod) {
@@ -1346,37 +1295,42 @@ void fusion_manager::add_to_module(const ir_module_ptr &mod) {
     }
 }
 
-std::vector<std::vector<const tensor_slice *>>
+std::vector<std::vector<tensor_slice>>
 fusion_manager::get_input_tsr_slices_list(
-        fusible_op_t *op, fusion_anchor_data &fdata) const {
-    std::vector<std::vector<const tensor_slice *>> result;
+        fusible_op_t *op, fdata_map &fdmap, fslice_map &fsmap) const {
+    std::vector<std::vector<tensor_slice>> result;
     for (auto &input : op->get_inputs()) {
-        std::vector<const tensor_slice *> tmp;
-        for (auto &tsr_slice : fdata.get(input).tsr_slice_list_) {
-            tmp.emplace_back(&tsr_slice);
+        std::vector<tensor_slice> tmp;
+        auto buf = fdmap.get(input).buffer_;
+        auto range_list = fsmap.get(input);
+        COMPILE_ASSERT(!range_list.empty(),
+                "empty input range found for " << op->op_name_)
+        for (auto range : range_list) {
+            auto tsl = tensor_slice(buf, std::move(range));
+            tmp.emplace_back(tsl);
         }
         result.emplace_back(tmp);
     }
     return result;
 }
 
-std::vector<std::vector<tensor_slice *>>
+std::vector<std::vector<tensor_slice>>
 fusion_manager::get_output_tsr_slices_list(
-        fusible_op_t *op, fusion_anchor_data &fdata) const {
-    std::vector<std::vector<tensor_slice *>> result;
+        fusible_op_t *op, fdata_map &fdmap, fslice_map &fsmap) const {
+    std::vector<std::vector<tensor_slice>> result;
     for (auto &output : op->get_outputs()) {
-        std::vector<tensor_slice *> tmp;
-        for (auto &tsr_slice : fdata.get(output).tsr_slice_list_) {
-            tmp.emplace_back(&tsr_slice);
+        std::vector<tensor_slice> tmp;
+        auto buf = fdmap.get(output).buffer_;
+        auto range_list = fsmap.get(output);
+        COMPILE_ASSERT(!range_list.empty(),
+                "empty output range found for " << op->op_name_)
+        for (auto range : range_list) {
+            auto tsl = tensor_slice(buf, std::move(range));
+            tmp.emplace_back(tsl);
         }
-        result.emplace_back(tmp);
+        result.emplace_back(std::move(tmp));
     }
     return result;
 }
 
-int fusion_manager::get_input_op_index(sc_op *v) const {
-    auto itr = input_idx_map_.find(v);
-    assert(itr != input_idx_map_.end());
-    return itr->second;
-}
 } // namespace sc

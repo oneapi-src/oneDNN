@@ -27,11 +27,59 @@
 #include <unordered_map>
 
 namespace sc {
-struct fusion_anchor_data;
 
 using slice_range = std::vector<std::pair<expr, expr>>;
 using slice_range_list = std::vector<slice_range>;
 using slice_range_map = std::unordered_map<int, slice_range_list>;
+
+template <typename keyT>
+struct gt_map_t;
+using fdata_map = gt_map_t<fusion_data_t>;
+using fslice_map = gt_map_t<slice_range_list>;
+
+enum class infer_status_code : int {
+    OK = 0, // Successful
+    RETRY, // Need retry another anchor
+    FAIL, // Could not infer
+    END,
+};
+
+struct infer_status_map_t {
+    std::vector<std::vector<sc_op_ptr>> inf_stat_map_;
+
+    infer_status_map_t() {
+        inf_stat_map_.resize(static_cast<int>(infer_status_code::END));
+    }
+
+    std::vector<sc_op_ptr> &get_ops_by_status(infer_status_code code) {
+        COMPILE_ASSERT(code != infer_status_code::END, "END code found");
+        return inf_stat_map_[static_cast<int>(code)];
+    }
+
+    const bool is_ok() {
+        return get_ops_by_status(infer_status_code::RETRY).empty()
+                && get_ops_by_status(infer_status_code::FAIL).empty();
+    }
+
+    const bool is_fail() {
+        return !get_ops_by_status(infer_status_code::FAIL).empty();
+    }
+
+    const bool is_retry() {
+        return !get_ops_by_status(infer_status_code::RETRY).empty();
+    }
+
+    void append_ops_by_status(sc_op *cur, infer_status_code code) {
+        COMPILE_ASSERT(code != infer_status_code::END, "END code found");
+        inf_stat_map_[static_cast<int>(code)].emplace_back(
+                cur->shared_from_this());
+    }
+
+    void clear() {
+        for (auto &ops : inf_stat_map_)
+            ops.clear();
+    }
+};
 
 inline std::vector<expr> get_slice_idx(const slice_range &range) {
     std::vector<expr> ret;
@@ -114,10 +162,7 @@ public:
     // prepares the Op's anchor-irrelevant internal states for generating IR for
     // the input shapes. Also propagates the tensor slice shapes from input to
     // output in the fusion data
-    virtual void prepare_fusion_data(context_ptr ctx,
-            const std::vector<tensor_slice> &src,
-            const std::vector<tensor_slice> &dst, fusion_anchor_data &result)
-            = 0;
+    virtual void prepare_fusion_data(fdata_map &fdmap) = 0;
     /**
      * 'infer_slice_ranges' is used to infer slice ranges for all fusible op in
      * fusion manger, espically helpful for input arg op, because it could not
@@ -128,7 +173,9 @@ public:
      * 'infer_slice_ranges' can be viewed as `post_slice_ranges` and very simple
      * `pre_slice_ranges` with only one previous op inferred.
      * */
-    virtual void infer_slice_ranges(fusion_anchor_data &result) = 0;
+    virtual void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map)
+            = 0;
 
     /**
      * 'pre_slice_ranges' is used to infer slice ranges especially
@@ -137,7 +184,9 @@ public:
      * is a sub fusion graph, it is expected to infer input slice by given
      * output slice.
      * */
-    virtual void pre_slice_ranges(fusion_anchor_data &result) = 0;
+    virtual void pre_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map)
+            = 0;
     /**
      * Does the actual code injection to the current func on an input
      * and output tensor slices.
@@ -145,8 +194,7 @@ public:
      * */
     virtual void compute_block(context_ptr ctx,
             const std::vector<tensor_slice *> &dst,
-            const std::vector<const tensor_slice *> &inputs,
-            fusion_anchor_data &result)
+            const std::vector<const tensor_slice *> &inputs)
             = 0;
     /**
      * Compute workload of a fusible op during its compute block, ins and outs
@@ -159,8 +207,7 @@ public:
      * */
     virtual size_t compute_fusible_workload(const context_ptr &ctx,
             const std::vector<tensor_slice *> &dst,
-            const std::vector<const tensor_slice *> &inputs,
-            fusion_anchor_data &result);
+            const std::vector<const tensor_slice *> &inputs);
 
     sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
             const std::vector<graph_tensor_ptr> &outs,
@@ -172,8 +219,7 @@ public:
     void set_brgemm_alg_kind(brgemm::alg_kind_t kind) { alg_kind_ = kind; }
     ~fusible_op_t() override = default;
 
-    // todo: shall we move this field to fdata?
-    int anchor_id = 0;
+    int anchor_id_ = -1;
     bool fuse_in_brgemm_ = false;
     brgemm::alg_kind_t alg_kind_ = brgemm::alg_kind_t::alg_kind_undef;
 };
@@ -183,39 +229,36 @@ using fusion_op_ptr = std::shared_ptr<fusible_op_t>;
 #define DECLARE_COMPUTE() \
     virtual void compute_block(context_ptr ctx, \
             const std::vector<tensor_slice *> &dst, \
-            const std::vector<const tensor_slice *> &inputs, \
-            fusion_anchor_data &result) override;
+            const std::vector<const tensor_slice *> &inputs) override;
 
 #define DECLARE_QUERY_AND_COMPUTE() \
-    virtual void prepare_fusion_data(context_ptr ctx, \
-            const std::vector<tensor_slice> &src, \
-            const std::vector<tensor_slice> &dst, fusion_anchor_data &result) \
-            override; \
-    virtual void infer_slice_ranges(fusion_anchor_data &result) override; \
-    virtual void pre_slice_ranges(fusion_anchor_data &result) override; \
+    virtual void prepare_fusion_data(fdata_map &fdmap) override; \
+    virtual void infer_slice_ranges( \
+            fslice_map &fsmap, infer_status_map_t &stat_map) override; \
+    virtual void pre_slice_ranges( \
+            fslice_map &fsmap, infer_status_map_t &stat_map) override; \
     virtual void compute_block(context_ptr ctx, \
             const std::vector<tensor_slice *> &dst, \
-            const std::vector<const tensor_slice *> &inputs, \
-            fusion_anchor_data &result) override;
+            const std::vector<const tensor_slice *> &inputs) override;
 
 #define DECLARE_QUERY_AND_DEFAULT_COMPUTE() \
-    virtual void prepare_fusion_data(context_ptr ctx, \
-            const std::vector<tensor_slice> &src, \
-            const std::vector<tensor_slice> &dst, fusion_anchor_data &result) \
-            override; \
-    virtual void infer_slice_ranges(fusion_anchor_data &result) override {} \
-    virtual void pre_slice_ranges(fusion_anchor_data &result) override {} \
+    virtual void prepare_fusion_data(fdata_map &fdmap) override; \
+    virtual void infer_slice_ranges( \
+            fslice_map &fsmap, infer_status_map_t &stat_map) override {} \
+    virtual void pre_slice_ranges( \
+            fslice_map &fsmap, infer_status_map_t &stat_map) override {} \
     virtual void compute_block(context_ptr ctx, \
             const std::vector<tensor_slice *> &dst, \
-            const std::vector<const tensor_slice *> &inputs, \
-            fusion_anchor_data &result) override {}
+            const std::vector<const tensor_slice *> &inputs) override {}
 
-slice_range_map search_known_slice_ranges(
-        fusible_op_t *cur, fusion_anchor_data &fdata);
+slice_range_map search_known_slice_ranges(fusible_op_t *cur, fslice_map &fsmap);
 void set_unknown_slice_ranges(fusible_op_t *cur,
-        slice_range_map known_ranges_map, fusion_anchor_data &fdata);
-void infer_binary_slice_ranges(fusible_op_t *cur, fusion_anchor_data &fdata);
+        slice_range_map known_ranges_map, fslice_map &fsmap,
+        infer_status_map_t &stat_map);
+void infer_binary_slice_ranges(
+        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
 sc_dims get_expr_to_dims(const std::vector<expr> &dims);
+size_t get_dims_product(const sc_dims &dims);
 
 /**
  * The input argument Op
@@ -238,6 +281,10 @@ public:
     input_op(const sc_dims &dims = {}, sc_data_type_t dtype = datatypes::f32);
     input_op(const logical_tensor_t &lt);
     input_op(const std::vector<graph_tensor_ptr> &outs);
+
+    const bool is_arg_input() {
+        return attrs_.get_or_else("temp.arg_input", false);
+    }
 };
 
 /**
@@ -363,7 +410,6 @@ public:
     bool register_brgemm_fusion(const context_ptr &ctx,
             const std::vector<tensor_slice *> &outputs,
             const std::vector<const tensor_slice *> &inputs,
-            fusion_anchor_data &fdata,
             brgemm_fusion_register &brg_reg) override;
     // get real broadcast axis, generaly, you should set bc_axis on plain format
     // semantics if necessary.
@@ -482,21 +528,20 @@ public:
 class unary_elementwise_op_t : public fusible_op_t,
                                public op_traits::brgemm_fusion_acceptable_t {
 public:
-    void infer_slice_ranges(fusion_anchor_data &result) override;
-    void pre_slice_ranges(fusion_anchor_data &result) override;
-    void prepare_fusion_data(context_ptr ctx,
-            const std::vector<tensor_slice> &src,
-            const std::vector<tensor_slice> &dst,
-            fusion_anchor_data &result) override;
+    void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    void pre_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    void prepare_fusion_data(fdata_map &fdmap) override;
 
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
-            const std::vector<const tensor_slice *> &inputs,
-            fusion_anchor_data &result) override;
+            const std::vector<const tensor_slice *> &inputs) override;
+
     bool register_brgemm_fusion(const context_ptr &ctx,
             const std::vector<tensor_slice *> &outputs,
             const std::vector<const tensor_slice *> &inputs,
-            fusion_anchor_data &fdata,
             brgemm_fusion_register &brg_reg) override;
+
     unary_elementwise_op_t(graph_tensor_ptr v, const std::string &op_name);
     unary_elementwise_op_t(const std::string &op_name,
             const std::vector<graph_tensor_ptr> &ins,

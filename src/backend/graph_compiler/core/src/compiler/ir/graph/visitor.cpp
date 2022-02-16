@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,7 +95,6 @@ static bool move_op_from_to(std::vector<sc_op_ptr> &op_seq,
 }
 
 void op_sorting_visitor_t::visit_by_rules(sc_graph_t &graph,
-        std::vector<fusion_anchor_data> &fdata_list,
         const std::function<void(sc_op_ptr)> &f, std::vector<sort_rule> rules) {
     std::sort(rules.begin(), rules.end());
     std::vector<rule_func> f_rule_list;
@@ -110,7 +109,7 @@ void op_sorting_visitor_t::visit_by_rules(sc_graph_t &graph,
                 f_rule_list.emplace_back(create_fusion_anchor_rule());
                 break;
             case sort_rule::preop_fusion:
-                f_rule_list.emplace_back(create_preop_fusion_rule(fdata_list));
+                f_rule_list.emplace_back(create_preop_fusion_rule());
                 break;
             default: break;
         }
@@ -153,14 +152,13 @@ void op_sorting_visitor_t::visit_by_rules(sc_graph_t &graph,
     }
 }
 
-std::vector<sc_op_ptr> op_sorting_visitor_t::sort_by_rules(sc_graph_t &graph,
-        std::vector<fusion_anchor_data> &fdata_list,
-        std::vector<sort_rule> rules) {
+std::vector<sc_op_ptr> op_sorting_visitor_t::sort_by_rules(
+        sc_graph_t &graph, std::vector<sort_rule> rules) {
     std::vector<sc_op_ptr> sorted_op_list;
     auto f = [&sorted_op_list](const sc_op_ptr &cur) {
         sorted_op_list.emplace_back(cur);
     };
-    visit_by_rules(graph, fdata_list, f, std::move(rules));
+    visit_by_rules(graph, f, std::move(rules));
     return sorted_op_list;
 }
 
@@ -224,7 +222,7 @@ op_sorting_visitor_t::rule_func op_sorting_visitor_t::create_same_kind_rule() {
                 return op_kind::elementwise;
             } else if (auto belemop
                     = cur->dyn_cast<binary_elementwise_op_t>()) {
-                auto anchor_id = cur->dyn_cast<fusible_op_t>()->anchor_id;
+                auto anchor_id = cur->dyn_cast<fusible_op_t>()->anchor_id_;
                 if (belemop->get_broadcast_input() >= 0) {
                     return op_kind::broadcast;
                 } else {
@@ -279,7 +277,7 @@ op_sorting_visitor_t::create_fusion_anchor_rule() {
             auto cur_op = op_seq[i]->dyn_cast<fusible_op_t>();
             for (int j = i - 1; j >= 0; j--) {
                 auto pre_op = op_seq[j]->dyn_cast<fusible_op_t>();
-                if (cur_op->anchor_id < pre_op->anchor_id) {
+                if (cur_op->anchor_id_ < pre_op->anchor_id_) {
                     if (move_op_from_to(op_seq, dep_matrix, i, j)) break;
                 }
             }
@@ -287,24 +285,16 @@ op_sorting_visitor_t::create_fusion_anchor_rule() {
     };
 }
 
-op_sorting_visitor_t::rule_func op_sorting_visitor_t::create_preop_fusion_rule(
-        std::vector<fusion_anchor_data> &fdata_list) {
-    /**
-     * The sorted rule will make the input which comes from anchor execute
-     * firstly, due to input_arg may need forward fusion
-     * */
-    COMPILE_ASSERT(!fdata_list.empty(), "empty fdata list is found");
-    // fdata is only used to query `is_arg_input`, it is expected to be same
-    // for all fusion anchor, so we get 0-index.
-    auto &fdata = fdata_list[0];
-    return [&fdata](std::vector<sc_op_ptr> &op_seq,
+op_sorting_visitor_t::rule_func
+op_sorting_visitor_t::create_preop_fusion_rule() {
+    return [](std::vector<sc_op_ptr> &op_seq,
                    const op_dep_matrix_t &dep_matrix) {
         // automatically skip
         if (op_seq.empty()) return;
         std::vector<sc_op_ptr> anchor_input_list;
         for (auto &cur : op_seq) {
             if (auto input_cur = cur->dyn_cast<input_op>()) {
-                if (!fdata.is_arg_input(input_cur)) {
+                if (!input_cur->is_arg_input()) {
                     anchor_input_list.emplace_back(cur);
                 }
             }

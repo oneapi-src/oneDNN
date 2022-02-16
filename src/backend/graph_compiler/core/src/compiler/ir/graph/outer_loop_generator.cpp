@@ -267,6 +267,10 @@ static void schedule_outer_anchor_loops(
                 if (main_loop.defined() && cur_for->equals(main_loop, cmper)) {
                     continue;
                 }
+                // if outmost anchor step is larger than 1
+                if (cur_for->step_.isa<constant>()
+                        && get_expr_as_int(cur_for->step_) > 1)
+                    continue;
                 cur_for->kind_ = for_type::PARALLEL;
                 auto body = cur_for->body_;
                 assert(!body.defined() || body.isa<for_loop>()
@@ -396,9 +400,8 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
         if (i == base_inp_idx) continue;
         additional_args.emplace_back(ins[i]);
     }
-    std::vector<fusion_anchor_data> fuse_state;
-    out_failed = fmgr->prepare_and_check(
-            ctx, fuse_state, real_outs, additional_args);
+    fuse_state_t fstate;
+    out_failed = fmgr->prepare_and_check(ctx, fstate);
     if (!out_failed.empty()) {
         fmgr->clear_anchor();
         return nullptr;
@@ -407,7 +410,7 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
         fmgr->clear_anchor();
         return nullptr;
     }
-    fmgr->commit(modu, fuse_state);
+    fmgr->commit(modu, fstate, real_outs, additional_args);
 
     func->body_ = std::move(body);
     gen->schedule_loops(ctx, nullptr, func->body_, loops);

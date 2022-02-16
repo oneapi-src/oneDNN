@@ -67,7 +67,7 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<loop_merger_t>());
     ret.emplace_back(
             module_function_pass_t::make<parallel_workload_dispatcher_t>());
-
+    ret.emplace_back(utils::make_unique<constant_folder_t>());
     if (ctx->flags_.index2var_) {
         ret.emplace_back(module_function_pass_t::make<index2var_t>());
     }
@@ -78,7 +78,6 @@ sequential_module_pass_t get_default_precodegen_passes(
 
     ret.emplace_back(utils::make_unique<kernel_lowering_cpu_t>(
             ctx->flags_.kernel_optim_));
-
     if (ctx->flags_.dead_write_elimination_) {
         ret.emplace_back(
                 module_function_pass_t::make<dead_write_eliminator_t>());
