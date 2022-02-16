@@ -17,6 +17,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <list>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -236,6 +237,10 @@ status_t dnnl_graph_graph::build_graph() {
         }
     }
 
+    std::list<op_t> dummy_ops; // use list to avoid re-allocation
+    std::unordered_map<size_t, std::pair<graph_t::op_t *, size_t>>
+            tensor_id_to_dummy_producer;
+
     for (const op_ptr &op : ops_) {
         // find the input tensor ids of current op
         const std::vector<size_t> &input_tensor_ids = op_to_tensor_id[op.get()];
@@ -250,6 +255,23 @@ status_t dnnl_graph_graph::build_graph() {
                 std::pair<op_t *, size_t> producer = id_search->second;
                 // set input of current op
                 op->connect_input(i, *(producer.first), producer.second);
+            } else {
+                auto id_search
+                        = tensor_id_to_dummy_producer.find(input_tensor_ids[i]);
+                if (id_search != tensor_id_to_dummy_producer.end()) {
+                    std::pair<op_t *, size_t> dummy_producer
+                            = id_search->second;
+                    op->connect_input(
+                            i, *(dummy_producer.first), dummy_producer.second);
+                    op->get_input_value(i)->reset_producer();
+                } else { // create a dummy input op
+                    dummy_ops.emplace_back(op_kind::Wildcard);
+                    dummy_ops.back().add_output(op->get_input_value(i));
+                    tensor_id_to_dummy_producer[input_tensor_ids[i]]
+                            = std::make_pair(&dummy_ops.back(), 0);
+                    op->connect_input(i, op->get_input_value(i));
+                    op->get_input_value(i)->reset_producer();
+                }
             }
         }
     }
