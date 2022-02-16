@@ -93,7 +93,7 @@ struct acl_softmax_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
 
-            bool ok = desc()->prop_kind == dnnl_forward_inference
+            bool ok = is_fwd()
                     // ACL only supports matching src/dst data types
                     && src_md()->data_type == dst_md()->data_type
                     && utils::one_of(src_md()->data_type, data_type::f32)
