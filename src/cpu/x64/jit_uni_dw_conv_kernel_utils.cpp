@@ -168,7 +168,8 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     } else {
         const size_t max_ch_off
                 = static_cast<size_t>(jcp.nb_ch_blocking - 1) * jcp.ch_block;
-        constexpr size_t max_ex_off = 8; // extra offset from repeats (sse41)
+        constexpr size_t max_ex_off
+                = isa == sse41 ? 4 : 0; // extra offset from repeats
 
         // check that input offsets fit into s32
         const size_t max_ic_off = max_ch_off * jcp.ih * jcp.iw;
