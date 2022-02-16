@@ -41,6 +41,11 @@ public:
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
     }
 
+    impl::status_t prepare_inplace_pairs_impl() override {
+        inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
+        return impl::status::success;
+    }
+
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,
@@ -234,37 +239,8 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        UNUSED(g_engine);
-
-        op_t *logsoftmax_bwd_op = nullptr;
-        for (auto &op : subgraph_->get_ops()) {
-            if (op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
-                logsoftmax_bwd_op = op.get();
-                break;
-            }
-        }
-
-        size_t diff_dst_index = 0;
-        auto val = logsoftmax_bwd_op->get_input_value(diff_dst_index);
-        if (val->has_producer()
-                && val->get_producer().get_kind() == impl::op_kind::Reorder) {
-            val = val->get_producer().get_input_value(0);
-        }
-        size_t diff_dst_id = val->get_logical_tensor().id;
-
-        const logical_tensor_wrapper_t diff_dst_lt(inputs[diff_dst_index]);
-        const logical_tensor_wrapper_t diff_src_lt(outputs[0]);
-        // TODO(qun) we didn't report iplace pair if two lts have different
-        // layout type because of frontend users didn't process this
-        // situation at this moment. In the future, we need to fix this for
-        // more inplace opportunities.
-        if (((diff_dst_lt.is_opaque() && diff_src_lt.is_opaque())
-                    || (diff_dst_lt.is_strided() && diff_src_lt.is_strided()))
-                && diff_dst_lt.is_similar(diff_src_lt))
-            inplace_pairs_.push_back({diff_dst_id, outputs[0].id});
+    impl::status_t prepare_inplace_pairs_impl() override {
+        inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
         return impl::status::success;
     }
 };

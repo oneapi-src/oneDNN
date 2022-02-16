@@ -251,39 +251,8 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        UNUSED(g_engine);
-
-        op_t *layernorm_bwd_op = nullptr;
-        for (auto &op : subgraph_->get_ops()) {
-            if (op->get_kind() == op_kind::dnnl_layernorm_bwd) {
-                layernorm_bwd_op = op.get();
-                break;
-            }
-        }
-
-        const size_t diff_dst_index = 1;
-        const size_t diff_src_index = 0;
-        auto val = layernorm_bwd_op->get_input_value(diff_dst_index);
-        if (val->has_producer()
-                && val->get_producer().get_kind() == impl::op_kind::Reorder) {
-            val = val->get_producer().get_input_value(0);
-        }
-
-        const logical_tensor_wrapper_t diff_dst_ltw(inputs[diff_dst_index]);
-        const logical_tensor_wrapper_t diff_src_ltw(outputs[diff_src_index]);
-        const size_t diff_dst_id = val->get_logical_tensor().id;
-        const size_t diff_src_id = outputs[diff_src_index].id;
-        // TODO(qun) we didn't report iplace pair if two lts have different
-        // layout type because of frontend users didn't process this
-        // situation at this moment. In the future, we need to fix this for
-        // more inplace opportunities.
-        if (((diff_dst_ltw.is_opaque() && diff_src_ltw.is_opaque())
-                    || (diff_dst_ltw.is_strided() && diff_src_ltw.is_strided()))
-                && diff_dst_ltw.is_similar(diff_src_ltw))
-            inplace_pairs_.push_back({diff_dst_id, diff_src_id});
+    impl::status_t prepare_inplace_pairs_impl() override {
+        inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
         return impl::status::success;
     }
 };

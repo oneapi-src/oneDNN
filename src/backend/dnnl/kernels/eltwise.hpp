@@ -62,6 +62,11 @@ public:
         }
     }
 
+    impl::status_t prepare_inplace_pairs_impl() override {
+        inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
+        return impl::status::success;
+    }
+
     impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *g_engine,
             const std::vector<impl::logical_tensor_t> &inputs,

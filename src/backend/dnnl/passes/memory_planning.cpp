@@ -14,7 +14,9 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <algorithm>
 #include <memory>
+#include <set>
 #include <vector>
 #include <unordered_map>
 
@@ -36,6 +38,84 @@ namespace dnnl_impl {
 using op_t = impl::op_t;
 using op_ptr = std::shared_ptr<impl::op_t>;
 using ltw = impl::logical_tensor_wrapper_t;
+
+struct op_inplace_pair_t {
+    op_inplace_pair_t(size_t in_idx, size_t out_idx)
+        : in_idx_(in_idx), out_idx_(out_idx) {}
+    const size_t in_idx_; // the index, not id
+    const size_t out_idx_;
+};
+
+std::vector<op_inplace_pair_t> get_op_inplace_pairs(
+        op_t &op, primitive_attr_mgr_t &prm_attr_mgr) {
+    // TODO(xxx) extend the set
+    const static std::set<impl::op_kind_t> ops {op_kind::mul_scales,
+            op_kind::add_zps, impl::op_kind::Reorder, impl::op_kind::TypeCast,
+            op_kind::dnnl_binary, op_kind::dnnl_eltwise, impl::op_kind::SoftMax,
+            impl::op_kind::LogSoftmax, op_kind::dnnl_softmax_bwd,
+            op_kind::dnnl_logsoftmax_bwd};
+    std::vector<op_inplace_pair_t> pairs;
+
+    // Make post-sum inplace has higher priority since it affects both
+    // performance and memory footprint
+    if (op.has_attr("primitive_attr_key")
+            && op.get_attr<int64_t>("primitive_attr_key") != -1) {
+        // sum post ops support inplace
+        int64_t key = op.get_attr<int64_t>("primitive_attr_key");
+        auto prm_attr = prm_attr_mgr.get_attr(key);
+        dnnl::post_ops pops = prm_attr.get_post_ops();
+
+        // the post-ops input offset
+        size_t index = 1;
+        if (op.get_kind() == op_kind::dnnl_convolution
+                || op.get_kind() == impl::op_kind::MatMul
+                || op.get_kind() == impl::op_kind::ConvTranspose) {
+            index = op.has_attr("with_bias") && op.get_attr<bool>("with_bias")
+                    ? 3 // src, wei, bias
+                    : 2; // src, wei
+        }
+
+        std::shared_ptr<value_t> post_sum_input;
+        for (int i = 0; i < pops.len(); i++) {
+            if (pops.kind(i) == dnnl::primitive::kind::sum) {
+                post_sum_input = op.get_input_value(index);
+                break; // assume only one post sum
+            } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+                index++;
+            } else if (pops.kind(i) == dnnl::primitive::kind::convolution) {
+                // FIXME(xx) fused conv may have bias
+                index++;
+            } else {
+                // For eltwise post-ops cases. We just do nothing for such
+                // cases.
+            }
+        }
+
+        if (post_sum_input) {
+            auto post_sum_input_lt = post_sum_input->get_logical_tensor();
+            auto output_lt = op.get_output_value(0)->get_logical_tensor();
+            const bool can_inplace = make_dnnl_memory_desc(post_sum_input_lt)
+                    == make_dnnl_memory_desc(output_lt);
+            if (can_inplace) { pairs.emplace_back(index, 0); }
+        }
+    } else if (ops.count(op.get_kind())) {
+        auto in0 = op.get_input_value(0)->get_logical_tensor();
+        auto out0 = op.get_output_value(0)->get_logical_tensor();
+        const bool can_inplace
+                = make_dnnl_memory_desc(in0) == make_dnnl_memory_desc(out0);
+        if (can_inplace) { pairs.emplace_back(0, 0); }
+    } else if (op.get_kind() == op_kind::dnnl_layernorm_bwd) {
+        auto diff_dst = op.get_input_value(1)->get_logical_tensor();
+        auto diff_src = op.get_output_value(0)->get_logical_tensor();
+        const bool can_inplace = make_dnnl_memory_desc(diff_dst)
+                == make_dnnl_memory_desc(diff_src);
+        if (can_inplace) { pairs.emplace_back(1, 0); }
+    } else {
+        // Do nothing
+    }
+
+    return pairs;
+}
 
 std::shared_ptr<execution_args_set_t> execution_args_set_t::clone() const {
     auto ret = std::make_shared<execution_args_set_t>();
@@ -112,6 +192,76 @@ void execution_args_set_t::clear() {
     mems_use_internal_persistent_.clear();
     value_mem_map_.clear();
     topo_ordered_exec_args_.clear();
+}
+
+void alias_analyzer_t::clear() {
+    alias_map_.clear();
+    reverse_alias_map_.clear();
+}
+
+impl::status_t alias_analyzer_t::run(std::shared_ptr<subgraph_t> &sg) {
+    clear();
+    auto &subgraph = sg->get_mutable_ops();
+    // find alias values
+    for (auto &cur_op : subgraph) {
+        if (!is_preprocess_op(*cur_op)) continue;
+        value_t *out = cur_op->get_output_value(0).get();
+        value_t *in = cur_op->get_input_value(0).get();
+        alias_map_.insert({out, in});
+        reverse_alias_map_.insert({in, out});
+    }
+    return impl::status::success;
+}
+
+// one input can alias to multiple output
+std::vector<const value_t *> alias_analyzer_t::get_alias_outputs(
+        const value_t *input) const {
+    std::vector<const value_t *> alias_output;
+    for (const auto &in_out : reverse_alias_map_) {
+        if (in_out.first != input) continue;
+        alias_output.emplace_back(in_out.second);
+    }
+    return alias_output;
+}
+
+// a output can alias to only one input
+const value_t *alias_analyzer_t::get_alias_input(const value_t *output) const {
+    if (alias_map_.count(output)) { return alias_map_.at(output); }
+    return nullptr;
+}
+
+std::vector<const value_t *> alias_analyzer_t::get_all_aliases(
+        const value_t *val) const {
+    std::queue<const value_t *> q;
+    std::set<const value_t *> visited;
+
+    q.push(val);
+    visited.insert(val);
+    while (!q.empty()) {
+        auto temp = q.front();
+        q.pop();
+        // visit all alias outputs
+        auto alias_outputs = get_alias_outputs(temp);
+        for (const auto &alias : alias_outputs) {
+            if (visited.count(alias)) continue;
+            q.push(alias);
+            visited.insert(alias);
+        }
+        // visit alias input
+        auto alias_input = get_alias_input(temp);
+        if (alias_input && !visited.count(alias_input)) {
+            q.push(alias_input);
+            visited.insert(alias_input);
+        }
+    }
+
+    std::vector<const value_t *> ret;
+    ret.reserve(visited.size() - 1);
+    for (auto &alias : visited) {
+        if (alias == val) continue;
+        ret.emplace_back(alias);
+    }
+    return ret;
 }
 
 void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
@@ -682,29 +832,45 @@ void memory_planner_t::prepare_args_for_resampling_bwd(op_t *op,
 impl::status_t memory_planner_t::assign_external_inputs_buffer(
         const std::vector<op_ptr> &subgraph,
         const std::vector<impl::logical_tensor_t> &inputs) {
-    std::queue<std::pair<const value_t *, assign_info_t>> q;
+    // Remove duplicated input values
+    auto sg_ins = impl::graph_t(subgraph).get_input_values();
+    std::sort(sg_ins.begin(), sg_ins.end());
+    sg_ins.erase(std::unique(sg_ins.begin(), sg_ins.end()), sg_ins.end());
 
-    for (auto &val : impl::graph_t(subgraph).get_input_values()) {
+    // Assign external input buffer to subgraph's inputs and their alias
+    for (auto &val : sg_ins) {
         for (size_t i = 0; i < inputs.size(); i++) {
             if (val->get_logical_tensor().id == inputs[i].id) {
                 assign_info_t info(external_input, i);
                 buffer_assignments_.insert(std::make_pair(val, info));
-                q.push(std::make_pair(val, info));
+                // assign alias
+                auto aliases = alias_analyzer_.get_all_aliases(val);
+                for (auto &alias : aliases) {
+                    assertm(!buffer_assignments_.count(alias),
+                            "alias of input has been assigned buffer");
+                    buffer_assignments_.insert(std::make_pair(alias, info));
+                }
+                break;
             }
         }
     }
 
-    // assign alias
-    while (!q.empty()) {
-        auto val_info = q.front();
-        q.pop();
-        for (const auto &iter : reverse_alias_map_) {
-            if (iter.first != val_info.first) continue;
-            buffer_assignments_.insert(
-                    std::make_pair(iter.second, val_info.second));
-            q.push(std::make_pair(iter.second, val_info.second));
-        }
-    }
+    // Get the live range of external inputs
+    size_t time_point = 0;
+    impl::topo_order_visit(
+            impl::graph_t(subgraph).get_output_ops(), [&](op_t *op) {
+                auto in_vals = op->get_input_values();
+                for (auto &in_val : in_vals) {
+                    if (!buffer_assignments_.count(in_val.get())) continue;
+                    const auto &info = buffer_assignments_.at(in_val.get());
+                    if (info.kind_ != external_input) continue;
+                    external_inputs_live_range_[&info]
+                            = time_bound_t {0, time_point};
+                }
+                time_point++;
+                return impl::status::success;
+            });
+
     return status::success;
 }
 
@@ -718,27 +884,44 @@ impl::status_t memory_planner_t::assign_external_inputs_buffer(
 // to them.
 impl::status_t memory_planner_t::assign_external_outputs_buffer(
         const std::vector<op_ptr> &subgraph,
-        const std::vector<impl::logical_tensor_t> &outputs) {
-    std::queue<std::pair<const value_t *, assign_info_t>> q;
-
+        const std::vector<impl::logical_tensor_t> &outputs,
+        primitive_attr_mgr_t &prm_attr_mgr) {
     for (auto &val : impl::graph_t(subgraph).get_output_values()) {
         for (size_t i = 0; i < outputs.size(); i++) {
             if (val->get_logical_tensor().id == outputs[i].id) {
-                assign_info_t info(external_output, i);
-                buffer_assignments_.insert(std::make_pair(val, info));
-                q.push(std::make_pair(val, info));
-            }
-        }
-    }
+                assign_info_t orig_info = buffer_assignments_.at(val);
+                assign_info_t updated_info(external_output, i);
+                std::queue<const value_t *> q;
+                std::set<const value_t *> visited;
+                q.push(val);
+                while (!q.empty()) {
+                    auto cur_val = q.front();
+                    q.pop();
+                    if (visited.count(cur_val)) continue;
 
-    // assign alias
-    while (!q.empty()) {
-        auto val_info = q.front();
-        q.pop();
-        if (alias_map_.count(val_info.first)) {
-            const value_t *alias = alias_map_.at(val_info.first);
-            buffer_assignments_.insert(std::make_pair(alias, val_info.second));
-            q.push(std::make_pair(alias, val_info.second));
+                    // update the assigned buffer to external buffer
+                    buffer_assignments_[cur_val] = updated_info;
+                    visited.insert(cur_val);
+
+                    // push the alias to queue for next visit
+                    auto aliases = alias_analyzer_.get_all_aliases(cur_val);
+                    for (const value_t *alias : aliases) {
+                        q.push(alias);
+                    }
+
+                    // push the inplaced input to queue for next visit
+                    auto &producer = cur_val->get_producer();
+                    auto op_inplace_pairs
+                            = get_op_inplace_pairs(producer, prm_attr_mgr);
+                    for (auto &pair : op_inplace_pairs) {
+                        if (pair.out_idx_ != cur_val->get_offset()) continue;
+                        auto in_val = producer.get_input_value(pair.in_idx_);
+                        if (buffer_assignments_.at(in_val.get()) != orig_info)
+                            continue;
+                        q.push(in_val.get());
+                    }
+                }
+            }
         }
     }
     return status::success;
@@ -755,29 +938,42 @@ impl::status_t memory_planner_t::assign_external_outputs_buffer(
 // a kind of constant folding, with which the cached buffer can be reduced.
 impl::status_t memory_planner_t::assign_internal_persistent_buffer(
         const std::vector<op_ptr> &subgraph,
-        const std::unordered_map<value_t *, size_t> &edge_ref_count) {
-    UNUSED(edge_ref_count);
-    std::queue<std::pair<const value_t *, assign_info_t>> q;
-
+        primitive_attr_mgr_t &prm_attr_mgr) {
     for (auto &val : get_constant_block_output_values(subgraph)) {
-        if (buffer_assignments_.count(val)) continue;
+        assign_info_t orig_info = buffer_assignments_.at(val);
+        if (orig_info.kind_ != internal_temporary) continue;
+
         size_t idx = persistent_buffer_assigner_.request(
                 make_dnnl_memory_desc(val->get_logical_tensor()).get_size());
-        assign_info_t info(internal_persistent, idx);
-        buffer_assignments_.insert(std::make_pair(val, info));
-        q.push(std::make_pair(val, info));
-    }
+        assign_info_t updated_info(internal_persistent, idx);
+        std::queue<const value_t *> q;
+        std::set<const value_t *> visited;
+        q.push(val);
+        while (!q.empty()) {
+            auto cur_val = q.front();
+            q.pop();
+            if (visited.count(cur_val) || !cur_val->has_producer()) continue;
 
-    // assign their alias
-    while (!q.empty()) {
-        auto val_info = q.front();
-        q.pop();
-        if (alias_map_.count(val_info.first)) {
-            const value_t *alias = alias_map_.at(val_info.first);
-            if (buffer_assignments_.count(alias)) continue;
+            // update the assigned buffer to external buffer
+            buffer_assignments_[cur_val] = updated_info;
+            visited.insert(cur_val);
 
-            buffer_assignments_.insert(std::make_pair(alias, val_info.second));
-            q.push(std::make_pair(alias, val_info.second));
+            // push the alias to queue for next visit
+            auto aliases = alias_analyzer_.get_all_aliases(cur_val);
+            for (const value_t *alias : aliases) {
+                q.push(alias);
+            }
+
+            // push the inplaced input to queue for next visit
+            auto &producer = cur_val->get_producer();
+            auto op_inplace_pairs
+                    = get_op_inplace_pairs(producer, prm_attr_mgr);
+            for (auto &pair : op_inplace_pairs) {
+                if (pair.out_idx_ != cur_val->get_offset()) continue;
+                auto in_val = producer.get_input_value(pair.in_idx_);
+                if (buffer_assignments_.at(in_val.get()) != orig_info) continue;
+                q.push(in_val.get());
+            }
         }
     }
     return status::success;
@@ -796,22 +992,40 @@ impl::status_t memory_planner_t::assign_internal_persistent_buffer(
 // tensor's metadata instead of content)
 impl::status_t memory_planner_t::assign_internal_temporary_buffer(
         const std::vector<op_ptr> &subgraph,
-        const std::unordered_map<value_t *, size_t> &edge_ref_count) {
+        const std::unordered_map<value_t *, size_t> &edge_ref_count,
+        primitive_attr_mgr_t &prm_attr_mgr, bool enable_standard_sharing) {
     auto func = [&](impl::op_t *op) {
-        // Handle inplace outputs
-        // TODO(qun) At this moment, we only consider inplace for SISO op. Need
-        // to extend to use inplace pair of ops
-        if (is_inplace(*op)) {
-            value_t *in = op->get_input_value(0).get();
-            assign_info_t info = buffer_assignments_.at(in);
-            bool reuse_in_buffer = info.kind_ == internal_temporary
-                    && (temporary_buffer_ref_count_[info.index_] == 1
-                            || is_preprocess_op(*op));
-            if (reuse_in_buffer) {
-                value_t *out = op->get_output_value(0).get();
-                buffer_assignments_.insert(std::make_pair(out, info));
+        // Handle alias first
+        auto inputs = op->get_input_values();
+        for (auto &in : inputs) {
+            auto alias_outputs = alias_analyzer_.get_alias_outputs(in.get());
+            for (auto &alias : alias_outputs) {
+                if (buffer_assignments_.count(alias)) { continue; }
+                assign_info_t info = buffer_assignments_.at(in.get());
+                buffer_assignments_.insert(std::make_pair(alias, info));
                 temporary_buffer_ref_count_[info.index_]
-                        += edge_ref_count.at(out);
+                        += edge_ref_count.at(const_cast<value_t *>(alias));
+            }
+        }
+
+        // Handle inplace
+        auto op_inplace_pairs = get_op_inplace_pairs(*op, prm_attr_mgr);
+        if (!op_inplace_pairs.empty()) {
+            for (const auto &pair : op_inplace_pairs) {
+                value_t *in = op->get_input_value(pair.in_idx_).get();
+                assign_info_t info = buffer_assignments_.at(in);
+                if (info.kind_ != internal_temporary) continue;
+
+                bool reuse_in_buffer
+                        = temporary_buffer_ref_count_[info.index_] == 1;
+                if (reuse_in_buffer) {
+                    value_t *out = op->get_output_value(pair.out_idx_).get();
+                    if (!buffer_assignments_.count(out)) {
+                        buffer_assignments_.insert(std::make_pair(out, info));
+                        temporary_buffer_ref_count_[info.index_]
+                                += edge_ref_count.at(out);
+                    }
+                }
             }
         }
 
@@ -836,7 +1050,8 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
 
             --temporary_buffer_ref_count_[info.index_];
             // if we decrease it to zero, we are ready to release
-            if (temporary_buffer_ref_count_[info.index_] == 0) {
+            if (enable_standard_sharing
+                    && temporary_buffer_ref_count_[info.index_] == 0) {
                 temporary_buffer_assigner_.release(info.index_);
             }
         }
@@ -849,7 +1064,9 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
             auto consumers = out->get_consumers();
             if (consumers.empty()) {
                 --temporary_buffer_ref_count_[info.index_];
-                temporary_buffer_assigner_.release(info.index_);
+                if (enable_standard_sharing) {
+                    temporary_buffer_assigner_.release(info.index_);
+                }
             }
         }
 
@@ -987,6 +1204,101 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
     return status::success;
 }
 
+impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
+        std::shared_ptr<subgraph_t> &sg, bool enable_standard_sharing) {
+    size_t time_point = 0;
+    impl::topo_order_visit(sg->get_output_ops(), [&](op_t *cur_op) {
+        auto out_vals = cur_op->get_output_values();
+        for (auto &out_val : out_vals) {
+            auto out_buf = buffer_assignments_.at(out_val.get());
+            if (out_buf.kind_ != external_output) continue;
+            impl::logical_tensor_t out_lt(sg->outs_[out_buf.index_]), in_lt;
+
+            // check if can inplaced sharing external input buffer
+            bool inplace_shared = false;
+            auto op_inplace_pairs
+                    = get_op_inplace_pairs(*cur_op, sg->prm_attr_mgr_);
+            for (const auto &pair : op_inplace_pairs) {
+                if (pair.out_idx_ != out_val->get_offset()) continue;
+
+                auto in_val = cur_op->get_input_value(pair.in_idx_);
+                auto in_buf = buffer_assignments_.at(in_val.get());
+                if (in_buf.kind_ != external_input) continue;
+
+                in_lt = sg->ins_[in_buf.index_];
+                inplace_shared = true;
+                break;
+            }
+
+            // check if can standard sharing external input. note: from library
+            // side, it's standard sharing, but from FWK side, it's inplace
+            // sharing
+            bool standard_shared = false;
+            if (enable_standard_sharing && !inplace_shared) {
+                std::vector<logical_tensor_t> candidates;
+                for (auto &ex_in : external_inputs_live_range_) {
+                    // external buffer is still in use
+                    if (ex_in.second.end_ >= time_point) continue;
+
+                    // different memory size, can't reuse
+                    auto in_md = make_dnnl_memory_desc(
+                            sg->ins_[ex_in.first->index_]);
+                    auto out_md
+                            = make_dnnl_memory_desc(sg->outs_[out_buf.index_]);
+                    if (in_md.get_size() != out_md.get_size()) continue;
+
+                    candidates.emplace_back(sg->ins_[ex_in.first->index_]);
+                }
+
+                // There may be multiple external input buffers that can be
+                // shared with the external output buffer. we decided to only
+                // report one pair now. To not break existing tests, we prefer
+                // to choose the one whose logical tensor id is larger (the
+                // post-src in test). We can change this criteria if we have any
+                // real cases or requests in the future.
+                if (!candidates.empty()) {
+                    in_lt = candidates[0];
+                    for (auto &tmp : candidates) {
+                        if (tmp.id > in_lt.id) { in_lt = tmp; }
+                    }
+                    standard_shared = true;
+                }
+            }
+
+            // No sharing
+            if (!inplace_shared && !standard_shared) continue;
+
+            // Have shared, not re-do
+            bool have_shared = false;
+            for (auto &pair : inplace_pairs_) {
+                if (pair.output == out_lt.id || pair.input == in_lt.id)
+                    have_shared = true;
+            }
+            if (have_shared) continue;
+
+            // TODO(qun) we didn't report iplace pair if two lts have different
+            // layout type because of frontend users didn't process this
+            // situation at this moment. In the future, we need to fix this for
+            // more inplace opportunities. Here the condition of alias_ins == 1
+            // is to disable the inplace option for src = conv(src) + src
+            ltw in_ltw(in_lt), out_ltw(out_lt);
+            size_t alias_ins = 0;
+            for (auto &tmp : sg->ins_) {
+                if (in_ltw.id() == tmp.id) alias_ins++;
+            }
+            bool can_share = alias_ins == 1
+                    && in_ltw.property_type() != impl::property_type::constant
+                    && in_ltw.layout_type() == out_ltw.layout_type();
+            if (can_share)
+                inplace_pairs_.push_back({in_ltw.id(), out_ltw.id()});
+        }
+        time_point++;
+        return impl::status::success;
+    });
+
+    return status::success;
+}
+
 // In this function, we will do the following things:
 // - Build the alias map. both the key and value in the map are edges. the key
 //   is the alias of value.
@@ -1008,15 +1320,7 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
 
     clear(); // clear state to make the method be reentrant
 
-    // find which output is the alias of input
-    // TODO(qun) according to op's inplace pair
-    for (auto &cur_op : subgraph) {
-        if (!is_preprocess_op(*cur_op)) continue;
-        value_t *out = cur_op->get_output_value(0).get();
-        value_t *in = cur_op->get_input_value(0).get();
-        alias_map_.insert({out, in});
-        reverse_alias_map_.insert({in, out});
-    }
+    alias_analyzer_.run(sg);
 
     // get the reference count of each edge
     std::unordered_map<value_t *, size_t> edge_ref_count;
@@ -1030,35 +1334,51 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
         edge_ref_count[val]++;
     }
 
-    // Add 1 to subgraph's inputs ref_count since inputs buffer is given by
-    // users and can't be reused
-    for (auto &val : impl::graph_t(subgraph).get_input_values()) {
-        edge_ref_count[val]++;
-    }
-
-    // if not enable memory sharing, we plus additional 1 to edge reference
-    // count, so that tensors will not be freed and memories will not be reused
+    // if not enable memory sharing, we add additional 1 to edge reference
+    // count, so that tensors will not be reused
     if (!enable_memory_sharing_) {
         for (auto &val_count : edge_ref_count) {
             val_count.second++;
         }
     }
 
-    // Assign subgraph's inputs/outputs and their alias to user given buffers
+    // Assign external_input buffers to subgraph's inputs and their alias
     ret = assign_external_inputs_buffer(subgraph, inputs);
     if (ret != status::success) return ret;
 
-    ret = assign_external_outputs_buffer(subgraph, outputs);
+    // Assign internal temporary buffer for all other edges
+    ret = assign_internal_temporary_buffer(
+            subgraph, edge_ref_count, prm_attr_mgr, false);
     if (ret != status::success) return ret;
 
-    // Assign constant block's outputs and their alias to persistent buffer
-    // (these buffers will be cached to global constant cache, so should not be
-    // reused or freed)
-    ret = assign_internal_persistent_buffer(subgraph, edge_ref_count);
+    // Replace some internal temporary buffers to user given external output
+    // buffer
+    ret = assign_external_outputs_buffer(subgraph, outputs, prm_attr_mgr);
     if (ret != status::success) return ret;
 
-    // Assign other edges to internal variable buffers.
-    ret = assign_internal_temporary_buffer(subgraph, edge_ref_count);
+    // Replace some internal temporary buffers to cached persistent buffer
+    ret = assign_internal_persistent_buffer(subgraph, prm_attr_mgr);
+    if (ret != status::success) return ret;
+
+    // Reset the unreplaced internal temporary buffer
+    temporary_buffer_assigner_.clear();
+    for (auto it = buffer_assignments_.begin();
+            it != buffer_assignments_.end();) {
+        if (it->second.kind_ == internal_temporary) {
+            it = buffer_assignments_.erase(it);
+        } else {
+            it++;
+        }
+    }
+
+    // Re-assign internal temporary buffer for reset ones (will re-do memory
+    // sharing between temporary buffers)
+    ret = assign_internal_temporary_buffer(
+            subgraph, edge_ref_count, prm_attr_mgr, true);
+    if (ret != status::success) return ret;
+
+    // Check which input/output pair of the subgraph can be inplaced
+    ret = prepare_subgraph_inplace_pairs(sg, true);
     if (ret != status::success) return ret;
 
     // Bind memory object to each value

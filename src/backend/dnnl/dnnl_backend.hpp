@@ -230,7 +230,7 @@ struct kernel_base_t {
             const std::vector<impl::logical_tensor_t> &outputs) {
         auto ret = compile_impl(op_or_part, aengine, inputs, outputs);
         if (ret != impl::status::success) return ret;
-        return prepare_inplace_pairs_impl(aengine, inputs, outputs);
+        return prepare_inplace_pairs_impl();
     }
 
     template <typename T>
@@ -287,13 +287,7 @@ struct kernel_base_t {
         return impl::status::success;
     }
 
-    virtual impl::status_t prepare_inplace_pairs_impl(
-            const impl::engine_t *aengine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
-        UNUSED(aengine);
-        UNUSED(inputs);
-        UNUSED(outputs);
+    virtual impl::status_t prepare_inplace_pairs_impl() {
         return impl::status::success;
     };
 

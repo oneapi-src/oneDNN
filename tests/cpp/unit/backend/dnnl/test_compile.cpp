@@ -18537,3 +18537,80 @@ TEST(Execute, DynamicDequantizeNoZpsPerTensor) {
         ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
     }
 }
+
+TEST(Compile, SoftmaxGetInplacePair) {
+    impl::engine_t &eng = get_engine();
+
+    impl::op_t softmax_op(impl::op_kind::SoftMax);
+    softmax_op.set_attr<int64_t>("axis", 0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(1, {2, 3}, impl::data_type::f32);
+
+    softmax_op.add_input(src);
+    softmax_op.add_output(dst);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&softmax_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    // compile
+    std::vector<const impl::logical_tensor_t *> inputs {&src};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    auto pairs = cp.get_inplace_pairs();
+    ASSERT_EQ(pairs.size(), 1);
+    ASSERT_EQ(pairs[0].input, 0);
+    ASSERT_EQ(pairs[0].output, 1);
+}
+
+TEST(Compile, EltwiseGetInplacePair) {
+    impl::engine_t &eng = get_engine();
+
+    impl::op_t eltwise_op(impl::op_kind::Tanh);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(1, {2, 3}, impl::data_type::f32);
+
+    eltwise_op.add_input(src);
+    eltwise_op.add_output(dst);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&eltwise_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("tanh_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    // compile
+    std::vector<const impl::logical_tensor_t *> inputs {&src};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    auto pairs = cp.get_inplace_pairs();
+    ASSERT_EQ(pairs.size(), 1);
+    ASSERT_EQ(pairs[0].input, 0);
+    ASSERT_EQ(pairs[0].output, 1);
+}

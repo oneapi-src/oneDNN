@@ -1147,17 +1147,7 @@ TEST(SubgraphPass, MemoryPlanning) {
 
     auto mem_offkeys = memory_planner.get_exec_args_set()
                                .get_mems_use_internal_temporary();
-    std::set<size_t> unique_offkeys;
-    for (auto &mem_offkey : mem_offkeys) {
-        unique_offkeys.insert(mem_offkey.second);
-    }
-
-    // 2 buffers for val1, (val2 or val8)
-    // - val1, val2 can't share buffer because val2 has two consumer and
-    //   mul_scales will change the buffer content
-    // - if compute reorder first, then val2 can reuse the val8 or val1 buffer.
-    //   otherwise, val8 can reuse the val2 buffer
-    ASSERT_EQ(unique_offkeys.size(), 2);
+    ASSERT_TRUE(mem_offkeys.empty());
 }
 
 TEST(SubgraphPass, FusePostOpsForConvDepthwise) {

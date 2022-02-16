@@ -155,68 +155,8 @@ public:
         return impl::status::success;
     }
 
-    impl::status_t prepare_inplace_pairs_impl(const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        UNUSED(g_engine);
-
-        op_t *reorder_op = nullptr;
-        for (auto &op : subgraph_->get_ops()) {
-            if (op->get_kind() == impl::op_kind::Reorder) {
-                reorder_op = op.get();
-                break;
-            }
-        }
-
-        if (reorder_op == nullptr) return impl::status::success;
-
-        bool with_sum = reorder_op->has_attr("with_sum")
-                ? reorder_op->get_attr<bool>("with_sum")
-                : false;
-
-        if (with_sum) {
-            // get the index of post sum input
-            size_t post_sum_index = 0;
-            auto &prm_attr_mgr = subgraph_->prm_attr_mgr_;
-            if (reorder_op->has_attr("primitive_attr_key")) {
-                int64_t key
-                        = reorder_op->get_attr<int64_t>("primitive_attr_key");
-                const auto &pops = prm_attr_mgr.get_attr(key).get_post_ops();
-                for (int n = pops.len() - 1; n >= 0; --n) {
-                    if (pops.kind(n) != dnnl::primitive::kind::eltwise)
-                        post_sum_index++;
-                    if (pops.kind(n) == dnnl::primitive::kind::sum) break;
-                }
-            }
-
-            auto val = reorder_op->get_input_value(
-                    reorder_op->num_inputs() - post_sum_index);
-            if (val->has_producer()
-                    && val->get_producer().get_kind() == op_kind::permute) {
-                val = val->get_producer().get_input_value(0);
-            }
-            size_t post_src_id = val->get_logical_tensor().id;
-
-            // find the given post src index
-            size_t idx = 0;
-            for (size_t i = 0; i < inputs.size(); i++) {
-                if (inputs[i].id == post_src_id) {
-                    idx = i;
-                    break;
-                }
-            }
-
-            const logical_tensor_wrapper_t post_src_lt(inputs[idx]);
-            const logical_tensor_wrapper_t dst_lt(outputs[0]);
-            // TODO(qun) we didn't report iplace pair if two lts have different
-            // layout type because of frontend users didn't process this
-            // situation at this moment. In the future, we need to fix this for
-            // more inplace opportunities.
-            if (((post_src_lt.is_opaque() && dst_lt.is_opaque())
-                        || (post_src_lt.is_strided() && dst_lt.is_strided()))
-                    && post_src_lt.is_similar(dst_lt))
-                inplace_pairs_.push_back({post_src_id, outputs[0].id});
-        }
+    impl::status_t prepare_inplace_pairs_impl() override {
+        inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
         return impl::status::success;
     }
 };

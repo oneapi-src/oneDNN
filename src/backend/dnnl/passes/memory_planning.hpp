@@ -143,6 +143,35 @@ private:
     std::vector<exec_args> topo_ordered_exec_args_;
 };
 
+class alias_analyzer_t {
+public:
+    alias_analyzer_t() = default;
+
+    void clear();
+
+    impl::status_t run(std::shared_ptr<subgraph_t> &sg);
+
+    // one input can alias to multiple output
+    std::vector<const value_t *> get_alias_outputs(const value_t *input) const;
+
+    // a output can alias to only one input
+    const value_t *get_alias_input(const value_t *output) const;
+
+    std::vector<const value_t *> get_all_aliases(const value_t *val) const;
+
+private:
+    // output->input
+    std::unordered_map<const value_t *, const value_t *> alias_map_;
+    // input->output
+    // reverse_alias_map: map from in_value to out_value
+    // it can be multimap, meaning one in_value can be used to
+    // generate several out_values, which is used in the case
+    // of input alias, i.e. conv+add: conv's first input is also
+    // used for add's second input.
+    std::unordered_multimap<const value_t *, const value_t *>
+            reverse_alias_map_;
+};
+
 // The buffer_assigner_t class acts like a memory pool, but it doesn't hold real
 // buffer but buffer_info_t (we call it as buffer in following description for
 // convenience). The assigner maintains a list of allocated buffers and a list
@@ -234,16 +263,30 @@ private:
     std::vector<std::unique_ptr<buffer_info_t>> data_;
 };
 
-// This memory_planner_t class is designed to determine which buffer will each
-// value in the subgraph use. All the planning and assignment works are
-// completed in compilation stage. The avialible buffers will be one of the
-// followings:
+// This memory_planner_t class is used to plan which buffer can be used by each
+// value in the subgraph. All the planning works are completed in compilation
+// stage for static shape cases.
+//
+// The avialible buffers will be one of the followings:
 // - external inputs buffers given by users
 // - external outputs buffers given by users
 // - internal temporary buffers provided by a scratchpad (the scratchpad may be
 //   allocated inside library or given by users)
 // - internal persistent buffers which will be cached into the global constant
 //   cache (the buffer is allocated inside the library at this moment)
+//
+// The supported memory sharing policy:
+// - Inplace sharing. Use same buffer for input and output values of ops that
+//   support inplace computation.
+// - Standard sharing. Use same buffer for values that have disjoint live range.
+//   Take this subgraph 't1 -> op1 -> t2 -> op2 -> t3 -> op3 -> t4-> op4 -> t5'
+//   as an example: when writing data to t4, t2 is not used any more, so they
+//   have disjoint live range and we can make them share same buffer.
+//
+// The following internal env vars can be used to control the memory planning:
+// - _ONEDNN_GRAPH_ENABLE_MEM_REUSE
+//     - 0: Disable memory sharing
+//     - 1 (default): Enable memory sharing
 class memory_planner_t {
 public:
     memory_planner_t()
@@ -282,6 +325,11 @@ public:
 
     impl::status_t run(std::shared_ptr<subgraph_t> &sg);
 
+    const std::vector<impl::inplace_pair_t> &
+    get_subgraph_inplace_pairs() const {
+        return inplace_pairs_;
+    };
+
     std::string get_memory_info(const value_t *val) const {
         std::string str;
         auto pos = buffer_assignments_.find(val);
@@ -313,23 +361,41 @@ private:
 
     class assign_info_t {
     public:
-        assign_info_t() = default;
         assign_info_t(buffer_kind_t kind, size_t index)
             : kind_(kind), index_(index) {}
+
+        assign_info_t() = default;
+        assign_info_t(const assign_info_t &other) = default;
+        assign_info_t &operator=(const assign_info_t &other) = default;
+
+        bool operator==(const assign_info_t &other) const {
+            return kind_ == other.kind_ && index_ == other.index_;
+        }
+
+        bool operator!=(const assign_info_t &other) const {
+            return !(*this == other);
+        }
 
         buffer_kind_t kind_;
         size_t index_; // the index to allocated buffer
     };
 
+    struct time_bound_t {
+        size_t start_;
+        size_t end_;
+    };
+
     void clear() {
-        alias_map_.clear();
-        reverse_alias_map_.clear();
+        alias_analyzer_.clear();
         buffer_assignments_.clear();
         exec_args_set_.clear();
         persistent_buffer_assigner_.clear();
         temporary_buffer_assigner_.clear();
         persistent_registry_.clear();
         temporary_registry_.clear();
+        temporary_buffer_ref_count_.clear();
+        external_inputs_live_range_.clear();
+        inplace_pairs_.clear();
     }
 
     impl::status_t assign_external_inputs_buffer(
@@ -338,15 +404,20 @@ private:
 
     impl::status_t assign_external_outputs_buffer(
             const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
-            const std::vector<impl::logical_tensor_t> &outputs);
+            const std::vector<impl::logical_tensor_t> &outputs,
+            primitive_attr_mgr_t &prm_attr_mgr);
 
     impl::status_t assign_internal_persistent_buffer(
             const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
-            const std::unordered_map<value_t *, size_t> &edge_ref_count);
+            primitive_attr_mgr_t &prm_attr_mgr);
 
     impl::status_t assign_internal_temporary_buffer(
             const std::vector<std::shared_ptr<impl::op_t>> &subgraph,
-            const std::unordered_map<value_t *, size_t> &edge_ref_count);
+            const std::unordered_map<value_t *, size_t> &edge_ref_count,
+            primitive_attr_mgr_t &prm_attr_mgr, bool enable_standard_sharing);
+
+    impl::status_t prepare_subgraph_inplace_pairs(
+            std::shared_ptr<subgraph_t> &sg, bool enable_standard_sharing);
 
     void prepare_args_for_conv_and_matmul(op_t *op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr);
@@ -399,14 +470,6 @@ private:
 
     execution_args_set_t exec_args_set_;
 
-    std::unordered_map<const value_t *, const value_t *> alias_map_;
-    // reverse_alias_map: map from in_value to out_value
-    // it can be multimap, meaning one in_value can be used to
-    // generate several out_values, which is used in the case
-    // of input alias, i.e. conv+add: conv's first input is also
-    // used for add's second input.
-    std::unordered_multimap<const value_t *, const value_t *>
-            reverse_alias_map_;
     std::unordered_map<const value_t *, assign_info_t> buffer_assignments_;
 
     std::unordered_map<size_t, size_t> temporary_buffer_ref_count_;
@@ -416,6 +479,11 @@ private:
     registry_t temporary_registry_;
 
     bool enable_memory_sharing_;
+
+    alias_analyzer_t alias_analyzer_;
+    std::unordered_map<const assign_info_t *, time_bound_t>
+            external_inputs_live_range_;
+    std::vector<impl::inplace_pair_t> inplace_pairs_;
 };
 
 } // namespace dnnl_impl
