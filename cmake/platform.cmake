@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2021 Intel Corporation
+# Copyright 2016-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -153,7 +153,8 @@ if(MSVC)
         # We don't want to optimize jit gemm kernels to reduce compile time
         append(CMAKE_CCXX_FLAGS "-Wno-overriding-t-option")
     endif()
-    if(DNNL_WITH_SYCL OR CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
+    if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR DNNL_WITH_SYCL OR
+            CMAKE_BASE_NAME STREQUAL "icx" OR CMAKE_BASE_NAME STREQUAL "icpx")
         # Default fp-model in icx and dpcpp (unlike clang) may be precise or
         # fast=1 depending on the version.
         append(CMAKE_CCXX_FLAGS "/fp:precise")
