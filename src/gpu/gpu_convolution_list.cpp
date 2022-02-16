@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,13 +22,6 @@
 #include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/gen9_wino_convolution.hpp"
 #include "gpu/ocl/ref_convolution.hpp"
-#include "gpu/ocl/xe_hp_1st_bwd_convolution.hpp"
-#include "gpu/ocl/xe_hp_1x1_convolution.hpp"
-#include "gpu/ocl/xe_hp_bf16_convolution.hpp"
-#include "gpu/ocl/xe_hp_convolution.hpp"
-#include "gpu/ocl/xe_hpc_1x1_convolution.hpp"
-#include "gpu/ocl/xe_hpc_bf16_convolution.hpp"
-#include "gpu/ocl/xe_hpc_convolution.hpp"
 #include "gpu/ocl/xe_lp_x8s8x_1x1_convolution.hpp"
 #include "gpu/ocl/xe_lp_x8s8x_convolution.hpp"
 
@@ -44,10 +37,6 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_CONV_P({
     {{forward}, {
         INSTANCE(jit::gen_convolution_fwd_t)
-        INSTANCE(ocl::xe_hpc_1x1_convolution_fwd_t)
-        INSTANCE(ocl::xe_hpc_convolution_fwd_t)
-        INSTANCE(ocl::xe_hp_1x1_convolution_fwd_t)
-        INSTANCE(ocl::xe_hp_convolution_fwd_t)
         INSTANCE(ocl::xe_lp_x8s8x_1x1_convolution_fwd_t)
         INSTANCE(ocl::xe_lp_x8s8x_convolution_fwd_t)
         INSTANCE(ocl::gen9_wino_convolution_fwd_t)
@@ -57,8 +46,6 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     }},
     {{backward_data}, REG_BWD_D_PK({
         INSTANCE(jit::gen_convolution_bwd_data_t)
-        INSTANCE(ocl::xe_hpc_convolution_bwd_data_t)
-        INSTANCE(ocl::xe_hp_convolution_bwd_data_t)
         INSTANCE(ocl::xe_lp_x8s8x_convolution_bwd_data_t)
         INSTANCE(ocl::gen9_convolution_bwd_data_t)
         INSTANCE(ocl::ref_convolution_bwd_data_t)
@@ -66,9 +53,6 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     })},
     {{backward_weights}, REG_BWD_PK({
         INSTANCE(jit::gen_convolution_bwd_weights_t)
-        INSTANCE(ocl::xe_hpc_bf16_convolution_bwd_weights_t)
-        INSTANCE(ocl::xe_hp_1st_convolution_bwd_weights_t)
-        INSTANCE(ocl::xe_hp_bf16_convolution_bwd_weights_t)
         INSTANCE(ocl::gen9_convolution_bwd_weights_t)
         INSTANCE(ocl::ref_convolution_bwd_weights_t)
         nullptr,
