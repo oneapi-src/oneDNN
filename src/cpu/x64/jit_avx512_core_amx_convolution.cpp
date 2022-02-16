@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -193,7 +193,7 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
 
     // TODO: implement 2D parallelization driver (g * spatial x oc) to increase
     // input data reuse and parallelize input data reorders
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
         int32_t *local_zp_pbuff = req_zero_point_buffer
@@ -559,7 +559,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
 
     // TODO: implement 2D parallelization driver (g * spatial x oc) to increase
     // input data reuse and parallelize input data reorders
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         size_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
         int32_t *local_zp_pbuff = req_zero_point_buffer

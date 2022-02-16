@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
     if (tcfg) kernel->tile_configure(tcfg);
     const bool is_1d = jcp.ndims == 3;
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
 
