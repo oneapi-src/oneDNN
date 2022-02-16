@@ -56,6 +56,12 @@ bool compiler_backend_t::register_passes() {
 
 status_t compiler_backend_t::get_partitions(
         graph_t &agraph, partition_policy_t policy) {
+    // this environment variable is similar to DISABLE_DNNL_BACKEND
+    // only for internal testing purpose
+    const bool disable_compiler_bkd
+            = impl::utils::getenv_int_internal("DISABLE_COMPILER_BACKEND", 0)
+            > 0;
+    if (disable_compiler_bkd) return status::success;
     if (policy == partition_policy::fusion) {
         impl::pass::pass_manager_t pm(get_pass_registry());
         pm.run_passes(agraph, "", policy);
