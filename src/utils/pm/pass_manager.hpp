@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ public:
     // register a pass
     pass_base &register_pass(const std::string &backend_name,
             const std::string &pass_name, pass_create_fn fn);
+    pass_base &register_pass(const pass_base_ptr &pass);
     // get registered passes
     const std::list<pass_base_ptr> &get_passes() const { return passes_; }
 

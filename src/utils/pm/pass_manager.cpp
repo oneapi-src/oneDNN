@@ -40,6 +40,12 @@ pass_base &pass_registry_t::register_pass(const std::string &backend_name,
     }
 }
 
+pass_base &pass_registry_t::register_pass(const pass_base_ptr &pass) {
+    passes_.push_back(pass);
+    passes_map_[pass->get_pass_name()] = pass;
+    return *pass;
+}
+
 void pass_registry_t::sort_passes() {
     passes_.sort([](const pass_base_ptr &first, const pass_base_ptr &second) {
         return first->get_priority() > second->get_priority();
