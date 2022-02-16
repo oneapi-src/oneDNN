@@ -256,7 +256,7 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_dt(dst_md, test_engine);
 
     if (prb->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
-    dnn_mem_t ws_fp(ws_md, test_engine);
+    dnn_mem_t ws_fp(ws_md, dnnl_s32, tag::abx, test_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
@@ -269,7 +269,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
 
-    args_t args;
+    args_t args, ref_args;
+
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
@@ -280,8 +281,14 @@ int doit(const prb_t *prb, res_t *res) {
 
     // want this pass on backward to get ws_fp filled properly
     if (is_bench_mode(CORR)) {
-        TIME_REF(compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp, ws_fp));
         if (prb->dir & FLAG_FWD) {
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
+            ref_args.set(binary_po_args, binary_po_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
+
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[DST].eps);
             cmp.set_data_kind(DST);
@@ -341,7 +348,15 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, d_src_fp, d_dst_fp, ws_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
+            ref_args.set(binary_po_args, binary_po_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
+
             compare::compare_t cmp;
             cmp.set_threshold(prb->cfg[SRC].eps);
             cmp.set_data_kind(SRC);

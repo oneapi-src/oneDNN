@@ -147,6 +147,8 @@ struct prb_t : public desc_t {
     attr_t attr;
     int64_t user_mb;
 
+    int64_t kernel_size() const { return kd * kh * kw; }
+
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -236,10 +238,8 @@ inline int64_t get_num_summands(
                     * (KW - iw_start_excluded - iw_end_excluded);
 }
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst, dnn_mem_t &ws);
-void compute_ref_bwd(const prb_t *prb, dnn_mem_t &diff_src,
-        const dnn_mem_t &diff_dst, const dnn_mem_t &ws);
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int compare_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
