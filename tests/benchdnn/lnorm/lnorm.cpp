@@ -484,7 +484,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
-    args_t args;
+    args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {
         if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp) != OK) {
@@ -501,18 +501,24 @@ int doit(const prb_t *prb, res_t *res) {
         if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
 
         args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
         args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_dt);
         args.set(DNNL_ARG_SHIFT, sh_dt);
+        args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_fwd(
-                    prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp, dst_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_MEAN, mean_fp);
+            ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+            ref_args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_SHIFT, sh_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
 
             compare::compare_t cmp_data;
             const int digits_f32 = 24;
@@ -579,8 +585,19 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, src_fp, mean_fp, var_fp, d_dst_fp,
-                    ss_fp, d_src_fp, d_ss_fp, d_sh_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_MEAN, mean_fp);
+            ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+            ref_args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_SHIFT, sh_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+            ref_args.set(
+                    use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
+                    d_ss_fp);
+            ref_args.set(DNNL_ARG_DIFF_SHIFT, d_sh_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
 
             compare::compare_t cmp_data;
             const int digits_f32 = 24;

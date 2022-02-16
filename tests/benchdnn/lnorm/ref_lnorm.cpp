@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,34 +20,53 @@
 
 namespace lnorm {
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, const dnn_mem_t &ss, const dnn_mem_t &sh,
-        dnn_mem_t &dst) {
+void compute_ref_fwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &mean = args.find(DNNL_ARG_MEAN);
+    const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
+    const dnn_mem_t &ss
+            = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    const dnn_mem_t &sh = args.find(DNNL_ARG_SHIFT);
+    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+
+    float *dst_ptr = (float *)dst;
+
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
     dnnl::impl::parallel_nd(prb->n, [&](int64_t n) {
-        float smean = ((float *)mean)[n];
-        float svar = ((float *)var)[n];
+        float smean = mean.get_elem(n);
+        float svar = var.get_elem(n);
         float sqrt_var = sqrtf(svar + prb->eps);
 
         for (int64_t c = 0; c < prb->c; ++c) {
-            float gamma
-                    = (use_ss || use_sc ? ((float *)ss)[c] : 1.0f) / sqrt_var;
-            float beta = use_ss ? ((float *)ss)[prb->c + c]
-                                : use_sh ? ((float *)sh)[c] : 0;
+            float gamma = (use_ss || use_sc ? ss.get_elem(c) : 1.0f) / sqrt_var;
+            float beta = use_ss ? ss.get_elem(prb->c + c)
+                                : use_sh ? sh.get_elem(c) : 0;
             auto off = n * prb->c + c;
-            float res = gamma * (((float *)src)[off] - smean) + beta;
-            dst.set_elem(off, res);
+            float res = gamma * (src.get_elem(off) - smean) + beta;
+            dst_ptr[off] = res;
         }
     });
 }
 
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss,
-        dnn_mem_t &d_sh) {
+void compute_ref_bwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &mean = args.find(DNNL_ARG_MEAN);
+    const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
+    const dnn_mem_t &d_dst = args.find(DNNL_ARG_DIFF_DST);
+    const dnn_mem_t &ss
+            = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    const dnn_mem_t &d_src = args.find(DNNL_ARG_DIFF_SRC);
+    const dnn_mem_t &d_ss = args.find(
+            prb->use_sc() ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
+    const dnn_mem_t &d_sh = args.find(DNNL_ARG_DIFF_SHIFT);
+
+    float *d_src_ptr = (float *)d_src;
+    float *d_ss_ptr = (float *)d_ss;
+    float *d_sh_ptr = (float *)d_sh;
+
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
@@ -58,53 +77,61 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
             float d_beta = 0;
 
             for (int64_t n = 0; n < prb->n; ++n) {
-                float smean = ((float *)mean)[n];
-                float svar = ((float *)var)[n];
+                float smean = mean.get_elem(n);
+                float svar = var.get_elem(n);
                 float rcp_denom = 1.f / sqrtf(svar + prb->eps);
                 auto off = n * prb->c + c;
-                float dd = ((float *)d_dst)[off];
-                d_gamma += dd * (((float *)src)[off] - smean) * rcp_denom;
+                float dd = d_dst.get_elem(off);
+                d_gamma += dd * (src.get_elem(off) - smean) * rcp_denom;
                 d_beta += dd;
             }
 
             if (use_ss) {
-                ((float *)d_ss)[c] = d_gamma;
-                ((float *)d_ss)[prb->c + c] = d_beta;
+                d_ss_ptr[c] = d_gamma;
+                d_ss_ptr[prb->c + c] = d_beta;
             }
 
-            if (use_sc) ((float *)d_ss)[c] = d_gamma;
-            if (use_sh) ((float *)d_sh)[c] = d_beta;
+            if (use_sc) d_ss_ptr[c] = d_gamma;
+            if (use_sh) d_sh_ptr[c] = d_beta;
         });
     }
 
     dnnl::impl::parallel_nd(prb->n, [&](int64_t n) {
-        float smean = ((float *)mean)[n];
-        float svar = ((float *)var)[n];
+        float smean = mean.get_elem(n);
+        float svar = var.get_elem(n);
         float rcp_denom = 1.f / sqrtf(svar + prb->eps);
         float dd_gamma = 0, dd_gamma_x = 0;
         if (!(prb->flags & GLOB_STATS)) {
             for (int64_t c = 0; c < prb->c; ++c) {
                 auto off = n * prb->c + c;
-                float ds = ((float *)d_dst)[off];
-                const float x = ((float *)src)[off] - smean;
-                float gamma = use_ss || use_sc ? ((float *)ss)[c] : 1;
+                float ds = d_dst.get_elem(off);
+                const float x = src.get_elem(off) - smean;
+                float gamma = use_ss || use_sc ? ss.get_elem(c) : 1;
                 dd_gamma += gamma * ds;
                 dd_gamma_x += gamma * ds * x;
             }
             dd_gamma_x *= rcp_denom;
         }
         for (int64_t c = 0; c < prb->c; ++c) {
-            float gamma = use_ss || use_sc ? ((float *)ss)[c] : 1;
+            float gamma = use_ss || use_sc ? ss.get_elem(c) : 1;
             auto off = n * prb->c + c;
-            float ds = ((float *)d_dst)[off] * gamma;
+            float ds = d_dst.get_elem(off) * gamma;
             if (!(prb->flags & GLOB_STATS)) {
-                const float x = ((float *)src)[off] - smean;
+                const float x = src.get_elem(off) - smean;
                 ds -= (dd_gamma + x * dd_gamma_x * rcp_denom) / prb->c;
             }
 
-            ((float *)d_src)[off] = rcp_denom * ds;
+            d_src_ptr[off] = rcp_denom * ds;
         }
     });
+}
+
+void compute_ref(
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    if (prb->dir & FLAG_FWD)
+        compute_ref_fwd(prb, args);
+    else
+        compute_ref_bwd(prb, args);
 }
 
 } // namespace lnorm
