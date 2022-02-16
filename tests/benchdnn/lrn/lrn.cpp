@@ -180,7 +180,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(fill_src(prb, src_dt, src_fp), WARN);
 
-    args_t args;
+    args_t args, ref_args;
+
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
@@ -190,7 +191,11 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (prb->dir & FLAG_FWD) {
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_fwd(prb, src_fp, dst_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
+
             compare::compare_t cmp;
             // `3` is a const needed to adjust division error
             cmp.set_threshold(compute_n_summands(prb) * 3
@@ -235,7 +240,12 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
+
             compare::compare_t cmp;
             // `3` is a const needed to adjust division error
             cmp.set_threshold(compute_n_summands(prb) * 3

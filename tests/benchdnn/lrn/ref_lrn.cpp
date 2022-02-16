@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,18 +61,28 @@ float get_omega(const prb_t *prb, const dnn_mem_t &src, int64_t mb, int64_t c,
     return (float)(prb->k + prb->alpha * sum / summands);
 }
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
+void compute_ref_fwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+
+    float *dst_ptr = (float *)dst;
+
     dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
                 const auto off = data_off(prb, mb, c, d, h, w);
                 const float omega = get_omega(prb, src, mb, c, d, h, w);
                 const float omega_in_beta = fast_powf(omega, prb->beta);
-                dst.set_elem(off, src.get_elem(off) * omega_in_beta);
+                dst_ptr[off] = src.get_elem(off) * omega_in_beta;
             });
 }
 
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &d_dst, dnn_mem_t &d_src) {
+void compute_ref_bwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &d_dst = args.find(DNNL_ARG_DIFF_DST);
+    const dnn_mem_t &d_src = args.find(DNNL_ARG_DIFF_SRC);
+
+    float *d_src_ptr = (float *)d_src;
+
     const int size = prb->ls;
     const int half_size = (size - 1) / 2;
     const int summands = compute_n_summands(prb);
@@ -116,8 +126,16 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
                 const auto off = data_off(prb, mb, c, d, h, w);
                 B *= (2.0f * prb->alpha * prb->beta * src.get_elem(off)
                         / summands);
-                d_src.set_elem(off, A - B);
+                d_src_ptr[off] = A - B;
             });
+}
+
+void compute_ref(
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    if (prb->dir & FLAG_FWD)
+        compute_ref_fwd(prb, args);
+    else
+        compute_ref_bwd(prb, args);
 }
 
 } // namespace lrn
