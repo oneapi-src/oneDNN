@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,6 +111,140 @@ void acl_thread_bind() {
     std::call_once(flag_once, [&]() {
         arm_compute::Scheduler::get().set_num_threads(max_threads);
     });
+}
+
+status_t tensor_info(arm_compute::TensorInfo &info, const memory_desc_t &md) {
+    const memory_desc_wrapper md_wrap(&md);
+    return tensor_info(info, md_wrap);
+}
+
+status_t tensor_info(
+        arm_compute::TensorInfo &info, const memory_desc_wrapper &md) {
+
+    // All the cases we don't support
+    if (!md.is_blocking_desc() || !md.is_dense() || !md.is_plain()
+            || md.has_zero_dim())
+        return status::unimplemented;
+
+    // Set each of the dimensions in the TensorShape from the memory desc
+    // ACL indexes dimensions the opposite way to oneDNN
+    arm_compute::TensorShape shape;
+    size_t acl_dim_i = 0;
+    for (int i = md.ndims() - 1; i >= 0; --i) {
+        shape.set(acl_dim_i, md.dims()[i]);
+        acl_dim_i++;
+    }
+
+    // Set each of the ACL Strides from the memory blocking desc
+    // ACL indexes strides the opposite way to oneDNN
+    arm_compute::Strides strides_in_bytes;
+    const blocking_desc_t &blocking_desc = md.blocking_desc();
+    size_t acl_stride_i = 0;
+    for (int i = md.ndims() - 1; i >= 0; --i) {
+        // ACL strides are in bytes, oneDNN strides are in numbers of elements,
+        // multiply by data type size to convert
+        strides_in_bytes.set(
+                acl_stride_i, blocking_desc.strides[i] * md.data_type_size());
+        ++acl_stride_i;
+    }
+
+    arm_compute::DataType data_type = get_acl_data_t(md.data_type());
+    size_t num_channels = 1;
+    size_t offset_first_element_in_bytes = 0;
+    size_t total_size_in_bytes = md.size();
+
+    info.init(shape, num_channels, data_type, strides_in_bytes,
+            offset_first_element_in_bytes, total_size_in_bytes);
+
+    return status::success;
+}
+
+status_t insert_singleton_dimension(arm_compute::TensorInfo &ti, size_t dim_i) {
+
+    // Max 6 dims in ACL, so we can't insert another
+    if (ti.num_dimensions() >= 6) return status::unimplemented;
+
+    // Copy dimensions from old to new shape, inserting a dimension of size 1
+    arm_compute::TensorShape shape = ti.tensor_shape();
+    for (size_t old_i = 0, new_i = 0; old_i < ti.num_dimensions(); ++old_i) {
+        if (old_i == dim_i) {
+            shape.set(new_i, 1, false);
+            ++new_i;
+        }
+        shape.set(new_i, ti.tensor_shape()[old_i], false);
+        ++new_i;
+    }
+
+    // Copy strides from old to new tensor, inserting a duplicate stride
+    arm_compute::Strides strides;
+    for (size_t old_i = 0, new_i = 0; old_i < ti.num_dimensions(); ++old_i) {
+        if (old_i == dim_i) {
+            strides.set(new_i, ti.strides_in_bytes()[old_i], false);
+            ++new_i;
+        }
+        strides.set(new_i, ti.strides_in_bytes()[old_i], false);
+        ++new_i;
+    }
+
+    // Reinit TensorInfo with modified shape and strides
+    ti.init(shape, ti.num_channels(), ti.data_type(), strides,
+            ti.offset_first_element_in_bytes(), ti.total_size());
+
+    return status::success;
+}
+
+status_t permute_common_dense_dimension_to_last(memory_desc_t *d0_permed,
+        memory_desc_t *d1_permed, memory_desc_t *d2_permed,
+        const memory_desc_t *d0, const memory_desc_t *d1,
+        const memory_desc_t *d2) {
+
+    // Number of dimensions must match
+    int ndims = d0->ndims;
+    if (ndims != d1->ndims || ndims != d2->ndims) return status::unimplemented;
+
+    if (d0->format_kind != format_kind::blocked
+            || d1->format_kind != format_kind::blocked
+            || d2->format_kind != format_kind::blocked)
+        return status::unimplemented;
+
+    const dnnl_dims_t &d0_strides = d0->format_desc.blocking.strides;
+    const dnnl_dims_t &d1_strides = d1->format_desc.blocking.strides;
+    const dnnl_dims_t &d2_strides = d2->format_desc.blocking.strides;
+
+    int inner_dim = ndims - 1;
+
+    // descs already share a common dense axis, no need to permute, just copy
+    // By dense we mean that it has a stride of 1
+    if (d0_strides[inner_dim] == 1 && d1_strides[inner_dim] == 1
+            && d2_strides[inner_dim] == 1) {
+        *d0_permed = *d0;
+        *d1_permed = *d1;
+        *d2_permed = *d2;
+        return status::success;
+    }
+
+    // Create permutation which swaps nothing
+    std::vector<int> perm(ndims);
+    for (int i = inner_dim; i >= 0; --i) {
+        perm[i] = i;
+    }
+
+    // Look for the innermost common dense axis
+    for (int i = inner_dim; i >= 0; --i) {
+        if (d0_strides[i] == 1 && d1_strides[i] == 1 && d2_strides[i] == 1) {
+            // We have found it! Swap this dimension with inner one
+            perm[i] = inner_dim;
+            perm[inner_dim] = i;
+            break;
+        }
+        // Got to the outermost dimension without finding a common dense axis
+        if (i == 0) return status::unimplemented;
+    }
+
+    dnnl_memory_desc_permute_axes(d0_permed, d0, perm.data());
+    dnnl_memory_desc_permute_axes(d1_permed, d1, perm.data());
+    dnnl_memory_desc_permute_axes(d2_permed, d2, perm.data());
+    return status::success;
 }
 
 } // namespace acl_common_utils

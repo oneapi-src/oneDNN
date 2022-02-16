@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2022 Intel Corporation
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +22,9 @@
 #if DNNL_X64
 #include "cpu/x64/jit_uni_binary.hpp"
 using namespace dnnl::impl::cpu::x64;
+#elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+#include "cpu/aarch64/acl_binary.hpp"
+using namespace dnnl::impl::cpu::aarch64;
 #endif
 
 namespace dnnl {
@@ -33,6 +37,7 @@ using namespace dnnl::impl::data_type;
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_BINARY_P({
         CPU_INSTANCE_X64(jit_uni_binary_t)
+        CPU_INSTANCE_AARCH64_ACL(acl_binary_t)
         CPU_INSTANCE(ref_binary_t)
         /* eol */
         nullptr,
