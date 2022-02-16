@@ -57,8 +57,8 @@ make -j
 #### oneAPI DPC++ Compiler
 
 - Set up the environment for oneAPI DPC++ Compiler. For 
-Intel oneAPI Base Toolkit distribution installed to default location you can do
-this using `setenv.sh` script
+Intel oneAPI Base Toolkit distribution installed to the default location, you can do
+this using the `setvars.sh` script:
 ~~~sh
 source /opt/intel/oneapi/setvars.sh
 ~~~
