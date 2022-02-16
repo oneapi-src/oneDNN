@@ -48,9 +48,9 @@ status_t cudnn_lrn_fwd_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            void *src_ = arg_src.get_native_pointer(ih, sc);
-            void *dst_ = arg_dst.get_native_pointer(ih, sc);
-            void *ws_ = arg_wrksp.get_native_pointer(ih, sc);
+            void *src_ = arg_src.get_native_pointer(ih);
+            void *dst_ = arg_dst.get_native_pointer(ih);
+            void *ws_ = arg_wrksp.get_native_pointer(ih);
 
             std::vector<void *> args {src_, dst_, ws_};
             pd()->lrn_impl_->execute(handle, args);
@@ -78,10 +78,10 @@ status_t cudnn_lrn_bwd_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            args.push_back(arg_src.get_native_pointer(ih, sc));
-            args.push_back(arg_diff_ws.get_native_pointer(ih, sc));
-            args.push_back(arg_diff_src.get_native_pointer(ih, sc));
-            args.push_back(arg_diff_dst.get_native_pointer(ih, sc));
+            args.push_back(arg_src.get_native_pointer(ih));
+            args.push_back(arg_diff_ws.get_native_pointer(ih));
+            args.push_back(arg_diff_src.get_native_pointer(ih));
+            args.push_back(arg_diff_dst.get_native_pointer(ih));
 
             pd()->lrn_impl_->execute(handle, args);
         });

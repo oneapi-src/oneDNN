@@ -42,8 +42,8 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            void *src_ = arg_src.get_native_pointer(ih, sc);
-            void *dst_ = arg_dst.get_native_pointer(ih, sc);
+            void *src_ = arg_src.get_native_pointer(ih);
+            void *dst_ = arg_dst.get_native_pointer(ih);
 
             auto a = static_cast<uint8_t *>(src_)
                     + pd()->reorder_->src_offset_in_bytes();
