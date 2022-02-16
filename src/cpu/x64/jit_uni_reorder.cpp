@@ -783,6 +783,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             } else if (prb_.scale_type == scale_type_t::MANY) {
                 enum class scale_load_type_t { bcast, load, gather };
 
+                uni_vpxor(xmm_scale_, xmm_scale_, xmm_scale_);
                 for (int ur = 0; ur < reg_unroll; ur += ur_step) {
                     scale_load_type_t scale_load_type
                             = scale_load_type_t::bcast; // the best case
