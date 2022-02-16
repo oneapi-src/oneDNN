@@ -137,13 +137,8 @@ private:
     std::string tag_, stat_tag_;
 };
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, const dnn_mem_t &ss, const dnn_mem_t &sh,
-        dnn_mem_t &dst);
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss,
-        dnn_mem_t &d_sh);
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
