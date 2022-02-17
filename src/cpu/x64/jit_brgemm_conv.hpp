@@ -40,7 +40,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, bool use_inversion = false>
 struct brgemm_convolution_fwd_t : public primitive_t {
 
     struct pd_t : public cpu_convolution_fwd_pd_t {
@@ -177,6 +177,9 @@ private:
         return res;
     }
 
+    int maybe_invert(int k, int K) const {
+        return use_inversion ? K - 1 - k : k;
+    };
     void get_kw_range(
             int ow, int &kw_s, int &kw_full_s, int &kw_full_e, int &kw_e) const;
     void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;
