@@ -369,7 +369,7 @@ struct brg_desc_safe_t {
         auto dnnl_dtypeB = convert_dnnl_dtype(arg.dtypeB);
         size_t dtype_size = get_dtype_sizeof(arg.dtypeA);
         // todo: this type assignment is caused by lack of tail processing
-        // in oneDNN (mkl-dnn/src/cpu/x64/brgemm/brgemm.cpp:305)
+        // in oneDNN (src/cpu/x64/brgemm/brgemm.cpp:305)
         auto choose_isa_type = [&]() {
             if (dnnl_dtypeA != dnnl_f32 && (arg.K < (4 / (int)dtype_size)))
                 return avx512_core_vnni;
