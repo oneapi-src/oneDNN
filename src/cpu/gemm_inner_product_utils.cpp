@@ -214,9 +214,12 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
                         broadcasting_strategy_t::per_mb_w,
                         broadcasting_strategy_t::per_w);
         const bool supported_binary_bcast
-                = IMPLICATION(is_binary_po_channel_bcast, ndims == 4)
-                && IMPLICATION(is_binary_po_per_mb_w_bcast, ndims == 4)
-                && IMPLICATION(is_binary_po_per_w_bcast, ndims == 4);
+                = IMPLICATION(is_binary_po_channel_bcast,
+                          utils::one_of(ndims, 3, 4))
+                && IMPLICATION(
+                        is_binary_po_per_mb_w_bcast, utils::one_of(ndims, 3, 4))
+                && IMPLICATION(
+                        is_binary_po_per_w_bcast, utils::one_of(ndims, 3, 4));
         const cpu_isa_t isa = get_max_cpu_isa();
         return supported_binary_bcast
                 && injector::post_ops_ok({isa, {binary, eltwise, sum}, post_ops,
