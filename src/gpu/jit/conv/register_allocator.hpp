@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,25 +137,27 @@ public:
         is_speculate = false;
         update_peak_grf_usage();
     }
+#else
+    void start_speculate() {}
+    void finish_speculate() {}
+#endif
 
 protected:
+#ifdef GEN_CONV_DEBUG
     void update_peak_grf_usage() {
         if (is_speculate) return;
         int register_count = ra.countAllocedRegisters();
         if (peak_grf_usage < register_count) peak_grf_usage = register_count;
     }
+#else
+    void update_peak_grf_usage() {}
+#endif
 
     int peak_grf_usage = 0;
     int warn_flags;
     bool is_speculate = false;
     std::string kernel_name;
-#else
-    void start_speculate() {}
-    void finish_speculate() {}
 
-protected:
-    void update_peak_grf_usage() {}
-#endif
 private:
     ngen::RegisterAllocator ra;
 };
