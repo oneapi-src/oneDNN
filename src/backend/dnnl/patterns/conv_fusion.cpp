@@ -2572,7 +2572,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_3_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_1_4_fusion)
-        .set_priority(22.f) // high priority to support lz models
+        .set_priority(5.f) // increase the priority if needed
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *output = nullptr;
@@ -2589,7 +2589,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_1_4_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_2_fusion)
-        .set_priority(22.1f) // high priority to support lz models
+        .set_priority(5.f) // increase the priority if needed
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *output = nullptr;
@@ -2608,7 +2608,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_2_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_3_fusion)
-        .set_priority(22.2f) // high priority to support lz models
+        .set_priority(5.f) // increase the priority if needed
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *output = nullptr;
