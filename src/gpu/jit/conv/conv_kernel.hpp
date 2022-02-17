@@ -4639,12 +4639,15 @@ private:
 
         int dwords = ngen::GRF::bytes(hw) / sizeof(int32_t);
         int max_step = 2;
-        for (int i = 0; i < regs; i += max_step) {
+        for (int i = 0; i < regs;) {
+            auto sub_buf = buf.format(i * grf_size);
             int step = std::min(max_step, regs - i);
+            if (step > 1 && !sub_buf.is_dense(step * grf_size)) step = 1;
             int esize = step * dwords;
-            auto src = buf.subregister(i * grf_size, ngen::DataType::ud)(1);
+            auto src = sub_buf.subregister(0, ngen::DataType::ud)(1);
             auto dst = tmp[i].ud(0)(1);
             host_->emov(esize, dst, src);
+            i += step;
         }
         return tmp[0];
     }
