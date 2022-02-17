@@ -80,9 +80,12 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                     broadcasting_strategy_t::per_w);
     const bool supported_binary_bcast
             = IMPLICATION(is_binary_po_per_oc_sp_bcast, ndims < 4)
-            && IMPLICATION(is_binary_po_channel_bcast, ndims == 4)
-            && IMPLICATION(is_binary_po_per_mb_w_bcast, ndims == 4)
-            && IMPLICATION(is_binary_po_per_w_bcast, ndims == 4);
+            && IMPLICATION(
+                    is_binary_po_channel_bcast, utils::one_of(ndims, 3, 4))
+            && IMPLICATION(
+                    is_binary_po_per_mb_w_bcast, utils::one_of(ndims, 3, 4))
+            && IMPLICATION(
+                    is_binary_po_per_w_bcast, utils::one_of(ndims, 3, 4));
     return supported_binary_bcast
             && injector::post_ops_ok(post_ops_ok_args_t(get_max_cpu_isa(),
                     {sum, eltwise, binary}, post_ops, &dst_d,
