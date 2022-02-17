@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,6 +76,7 @@ CFG(bf16f32bf16bf16bf16f32) {
     CASE(WEIGHTS_ITER, BF16_ENTRY_BF16);
     CASE(DST_ITER, BF16_ENTRY_BF16);
     CASE(DST_LAYER, BF16_ENTRY_BF16);
+    CASE(AUGRU_ATTENTION, BF16_ENTRY_BF16);
     DEFAULT(BF16_ENTRY_F32);
 }
 
@@ -92,6 +93,7 @@ CFG(bf16) {
     CASE(DST_ITER, BF16_ENTRY_BF16);
     CASE(DST_ITER_C, BF16_ENTRY_BF16);
     CASE(DST_LAYER, BF16_ENTRY_BF16);
+    CASE(AUGRU_ATTENTION, BF16_ENTRY_BF16);
     DEFAULT(BF16_ENTRY_F32);
 }
 

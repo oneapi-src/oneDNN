@@ -1,0 +1,5 @@
+--reset
+
+--batch=test_augru_ci
+
+--batch=test_augru_bfloat16

@@ -111,7 +111,12 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
     const bool is_bf16 = everyone_is(bf16, src_layer_dt, dst_layer_dt,
                                  weights_iter_dt, weights_layer_dt)
             && expect_dt(r.src_iter_desc, bf16)
-            && expect_dt(r.weights_peephole_desc, f32)
+            && IMPLICATION(r.cell_kind == dnnl_vanilla_lstm,
+                    expect_dt(r.weights_peephole_desc, f32))
+            /* weights_peephole_desc is reused as attention_desc */
+            && IMPLICATION(
+                    one_of(r.cell_kind, dnnl_vanilla_augru, dnnl_lbr_augru),
+                    expect_dt(r.weights_peephole_desc, bf16))
             && one_of(weights_projection_dt, bf16, data_type::undef)
             && expect_dt(r.dst_iter_desc, bf16)
             && one_of(r.bias_desc.data_type, bf16, f32);
