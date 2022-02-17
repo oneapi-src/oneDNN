@@ -1,7 +1,7 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2018 YANDEX LLC
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -393,7 +393,7 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
                 auto output_offset = dt_size * (jj * c_off + bci * c_block);
                 load(accvr.getIdx(), xreg_output, output_offset,
                         is_tail_processing(bci));
-                fdiv(accvr.s, p_512, vmm_tmp.s);
+                fdiv(accvr.s, P_ALL_ONE, vmm_tmp.s);
             } else {
                 eor(accvr.d, accvr.d, accvr.d);
             }
@@ -479,7 +479,7 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
             for (int bci = 0; bci < ur_bc; bci++) {
                 const auto accr_i = reg_ind(0, bci, jj, ur_bc, ur_w);
                 const auto accvr = vreg(accr_i);
-                fdiv(accvr.s, p_512, vmm_tmp.s);
+                fdiv(accvr.s, P_ALL_ONE, vmm_tmp.s);
             }
         }
 
@@ -579,7 +579,7 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
                 load(reg_idx(inpr_i), aux_xreg_input, input_offset,
                         is_tail_processing(bci));
 
-                fcmlt(k_store_mask.s, p_512 / T_z, accvr, inpvr);
+                fcmlt(k_store_mask.s, P_ALL_ONE / T_z, accvr, inpvr);
                 sel(accvr, k_store_mask / T_m, inpvr, accvr);
                 if (jpp.is_training) {
                     sel(indvr, k_store_mask / T_m, vmm_k_offset, indvr);
@@ -644,7 +644,7 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
                         mov(z_tmp0.s, p_tmp0 / T_m, 0);
                         umin(z_tmp0.s, 255);
                         //			std::cout << __LINE__ << std::endl;
-                        st1b(z_tmp0.s, p_512, ptr(X_DEFAULT_ADDR));
+                        st1b(z_tmp0.s, P_ALL_ONE, ptr(X_DEFAULT_ADDR));
                     } else {
                         add_imm(X_DEFAULT_ADDR, reg_index, step_index, X_TMP_0);
                         mov(z_tmp0.d, vr.d);
@@ -659,7 +659,7 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
                     mov(z_tmp0.d, vr.d);
                     umin(z_tmp0.s, 255);
                     //		    std::cout << __LINE__ << std::endl;
-                    st1b(z_tmp0.s, p_512, ptr(X_DEFAULT_ADDR));
+                    st1b(z_tmp0.s, P_ALL_ONE, ptr(X_DEFAULT_ADDR));
                 }
             } else {
                 store(vr.getIdx(), xreg_index, step_index,
@@ -709,7 +709,7 @@ inline void jit_uni_pool_kernel<isa>::max_step_bwd(int ur_w, int ur_bc,
                 ldr(QReg(z_tmp0.getIdx()), ptr(X_DEFAULT_ADDR));
                 zip1(z_tmp0.b, z_tmp0.b, z_tmp0.b);
                 zip1(z_tmp0.h, z_tmp0.h, z_tmp0.h);
-                uxtb(indvr.s, p_512 / T_m, z_tmp0.s);
+                uxtb(indvr.s, P_ALL_ONE / T_m, z_tmp0.s);
             }
         } else {
             load(indvr.getIdx(), xreg_index, step_index,
@@ -890,7 +890,6 @@ void jit_uni_pool_kernel<isa>::generate() {
     const int c_off
             = (jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c : c_block;
 
-    ptrue(p_512.b);
     pfalse(p_all_zero.b);
 
     add_imm(X_DEFAULT_ADDR, reg_param, GET_OFF(src), X_TMP_0);

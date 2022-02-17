@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2017-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,7 +89,6 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
         add_imm(X_TMP_0, param, GET_OFF(work_amount), X_TMP_1);
         ldr(reg_work_amount, ptr(X_TMP_0));
         eltwise_injector_->load_table_addr();
-        ptrue(p_512.b);
 
         Label reminder_loop_start, reminder_loop_end;
         Label vectorized_loop_start, vectorized_loop_end;
@@ -181,7 +180,6 @@ private:
     TRegS vmm_diff_dst {2};
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> eltwise_injector_;
 
-    PReg p_512 {7}; /* Index is temporal. */
     PReg p_tmp0 {4}; /* Index is temporal. */
 };
 

@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,6 @@ struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
 
 private:
     using reg64_t = const XReg;
-    const PReg reg_p_all_ones = p2;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     // dw convolution
@@ -147,7 +146,6 @@ struct jit_uni_dw_conv_bwd_data_kernel_f32 : public jit_generator {
 
 private:
     using reg64_t = const XReg;
-    const PReg reg_p_all_ones = p2;
 
     inline ZReg get_ker_reg(int idx) { return ZReg(idx + 0); }
     inline ZReg get_src_reg(int idx) { return ZReg(idx + 1); }
@@ -195,7 +193,6 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
 
 private:
     using reg64_t = const XReg;
-    const PReg reg_p_all_ones = p2;
     int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
 
     inline ZReg get_bias_reg(int idx = 0) { return ZReg(idx); }

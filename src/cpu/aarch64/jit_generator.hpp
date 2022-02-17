@@ -115,13 +115,13 @@ public:
     const Xbyak_aarch64::XReg X_DEFAULT_ADDR = x28;
     const Xbyak_aarch64::XReg X_SP = x21;
     const Xbyak_aarch64::XReg X_TRANSLATOR_STACK = x22;
-    const Xbyak_aarch64::PReg P_TMP = p0;
+    const Xbyak_aarch64::PReg P_TMP = p7;
     const Xbyak_aarch64::PReg P_TMP_0 = p11;
     const Xbyak_aarch64::PReg P_TMP_1 = p12;
     const Xbyak_aarch64::PReg P_ALL_ZERO = p10;
     const Xbyak_aarch64::PReg P_NOT_256 = p13;
     const Xbyak_aarch64::PReg P_NOT_128 = p14;
-    const Xbyak_aarch64::PReg P_ALL_ONE = p7;
+    const Xbyak_aarch64::PReg P_ALL_ONE = p0;
 
     const std::vector<Xbyak_aarch64::XReg> x_tmp_vec
             = {X_TMP_0, X_TMP_1, X_TMP_2, X_TMP_3, X_TMP_4};

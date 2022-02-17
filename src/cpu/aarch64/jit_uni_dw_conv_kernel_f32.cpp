@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
                     ldr(zreg_src, ptr(reg_tmp_addr));
 
                     ZRegS zregs_acc = get_acc_reg_s(ch * ur_w + ow);
-                    fmla(zregs_acc, reg_p_all_ones, zregs_src, zregs_ker);
+                    fmla(zregs_acc, P_ALL_ONE, zregs_src, zregs_ker);
                 }
             }
         }
@@ -323,7 +323,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::ow_loop(int ur_ch_blocks) {
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
     this->preamble();
-    ptrue(reg_p_all_ones.b);
+
     if (jcp.is_fused_conv) {
         ldr(reg_input_buffer_ptr, ptr(abi_param1, GET_OFF(src)));
         mov(reg_iw_offset, 0);
@@ -429,7 +429,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
                     ldr(zreg_src, ptr(reg_tmp_addr));
 
                     ZRegS zregs_acc = get_acc_reg_s(ch * ur_str_w + w);
-                    fmla(zregs_acc, reg_p_all_ones, zregs_src, zregs_ker);
+                    fmla(zregs_acc, P_ALL_ONE, zregs_src, zregs_ker);
                 }
             }
 
@@ -535,7 +535,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::loop_body(
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
     preamble();
-    ptrue(reg_p_all_ones.b);
+
     ldr(reg_dsrc, ptr(abi_param1, GET_OFF(src)));
     ldr(reg_ddst, ptr(abi_param1, GET_OFF(dst)));
     ldr(reg_kernel, ptr(abi_param1, GET_OFF(filt)));
@@ -589,7 +589,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::load_filter() {
             ldr(zreg_acc, ptr(reg_tmp_addr));
         } else if (simd_w == 8) {
             ZRegS zregs_acc = get_acc_reg_s(i);
-            ld1w(zregs_acc, reg_p_all_ones, ptr(reg_tmp_addr));
+            ld1w(zregs_acc, P_ALL_ONE, ptr(reg_tmp_addr));
         } else {
             assert(!"Unsupport: simd_w != 16, 8");
         }
@@ -608,7 +608,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::load_bias() {
         ldr(zreg_bias, ptr(reg_bias_baddr));
     } else if (simd_w == 8) {
         ZRegS zregs_bias = get_bias_reg_s(0);
-        ld1w(zregs_bias, reg_p_all_ones, ptr(reg_bias_baddr));
+        ld1w(zregs_bias, P_ALL_ONE, ptr(reg_bias_baddr));
     } else {
         assert(!"Unsupport: simd_w != 16, 8");
     }
@@ -639,7 +639,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
         if (simd_w == 16) {
             ldr(zreg_output, ptr(reg_tmp_addr));
         } else if (simd_w == 8) {
-            ld1w(zregs_output, reg_p_all_ones, ptr(reg_tmp_addr));
+            ld1w(zregs_output, P_ALL_ONE, ptr(reg_tmp_addr));
         } else {
             assert(!"Unsupport: simd_w != 16, 8");
         }
@@ -660,7 +660,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                     ldr(zreg_input, ptr(reg_tmp_addr));
                 } else if (simd_w == 8) {
                     ZRegS zregs_input = get_input_reg_s(c % jcp.kw);
-                    ld1w(zregs_input, reg_p_all_ones, ptr(reg_tmp_addr));
+                    ld1w(zregs_input, P_ALL_ONE, ptr(reg_tmp_addr));
                 } else {
                     assert(!"Unsupport: simd_w != 16, 8");
                 }
@@ -683,7 +683,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                     ldr(zreg_input, ptr(reg_tmp_addr));
                 } else if (simd_w == 8) {
                     ZRegS zregs_input = get_input_reg_s((overlap + c) % jcp.kw);
-                    ld1w(zregs_input, reg_p_all_ones, ptr(reg_tmp_addr));
+                    ld1w(zregs_input, P_ALL_ONE, ptr(reg_tmp_addr));
                 } else {
                     assert(!"Unsupport: simd_w != 16, 8");
                 }
@@ -706,7 +706,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
             ZRegS zregs_acc = get_acc_reg_s(i_kw);
             ZRegS zregs_aux = zregs_input;
 
-            fmla(zregs_acc, reg_p_all_ones, zregs_aux, zregs_output);
+            fmla(zregs_acc, P_ALL_ONE, zregs_aux, zregs_output);
         }
     }
 }
@@ -723,7 +723,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_step_unroll(
         if (simd_w == 16) {
             ldr(ZReg(31), ptr(reg_tmp_addr));
         } else if (simd_w == 8) {
-            ld1w(ZRegS(31), reg_p_all_ones, ptr(reg_tmp_addr));
+            ld1w(ZRegS(31), P_ALL_ONE, ptr(reg_tmp_addr));
         } else {
             assert(!"Unsupport: simd_w != 16, 8");
         }
@@ -742,7 +742,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::store_filter() {
             str(zreg_acc, ptr(reg_tmp_addr));
         } else if (simd_w == 8) {
             ZRegS zregs_acc = get_acc_reg_s(i);
-            st1w(zregs_acc, reg_p_all_ones, ptr(reg_tmp_addr));
+            st1w(zregs_acc, P_ALL_ONE, ptr(reg_tmp_addr));
         } else {
             assert(!"Unsupported: simd_w != 16, 8");
         }
@@ -756,7 +756,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::store_bias() {
         str(zreg_bias, ptr(reg_bias_baddr));
     } else if (simd_w == 8) {
         ZRegS zregs_bias = get_bias_reg_s(0);
-        st1w(zregs_bias, reg_p_all_ones, ptr(reg_bias_baddr));
+        st1w(zregs_bias, P_ALL_ONE, ptr(reg_bias_baddr));
     } else {
         assert(!"Unsupported: simd_w != 16, 8");
     }
@@ -1097,10 +1097,8 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
     preamble();
-    if (simd_w == 16) {
-        ptrue(reg_p_all_ones.b);
-    } else if (simd_w == 8) {
-        ptrue(reg_p_all_ones.b, VL32);
+    if (simd_w == 8) {
+        ptrue(P_ALL_ONE.b, VL32);
     } else {
         assert(!"Unsupport: simd_w != 16, 8");
     }
