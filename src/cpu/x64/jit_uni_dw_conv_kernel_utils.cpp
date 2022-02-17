@@ -397,6 +397,29 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
             = one_of(isa, avx512_common, avx512_core) ? 4 : isa == avx2 ? 3 : 2;
     if (jcp.nb_ch < jcp.nb_ch_blocking) jcp.nb_ch_blocking = jcp.nb_ch;
 
+    const size_t max_ch_off
+            = static_cast<size_t>(jcp.nb_ch_blocking - 1) * jcp.ch_block;
+    constexpr size_t max_ex_off
+            = isa == sse41 ? 4 : 0; // extra offset from repeats
+    const size_t sp_step = is_data_layout_nxc ? jcp.ngroups : jcp.ch_block;
+
+    // check that input offsets fit into s32
+    const size_t max_oc_off
+            = max_ch_off * (is_data_layout_nxc ? 1 : jcp.oh * jcp.ow);
+    const size_t max_inp_sp_off = static_cast<size_t>(jcp.ur_w - 1) * sp_step;
+    const size_t max_input_offset
+            = (max_oc_off + max_inp_sp_off + max_ex_off) * jcp.typesize_in;
+    if (max_input_offset > INT_MAX) return status::unimplemented;
+
+    // check that output offset fit into s32
+    const size_t max_ic_off
+            = max_ch_off * (is_data_layout_nxc ? 1 : jcp.ih * jcp.iw);
+    const size_t max_out_sp_off
+            = static_cast<size_t>(jcp.ur_w - 1) * jcp.stride_w * sp_step;
+    const size_t max_output_offset
+            = (max_ic_off + max_out_sp_off + max_ex_off) * jcp.typesize_out;
+    if (max_output_offset > INT_MAX) return status::unimplemented;
+
     return status::success;
 }
 
