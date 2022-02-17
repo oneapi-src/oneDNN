@@ -63,7 +63,9 @@ public:
     }
 
     impl::status_t prepare_inplace_pairs_impl() override {
-        inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
+        // TODO(qun): re-enable this test once library and bridge align the
+        // inplace logic
+        // inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
         return impl::status::success;
     }
 

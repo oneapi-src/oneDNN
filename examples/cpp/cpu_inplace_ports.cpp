@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,10 @@ using data_type = logical_tensor::data_type;
 using layout_type = logical_tensor::layout_type;
 
 int main(int argc, char **argv) {
+    // TODO(qun): re-enable this example once library and bridge align the
+    // inplace logic
+    return 0;
+
     const engine::kind ekind = engine::kind::cpu;
 
     /// create a graph

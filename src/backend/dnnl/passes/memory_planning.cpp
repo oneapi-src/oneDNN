@@ -1378,7 +1378,7 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     if (ret != status::success) return ret;
 
     // Check which input/output pair of the subgraph can be inplaced
-    ret = prepare_subgraph_inplace_pairs(sg, true);
+    ret = prepare_subgraph_inplace_pairs(sg, false);
     if (ret != status::success) return ret;
 
     // Bind memory object to each value
