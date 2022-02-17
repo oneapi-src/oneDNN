@@ -153,69 +153,10 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
 
         if (wei_sz != 0) {
             auto status = cuda_stream->fill(CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS), 0, wei_sz);
-            /*auto status = cuda_stream->interop_task([&](::sycl::handler &cgh) {
-                auto *mem_diff_wei
-                        = static_cast<sycl::sycl_memory_storage_base_t *>(
-                                &CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS));
-                
-                switch (mem_diff_wei->memory_kind()) {
-                    case sycl::memory_kind::buffer: {
-                        auto diff_wei_acc
-                                = utils::downcast<
-                                        sycl::sycl_buffer_memory_storage_t *>(
-                                        mem_diff_wei)
-                                          ->buffer()
-                                          .get_access<
-                                                  ::sycl::access::mode::write>(
-                                                  cgh);
-                        cgh.fill(diff_wei_acc, static_cast<uint8_t>(0));
-                        break;
-                    }
-                    case sycl::memory_kind::usm: {
-                        auto *diff_wei_ptr = utils::downcast<
-                                const sycl::sycl_usm_memory_storage_t *>(
-                                mem_diff_wei)
-                                                     ->usm_ptr();
-                        cudaMemset(static_cast<void *>(diff_wei_ptr),
-                                static_cast<uint8_t>(0), wei_sz);
-                        break;
-                    }
-                    default: assert(!"unexpected memory kind");
-                }
-            });*/
             if (status != status::success) return status;
         }
         if (bias_sz != 0) {
             auto status = cuda_stream->fill(CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS), 0, bias_sz);
-            /*auto status = cuda_stream->interop_task([&](::sycl::handler &cgh) {
-                auto *mem_diff_bias
-                        = static_cast<sycl::sycl_memory_storage_base_t *>(
-                                &CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS));
-                switch (mem_diff_bias->memory_kind()) {
-                    case sycl::memory_kind::buffer: {
-                        auto diff_bias_acc
-                                = utils::downcast<
-                                        sycl::sycl_buffer_memory_storage_t *>(
-                                        mem_diff_bias)
-                                          ->buffer()
-                                          .get_access<
-                                                  ::sycl::access::mode::write>(
-                                                  cgh);
-                        cgh.fill(diff_bias_acc, static_cast<uint8_t>(0));
-                        break;
-                    }
-                    case sycl::memory_kind::usm: {
-                        auto *diff_bias_ptr = utils::downcast<
-                                const sycl::sycl_usm_memory_storage_t *>(
-                                mem_diff_bias)
-                                                      ->usm_ptr();
-                        cudaMemset(static_cast<void *>(diff_bias_ptr),
-                                static_cast<uint8_t>(0), bias_sz);
-                        break;
-                    }
-                    default: assert(!"unexpected memory kind");
-                }
-            });*/
             if (status != status::success) return status;
         }
         return status::success;
