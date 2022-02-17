@@ -26,6 +26,7 @@
 #include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/platform.hpp"
 
+#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"

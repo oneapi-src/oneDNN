@@ -21,7 +21,6 @@
 #include "cpu/cpu_primitive.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 
-#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/jit_brgemm_conv.hpp"
 
 namespace dnnl {
