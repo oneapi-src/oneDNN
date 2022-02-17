@@ -322,37 +322,44 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     packed_a_ = packed_b_ = packed_c_ = false;
 
     if (a_any) {
-        CHECK(memory_desc_init_by_tag(
-                desc_.b_desc, b_zp_ ? unpacked_tag : a_packed_tag));
-        auto ld = desc_.b_desc.padded_dims[batch ? 1 : 0];
-        ld = nice_ld(ld, int(sz));
-        auto &ostride
-                = desc_.b_desc.format_desc.blocking.strides[batch ? 2 : 1];
-        if (batch) {
-            auto &bstride = desc_.b_desc.format_desc.blocking.strides[0];
-            bstride = (bstride / ostride) * unroll_m_ * ld;
+        if (b_zp_) {
+            CHECK(memory_desc_init_by_tag(desc_.b_desc, unpacked_tag));
+        } else {
+            CHECK(memory_desc_init_by_tag(desc_.b_desc, a_packed_tag));
+            auto ld = desc_.b_desc.padded_dims[batch ? 1 : 0];
+            ld = nice_ld(ld, int(sz));
+            auto &ostride
+                    = desc_.b_desc.format_desc.blocking.strides[batch ? 2 : 1];
+            if (batch) {
+                auto &bstride = desc_.b_desc.format_desc.blocking.strides[0];
+                bstride = (bstride / ostride) * unroll_m_ * ld;
+            }
+            ostride = unroll_m_ * ld;
+            packed_a_ = true;
         }
-        ostride = unroll_m_ * ld;
-        packed_a_ = true;
     } else if (a_mdw.matches_one_of_tag(a_packed_tag, ab, ba, abc, acb)
             == undef)
         return false;
 
     if (b_any) {
-        CHECK(memory_desc_init_by_tag(
-                desc_.a_desc, a_zp_ ? unpacked_tag : b_packed_tag));
-        if (unroll_n_ > 16) { // Bug in zero-padding when unroll_n_ == 16
-            auto ld = desc_.a_desc.padded_dims[batch ? 2 : 1];
-            ld = nice_ld(ld, int(sz));
-            auto &ostride
-                    = desc_.a_desc.format_desc.blocking.strides[batch ? 1 : 0];
-            if (batch) {
-                auto &bstride = desc_.a_desc.format_desc.blocking.strides[0];
-                bstride = (bstride / ostride) * unroll_n_ * ld;
+        if (a_zp_) {
+            CHECK(memory_desc_init_by_tag(desc_.a_desc, unpacked_tag));
+        } else {
+            CHECK(memory_desc_init_by_tag(desc_.a_desc, b_packed_tag));
+            if (unroll_n_ > 16) { // Bug in zero-padding when unroll_n_ == 16
+                auto ld = desc_.a_desc.padded_dims[batch ? 2 : 1];
+                ld = nice_ld(ld, int(sz));
+                auto &ostride = desc_.a_desc.format_desc.blocking
+                                        .strides[batch ? 1 : 0];
+                if (batch) {
+                    auto &bstride
+                            = desc_.a_desc.format_desc.blocking.strides[0];
+                    bstride = (bstride / ostride) * unroll_n_ * ld;
+                }
+                ostride = unroll_n_ * ld;
             }
-            ostride = unroll_n_ * ld;
+            packed_b_ = true;
         }
-        packed_b_ = true;
     } else if (b_mdw.matches_one_of_tag(b_packed_tag, ab, ba, abc, acb)
             == undef)
         return false;
@@ -381,6 +388,9 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     // No 16x16 copy kernels currently.
     if ((!packed_a_ && unroll_m_ == 16) || (!packed_b_ && unroll_n_ == 16))
         return false;
+
+    // Zero-padding bug in old kernel driver for packed cases.
+    use_new_kernels_ |= (packed_a_ || packed_b_);
 
     return gpu_gemm_pd_t::set_default_formats();
 }
