@@ -53,6 +53,7 @@
 #include "sum_pd.hpp"
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#include "common/dnnl_thread.hpp"
 #include "cpu/platform.hpp"
 #endif
 
@@ -62,6 +63,10 @@
 
 #ifdef DNNL_WITH_SYCL
 #include "sycl/verbose.hpp"
+#endif
+
+#ifdef DNNL_EXPERIMENTAL
+#include "common/experimental.hpp"
 #endif
 
 namespace dnnl {
@@ -84,8 +89,9 @@ int get_verbose() {
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-        printf("onednn_verbose,info,cpu,runtime:%s\n",
-                dnnl_runtime2str(dnnl_version()->cpu_runtime));
+        printf("onednn_verbose,info,cpu,runtime:%s,nthr:%d\n",
+                dnnl_runtime2str(dnnl_version()->cpu_runtime),
+                dnnl_get_max_threads());
         printf("onednn_verbose,info,cpu,isa:%s\n",
                 cpu::platform::get_isa_info());
 #endif
@@ -96,6 +102,13 @@ int get_verbose() {
 #endif
 #ifdef DNNL_WITH_SYCL
         sycl::print_verbose_header();
+#endif
+#ifdef DNNL_EXPERIMENTAL
+        printf("onednn_verbose,info,experimental features are enabled\n");
+        printf("onednn_verbose,info,use batch_normalization stats one pass is "
+               "%s\n",
+                experimental::use_bnorm_stats_one_pass() ? "enabled"
+                                                         : "disabled");
 #endif
         printf("onednn_verbose,info,prim_template:");
         printf("%soperation,engine,primitive,implementation,prop_"

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ struct ref_gemm_t : public gpu_gemm_t {
                     && !has_blocks() && desc()->c_desc.ndims <= 3
                     && (a_strides[ndims - 1] == 1 || a_strides[ndims - 2] == 1)
                     && (b_strides[ndims - 1] == 1 || b_strides[ndims - 2] == 1)
-                    && (c_strides[ndims - 1] == 1 || c_strides[ndims - 2] == 1)
+                    && (c_strides[ndims - 1] == 1)
                     && IMPLICATION(desc()->is_batched(),
                             desc()->a_desc.dims[0] == desc()->b_desc.dims[0])
                     && IMPLICATION(acc_dt != s32,

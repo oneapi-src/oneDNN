@@ -17,6 +17,7 @@
 *******************************************************************************/
 
 #include <cstring>
+#include <vector>
 
 #include <float.h>
 #include <math.h>
@@ -43,16 +44,35 @@
 
 namespace conv {
 
-double get_trust_nz_level(const prb_t *prb, data_kind_t kind) {
+double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
     auto negative_to_zero = [&]() {
         using pk = attr_t::post_ops_t::kind_t;
         const auto &po = prb->attr.post_ops;
         int count = 0;
+
+        // Check for all post-ops that convert negative to zero
+        std::vector<pk> non_neg_po {pk::ABS, pk::BRELU};
+        std::vector<pk> non_neg_alpha_0_po {
+                pk::CLIP, pk::CLIP_V2, pk::ELU, pk::RELU};
         for (int i = 0; i < po.len(); ++i) {
-            auto k = po.entry[i].kind;
-            count += k == pk::RELU || k == pk::ELU || k == pk::SQRT
-                    || k == pk::BRELU;
+            const auto &e = po.entry[i];
+            if (!e.is_eltwise_kind()) continue;
+
+            auto k = e.kind;
+            auto alpha = e.eltwise.alpha;
+
+            count += std::any_of(non_neg_po.cbegin(), non_neg_po.cend(),
+                    [k](const pk alg) { return alg == k; });
+            count += std::any_of(non_neg_alpha_0_po.cbegin(),
+                    non_neg_alpha_0_po.cend(), [k, alpha](const pk alg) {
+                        return alg == k && alpha == 0;
+                    });
         }
+        // Check for u8 dst
+        count += prb->cfg[DST].dt == dnnl_u8;
+        // Check for physically padded area in the output
+        count += prb->od > prb->id || prb->oh > prb->ih || prb->ow > prb->iw;
+
         return !!count;
     };
 
@@ -68,7 +88,7 @@ double get_trust_nz_level(const prb_t *prb, data_kind_t kind) {
         case BIA:
             trust = 0.8 * prb->cfg[DST].f_sparsity; /* why? */
             break;
-        case DST: trust /= negative_to_zero() == 0 ? 1 : 2; break;
+        case DST: trust /= (1.f + negative_to_zero()); break;
     }
 
     return trust;
@@ -90,6 +110,8 @@ inline int compare_data_p2p(const prb_t *prb, data_kind_t kind,
     compare::compare_t cmp;
     cmp.set_threshold(prb->cfg[kind].eps);
     cmp.set_data_kind(kind);
+    const float zpp = (1.f - get_non_zero_trust_percent(prb, kind)) * 100.f;
+    cmp.set_zero_trust_percent(zpp);
     SAFE(cmp.compare(mem_fp, mem_dt, prb->attr, res), WARN);
     return res->state == FAILED ? FAIL : OK;
 }
@@ -172,7 +194,7 @@ inline int compare_data_norm(const prb_t *prb, data_kind_t kind,
     }
 
     const double trust_rg_level = 0.3;
-    const double trust_nz_level = get_trust_nz_level(prb, kind);
+    const double trust_nz_level = get_non_zero_trust_percent(prb, kind);
 
     const double trust_rg = (double)in / res->total;
     const double trust_nz = (double)non_zero / res->total;
@@ -241,14 +263,21 @@ int fill_src(
     }
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
+    // Use dense filling for small problems.
+    int src_nelems_mask = powf(2.f, prb->ndims) - 1;
+    src_nelems_mask -= 1; // remove minibatch as independent dimension
+    auto src_nelems = prb->desc_nelems(DNNL_ARG_SRC, src_nelems_mask);
+    if (prb->has_groups) src_nelems /= prb->g; // groups are also independent
+
     const auto &c = prb->cfg[SRC];
     const int range = c.f_max - c.f_min + 1;
+    const float sparsity = src_nelems < 100 ? 1.f : c.f_sparsity;
 
     dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
                 const int64_t gen
                         = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
-                const bool non_base = flip_coin(gen, c.f_sparsity);
+                const bool non_base = flip_coin(gen, sparsity);
                 float value = non_base ? c.f_min + gen * c.f_step % range
                                        : c.f_base;
 
@@ -642,7 +671,8 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                 continue;
             else if (e.is_eltwise_kind())
                 post_ops_ok = post_ops_ok && is_nvidia_eltwise_ok(prb->dir, e);
-            else if (e.is_binary_kind() || e.is_convolution_kind())
+            else if (e.is_binary_kind() || e.is_convolution_kind()
+                    || e.is_prelu_kind())
                 post_ops_ok = false;
             else
                 assert(!"unknown post-op type");

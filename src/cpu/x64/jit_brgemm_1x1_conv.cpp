@@ -20,6 +20,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/jit_brgemm_1x1_conv.hpp"
@@ -49,7 +51,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     const auto dst_type = dst_md(0)->data_type;
 
     using skip_mask_t = primitive_attr_t::skip_mask_t;
-    auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt;
+    auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
+            | skip_mask_t::zero_points_runtime;
     if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::oscale;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
@@ -64,7 +67,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                                     && one_of(bias_md_.data_type, f32))))
             && attr()->has_default_values(skip_mask, dst_type)
             && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-            && !has_zero_dim_memory();
+            && !has_zero_dim_memory() && zero_points_ok();
     if (!ok) return status::unimplemented;
 
     CHECK(brgemm_convolution_utils::init_1x1_conf(jcp_, isa, *desc(), src_md_,
@@ -297,7 +300,9 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
         char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
-        int od, int oh, int ow, int icc, int *last_palette_idx) const {
+        int od, int oh, int ow, int icc, int *last_palette_idx,
+        int32_t src_zp_vals, int32_t *src_zp_comp, int32_t *dst_zp_vals,
+        int32_t *s8s8_compensation) const {
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md());
@@ -361,6 +366,14 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
     const auto nb_ic_b = nstl::min(jcp.nb_ic_blocking, jcp.nb_ic - icb)
             - (is_ic_tail ? 1 : 0);
 
+    const auto comp_offset = (g * jcp.nb_oc + ocb) * jcp.oc_block;
+    int32_t *src_zp_comp_ptr = (jcp.src_zero_point && icc == ic_chunks - 1)
+            ? &src_zp_comp[comp_offset]
+            : nullptr;
+    int32_t *s8s8_comp_ptr = (jcp.s8s8_avx512 && icc == ic_chunks - 1)
+            ? &s8s8_compensation[comp_offset]
+            : nullptr;
+
     const auto call_brgemm = [=](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      bool do_postops) {
         for (int k = 0; k < n_ic_blocks; k++) {
@@ -392,14 +405,19 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
                     static_cast<const void *>(bias_w),
                     &oscales[jcp.is_oc_scale * g_oc],
                     post_ops_binary_rhs_arg_vec.data(),
-                    static_cast<size_t>(g_oc), 0, dst};
+                    static_cast<size_t>(g_oc), 0, dst, 0,
+                    static_cast<void *>(src_zp_comp_ptr), nullptr,
+                    static_cast<void *>(dst_zp_vals), false, src_zp_vals};
 
+            void *scratch = is_amx ? static_cast<void *>(wsp_tile)
+                                   : static_cast<void *>(s8s8_comp_ptr);
             brgemm_kernel_execute_postops(brg_ker, n_ic_blocks, brg_batch,
-                    (void *)ptr_C, (void *)ptr_D, post_ops_data,
-                    (void *)wsp_tile);
+                    (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
         } else {
-            brgemm_kernel_execute(brg_ker, n_ic_blocks, brg_batch,
-                    (void *)ptr_C, (void *)wsp_tile);
+            void *scratch = is_amx ? static_cast<void *>(wsp_tile)
+                                   : static_cast<void *>(s8s8_comp_ptr);
+            brgemm_kernel_execute(
+                    brg_ker, n_ic_blocks, brg_batch, (void *)ptr_C, scratch);
         }
     };
 
@@ -421,7 +439,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
 }
 
 template <cpu_isa_t isa>
-void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
+status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
         const exec_ctx_t &ctx) const {
 
     brgemm_exec_ctx_t brgemm_ctx(ctx, pd());
@@ -430,6 +448,22 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
 
     const auto &jcp = pd()->jcp_;
     const bool is_amx = brgemm_convolution_utils::is_amx(isa);
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+
+    DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
+
+    const auto extra_data_offset
+            = weights_d.size() - weights_d.additional_buffer_size();
+    auto w = const_cast<char *>(brgemm_ctx.weights);
+    int32_t *s8s8_compensation = (jcp.s8s8_avx512)
+            ? reinterpret_cast<int32_t *>(w + extra_data_offset)
+            : nullptr;
+    int32_t *zp_compensation = (jcp.src_zero_point)
+            ? reinterpret_cast<int32_t *>(&w[extra_data_offset])
+                    + (jcp.s8s8_avx512 ? jcp.s8s8_comp_buffer_size : 0)
+            : nullptr;
+    int32_t *dst_zp_vals = jcp.dst_zero_point ? &dst_zero_point : nullptr;
 
     brgemm_batch_element_t *const brg_batch_global
             = (jcp.brg_type != brgemm_strd)
@@ -491,7 +525,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                                 inp_buffer_mask, g, n, icc, od, oh, ow); \
                     exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, \
                             inp_buffer_sp, g, n, ocb, od, oh, ow, icc, \
-                            &last_palette_idx); \
+                            &last_palette_idx, src_zero_point, \
+                            zp_compensation, dst_zp_vals, s8s8_compensation); \
                 } \
             } \
             last_n = n; \
@@ -531,7 +566,9 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
             for (int icc = 0; icc < ic_chunks; icc++) { \
                 const int ow = owb * jcp.ow_block; \
                 exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n, \
-                        ocb, od, oh, ow, icc, &last_palette_idx); \
+                        ocb, od, oh, ow, icc, &last_palette_idx, \
+                        src_zero_point, zp_compensation, dst_zp_vals, \
+                        s8s8_compensation); \
             } \
             nd_iterator_step(__VA_ARGS__); \
         } \
@@ -549,6 +586,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
 
 #undef BRGC_WO
     }
+
+    return status::success;
 }
 
 template struct brgemm_1x1_convolution_fwd_t<avx512_core>;

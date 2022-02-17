@@ -66,8 +66,8 @@ Run a specific sum problem with three inputs of s8, s8, and u8 data types, with
 each input in nhwc physical memory layout, providing scales for each input
 individually and requesting the output in the s32 data type and nhwc layout:
 ``` sh
-    ./benchdnn --sum --sdt=s8:s8:u8 --ddt=s32
-               --stag=nhwc:nhwc:nhwc --dtag=nhwc
+    ./benchdnn --sum --sdt=s8:s8:u8 --ddt=s32 \
+               --stag=nhwc:nhwc:nhwc --dtag=nhwc \
                --scales=2:4:1 16x16x3x5
 ```
 
@@ -75,7 +75,7 @@ Run a specific sum problem with the default scales, requesting to deduce the
 output with the f32 data type, iterating over source data types and physical
 memory layouts:
 ``` sh
-    ./benchdnn --sum --sdt=bf16:bf16,f32:f32 --ddt=f32
+    ./benchdnn --sum --sdt=bf16:bf16,f32:f32 --ddt=f32 \
                --stag=nChw16c:nChw16c,nchw:nchw --dtag=undef 16x16x16x16
 ```
 

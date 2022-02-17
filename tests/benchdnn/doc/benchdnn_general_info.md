@@ -49,7 +49,8 @@ following steps to execute any flow:
    * Check that padded area, if any, is properly zeroed.
    * Report a test case status and repro line.
 7. Performance validation:
-   * If correctness was requested, proceed only if it passed.
+   * If correctness was requested, proceed if status is "PASSED" or
+     "MISTRUSTED".
    * Execute backend path in a loop until one of selected criterion to stop is
      triggered. Refer to [performance options](knobs_common.md) for details.
    * Print a performance report output based on selected options and collected
@@ -81,10 +82,14 @@ problem in the correctness mode. Following statuses are supported:
 * `SKIPPED`. It means that a problem was not run and a brief reason is reported.
 * `LISTED`. It means that a benchdnn problem was created and the reproducer line
   was reported. A primitive descriptor is not created in this case.
-* `MISTRUSTED`. It means that correctness validation is invalid. This often
-  happens when the result has more zeros than the threshold set for the number
-  of zero values in the output. One possible reason is incorrect filling with
-  input data for a given problem. Treated as `PASSED`.
+* `MISTRUSTED`. It means that the quality of correctness validation is under
+  question. This often happens when the ratio of the number of zero values to
+  the total number of elements in the output exceeds a certain threshold. One
+  possible reason is improper filling of input data for a given driver,
+  specific algorithm, or a specific problem. Though the validation may not
+  fulfil the purpose, as long as values are same for driver reference and the
+  library outputs, this is not treated as `FAILED` but as `PASSED` with some
+  assumptions.
 * `FAILED`. It means that a problem did not pass the validation, and a library
   output differs from a reference path from the driver.
 * `UNIMPLEMENTED`. It means that the library does not have an implementation for

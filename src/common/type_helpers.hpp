@@ -260,6 +260,10 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
         if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8
                 && one_of(dst_dt, s8, u8, s32))
             return s32;
+        if (everyone_is(f16, dst_dt, wei_dt) && one_of(src_dt, s8, u8))
+            return f16;
+        if (everyone_is(f32, dst_dt, wei_dt) && one_of(src_dt, s8, u8))
+            return f32;
     }
 
     if (one_of(bf16, src_dt, wei_dt, dst_dt)) return f32;

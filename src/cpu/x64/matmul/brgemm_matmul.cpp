@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,6 +89,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     const float alpha = 1.0;
     const float beta = 1.0;
     const float beta_init = 0.0;
+
+    for_(int i_bs = 0; i_bs < 2; i_bs++)
     for_(int i_init = 0; i_init < 2; i_init++)
     for_(int i_M = 0; i_M < 2; i_M++)
     for_(int i_N = 0; i_N < 2; i_N++)
@@ -98,7 +100,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         auto vN = (i_N) ? bgmmc_.N_tail : bgmmc_.N_blk;
         auto vK = (i_K) ? bgmmc_.K_tail : bgmmc_.K_blk;
 
-        int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+        int bs = get_brg_batchsize(bgmmc_, i_bs, i_K);
+        int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K);
         if (idx < 0) continue;
         brgemm_t &brg = brg_descs_[idx];
         auto LDA = i_K && bgmmc_.use_buffer_a_tail_only
@@ -113,21 +116,27 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                 &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
         brgemm_attr_t brgattr;
+        brgattr.generate_skip_accumulation
+                = bgmmc_.post_ops_applicable && bgmmc_.nthr_k > 1;
         constexpr bool is_amx = one_of(
                 isa, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16);
         if (is_amx) {
-            brgattr.max_bs = bgmmc_.brgemm_batch_size;
+            if (!brgattr.generate_skip_accumulation) {
+                // TODO: uker doesn't yet support generate_skip_accumulation
+                brgattr.use_uker = true;
+                brgattr.use_interleave_stores = true;
+            }
+            brgattr.max_bs = bs;
             brgattr.wary_tail_read = false;
 
             // TODO: change expected sizes to local chunks wrt L2 blocking
-            brgattr.hint_expected_A_size = vM * vK * bgmmc_.brgemm_batch_size;
-            brgattr.hint_expected_B_size = vN * vK * bgmmc_.brgemm_batch_size;
-            brgattr.hint_expected_C_size = vM * vN * bgmmc_.brgemm_batch_size;
+            brgattr.hint_expected_A_size = vM * vK * bs;
+            brgattr.hint_expected_B_size = vN * vK * bs;
+            brgattr.hint_expected_C_size = vM * vN * bs;
             brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
+            brgattr.hint_prefetching
+                    = brgemm_kernel_prefetching_t::brgemm_prf_output1;
         }
-
-        brgattr.generate_skip_accumulation
-                = bgmmc_.post_ops_applicable && bgmmc_.nthr_k > 1;
 
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
     }
@@ -140,11 +149,12 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
+    for_(int i_bs = 0; i_bs < 2; i_bs++)
     for_(int i_M = 0; i_M < 2; i_M++)
     for_(int i_N = 0; i_N < 2; i_N++)
     for_(int i_K = 0; i_K < 2; i_K++)
     for (int i_init = 0; i_init < 2; i_init++) {
-        int idx = pd()->get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+        int idx = pd()->get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K);
         if (idx < 0) continue;
 
         brgemm_kernel_t *ker = nullptr;
@@ -259,11 +269,17 @@ void brgemm_matmul_t<isa>::compute_kernel(
     const bool is_M_tail = (bgmmc.M - m < bgmmc.M_blk);
     const bool is_N_tail = (bgmmc.N - n < bgmmc.N_blk);
     const bool is_last_K_chunk = brgmm_ctx.is_last_K_chunk(k_chunk_idx);
-    const bool is_K_tail = is_last_K_chunk && bgmmc.K_tail > 0;
 
+    const int remaining_k_blks
+            = (bgmmc.use_buffer_a ? utils::rnd_up(bgmmc.K, bgmmc.K_blk)
+                                  : bgmmc.K)
+            - k_chunk_idx * bgmmc.K_chunk_elems;
     const int gemm_batch = brgmm_ctx.get_brgemm_batch_size(k_chunk_idx);
-    const int brg_ker_idx
-            = pd()->get_brg_kernel_idx(do_init, is_M_tail, is_N_tail, false);
+    const bool is_K_tail
+            = is_last_K_chunk && (gemm_batch * bgmmc.K_blk) != remaining_k_blks;
+    auto is_bs_tail = (gemm_batch != bgmmc.brgemm_batch_size);
+    const int brg_ker_idx = pd()->get_brg_kernel_idx(
+            is_bs_tail, do_init, is_M_tail, is_N_tail, false);
     const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
     const auto ptr_bias = brgmm_ctx.get_bias_ptr(n);
     auto ptr_D = brgmm_ctx.get_data_C_ptr(b_idx, m, n);
@@ -327,7 +343,7 @@ void brgemm_matmul_t<isa>::compute_kernel(
 
         const bool use_init_ker = (do_init && gemm_batch == 0);
         const int brg_ker_idx = pd()->get_brg_kernel_idx(
-                use_init_ker, is_M_tail, is_N_tail, true);
+                false, use_init_ker, is_M_tail, is_N_tail, true);
         const auto brg_kernel_k_tail = brg_kernels_[brg_ker_idx].get();
         const bool is_tile_reconf_required
                 = is_amx && bgmmc.K_tail != bgmmc.K_blk;
@@ -427,7 +443,7 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                         const bool is_N_tail
                                 = (bgmmc.N - nb * bgmmc.N_blk < bgmmc.N_blk);
                         const int brg_ker_idx = pd()->get_brg_kernel_idx(
-                                false, is_M_tail, is_N_tail, false);
+                                false, false, is_M_tail, is_N_tail, false);
                         const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
                         const int m = mb * bgmmc.M_blk;
                         const int n = nb * bgmmc.N_blk;
@@ -655,7 +671,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
         post_ops_binary_rhs_arg_vec_ = binary_injector::prepare_binary_args(
                 pd->attr()->post_ops_, ctx);
-        base_brg_ker_idx_ = pd->get_brg_kernel_idx(true, false, false, false);
+        base_brg_ker_idx_
+                = pd->get_brg_kernel_idx(false, true, false, false, false);
         vnni_factor = isa == avx512_core_bf16_amx_int8
                 ? 4
                 : isa == avx512_core_bf16_amx_bf16 ? 2 : 1;

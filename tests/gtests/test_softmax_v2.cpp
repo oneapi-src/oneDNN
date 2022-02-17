@@ -173,6 +173,7 @@ protected:
         dst = test::make_memory(src_desc, eng);
         workspace = test::make_memory(workspace_desc, eng);
 
+        fill_data(p.src_dt, src, 1, 1);
         // test out-place mode
         softmax_v2.execute(strm,
                 {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
@@ -252,6 +253,8 @@ protected:
 
         auto diff_src = test::make_memory(diff_src_desc, eng);
         auto diff_dst = test::make_memory(diff_dst_desc, eng);
+
+        fill_data(p.diff_dst_dt, diff_dst, 2, 2);
 
         // test out-place mode
         softmax_v2.execute(strm,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -231,6 +231,35 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     return s;
 }
 
+int64_t desc_t::desc_nelems(int arg, int mask) const {
+    std::vector<int64_t> src {mb, ic, id, ih, iw};
+    std::vector<int64_t> wei {g, oc, ic, kd, kh, kw};
+    std::vector<int64_t> dst {mb, oc, od, oh, ow};
+    std::vector<int64_t> dummy;
+
+    if (!has_groups) wei.erase(wei.begin());
+
+    for (int d = 0; d < 5 - ndims; d++) {
+        src.erase(src.begin() + 2);
+        wei.erase(wei.begin() + 2);
+        dst.erase(dst.begin() + 2);
+    }
+
+    std::vector<int64_t> &dims = dummy;
+    switch (arg) {
+        case DNNL_ARG_SRC: dims = src; break;
+        case DNNL_ARG_WEIGHTS: dims = wei; break;
+        case DNNL_ARG_DST: dims = dst; break;
+        default: assert(!"unsupported arg");
+    }
+
+    int64_t nelems = 1;
+    for (int d = 0; d < ndims; d++) {
+        nelems *= (mask & (1 << d)) ? dims[d] : 1;
+    }
+    return nelems;
+}
+
 void prb_t::count_ops() {
     if (ops > 0) return;
 
@@ -296,26 +325,21 @@ float *generate_oscales(const attr_t::scale_t &oscale, int N) {
     return scales;
 }
 
-int32_t *generate_zero_points(
-        int arg, const attr_t::zero_points_t &zero_points, int N) {
-    if (zero_points.is_def(arg)) return nullptr;
+int32_t *prb_t::generate_zero_points(int arg) {
+    const auto &zp = attr.zero_points;
+    if (zp.is_def(arg)) return nullptr;
 
-    const auto &e = zero_points.get(arg);
-    if (e.policy == policy_t::COMMON) {
-        int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
-        SAFE_V(zp != nullptr ? OK : FAIL);
-        zp[0] = e.value;
-        return zp;
-    }
+    const auto &e = zp.get(arg);
+    const auto mask = attr_t::get_default_mask(e.policy);
+    int64_t zp_nelems = desc_nelems(arg, mask);
 
-    assert(e.policy == policy_t::PER_DIM_1);
+    int32_t *ptr = (int32_t *)zmalloc(sizeof(int32_t) * zp_nelems, 64);
+    SAFE_V(ptr != nullptr ? OK : FAIL);
 
-    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
-    SAFE_V(zp != nullptr ? OK : FAIL);
+    for (int i = 0; i < zp_nelems; ++i)
+        ptr[i] = e.value + i % 3;
 
-    for (int i = 0; i < N; ++i)
-        zp[i] = e.value + i % 3;
-    return zp;
+    return ptr;
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {

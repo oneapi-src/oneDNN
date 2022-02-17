@@ -73,6 +73,11 @@ protected:
                     "destination");
         }
 
+        // Set capacity to 1 to validate that logsoftmax doesn't crash into
+        // softmax.
+        auto capacity = dnnl::get_primitive_cache_capacity();
+        dnnl::set_primitive_cache_capacity(std::min(capacity, 1));
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -101,10 +106,19 @@ protected:
         // regular op desc ctor
         op_desc = op_desc_t(pk, mem_desc, p.axis);
 
+        // Since softmax and logsoftmax primitives share the same infrastructure
+        // they may crash into each other when cache is enabled. We set cache
+        // capacity to 1, put softmax primitive there and validate if logsoftmax
+        // is taken from cache. We are expecting it does not.
+        auto softmax_op_desc = softmax_forward::desc(pk, mem_desc, p.axis);
+        auto softmax_pd = softmax_forward::primitive_desc(softmax_op_desc, eng);
+        auto softmax = softmax_forward(softmax_pd);
+
         // default pd ctor
         auto pd = pd_t();
         // regular pd ctor
         ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
+        ASSERT_EQ(dnnl::impl::is_pd_in_cache(pd.get()), false);
         // test all pd ctors
         test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
         pd_fwd_hint = std::make_shared<pd_t>(pd);

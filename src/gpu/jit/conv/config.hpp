@@ -249,11 +249,8 @@ public:
 
         if (!data_types_ok()) return status::unimplemented;
 
-        // Group convolution is not supported.
-        // Depthwise convolution is supported for forward.
-        if (with_groups && g > 1 && !(is_dw && is_fwd))
-            return status::unimplemented;
-
+        // BWD group convolution is not supported.
+        if (with_groups && g > 1 && !is_fwd) return status::unimplemented;
         CHECK(init_common_config());
 
         const memory_desc_t *output_md = nullptr;
@@ -391,7 +388,7 @@ public:
                 // ocl:xe_hp implementation is currently better
                 if (ic > 4) return status::unimplemented;
             } else {
-                mb_thr_blk = (mb < 16 ? 1 : mb == 16 ? 16 : 32);
+                mb_thr_blk = (mb < 16 ? 1 : mb == 16 || g > 1 ? 16 : 32);
                 // Enable spatial fusion only for large batches.
                 // Spatial fusion may be suboptimal for small batch due to:
                 // - Using smaller messages (load blocks are not fully dense
@@ -405,7 +402,7 @@ public:
                         hoist_masks_from_compute_loop = true;
                 }
                 mb_thr_dim = 1;
-                osp_thr_blk = (mb < 16 ? 16 : 1);
+                osp_thr_blk = (mb < 16 ? 8 : 1);
                 if (osp < osp_thr_blk) osp_thr_blk = 8;
                 osp_thr_dim = std::min(4, utils::div_up(osp, osp_thr_blk));
                 kw_blk = 1;
@@ -493,7 +490,7 @@ public:
         kernel_grid_dim[1] = g_tg_dim * osp_tg_dim;
         kernel_grid_dim[2] = mb_tg_dim;
 
-        allow_grf_reorder = is_small_ic() || is_dw;
+        allow_grf_reorder = is_small_ic() || g > 1;
 
         CHECK(init_zero_points_config(conv_pd));
 
@@ -939,7 +936,7 @@ public:
         attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
         attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
 
-        return IMPLICATION(!utils::one_of(src_type, s8, u8),
+        return IMPLICATION(!utils::one_of(src_type, s8, u8) || g > 1,
                        attr->zero_points_.has_default_values())
                 && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
                 && (mask_src == 0 || mask_src == 1 << 1)
@@ -1035,6 +1032,10 @@ public:
         return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
     }
     bool is_small_ic() const { return ic < 8; }
+    bool is_mixed_int8() const {
+        return utils::one_of(a_data_type, dnnl_f16, dnnl_f32)
+                && utils::one_of(c_data_type, dnnl_u8, dnnl_s8);
+    }
     bool is_dp_fma() const {
         return utils::one_of(fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw,
                 fma_kind_t::dp4a);
@@ -1246,7 +1247,7 @@ private:
         if (hw == ngen::HW::XeHPG && stepping_id == 0) return 1;
 
         if (mb_thr_blk > 1) return 1;
-
+        if (g > 1 && !is_dw) return 1;
         int ic_blocks = utils::div_up(ic, ic_blk);
         int reduction_blocks = ic_blocks * kd * kh * kw;
 
@@ -1423,7 +1424,6 @@ private:
     status_t init_acc_data_type() {
         auto a = a_data_type;
         auto b = b_data_type;
-        auto c = c_data_type;
         acc_data_type = data_type::undef;
         if (utils::one_of(a, data_type::s8, data_type::u8)
                 && utils::one_of(b, data_type::s8, data_type::u8)) {
@@ -1431,7 +1431,7 @@ private:
         } else if (utils::everyone_is(data_type::f16, a, b)
                 || utils::everyone_is(data_type::bf16, a, b)) {
             acc_data_type = data_type::f32;
-        } else if (utils::everyone_is(data_type::f32, a, b, c)) {
+        } else if (utils::everyone_is(data_type::f32, a, b)) {
             acc_data_type = data_type::f32;
         }
         if (acc_data_type == data_type::undef) return status::unimplemented;
@@ -1452,13 +1452,6 @@ private:
         } else if (is_dw) {
             fma_kind = fma_kind_t::mad;
         }
-        // Downgrade dpas/dpasw -> dp4a for some cases. dpas generally operates
-        // on lower frequency than dp4a so for smaller sizes dp4a can be faster.
-        if (is_dpas_or_dpasw_fma()) {
-            bool is_xe_hpg = (hw == ngen::HW::XeHPG);
-            if (is_fwd && is_xe_hpg && is_s32_accumulator() && mb < 16)
-                fma_kind = fma_kind_t::dp4a;
-        }
 
         // Requery SIMD size as FMA kind may be changed.
         simd_size = fma_kind::get_simd_size(
@@ -1478,8 +1471,9 @@ private:
         if (fma_kind == fma_kind_t::mad) {
             if (hw < ngen::HW::XeHP) return status::unimplemented;
             if (is_bwd_d) {
-                if (!is_f32_conv()) return status::unimplemented;
                 if (is_small_ic()) return status::unimplemented;
+                if (!is_f32_conv() && !is_mixed_int8())
+                    return status::unimplemented;
                 return status::success;
             }
         }
@@ -1658,9 +1652,16 @@ private:
             // input/output channels must be multiples of 32 bytes.
             int ic_bytes = ic * a_data_type_size;
             int oc_bytes = oc * b_data_type_size;
-            if (ic_bytes % 32 != 0 || oc_bytes % 32 != 0)
+            if ((g == 1 || is_dw) && (ic_bytes % 32 != 0 || oc_bytes % 32 != 0))
                 return status::unimplemented;
         }
+
+        int block_size = is_s32_accumulator() || is_int8_dst() ? 32 : 16;
+        if (g > 1 && !is_dw
+                && ((!is_src_nhwc && (ic % block_size != 0))
+                        || (!is_dst_nhwc && (oc % block_size != 0))))
+            return status::unimplemented;
+
         if (!src_layout.is_strictly_equal(make_layout(src_md, user_src_tag),
                     /*compare_offset=*/true, /*compare_strides=*/false))
             return status::unimplemented;

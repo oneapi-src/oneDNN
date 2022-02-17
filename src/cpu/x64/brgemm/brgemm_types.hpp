@@ -181,6 +181,7 @@ struct brgemm_t {
     bool with_eltwise = false;
     bool with_binary = false;
     bool with_scales = false;
+    bool with_comp_pads = false;
     bool req_s8s8_compensation = false;
     brgemm_broadcast_t zp_type_a = brgemm_broadcast_t::none;
     brgemm_broadcast_t zp_type_b = brgemm_broadcast_t::none;
@@ -242,6 +243,7 @@ struct brgemm_kernel_params_t {
     const void *b_zp_compensations = nullptr;
     const void *c_zp_values = nullptr;
     size_t skip_accm = 0;
+    int32_t zp_a_val = 1;
 };
 
 struct jit_brgemm_kernel_t;
@@ -319,7 +321,8 @@ struct brgemm_post_ops_data_t {
             const size_t first_mb_matrix_addr_off = 0,
             const void *a_zp_compensations = nullptr,
             const void *b_zp_compensations = nullptr,
-            const void *c_zp_values = nullptr, bool skip_accumulation = false)
+            const void *c_zp_values = nullptr, bool skip_accumulation = false,
+            int32_t zp_a_val = 1)
         : bias(bias)
         , scales(scales)
         , binary_post_ops_rhs(binary_post_ops_rhs)
@@ -330,7 +333,8 @@ struct brgemm_post_ops_data_t {
         , a_zp_compensations(a_zp_compensations)
         , b_zp_compensations(b_zp_compensations)
         , c_zp_values(c_zp_values)
-        , skip_accumulation(skip_accumulation) {}
+        , skip_accumulation(skip_accumulation)
+        , zp_a_val {zp_a_val} {}
 
     const void *bias = nullptr;
     const float *scales = nullptr;
@@ -343,6 +347,7 @@ struct brgemm_post_ops_data_t {
     const void *b_zp_compensations = nullptr;
     const void *c_zp_values = nullptr;
     const bool skip_accumulation = false;
+    int32_t zp_a_val = 1;
 };
 
 } // namespace x64

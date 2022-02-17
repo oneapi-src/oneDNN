@@ -44,9 +44,9 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            void *a = arg_src_0.get_native_pointer(ih, sc);
-            void *b = arg_src_1.get_native_pointer(ih, sc);
-            void *c = arg_dst.get_native_pointer(ih, sc);
+            void *a = arg_src_0.get_native_pointer(ih);
+            void *b = arg_src_1.get_native_pointer(ih);
+            void *c = arg_dst.get_native_pointer(ih);
 
             pd()->binary_impl_->execute(handle, a, b, c);
         });

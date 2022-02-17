@@ -29,7 +29,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             | primitive_attr_t::skip_mask_t::post_ops
             | primitive_attr_t::skip_mask_t::zero_points;
 
-    bool ok = d->c_desc.ndims <= 2
+    bool ok = d->c_desc.ndims <= 4
             && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k())
             && attr()->has_default_values(attr_skip_mask);
     if (!ok) return status::unimplemented;
@@ -85,12 +85,12 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto ndims = gemm_pd_->dst_md()->ndims;
     dispatch_ = compute_engine->create_dispatch(gemm_pd_->dst_md());
-    dispatch_.define_dim("MB", 0, gemm_pd_->dst_md()->padded_dims[0]);
-    dispatch_.define_dim("OC", 1, gemm_pd_->dst_md()->padded_dims[1]);
-    dispatch_.define_dim("MB3", nstl::max(1, ndims - 3),
-            ndims > 3 ? gemm_pd_->dst_md()->dims[3] : 1);
-    dispatch_.define_dim("MB2", nstl::max(1, ndims - 2),
-            ndims > 2 ? gemm_pd_->dst_md()->dims[2] : 1);
+    dispatch_.define_dim("D0", 0, gemm_pd_->dst_md()->padded_dims[0]);
+    dispatch_.define_dim("D1", 1, gemm_pd_->dst_md()->padded_dims[1]);
+    dispatch_.define_dim("D3", ndims > 3 ? 3 : 0,
+            ndims > 3 ? gemm_pd_->dst_md()->padded_dims[3] : 1);
+    dispatch_.define_dim("D2", ndims > 2 ? 2 : 0,
+            ndims > 2 ? gemm_pd_->dst_md()->padded_dims[2] : 1);
     dispatch_.generate();
 
     init_scratchpad();
@@ -125,8 +125,12 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("WITH_BIAS", with_bias);
     kernel_ctx.define_int("NDIMS", ndims);
     kernel_ctx.define_int("BIA_NDIMS", bia_d.md_->ndims);
-    kernel_ctx.define_int("MB_WO_PADDING", gemm_pd_->dst_md()->dims[0]);
-    kernel_ctx.define_int("OC_WO_PADDING", gemm_pd_->dst_md()->dims[1]);
+    kernel_ctx.define_int("D0_WO_PADDING", gemm_pd_->dst_md()->dims[0]);
+    kernel_ctx.define_int("D1_WO_PADDING", gemm_pd_->dst_md()->dims[1]);
+    kernel_ctx.define_int(
+            "D3_WO_PADDING", ndims > 3 ? gemm_pd_->dst_md()->dims[3] : 1);
+    kernel_ctx.define_int(
+            "D2_WO_PADDING", ndims > 2 ? gemm_pd_->dst_md()->dims[2] : 1);
     def_attr_info(kernel_ctx, attr_info_, attr()->post_ops_);
     def_dispatch(kernel_ctx, dispatch_);
     return status::success;

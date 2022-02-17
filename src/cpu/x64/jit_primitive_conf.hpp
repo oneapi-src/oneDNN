@@ -866,6 +866,9 @@ struct jit_brgemm_conv_conf_t {
 
     bool use_buffer;
     dim_t buffer_size;
+    dim_t ker_ranges_size;
+    dim_t comp_a_buffer_size;
+    dim_t s8s8_comp_buffer_size;
 
     int is_oc_scale;
 
@@ -895,6 +898,10 @@ struct jit_brgemm_conv_conf_t {
     bool use_interleave_stores;
     brgemm_kernel_prefetching_t hint_prefetching;
     bool is_1x1;
+    bool s8s8_avx512;
+    bool src_zero_point;
+    bool dst_zero_point;
+    bool comp_with_vpads;
 };
 
 struct jit_shuffle_conf_t {
@@ -992,11 +999,20 @@ struct jit_reduction_conf_t {
     dim_t reduce_size = 0;
 
     bool is_saturation_needed = false;
+
+    post_ops_t post_ops = post_ops_t();
+    bool with_postops = false;
+    bool with_eltwise = false;
+    bool with_binary = false;
+    bool with_sum = false;
+    std::queue<float> sum_scales;
 };
 
 struct jit_reduction_call_s {
     const void *src = nullptr;
     void *dst = nullptr;
+    const void *post_ops_binary_rhs_arg_vec = nullptr;
+    const void *dst_orig = nullptr;
 };
 
 } // namespace x64

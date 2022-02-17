@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -139,7 +139,6 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
         (*kernels)[i] = compute::kernel_t(
                 new ocl_gpu_kernel_t(shared_binary, kernel_name, arg_types));
         dump_kernel_binary(ocl_engine, (*kernels)[i]);
-        OCL_CHECK(clReleaseProgram(program));
     }
 
     return status::success;

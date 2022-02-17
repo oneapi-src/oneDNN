@@ -41,6 +41,14 @@ const impl_list_map_t &comp_bf16_s8_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR(bf16, ba, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, ba, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, ba, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp))
+            REG_SR(bf16, ab, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, ab, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, ab, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, ab, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, ba, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, ba, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, ba, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp)
+            REG_SR(bf16, ba, s8, BA16a64b4a, fmt_order::keep, spec::conv_req_comp)
             nullptr,
         }},
         // bf16 -> s8

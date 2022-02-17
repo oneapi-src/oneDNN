@@ -158,8 +158,9 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
             conf.gws_d[1]
                     = conf.od * conf.oh * utils::rnd_up(ow_nchunk, ow_group);
             conf.gws_d[2] = is_1stconv
-                    ? conf.mb < 16 ? conf.mb
-                                   : utils::rnd_up(conf.mb, conf.mb_block)
+                    ? (conf.mb <= 16 && dst_mdw.is_plain())
+                            ? conf.mb
+                            : utils::rnd_up(conf.mb, conf.mb_block)
                     : utils::div_up(conf.mb,
                             utils::div_up(conf.mb_block,
                                     conf.mb_block == 32 ? 2 : 1));

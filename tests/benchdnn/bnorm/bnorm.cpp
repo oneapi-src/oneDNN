@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -242,6 +242,19 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         if (kind == VAR) eps = 4e-7;
     }
 
+#ifdef DNNL_EXPERIMENTAL
+    const bool use_relaxed_validation
+            = dnnl::impl::experimental::use_bnorm_stats_one_pass();
+#else
+    const bool use_relaxed_validation = false;
+#endif
+    if (use_relaxed_validation) {
+        // On Intel GPUs mean and variance could be rounded incorrectly because
+        // they are calculated using fast but potentially unstable formula.
+        if (kind == MEAN) eps = 1e-7;
+        if (kind == VAR) eps = 4e-7;
+    }
+
     // Since bwd testing is done using results from forward which are random
     // fp32 values, diff_ss starts fluctuating, so we check norm for both data
     // and SS, SC and SH.
@@ -365,7 +378,7 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
 }
 
 int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
-    if (ws_dt.md_.ndims == 0) return OK;
+    if (ws_dt.ndims() == 0) return OK;
 
     /* so far we know ws is just bit-mask of whether value was negative or
      * positive */

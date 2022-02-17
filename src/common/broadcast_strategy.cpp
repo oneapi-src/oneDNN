@@ -150,11 +150,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
 
         if (rhs_arg_dim != 1) all_ones = false;
 
-        const auto both_one_dim
-                = (output_dims[d] == 1 && rhs_arg_md.dims[d] == 1);
-        if ((output_dims[d] != rhs_arg_md.dims[d] || output_dims[d] == 1)
-                && (!both_one_dim || all_ones))
-            mask.set(d);
+        if (output_dims[d] != rhs_arg_md.dims[d]) mask.set(d);
     }
 
     broadcasting_strategy_t bcast = broadcasting_strategy_t::unsupported;
@@ -169,14 +165,14 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     else if (is_per_mb_w_bcast(mask, dst_d)
             && is_enabled(broadcasting_strategy_t::per_mb_w))
         bcast = broadcasting_strategy_t::per_mb_w;
-    else if (is_per_w_bcast(mask, dst_d)
-            && is_enabled(broadcasting_strategy_t::per_w))
-        bcast = broadcasting_strategy_t::per_w;
     else if (is_per_oc_bcast(mask, rhs_arg_md)
             && (is_enabled(broadcasting_strategy_t::per_oc)
                     || is_enabled(broadcasting_strategy_t::per_oc_spatial))) {
         bcast = get_per_oc_bcast(supported_strategy_set, dst_d);
-    } else if (is_enabled(broadcasting_strategy_t::shared_axes))
+    } else if (is_per_w_bcast(mask, dst_d)
+            && is_enabled(broadcasting_strategy_t::per_w))
+        bcast = broadcasting_strategy_t::per_w;
+    else if (is_enabled(broadcasting_strategy_t::shared_axes))
         bcast = broadcasting_strategy_t::shared_axes;
 
     return bcast;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,6 +112,7 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
         CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
         if (mapped_ptr) memcpy(handle, mapped_ptr, bytes);
         CHECK(dnnl_memory_unmap_data(mem, mapped_ptr));
+        return;
     }
 
     if (eng_kind == dnnl_cpu) {

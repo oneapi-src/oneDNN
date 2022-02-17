@@ -52,7 +52,10 @@ struct softmax_pd_t : public primitive_desc_t {
                 *(const softmax_v2_desc_t **)result = desc();
                 break;
             case query::primitive_kind:
-                *(primitive_kind_t *)result = desc_.primitive_kind;
+                if (desc()->primitive_kind == primitive_kind::softmax_v2)
+                    *(primitive_kind_t *)result = desc()->primitive_kind;
+                else
+                    *(primitive_kind_t *)result = primitive_kind::softmax;
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }
@@ -122,8 +125,7 @@ private:
             return softmax_desc;
 
         softmax_v2_desc_t softmax_v2_desc;
-        // Return always kind::softmax since logsoftmax relied on this
-        softmax_v2_desc.primitive_kind = primitive_kind::softmax;
+        softmax_v2_desc.primitive_kind = softmax_desc.primitive_kind;
         softmax_v2_desc.prop_kind = softmax_desc.prop_kind;
         softmax_v2_desc.src_desc = softmax_desc.src_desc;
         softmax_v2_desc.diff_src_desc = softmax_desc.diff_src_desc;

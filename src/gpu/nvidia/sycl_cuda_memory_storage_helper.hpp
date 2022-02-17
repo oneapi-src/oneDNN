@@ -28,63 +28,58 @@ namespace gpu {
 namespace nvidia {
 
 #define CTX_IN_SYCL_MEMORY(arg) \
-    sycl_memory_arg<::sycl::access::mode::read>( \
-            static_cast<sycl::sycl_memory_storage_base_t *>( \
-                    &CTX_IN_STORAGE(arg)), \
-            cgh)
+    sycl_memory_arg_t<::sycl::access::mode::read>(&CTX_IN_STORAGE(arg), cgh)
 
 #define CTX_OUT_SYCL_MEMORY(arg) \
-    sycl_memory_arg<::sycl::access::mode::write>( \
-            static_cast<sycl::sycl_memory_storage_base_t *>( \
-                    &CTX_OUT_STORAGE(arg)), \
-            cgh)
+    sycl_memory_arg_t<::sycl::access::mode::write>(&CTX_OUT_STORAGE(arg), cgh)
 
 template <::sycl::access_mode mode>
-class sycl_memory_arg {
+class sycl_memory_arg_t {
 public:
-    sycl_memory_arg() = default;
-    sycl_memory_arg(
-            sycl::sycl_memory_storage_base_t *mem, ::sycl::handler &cgh) {
+    sycl_memory_arg_t() = default;
+    sycl_memory_arg_t(memory_storage_t *raw_mem, ::sycl::handler &cgh) {
+        if (raw_mem->is_null()) { return; }
+        auto *mem = static_cast<sycl::sycl_memory_storage_base_t *>(raw_mem);
         switch (mem->memory_kind()) {
-            case sycl::memory_kind::buffer:
-                acc_.emplace(
-                        utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
-                                mem)
-                                ->buffer(),
-                        cgh);
+            case sycl::memory_kind::buffer: {
+                auto *buffer_storage
+                        = utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
+                                mem);
+                acc_.emplace(buffer_storage->buffer(), cgh);
+                offset_ = buffer_storage->base_offset();
                 break;
-            case sycl::memory_kind::usm:
-                usm_mem_ = utils::downcast<
-                        const sycl::sycl_usm_memory_storage_t *>(mem);
+            }
+            case sycl::memory_kind::usm: {
+                raw_ptr_ = utils::downcast<
+                        const sycl::sycl_usm_memory_storage_t *>(mem)
+                                   ->usm_ptr();
                 break;
-            default: 
-                assert(!"unexpected memory kind");
+            }
+            default: assert(!"unexpected memory kind");
         }
     }
 
-    template <typename T = void>
-    T *get_native_pointer(const compat::interop_handle &ih,
-            const cuda_sycl_scoped_context_handler_t &sc) const {
+    template <::sycl::backend be = ::sycl::backend::ext_oneapi_cuda,
+            typename T = void>
+    T *get_native_pointer(const compat::interop_handle &ih) const {
         void *raw_ptr;
-        if (usm_mem_) {
-            raw_ptr = usm_mem_->usm_ptr();
+        if (acc_.has_value()) {
+            raw_ptr = reinterpret_cast<T *>(
+                    reinterpret_cast<uint8_t *>(
+                            ih.get_native_mem<be>(acc_.value()))
+                    + offset_);
         } else {
-            raw_ptr = sc.memory<void *>(ih, acc_.value());
+            raw_ptr = raw_ptr_;
         }
         return reinterpret_cast<T *>(raw_ptr);
     }
 
-    template <typename T = void>
-    T *get_native_pointer(const compat::interop_handle &ih,
-            const cuda_sycl_scoped_context_handler_t &sc, size_t offset) const {
-        return reinterpret_cast<T *>(
-                reinterpret_cast<uint8_t *>(get_native_pointer<T>(ih, sc))
-                + offset);
-    }
+    bool empty() const { return !raw_ptr_ && !acc_.has_value(); }
 
 private:
-    const sycl::sycl_usm_memory_storage_t *usm_mem_ = nullptr;
+    void *raw_ptr_ = nullptr;
     std::optional<::sycl::accessor<uint8_t, 1, mode>> acc_;
+    size_t offset_;
 };
 
 } // namespace nvidia

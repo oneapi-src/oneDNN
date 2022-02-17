@@ -98,6 +98,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.do_post_ops = 1;
     brgemm_p.skip_accm = post_ops_data.skip_accumulation ? 1 : 0;
     brgemm_p.BS = bs;
+    brgemm_p.zp_a_val = post_ops_data.zp_a_val;
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
     brgemm_p.dst_row_logical_off = post_ops_data.dst_row_logical_off;
@@ -126,6 +127,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.do_post_ops = 1;
     brgemm_p.skip_accm = post_ops_data.skip_accumulation ? 1 : 0;
     brgemm_p.BS = bs;
+    brgemm_p.zp_a_val = post_ops_data.zp_a_val;
     brgemm_p.post_ops_binary_rhs_arg_vec = post_ops_data.binary_post_ops_rhs;
     brgemm_p.oc_logical_off = post_ops_data.oc_logical_off;
     brgemm_p.data_C_ptr_ = post_ops_data.data_C_ptr_;
@@ -155,13 +157,15 @@ status_t brgemm_blocking(brgemm_t *brg) {
 
         const int max_avx512_regs = 32;
         const int max_bcst_regs = 1;
+        const bool req_compensation = brg->req_s8s8_compensation
+                || brg->zp_type_a != brgemm_broadcast_t::none;
         int max_regs = max_avx512_regs - (adj_ld_block + max_bcst_regs);
         int max_block
                 = (brg->embd_bcst ? 28
                                   : ((brg->beta == 1.f || brg->beta == 0.f)
                                                   ? max_regs
                                                   : max_regs - 1));
-        max_block -= brg->req_s8s8_compensation;
+        max_block -= req_compensation;
         max_block /= adj_ld_block;
         int min_block = 1;
         float best_bd_block_eff = 0.f;
@@ -678,6 +682,9 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     init_zp_type(brg->zp_type_a, DNNL_ARG_SRC);
     init_zp_type(brg->zp_type_b, DNNL_ARG_WEIGHTS);
     init_zp_type(brg->zp_type_c, DNNL_ARG_DST);
+
+    // src zero points require additional register in brgemm kernel
+    if (brg->zp_type_a != brgemm_broadcast_t::none) CHECK(brgemm_blocking(brg));
 
     return status::success;
 }

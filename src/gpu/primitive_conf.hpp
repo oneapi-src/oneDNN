@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -522,6 +522,7 @@ struct bnorm_conf_t {
     int sub_group_size;
     bool vectorize_calc_stats;
     bool skip_reduce_stat;
+    bool use_stats_one_pass;
 
     compute::dispatch_t dispatch_calc_stat;
     compute::dispatch_t dispatch_reduce_stat;

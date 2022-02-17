@@ -29,6 +29,7 @@
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/x64/jit_brgemm_conv_comp_pad_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_trans_kernel.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
@@ -95,6 +96,16 @@ struct brgemm_convolution_fwd_t : public primitive_t {
                     * 2
                     + static_cast<int>(is_K_tail);
         }
+
+    protected:
+        bool zero_points_ok() const {
+            // Only common zero points are supported -> mask should only be 0
+            int mask_src = 0, mask_dst = 0;
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                    && mask_src == 0 && mask_dst == 0;
+        }
     };
 
     brgemm_convolution_fwd_t(const pd_t *apd);
@@ -146,6 +157,10 @@ private:
         int g, n, ocb;
         int od, odb, oh, ohb, owb;
         int icc;
+        int32_t src_zp_vals;
+        int32_t *src_zp_comp_ptr;
+        int32_t *dst_zp_vals;
+        int32_t *s8s8_comp_ptr;
     };
 
     static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
@@ -172,12 +187,16 @@ private:
     void perform_outwork(char *dst_base, char *dst, char *c_buffer,
             const char *bias_w, int od, int oh, int ow, int g_oc,
             bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
-            const void *post_ops_binary_rhs_arg_vec, bool maybe_do_init,
-            bool do_postwork) const;
+            const void *post_ops_binary_rhs_arg_vec, int32_t src_zp_vals,
+            int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
+            int32_t *s8s8_compensation, bool maybe_do_init, bool do_postwork,
+            bool do_post_comp) const;
 
     void call_brgemm_kernel(brgemm_thread_ctx_t &btc, int brg_idx,
             int batch_size, char *ptr_C, char *ptr_D, const char *bias_w,
-            int g_oc, bool do_postops, const void *binary_post_ops_rhs) const;
+            int g_oc, bool do_postops, const void *binary_post_ops_rhs,
+            int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
+            int32_t *s8s8_comp) const;
 
     void maybe_conv_inp(int ithr, const char *__restrict src,
             char *__restrict inp_buffer, uint8_t *__restrict inp_buffer_mask,
@@ -190,6 +209,13 @@ private:
             int i_N, int init_bcast_dim, int po_bcast_dim, bool need_postwork);
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
 
+    status_t cal_compensation(const char *__restrict weights,
+            int32_t *src_zp_buffer, int32_t *s8s8_comp_buffer) const;
+    int get_comp_ker_idx(const int kd_b, const int kd_e, const int kh_b,
+            const int kh_e) const;
+    int get_comp_offset(const int g, const int ocb, const int ow,
+            const int kd_b, const int kd_e, const int kh_b,
+            const int kh_e) const;
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
@@ -199,6 +225,9 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_trans_kernel_t>
             copy_to_pbuffer_;
+    std::unique_ptr<jit_avx512_core_brgemm_conv_comp_pad_kernel::
+                    jit_avx512_core_brgemm_conv_comp_pad_kernel_t>
+            comp_vpad_pbuffer_;
     std::vector<S_t> brg_kernel_palettes_;
 
     const float *oscales;
@@ -209,6 +238,7 @@ private:
     // pre - calculated values
     std::vector<dim_t> owb_kw_top_vpads;
     std::vector<dim_t> owb_kw_bottom_vpads;
+    std::vector<dim_t> kd_bs, kd_es, kh_bs, kh_es;
 
     int KD, KH, KW, EXT_KD, EXT_KH, EXT_KW, KS, KD_BLOCK, KH_BLOCK, KW_BLOCK,
             KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP, OD, OH, OW,
@@ -216,6 +246,7 @@ private:
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz, wei_ic_sz,
             wei_kw_sz, wei_kh_sz, wei_kd_sz, wei_ocb_sz;
     dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
+    dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz;
 
     int ic_chunks;
     bool need_postwork;

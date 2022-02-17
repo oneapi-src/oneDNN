@@ -23,6 +23,7 @@
 
 #include "cpu/cpu_resampling_pd.hpp"
 
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/utils/jit_io_helper.hpp"
@@ -36,16 +37,19 @@ struct jit_uni_reduction_kernel_base_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_resampling)
 
     jit_uni_reduction_kernel_base_t(const jit_reduction_conf_t &conf)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, conf.isa), conf_(conf) {}
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, conf.isa)
+        , conf_(conf)
+        , sum_scales_(conf_.sum_scales) {}
     virtual ~jit_uni_reduction_kernel_base_t() = default;
 
     virtual std::size_t get_simd_w() = 0;
 
 protected:
     const jit_reduction_conf_t &conf_;
+    std::queue<float> sum_scales_;
 };
 
-template <typename Vmm>
+template <cpu_isa_t isa, typename Vmm = typename cpu_isa_traits<isa>::Vmm>
 struct jit_uni_reduction_kernel_t : public jit_uni_reduction_kernel_base_t {
     jit_uni_reduction_kernel_t(
             const jit_reduction_conf_t &conf, const memory_desc_t *dst_md);
@@ -61,6 +65,7 @@ private:
     void init_acc();
     void init_compute_op();
     void init_compute_scalar_op();
+    void init_post_ops_injector(const memory_desc_t *dst_md);
 
     void reduce_ymm_to_xmm(const Xbyak::Xmm &acc, const Xbyak::Xmm &tmp);
     void reduce_xmm_to_scalar(const Xbyak::Xmm &acc, const Xbyak::Xmm &tmp,
@@ -79,6 +84,8 @@ private:
     void reduce();
 
     void load_params();
+    void apply_sum(const int data_idx);
+    void apply_postops(const int data_idx);
     void finalize();
     void generate() override;
 
@@ -91,6 +98,8 @@ private:
     const Vmm vmm_tmp2_ = Vmm(6);
     const Vmm vmm_tmp3_ = Vmm(7);
     const Vmm vmm_tmp4_ = Vmm(8);
+    const Vmm vmm_sum_scale_ = Vmm(9);
+    const Vmm rhs_dt_helper_vmm_ = Vmm(10);
     const Xbyak::Zmm vmm_bf16_emu_1_ = Xbyak::Zmm(28);
     const Xbyak::Zmm vmm_bf16_emu_2_ = Xbyak::Zmm(29);
     const Xbyak::Zmm vmm_bf16_emu_3_ = Xbyak::Zmm(30);
@@ -104,6 +113,7 @@ private:
     const Xbyak::Reg64 reg_dst_ = rdx;
     const Xbyak::Reg64 reg_param_ = abi_param1;
     const Xbyak::Reg64 reg_tmp_ = abi_not_param1;
+    const Xbyak::Reg64 reg_tmp1_ = r13;
 
     static constexpr bool is_zmm_ = std::is_same<Vmm, Xbyak::Zmm>::value;
     static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
@@ -113,13 +123,24 @@ private:
     static constexpr std::size_t number_of_f32_in_xmm_ = 4;
     static constexpr std::size_t number_of_f32_in_ymm_ = 8;
     static constexpr std::size_t number_of_f32_in_zmm_ = 16;
-    const std::size_t tail_size_;
+    const std::size_t load_tail_size_;
+    static constexpr int store_tail_size_ = 1;
 
     io::jit_io_helper_t<Vmm> io_load_;
     io::jit_io_helper_t<Vmm> io_store_;
 
     compute_fn_t compute_op_;
     compute_fn_t compute_scalar_op_;
+
+    const Xbyak::Opmask elt_inj_opmask_ = k1;
+    const Xbyak::Reg64 reg_po_injector_helper_1_ = r14;
+    const Xbyak::Reg64 reg_po_injector_helper_2_ = r15;
+
+    // post-ops injector does not use avx512_core_bf16 instructions
+    static constexpr cpu_isa_t inject_isa_
+            = isa == avx512_core_bf16 ? avx512_core : isa;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<inject_isa_, Vmm>>
+            postops_injector_;
 };
 
 } // namespace x64

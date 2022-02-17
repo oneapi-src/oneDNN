@@ -26,7 +26,6 @@
 #if HAS_IC_TAIL && !USE_NHWC
 #error IC tail processing not supported
 #endif
-
 #define HAS_STAT_SP_TAIL (STAT_SP_TAIL != STAT_SP_NBLOCKS)
 #define HAS_SP_TAIL (SP != SP_TAIL)
 
@@ -133,6 +132,171 @@ void gen9_reduce_common(__global float *reduce_temp, __local float *local_sum,
             dst[c] = sum / (MB * ID * IH * IW);
     }
 }
+
+#if USE_STATS_ONE_PASS
+
+// IC tail processing is not implemented for one pass algorithm
+
+#define ACCUM_DATA_T float
+#define ACCUM_DATA8_T float8
+#define ACCUM_DATA2_T float2
+#define SUM_DATA_T ACCUM_DATA2_T
+
+// Kahan summation algorithm. It's much more precise than simple sum and works
+// just as fast, since kernel is still memory-bound.
+SUM_DATA_T summation(ACCUM_DATA_T input, SUM_DATA_T state) {
+    ACCUM_DATA2_T ret;
+    ACCUM_DATA_T y = input - state.s1;
+    ACCUM_DATA_T t = state.s0 + y;
+    ret.s1 = (t - state.s0) - y;
+    ret.s0 = t;
+    return ret;
+}
+
+// Calculates partial sums of values and squares-of-values per channel
+NAMED_KERNEL_ATTR(CALC)
+__kernel void gen9_calc_mean_var(
+        __global DATA_T *src, __global ACCUM_DATA_T *reduce_temp) {
+    const int mb = GWS_GET_STAT_MB();
+    const int c = GWS_GET_STAT_IC();
+    const int sp_block_idx = GWS_GET_STAT_SP();
+    const int mb_sp_idx = mb * STAT_SP_NBLOCKS + sp_block_idx;
+    const int group_c_offset = REDUCE_STAT_NBLOCKS * 16 * (int)(c / 16);
+    const int simd_id = get_sub_group_local_id();
+    const int ver_offs = REDUCE_STAT_NBLOCKS * IC;
+
+#if USE_NHWC
+    src += c + sp_block_idx * STAT_SP_BLOCK * IC;
+#else
+    src += (c & 15) + sp_block_idx * STAT_SP_BLOCK * 16 + (c & ~15) * SP
+            + mb * SP * IC;
+#endif
+
+    SUM_DATA_T sum;
+    SUM_DATA_T sum_sq;
+    sum.s0 = 0;
+    sum.s1 = 0;
+    sum_sq.s0 = 0;
+    sum_sq.s1 = 0;
+
+#if HAS_STAT_SP_TAIL
+    if (sp_block_idx == STAT_SP_TAIL) {
+        int sp = SP - STAT_SP_TAIL * STAT_SP_BLOCK;
+        while (sp >= 16) {
+#if USE_NHWC
+            float8 s0, s1;
+            for (int k = 0; k < 8; ++k)
+                s0[k] = LOAD_DATA_1x16(&src[k * IC]);
+            for (int k = 0; k < 8; ++k)
+                s1[k] = LOAD_DATA_1x16(&src[(k + 8) * IC]);
+#else
+            float8 s0 = LOAD_DATA_8x16(&src[0]);
+            float8 s1 = LOAD_DATA_8x16(&src[8 * 16]);
+#endif
+            for (int i = 0; i < 8; i++) {
+                sum = summation(s0[i], sum);
+                sum = summation(s1[i], sum);
+                sum_sq = summation(s0[i] * s0[i], sum_sq);
+                sum_sq = summation(s1[i] * s1[i], sum_sq);
+            }
+
+            src += 16 * IC_BLOCK_STRIDE;
+            sp -= 16;
+        }
+        while (sp >= 1) {
+            float s0 = LOAD_DATA_1x16(&src[0]);
+            sum = summation(s0, sum);
+            sum_sq = summation(s0 * s0, sum_sq);
+            src += IC_BLOCK_STRIDE;
+            --sp;
+        }
+    } else
+#endif
+    {
+        for (int sp = 0; sp < STAT_SP_BLOCK / 16; ++sp) {
+#if USE_NHWC
+            float8 s0, s1;
+            for (int k = 0; k < 8; ++k)
+                s0[k] = LOAD_DATA_1x16(&src[k * IC]);
+            for (int k = 0; k < 8; ++k)
+                s1[k] = LOAD_DATA_1x16(&src[(k + 8) * IC]);
+#else
+            float8 s0 = LOAD_DATA_8x16(&src[0]);
+            float8 s1 = LOAD_DATA_8x16(&src[8 * 16]);
+#endif
+            for (int i = 0; i < 8; i++) {
+                sum = summation(s0[i], sum);
+                sum = summation(s1[i], sum);
+                sum_sq = summation(s0[i] * s0[i], sum_sq);
+                sum_sq = summation(s1[i] * s1[i], sum_sq);
+            }
+            src += 16 * IC_BLOCK_STRIDE;
+        }
+    }
+
+    STORE_FLOAT_1x16(
+            &reduce_temp[group_c_offset + mb_sp_idx * 16 + simd_id], sum.s0);
+    STORE_FLOAT_1x16(
+            &reduce_temp[ver_offs + group_c_offset + mb_sp_idx * 16 + simd_id],
+            sum_sq.s0);
+}
+
+// Calculates mean and variance by further reducing sum of values
+// and sum of squares-of-values.
+NAMED_KERNEL_ATTR(REDUCE)
+__kernel void gen9_reduce_mean_var(__global ACCUM_DATA_T *reduce_temp,
+        __global float *mean, __global float *variance) {
+
+    __local SUM_DATA_T local_sum[16 * REDUCE_IC_SUB_GROUPS];
+    __local SUM_DATA_T local_sum_sq[16 * REDUCE_IC_SUB_GROUPS];
+
+    const int ic_sub_group = get_global_id(0) / 16;
+    const int group_c = get_global_id(1);
+    const int simd_id = get_sub_group_local_id();
+    const int c = group_c * 16 + simd_id;
+    SUM_DATA_T sum;
+    SUM_DATA_T sum_sq;
+    sum.s0 = 0;
+    sum.s1 = 0;
+    sum_sq.s0 = 0;
+    sum_sq.s1 = 0;
+
+    int offs_sq = REDUCE_STAT_NBLOCKS * IC;
+    int offs = REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS * 16 * ic_sub_group
+            + REDUCE_STAT_NBLOCKS * 16 * group_c + simd_id;
+
+    for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
+        float tmp = reduce_temp[offs + i * 16];
+        sum = summation(tmp, sum);
+    }
+    for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
+        float tmp = reduce_temp[offs_sq + offs + i * 16];
+        sum_sq = summation(tmp, sum_sq);
+    }
+
+    if (ic_sub_group > 0) {
+        local_sum[ic_sub_group * 16 + simd_id] = sum;
+        local_sum_sq[ic_sub_group * 16 + simd_id] = sum_sq;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (ic_sub_group == 0) {
+        for (int i = 1; i < REDUCE_IC_SUB_GROUPS; i++) {
+            SUM_DATA_T tmp = local_sum[i * 16 + simd_id];
+            SUM_DATA_T tmp_sq = local_sum_sq[i * 16 + simd_id];
+            sum = summation(tmp.s1, sum);
+            sum_sq = summation(tmp_sq.s1, sum_sq);
+            sum = summation(tmp.s0, sum);
+            sum_sq = summation(tmp_sq.s0, sum_sq);
+        }
+        float tmp_mean = sum.s0 / (MB * ID * IH * IW);
+        mean[c] = tmp_mean;
+        float tmp_var = max(0.0f,
+                (sum_sq.s0 / (MB * ID * IH * IW)) - (tmp_mean * tmp_mean));
+        variance[c] = tmp_var;
+        float divider = MB * ID * IH * IW;
+    }
+}
+#endif // USE_STATS_ONE_PASS
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_mean(

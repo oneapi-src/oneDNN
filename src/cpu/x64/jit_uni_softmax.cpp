@@ -877,8 +877,9 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
                 dim_t offset = (ou * outer_stride + in * inner_stride);
                 const char *src_ptr = src + offset * src_data_type_size;
                 char *dst_ptr = dst + offset * dst_data_type_size;
-                char *interim_ptr = scratchpad_ptr
-                        + ithr * axis_size_padded * sizeof(float);
+                char *interim_ptr = scratchpad_ptr ? scratchpad_ptr
+                                + ithr * axis_size_padded * sizeof(float)
+                                                   : nullptr;
                 const auto *oscale_ptr = oscales;
                 softmax_driver_->exec(src_ptr, dst_ptr, interim_ptr, oscale_ptr,
                         process_n_elems);

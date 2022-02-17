@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,9 +66,11 @@ struct desc_t {
         pd_r = opp_pad(is_deconv, id, od, kd, sd, pd, dd);
     }
 
+    int64_t desc_nelems(int arg, int mask) const;
+
 private:
     int64_t opp_pad(bool is_deconv, int64_t i, int64_t o, int64_t k, int64_t s,
-            int64_t p, int64_t d) {
+            int64_t p, int64_t d) const {
         return is_deconv ? (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - p
                          : (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
     }
@@ -144,8 +146,6 @@ struct settings_t {
 
 // moved out of prb_t to support fusion
 float *generate_oscales(const attr_t::scale_t &oscale, int N);
-int32_t *generate_zero_points(
-        int arg, const attr_t::zero_points_t &zero_points, int N);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
@@ -170,8 +170,8 @@ struct prb_t : public desc_t {
         if (mb) this->mb = mb;
         count_ops();
         scales = generate_oscales(attr.oscale, oc);
-        src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, ic);
-        dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, oc);
+        src_zp = generate_zero_points(DNNL_ARG_SRC);
+        dst_zp = generate_zero_points(DNNL_ARG_DST);
 
         const int dw_idx = this->attr.post_ops.convolution_index();
         if (dw_idx != -1) {
@@ -201,6 +201,9 @@ struct prb_t : public desc_t {
     void count_ops();
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
+
+private:
+    int32_t *generate_zero_points(int arg);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

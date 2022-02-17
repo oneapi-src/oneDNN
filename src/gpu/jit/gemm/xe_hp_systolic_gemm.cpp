@@ -255,6 +255,8 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     bool c_any = c_mdw.format_any();
     bool batch = d->is_batched();
 
+    if (batch_dims() > 1) return false;
+
     format_tag_t a_packed_tag_16 = undef;
     format_tag_t a_packed_tag_32 = undef;
     format_tag_t a_packed_tag_64 = undef;

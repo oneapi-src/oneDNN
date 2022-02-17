@@ -38,6 +38,26 @@ using namespace dnnl::impl::utils;
 using namespace data_type;
 using namespace format_tag;
 
+int get_default_n_block(format_tag_t matrix_b_tag) {
+    // Note: consider using weights mem_descriptor 'inner_blks' to
+    // return B's inner block for non-default cases.
+    switch (matrix_b_tag) {
+        case BA16a64b4a:
+        case BA16a64b2a:
+        case BA16a64b: return 64;
+        case BA16a48b:
+        case BA16a48b2a:
+        case BA16a48b4a: return 48;
+        case BA16a32b:
+        case BA16a32b2a:
+        case BA16a32b4a: return 32;
+        case BA16a16b:
+        case BA16a16b2a:
+        case BA16a16b4a: return 16;
+        default: return 64;
+    }
+}
+
 // TODO: add support of post-ops with multiple binary and eltwise execution
 bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
         const memory_desc_wrapper &dst_d) {
@@ -116,17 +136,19 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , blocked_B_layouts_allowed(!utils::one_of(format_tag::undef,
               blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
               blocked_32n_B_layout_tag, blocked_16n_B_layout_tag))
-    , n_blk_fixed((!B_any_layout) && blocked_B_layouts_allowed
-              && check_b_layout_blocked_by_n(bgmmc.wei_tag)) {
+    , n_blk_fixed((!B_any_layout) && blocked_B_layouts_allowed) {
     assert(int8_dt || bf16_dt || f32_dt);
 }
 
 status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
-        memory_desc_t &B_md) const {
+        memory_desc_t &B_md, bool init_n_tag) const {
 
     if (B_any_layout) {
+        const int default_n_block = init_n_tag
+                ? get_default_n_block(format_tag::undef)
+                : bgmmc.N_blk;
         bgmmc.wei_tag = blocked_B_layouts_allowed
-                ? this->pick_blocked_B_layout(bgmmc.wei_n_blk)
+                ? this->pick_blocked_B_layout(default_n_block)
                 : plain_tensor_layout_tag;
         if (format_tag::undef == bgmmc.wei_tag) return status::unimplemented;
 
@@ -160,7 +182,7 @@ status_t brgemm_matmul_conf_utils_t::update_and_check_B_tag(
 
     if (!(B_any_layout && blocked_B_layouts_allowed)) return status::success;
 
-    return set_or_check_B_tag(B_md);
+    return set_or_check_B_tag(B_md, false);
 }
 
 status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
@@ -241,21 +263,6 @@ format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
             default: return format_tag::undef;
         }
     return format_tag::undef;
-}
-
-int get_default_n_block(format_tag_t matrix_b_tag) {
-    switch (matrix_b_tag) {
-        case BA16a48b:
-        case BA16a48b2a:
-        case BA16a48b4a: return 48;
-        case BA16a32b:
-        case BA16a32b2a:
-        case BA16a32b4a: return 32;
-        case BA16a16b:
-        case BA16a16b2a:
-        case BA16a16b4a: return 16;
-        default: return 64;
-    }
 }
 
 brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
@@ -595,7 +602,8 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
         if (low_spatial_work || bwd_w_low_spatial_work) {
 
             // Reduce n_blk size to increase parallel space
-            n_blk = nstl::min(matmul.N, 32);
+            if (!bm_conf_utils.check_n_blk_fixed())
+                n_blk = nstl::min(matmul.N, 32);
 
             // force to plain B (wei) in small spatial size for FWD:
             // note: this showed significant performance gain in WnD shapes
@@ -710,7 +718,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         // - can parallelize if not enough work; notice: requires reduction!
         //
         // Batch_Size:
-        // - unsed.
+        // - unused.
 
         const matmul_avx512_blocking_params_t::matmul_params_t matmul(
                 bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
@@ -820,11 +828,11 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     if (bgmmc.required_k_granularity == 0) return status::unimplemented;
     bgmmc.wei_k_blk = data_type_vnni_simd_elems<avx512_core>(bgmmc.wei_dt);
 
-    bgmmc.wei_n_blk = get_default_n_block(format_tag::undef);
-
     CHECK(bm_conf_utils.set_or_check_tags(src_md, dst_md, bias_md));
     CHECK(bm_conf_utils.set_or_check_B_tag(weights_md));
     CHECK(attr.set_default_formats(&dst_md));
+
+    bgmmc.wei_n_blk = get_default_n_block(bgmmc.wei_tag);
 
     bgmmc.blocked_B = bm_conf_utils.get_blocked_B();
     bgmmc.use_buffer_b = bm_conf_utils.use_buffer_b();
@@ -889,7 +897,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 void init_aux_values(brgemm_matmul_conf_t &bgmmc,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
         const memory_desc_wrapper &dst_d) {
-    bgmmc.wsp_tile_per_thr_bytes = 1024;
+    bgmmc.wsp_tile_per_thr_bytes = 4 * 1024;
 
     bgmmc.M_chunk_elems = bgmmc.M_blk * bgmmc.M_chunk_size;
     bgmmc.N_chunk_elems = bgmmc.N_blk * bgmmc.N_chunk_size;

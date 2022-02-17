@@ -483,6 +483,10 @@ int check_abc_tag(const std::string &tag, bool check_enum_tags_only = false);
 
 // Removes extra dimensions from a tag according to ndims.
 std::string trim_tag(const std::string &tag, int ndims);
+// Removes extra dimensions from a tag according to mask. `ndims` version is a
+// custom case of `mask` version, assuming that first `ndims` dimensions of mask
+// are non-zero.
+std::string trim_tag_by_mask(const std::string &tag, int mask);
 
 // Converts a tag/meta-tag to abc notation.
 std::string normalize_tag(const std::string &tag, int ndims = -1);

@@ -261,6 +261,11 @@ struct brgemm_kernel_post_ops_t {
     void *ptr_scales;
     const void *ptr_binary_post_ops_rhs;
     size_t oc_l_offset;
+    size_t apply_comp = 0;
+    int32_t a_comp_val = 1;
+    int32_t *a_zp_compensation;
+    int32_t *c_zp_values;
+    int32_t *s8s8_compensation;
     const void *dst_orig;
 };
 
@@ -362,10 +367,55 @@ private:
     const reg64_t reg_oc_l_offset_ = abi_not_param1;
     const reg64_t aux_reg_oc_l_offset_ = rbx;
 
+    const reg64_t reg_zp_c_values = rbx;
+    const reg64_t aux_reg_zp_c_values = rbx;
+    const reg64_t reg_zp_a_comp = rbx;
+    const reg64_t aux_reg_zp_a_comp = rbx;
+    const reg64_t reg_s8s8_comp = rbx;
+    const reg64_t aux_reg_s8s8_comp = rbx;
+    const reg64_t reg_zp_a_val = rbx;
+    const reg64_t reg_apply_comp = rbx;
+
+    constexpr static int reg_aux_oc_l_offset_offs_ = 0;
+    constexpr static int reg_zp_c_values_offs_ = 8;
+    constexpr static int aux_reg_zp_c_values_offs_ = 16;
+    constexpr static int reg_zp_a_comp_offs_ = 24;
+    constexpr static int aux_reg_zp_a_comp_offs_ = 32;
+    constexpr static int reg_s8s8_comp_offs_ = 40;
+    constexpr static int aux_reg_s8s8_comp_offs_ = 48;
+    constexpr static int reg_zp_a_val_offs_ = 56;
+    constexpr static int reg_apply_comp_offs_ = 64;
+    constexpr static int stack_space_needed_ = 72;
+
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
 
     const int n_block2_ = 4;
+
+    int zp_c_values_offset(int n, bool is_tail = false) const noexcept {
+        if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+            return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
+                             : sizeof(int32_t) * n * brg.ld_block;
+        }
+
+        return 0;
+    }
+    int zp_comp_a_vpad_offset(int n, int m, bool is_tail = false) const
+            noexcept {
+        return (is_tail) ? sizeof(int32_t) * (brg.ldb_tail + m * brg.LDB)
+                         : sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
+    }
+    int mb_zp_comp_a_offset(int m_block) const noexcept {
+        return sizeof(int32_t) * m_block * brg.LDB;
+    }
+    int compensation_vpad_offset(int n, int m, bool is_tail = false) const
+            noexcept {
+        return (is_tail) ? sizeof(int32_t) * (brg.ldb_tail + m * brg.LDB)
+                         : sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
+    }
+    int mb_compensation_offset(int m_block) const noexcept {
+        return sizeof(int32_t) * m_block * brg.LDB;
+    }
 
     const Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag,
             bool store, Xbyak::Opmask ktail_mask) {
@@ -403,6 +453,21 @@ private:
     Xbyak::Zmm vector(int m, int n, int n_block) {
         return Xbyak::Zmm(m * n_block + n);
     };
+
+    void advance_mb_post_ops_regs(int m_block) {
+        if (brg.alpha != 0) {
+            if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                mov(reg_zp_a_comp, ptr[rsp + reg_zp_a_comp_offs_]);
+                add(reg_zp_a_comp, mb_zp_comp_a_offset(m_block));
+                mov(ptr[rsp + reg_zp_a_comp_offs_], reg_zp_a_comp);
+            }
+            if (brg.req_s8s8_compensation) {
+                mov(reg_s8s8_comp, ptr[rsp + reg_s8s8_comp_offs_]);
+                add(reg_s8s8_comp, mb_compensation_offset(m_block));
+                mov(ptr[rsp + reg_s8s8_comp_offs_], reg_s8s8_comp);
+            }
+        }
+    }
 
     void inject_attr_postops(int m_block, int n_block, int tail = 0) {
         const auto &p = attr.post_ops_;
@@ -462,16 +527,89 @@ private:
                 0, m_block * n_block, rhs_arg_params);
     }
 
+    void apply_comp(int m_block, int n_block, int tail = 0) {
+        auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
+
+        if (brg.alpha != 0 && brg.zp_type_a != brgemm_broadcast_t::none) {
+            auto zmm_zp_a_val = Xbyak::Zmm(30);
+            mov(reg_zp_a_val, ptr[rsp + reg_zp_a_val_offs_]);
+            vpbroadcastd(zmm_zp_a_val, reg_zp_a_val.cvt32());
+
+            mov(aux_reg_zp_a_comp, ptr[rsp + aux_reg_zp_a_comp_offs_]);
+            for (int n = 0; n < n_block; n++) {
+                auto zmm_zp_comp_a = Xbyak::Zmm(31);
+                auto zp_comp_a_addr = EVEX_compress_addr(aux_reg_zp_a_comp,
+                        sizeof(int32_t) * (n * brg.ld_block));
+                zmm_zp_comp_a = zmm_mask(zmm_zp_comp_a, true, false, k_mask);
+                vmovups(zmm_zp_comp_a, zp_comp_a_addr);
+                vpmulld(zmm_zp_comp_a, zmm_zp_a_val, zp_comp_a_addr);
+
+                for (int m = 0; m < m_block; m++) {
+                    if (brg.with_comp_pads) {
+                        auto zp_comp_a_vpad_offs = zp_comp_a_vpad_offset(n, m);
+                        auto zp_comp_a_vpad_addr = zword[aux_reg_zp_a_comp
+                                + zp_comp_a_vpad_offs];
+                        vmovups(zmm_zp_comp_a, zp_comp_a_vpad_addr);
+                        vpmulld(zmm_zp_comp_a, zmm_zp_comp_a, zmm_zp_a_val);
+                    }
+                    auto zmm = vector(m, n, n_block);
+                    vpaddd(zmm, zmm, zmm_zp_comp_a);
+                }
+            }
+        }
+
+        if (brg.alpha != 0 && brg.req_s8s8_compensation) {
+            mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
+            for (int n = 0; n < n_block; n++) {
+                auto zmm_comp = Xbyak::Zmm(31);
+                auto comp_addr = EVEX_compress_addr(aux_reg_s8s8_comp,
+                        sizeof(int32_t) * (n * brg.ld_block));
+                zmm_comp = zmm_mask(zmm_comp, true, false, k_mask);
+                vmovups(zmm_comp, comp_addr);
+
+                for (int m = 0; m < m_block; m++) {
+                    if (brg.with_comp_pads) {
+                        auto comp_vpad_offs = compensation_vpad_offset(n, m);
+                        auto comp_vpad_addr
+                                = zword[aux_reg_s8s8_comp + comp_vpad_offs];
+                        vmovups(zmm_comp, comp_vpad_addr);
+                    }
+                    auto zmm = vector(m, n, n_block);
+                    vpaddd(zmm, zmm, zmm_comp);
+                }
+            }
+        }
+    }
+
+    void maybe_apply_comp(int m_block, int n_block, int tail = 0) {
+        Xbyak::Label label_apply_without_comp;
+        mov(reg_apply_comp, ptr[rsp + reg_apply_comp_offs_]);
+        cmp(reg_apply_comp, 0);
+        je(label_apply_without_comp, T_NEAR);
+        apply_comp(m_block, n_block, tail);
+        L_aligned(label_apply_without_comp);
+
+        for_(int m = 0; m < m_block; m++)
+        for (int n = 0; n < n_block; n++) {
+            vcvtdq2ps(vector(m, n, n_block), vector(m, n, n_block));
+        }
+    }
+
     void apply_post_ops(int m_block, int n_block, int tail = 0) {
         const auto vector
                 = [=](int m, int n) { return Xbyak::Zmm(m * n_block + n); };
         auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
         const auto &p = attr.post_ops_;
         const int sum_idx = p.find(primitive_kind::sum);
+        const auto maybe_req_comp = brg.is_int8 && brg.alpha != 0
+                && (brg.req_s8s8_compensation
+                        || brg.zp_type_a != brgemm_broadcast_t::none);
 
         // brg.alpha == 0 means no read from input, no bias, no eltwise - just
         // initialize registers by zero at the beginning of kernel
         // brg.beta == 0 means no sum - just registers write to output
+        // maybe_req_comp == true -> convert accumulated values to f32 after apply
+        // compensation to avoid the lost of accuracy when converting s32 to f32
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
             if (brg.alpha == 0) {
@@ -482,9 +620,18 @@ private:
             } else {
                 auto inp_addr = ptr[aux_reg_in
                         + inp_typesize_ * (m * brg.LDC + n * brg.ld_block)];
-                cvt2ps(inp_dt_, vector(m, n), inp_addr, true, false, k_mask);
+                if (maybe_req_comp) {
+                    const Xbyak::Zmm zmm
+                            = zmm_mask(vector(m, n), true, false, k_mask);
+                    vmovups(zmm, inp_addr);
+                } else {
+                    cvt2ps(inp_dt_, vector(m, n), inp_addr, true, false,
+                            k_mask);
+                }
             }
         }
+
+        if (maybe_req_comp) maybe_apply_comp(m_block, n_block, tail);
 
         if (brg.alpha != 0 && jcp.with_bias) {
             for_(int m = 0; m < m_block; m++)
@@ -511,6 +658,26 @@ private:
         }
 
         if (postops_injector_) inject_attr_postops(m_block, n_block, tail);
+
+        if (brg.alpha != 0 && brg.zp_type_c != brgemm_broadcast_t::none) {
+            mov(aux_reg_zp_c_values, ptr[rsp + aux_reg_zp_c_values_offs_]);
+            auto zmm_zp_c = Xbyak::Zmm(31);
+            if (brg.zp_type_c == brgemm_broadcast_t::per_tensor) {
+                vcvtdq2ps(zmm_zp_c,
+                        EVEX_compress_addr(aux_reg_zp_c_values, 0, true));
+            }
+            for (int n = 0; n < n_block; n++) {
+                if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
+                    int zp_c_off = zp_c_values_offset(n);
+                    auto zp_c_addr
+                            = EVEX_compress_addr(aux_reg_zp_c_values, zp_c_off);
+                    cvt2ps(data_type::s32, zmm_zp_c, zp_c_addr, true, false,
+                            k_mask);
+                }
+                for (int m = 0; m < m_block; m++)
+                    vaddps(vector(m, n), zmm_zp_c);
+            }
+        }
 
         const bool dt_requires_saturation = utils::one_of(
                 brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
@@ -560,6 +727,18 @@ private:
             if (jcp.with_bias) mov(aux_reg_bias, reg_bias);
             if (with_binary_per_oc_bcast_)
                 mov(aux_reg_oc_l_offset_, reg_oc_l_offset_);
+            if (brg.zp_type_c != brgemm_broadcast_t::none) {
+                mov(aux_reg_zp_c_values, ptr[rsp + reg_zp_c_values_offs_]);
+                mov(ptr[rsp + aux_reg_zp_c_values_offs_], aux_reg_zp_c_values);
+            }
+            if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                mov(aux_reg_zp_a_comp, ptr[rsp + reg_zp_a_comp_offs_]);
+                mov(ptr[rsp + aux_reg_zp_a_comp_offs_], aux_reg_zp_a_comp);
+            }
+            if (brg.req_s8s8_compensation) {
+                mov(aux_reg_s8s8_comp, ptr[rsp + reg_s8s8_comp_offs_]);
+                mov(ptr[rsp + aux_reg_s8s8_comp_offs_], aux_reg_s8s8_comp);
+            }
             mov(aux_reg_scales, reg_scales);
         }
         mov(aux_reg_out, reg_out);
@@ -575,8 +754,30 @@ private:
 
                 if (jcp.with_bias)
                     add(aux_reg_bias, bia_typesize_ * oc_l_offset);
-                if (with_binary_per_oc_bcast_)
+                if (brg.zp_type_c != brgemm_broadcast_t::none) {
+                    mov(aux_reg_zp_c_values,
+                            ptr[rsp + aux_reg_zp_c_values_offs_]);
+                    add(aux_reg_zp_c_values, zp_c_values_offset(n_block2_));
+                    mov(ptr[rsp + aux_reg_zp_c_values_offs_],
+                            aux_reg_zp_c_values);
+                }
+                if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                    mov(aux_reg_zp_a_comp, ptr[rsp + aux_reg_zp_a_comp_offs_]);
+                    add(aux_reg_zp_a_comp, sizeof(int32_t) * oc_l_offset);
+                    mov(ptr[rsp + aux_reg_zp_a_comp_offs_], aux_reg_zp_a_comp);
+                }
+                if (brg.req_s8s8_compensation) {
+                    mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
+                    add(aux_reg_s8s8_comp, sizeof(int32_t) * oc_l_offset);
+                    mov(ptr[rsp + aux_reg_s8s8_comp_offs_], aux_reg_s8s8_comp);
+                }
+                if (with_binary_per_oc_bcast_) {
+                    mov(aux_reg_oc_l_offset_,
+                            ptr[rsp + reg_aux_oc_l_offset_offs_]);
                     add(aux_reg_oc_l_offset_, oc_l_offset);
+                    mov(ptr[rsp + reg_aux_oc_l_offset_offs_],
+                            aux_reg_oc_l_offset_);
+                }
 
                 add(aux_reg_scales, is_oc_scale_ * sizeof(float) * oc_l_offset);
             }
@@ -590,8 +791,30 @@ private:
                 add(aux_reg_in, inp_typesize_ * oc_l_offset);
                 if (jcp.with_bias)
                     add(aux_reg_bias, bia_typesize_ * oc_l_offset);
-                if (with_binary_per_oc_bcast_)
+                if (brg.zp_type_c != brgemm_broadcast_t::none) {
+                    mov(aux_reg_zp_c_values,
+                            ptr[rsp + aux_reg_zp_c_values_offs_]);
+                    add(aux_reg_zp_c_values, zp_c_values_offset(nb2_tail));
+                    mov(ptr[rsp + aux_reg_zp_c_values_offs_],
+                            aux_reg_zp_c_values);
+                }
+                if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                    mov(aux_reg_zp_a_comp, ptr[rsp + aux_reg_zp_a_comp_offs_]);
+                    add(aux_reg_zp_a_comp, sizeof(int32_t) * oc_l_offset);
+                    mov(ptr[rsp + aux_reg_zp_a_comp_offs_], aux_reg_zp_a_comp);
+                }
+                if (brg.req_s8s8_compensation) {
+                    mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
+                    add(aux_reg_s8s8_comp, sizeof(int32_t) * oc_l_offset);
+                    mov(ptr[rsp + aux_reg_s8s8_comp_offs_], aux_reg_s8s8_comp);
+                }
+                if (with_binary_per_oc_bcast_) {
+                    mov(aux_reg_oc_l_offset_,
+                            ptr[rsp + reg_aux_oc_l_offset_offs_]);
                     add(aux_reg_oc_l_offset_, oc_l_offset);
+                    mov(ptr[rsp + reg_aux_oc_l_offset_offs_],
+                            aux_reg_oc_l_offset_);
+                }
 
                 add(aux_reg_scales, is_oc_scale_ * sizeof(float) * oc_l_offset);
             }
@@ -602,8 +825,30 @@ private:
             if (brg.alpha != 0) {
                 add(aux_reg_in, inp_typesize_ * (nb_tail));
                 if (jcp.with_bias) add(aux_reg_bias, bia_typesize_ * (nb_tail));
-                if (with_binary_per_oc_bcast_)
+                if (brg.zp_type_c != brgemm_broadcast_t::none) {
+                    mov(aux_reg_zp_c_values,
+                            ptr[rsp + aux_reg_zp_c_values_offs_]);
+                    add(aux_reg_zp_c_values, zp_c_values_offset(1, nb_tail));
+                    mov(ptr[rsp + aux_reg_zp_c_values_offs_],
+                            aux_reg_zp_c_values);
+                }
+                if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                    mov(aux_reg_zp_a_comp, ptr[rsp + aux_reg_zp_a_comp_offs_]);
+                    add(aux_reg_zp_a_comp, sizeof(int32_t) * nb_tail);
+                    mov(ptr[rsp + aux_reg_zp_a_comp_offs_], aux_reg_zp_a_comp);
+                }
+                if (brg.req_s8s8_compensation) {
+                    mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
+                    add(aux_reg_s8s8_comp, sizeof(int32_t) * nb_tail);
+                    mov(ptr[rsp + aux_reg_s8s8_comp_offs_], aux_reg_s8s8_comp);
+                }
+                if (with_binary_per_oc_bcast_) {
+                    mov(aux_reg_oc_l_offset_,
+                            ptr[rsp + reg_aux_oc_l_offset_offs_]);
                     add(aux_reg_oc_l_offset_, nb_tail);
+                    mov(ptr[rsp + reg_aux_oc_l_offset_offs_],
+                            aux_reg_oc_l_offset_);
+                }
                 add(aux_reg_scales, is_oc_scale_ * bia_typesize_ * (nb_tail));
             }
             add(aux_reg_out, out_typesize_ * (nb_tail));
@@ -612,6 +857,8 @@ private:
 
     void generate() override {
         preamble();
+
+        sub(rsp, stack_space_needed_);
 
         int nb = brg.load_dim / brg.ld_block;
         int nb_tail = brg.load_dim % brg.ld_block;
@@ -639,8 +886,25 @@ private:
         if (brg.alpha != 0) {
             mov(reg_in, ptr[param1 + GET_OFF(ptr_in)]);
             mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
+            mov(reg_apply_comp, ptr[param1 + GET_OFF(apply_comp)]);
+            mov(ptr[rsp + reg_apply_comp_offs_], reg_apply_comp);
 
             if (jcp.with_bias) mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
+            if (brg.zp_type_c != brgemm_broadcast_t::none) {
+                mov(reg_zp_c_values, ptr[param1 + GET_OFF(c_zp_values)]);
+                mov(ptr[rsp + reg_zp_c_values_offs_], reg_zp_c_values);
+            }
+            if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                mov(reg_zp_a_comp, ptr[param1 + GET_OFF(a_zp_compensation)]);
+                mov(ptr[rsp + reg_zp_a_comp_offs_], reg_zp_a_comp);
+
+                mov(reg_zp_a_val, ptr[param1 + GET_OFF(a_comp_val)]);
+                mov(ptr[rsp + reg_zp_a_val_offs_], reg_zp_a_val);
+            }
+            if (brg.req_s8s8_compensation) {
+                mov(reg_s8s8_comp, ptr[param1 + GET_OFF(s8s8_compensation)]);
+                mov(ptr[rsp + reg_s8s8_comp_offs_], reg_s8s8_comp);
+            }
             if (with_binary_per_oc_bcast_)
                 mov(reg_oc_l_offset_, ptr[param1 + GET_OFF(oc_l_offset)]);
         }
@@ -662,9 +926,12 @@ private:
 
             if (brg.alpha != 0)
                 add(reg_in, inp_typesize_ * (m_block * brg.LDC));
+            advance_mb_post_ops_regs(m_block);
             add(reg_out, out_typesize_ * (m_block * LDD_));
         }
         if (mb_tail > 0) loop_by_N(mb_tail, nb2, nb2_tail, nb_tail);
+
+        add(rsp, stack_space_needed_);
 
         postamble();
 

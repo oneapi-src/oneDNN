@@ -1423,6 +1423,7 @@ void brgemm_inner_product_bwd_weights_t<
 
     int icb_l = 0, ocb_l = 0;
     const int acc_size = jbgp.ic_block * jbgp.oc_block;
+
     for (int ir = reduce_buf_idx_start; ir < reduce_buf_idx_end; ++ir) {
         int counter = start;
         nd_iterator_init(start, ocb_l, ocb_work, icb_l, icb_work);

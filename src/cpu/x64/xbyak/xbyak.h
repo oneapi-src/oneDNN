@@ -1808,8 +1808,9 @@ private:
 	{
 		uint64_t disp64 = e.getDisp();
 #ifdef XBYAK64
-		uint64_t high = disp64 >> 32;
-		if (high != 0 && high != 0xFFFFFFFF) XBYAK_THROW(ERR_OFFSET_IS_TOO_BIG)
+		// displacement should be a signed 32-bit value, so also check sign bit
+		uint64_t high = disp64 >> 31;
+		if (high != 0 && high != 0x1FFFFFFFF) XBYAK_THROW(ERR_OFFSET_IS_TOO_BIG)
 #endif
 		uint32_t disp = static_cast<uint32_t>(disp64);
 		const Reg& base = e.getBase();

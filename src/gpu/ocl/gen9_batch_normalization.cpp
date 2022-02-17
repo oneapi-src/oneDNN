@@ -105,7 +105,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     const bool is_nhwc
             = conf.ic % 8 == 0 && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc);
 
-    // Due to intel_sub_group_write_uc requires 16-bytes aligment,
+    // Due to intel_sub_group_write_uc requires 16-bytes alignment,
     // IC div by 8 tail processing is not applicable to fuse_norm_relu
     // and char data type.
     if (conf.ic % 8 == 0 && conf.ic % 16
@@ -116,6 +116,13 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             && compute_engine->device_info()->gpu_arch()
                     < compute::gpu_arch_t::xe_hpc)
         return status::unimplemented;
+
+    conf.use_stats_one_pass = experimental::use_bnorm_stats_one_pass();
+
+    // IC tail processing is not implemented yet for one pass algorithm
+    // TODO: implement it, possible perf boost could be ~ 2x
+    if (conf.ic % 8 == 0 && conf.ic % 16 && conf.use_stats_one_pass)
+        conf.use_stats_one_pass = false;
 
     conf.use_nhwc = is_nhwc;
 
@@ -247,6 +254,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("DIFF_SCALE", conf.diff_scale);
     kernel_ctx.define_int("DIFF_SHIFT", conf.diff_shift);
     kernel_ctx.define_int("REDUCE_IC_SUB_GROUPS", conf.stat_ic / 16);
+    kernel_ctx.define_int("USE_STATS_ONE_PASS", conf.use_stats_one_pass);
 
     if (conf.data_type == data_type::s8)
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
@@ -272,7 +280,9 @@ status_t gen9_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
 
 void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
-        size_t size = 2 * conf.reduce_stat_nblocks * utils::rnd_up(conf.ic, 16);
+        size_t size_coeff = sizeof(double) / sizeof(float);
+        size_t size = 2 * size_coeff * conf.reduce_stat_nblocks
+                * utils::rnd_up(conf.ic, 16);
 
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(key_bnorm_reduction, size,
@@ -334,7 +344,7 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
     auto &variance = (conf.calculate_stats && !conf.save_stats) ? *tmp_variance
                                                                 : variance_;
 
-    if (conf.calculate_stats) {
+    if (conf.calculate_stats && !conf.use_stats_one_pass) {
         compute::kernel_arg_list_t calc_mean_arg_list;
         calc_mean_arg_list.set(0, src);
         calc_mean_arg_list.set(1, *temp_reduce);
@@ -376,7 +386,28 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
                 reduce_var_arg_list);
         if (status != status::success) return status;
     }
+    if (conf.calculate_stats && conf.use_stats_one_pass) {
+        compute::kernel_arg_list_t calc_mean_var_arg_list;
+        calc_mean_var_arg_list.set(0, src);
+        calc_mean_var_arg_list.set(1, *temp_reduce);
 
+        auto nd_range_calc_mean = conf.dispatch_calc_stat.nd_range();
+
+        status = parallel_for(ctx, nd_range_calc_mean,
+                calculate_mean_var_kernel_, calc_mean_var_arg_list);
+        if (status != status::success) return status;
+
+        compute::kernel_arg_list_t reduce_mean_var_arg_list;
+        reduce_mean_var_arg_list.set(0, *temp_reduce);
+        reduce_mean_var_arg_list.set(1, mean);
+        reduce_mean_var_arg_list.set(2, variance);
+
+        auto nd_range_reduce_mean = conf.dispatch_reduce_stat.nd_range();
+
+        status = parallel_for(ctx, nd_range_reduce_mean,
+                reduce_mean_var_kernel_, reduce_mean_var_arg_list);
+        if (status != status::success) return status;
+    }
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, mean);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -174,7 +174,8 @@ static status_t init_conf_common(
         set_gws_d();
     }
 
-    compute::get_optimal_lws(conf.gws_d, conf.lws_d, 3);
+    compute::get_optimal_lws(conf.gws_d, conf.lws_d, 3, 0,
+            compute_engine->device_info()->gpu_arch());
     return status::success;
 }
 

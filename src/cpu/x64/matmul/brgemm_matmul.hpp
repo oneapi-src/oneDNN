@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,25 +35,37 @@ namespace x64 {
 namespace matmul {
 
 namespace {
-constexpr int max_num_brg_kernels_matmul = 2 * 2 * 2 * 2;
+constexpr int max_num_brg_kernels_matmul = 2 * 2 * 2 * 2 * 2;
 
 inline int get_brg_kernel_index(const brgemm_matmul_conf_t &bgmmc,
-        bool do_initialization, bool is_M_tail, bool is_N_tail,
-        bool is_K_tail) {
+        bool is_bs_tail, bool do_initialization, bool is_M_tail, bool is_N_tail,
+        bool is_K_tail, int bs) {
     auto vM = (is_M_tail) ? bgmmc.M_tail : bgmmc.M_blk;
     auto vN = (is_N_tail) ? bgmmc.N_tail : bgmmc.N_blk;
     auto vK = (is_K_tail) ? bgmmc.K_tail : bgmmc.K_blk;
-    if (vM == 0 || vN == 0 || vK == 0 || bgmmc.LDA < vK || bgmmc.LDB < vN
-            || bgmmc.LDC < vN)
+    if (vM == 0 || vN == 0 || vK == 0 || bs == 0 || bgmmc.LDA < vK
+            || bgmmc.LDB < vN || bgmmc.LDC < vN)
         return -1;
 
-    int idx = 8 * (int)do_initialization + 4 * (int)is_M_tail
-            + 2 * (int)is_N_tail + (int)is_K_tail;
+    int idx = 16 * (int)is_bs_tail + 8 * (int)do_initialization
+            + 4 * (int)is_M_tail + 2 * (int)is_N_tail + (int)is_K_tail;
 
     assert(idx < max_num_brg_kernels_matmul);
     return idx;
 }
 
+inline int get_brg_batchsize(
+        const brgemm_matmul_conf_t &bgmmc, bool is_bs_tail, bool is_K_tail) {
+    auto adj_k_a = bgmmc.use_buffer_a ? utils::rnd_up(bgmmc.K, bgmmc.K_blk)
+                                      : bgmmc.K;
+    auto adj_k_b = utils::rnd_up<decltype(bgmmc.K)>(bgmmc.wei_k_blk, bgmmc.K);
+    auto adj_k = nstl::min(adj_k_a, adj_k_b);
+    auto bs = (is_K_tail)
+            ? 1
+            : ((is_bs_tail) ? (adj_k / bgmmc.K_blk) % bgmmc.brgemm_batch_size
+                            : bgmmc.brgemm_batch_size);
+    return bs;
+}
 } // namespace
 
 template <cpu_isa_t isa>
@@ -65,10 +77,11 @@ struct brgemm_matmul_t : public primitive_t {
                 JIT_IMPL_NAME_HELPER("brg:", isa, ""), brgemm_matmul_t);
 
         status_t init(engine_t *engine);
-        int get_brg_kernel_idx(bool do_initialization, bool is_M_tail,
-                bool is_N_tail, bool is_K_tail) const {
-            return get_brg_kernel_index(
-                    bgmmc_, do_initialization, is_M_tail, is_N_tail, is_K_tail);
+        int get_brg_kernel_idx(bool is_bs_tail, bool do_initialization,
+                bool is_M_tail, bool is_N_tail, bool is_K_tail) const {
+            int bs = get_brg_batchsize(bgmmc_, is_bs_tail, is_K_tail);
+            return get_brg_kernel_index(bgmmc_, is_bs_tail, do_initialization,
+                    is_M_tail, is_N_tail, is_K_tail, bs);
         }
         const brgemm_t &get_brg_desc(int idx) const { return brg_descs_[idx]; }
         const brgemm_matmul_conf_t &get_brgemm_matmul_conf() const {

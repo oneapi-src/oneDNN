@@ -381,7 +381,7 @@ static dnnl_dim_t md_off_l(dnnl_dims_t _pos, const dnnl_memory_desc_t &md,
 
 template <typename T>
 int check_zero_padding_impl(const dnn_mem_t &mem, int arg, int *error_count) {
-    const int ndims = mem.md_.ndims;
+    const int ndims = mem.ndims();
     const auto *dims = mem.md_.dims;
     const auto *pdims = mem.md_.padded_dims;
 

@@ -131,9 +131,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                             d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
                     && IMPLICATION(with_bias(),
                             utils::one_of(d->bias_type(), f32, bf16, f16)
+                                    && (d->bias_desc.ndims <= 3)
                                     && utils::one_of(
-                                            bias_cmask(), 0, 1 << 0, 1 << 1)
-                                    && (d->bias_desc.ndims <= 3))
+                                            bias_cmask(), 0, 1 << 0, 1 << 1))
                     && IMPLICATION(utils::one_of(d->bias_type(), bf16, f16),
                             (d->bias_type() == d->c_type()))
                     && compute_engine->mayiuse_ngen_kernels()

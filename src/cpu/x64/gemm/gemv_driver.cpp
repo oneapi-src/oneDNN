@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -264,6 +264,19 @@ static inline int thread_checker(
                         dim_t(nthr));
             }
         }
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+        if (mayiuse(avx512_core) && is_f32) {
+            auto l2_cache_per_thread = platform::get_per_core_cache_size(2);
+            int n_cores_per_socket
+                    = static_cast<int>(platform::get_num_cores());
+            auto l2_cache_socket = l2_cache_per_thread * n_cores_per_socket;
+            auto problem_memory_footprint = m * n * sizeof(float);
+            if (l2_cache_socket > problem_memory_footprint) {
+                return nstl::min(nthr, n_cores_per_socket);
+            }
+        }
+#endif
+
     } else {
         if (trans) {
             if (MIN_WIDTH * nthr > m) nthr = utils::div_up(m, MIN_WIDTH);

@@ -50,7 +50,7 @@ Run a specific prelu primitive problem:
 - Source tensor size is `256x128x7x7` and weigths tensor is `1x128x1x1`
   which is channel-wise broadcast case.
 ``` sh
-    ./benchdnn --prelu --dir=BWD_DW --stag=abx:abx --sdt=f32:f32
+    ./benchdnn --prelu --dir=BWD_DW --stag=abx:abx --sdt=f32:f32 \
                        256x128x7x7:1x128x1x1
 ```
 

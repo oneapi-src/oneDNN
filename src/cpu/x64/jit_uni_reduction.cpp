@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ namespace x64 {
 static cpu_isa_t get_supported_isa() {
     if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
     if (mayiuse(avx512_core)) return avx512_core;
-    if (mayiuse(avx512_common)) return avx512_common;
     if (mayiuse(avx2)) return avx2;
     if (mayiuse(avx)) return avx;
     if (mayiuse(sse41)) return sse41;
@@ -51,13 +50,43 @@ status_t jit_uni_reduction_t::pd_t::init(engine_t *engine) {
     const bool ok = platform::has_data_type_support(conf_.src_type)
             && platform::has_data_type_support(conf_.dst_type)
             && set_default_params() == status::success
-            && attr()->has_default_values(sm::post_ops);
+            && attr()->has_default_values(sm::post_ops)
+            && attr_.set_default_formats(dst_md(0)) == status::success;
     if (!ok) return status::unimplemented;
-
-    if (attr()->post_ops_.len() > 0) return status::unimplemented;
 
     const auto src_mdw = memory_desc_wrapper(src_md());
     const auto dst_mdw = memory_desc_wrapper(dst_md());
+
+    const std::vector<injector::post_op_type> accepted_post_ops
+            = {injector::sum, injector::eltwise, injector::binary};
+    static constexpr bool sum_at_0_pos_only = false;
+    static constexpr bool sum_requires_scale_one = false;
+    static constexpr bool sum_requires_zp_zero = true;
+    const bcast_set_t accepted_broadcasts
+            = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::per_oc_spatial,
+                    broadcasting_strategy_t::no_broadcast};
+    injector::post_ops_ok_args_t post_ops_args(conf_.isa, accepted_post_ops,
+            attr()->post_ops_, &dst_mdw, sum_at_0_pos_only,
+            sum_requires_scale_one, sum_requires_zp_zero, accepted_broadcasts);
+    if (!post_ops_ok(post_ops_args)) return status::unimplemented;
+
+    conf_.post_ops = attr()->post_ops_;
+
+    static constexpr bool require_scale_one = false;
+    conf_.with_eltwise = conf_.with_binary = conf_.with_sum = false;
+    for (const auto &entry : conf_.post_ops.entry_) {
+        if (entry.is_eltwise()) {
+            conf_.with_eltwise = true;
+        } else if (entry.is_binary()) {
+            conf_.with_binary = true;
+        } else if (entry.is_sum(require_scale_one) && entry.sum.scale != 0.f) {
+            conf_.with_sum = true;
+            conf_.sum_scales.push(entry.sum.scale);
+        }
+    }
+    conf_.with_postops
+            = conf_.with_eltwise || conf_.with_binary || conf_.with_sum;
 
     const format_tag_t src_md_desired_format = memory_desc_matches_one_of_tag(
             *src_md(), x, nc, ncw, nchw, ncdhw);
@@ -117,6 +146,9 @@ status_t jit_uni_reduction_t::execute(const exec_ctx_t &ctx) const {
     const dim_t reduce_size = pd()->get_conf().reduce_size;
     const std::size_t src_dt_size = pd()->get_conf().src_dt_size;
     const std::size_t dst_dt_size = pd()->get_conf().dst_dt_size;
+    const auto &post_ops = pd()->attr()->post_ops_;
+    const auto &post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(post_ops, ctx);
 
     parallel_nd(idle_size, [&](dim_t i) {
         const dim_t src_off = i * reduce_size * src_dt_size;
@@ -125,6 +157,8 @@ status_t jit_uni_reduction_t::execute(const exec_ctx_t &ctx) const {
         jit_reduction_call_s args = jit_reduction_call_s();
         args.src = src + src_off;
         args.dst = dst + dst_off;
+        args.dst_orig = dst;
+        args.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
 
         (*kernel_)(&args);
     });
@@ -136,21 +170,35 @@ status_t jit_uni_reduction_t::get_proper_kernel(
         const memory_desc_t *dst_md, const jit_reduction_conf_t &conf) {
     using namespace data_type;
 
-    if (is_superset(conf.isa, avx512_common))
+    if (conf.isa == avx512_core_bf16)
         return safe_ptr_assign(kernel_,
-                new jit_uni_reduction_kernel_t<Xbyak::Zmm>(conf, dst_md));
+                new jit_uni_reduction_kernel_t<avx512_core_bf16>(conf, dst_md));
+    else if (conf.isa == avx512_core)
+        return safe_ptr_assign(kernel_,
+                new jit_uni_reduction_kernel_t<avx512_core>(conf, dst_md));
     else if (is_superset(conf.isa, avx)) {
         const bool is_src_i8 = utils::one_of(conf.src_type, s8, u8);
         const bool is_dst_i8 = utils::one_of(conf.dst_type, s8, u8);
-        if (is_src_i8 || is_dst_i8)
-            return safe_ptr_assign(kernel_,
-                    new jit_uni_reduction_kernel_t<Xbyak::Xmm>(conf, dst_md));
-
-        return safe_ptr_assign(kernel_,
-                new jit_uni_reduction_kernel_t<Xbyak::Ymm>(conf, dst_md));
-    } else if (is_superset(conf.isa, sse41))
-        return safe_ptr_assign(kernel_,
-                new jit_uni_reduction_kernel_t<Xbyak::Xmm>(conf, dst_md));
+        if (conf.isa == avx2) {
+            if (is_src_i8 || is_dst_i8)
+                return safe_ptr_assign(kernel_,
+                        new jit_uni_reduction_kernel_t<avx2, Xbyak::Xmm>(
+                                conf, dst_md));
+            else
+                return safe_ptr_assign(kernel_,
+                        new jit_uni_reduction_kernel_t<avx2>(conf, dst_md));
+        } else {
+            if (is_src_i8 || is_dst_i8)
+                return safe_ptr_assign(kernel_,
+                        new jit_uni_reduction_kernel_t<avx, Xbyak::Xmm>(
+                                conf, dst_md));
+            else
+                return safe_ptr_assign(kernel_,
+                        new jit_uni_reduction_kernel_t<avx>(conf, dst_md));
+        }
+    } else if (conf.isa == sse41)
+        return safe_ptr_assign(
+                kernel_, new jit_uni_reduction_kernel_t<sse41>(conf, dst_md));
     else
         return status::runtime_error;
 }

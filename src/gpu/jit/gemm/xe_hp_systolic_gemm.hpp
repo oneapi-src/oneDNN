@@ -112,6 +112,10 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
                               : 0;
         }
 
+        int batch_dims() const {
+            return nstl::max(desc()->c_desc.ndims - 2, 0);
+        }
+
         bool with_batch() const { return desc()->is_batched(); }
         bool with_ab_zero_points() const { return a_zp_ || b_zp_; }
         bool with_c_zero_points() const { return c_zp_; }
