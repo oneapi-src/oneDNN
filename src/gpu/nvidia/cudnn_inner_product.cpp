@@ -39,10 +39,9 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
                 ::sycl::access::mode::read_write, sycl::compat::target_device>;
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
         auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-
-        sycl_memory_arg<::sycl::access::mode::read> arg_bias;
-        if (pd()->with_bias()) { arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS); }
+        auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+
         std::shared_ptr<scratch_acc_t> ip_scratch_acc;
         std::shared_ptr<scratch_acc_t> spacial_scratch_acc;
         std::shared_ptr<scratch_acc_t> scaled_bias_scratch_acc;
@@ -69,12 +68,10 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
 
             std::vector<void *> args;
 
-            args.push_back(arg_src.get_native_pointer(ih, sc));
-            args.push_back(arg_wei.get_native_pointer(ih, sc));
-            args.push_back(
-                    ((pd()->with_bias()) ? arg_bias.get_native_pointer(ih, sc)
-                                         : nullptr));
-            args.push_back(arg_dst.get_native_pointer(ih, sc));
+            args.push_back(arg_src.get_native_pointer(ih));
+            args.push_back(arg_wei.get_native_pointer(ih));
+            args.push_back(arg_bias.get_native_pointer(ih));
+            args.push_back(arg_dst.get_native_pointer(ih));
 
             args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()
                             ? sc.memory<void *>(ih, *ip_scratch_acc)
@@ -126,9 +123,9 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
 
             std::vector<void *> args;
 
-            args.push_back(arg_diff_src.get_native_pointer(ih, sc));
-            args.push_back(arg_wei.get_native_pointer(ih, sc));
-            args.push_back(arg_diff_dst.get_native_pointer(ih, sc));
+            args.push_back(arg_diff_src.get_native_pointer(ih));
+            args.push_back(arg_wei.get_native_pointer(ih));
+            args.push_back(arg_diff_dst.get_native_pointer(ih));
             args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()
                             ? sc.memory<void *>(ih, *ip_scratch_acc)
                             : nullptr));
@@ -155,10 +152,12 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
                         : 0);
 
         if (wei_sz != 0) {
-            auto status = cuda_stream->interop_task([&](::sycl::handler &cgh) {
+            auto status = cuda_stream->fill(CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS), 0, wei_sz);
+            /*auto status = cuda_stream->interop_task([&](::sycl::handler &cgh) {
                 auto *mem_diff_wei
                         = static_cast<sycl::sycl_memory_storage_base_t *>(
                                 &CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS));
+                
                 switch (mem_diff_wei->memory_kind()) {
                     case sycl::memory_kind::buffer: {
                         auto diff_wei_acc
@@ -183,11 +182,12 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
                     }
                     default: assert(!"unexpected memory kind");
                 }
-            });
+            });*/
             if (status != status::success) return status;
         }
         if (bias_sz != 0) {
-            auto status = cuda_stream->interop_task([&](::sycl::handler &cgh) {
+            auto status = cuda_stream->fill(CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS), 0, bias_sz);
+            /*auto status = cuda_stream->interop_task([&](::sycl::handler &cgh) {
                 auto *mem_diff_bias
                         = static_cast<sycl::sycl_memory_storage_base_t *>(
                                 &CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS));
@@ -215,7 +215,7 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
                     }
                     default: assert(!"unexpected memory kind");
                 }
-            });
+            });*/
             if (status != status::success) return status;
         }
         return status::success;
@@ -228,11 +228,8 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
         auto arg_diff_wei = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
+        auto arg_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
 
-        sycl_memory_arg<::sycl::access::mode::write> arg_bias;
-        if (pd()->with_bias()) {
-            arg_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
-        }
         std::shared_ptr<scratch_acc_t> ip_scratch_acc;
         std::shared_ptr<scratch_acc_t> spacial_scratch_acc;
         if (pd()->inner_product_impl_->ip_using_scratchpad()) {
@@ -252,12 +249,10 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
             auto cublas_handle = cuda_stream->get_cublas_handle();
             std::vector<void *> args;
 
-            args.push_back(arg_src.get_native_pointer(ih, sc));
-            args.push_back(arg_diff_dst.get_native_pointer(ih, sc));
-            args.push_back(arg_diff_wei.get_native_pointer(ih, sc));
-            args.push_back(
-                    ((pd()->with_bias()) ? arg_bias.get_native_pointer(ih, sc)
-                                         : nullptr));
+            args.push_back(arg_src.get_native_pointer(ih));
+            args.push_back(arg_diff_dst.get_native_pointer(ih));
+            args.push_back(arg_diff_wei.get_native_pointer(ih));
+            args.push_back(arg_bias.get_native_pointer(ih));
 
             args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()
                             ? sc.memory<void *>(ih, *ip_scratch_acc)
