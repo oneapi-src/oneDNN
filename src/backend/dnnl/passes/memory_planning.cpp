@@ -1212,7 +1212,8 @@ impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
         for (auto &out_val : out_vals) {
             auto out_buf = buffer_assignments_.at(out_val.get());
             if (out_buf.kind_ != external_output) continue;
-            impl::logical_tensor_t out_lt(sg->outs_[out_buf.index_]), in_lt;
+            impl::logical_tensor_t out_lt = sg->outs_[out_buf.index_];
+            impl::logical_tensor_t in_lt = impl::zero_logical_tensor();
 
             // check if can inplaced sharing external input buffer
             bool inplace_shared = false;
