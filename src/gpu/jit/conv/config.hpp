@@ -756,16 +756,9 @@ private:
 
         init_simd_size();
 
-        // Disable using mad instruction backend until performance parity is
+        // Disable using mad instruction pre-XeHP until performance parity is
         // reached with OpenCL kernels.
-        if (fma_kind == fma_kind_t::mad) {
-            if (hw() < ngen::HW::XeHP) return status::unimplemented;
-            if (is_bwd_d) {
-                if (!is_f32_conv() && !is_mixed_int8())
-                    return status::unimplemented;
-                return status::success;
-            }
-        }
+        if (hw() < ngen::HW::XeHP) return status::unimplemented;
 
         return status::success;
     }
