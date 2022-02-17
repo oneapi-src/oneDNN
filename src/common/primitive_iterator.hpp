@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,17 +35,28 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
             const dnnl::impl::primitive_desc_t *hint_fwd_pd, int skip_idx = -1)
         : idx_(-1)
         , engine_(engine)
-        , op_desc_(op_desc)
+        , op_desc_(nullptr)
         , attr_(attr ? *attr : dnnl::impl::primitive_attr_t())
         , hint_fwd_pd_(hint_fwd_pd)
-        , impl_list_(engine_->get_implementation_list(op_desc_))
+        , impl_list_(nullptr)
         , last_idx_(0)
         , skip_idx_(skip_idx)
         , offset_(-1) {
+
+        // we need to copy the c_op_desc, as we don't know if it is kept
+        // alive while the iterator is in use.
+        op_desc_ = (dnnl::impl::op_desc_t *)std::malloc(
+                sizeof(dnnl::impl::op_desc_t));
+        dnnl::impl::copy_c_op_desc(op_desc_, op_desc);
+
+        impl_list_ = engine_->get_implementation_list(op_desc_);
+
         while (impl_list_[last_idx_])
             ++last_idx_;
         is_initialized_ = is_initialized_ && attr_.is_initialized();
     }
+
+    ~dnnl_primitive_desc_iterator() { std::free(op_desc_); }
 
     dnnl::impl::engine_t *engine() const { return engine_; }
 
@@ -102,7 +113,7 @@ protected:
     int idx_;
     dnnl::impl::engine_t *engine_;
     std::shared_ptr<dnnl::impl::primitive_desc_t> pd_;
-    const dnnl::impl::op_desc_t *op_desc_;
+    dnnl::impl::op_desc_t *op_desc_;
     const dnnl::impl::primitive_attr_t attr_;
     const dnnl::impl::primitive_desc_t *hint_fwd_pd_;
     const dnnl::impl::impl_list_item_t *impl_list_;

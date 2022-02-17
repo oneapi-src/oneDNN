@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,6 +89,29 @@ TEST(pd_next_impl, TestEltwiseImpl) {
     // calls should return `false`.
     ASSERT_EQ(epd.next_impl(), false);
     ASSERT_EQ(epd.next_impl(), false);
+}
+
+TEST(pd_next_impl, TestFreeOpdesc) {
+    SKIP_IF_CUDA(true, "Unsupported memory format for CUDA");
+    auto eng = get_test_engine();
+    memory::desc data_md(
+            {8, 32, 4, 4}, memory::data_type::f32, memory::format_tag::any);
+    memory::desc weights_md(
+            {32, 32, 1, 1}, memory::data_type::f32, memory::format_tag::any);
+
+    auto cd = new convolution_forward::desc(prop_kind::forward_inference,
+            algorithm::convolution_auto, data_md, weights_md, data_md, {1, 1},
+            {0, 0}, {0, 0});
+    convolution_forward::primitive_desc cpd(*cd, eng);
+    std::cout << sizeof(dnnl_convolution_desc_t) << std::endl;
+    std::cout << sizeof(dnnl_rnn_desc_t) << std::endl;
+
+    delete cd;
+
+    // checks that we can get next_impl without segfaulting
+    ASSERT_EXIT((cpd.next_impl(), exit(0)), ::testing::ExitedWithCode(0), ".*");
+    ASSERT_EXIT((cpd.next_impl(), exit(0)), ::testing::ExitedWithCode(0), ".*");
+    ASSERT_EXIT((cpd.next_impl(), exit(0)), ::testing::ExitedWithCode(0), ".*");
 }
 
 } // namespace dnnl
