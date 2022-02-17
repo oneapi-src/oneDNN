@@ -10177,6 +10177,20 @@ TEST(PassPriority, TestX8s8f32Matmul) {
     ASSERT_GT(pass5->get_priority(), pass1->get_priority());
 }
 
+// q->deq->conv->bias_add->relu->q should have higher priority than
+// q->deq->conv->bias_add->relu
+// q->deq->conv->bias_add->relu should have higher priority than
+// deq->conv->bias_add->relu
+TEST(Pasconvity, TestX8s8f32Conv) {
+    pass::pass_base_ptr pass1
+            = get_pass("int8_quant_wei_conv_bias_add_relu_fusion");
+    pass::pass_base_ptr pass2
+            = get_pass("x8s8f32_quant_wei_conv_bias_add_relu_fusion");
+    pass::pass_base_ptr pass3 = get_pass("x8s8f32_conv_bias_add_relu_fusion");
+    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
+    ASSERT_GT(pass2->get_priority(), pass3->get_priority());
+}
+
 TEST(Pass, FuseBnReLUWithSharedInputs) {
     /*   bn
           |

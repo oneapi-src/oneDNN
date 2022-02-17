@@ -1716,7 +1716,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, x8s8f32_quant_wei_conv_bias_add_relu_fusion)
-        .set_priority(10.3f)
+        .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
