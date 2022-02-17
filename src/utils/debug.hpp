@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ namespace utils {
 const char *data_type2str(data_type_t v);
 const char *engine_kind2str(engine_kind_t v);
 const char *layout_type2str(layout_type_t v);
+const char *property_type2str(property_type_t v);
 
 } // namespace utils
 } // namespace impl

@@ -231,10 +231,14 @@ int logical_tensor2str(char *str, size_t str_len,
     if (str == nullptr || str_len <= 1u) return -1;
 
     int written = 0;
-    DPRINT(str, DNNL_GRAPH_VERBOSE_DAT_LEN, written, "%s:" DFMT ":%s",
+    DPRINT(str, DNNL_GRAPH_VERBOSE_DAT_LEN, written,
+            "%s:" DFMT
+            ":%s"
+            ":%s",
             data_type2str(logical_tensor.data_type),
             static_cast<int64_t>(logical_tensor.id),
-            layout_type2str(logical_tensor.layout_type));
+            layout_type2str(logical_tensor.layout_type),
+            property_type2str(logical_tensor.property));
 
     return written;
 }

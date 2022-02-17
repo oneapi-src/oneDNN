@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,6 +52,14 @@ const char *layout_type2str(layout_type_t v) {
     if (v == layout_type::opaque) return "opaque";
     assert(!"unknown layout_type");
     return "unknown layout_type";
+}
+
+const char *property_type2str(property_type_t v) {
+    if (v == property_type::undef) return "undef";
+    if (v == property_type::variable) return "variable";
+    if (v == property_type::constant) return "constant";
+    assert(!"unknown property_type");
+    return "unknown property_type";
 }
 
 } // namespace utils
