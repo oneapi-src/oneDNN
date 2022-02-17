@@ -335,7 +335,6 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
 
-    // workaround: for issue intel/mkl-dnn#588
     const auto &blk = src.data.format_desc.blocking;
     if (blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
             && blk.inner_blks[0] == 4) {
@@ -380,7 +379,6 @@ create_batchnorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
 
-    // workaround: for issue intel/mkl-dnn#588
     const auto &blk = src.data.format_desc.blocking;
     if (blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
             && blk.inner_blks[0] == 4) {
