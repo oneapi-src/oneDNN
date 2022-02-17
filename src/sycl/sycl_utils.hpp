@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,6 +96,12 @@ inline backend_t get_sycl_backend(const ::sycl::device &dev) {
 
 bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs);
 device_id_t sycl_device_id(const ::sycl::device &dev);
+
+inline bool is_intel_device(const ::sycl::device &dev) {
+    const int intel_vendor_id = 0x8086;
+    auto vendor_id = dev.get_info<::sycl::info::device::vendor_id>();
+    return vendor_id == intel_vendor_id;
+}
 
 } // namespace sycl
 } // namespace impl

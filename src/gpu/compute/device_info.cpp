@@ -150,10 +150,6 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     }
 #endif
 
-    // OCL runtime returns XeHP-equivalent EU count instead of true EU count on XeHPC.
-    if (ocl_backend && gpu_arch_ == gpu::compute::gpu_arch_t::xe_hpc)
-        eu_count_ /= 2;
-
     hw_threads_[0] = eu_count_ * threads_per_eu(gpu_arch_, false);
     hw_threads_[1] = eu_count_ * threads_per_eu(gpu_arch_, true);
 

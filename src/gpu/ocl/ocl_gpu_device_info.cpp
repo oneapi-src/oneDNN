@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,11 +137,8 @@ status_t ocl_gpu_device_info_t::init_attributes(engine_t *engine) {
     cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
-    cl_uint eu_count = 0;
-    err = clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint),
-            &eu_count, nullptr);
-    OCL_CHECK(err);
-    eu_count_ = (int32_t)eu_count;
+    CHECK(get_ocl_device_eu_count(device, &eu_count_));
+
     size_t max_wg_size = 0;
     err = clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE,
             sizeof(max_wg_size), &max_wg_size, nullptr);

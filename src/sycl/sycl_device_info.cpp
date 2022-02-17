@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,9 +39,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
     if (!device.is_gpu()) return status::success;
 
     // skip other vendors
-    const int intel_vendor_id = 0x8086;
-    auto vendor_id = device.get_info<::sycl::info::device::vendor_id>();
-    if (vendor_id != intel_vendor_id) return status::success;
+    if (!is_intel_device(device)) return status::success;
 
     backend_t be = get_sycl_backend(device);
     if (be == backend_t::opencl) {
@@ -121,7 +119,25 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
 status_t sycl_device_info_t::init_attributes(engine_t *engine) {
     auto &device
             = utils::downcast<const sycl_engine_base_t *>(engine)->device();
-    eu_count_ = device.get_info<::sycl::info::device::max_compute_units>();
+    if (device.is_gpu() && is_intel_device(device)) {
+        backend_t be = get_sycl_backend(device);
+        if (be == backend_t::opencl) {
+            // XXX: OpenCL backend get_info() queries below are not yet
+            // supported so query OpenCL directly.
+            cl_device_id ocl_dev = compat::get_native<cl_device_id>(device);
+            CHECK(gpu::ocl::get_ocl_device_eu_count(ocl_dev, &eu_count_));
+        } else {
+            auto slices = device.get_info<
+                    ::sycl::info::device::ext_intel_gpu_slices>();
+            auto sub_slices = device.get_info<
+                    ::sycl::info::device::ext_intel_gpu_subslices_per_slice>();
+            auto eus_per_subslice = device.get_info<::sycl::info::device::
+                            ext_intel_gpu_eu_count_per_subslice>();
+            eu_count_ = slices * sub_slices * eus_per_subslice;
+        }
+    } else {
+        eu_count_ = device.get_info<::sycl::info::device::max_compute_units>();
+    }
     max_wg_size_ = device.get_info<::sycl::info::device::max_work_group_size>();
     return status::success;
 }

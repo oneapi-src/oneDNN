@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -293,6 +293,8 @@ void dump_kernel_binary(
 
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
         std::vector<gpu::compute::scalar_type_t> *arg_types);
+
+status_t get_ocl_device_eu_count(cl_device_id device, int32_t *eu_count);
 
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
 
