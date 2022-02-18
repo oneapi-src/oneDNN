@@ -106,7 +106,7 @@ status_t check_isa_with_datatype(
             && IMPLICATION(bm_conf_utils.is_bf16(),
                     one_of(isa, avx512_core_bf16_amx_bf16, avx512_core_bf16))
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
-                    mayiuse(avx512_core_bf16));
+                    mayiuse(avx512_core_vnni));
     return ok ? status::success : status::unimplemented;
 }
 
