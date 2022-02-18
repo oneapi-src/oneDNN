@@ -20,6 +20,7 @@
 #include <utility>
 #include "driver.hpp"
 #include "pass/pass.hpp"
+#include <compiler/config/env_vars.hpp>
 #include <unordered_map>
 #include <util/scoped_timer.hpp>
 

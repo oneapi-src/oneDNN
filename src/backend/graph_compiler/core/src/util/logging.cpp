@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include <set>
 #include "string_utils.hpp"
 #include "utils.hpp"
+#include <compiler/config/env_vars.hpp>
 
 namespace sc {
 namespace utils {
@@ -24,7 +25,7 @@ namespace utils {
 static bool is_filter_exclude = true;
 
 static std::set<std::string> init_name_list() {
-    auto filter = getenv_string("SC_LOGGING_FILTER");
+    auto filter = getenv_string(env_names[env_key::SC_LOGGING_FILTER]);
     auto splitted = string_split(filter, ":");
     std::set<std::string> ret;
     if (!splitted.empty()) {

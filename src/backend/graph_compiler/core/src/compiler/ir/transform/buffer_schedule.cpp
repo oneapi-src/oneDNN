@@ -595,7 +595,7 @@ static bool check_if_tensor_valid(
     if (lastread == TICK_NOT_EXIST && itr.second.writes_.empty()
             && !itr.second.is_arg_) {
         // the tensor is neither read or written, remove the tensor
-        SC_MODULE_WARN << "Removing " << itr.first;
+        SC_MODULE_INFO << "Removing unused " << itr.first;
         need_remove = true;
         return false;
     }

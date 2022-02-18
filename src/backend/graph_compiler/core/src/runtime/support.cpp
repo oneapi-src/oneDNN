@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #endif
 #include "config.hpp"
 #include "util/bf16.hpp"
+#include <compiler/config/env_vars.hpp>
 #include <compiler/ir/sc_data_type.hpp>
 #include <runtime/runtime.hpp>
 #include <util/os.hpp>
@@ -78,21 +79,24 @@ runtime_config_t &runtime_config_t::get() {
     return cfg;
 }
 
+using namespace env_key;
 runtime_config_t::runtime_config_t() {
     int ompmaxthreads = 1;
 #ifdef SC_OMP_ENABLED
     ompmaxthreads = omp_get_max_threads();
 #endif
-    threads_per_instance_ = utils::getenv_int("SC_RUN_THREADS", ompmaxthreads);
-    amx_exclusive_
-            = static_cast<bool>(utils::getenv_int("SC_AMX_EXCLUSIVE", 0));
+    threads_per_instance_
+            = utils::getenv_int(env_names[SC_RUN_THREADS], ompmaxthreads);
+    amx_exclusive_ = static_cast<bool>(
+            utils::getenv_int(env_names[SC_AMX_EXCLUSIVE], 0));
     if (threads_per_instance_ <= 0) {
         SC_WARN << "thread_pool_num_threads_per_instance <= 0";
         threads_per_instance_ = ompmaxthreads;
     }
     trace_initial_cap_ = 2048 * 1024;
-    trace_out_path_ = utils::getenv_string("SC_TRACE");
-    execution_verbose_ = (utils::getenv_int("SC_EXECUTION_VERBOSE", 0) == 1);
+    trace_out_path_ = utils::getenv_string(env_names[SC_TRACE]);
+    execution_verbose_
+            = (utils::getenv_int(env_names[SC_EXECUTION_VERBOSE], 0) == 1);
 }
 
 template <typename T>

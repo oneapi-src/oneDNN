@@ -280,9 +280,6 @@ struct SC_INTERNAL_API compiler_configs_t {
     std::string jit_cc_options_;
     std::vector<std::string> cpu_jit_flags_;
     std::string temp_dir_;
-    std::string graph_tuning_export_path_;
-    int64_t graph_tuning_timout_;
-    bool graph_tuning_logging_;
     verbose_level verbose_level_;
     bool print_pass_time_;
     bool print_pass_result_;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
 #include "../visitor.hpp"
 #include "transform.hpp"
 #include <unordered_map>
+
+SC_MODULE(graph.simplify)
 
 namespace sc {
 struct hash_sc_op_t {
@@ -55,7 +57,8 @@ void drop_same_op_on_output(sc_graph_t &graph, const graph_tensor_ptr &output) {
         }
         if (node.second->get_inputs().size() > 1
                 || node.second->get_outputs().size() > 1) {
-            SC_WARN << "Currently we don't support multi-input/multi-output op "
+            SC_MODULE_INFO
+                    << "Currently we don't support multi-input/multi-output op "
                        "elimination.";
             continue;
         }

@@ -305,6 +305,7 @@ static cpu_flags_t get_compiler_flags(
         target_machine_t::set_simd_length_and_max_cpu_threads(ret);
         return ret;
     }
+    ret.max_simd_bits = 0;
     SC_WARN << "Cannot run g++ to detect SIMD length!\n";
     return ret;
 }
@@ -329,6 +330,7 @@ void cfake_jit::set_target_machine(target_machine_t &tm) {
         SC_MODULE_WARN << "The hardware max SIMD length is larger than the "
                           "compiler SIMD length";
     }
+
     bool vnni_enabled = tm.cpu_flags_.fAVX512VNNI;
     bool amx_bf16_enabled = tm.cpu_flags_.fAVX512AMXBF16;
     bool amx_tile_enabled = tm.cpu_flags_.fAVX512AMXTILE;

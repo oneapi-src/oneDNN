@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string>
 #include "utils.hpp"
+#include <compiler/config/env_vars.hpp>
 #include <compiler/ir/sc_data_type.hpp>
 
 namespace sc {
@@ -45,7 +46,9 @@ std::string get_dyn_lib_path(void *addr) {
 static std::string get_sc_home_path_() {
     std::string path;
     char home_path[512];
-    if (utils::getenv("SC_HOME", home_path, sizeof(home_path)) != 0) {
+    if (utils::getenv(
+                env_names[env_key::SC_HOME_], home_path, sizeof(home_path))
+            != 0) {
         path = home_path;
     } else {
 #ifdef SC_HOME
@@ -185,31 +188,27 @@ compiler_configs_t &compiler_configs_t::get() {
     static compiler_configs_t cfg {};
     return cfg;
 }
+
+using namespace env_key;
 compiler_configs_t::compiler_configs_t() {
-    print_gen_code_ = utils::getenv_int("SC_PRINT_GENCODE", 0);
+    print_gen_code_ = utils::getenv_int(env_names[SC_PRINT_GENCODE], 0);
     const int default_keep_gencode =
 #if SC_PROFILING == 1
             1;
 #else
             0;
 #endif
-    keep_gen_code_ = utils::getenv_int("SC_KEEP_GENCODE", default_keep_gencode);
-    jit_cc_options_ = utils::getenv_string("SC_JIT_CC_OPTIONS_GROUP");
+    keep_gen_code_ = utils::getenv_int(
+            env_names[SC_KEEP_GENCODE], default_keep_gencode);
+    jit_cc_options_ = utils::getenv_string(env_names[SC_JIT_CC_OPTIONS_GROUP]);
     cpu_jit_flags_ = utils::string_split(
-            utils::getenv_string("SC_CPU_JIT_FLAGS"), " ");
-    temp_dir_ = utils::getenv_string("SC_TEMP_DIR");
+            utils::getenv_string(env_names[SC_CPU_JIT_FLAGS]), " ");
+    temp_dir_ = utils::getenv_string(env_names[SC_TEMP_DIR]);
     if (temp_dir_.empty()) { temp_dir_ = "/tmp"; }
 
-    graph_tuning_export_path_ = utils::getenv_string("SC_TUNING_EXPORT");
-    auto raw = utils::getenv_string("SC_TUNING_TIMEOUT");
-    if (raw.empty()) {
-        graph_tuning_timout_ = 0;
-    } else {
-        graph_tuning_timout_ = std::stoll(raw) * 1000;
-    }
-
-    graph_tuning_logging_ = utils::getenv_int("SC_TUNING_LOG", 0);
-    int tmp_get_verbose_level = utils::getenv_int("SC_VERBOSE", 0);
+    constexpr int default_verbose = 0;
+    int tmp_get_verbose_level
+            = utils::getenv_int(env_names[SC_VERBOSE], default_verbose);
     if (tmp_get_verbose_level < 0 || tmp_get_verbose_level > 2) {
         tmp_get_verbose_level = 0;
     }

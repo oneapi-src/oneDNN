@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -339,7 +339,7 @@ for_loop for_loop_node_t::fuse(const for_loop &ax) {
     COMPILE_ASSERT(ax->isvalid(), "Transforming an invalid for-loop: ax");
     COMPILE_ASSERT(isvalid(), "Transforming an invalid for-loop: this");
     if (!get_inner_for_loop(this).ptr_same(ax)) {
-        SC_MODULE_WARN << "We can only fuse the next inner loop";
+        SC_MODULE_INFO << "We can only fuse the next inner loop";
         return this->node_ptr_from_this().static_as<for_loop>();
     }
     static std::atomic<int> fuse_count(0);
