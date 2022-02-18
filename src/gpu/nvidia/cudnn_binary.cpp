@@ -34,6 +34,8 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
+        cgh.depends_on(cuda_stream->get_deps());
+        
         auto arg_src_0 = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC_0);
         auto arg_src_1 = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC_1);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
