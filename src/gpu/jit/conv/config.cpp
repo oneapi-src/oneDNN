@@ -16,6 +16,8 @@
 
 #include "gpu/jit/conv/config.hpp"
 
+#include <cctype>
+
 #include "common/type_helpers.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
 
