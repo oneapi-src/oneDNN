@@ -2460,6 +2460,58 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+impl::status_t binary_broadcast_swap(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    auto &subgraph = sg->get_mutable_ops();
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_binary) continue;
+
+        // check doable
+        auto src0_lt = cur_op->get_input_value(0)->get_logical_tensor();
+        auto src1_lt = cur_op->get_input_value(1)->get_logical_tensor();
+
+        if (impl::logical_tensor_wrapper_t(src0_lt).nelems()
+                >= impl::logical_tensor_wrapper_t(src1_lt).nelems())
+            continue;
+
+        op_ptr binary_op = std::make_shared<op_t>(op_kind::dnnl_binary);
+        binary_op->merge_attributes(cur_op->get_attributes());
+
+        // swap src0 and src1 value
+        auto src0_value = cur_op->get_input_value(0);
+        auto src1_value = cur_op->get_input_value(1);
+        src1_value->remove_consumer(*cur_op, 1);
+        src1_value->add_consumer(*binary_op, 0);
+        binary_op->add_input(src1_value);
+        src0_value->remove_consumer(*cur_op, 0);
+        src0_value->add_consumer(*binary_op, 1);
+        binary_op->add_input(src0_value);
+        // connect out0 and out1 value
+        auto out0_value = cur_op->get_output_value(0);
+        binary_op->add_output(out0_value);
+        auto out1_value = cur_op->get_output_value(1);
+        binary_op->add_output(out1_value);
+
+        to_be_inserted_ops.emplace_back(binary_op);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
 impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<op_ptr> to_be_removed_ops;

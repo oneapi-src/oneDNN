@@ -134,6 +134,11 @@ impl::status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg);
 // the input shape meet the requirement of oneDNN binary primitive
 impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
+// This pass is used to swap two inputs to broadcast src1 which is optimized in
+// oneDNN binary primitive. Notice that this should be applied after
+// binary_canonicalization and infer_shape
+impl::status_t binary_broadcast_swap(std::shared_ptr<subgraph_t> &sg);
+
 // This pass is used to fuse those adjacent reorders.
 impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg);
 

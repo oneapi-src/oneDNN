@@ -112,6 +112,8 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, split_squared_difference);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
 
         // fuse binary post-ops need shape and type info
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);

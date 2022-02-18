@@ -1266,6 +1266,75 @@ TEST(Execute, BroadcastAdd) {
     }
 }
 
+TEST(Execute, SwapBroadcastAdd) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {1.0, 1.0, 1.0, 1.0};
+    test::vector<float> src1 {2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0};
+    test::vector<float> ref_dst {3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> dst(src1.size(), 0.0);
+
+    impl::op_t add_op(0, impl::op_kind::Add, "add");
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {1, 2, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {1, 2, 2, 2}, impl::data_type::f32);
+
+    add_op.add_input(src0_lt);
+    add_op.add_input(src1_lt);
+    add_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sum_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t compiled_dst_lt;
+    cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
+
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(compiled_dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src1.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+
+    // inplace
+    auto inplace_pair = cp.get_inplace_pairs();
+    ASSERT_EQ(inplace_pair[0].input, src1_lt.id);
+    ASSERT_EQ(inplace_pair[0].output, dst_lt.id);
+
+    impl::tensor_t dst_ts2(compiled_dst_lt, &eng, src1.data());
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts2});
+    strm.wait();
+
+    for (size_t i = 0; i < src1.size(); ++i) {
+        ASSERT_FLOAT_EQ(src1[i], ref_dst[i]);
+    }
+}
+
 TEST(Execute, MultidirectionalBroadcastAddBA) {
     impl::engine_t &eng = get_engine();
 

@@ -101,6 +101,8 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
     } else if (ops.count(op.get_kind())) {
         auto in0 = op.get_input_value(0)->get_logical_tensor();
         auto out0 = op.get_output_value(0)->get_logical_tensor();
+        // always assume in0 and out0 may inplace here, please swap inputs for
+        // binary operators to broadcast on src1 and inplace on src0
         const bool can_inplace
                 = make_dnnl_memory_desc(in0) == make_dnnl_memory_desc(out0);
         if (can_inplace) { pairs.emplace_back(0, 0); }
