@@ -136,6 +136,11 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                                     && utils::one_of(desc()->dst_desc.data_type,
                                             data_type::f16, data_type::u8,
                                             data_type::s8))
+                            || (utils::everyone_is(data_type::bf16,
+                                        desc()->src_desc.data_type,
+                                        desc()->weights_desc.data_type)
+                                    && utils::one_of(desc()->dst_desc.data_type,
+                                            data_type::f32, data_type::bf16))
                             || (desc()->weights_desc.data_type == data_type::s8
                                     && utils::one_of(desc()->src_desc.data_type,
                                             data_type::u8, data_type::s8)
