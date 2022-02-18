@@ -806,7 +806,8 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
         return;
     }
 
-#if !defined(DNNL_X64) || DNNL_X64 == 0
+#if !defined(DNNL_X64) || DNNL_X64 == 0 \
+        || DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     // int8 is not supported altogether since RNN relies on packed IGEMM
     // FIXME: this will disable int8 RNN testing if the library is built with
     //        Intel MKL that does have packed IGEMM
