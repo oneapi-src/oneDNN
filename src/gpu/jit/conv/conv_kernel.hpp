@@ -3755,20 +3755,26 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
     // src is broadcasted, no need to align, return.
     if (src_stride == 0) return;
 
+    bool is_xf = ngen_is_xf(src.type()) || ngen_is_xf(dst.type());
     int src_type_size = ngen::getBytes(src.type());
     int src_off = src.offset();
     int dst_off = dst.offset();
-    // src is aligned with dst, return.
-    if (src_off == dst_off) return;
+    int src_byte_off = src.byte_offset();
+    int dst_byte_off = dst.byte_offset();
+
+    // If src is aligned with dst, return.
+    if (is_xf && src_off == dst_off) return;
+    if (!is_xf && src_byte_off == dst_byte_off) return;
+
+    int new_src_byte_off = (is_xf ? dst_off * src_type_size : dst_byte_off);
 
     int esize = mod.getExecSize();
     int grf_size = ngen::GRF::bytes(scope.hw());
     int src_size = std::max(src_type_size * esize * src_stride, src_type_size);
 
     auto new_src = scope.alloc_reg_buf_data(
-            utils::div_up(src_size + dst_off * src_type_size, grf_size));
-    new_src = new_src.format(
-            dst_off * src_type_size, src.type(), esize, src_stride);
+            utils::div_up(src_size + new_src_byte_off, grf_size));
+    new_src = new_src.format(new_src_byte_off, src.type(), esize, src_stride);
     emit_reorder_1d_tile(scope.hw(), host, scope, esize, src, src_stride,
             new_src, src_stride);
     src = new_src;
