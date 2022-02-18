@@ -35,8 +35,8 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        using scratch_acc_t = ::sycl::accessor<uint8_t, 1,
-                ::sycl::access::mode::read_write, sycl::compat::target_device>;
+        cgh.depends_on(cuda_stream->get_deps());
+
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
         auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
         auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
@@ -96,8 +96,8 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        using scratch_acc_t = ::sycl::accessor<uint8_t, 1,
-                ::sycl::access::mode::read_write, sycl::compat::target_device>;
+        cgh.depends_on(cuda_stream->get_deps());
+
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
         auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
         auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
@@ -163,6 +163,8 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
     }
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
+        cgh.depends_on(cuda_stream->get_deps());
+
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
         auto arg_diff_wei = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
