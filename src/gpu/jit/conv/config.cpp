@@ -371,13 +371,17 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
     bh->set_block_dims({"g", "oc", "ic", "mb", "oh", "ow"});
     bh->set_vector_dim(is_dw ? "g" : "oc");
 
+    if (oc <= 32) bh->set_max_iter_dim("oc", 16);
+    if (ic <= 32) bh->set_max_iter_dim("ic", 16);
+
     if (is_small_ic() && !is_dw) {
         bh->set_block_dims({"kw"});
         bh->set_max_tg_dim("kw", 1);
+        if (is_dp_fma()) {
+            int wei_ic_blk = wei_layout.inner_block(2);
+            bh->set_max_iter_dim("ic", wei_ic_blk);
+        }
     }
-
-    if (oc <= 32) bh->set_max_iter_dim("oc", 16);
-    if (ic <= 32) bh->set_max_iter_dim("ic", 16);
 
     bh->set_max_iter_dim("oh", 1);
 
