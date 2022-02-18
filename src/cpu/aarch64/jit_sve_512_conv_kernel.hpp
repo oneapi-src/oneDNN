@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,8 +72,6 @@ private:
         typesize = sizeof(float),
         ker_reg_base_idx = 28,
     };
-
-    const PReg reg_p_all_ones = p3;
 
     reg64_t param = abi_param1;
     reg64_t reg_inp = x1; // src base addr (2d)
@@ -154,11 +152,11 @@ private:
 
             if ((VL_OFS(ofs) <= PRFWMAX)
                     && (VL_OFS(ofs) >= (-1 * PRFWMAX - 1))) {
-                prfw(op_sve, reg_p_all_ones,
+                prfw(op_sve, P_ALL_ONE,
                         ptr(in, static_cast<int32_t>(VL_OFS(ofs))));
             } else {
                 add_imm(reg_tmp_addr, in, ofs, reg_tmp_imm);
-                prfw(op_sve, reg_p_all_ones, ptr(reg_tmp_addr));
+                prfw(op_sve, P_ALL_ONE, ptr(reg_tmp_addr));
             }
         }
     }
@@ -292,8 +290,6 @@ private:
     reg64_t reg_input_org = x22;
     reg64_t reg_kernel_org = x26;
 
-    const PReg reg_p_all_ones = p3;
-
     long long int prefetch(const std::string prfop, int level, reg64_t in,
             long long int ofs, long long int prev_ofs) {
         bool for_load = false;
@@ -343,16 +339,16 @@ private:
             long long int tmp_ofs = ofs - prev_ofs;
             if ((VL_OFS(ofs) <= PRFWMAX)
                     && (VL_OFS(ofs) >= (-1 * PRFWMAX - 1))) {
-                prfw(op_sve, reg_p_all_ones,
+                prfw(op_sve, P_ALL_ONE,
                         ptr(in, static_cast<int32_t>(VL_OFS(ofs))));
             } else if ((VL_OFS(tmp_ofs) <= PRFWMAX)
                     && (VL_OFS(tmp_ofs) >= (-1 * PRFWMAX - 1))) {
-                prfw(op_sve, reg_p_all_ones,
+                prfw(op_sve, P_ALL_ONE,
                         ptr(reg_tmp_addr,
                                 static_cast<int32_t>(VL_OFS(tmp_ofs))));
             } else {
                 add_imm(reg_tmp_addr, in, ofs, reg_tmp_imm);
-                prfw(op_sve, reg_p_all_ones, ptr(reg_tmp_addr));
+                prfw(op_sve, P_ALL_ONE, ptr(reg_tmp_addr));
                 prev_ofs = ofs;
             }
         }
@@ -492,8 +488,6 @@ private:
     reg64_t reg_ker_start_addr = x27;
     reg64_t reg_addr_diff_input = x28;
 
-    const PReg reg_p_all_ones = p3;
-
     void prefetch(
             const std::string prfop, int level, reg64_t in, long long int ofs) {
         bool for_load = false;
@@ -538,11 +532,11 @@ private:
 
             if ((VL_OFS(ofs) <= PRFWMAX)
                     && (VL_OFS(ofs) >= (-1 * PRFWMAX - 1))) {
-                prfw(op_sve, reg_p_all_ones,
+                prfw(op_sve, P_ALL_ONE,
                         ptr(in, static_cast<int32_t>(VL_OFS(ofs))));
             } else {
                 add_imm(reg_add_tmp, in, ofs, reg_tmp_imm);
-                prfw(op_sve, reg_p_all_ones, ptr(reg_add_tmp));
+                prfw(op_sve, P_ALL_ONE, ptr(reg_add_tmp));
             }
         }
     }

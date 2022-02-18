@@ -167,7 +167,7 @@ struct jit_softmax_base_t : public jit_generator {
         const uint32_t idxSrc = src.getIdx();
         const uint32_t idxSrc2 = src2.getIdx();
         uint32_t pattern = 0;
-        PReg mask_reg = p0; // 0 is dummy index.
+        PReg mask_reg(DUMMY_IDX);
 
         pattern += (idxDst == idxSrc) ? (1 << 2) : 0;
         pattern += (idxDst == idxSrc2) ? (1 << 1) : 0;

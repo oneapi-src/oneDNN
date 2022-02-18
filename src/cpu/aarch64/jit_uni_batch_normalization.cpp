@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -126,7 +126,6 @@ struct jit_bnorm_t : public jit_generator {
     PReg ktail_mask = PReg(2);
 
     /* Caution: Chose predicate registers not used by x64's implementation. */
-    PReg p_512 = p7;
     PReg p_tmp0 = p4;
 
     size_t unroll_blocks;
@@ -318,7 +317,7 @@ struct jit_bnorm_t : public jit_generator {
             case 1: ptrue(PRegS(idx), VL1); break;
             default:
                 index(ZRegS(IDX(t_tmp0)), 1, 1);
-                cmple(PRegS(idx), p_512 / T_z, ZRegS(IDX(t_tmp0)), tail);
+                cmple(PRegS(idx), P_ALL_ONE / T_z, ZRegS(IDX(t_tmp0)), tail);
                 break;
         }
     }
@@ -340,7 +339,7 @@ struct jit_bnorm_t : public jit_generator {
         else
             lsr(reg_soff, reg_soff, bit_shift() % 64);
 
-        fcmlt(PRegS(IDX(kstore_mask)), p_512 / T_z, ZRegS(IDX(vzero)),
+        fcmlt(PRegS(IDX(kstore_mask)), P_ALL_ONE / T_z, ZRegS(IDX(vzero)),
                 ZRegS(IDX(vdst)));
 
         PRegB p_mask(IDX(kstore_mask));
@@ -387,7 +386,7 @@ struct jit_bnorm_t : public jit_generator {
         zip1(p_mask.b, p_mask.b, p_mask.b);
         add(X_TRANSLATOR_STACK, X_TRANSLATOR_STACK, 8);
 
-        not_(p_tmp0.b, p_512 / T_z, PRegB(IDX(kstore_mask)));
+        not_(p_tmp0.b, P_ALL_ONE / T_z, PRegB(IDX(kstore_mask)));
         mov(ZRegD(IDX(vdiff_dst)), ZRegD(IDX(vdiff_dst)));
         mov(ZRegS(IDX(vdiff_dst)), p_tmp0 / T_m, 0);
 
@@ -450,7 +449,7 @@ struct jit_bnorm_t : public jit_generator {
     void uni_fsqrt(const VReg4S &dst, const VReg4S &src) { fsqrt(dst, src); }
 
     void uni_fsqrt(const ZRegS &dst, const ZRegS &src) {
-        fsqrt(dst, p_512 / T_m, src);
+        fsqrt(dst, P_ALL_ONE / T_m, src);
     }
 
     void uni_fmls(const VReg4S &dst, const VReg4S &src, const VReg4S &src2) {
@@ -458,7 +457,7 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void uni_fmls(const ZRegS &dst, const ZRegS &src, const ZRegS &src2) {
-        fmls(dst, p_512 / T_m, src, src2);
+        fmls(dst, P_ALL_ONE / T_m, src, src2);
     }
 
     void uni_fmla(const VReg4S &dst, const VReg4S &src, const VReg4S &src2) {
@@ -466,13 +465,13 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void uni_fmla(const ZRegS &dst, const ZRegS &src, const ZRegS &src2) {
-        fmla(dst, p_512 / T_m, src, src2);
+        fmla(dst, P_ALL_ONE / T_m, src, src2);
     }
 
     void uni_fmad(const ZRegS &dst, const ZRegS &src, const ZRegS &src2,
             const ZRegS &buf) {
         (void)buf;
-        fmad(dst, p_512 / T_m, src, src2);
+        fmad(dst, P_ALL_ONE / T_m, src, src2);
     }
 
     void uni_fmad(const VReg4S &dst, const VReg4S &src, const VReg4S &src2,
@@ -515,7 +514,7 @@ struct jit_bnorm_t : public jit_generator {
 
     void uni_stnt1w(const ZReg &z, const XReg &base,
             const XReg &off = XReg(DUMMY_IDX), const int disp = 0) {
-        stnt1w(z.s, p_512, ptr(xreg_addr(base, off, disp)));
+        stnt1w(z.s, P_ALL_ONE, ptr(xreg_addr(base, off, disp)));
     }
 
     void uni_fmax(const VReg4S &dst, const VReg4S &src, const VReg4S &src2) {
@@ -525,8 +524,8 @@ struct jit_bnorm_t : public jit_generator {
 
     void uni_fmax(const ZRegS &dst, const ZRegS &src, const ZRegS &src2) {
         mov(t_tmp0.s, P_ALL_ONE / T_m, src2);
-        fmaxnm(t_tmp0.s, p_512, src);
-        fmax(t_tmp0.s, p_512, src);
+        fmaxnm(t_tmp0.s, P_ALL_ONE, src);
+        fmax(t_tmp0.s, P_ALL_ONE, src);
         mov(dst, P_ALL_ONE / T_m, t_tmp0.s);
     }
 
@@ -774,7 +773,7 @@ struct jit_bnorm_t : public jit_generator {
                     TReg vscale = bdesc_->use_scaleshift() ? vgamma : vone;
                     TReg vdiv = bdesc_->use_scaleshift() ? vgamma : vsqrtvar;
 
-                    uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s, t_tmp0.s, p_512);
+                    uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s, t_tmp0.s, P_ALL_ONE);
 
                     add(X_TMP_0, reg_src, reg_soff_nspc);
                     if (offt) add_imm(X_TMP_0, X_TMP_0, offt, X_TMP_1);
@@ -1003,7 +1002,7 @@ struct jit_bnorm_t : public jit_generator {
                     cbnz(reg_ctr, mean_reduction_thrs);
                 }
                 if (isa == sve_512)
-                    fdiv(ZRegS(1), p_512 / T_m, ZRegS(IDX(vchan_size)));
+                    fdiv(ZRegS(1), P_ALL_ONE / T_m, ZRegS(IDX(vchan_size)));
                 else {
                     fdiv(VReg4S(1), VReg4S(1), VReg4S(IDX(vchan_size)));
                 }
@@ -1090,7 +1089,7 @@ struct jit_bnorm_t : public jit_generator {
                     cbnz(reg_ctr, var_reduction_thrs);
                 }
                 if (isa == sve_512)
-                    fdiv(ZRegS(1), p_512 / T_m, ZRegS(IDX(vchan_size)));
+                    fdiv(ZRegS(1), P_ALL_ONE / T_m, ZRegS(IDX(vchan_size)));
                 else {
                     fdiv(VReg4S(1), VReg4S(1), VReg4S(IDX(vchan_size)));
                 }
@@ -1125,7 +1124,7 @@ struct jit_bnorm_t : public jit_generator {
             TReg vscale = bdesc_->use_scaleshift() ? vgamma : vone;
             TReg vdiv = bdesc_->use_scaleshift() ? vgamma : vsqrtvar;
 
-            uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s, t_tmp0.s, p_512);
+            uni_fdiv(vdiv.s, vscale.s, vsqrtvar.s, t_tmp0.s, P_ALL_ONE);
 
             auto compute = [=](bool stream_store_allowed) {
                 spat_loop(
@@ -1507,15 +1506,16 @@ struct jit_bnorm_t : public jit_generator {
             uni_load_maybe_tail(vsqrtvar, var_ptr());
             fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
             uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
-            uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, p_512);
+            uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, P_ALL_ONE);
             if (bdesc_->use_scaleshift())
                 uni_load_maybe_tail(vgamma, gamma_ptr());
             uni_load_maybe_tail(vdiff_gamma, diff_gamma_ptr());
             uni_load_maybe_tail(vdiff_beta, diff_beta_ptr());
             fmul(vdiff_gamma.s, vdiff_gamma.s, vsqrtvar.s);
-            uni_fdiv(vdiff_beta.s, vdiff_beta.s, vchan_size.s, t_tmp0.s, p_512);
+            uni_fdiv(vdiff_beta.s, vdiff_beta.s, vchan_size.s, t_tmp0.s,
+                    P_ALL_ONE);
             uni_fdiv(vdiff_gamma.s, vdiff_gamma.s, vchan_size.s, t_tmp0.s,
-                    p_512);
+                    P_ALL_ONE);
 
             auto compute = [=](bool stream_store_allowed) {
                 spat_loop(
@@ -1623,7 +1623,8 @@ struct jit_bnorm_t : public jit_generator {
 
                     fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
                     uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
-                    uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, p_512);
+                    uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s,
+                            P_ALL_ONE);
 
                     if (bdesc_->use_scaleshift())
                         uni_load_maybe_tail(vgamma, gamma_ptr(coff));
@@ -1646,9 +1647,9 @@ struct jit_bnorm_t : public jit_generator {
 
                     fmul(vdiff_gamma.s, vdiff_gamma.s, vsqrtvar.s);
                     uni_fdiv(vdiff_beta.s, vdiff_beta.s, vchan_size.s, t_tmp0.s,
-                            p_512);
+                            P_ALL_ONE);
                     uni_fdiv(vdiff_gamma.s, vdiff_gamma.s, vchan_size.s,
-                            t_tmp0.s, p_512);
+                            t_tmp0.s, P_ALL_ONE);
 
                     add(X_TMP_0, reg_diff_dst, reg_soff_nspc);
                     if (offt) add_imm(X_TMP_0, X_TMP_0, offt, X_TMP_1);
@@ -1854,7 +1855,7 @@ struct jit_bnorm_t : public jit_generator {
                 uni_load_maybe_tail(vsqrtvar, var_ptr());
                 fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
                 uni_fsqrt(vsqrtvar.s, vsqrtvar.s);
-                uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, p_512);
+                uni_fdiv(vsqrtvar.s, vone.s, vsqrtvar.s, t_tmp0.s, P_ALL_ONE);
                 mov(reg_ctr, reg_nnthr);
                 Label sh_reduction_thrs;
                 L(sh_reduction_thrs);
@@ -1864,8 +1865,8 @@ struct jit_bnorm_t : public jit_generator {
                     add(X_TMP_0, reg_rbuf1, x_roff);
                     add(X_TMP_1, reg_rbuf2, x_roff);
                     if (isa == sve_512) {
-                        ld1w(ZRegS(IDX(t_tmp0)), p_512 / T_z, ptr(X_TMP_0));
-                        ld1w(ZRegS(IDX(t_tmp1)), p_512 / T_z, ptr(X_TMP_1));
+                        ld1w(ZRegS(IDX(t_tmp0)), P_ALL_ONE / T_z, ptr(X_TMP_0));
+                        ld1w(ZRegS(IDX(t_tmp1)), P_ALL_ONE / T_z, ptr(X_TMP_1));
                     } else {
                         ld1(VReg4S(tmp_vec_idx[0]), ptr(X_TMP_0));
                         ld1(VReg4S(tmp_vec_idx[1]), ptr(X_TMP_1));
@@ -1973,10 +1974,7 @@ struct jit_bnorm_t : public jit_generator {
     void generate() override {
         preamble();
 
-        if (isa == sve_512) {
-            ptrue(p_512.b);
-            prepare_tail_mask_sve_512();
-        }
+        if (isa == sve_512) { prepare_tail_mask_sve_512(); }
 
         compute_static_strides();
         sub_imm(X_SP, X_SP, (int)stack_size_required, X_TMP_0);

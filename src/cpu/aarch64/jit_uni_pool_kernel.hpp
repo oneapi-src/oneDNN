@@ -1,7 +1,7 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2018 YANDEX LLC
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,10 +95,9 @@ private:
     PReg k_store_mask = p6;
 
     /* Caution: Chose predicate registers not used by x64's implementation. */
-    PReg p_all_zero = p0;
-    PReg p_512 = p2;
+    PReg p_all_zero = p1;
     PReg p_tmp0 = p3;
-    PReg p_lsb = p2;
+    PReg p_lsb = P_ALL_ONE;
 
     using xreg_t = const XReg;
     xreg_t reg_param = x0;

@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,7 +82,6 @@ struct jit_sve_512_1x1_conv_kernel : public jit_generator {
 
 private:
     using reg64_t = const XReg;
-    const PReg reg_p_all_ones = p2;
 
     /* Flags and loop variables */
     reg64_t reg_reduce_pos_flag = x1;
@@ -157,11 +156,11 @@ private:
             }
 
             if (prfw_imm_check(ofs)) {
-                prfw(op_sve, reg_p_all_ones,
+                prfw(op_sve, P_ALL_ONE,
                         ptr(in, static_cast<int32_t>(VL64_OFS(ofs))));
             } else {
                 add_imm(reg_tmp_ofs, in, ofs, reg_tmp_imm);
-                prfw(op_sve, reg_p_all_ones, ptr(reg_tmp_ofs));
+                prfw(op_sve, P_ALL_ONE, ptr(reg_tmp_ofs));
             }
         }
     }

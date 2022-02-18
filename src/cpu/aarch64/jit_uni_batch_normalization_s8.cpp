@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,7 +84,6 @@ struct jit_bnorm_base_t : public jit_generator {
     size_t c_tail_;
     bool with_relu_;
 
-    PReg p_512 = p7;
     PReg p_lsb_128 = p6;
     PReg p_tmp0 = p5;
 
@@ -107,8 +106,8 @@ struct jit_bnorm_base_t : public jit_generator {
 
     void uni_fmax(const ZReg &dst, const ZReg &src, const ZReg &src2) {
         mov(z_tmp0.d, src2.d);
-        fmaxnm(z_tmp0.s, p_512, src.s);
-        fmax(z_tmp0.s, p_512, src.s);
+        fmaxnm(z_tmp0.s, P_ALL_ONE, src.s);
+        fmax(z_tmp0.s, P_ALL_ONE, src.s);
         mov(dst.d, z_tmp0.d);
     }
 
@@ -189,14 +188,14 @@ struct jit_bnorm_base_t : public jit_generator {
             bool need_tail) {
         load_mean_and_var(vmean, vsqrtvar, offt, need_tail);
         fadd(vsqrtvar.s, vsqrtvar.s, veps.s);
-        fsqrt(vsqrtvar.s, p_512 / T_m, vsqrtvar.s);
+        fsqrt(vsqrtvar.s, P_ALL_ONE / T_m, vsqrtvar.s);
 
         if (pd_->use_scaleshift()) {
             load_scale_and_shift(vscale, vshift, offt, need_tail);
-            uni_fdiv(vscale.s, vscale.s, vsqrtvar.s, z_tmp0.s, p_512);
-            fmls(vshift.s, p_512 / T_m, vmean.s, vscale.s);
+            uni_fdiv(vscale.s, vscale.s, vsqrtvar.s, z_tmp0.s, P_ALL_ONE);
+            fmls(vshift.s, P_ALL_ONE / T_m, vmean.s, vscale.s);
         } else {
-            uni_fdiv(vscale.s, vone.s, vsqrtvar.s, z_tmp0.s, p_512);
+            uni_fdiv(vscale.s, vone.s, vsqrtvar.s, z_tmp0.s, P_ALL_ONE);
             fmul(vmean.s, vmean.s, vscale.s);
             uni_fsub(vshift.s, vzero.s, vmean.s);
         }
@@ -219,10 +218,7 @@ struct jit_bnorm_base_t : public jit_generator {
     void generate() override {
         preamble();
 
-        if (isa == sve_512) {
-            ptrue(p_lsb_128.b, VL16);
-            ptrue(p_512.b);
-        }
+        if (isa == sve_512) { ptrue(p_lsb_128.b, VL16); }
 
         compute_predefined_variables();
         load_common_params();
@@ -258,7 +254,7 @@ struct jit_bnorm_t<sve_512> : public jit_bnorm_base_t<sve_512> {
             case 1: ptrue(PRegS(idx), VL1); break;
             default:
                 index(z_tmp0.s, 1, 1);
-                cmple(PRegS(idx), p_512 / T_z, z_tmp0.s, c_tail_);
+                cmple(PRegS(idx), P_ALL_ONE / T_z, z_tmp0.s, c_tail_);
                 break;
         }
     }
@@ -317,21 +313,21 @@ struct jit_bnorm_t<sve_512> : public jit_bnorm_base_t<sve_512> {
                     }
                     zip1(z_tmp0.b, v.b, v.b);
                     zip1(z_tmp0.h, z_tmp0.h, z_tmp0.h);
-                    sxtb(v.s, p_512 / T_m, z_tmp0.s);
+                    sxtb(v.s, P_ALL_ONE / T_m, z_tmp0.s);
                 } else {
                     ld1b(z_tmp0.b, p_lsb_128 / T_z, ptr(src_ptr()));
                     zip1(z_tmp0.b, z_tmp0.b, z_tmp0.b);
                     zip1(z_tmp0.h, z_tmp0.h, z_tmp0.h);
-                    sxtb(v.s, p_512 / T_m, z_tmp0.s);
+                    sxtb(v.s, P_ALL_ONE / T_m, z_tmp0.s);
                 }
 
-                scvtf(v.s, p_512 / T_m, v.s);
+                scvtf(v.s, P_ALL_ONE / T_m, v.s);
 
-                fmad(v.s, p_512, vscale.s, vshift.s);
+                fmad(v.s, P_ALL_ONE, vscale.s, vshift.s);
                 if (with_relu_) uni_fmax(v, v, vzero);
 
-                frinti(v.s, p_512 / T_m, v.s);
-                fcvtzs(v.s, p_512 / T_m, v.s);
+                frinti(v.s, P_ALL_ONE / T_m, v.s);
+                fcvtzs(v.s, P_ALL_ONE / T_m, v.s);
                 if (need_tail) {
                     mov(z_tmp0.d, v.d);
                     dup(v.d, 0);
@@ -347,7 +343,7 @@ struct jit_bnorm_t<sve_512> : public jit_bnorm_base_t<sve_512> {
                     mov(z_tmp0.d, v.d);
                     smin(z_tmp0.s, 127);
                     smax(z_tmp0.s, -128);
-                    st1b(z_tmp0.s, p_512 / T_m, ptr(dst_ptr()));
+                    st1b(z_tmp0.s, P_ALL_ONE / T_m, ptr(dst_ptr()));
                 }
 
                 add(reg_spat_offt, reg_spat_offt, reg_channel_offt_count);

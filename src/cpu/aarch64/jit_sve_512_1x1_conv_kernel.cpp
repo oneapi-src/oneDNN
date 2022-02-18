@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,11 +165,11 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
         ofs = jcp.typesize_in * ofs;
         int tmp_ofs = ofs;
         if (ld1rw_imm_check(ofs)) {
-            ld1rw(ZRegS(bcast_idx), reg_p_all_ones,
+            ld1rw(ZRegS(bcast_idx), P_ALL_ONE,
                     ptr(aux_reg_bcast_data, static_cast<int32_t>(ofs)));
         } else {
             if ((prev_ofs != -1) && ld1rw_imm_check(ofs - prev_ofs)) {
-                ld1rw(ZRegS(bcast_idx), reg_p_all_ones,
+                ld1rw(ZRegS(bcast_idx), P_ALL_ONE,
                         ptr(reg_prev_bcast_addr,
                                 static_cast<int32_t>((ofs - prev_ofs))));
             } else {
@@ -183,8 +183,7 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
                 }
                 prev_ofs = tmp_ofs;
 
-                ld1rw(ZRegS(bcast_idx), reg_p_all_ones,
-                        ptr(reg_prev_bcast_addr));
+                ld1rw(ZRegS(bcast_idx), P_ALL_ONE, ptr(reg_prev_bcast_addr));
             }
         }
         return prev_ofs;
@@ -436,7 +435,7 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
 
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    fmla(vreg_accum_s(i_load, i_ur), reg_p_all_ones,
+                    fmla(vreg_accum_s(i_load, i_ur), P_ALL_ONE,
                             vreg_load_s(i_load, 0),
                             ZRegS(bcast_reg_ofs
                                     + ((bcast_reg_startidx + i_ur)
@@ -485,9 +484,6 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
 
 void jit_sve_512_1x1_conv_kernel::generate() {
     preamble();
-
-    /* All 1 predicate register */
-    ptrue(reg_p_all_ones.b);
 
     /* Pointers indicate weight, input, and output data */
     ldr(reg_bcast_data, ptr(abi_param1, GET_OFF(bcast_data))); // Input

@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,8 +93,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     PReg k_cmp_mask = p7;
     PReg mask(int idx) { return PReg(6 - idx); } /* 6, 5, 4, 3 */
 
-    PReg p_all_zero = p0;
-    PReg p_512 = p2;
+    PReg p_all_zero = p2;
     PReg p_tmp0 = p1;
 
     VReg xmm_tmp = xreg(0); // temp to init vreg_tmp
@@ -234,8 +233,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::load_src_avg_op(
                 ld1b(z_tmp0.s, p_tmp0 / T_z, ptr(X_DEFAULT_ADDR));
                 sxtb(vr_src.s, p_tmp0 / T_m, z_tmp0.s);
             } else {
-                ld1b(z_tmp0.s, p_512 / T_z, ptr(X_DEFAULT_ADDR));
-                sxtb(vr_src.s, p_512 / T_m, z_tmp0.s);
+                ld1b(z_tmp0.s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
+                sxtb(vr_src.s, P_ALL_ONE / T_m, z_tmp0.s);
             }
             break;
         case u8:
@@ -250,7 +249,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::load_src_avg_op(
                 ldr(QReg(z_tmp0.getIdx()), ptr(X_DEFAULT_ADDR));
                 zip1(z_tmp0.b, z_tmp0.b, z_tmp0.b);
                 zip1(z_tmp0.h, z_tmp0.h, z_tmp0.h);
-                uxtb(vr_src.s, p_512 / T_m, z_tmp0.s);
+                uxtb(vr_src.s, P_ALL_ONE / T_m, z_tmp0.s);
             }
             break;
         default: assert(!"unsupported src data type");
@@ -342,7 +341,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::store_dst_avg_op(
                 mov(z_tmp0.d, vr_dst.d);
                 smin(z_tmp0.s, 127);
                 smax(z_tmp0.s, -128);
-                st1b(z_tmp0.s, p_512, ptr(X_DEFAULT_ADDR));
+                st1b(z_tmp0.s, P_ALL_ONE, ptr(X_DEFAULT_ADDR));
             }
             break;
         case u8:
@@ -356,7 +355,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::store_dst_avg_op(
             } else {
                 mov(z_tmp0.d, vr_dst.d);
                 umin(z_tmp0.s, 255);
-                st1b(z_tmp0.s, p_512, ptr(X_DEFAULT_ADDR));
+                st1b(z_tmp0.s, P_ALL_ONE, ptr(X_DEFAULT_ADDR));
             }
             break;
         default: assert(!"unsupported dst data_type");
@@ -397,13 +396,16 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sve_512>::compute_max_op(const int jj) {
     // Compare
     switch (jpp.src_dt) {
         case s32:
-            cmplt(k_cmp_mask.s, p_512 / T_z, vreg_dst(jj).s, vreg_src(jj).s);
+            cmplt(k_cmp_mask.s, P_ALL_ONE / T_z, vreg_dst(jj).s,
+                    vreg_src(jj).s);
             break;
         case data_type::s8:
-            cmplt(k_cmp_mask.b, p_512 / T_z, vreg_dst(jj).b, vreg_src(jj).b);
+            cmplt(k_cmp_mask.b, P_ALL_ONE / T_z, vreg_dst(jj).b,
+                    vreg_src(jj).b);
             break;
         case u8:
-            cmpls(k_cmp_mask.b, p_512 / T_z, vreg_dst(jj).b, vreg_src(jj).b);
+            cmpls(k_cmp_mask.b, P_ALL_ONE / T_z, vreg_dst(jj).b,
+                    vreg_src(jj).b);
             break;
         default: assert(!"unsupported src data type");
     }
@@ -551,11 +553,11 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
             if (!(masked && !msk)) {
                 const auto &reg_dst_f32 = vreg_dst_f32(jj, ll);
                 const auto &reg_dst_s32 = vreg_dst_s32(jj, ll);
-                scvtf(reg_dst_f32.s, p_512 / T_m, reg_dst_s32.s);
-                fmad(reg_dst_f32.s, p_512 / T_m, vreg_tmp.s, vreg_zeros.s);
+                scvtf(reg_dst_f32.s, P_ALL_ONE / T_m, reg_dst_s32.s);
+                fmad(reg_dst_f32.s, P_ALL_ONE / T_m, vreg_tmp.s, vreg_zeros.s);
 
-                frinti(reg_dst_s32.s, p_512 / T_m, reg_dst_f32.s);
-                fcvtzs(reg_dst_s32.s, p_512 / T_m, reg_dst_s32.s);
+                frinti(reg_dst_s32.s, P_ALL_ONE / T_m, reg_dst_f32.s);
+                fcvtzs(reg_dst_s32.s, P_ALL_ONE / T_m, reg_dst_s32.s);
 
                 store_dst(jj, ll, c_tail);
             }
@@ -666,7 +668,6 @@ template <cpu_isa_t isa>
 void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
     preamble();
 
-    ptrue(p_512.b);
     pfalse(p_all_zero.b);
 
     add_imm(X_DEFAULT_ADDR, reg_param, offsetof(call_params_t, src_i8),
