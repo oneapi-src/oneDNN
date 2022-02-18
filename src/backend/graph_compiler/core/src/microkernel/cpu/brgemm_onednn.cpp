@@ -406,12 +406,6 @@ struct brg_desc_safe_t {
         brg_desc_vec_local_.insert(
                 std::make_pair(new_itr.first->first, found_kernel));
 
-        found_kernel->is_amx_ = false;
-        status = brgemm_init_tiles(desc, found_kernel->palette_);
-        if (status == dnnl::impl::status::success) {
-            amx_tile_configure(found_kernel->palette_);
-            found_kernel->is_amx_ = true;
-        }
         // set brgemm attrs
         if (attrs_setting != nullptr || bd_mask != nullptr) {
             brgemm_attr_t dnnl_brg_attrs = get_dnnl_brgemm_attrs(
@@ -419,6 +413,14 @@ struct brg_desc_safe_t {
             dnnl_brg_attrs.bd_mask = bd_mask;
             brgemm_desc_set_attr(&desc, dnnl_brg_attrs);
         }
+
+        found_kernel->is_amx_ = false;
+        status = brgemm_init_tiles(desc, found_kernel->palette_);
+        if (status == dnnl::impl::status::success) {
+            amx_tile_configure(found_kernel->palette_);
+            found_kernel->is_amx_ = true;
+        }
+
         // set brgemm post ops.
         if (postops_setting != nullptr) {
             dnnl_primitive_attr dnnl_pattr;
@@ -438,6 +440,7 @@ struct brg_desc_safe_t {
             dnnl_memory_desc_t dnnl_dst_md = get_dst_default_md(
                     arg.M, arg.N, static_cast<int>(sc_dtype::F32));
             dnnl_dst_md.data_type = dnnl_out_dtype;
+
             brgemm_desc_set_postops(
                     &desc, &dnnl_pattr, &dnnl_dst_md, arg.N, dnnl_bias_dtype);
             // use local vars' lifetime
@@ -445,6 +448,7 @@ struct brg_desc_safe_t {
         } else {
             status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
         }
+
         assert(status == dnnl::impl::status::success);
         return found_kernel;
     }
