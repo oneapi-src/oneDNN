@@ -59,6 +59,9 @@ endif()
 
 if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
     add_definitions(-DSC_DLL)
+    set(SC_LIBRARY_TYPE "SHARED")
+else()
+    set(SC_LIBRARY_TYPE "STATIC")
 endif()
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)

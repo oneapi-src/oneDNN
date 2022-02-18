@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,7 +79,6 @@ endif()
 
 
 set(SC_LIB_NAME graphcompiler)
-set(SC_LIB_NAME_STATIC graphcompiler_static)
 
 SET(SC_MEMORY_LEAK_CHECK 0 CACHE STRING "memory leak checking. 0 = off, 1 = check numbers of instances, 2 = dump leaked objects")
 
@@ -156,10 +155,13 @@ include_directories(${SC_LLVM_INCLUDE_PATH}) # include LLVM headers
 ####################
 
 add_library(objlib OBJECT ${SC_SOURCES})
-add_library(${SC_LIB_NAME_STATIC} STATIC $<TARGET_OBJECTS:objlib>)
-add_library(${SC_LIB_NAME} SHARED $<TARGET_OBJECTS:objlib>)
+if (SC_LIBRARY_TYPE STREQUAL "STATIC")
+    add_library(${SC_LIB_NAME} STATIC $<TARGET_OBJECTS:objlib>)
+else()
+    add_library(${SC_LIB_NAME} SHARED $<TARGET_OBJECTS:objlib>)
+endif()
 
-if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
+if(SC_LIBRARY_TYPE STREQUAL "SHARED")
     if(MSVC)
         set_property(TARGET objlib PROPERTY COMPILE_FLAGS "/DSC_DLL_EXPORTS")
     else()
@@ -177,7 +179,6 @@ include_directories(
 
 set(SC_LLVM_ABS_LIBPATH ${SC_LLVM_LIB_NAME})
 
-target_link_libraries(${SC_LIB_NAME_STATIC} PRIVATE ${SC_LLVM_ABS_LIBPATH})
 target_link_libraries(${SC_LIB_NAME} PRIVATE ${SC_LLVM_ABS_LIBPATH})
 
 if(NOT MSVC)
@@ -220,7 +221,6 @@ if(NOT ${KERNEL_PROFILE} STREQUAL "OFF")
 endif()
 
 target_link_libraries_install(${SC_LIB_NAME} "${EXTRA_SHARED_LIBS}")
-target_link_libraries_install(${SC_LIB_NAME_STATIC} "${EXTRA_SHARED_LIBS}")
 if(SC_LIBRARY_TYPE STREQUAL "STATIC")
     target_link_libraries_install(${SC_LIB_NAME} "${EXTRA_STATIC_LIBS}")
 endif()
@@ -230,12 +230,11 @@ set(PARENT_NAME dnnl_graph)
 
 if(UNIX)
     target_link_libraries(${SC_LIB_NAME} PUBLIC dl)
-    target_link_libraries(${SC_LIB_NAME_STATIC} PUBLIC dl)
 endif()
 
 set(LIB_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${SC_LIB_NAME}")
 set(LIB_EXPORT_NAME "${SC_LIB_NAME}-targets")
-install(TARGETS ${SC_LIB_NAME} ${SC_LIB_NAME_STATIC}
+install(TARGETS ${SC_LIB_NAME}
     EXPORT "${LIB_EXPORT_NAME}"
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -273,12 +272,7 @@ if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED" OR MSVC)
     set_property(TARGET dnnl_brgemm PROPERTY POSITION_INDEPENDENT_CODE ON
                 CXX_VISIBILITY_PRESET "hidden"
                 VISIBILITY_INLINES_HIDDEN 1)
-    target_link_libraries(${SC_LIB_NAME_STATIC} PRIVATE $<BUILD_INTERFACE:dnnl_brgemm>)
     target_link_libraries(${SC_LIB_NAME} PRIVATE $<BUILD_INTERFACE:dnnl_brgemm>)
 endif()
 
-if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
-    set(${PARENT_NAME}_EXTRA_INTERFACE ${SC_LIB_NAME} CACHE INTERNAL "set sc library")
-else()
-    set(${PARENT_NAME}_EXTRA_INTERFACE ${SC_LIB_NAME_STATIC} CACHE INTERNAL "set sc library")
-endif()
+set(${PARENT_NAME}_EXTRA_INTERFACE ${SC_LIB_NAME} CACHE INTERNAL "set sc library")
