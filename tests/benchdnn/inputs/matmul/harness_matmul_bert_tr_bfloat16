@@ -43,7 +43,7 @@
 --reset
 --skip-impl=ref
 --cfg=bf16bf16bf16 --stag=abcd --wtag=abdc --dtag=abcd
-#--attr-post-ops=add:bf16:per_mb_spatial
+#--attr-post-ops=add:bf16:per_dim_023
 56x16x384x64:56x16x64x384n"BERT:FWD,Encoder_MM_4*24"
 
 --reset
