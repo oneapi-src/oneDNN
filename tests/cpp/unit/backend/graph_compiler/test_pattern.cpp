@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,6 +93,32 @@ TEST(GCPatternTests, MHAFp32Pattern) {
     ASSERT_EQ(partition_outputs.size(), 1);
 }
 
+// test fp32 MHA pattern alternative
+TEST(GCPatternTests, MHAFp32PatternAlternative) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_MHA_subgraph_alternative(&agraph, false, false);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_mha_pattern_alternative");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 7);
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
 // test fp32 MHA pattern (no reshape)
 TEST(GCPatternTests, MHAFp32PatternOptionalReshape) {
     REQUIRE_AVX512();
@@ -137,6 +163,39 @@ TEST(GCPatternTests, MHABf16Pattern) {
     ASSERT_EQ(partitions.size(), 0);
 
     apass = get_pass(compiler_backend_ptr, "bf16_mha_pattern");
+    REQUIRE_BF16_AMXBF16();
+    apass->run(agraph);
+    partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+// test bf16 MHA pattern alternative
+TEST(GCPatternTests, MHABf16PatternAlternative) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_MHA_subgraph_alternative(&agraph, true, false);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+
+    // it shall not match fp32 alternative pass
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_mha_pattern_alternative");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 0);
+
+    apass = get_pass(compiler_backend_ptr, "bf16_mha_pattern_alternative");
     REQUIRE_BF16_AMXBF16();
     apass->run(agraph);
     partitions = agraph.get_partitions();
