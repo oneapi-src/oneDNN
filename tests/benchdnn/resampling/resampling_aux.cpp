@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,7 +137,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (print_h) s << "oh" << d.oh;
     if (print_w) s << "ow" << d.ow;
 
-    if (d.name) s << "n" << d.name;
+    if (!d.name.empty()) s << "n" << d.name;
 
     return s;
 }

@@ -170,7 +170,7 @@ struct desc_t {
     int64_t mb;
     int64_t n_layer;
     int64_t n_iter;
-    const char *name;
+    std::string name;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
@@ -454,7 +454,7 @@ struct perf_report_t : public base_perf_report_t {
 
     double ops() const override { return p_->ops; }
     const int64_t *user_mb() const override { return &p_->user_mb; }
-    const char *name() const override { return p_->name; }
+    const std::string *name() const override { return &p_->name; }
     const dnnl_prop_kind_t *prop() const override { return &p_->prop; }
 
 private:

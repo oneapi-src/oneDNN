@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (canonical || d.dh != 0 || d.dw != 0 || d.dd != 0)
         print_spatial("dd", d.dd, "dh", d.dh, "dw", d.dw);
 
-    if (d.name) s << "n" << d.name;
+    if (!d.name.empty()) s << "n" << d.name;
 
     return s;
 }

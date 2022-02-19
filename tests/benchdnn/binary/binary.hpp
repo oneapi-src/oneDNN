@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,6 +110,7 @@ struct perf_report_t : public base_perf_report_t {
         return &p_->sdt;
     }
     const attr_t *attr() const override { return &p_->attr; }
+    const std::string *name() const override { return &p_->name; }
     const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
     const std::vector<std::string> *stag() const override { return &stag_; }
     const std::string *dtag() const override { return &dtag_; }
