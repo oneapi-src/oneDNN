@@ -28,6 +28,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace pool {
 
@@ -101,7 +102,7 @@ extern const _dt_conf_t conf_f32;
 const dt_conf_t *str2cfg(const char *str);
 std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -115,17 +116,10 @@ struct settings_t {
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {max};
-    std::vector<int64_t> mb {0};
-    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%tag%,%alg%,%DESC%,%-"
-              "time%,%0time%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%name%,%prb%,%-time%,%0time%";
-    const char *perf_template = perf_template_def;
+            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%tag%,%alg%,%attr%,%"
+              "DESC%,%-time%,%0time%";
 
     void reset() { *this = settings_t(perf_template); }
 };

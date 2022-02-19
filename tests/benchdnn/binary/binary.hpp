@@ -26,12 +26,13 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace binary {
 
 using alg_t = attr_t::post_ops_t::kind_t;
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -46,19 +47,10 @@ struct settings_t {
     std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
     std::vector<std::string> dtag {tag::any};
     std::vector<alg_t> alg {alg_t::ADD};
-    std::vector<bool> inplace {false};
-    std::vector<attr_t::arg_scales_t> scales {attr_t::arg_scales_t()};
-    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
-    attr_t attr = {};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%dtag%,%alg%,%attr%,"
               "%DESC%,%-time%,%0time%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
-    const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
 };

@@ -22,6 +22,7 @@
 #include "dnn_types.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace reduction {
 
@@ -51,7 +52,7 @@ alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -60,21 +61,17 @@ struct settings_t {
     }
 
     prb_vdims_t prb_vdims;
+
     std::vector<dnnl_data_type_t> sdt {dnnl_f32};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx};
     std::vector<std::string> dtag {tag::any};
-    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     std::vector<alg_t> alg {alg_t::sum};
     std::vector<float> p {1.0f}, eps {0.0f};
-    std::vector<int64_t> mb {0};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%dtag%,%alg%,%attr%,"
               "%DESC%,%-time%,%0time%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
-    const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
 };

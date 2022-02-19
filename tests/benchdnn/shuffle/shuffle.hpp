@@ -29,10 +29,11 @@
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace shuffle {
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -47,15 +48,10 @@ struct settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<int64_t> group {1};
     std::vector<int> axis {1};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%group%,%axis%,%DESC%,%-"
               "time%,%0time%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
-    const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
 };

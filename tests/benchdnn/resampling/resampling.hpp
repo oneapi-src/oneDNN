@@ -29,6 +29,7 @@
 #include "dnnl_memory.hpp"
 #include "utils/compare.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace resampling {
 
@@ -54,7 +55,7 @@ struct desc_t {
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -69,17 +70,10 @@ struct settings_t {
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {nearest};
-    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
-    std::vector<int64_t> mb {0};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%name%,%dir%,%sdt%,%ddt%,%tag%,%alg%,%DESC%"
               ",%-time%,%0time%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%name%,%prb%,%-time%,%0time%";
-    const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
 };

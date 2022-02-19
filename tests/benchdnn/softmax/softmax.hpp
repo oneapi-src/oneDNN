@@ -27,6 +27,7 @@
 #include "dnnl_memory.hpp"
 #include "utils/compare.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace softmax {
 
@@ -41,7 +42,7 @@ alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -56,18 +57,10 @@ struct settings_t {
     std::vector<std::string> stag {tag::abx}, dtag {tag::any};
     std::vector<alg_t> alg {SOFTMAX};
     std::vector<int> axis {1};
-    std::vector<int64_t> mb {0};
-    std::vector<bool> inplace {false};
-    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%dir%,%sdt%,%ddt%,%stag%,%dtag%,%alg%,%"
               "axis%,%DESC%,%-time%,%0time%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
-    const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
 };
