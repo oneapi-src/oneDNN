@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,7 +104,9 @@ std::shared_ptr<sc_graph_t> quantize_op_t::get_graph() {
                         {"format", sc_data_format_t()}});
         auto quantize_const_zeropoints = graph->make("constant", {}, {},
                 {{"values", zeropoints_ptr}, {"dtype", datatypes::f32},
-                        {"plain_dims", plain_dims},
+                        {"plain_dims",
+                                sc_dims {static_cast<sc_dim>(
+                                        zeropoints_f32.size())}},
                         {"format", sc_data_format_t()}});
         auto div_scale = graph->make("mul",
                 {inputs[0], quantize_const_scales->get_outputs()[0]}, {}, {});
@@ -204,7 +206,9 @@ std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph() {
             auto const_zero_points = graph->make("constant", {}, {},
                     {{"values", std::make_shared<static_data_t>(zero_points)},
                             {"dtype", datatypes::f32},
-                            {"plain_dims", sc_dims {1}},
+                            {"plain_dims",
+                                    sc_dims {static_cast<sc_dim>(
+                                            zero_points.size())}},
                             {"format", sc_data_format_t()}});
             f32_cast = graph->make("sub",
                     {f32_cast->get_outputs()[0],
