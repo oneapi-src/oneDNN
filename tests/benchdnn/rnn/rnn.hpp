@@ -30,6 +30,7 @@
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 #define AOC array_offset_calculator
 
@@ -213,7 +214,7 @@ struct dt_conf_t {
     std::string str_;
 };
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -233,23 +234,15 @@ struct settings_t {
     std::vector<bool> trivial_strides {false};
     std::vector<bool> with_peephole {false};
     std::vector<bool> with_projection {false};
-    std::vector<int64_t> n_layer {0}, n_iter {0}, mb {0};
+    std::vector<int64_t> n_layer {0}, n_iter {0};
     std::vector<policy_t> scale_policy {policy_t::COMMON};
     std::vector<policy_t> scale_proj_policy {policy_t::COMMON};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
     unsigned int flags = 0x0;
     float alpha = 0.9f, beta = 0.0f;
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%name%,%prop%,%cfg%,%alg%,%activation%,%"
-              "direction%"
-              ","
-              "%DESC%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-"
-              "Gflops%,%0time%,%0Gflops%";
-    const char *perf_template = perf_template_def;
+              "direction%,%DESC%,%Gops%,%-time%,%-Gflops%,%0time%,%0Gflops%";
 
     void reset() { *this = settings_t(perf_template); }
 };

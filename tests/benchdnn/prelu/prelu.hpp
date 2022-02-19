@@ -24,10 +24,11 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace prelu {
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -40,14 +41,10 @@ struct settings_t {
     std::vector<dir_t> dir {FWD_D};
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
     std::vector<std::vector<std::string>> stag {{tag::abx, tag::any}};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
-            = "perf,%engine%,%impl%,%dir%,%sdt%,%stag%,%DESC%,%-time%,%0time%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
-    const char *perf_template = perf_template_def;
+            = "perf,%engine%,%impl%,%dir%,%sdt%,%stag%,%attr%,%DESC%,%-time%,%"
+              "0time%";
 
     void reset() { *this = settings_t(perf_template); }
 };

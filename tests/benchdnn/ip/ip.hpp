@@ -25,6 +25,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace ip {
 
@@ -48,7 +49,7 @@ typedef struct dt_conf_t {
 
 extern const _dt_conf_t conf_f32;
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -61,20 +62,10 @@ struct settings_t {
     std::vector<dir_t> dir {FWD_B};
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
-    std::vector<int64_t> mb {0};
-    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
-    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
-    attr_t attr = {};
 
     const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%attr%,%DESC%,"
-              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-"
-              "Gflops%,%0time%,%0Gflops%";
-    const char *perf_template = perf_template_def;
+            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%stag%,%wtag%,%dtag%,%"
+              "attr%,%DESC%,%Gops%,%-time%,%-Gflops%,%0time%,%0Gflops%";
 
     void reset() { *this = settings_t(perf_template); }
 };

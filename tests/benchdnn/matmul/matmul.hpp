@@ -28,6 +28,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace matmul {
 
@@ -47,7 +48,7 @@ extern const _dt_conf_t conf_f32;
 const int64_t LD_GOOD = INT64_MAX;
 const int64_t LD_NONE = INT64_MAX - 1;
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -63,20 +64,10 @@ struct settings_t {
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<int> bia_mask {2};
     std::vector<std::vector<dims_mask_t>> rt_dims_masks {{}};
-    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
-    std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
-    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
-    attr_t attr = {};
 
     const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%cfg%,%attr%,%DESC%,"
-              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-"
-              "Gflops%,%0time%,%0Gflops%";
-    const char *perf_template = perf_template_def;
+            = "perf,%engine%,%impl%,%name%,%cfg%,%stag%,%wtag%,%dtag%,%attr%,%"
+              "DESC%,%Gops%,%-time%,%-Gflops%,%0time%,%0Gflops%";
 
     void reset() { *this = settings_t(perf_template); }
 };

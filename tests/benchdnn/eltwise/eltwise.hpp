@@ -26,12 +26,13 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/perf_report.hpp"
+#include "utils/settings.hpp"
 
 namespace eltwise {
 
 using alg_t = attr_t::post_ops_t::kind_t;
 
-struct settings_t {
+struct settings_t : public base_settings_t {
     settings_t() = default;
 
     // ctor to save certain fields from resetting
@@ -46,18 +47,10 @@ struct settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {alg_t::RELU};
     std::vector<float> scales {0, 0.25, -0.25}, alpha {scales}, beta {scales};
-    std::vector<int64_t> mb {0};
-    std::vector<bool> inplace {false};
-    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
-    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-time%,%"
               "0time%";
-    const char *perf_template_def
-            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
-    const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
 };
