@@ -161,6 +161,7 @@ struct perf_report_t : public base_perf_report_t {
     void dump_flags(std::ostream &s) const override { s << p_->oflag; }
 
     const attr_t *attr() const override { return &p_->attr; }
+    const std::string *name() const override { return &p_->name; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
     const dnnl_data_type_t *ddt() const override { return &ddt_; }
     const std::vector<std::string> *stag() const override { return &stag_; }

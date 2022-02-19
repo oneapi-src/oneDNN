@@ -222,7 +222,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     s << "l" << d.n_layer << "t" << d.n_iter << "mb" << d.mb << "sic" << d.sic
       << "slc" << d.slc << "dhc" << d.dhc << "dic" << d.dic;
 
-    if (d.name) s << "n" << d.name;
+    if (!d.name.empty()) s << "n" << d.name;
 
     return s;
 }

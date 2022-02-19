@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ struct base_perf_report_t {
     virtual double ops() const { return 0.; }
     virtual const attr_t *attr() const { return nullptr; }
     virtual const int *axis() const { return nullptr; }
-    virtual const char *name() const { return nullptr; }
+    virtual const std::string *name() const { return nullptr; }
     virtual const int64_t *group() const { return nullptr; }
     virtual const dir_t *dir() const { return nullptr; }
     virtual const dnnl_data_type_t *dt() const { return nullptr; }

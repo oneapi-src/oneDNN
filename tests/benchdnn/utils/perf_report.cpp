@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
     HANDLE("sdt", if (sdt()) s << *sdt());
     HANDLE("stag", if (stag()) s << *stag());
     HANDLE("mb", if (user_mb()) s << *user_mb());
-    HANDLE("name", if (name()) s << name());
+    HANDLE("name", if (name()) s << *name());
     HANDLE("ddt", if (ddt()) s << *ddt());
     HANDLE("dtag", if (dtag()) s << *dtag());
     HANDLE("prop", if (prop()) s << prop2str(*prop()));

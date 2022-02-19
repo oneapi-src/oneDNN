@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ struct desc_t {
     int64_t mb, ic, id, ih, iw;
     int64_t ls;
     float alpha, beta, k;
-    const char *name;
+    std::string name;
     int ndims;
 };
 int str2desc(desc_t *desc, const char *str);
@@ -119,7 +119,7 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     const int64_t *user_mb() const override { return &p_->user_mb; }
-    const char *name() const override { return p_->name; }
+    const std::string *name() const override { return &p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
     const std::string *tag() const override { return &tag_; }

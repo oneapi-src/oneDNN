@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ static int check_desc() {
     CHECK_EQ(d.ih, _ih); \
     CHECK_EQ(d.iw, _iw); \
     CHECK_EQ(d.eps, _eps); \
-    CHECK_CASE_STR_EQ(d.name, _name)
+    if (d.name != (_name)) return FAIL;
     CHECK_EQ(str2desc(&d, "mb1ic2ih3iw4eps5ntest2"), OK);
     CHECK_D(1, 2, 3, 4, 5.f, "test2");
     CHECK_EQ(str2desc(&d, "ic8ih9ntest3"), OK);
