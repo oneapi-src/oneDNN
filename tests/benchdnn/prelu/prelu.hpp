@@ -42,9 +42,10 @@ struct settings_t : public base_settings_t {
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
     std::vector<std::vector<std::string>> stag {{tag::abx, tag::any}};
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%dir%,%sdt%,%stag%,%attr%,%DESC%,%-time%,%"
-              "0time%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%dir%,%sdt%,%stag%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

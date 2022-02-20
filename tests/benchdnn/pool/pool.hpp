@@ -117,9 +117,10 @@ struct settings_t : public base_settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {max};
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%tag%,%alg%,%attr%,%"
-              "DESC%,%-time%,%0time%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%dir%,%cfg%,%tag%,%alg%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

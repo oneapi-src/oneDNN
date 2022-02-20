@@ -62,9 +62,10 @@ struct settings_t : public base_settings_t {
     std::vector<flags_t> flags {NONE};
     check_alg_t check_alg = check_alg_t::ALG_AUTO;
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%stat_tag%,%flags%,%DESC%,"
-              "%-time%,%0time%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%dir%,%dt%,%tag%,%stat_tag%,%flags%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

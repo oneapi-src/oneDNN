@@ -78,9 +78,10 @@ struct settings_t : public base_settings_t {
     check_alg_t check_alg = ALG_AUTO;
     bool debug_check_ws = false;
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%dir%,%dt%,%tag%,%attr%,%flags%,%"
-              "DESC%,%-time%,%0time%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%dir%,%dt%,%tag%,%flags%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

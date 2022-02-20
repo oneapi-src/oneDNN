@@ -58,9 +58,11 @@ struct settings_t : public base_settings_t {
     std::vector<alg_t> alg {SOFTMAX};
     std::vector<int> axis {1};
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%dir%,%sdt%,%ddt%,%stag%,%dtag%,%alg%,%"
-              "axis%,%DESC%,%-time%,%0time%";
+    const char *perf_template_csv() const {
+        static const std::string args
+                = "%dir%,%sdt%,%ddt%,%stag%,%dtag%,%alg%,%axis%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };
