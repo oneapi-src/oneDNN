@@ -70,9 +70,10 @@ struct settings_t : public base_settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {nearest};
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%dir%,%sdt%,%ddt%,%tag%,%alg%,%DESC%"
-              ",%-time%,%0time%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%dir%,%sdt%,%ddt%,%tag%,%alg%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

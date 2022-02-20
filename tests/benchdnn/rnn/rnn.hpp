@@ -240,9 +240,11 @@ struct settings_t : public base_settings_t {
     unsigned int flags = 0x0;
     float alpha = 0.9f, beta = 0.0f;
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%prop%,%cfg%,%alg%,%activation%,%"
-              "direction%,%DESC%,%Gops%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+    const char *perf_template_csv() const {
+        static const std::string args
+                = "%prop%,%cfg%,%alg%,%activation%,%direction%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

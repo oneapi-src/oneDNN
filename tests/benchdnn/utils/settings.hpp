@@ -31,6 +31,15 @@ struct base_settings_t {
     attr_t attr = {};
     const char *pattern = NULL;
 
+    const char *perf_template_csv_base(const std::string &driver_args) const {
+        static const std::string csv_pre
+                = std::string("perf,%engine%,%impl%,%name%,");
+        static const std::string csv_post = std::string(
+                ",%attr%,%DESC%,%Gops%,%-time%,%-Gflops%,%0time%,%0Gflops%");
+        static const std::string csv = csv_pre + driver_args + csv_post;
+        return csv.c_str();
+    }
+
     const char *perf_template_def
             = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%-time%,%-Gflops%,%"
               "0time%,%0Gflops%";

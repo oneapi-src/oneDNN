@@ -43,8 +43,10 @@ struct settings_t : public base_settings_t {
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%dt%,%tag%,%DESC%,%-time%,%0time%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%dt%,%tag%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

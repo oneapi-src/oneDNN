@@ -48,9 +48,10 @@ struct settings_t : public base_settings_t {
     std::vector<alg_t> alg {alg_t::RELU};
     std::vector<float> scales {0, 0.25, -0.25}, alpha {scales}, beta {scales};
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-time%,%"
-              "0time%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%dir%,%dt%,%tag%,%alg%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

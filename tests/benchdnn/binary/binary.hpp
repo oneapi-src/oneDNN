@@ -48,9 +48,10 @@ struct settings_t : public base_settings_t {
     std::vector<std::string> dtag {tag::any};
     std::vector<alg_t> alg {alg_t::ADD};
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%dtag%,%alg%,%attr%,"
-              "%DESC%,%-time%,%0time%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%sdt%,%ddt%,%stag%,%dtag%,%alg%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };

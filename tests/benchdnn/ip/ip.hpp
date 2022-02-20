@@ -63,9 +63,10 @@ struct settings_t : public base_settings_t {
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
 
-    const char *perf_template_csv
-            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%stag%,%wtag%,%dtag%,%"
-              "attr%,%DESC%,%Gops%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+    const char *perf_template_csv() const {
+        static const std::string args = "%dir%,%cfg%,%stag%,%wtag%,%dtag%";
+        return perf_template_csv_base(args);
+    }
 
     void reset() { *this = settings_t(perf_template); }
 };
