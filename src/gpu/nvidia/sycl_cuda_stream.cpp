@@ -97,9 +97,10 @@ status_t sycl_cuda_stream_t::init() {
 status_t sycl_cuda_stream_t::interop_task(
         std::function<void(::sycl::handler &)> sycl_cuda_interop_) {
     try {
-        cgh.depends_on(get_deps());
-        this->set_deps({queue().submit(
-                [&](::sycl::handler &cgh) { sycl_cuda_interop_(cgh); })});
+        this->set_deps({queue().submit([&](::sycl::handler &cgh) {
+            cgh.depends_on(get_deps());
+            sycl_cuda_interop_(cgh);
+        })});
         return status::success;
     } catch (std::runtime_error &e) {
         error::wrap_c_api(status::runtime_error, e.what());
