@@ -33,12 +33,16 @@ namespace nvidia {
 #define CTX_OUT_SYCL_MEMORY(arg) \
     sycl_memory_arg_t<::sycl::access::mode::write>(&CTX_OUT_STORAGE(arg), cgh)
 
+#define CTX_SCRATCH_SYCL_MEMORY(arg) \
+    sycl_memory_arg_t<::sycl::access::mode::read_write>( \
+            ctx.get_scratchpad_grantor().get_memory_storage(arg).get(), cgh)
+
 template <::sycl::access_mode mode>
 class sycl_memory_arg_t {
 public:
     sycl_memory_arg_t() = default;
     sycl_memory_arg_t(memory_storage_t *raw_mem, ::sycl::handler &cgh) {
-        if (raw_mem->is_null()) { return; }
+        if (!raw_mem || raw_mem->is_null()) { return; }
         auto *mem = static_cast<sycl::sycl_memory_storage_base_t *>(raw_mem);
         switch (mem->memory_kind()) {
             case sycl::memory_kind::buffer: {
