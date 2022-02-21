@@ -39,23 +39,12 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
         auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-
-        sycl_memory_arg_t<::sycl::access::mode::read_write> arg_ip_scratch;
-        sycl_memory_arg_t<::sycl::access::mode::read_write> arg_spacial_scratch;
-        sycl_memory_arg_t<::sycl::access::mode::read_write>
-                arg_scaled_bias_scratch;
-        if (pd()->inner_product_impl_->ip_using_scratchpad()) {
-            arg_ip_scratch = CTX_SCRATCH_SYCL_MEMORY(
+        auto arg_ip_scratch = CTX_SCRATCH_SYCL_MEMORY(
                     memory_tracking::names::key_iprod_int_dat_in_acc_dt);
-        }
-        if (pd()->inner_product_impl_->need_to_transform_filter()) {
-            arg_spacial_scratch
+        auto arg_spacial_scratch
                     = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
-        }
-        if (pd()->inner_product_impl_->conv_using_scale_scratchpad()) {
-            arg_scaled_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
+        auto arg_scaled_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
                     memory_tracking::names::key_conv_adjusted_scales);
-        }
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
@@ -69,18 +58,9 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(arg_wei.get_native_pointer(ih));
             args.push_back(arg_bias.get_native_pointer(ih));
             args.push_back(arg_dst.get_native_pointer(ih));
-
-            args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()
-                            ? arg_ip_scratch.get_native_pointer(ih)
-                            : nullptr));
-            args.push_back(
-                    (pd()->inner_product_impl_->need_to_transform_filter()
-                                    ? arg_spacial_scratch.get_native_pointer(ih)
-                                    : nullptr));
-            args.push_back((
-                    pd()->inner_product_impl_->conv_using_scale_scratchpad()
-                            ? arg_scaled_bias_scratch.get_native_pointer(ih)
-                            : nullptr));
+            args.push_back(arg_ip_scratch.get_native_pointer(ih));
+            args.push_back(arg_spacial_scratch.get_native_pointer(ih));
+            args.push_back(arg_scaled_bias_scratch.get_native_pointer(ih));
 
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);
@@ -97,17 +77,11 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
         auto arg_wei = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
         auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
-
-        sycl_memory_arg_t<::sycl::access::mode::read_write> arg_ip_scratch;
-        sycl_memory_arg_t<::sycl::access::mode::read_write> arg_spacial_scratch;
-        if (pd()->inner_product_impl_->ip_using_scratchpad()) {
-            arg_ip_scratch = CTX_SCRATCH_SYCL_MEMORY(
+        auto arg_ip_scratch = CTX_SCRATCH_SYCL_MEMORY(
                     memory_tracking::names::key_iprod_int_dat_in_acc_dt);
-        }
-        if (pd()->inner_product_impl_->need_to_transform_filter()) {
-            arg_spacial_scratch
+        auto arg_spacial_scratch
                     = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
-        }
+
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
@@ -120,13 +94,9 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(arg_diff_src.get_native_pointer(ih));
             args.push_back(arg_wei.get_native_pointer(ih));
             args.push_back(arg_diff_dst.get_native_pointer(ih));
-            args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()
-                            ? arg_ip_scratch.get_native_pointer(ih)
-                            : nullptr));
-            args.push_back(
-                    (pd()->inner_product_impl_->need_to_transform_filter()
-                                    ? arg_spacial_scratch.get_native_pointer(ih)
-                                    : nullptr));
+            args.push_back(arg_ip_scratch.get_native_pointer(ih));
+            args.push_back(arg_spacial_scratch.get_native_pointer(ih));
+
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);
         });
@@ -163,17 +133,11 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
         auto arg_diff_wei = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
         auto arg_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
-
-        sycl_memory_arg_t<::sycl::access::mode::read_write> arg_ip_scratch;
-        sycl_memory_arg_t<::sycl::access::mode::read_write> arg_spacial_scratch;
-        if (pd()->inner_product_impl_->ip_using_scratchpad()) {
-            arg_ip_scratch = CTX_SCRATCH_SYCL_MEMORY(
+        auto arg_ip_scratch = CTX_SCRATCH_SYCL_MEMORY(
                     memory_tracking::names::key_iprod_int_dat_in_acc_dt);
-        }
-        if (pd()->inner_product_impl_->need_to_transform_filter()) {
-            arg_spacial_scratch
+        auto arg_spacial_scratch
                     = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
-        }
+
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
@@ -186,14 +150,9 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
             args.push_back(arg_diff_dst.get_native_pointer(ih));
             args.push_back(arg_diff_wei.get_native_pointer(ih));
             args.push_back(arg_bias.get_native_pointer(ih));
-
-            args.push_back((pd()->inner_product_impl_->ip_using_scratchpad()
-                            ? arg_ip_scratch.get_native_pointer(ih)
-                            : nullptr));
-            args.push_back(
-                    (pd()->inner_product_impl_->need_to_transform_filter()
-                                    ? arg_spacial_scratch.get_native_pointer(ih)
-                                    : nullptr));
+            args.push_back(arg_ip_scratch.get_native_pointer(ih));
+            args.push_back(arg_spacial_scratch.get_native_pointer(ih));
+            
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);
         });
