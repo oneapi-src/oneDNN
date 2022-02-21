@@ -28,6 +28,7 @@
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 #include "sycl_cuda_memory_storage_helper.hpp"
+#include "sycl_cuda_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -52,10 +53,8 @@ protected:
             sycl_memory_arg_t<flt_m> arg_scale_bias,
             sycl_memory_arg_t<::sycl::access::mode::write> arg_wkspace,
             bool init_ss, bool init_mv,
-            sycl_memory_arg_t<mean_var_m> arg_mean
-            = sycl_memory_arg_t<::sycl::access::mode::write>(),
-            sycl_memory_arg_t<mean_var_m> arg_var
-            = sycl_memory_arg_t<::sycl::access::mode::write>()) const {
+            sycl_memory_arg_t<mean_var_m> arg_mean = {},
+            sycl_memory_arg_t<mean_var_m> arg_var = {}) const {
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
@@ -104,8 +103,7 @@ protected:
             sycl_memory_arg_t<ss_m> arg_scale_bias,
             sycl_memory_arg_t<d_ss_m> arg_diff_scale_bias,
             sycl_memory_arg_t<::sycl::access::mode::read> arg_wkspace,
-            std::shared_ptr<sycl_memory_arg_t<::sycl::access::mode::read_write>>
-                    temp_relu_output,
+            sycl_memory_arg_t<::sycl::access::mode::read_write> arg_temp_relu,
             bool init_ss) const {
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
@@ -133,9 +131,7 @@ protected:
                     arg_wkspace.get_native_pointer(ih));
             auto *save_var = save_mean + bnorm_impl->mean_var_size_bytes();
             auto *wkspace = save_var + bnorm_impl->mean_var_size_bytes();
-            auto *relu_dy = bnorm_impl->fuse_norm_relu()
-                    ? temp_relu_output->get_native_pointer(ih)
-                    : nullptr;
+            auto *relu_dy = arg_temp_relu.get_native_pointer(ih);
 
             std::shared_ptr<bnorm_args_t> args(
                     new bnorm_bwd_args_t(x, dx, dy, save_mean, save_var, scale,
@@ -160,10 +156,12 @@ protected:
             T *scale_ptr
                     = static_cast<T *>(arg_scale_bias.get_native_pointer(ih));
             T *bias_ptr = scale_ptr + n;
-            cuMemsetD32Async(reinterpret_cast<CUdeviceptr>(scale_ptr),
+            CUDA_EXECUTE_FUNC(cuMemsetD32Async,
+                    reinterpret_cast<CUdeviceptr>(scale_ptr),
                     reinterpret_cast<int &>(scale_val), n,
                     cuda_stream->get_underlying_stream());
-            cuMemsetD32Async(reinterpret_cast<CUdeviceptr>(bias_ptr),
+            CUDA_EXECUTE_FUNC(cuMemsetD32Async,
+                    reinterpret_cast<CUdeviceptr>(bias_ptr),
                     reinterpret_cast<int &>(bias_val), n,
                     cuda_stream->get_underlying_stream());
             cudaDeviceSynchronize();
@@ -188,10 +186,12 @@ protected:
         cuda_stream->interop_task([&](::sycl::handler &cgh) {
             T *mean_ptr = static_cast<T *>(arg_mean.get_native_pointer(ih));
             T *var_ptr = static_cast<T *>(arg_var.get_native_pointer(ih));
-            cuMemsetD32Async(reinterpret_cast<CUdeviceptr>(mean_ptr),
-                    mean_var_val, n, cuda_stream->get_underlying_stream());
-            cuMemsetD32Async(reinterpret_cast<CUdeviceptr>(var_ptr),
-                    mean_var_val, n, cuda_stream->get_underlying_stream());
+            CUDA_EXECUTE_FUNC(cuMemsetD32Async,
+                    reinterpret_cast<CUdeviceptr>(mean_ptr), mean_var_val, n,
+                    cuda_stream->get_underlying_stream());
+            CUDA_EXECUTE_FUNC(cuMemsetD32Async,
+                    reinterpret_cast<CUdeviceptr>(var_ptr), mean_var_val, n,
+                    cuda_stream->get_underlying_stream());
             cudaDeviceSynchronize();
         });
     }
@@ -231,7 +231,6 @@ struct bnorm_exec_fwd_inf_ss_t : public bnorm_exec_base_t {
             const override {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
-        auto n_channels = bnorm_impl->C();
 
         return cuda_stream->interop_task([&](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -286,7 +285,6 @@ struct bnorm_exec_fwd_inf_ss_stats_t : public bnorm_exec_base_t {
             const override {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
-        auto n_channels = bnorm_impl->C();
 
         return cuda_stream->interop_task([&](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -343,7 +341,6 @@ struct bnorm_exec_fwd_ss_t : public bnorm_exec_base_t {
             const override {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
-        auto n_channels = bnorm_impl->C();
 
         return cuda_stream->interop_task([&](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -387,21 +384,14 @@ struct bnorm_exec_bwd_t : public bnorm_exec_base_t {
                     = sycl_memory_arg_t<::sycl::access::mode::write>(
                             diff_scale_bias_buff, cgh);
 
-            std::shared_ptr<sycl_memory_arg_t<::sycl::access::mode::read_write>>
-                    temp_relu_output = nullptr;
-            if (bnorm_impl->fuse_norm_relu()) {
-                temp_relu_output = std::make_shared<
-                        sycl_memory_arg_t<::sycl::access::mode::read_write>>(
-                        CTX_SCRATCH_SYCL_MEMORY(
-                                memory_tracking::names::key_none));
-            }
+            auto arg_temp_relu
+                    = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
 
             bool init_ss = true;
 
             interop_task_bwd(bnorm_impl, engine, cgh, cuda_stream, arg_src,
                     arg_diff_dst, arg_diff_src, arg_scale_bias,
-                    arg_diff_scale_bias, arg_wkspace, temp_relu_output,
-                    init_ss);
+                    arg_diff_scale_bias, arg_wkspace, arg_temp_relu, init_ss);
         });
     }
 };
@@ -412,7 +402,6 @@ struct bnorm_exec_bwd_dw_ss_t : public bnorm_exec_base_t {
             const override {
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
-        auto n_channels = bnorm_impl->C();
 
         return cuda_stream->interop_task([&](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -424,19 +413,12 @@ struct bnorm_exec_bwd_dw_ss_t : public bnorm_exec_base_t {
             auto arg_wkspace = CTX_IN_SYCL_MEMORY(DNNL_ARG_WORKSPACE);
             bool init_ss = false;
 
-            std::shared_ptr<sycl_memory_arg_t<::sycl::access::mode::read_write>>
-                    temp_relu_output = nullptr;
-            if (bnorm_impl->fuse_norm_relu()) {
-                temp_relu_output = std::make_shared<
-                        sycl_memory_arg_t<::sycl::access::mode::read_write>>(
-                        CTX_SCRATCH_SYCL_MEMORY(
-                                memory_tracking::names::key_none));
-            }
+            auto arg_temp_relu
+                    = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
 
             interop_task_bwd(bnorm_impl, engine, cgh, cuda_stream, arg_src,
                     arg_diff_dst, arg_diff_src, arg_scale_bias,
-                    arg_diff_scale_bias, arg_wkspace, temp_relu_output,
-                    init_ss);
+                    arg_diff_scale_bias, arg_wkspace, arg_temp_relu, init_ss);
         });
     }
 };
@@ -460,22 +442,14 @@ struct bnorm_exec_bwd_d_ss_t : public bnorm_exec_base_t {
                     = sycl_memory_arg_t<::sycl::access::mode::write>(
                             diff_scale_bias_buff, cgh);
             auto arg_wkspace = CTX_IN_SYCL_MEMORY(DNNL_ARG_WORKSPACE);
-
-            std::shared_ptr<sycl_memory_arg_t<::sycl::access::mode::read_write>>
-                    temp_relu_output = nullptr;
-            if (bnorm_impl->fuse_norm_relu()) {
-                temp_relu_output = std::make_shared<
-                        sycl_memory_arg_t<::sycl::access::mode::read_write>>(
-                        CTX_SCRATCH_SYCL_MEMORY(
-                                memory_tracking::names::key_none));
-            }
+            auto arg_temp_relu
+                    = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
 
             bool init_ss = false;
 
             interop_task_bwd(bnorm_impl, engine, cgh, cuda_stream, arg_src,
                     arg_diff_dst, arg_diff_src, arg_scale_bias,
-                    arg_diff_scale_bias, arg_wkspace, temp_relu_output,
-                    init_ss);
+                    arg_diff_scale_bias, arg_wkspace, arg_temp_relu, init_ss);
         });
     }
 };
