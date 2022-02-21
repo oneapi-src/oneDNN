@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
+#include "sycl_cuda_memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,8 +35,8 @@ status_t cudnn_deconvolution_bwd_weights_t::execute_bias(
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
-        auto bias_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DIFF_BIAS);
-        auto y_acc = CTX_IN_ACCESSOR(DNNL_ARG_DIFF_DST);
+        auto arg_diff_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
+        auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -43,8 +44,8 @@ status_t cudnn_deconvolution_bwd_weights_t::execute_bias(
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
-            auto bias = sc.memory<void *>(ih, bias_acc);
-            auto y = sc.memory<void *>(ih, y_acc);
+            void *bias = arg_diff_bias.get_native_pointer(ih);
+            void *y = arg_diff_dst.get_native_pointer(ih);
 
             impl_->execute_bias(handle, y, bias);
         });
