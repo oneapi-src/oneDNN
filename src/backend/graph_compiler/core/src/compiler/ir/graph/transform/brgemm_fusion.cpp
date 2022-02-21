@@ -22,9 +22,11 @@
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/sc_data_type.hpp>
 #include <microkernel/cpu/brgemm_common.hpp>
+#include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
+
 namespace sc {
 static const constexpr char *forbidden_brgemm_fusion
         = "forbidden_brgemm_fusion";
@@ -42,6 +44,11 @@ static bool all_ones_except_channel(const sc_dims &shapes, int channel_axis) {
         if (i != channel_axis && shapes[i] != 1) { return false; }
     }
     return true;
+}
+
+static op_traits::brgemm_fusion_acceptable_t *to_brg_fusible(
+        const sc_op_ptr &p) {
+    return p->dyn_cast<op_traits::brgemm_fusion_acceptable_t>();
 }
 
 static brg_broadcast_type get_brgemm_broadcast_type(
@@ -87,7 +94,7 @@ struct fusion_state_t {
             = 0;
     virtual void do_transform(sc_graph_t &graph, const sc_op_ptr &main_op,
             const sc_op_ptr &cur_op) {
-        cur_op->stc_cast<fusible_op_t>()->fuse_in_brgemm_ = true;
+        to_brg_fusible(cur_op)->fuse_in_brgemm_ = true;
     }
     virtual ~fusion_state_t() = default;
 };
@@ -264,17 +271,17 @@ struct scale_state_t : public fusion_state_t {
                         {cur_op->get_inputs()[0],
                                 new_const_op->get_outputs()[0]},
                         {}, cur_op->attrs_);
-                new_scale_op->stc_cast<fusible_op_t>()->alg_kind_
-                        = brgemm::alg_kind_t::out_scales;
-                new_scale_op->stc_cast<fusible_op_t>()->fuse_in_brgemm_ = true;
+                auto new_scale_fu = to_brg_fusible(new_scale_op);
+                new_scale_fu->alg_kind_ = brgemm::alg_kind_t::out_scales;
+                new_scale_fu->fuse_in_brgemm_ = true;
                 cur_op->replace_uses_with_and_remove(new_scale_op);
                 const_op->remove();
                 return;
             }
         }
-        cur_op->stc_cast<fusible_op_t>()->alg_kind_
-                = brgemm::alg_kind_t::out_scales;
-        cur_op->stc_cast<fusible_op_t>()->fuse_in_brgemm_ = true;
+        auto cur_op_fu = to_brg_fusible(cur_op);
+        cur_op_fu->alg_kind_ = brgemm::alg_kind_t::out_scales;
+        cur_op_fu->fuse_in_brgemm_ = true;
     }
 };
 
@@ -358,11 +365,10 @@ struct bias_state_t : public fusion_state_t {
                     {}, cur_op->attrs_);
             auto casts32 = graph.make("cast", bias_add->get_outputs(), {},
                     {{"dtype", datatypes::s32}});
-            bias_add->stc_cast<fusible_op_t>()->alg_kind_
-                    = brgemm::alg_kind_t::bias_add;
-            castf32->stc_cast<fusible_op_t>()->fuse_in_brgemm_ = true;
-            bias_add->stc_cast<fusible_op_t>()->fuse_in_brgemm_ = true;
-            casts32->stc_cast<fusible_op_t>()->fuse_in_brgemm_ = true;
+            to_brg_fusible(bias_add)->alg_kind_ = brgemm::alg_kind_t::bias_add;
+            to_brg_fusible(castf32)->fuse_in_brgemm_ = true;
+            to_brg_fusible(bias_add)->fuse_in_brgemm_ = true;
+            to_brg_fusible(casts32)->fuse_in_brgemm_ = true;
             next_op_by_main->replace_input(0, casts32->get_outputs()[0]);
             auto pre_op_by_cur = cur_op->get_inputs()[0]->producer_owner_;
             auto uses = cur_op->get_outputs()[0]->uses_;
@@ -373,9 +379,9 @@ struct bias_state_t : public fusion_state_t {
             cur_op->remove();
             return;
         }
-        cur_op->stc_cast<fusible_op_t>()->alg_kind_
-                = brgemm::alg_kind_t::bias_add;
-        cur_op->stc_cast<fusible_op_t>()->fuse_in_brgemm_ = true;
+        auto cur_op_fu = to_brg_fusible(cur_op);
+        cur_op_fu->alg_kind_ = brgemm::alg_kind_t::bias_add;
+        cur_op_fu->fuse_in_brgemm_ = true;
     }
 };
 

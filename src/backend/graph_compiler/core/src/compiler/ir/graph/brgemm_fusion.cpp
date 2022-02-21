@@ -19,6 +19,9 @@
 #include "../pass/ir_copy.hpp"
 #include "../viewer.hpp"
 #include "fusion_mgr.hpp"
+#include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <microkernel/cpu/brgemm_alg_kind.hpp>
+
 namespace sc {
 void fusion_manager::break_brgemm_fusion() {
     brg_fusion_reg_.can_register_next_ = false;
@@ -244,9 +247,9 @@ bool brgemm_fusion_register::register_op_infos(const sc_op_ptr &op,
                 << setting_.size();
         return false;
     }
-    auto brg_op = op->stc_cast<fusible_op_t>();
+    auto brg_op = op->dyn_cast<op_traits::brgemm_fusion_acceptable_t>();
     // can not fuse in brgemm, return false
-    if (!brg_op->fuse_in_brgemm_
+    if (!brg_op || !brg_op->fuse_in_brgemm_
             || brg_op->alg_kind_ == brgemm::alg_kind_undef) {
         return false;
     }

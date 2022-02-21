@@ -16,14 +16,117 @@
 
 #include <assert.h>
 
+#include <memory>
+#include <string>
 #include <utility>
 #include "unary_elemwise.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/brgemm_fusion.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <microkernel/cpu/brgemm_alg_kind.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
+
+unary_elementwise_op_impl_t::unary_elementwise_op_impl_t(
+        graph_tensor_ptr v, const std::string &op_name)
+    : unary_elementwise_op_impl_t(op_name, {std::move(v)}, {}, {}) {}
+
+unary_elementwise_op_impl_t::unary_elementwise_op_impl_t(
+        const std::string &op_name, const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    COMPILE_ASSERT(ins.size() == 1, "Wrong op input size.\n");
+    op_name_ = op_name;
+    info_.inputs_ = ins;
+    attrs_ = attrs;
+    if (outs.empty()) {
+        info_.outputs_.emplace_back(
+                std::make_shared<graph_tensor>(this, ins[0]->details_));
+    } else {
+        COMPILE_ASSERT(outs.size() == 1, "Wrong op output size.\n");
+        COMPILE_ASSERT(outs[0]->details_.get_blocking_dims()
+                        == ins[0]->details_.get_blocking_dims(),
+                "Wrong op output shapes.\n");
+        info_.outputs_ = outs;
+    }
+    info_.tensor_share_info_ = {{0, {0}}};
+    attrs_ = attrs;
+}
+
+void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
+        const std::vector<tensor_slice *> &dst,
+        const std::vector<const tensor_slice *> &inputs) {
+    size_t wkld = compute_fusible_workload(ctx, dst, inputs);
+    // set default vectorized information
+    vx_info_.axis = dst[0]->get_shape().size() - 1;
+    for (int64_t i = dst[0]->nslice_dims() - 1; i >= 0; --i) {
+        int cur_dim = get_const_as_int(
+                dst.at(0)->get_shape().at(i).checked_as<constant_c>());
+        if (1 != cur_dim) {
+            vx_info_.axis = i;
+            break;
+        }
+    }
+    vx_info_.lanes
+            = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
+    auto func = [&](const std::vector<expr> &in,
+                        std::vector<expr::lvalue_proxy_t> &out, int mask_count,
+                        float mask_value) -> stmt {
+        return builder::make_assign_unattached(
+                out[0], compute_element(in[0], mask_count, mask_value));
+    };
+    // Currenly only support for exp
+    bool use_mask = op_name_ == "exp";
+    compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
+            mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
+            use_mask);
+}
+
+void unary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
+    COMPILE_ASSERT(info_.outputs_.size() == 1, "Wrong op output size.\n");
+    auto &in_detail0 = fdmap.get(info_.inputs_[0]);
+    in_detail0.use_count_++;
+}
+
+void infer_unary_slice_ranges(fusible_op_t *cur, fslice_map &fsmap) {
+    COMPILE_ASSERT(cur->get_inputs().size() == 1, "unary op is expected");
+    // search known ranges from any input of cur fusbile op
+    slice_range_map known_ranges_map = search_known_slice_ranges(cur, fsmap);
+    // set outputs slice range
+    fsmap.get(cur->get_outputs()[0]) = known_ranges_map[0];
+}
+
+void unary_elementwise_op_impl_t::infer_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    infer_unary_slice_ranges(this, fsmap);
+}
+
+inline void pre_unary_slice_ranges(
+        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
+    auto &input = cur->get_inputs()[0];
+    auto &out_ranges = fsmap.get(cur->get_outputs()[0]);
+    auto &in_ranges = fsmap.get(input);
+    if (in_ranges.empty()) {
+        in_ranges = out_ranges;
+        input->producer_owner_->dyn_cast<fusible_op_t>()->pre_slice_ranges(
+                fsmap, stat_map);
+    }
+}
+
+void unary_elementwise_op_impl_t::pre_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    pre_unary_slice_ranges(this, fsmap, stat_map);
+}
+
+bool unary_elementwise_op_impl_t::register_brgemm_fusion(const context_ptr &ctx,
+        const std::vector<tensor_slice *> &outputs,
+        const std::vector<const tensor_slice *> &inputs,
+        brgemm_fusion_register &brg_reg) {
+    if (!fuse_in_brgemm_) { return false; }
+    return brg_reg.register_op_infos(
+            shared_from_this(), outputs[0]->get_tensor_ptr());
+}
 
 expr relu_op_t::compute_element(expr in, int mask_count, float mask_value) {
     return builder::make_max(
@@ -199,17 +302,17 @@ expr squared_root_op_t::compute_element(
 
 cast_op_t::cast_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-    : unary_elementwise_op_t("cast", ins, outs, attrs) {
+    : unary_elementwise_op_impl_t("cast", ins, outs, attrs) {
     dtype_ = attrs.get<sc_data_type_t>("dtype");
     saturated_ = attrs.get_or_else("saturated", false);
     info_.outputs_[0]->details_.dtype_ = dtype_;
     info_.tensor_share_info_.clear();
-    set_brgemm_alg_kind(brgemm::out_dtype);
+    alg_kind_ = brgemm::out_dtype;
 }
 
 cast_op_t::cast_op_t(
         graph_tensor_ptr v, sc_data_type_t out_dtype, bool saturated)
-    : unary_elementwise_op_t(std::move(v), "cast")
+    : unary_elementwise_op_impl_t(std::move(v), "cast")
     , dtype_(out_dtype)
     , saturated_(saturated) {
     info_.outputs_[0]->details_.dtype_ = out_dtype;

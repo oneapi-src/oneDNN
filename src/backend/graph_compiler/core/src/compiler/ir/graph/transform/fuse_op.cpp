@@ -20,6 +20,7 @@
 #include "../visitor.hpp"
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
+#include <ops/fusible/memory_movement.hpp>
 #include <unordered_set>
 
 namespace sc {

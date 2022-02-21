@@ -21,6 +21,7 @@
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/graph/transform/transform.hpp>
 #include <compiler/ir/graph/visitor.hpp>
+#include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <unordered_set>
 

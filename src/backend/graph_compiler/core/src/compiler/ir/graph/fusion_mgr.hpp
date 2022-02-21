@@ -22,70 +22,13 @@
 #include <vector>
 #include "brgemm_fusion.hpp"
 #include "fusible_op.hpp"
+#include "fusion_data.hpp"
 #include <microkernel/cpu/brgemm_common.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>
 namespace sc {
 class fusible_op_t;
 struct fuse_state_t;
-
-// fusion_data_t is related to buffer and slice range info of fusible op
-struct fusion_data_t {
-    // the number of uses of the tensor in the graph. TODO: Should be replaced
-    // by uses_.size()
-    int use_count_ = 0;
-    bool need_alloc_ = true;
-    fusion_data_t() = default;
-    fusion_data_t(const fusion_data_t &) = delete;
-    const expr &get_buffer() const { return buffer_; };
-    const tensor get_allocated_tensor() const {
-        auto buf = buffer_;
-        while (!buf.isa<tensor>()) {
-            COMPILE_ASSERT(buf.isa<tensorptr>(),
-                    "tensor_slice only accepts a tensor or tensorptr, got: "
-                            << buf);
-            auto base = buf.static_as<tensorptr>()->base_;
-            COMPILE_ASSERT(base.isa<indexing>(),
-                    "tensor_ptr base should be indexing, but got: " << base);
-            buf = base.checked_as<indexing>()->ptr_;
-        }
-        COMPILE_ASSERT(buf.isa<tensor>(), "Tensor type is expected")
-        return buf.static_as<tensor>();
-    };
-
-private:
-    expr buffer_;
-    friend class fusion_manager;
-    friend void set_buffer_reuse_hint(
-            int64_t &, fdata_map &, const sc_op_ptr &, const expr &, bool);
-};
-
-// the map based on graph_tensor key
-template <typename keyT>
-struct gt_map_t {
-    std::unordered_map<graph_tensor *, keyT> datamap_;
-    keyT &get(graph_tensor *);
-    keyT &get(const graph_tensor_ptr &);
-    void clear() { datamap_.clear(); }
-    gt_map_t &operator=(const gt_map_t &other) = delete;
-};
-
-struct fuse_state_t {
-    fdata_map fdmap_;
-    std::vector<fslice_map> fsmap_list_;
-    fuse_state_t() = default;
-};
-
-struct fuse_anchor_t {
-    stmts anchor_position_;
-    std::pair<std::vector<tensor_slice>, std::vector<tensor_slice>>
-            anchor_slice_;
-    fuse_anchor_t() = default;
-    fuse_anchor_t(stmts pos,
-            std::pair<std::vector<tensor_slice>, std::vector<tensor_slice>>
-                    slice)
-        : anchor_position_(std::move(pos)), anchor_slice_(std::move(slice)) {};
-};
 
 class fusion_manager {
 protected:

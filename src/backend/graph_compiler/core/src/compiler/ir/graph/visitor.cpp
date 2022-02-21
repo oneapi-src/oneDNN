@@ -18,6 +18,8 @@
 #include <utility>
 #include "fusible_op.hpp"
 #include "fusion_mgr.hpp"
+#include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <unordered_map>
 namespace sc {
 

@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 #include "graph.hpp"
+#include <microkernel/cpu/brgemm_alg_kind.hpp>
 namespace sc {
 
 class fusion_manager;
@@ -54,6 +55,38 @@ struct auto_copyable_t : public copyable_t {
     sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs,
             sc_graph_t &mgr) override;
+};
+
+/**
+ * @brief The util trait template for Ops that is "almost" auto-copyable except
+ * that they need to copy the data in the trait.
+ *
+ * @tparam TArgs op_traits that has copy_from methods
+ */
+template <typename... TArgs>
+struct auto_copyable_with_trait_t : public auto_copyable_t {
+    template <typename T>
+    static void copy_impl(auto_copyable_with_trait_t *from, sc_op *to) {
+        auto pto = dynamic_cast<T *>(to);
+        assert(pto);
+        auto pfrom = dynamic_cast<T *>(from);
+        assert(pfrom);
+        pto->copy_from(pfrom);
+    }
+
+    template <typename T0, typename... T>
+    static void copy_impl(auto_copyable_with_trait_t *from,
+            typename std::enable_if<(sizeof...(T) > 0), sc_op *>::type to) {
+        copy_impl<T0>(from, to);
+        copy_impl<T...>(from, to);
+    }
+    sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs,
+            sc_graph_t &mgr) override {
+        auto ret = auto_copyable_t::copy(ins, outs, mgr);
+        copy_impl<TArgs...>(this, ret.get());
+        return ret;
+    }
 };
 
 // the OP can be optimized if some of the inputs are constants
@@ -88,11 +121,17 @@ struct post_fusion_acceptable_t : public virtual op_base_trait_t {
 // the OP can be fused into brgemm calculation.
 struct brgemm_fusion_acceptable_t : public virtual op_base_trait_t {
     static constexpr const char *brgemm_fusion = "brgemm_fusion";
+    bool fuse_in_brgemm_ = false;
+    brgemm::alg_kind_t alg_kind_ = brgemm::alg_kind_t::alg_kind_undef;
     virtual bool register_brgemm_fusion(const context_ptr &ctx,
             const std::vector<tensor_slice *> &outputs,
             const std::vector<const tensor_slice *> &inputs,
             brgemm_fusion_register &brg_reg)
             = 0;
+    void copy_from(brgemm_fusion_acceptable_t *from) {
+        fuse_in_brgemm_ = from->fuse_in_brgemm_;
+        alg_kind_ = from->alg_kind_;
+    }
 };
 
 // quantize

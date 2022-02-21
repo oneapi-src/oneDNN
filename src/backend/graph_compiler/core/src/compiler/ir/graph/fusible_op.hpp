@@ -23,134 +23,24 @@
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/traits.hpp>
-#include <microkernel/cpu/brgemm_common.hpp>
-#include <unordered_map>
-
 namespace sc {
 
 using slice_range = std::vector<std::pair<expr, expr>>;
 using slice_range_list = std::vector<slice_range>;
-using slice_range_map = std::unordered_map<int, slice_range_list>;
 
 template <typename keyT>
 struct gt_map_t;
 using fdata_map = gt_map_t<fusion_data_t>;
 using fslice_map = gt_map_t<slice_range_list>;
 
-enum class infer_status_code : int {
-    OK = 0, // Successful
-    RETRY, // Need retry another anchor
-    FAIL, // Could not infer
-    END,
-};
-
-struct infer_status_map_t {
-    std::vector<std::vector<sc_op_ptr>> inf_stat_map_;
-
-    infer_status_map_t() {
-        inf_stat_map_.resize(static_cast<int>(infer_status_code::END));
-    }
-
-    std::vector<sc_op_ptr> &get_ops_by_status(infer_status_code code) {
-        COMPILE_ASSERT(code != infer_status_code::END, "END code found");
-        return inf_stat_map_[static_cast<int>(code)];
-    }
-
-    const bool is_ok() {
-        return get_ops_by_status(infer_status_code::RETRY).empty()
-                && get_ops_by_status(infer_status_code::FAIL).empty();
-    }
-
-    const bool is_fail() {
-        return !get_ops_by_status(infer_status_code::FAIL).empty();
-    }
-
-    const bool is_retry() {
-        return !get_ops_by_status(infer_status_code::RETRY).empty();
-    }
-
-    void append_ops_by_status(sc_op *cur, infer_status_code code) {
-        COMPILE_ASSERT(code != infer_status_code::END, "END code found");
-        inf_stat_map_[static_cast<int>(code)].emplace_back(
-                cur->shared_from_this());
-    }
-
-    void clear() {
-        for (auto &ops : inf_stat_map_)
-            ops.clear();
-    }
-};
-
-inline std::vector<expr> get_slice_idx(const slice_range &range) {
-    std::vector<expr> ret;
-    for (auto &r : range) {
-        ret.emplace_back(r.first);
-    }
-    return ret;
-}
-
-inline std::vector<expr> get_slice_shape(const slice_range &range) {
-    std::vector<expr> ret;
-    for (auto &r : range) {
-        ret.emplace_back(r.second);
-    }
-    return ret;
-}
-
-/**
- * A slice of the tensor.
- * @param tptr_ the base tensor_ptr
- * @param shape_ the slice shape
- * */
-struct tensor_slice {
-    tensorptr tptr_;
-    std::vector<expr> shape_;
-    tensor_slice() = default;
-
-    tensor_slice(const expr &tsr);
-
-    tensor_slice(const expr &tsr, slice_range &&ranges);
-
-    // Gets the start address of the tensor slice
-    expr get_tensor_ptr() const { return tptr_; }
-
-    // Gets the shape of the sliced tensor
-    const std::vector<expr> &get_shape() const { return shape_; }
-
-    int64_t nslice_dims() const { return static_cast<int64_t>(shape_.size()); }
-    int64_t nbase_dims() const {
-        return static_cast<int64_t>(get_base_dims().size());
-    }
-
-    // Gets the offset of the sliced tensor
-    const std::vector<expr> &get_offset() const { return tptr_->base_->idx_; }
-
-    // Gets the ranges of the sliced tensor
-    slice_range get_ranges() const;
-
-    // Gets the real shape of base tensor (const version)
-    const std::vector<expr> &get_base_dims() const;
-
-    // Gets the dtype of base tensor
-    sc_data_type_t get_base_dtype() const;
-
-    // Gets the real tensor of tensor slice, not the tensor_ptr
-    tensor get_real_tensor() const;
-
-    // check whether slice is full on specific axes
-    bool full_on_axes(const std::vector<int> &axes) const;
-
-    // is_full
-    bool is_full() const;
-};
+struct infer_status_map_t;
+struct tensor_slice;
 
 /**
  * A fuser will do actual code injection on the fusion point. It will be managed
  * by the fusion manager.
  * */
-class fusible_op_t : public sc_op,
-                     public op_traits::auto_copyable_t,
-                     public op_traits::workload_computable_t {
+class fusible_op_t : public sc_op, public op_traits::workload_computable_t {
 public:
     // when fusible_op_t is as a started op in the graph/subgraph, query_format
     // return certain format.
@@ -209,19 +99,9 @@ public:
             const std::vector<tensor_slice *> &dst,
             const std::vector<const tensor_slice *> &inputs);
 
-    sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
-            const std::vector<graph_tensor_ptr> &outs,
-            sc_graph_t &mgr) override;
-    /**
-     * @brief set brgemm alg kind
-     * @param kind brgemm::alg_kind_t
-     */
-    void set_brgemm_alg_kind(brgemm::alg_kind_t kind) { alg_kind_ = kind; }
     ~fusible_op_t() override = default;
 
     int anchor_id_ = -1;
-    bool fuse_in_brgemm_ = false;
-    brgemm::alg_kind_t alg_kind_ = brgemm::alg_kind_t::alg_kind_undef;
 };
 
 using fusion_op_ptr = std::shared_ptr<fusible_op_t>;
@@ -250,15 +130,6 @@ using fusion_op_ptr = std::shared_ptr<fusible_op_t>;
     virtual void compute_block(context_ptr ctx, \
             const std::vector<tensor_slice *> &dst, \
             const std::vector<const tensor_slice *> &inputs) override {}
-
-slice_range_map search_known_slice_ranges(fusible_op_t *cur, fslice_map &fsmap);
-void set_unknown_slice_ranges(fusible_op_t *cur,
-        slice_range_map known_ranges_map, fslice_map &fsmap,
-        infer_status_map_t &stat_map);
-void infer_binary_slice_ranges(
-        fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
-sc_dims get_expr_to_dims(const std::vector<expr> &dims);
-size_t get_dims_product(const sc_dims &dims);
 
 /**
  * The input argument Op
@@ -320,7 +191,7 @@ public:
  *  - plain_dims: dims (todo: remove this attr)
  *  - format: sc_data_format_t (todo: remove this attr)
  * */
-class constant_op_t : public fusible_op_t {
+class constant_op_t : public fusible_op_t, public op_traits::auto_copyable_t {
 public:
     DECLARE_QUERY_AND_DEFAULT_COMPUTE();
 
@@ -349,18 +220,7 @@ public:
     size_t hash_contents() const override;
 
     // if necessary, reset const_values according possible `var` from attrs
-    void reset_const_values() {
-        if (attrs_.has_key("temp.var") && attrs_.has_key("temp.val/var")) {
-            int K = static_cast<int>(
-                    attrs_.get<std::shared_ptr<VConst>>("temp.var")->var_);
-            int base_val = attrs_.get<int>("temp.val/var");
-            // update private member
-            const_values_ = std::make_shared<static_data_t>(
-                    std::vector<int> {base_val * K});
-            // update attr
-            attrs_.set("values", const_values_);
-        }
-    }
+    void reset_const_values();
 
 private:
     std::shared_ptr<static_data_t> const_values_;
@@ -376,380 +236,21 @@ struct vectorized_info_t {
     uint32_t lanes;
 };
 
-enum class elt_operator {
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    MIN,
-    MAX,
-    SQD_DIFF,
-};
-
 class binary_elementwise_op_t : public fusible_op_t,
                                 public op_traits::may_broadcast_t,
-                                public op_traits::brgemm_fusion_acceptable_t {
-public:
-    DECLARE_QUERY_AND_COMPUTE();
-
-    binary_elementwise_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            elt_operator elt_op, int inplace = 1);
-    binary_elementwise_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-
-    int get_broadcast_input() const override;
-    std::vector<int> infer_broadcast_axis() const override;
-
-    void set_elt_operator(elt_operator elt_op) { elt_op_ = elt_op; }
-
-    uint32_t get_lanes() const { return vx_info_.lanes; }
-
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
-    bool register_brgemm_fusion(const context_ptr &ctx,
-            const std::vector<tensor_slice *> &outputs,
-            const std::vector<const tensor_slice *> &inputs,
-            brgemm_fusion_register &brg_reg) override;
-    // get real broadcast axis, generaly, you should set bc_axis on plain format
-    // semantics if necessary.
-    std::vector<int> get_bc_axis() const;
-    vectorized_info_t &get_vx_info() { return vx_info_; }
-
-private:
-    elt_operator elt_op_;
-    int inplace_;
-    vectorized_info_t vx_info_;
-};
-
-class add_op_t : public binary_elementwise_op_t {
-public:
-    add_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
-        : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::ADD, inplace) {
-        set_brgemm_alg_kind(brgemm::binary_add);
-    }
-    add_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : binary_elementwise_op_t(ins, outs, attrs) {
-        set_brgemm_alg_kind(brgemm::binary_add);
-        set_elt_operator(elt_operator::ADD);
-        op_name_ = "add";
-    }
-};
-
-class sub_op_t : public binary_elementwise_op_t,
-                 public op_traits::may_quantize_t {
-public:
-    sub_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
-        : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::SUB, inplace) {
-        set_brgemm_alg_kind(brgemm::binary_sub);
-    }
-    sub_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : binary_elementwise_op_t(ins, outs, attrs) {
-        set_brgemm_alg_kind(brgemm::binary_sub);
-        set_elt_operator(elt_operator::SUB);
-        op_name_ = "sub";
-    }
-};
-
-class mul_op_t : public binary_elementwise_op_t {
-public:
-    mul_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
-        : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::MUL, inplace) {
-        set_brgemm_alg_kind(brgemm::binary_mul);
-    }
-    mul_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : binary_elementwise_op_t(ins, outs, attrs) {
-        set_brgemm_alg_kind(brgemm::binary_mul);
-        set_elt_operator(elt_operator::MUL);
-        op_name_ = "mul";
-    }
-};
-
-class div_op_t : public binary_elementwise_op_t {
-public:
-    div_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
-        : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::DIV, inplace) {
-        set_brgemm_alg_kind(brgemm::binary_div);
-    }
-    div_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : binary_elementwise_op_t(ins, outs, attrs) {
-        set_brgemm_alg_kind(brgemm::binary_div);
-        set_elt_operator(elt_operator::DIV);
-        op_name_ = "div";
-    }
-};
-
-class min_op_t : public binary_elementwise_op_t {
-public:
-    min_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
-        : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::MIN, inplace) {
-        set_brgemm_alg_kind(brgemm::binary_min);
-    }
-    min_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : binary_elementwise_op_t(ins, outs, attrs) {
-        set_brgemm_alg_kind(brgemm::binary_min);
-        set_elt_operator(elt_operator::MIN);
-        op_name_ = "min";
-    }
-};
-
-class max_op_t : public binary_elementwise_op_t {
-public:
-    max_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
-        : binary_elementwise_op_t(
-                std::move(lhs), std::move(rhs), elt_operator::MAX, inplace) {
-        set_brgemm_alg_kind(brgemm::binary_max);
-    }
-    max_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : binary_elementwise_op_t(ins, outs, attrs) {
-        set_brgemm_alg_kind(brgemm::binary_max);
-        set_elt_operator(elt_operator::MAX);
-        op_name_ = "max";
-    }
+                                public op_traits::brgemm_fusion_acceptable_t,
+                                public op_traits::auto_copyable_with_trait_t<
+                                        op_traits::brgemm_fusion_acceptable_t> {
 };
 
 class unary_elementwise_op_t : public fusible_op_t,
-                               public op_traits::brgemm_fusion_acceptable_t {
-public:
-    void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
-    void pre_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override;
-    void prepare_fusion_data(fdata_map &fdmap) override;
-
-    void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
-            const std::vector<const tensor_slice *> &inputs) override;
-
-    bool register_brgemm_fusion(const context_ptr &ctx,
-            const std::vector<tensor_slice *> &outputs,
-            const std::vector<const tensor_slice *> &inputs,
-            brgemm_fusion_register &brg_reg) override;
-
-    unary_elementwise_op_t(graph_tensor_ptr v, const std::string &op_name);
-    unary_elementwise_op_t(const std::string &op_name,
-            const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    vectorized_info_t &get_vx_info() { return vx_info_; }
-
-    virtual expr compute_element(expr in, int mask_count, float mask_value) = 0;
-
-private:
-    vectorized_info_t vx_info_;
+                               public op_traits::brgemm_fusion_acceptable_t,
+                               public op_traits::auto_copyable_with_trait_t<
+                                       op_traits::brgemm_fusion_acceptable_t> {
 };
 
 // used for classification
 class movement_op_t : public fusible_op_t, public op_traits::may_quantize_t {};
-
-class transpose_op_t : public movement_op_t {
-public:
-    DECLARE_QUERY_AND_COMPUTE();
-
-    transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    transpose_op_t(graph_tensor_ptr v, std::vector<int> &axes);
-
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
-    size_t compute_workload(const std::vector<shape_dtype_pair> &,
-            const std::vector<shape_dtype_pair> &) override;
-
-private:
-    std::vector<int> axes_;
-};
-
-/**
- * Creates a view of an input tensor with a different shape
- * Inputs:
- *  - A single tensor to reshape
- * Outputs:
- *  - The reshaped tensor
- * Attrs:
- *  - shape: vector<int> - the output blocking shape
- * */
-class tensor_view_op_t : public movement_op_t {
-public:
-    DECLARE_QUERY_AND_COMPUTE();
-
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
-
-    tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes);
-    tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    sc_dims get_shapes() const;
-    bool try_penetrate(sc_data_format_t &new_output_format) const;
-
-private:
-    sc_dims shapes_;
-};
-
-/**
- * Creates a copy of an input tensor with a different shape.
- * Currenly only used in case whole graph has only single reshape op for perf.
- * Inputs:
- *  - A single tensor to reshape
- * Outputs:
- *  - The reshaped tensor
- * Attrs:
- *  - shape: vector<int> - the output blocking shape
- * */
-class reshape_op_t : public movement_op_t {
-public:
-    DECLARE_QUERY_AND_COMPUTE();
-    reshape_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
-    ir_module_ptr get_func(context_ptr ctx) override;
-
-private:
-    sc_dims shapes_;
-};
-
-class split_op_t : public movement_op_t {
-public:
-    DECLARE_QUERY_AND_COMPUTE();
-
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
-
-    split_op_t(graph_tensor_ptr v, int dim, const sc_dims &shapes);
-
-private:
-    unsigned dim_;
-    sc_dims shapes_;
-};
-
-class reorder_op_t : public movement_op_t {
-public:
-    DECLARE_QUERY_AND_COMPUTE();
-
-    reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    reorder_op_t(graph_tensor_ptr v, sc_data_format_t input_format,
-            sc_data_format_t output_format);
-    ir_module_ptr get_func(context_ptr ctx) override;
-    const sc_data_format_kind_t &get_input_format_kind() const {
-        return input_format_.format_code_;
-    }
-    const sc_data_format_kind_t &get_output_format_kind() const {
-        return output_format_.format_code_;
-    }
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
-    const sc_data_format_t &get_output_format() const { return output_format_; }
-    const sc_data_format_t &get_input_format() const { return input_format_; }
-    size_t compute_workload(const std::vector<shape_dtype_pair> &,
-            const std::vector<shape_dtype_pair> &) override;
-    bool check_padding() const;
-    bool use_output_loop() const;
-
-private:
-    sc_dims plain_dims_;
-    sc_data_format_t input_format_;
-    sc_data_format_t output_format_;
-};
-
-enum class reduce_operator : int {
-    add = 0,
-    mul,
-};
-
-// reduce op
-class reduce_op_t : public fusible_op_t {
-public:
-    DECLARE_QUERY_AND_COMPUTE();
-
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
-
-    reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-
-    reduce_op_t(graph_tensor_ptr v, const std::string &rd_name,
-            const std::vector<int> &rd_axis,
-            reduce_operator rd_op = reduce_operator::add,
-            bool keep_dims = false, bool need_mean = true);
-    uint32_t get_lanes() const { return vx_info_.lanes; }
-    // get real reduce axis, generaly, you should set rd_axis on plain format
-    // semantics.
-    std::vector<int> get_rd_axis() const;
-    size_t compute_workload(const std::vector<shape_dtype_pair> &,
-            const std::vector<shape_dtype_pair> &) override;
-
-private:
-    // the axis which need reduction
-    std::vector<int> plain_rd_axis_;
-    // type of reduction
-    reduce_operator rd_op_;
-    // name of reduce_op_t
-    std::string rd_name_;
-    // if keep_dims=True, if will retain length=1 even though be reduced.
-    bool keep_dims_;
-    // whether need to compute mean
-    bool need_mean_;
-    // use vectorized
-    vectorized_info_t vx_info_;
-};
-
-// reduce_add_op_t is derived from reduce_op_t
-class reduce_add_op_t : public reduce_op_t {
-public:
-    reduce_add_op_t(graph_tensor_ptr v, const std::string &rd_name,
-            const std::vector<int> &rd_axis, bool keep_dims = false,
-            bool need_mean = true)
-        : reduce_op_t(std::move(v), rd_name, rd_axis, reduce_operator::add,
-                keep_dims, need_mean) {}
-};
-
-// reduce_mul_op_t is derived from reduce_op_t
-class reduce_mul_op_t : public reduce_op_t {
-public:
-    reduce_mul_op_t(graph_tensor_ptr v, const std::string &rd_name,
-            const std::vector<int> &rd_axis, bool keep_dims = false,
-            bool need_mean = true)
-        : reduce_op_t(std::move(v), rd_name, rd_axis, reduce_operator::mul,
-                keep_dims, need_mean) {}
-};
-
-// squared_difference: (x-mean)^2
-// squared_diff should support both elementwise and broad-cast mode.
-class squared_diff_op_t : public binary_elementwise_op_t {
-public:
-    squared_diff_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
-        : binary_elementwise_op_t(std::move(lhs), std::move(rhs),
-                elt_operator::SQD_DIFF, inplace) {}
-    squared_diff_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : binary_elementwise_op_t(ins, outs, attrs) {
-        set_elt_operator(elt_operator::SQD_DIFF);
-        op_name_ = "sqd_diff";
-    }
-};
 
 } // namespace sc
 #endif

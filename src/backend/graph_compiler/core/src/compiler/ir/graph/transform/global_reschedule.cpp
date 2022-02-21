@@ -21,6 +21,8 @@
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
 #include "transform.hpp"
+#include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 
 namespace sc {

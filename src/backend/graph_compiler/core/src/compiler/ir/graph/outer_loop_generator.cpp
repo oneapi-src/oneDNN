@@ -25,6 +25,8 @@
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/ir_comparer.hpp>
+#include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
 namespace sc {

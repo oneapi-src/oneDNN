@@ -26,7 +26,11 @@
     F(matmul); \
     F(quantize); \
     F(exp); \
-    F(dynamic_transpose);
+    F(dynamic_transpose); \
+    F(add); \
+    F(reorder); \
+    F(reduce); \
+    F(relu);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;
 

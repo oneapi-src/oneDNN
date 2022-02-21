@@ -19,6 +19,7 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
+#include <compiler/ir/graph/fusion_data.hpp>
 #include <compiler/ir/graph/quantization/quantize_op.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>

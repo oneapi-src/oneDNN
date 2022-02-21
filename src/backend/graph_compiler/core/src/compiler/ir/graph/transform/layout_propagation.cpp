@@ -20,6 +20,7 @@
 #include "../graph_op.hpp"
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
+#include <ops/fusible/memory_movement.hpp>
 namespace sc {
 
 static void insert_reorder_op(sc_graph_t &graph, const graph_tensor_ptr &in,

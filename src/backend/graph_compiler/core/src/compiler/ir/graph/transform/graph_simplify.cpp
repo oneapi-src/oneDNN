@@ -21,6 +21,7 @@
 #include "../pass/pass.hpp"
 #include "../visitor.hpp"
 #include "transform.hpp"
+#include <ops/fusible/memory_movement.hpp>
 #include <unordered_map>
 
 SC_MODULE(graph.simplify)

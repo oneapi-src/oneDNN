@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include "../fusible_op.hpp"
 #include "../graph.hpp"
 #include "../visitor.hpp"
+#include <ops/fusible/memory_movement.hpp>
 namespace sc {
 void tensor_view_to_copy(sc_graph_t &graph) {
     int count = 0;

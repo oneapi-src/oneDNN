@@ -24,6 +24,7 @@
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
 #include <microkernel/builtin.hpp>
+#include <ops/fusible/memory_movement.hpp>
 #include <unordered_map>
 #include <util/scoped_timer.hpp>
 
