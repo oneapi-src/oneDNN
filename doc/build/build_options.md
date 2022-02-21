@@ -20,10 +20,29 @@ All other building options or values that can be found in CMake files are
 intended for development/debug purposes and are subject to change without
 notice. Please avoid using them.
 
-*Note that graph compiler backend only supports **OMP** as its threading runtime
+Note that graph compiler backend only supports **OMP** as its threading runtime
 for CPU engines so far, other threading runtimes shall be supported in future and
-currently will result in fatal error.*
-*Option DNNL_GRAPH_LLVM_CONFIG is only valid when DNNL_GRAPH_BUILD_COMPILER_BACKEND=ON.*
+currently will result in fatal error.
+
+## Build Graph Compiler
+
+oneDNN Graph provides more aggresive operator fusion ability via compiler
+technology. To enable the feature, users need to set
+`DNNL_GRAPH_BUILD_COMPILER_BACKEND=ON` explicitly in the CMake command line:
+
+~~~sh
+cmake .. -DDNNL_GRAPH_BUILD_COMPILER_BACKEND=ON
+~~~~
+
+Or change the default value in [options.cmake](../../cmake/options.cmake:104) to
+`ON`:
+
+~~~sh
+option(DNNL_GRAPH_BUILD_COMPILER_BACKEND "builds graph compiler backend" ON)
+~~~
+
+Option `DNNL_GRAPH_LLVM_CONFIG` is only valid when
+`DNNL_GRAPH_BUILD_COMPILER_BACKEND=ON`.
 
 ## Common Options
 
