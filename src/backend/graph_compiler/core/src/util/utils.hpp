@@ -283,6 +283,7 @@ struct SC_INTERNAL_API compiler_configs_t {
     verbose_level verbose_level_;
     bool print_pass_time_;
     bool print_pass_result_;
+    bool jit_profile_;
 
     static compiler_configs_t &get();
 

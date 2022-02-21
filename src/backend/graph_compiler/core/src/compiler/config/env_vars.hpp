@@ -49,6 +49,7 @@ enum key {
     SC_SSA_PASSES,
     SC_PRINT_PASS_TIME,
     SC_PRINT_PASS_RESULT,
+    SC_JIT_PROFILE,
     NUM_KEYS
 };
 } // namespace env_key

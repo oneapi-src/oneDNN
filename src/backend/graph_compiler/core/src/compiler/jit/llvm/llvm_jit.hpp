@@ -33,6 +33,7 @@ class LLVMContext;
 namespace sc {
 
 class llvm_jit;
+struct llvm_jit_listeners;
 class SC_INTERNAL_API llvm_jit_module
     : public jit_module,
       public std::enable_shared_from_this<llvm_jit_module> {
@@ -42,7 +43,11 @@ class SC_INTERNAL_API llvm_jit_module
 public:
     llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,
             std::unique_ptr<llvm::LLVMContext> llvm_ctx,
-            statics_table_t &&globals);
+            statics_table_t &&globals,
+            std::shared_ptr<llvm_jit_listeners> &&listeners);
+    // listeners_ reference will be destructed after engine_, to make sure
+    // jit_listeners are still alive when ExecutionEngine is destroyed
+    std::shared_ptr<llvm_jit_listeners> listeners_;
     std::unique_ptr<llvm::LLVMContext> llvm_ctx_;
     std::unique_ptr<llvm::ExecutionEngine> engine_;
     ~llvm_jit_module();

@@ -214,8 +214,9 @@ compiler_configs_t::compiler_configs_t() {
     }
     verbose_level_ = (verbose_level)tmp_get_verbose_level;
 
-    print_pass_time_ = utils::getenv_int("SC_PRINT_PASS_TIME", 0);
-    print_pass_result_ = utils::getenv_int("SC_PRINT_PASS_RESULT", 0);
+    print_pass_time_ = utils::getenv_int(env_names[SC_PRINT_PASS_TIME], 0);
+    print_pass_result_ = utils::getenv_int(env_names[SC_PRINT_PASS_RESULT], 0);
+    jit_profile_ = utils::getenv_int(env_names[SC_JIT_PROFILE], 0);
 }
 
 } // namespace utils

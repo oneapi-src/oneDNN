@@ -24,6 +24,7 @@
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/JITEventListener.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm/IR/LLVMContext.h>
@@ -39,6 +40,7 @@
 #include <runtime/config.hpp>
 #include <runtime/runtime.hpp>
 #include <util/scoped_timer.hpp>
+#include <util/utils.hpp>
 
 namespace sc {
 
@@ -79,6 +81,16 @@ std::unique_ptr<llvm::TargetMachine> get_llvm_target_machine(
 static void *resolve_llvm_symbol(
         llvm::ExecutionEngine *engine, const std::string &name);
 
+struct llvm_jit_listeners {
+    std::unique_ptr<llvm::JITEventListener> intel_jit_;
+    std::unique_ptr<llvm::JITEventListener> perf_;
+    llvm_jit_listeners()
+        : intel_jit_(std::unique_ptr<llvm::JITEventListener>(
+                llvm::JITEventListener::createIntelJITEventListener()))
+        , perf_(std::unique_ptr<llvm::JITEventListener>(
+                  llvm::JITEventListener::createPerfJITEventListener())) {}
+};
+
 std::shared_ptr<jit_module> llvm_jit::make_jit_module(
         const_ir_module_ptr module, bool generate_wrapper) {
     auto llvm_ctx = utils::make_unique<llvm::LLVMContext>();
@@ -110,6 +122,14 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
                           .setMCJITMemoryManager(
                                   utils::make_unique<sc_llvm_jit_resolver>())
                           .create(tm);
+    std::shared_ptr<llvm_jit_listeners> outlisteners;
+    if (utils::compiler_configs_t::get().jit_profile_) {
+        // one listener for all JIT modules
+        static auto listeners = std::make_shared<llvm_jit_listeners>();
+        engine->RegisterJITEventListener(listeners->intel_jit_.get());
+        engine->RegisterJITEventListener(listeners->perf_.get());
+        outlisteners = listeners;
+    }
     if (!engine) {
         throw std::runtime_error("LLVM EngineBuilder error: " + err);
     }
@@ -120,12 +140,14 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     if (init_func) { init_func(nullptr, attr_table.data_.data_); }
     return std::make_shared<llvm_jit_module>(
             std::unique_ptr<llvm::ExecutionEngine>(engine), std::move(llvm_ctx),
-            std::move(attr_table));
+            std::move(attr_table), std::move(outlisteners));
 }
 
 llvm_jit_module::llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,
-        std::unique_ptr<llvm::LLVMContext> llvm_ctx, statics_table_t &&globals)
+        std::unique_ptr<llvm::LLVMContext> llvm_ctx, statics_table_t &&globals,
+        std::shared_ptr<llvm_jit_listeners> &&listeners)
     : jit_module(std::move(globals))
+    , listeners_(std::move(listeners))
     , llvm_ctx_(std::move(llvm_ctx))
     , engine_(std::move(engine)) {}
 
