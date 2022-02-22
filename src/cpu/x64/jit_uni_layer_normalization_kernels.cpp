@@ -44,6 +44,10 @@ struct jit_transfer_t<f32> {
     template <data_type_t store_data_type>
     void store(Ymm &vmm_dst, Reg64 reg_dst, int nelems, size_t offt_elems);
 
+    // Need to have bf16 emu available publically here since initialization
+    // has to happen after preamble.
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
+
 protected:
     jit_generator &gen_;
     const int simd_w_;
@@ -70,7 +74,6 @@ private:
     const Reg64 bf16_emu_scratch_ = rax;
     const Zmm bf16_emu_reserv_3_ = Zmm(30);
     const Zmm bf16_emu_reserv_4_ = Zmm(31);
-    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 };
 
 jit_transfer_t<bf16>::jit_transfer_t(jit_generator &gen)
@@ -81,7 +84,6 @@ jit_transfer_t<bf16>::jit_transfer_t(jit_generator &gen)
                 this->bf16_emu_reserv_1_, this->bf16_emu_reserv_2_,
                 this->bf16_emu_reserv_3_, this->bf16_emu_scratch_,
                 this->bf16_emu_reserv_4_);
-        this->bf16_emu_->init_vcvtneps2bf16();
     }
 }
 
@@ -261,6 +263,7 @@ void jit_stat_and_data_kernel_t<data_type>::generate() {
     static const auto float_size = types::data_type_size(f32);
 
     preamble();
+    if (jit_transfer_.bf16_emu_) jit_transfer_.bf16_emu_->init_vcvtneps2bf16();
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
     mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
@@ -525,6 +528,7 @@ void jit_diff_ss_kernel_t<data_type>::generate() {
     static const auto float_size = types::data_type_size(f32);
 
     preamble();
+    if (jit_transfer_.bf16_emu_) jit_transfer_.bf16_emu_->init_vcvtneps2bf16();
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
     mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
@@ -680,6 +684,7 @@ void jit_diff_data_kernel_t<data_type>::generate() {
     static const auto float_size = types::data_type_size(f32);
 
     preamble();
+    if (jit_transfer_.bf16_emu_) jit_transfer_.bf16_emu_->init_vcvtneps2bf16();
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
     mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
