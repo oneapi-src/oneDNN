@@ -84,13 +84,6 @@ enum tensor_desc {
     TENSOR_DESC_TYPES_TOTAL,
 };
 
-static const std::string tensor_desc_str[] = {"QINT8_SRC", "QSRC", "QTSRC",
-        "QDST", "KINT8_SRC", "KSRC", "KTSRC", "KT2SRC", "VINT8_SRC", "VSRC",
-        "VTSRC", "VDST", "KDST", "QKMATMULDST", "QKDIVSCALE", "QKDIVDST",
-        "QKATTN", "QKADD", "QKSOFTMAX", "QKSOFTMAXQUANCAST", "QKSOFTMAXQUAN",
-        "QKSOFTMAXDEQUAN", "QKSOFTMAXDEQUANCAST", "QKVMATMUL", "QKVTDST",
-        "QKVDST", "QKVCASTDST", "QKVINT8DST"};
-
 typedef struct tensor_desc_info {
     bool isavailable;
     std::string tensor_desc_name;
