@@ -44,6 +44,7 @@ jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::generate() {
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
 #define GET_OFF(field) \
     offsetof(typename jit_avx512_common_lrn_kernel_fwd_t< \

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::generate() {
     static const auto stack_space = zmm_size_ * 9;
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
     if (C_tail) reserve_stack_space(stack_space);
     this->set_up_ker_params();
     this->execute_compute_loop(num_full_16c_blocks, C_tail);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -196,7 +196,6 @@ jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_avx512_common_lrn_kernel_fwd_t(
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                 bf16_emu_reserv_1_, bf16_emu_reserv_2_, bf16_emu_reserv_3_,
                 bf16_emu_scratch_, bf16_emu_reserv_4_);
-        bf16_emu_->init_vcvtneps2bf16();
     }
 }
 

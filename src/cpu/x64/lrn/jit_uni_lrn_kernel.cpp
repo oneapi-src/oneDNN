@@ -57,10 +57,7 @@ jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
               emulate_bfloat_ ? utils::make_unique<bf16_emulation_t>(this,
                       bf16_emu_reserv_1_, bf16_emu_reserv_2_,
                       bf16_emu_reserv_3_, bf16_emu_scratch_, bf16_emu_reserv_4_)
-                              : nullptr) {
-
-    if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
-}
+                              : nullptr) {}
 
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
@@ -422,6 +419,7 @@ template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(
         const within_config_t &config) {
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
 #define GET_OFF(field) offsetof(jit_args_fwd_t, field)
     this->mov(src_, this->ptr[this->param1 + GET_OFF(src)]);
@@ -471,6 +469,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nchw8c_across_t &J) {
     const Xbyak::Ymm &ybase = this->ymm12;
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -578,6 +577,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::generate(
     const Xbyak::Xmm &xbase_hi = this->xmm15;
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -709,6 +709,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nhwc_across_t &J) {
     const Xbyak::Ymm &ymask = this->ymm10;
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -840,6 +841,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::generate(
     const Xbyak::Xmm &xbase_hi = this->xmm15;
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -1236,6 +1238,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nchw_across_t &J) {
     const Xbyak::Ymm &ysum = this->ymm8;
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
     if (J.tail != 0) {
         this->mov(
@@ -1371,6 +1374,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::generate(
     size_t l_shift = 0;
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -1515,6 +1519,7 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::generate(const nchw8c_across_t &J) {
     const Xbyak::Ymm &ydiffsrc = this->ymm15;
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
 #define GET_OFF(field) offsetof(jit_args_bwd_t, field)
     this->mov(src_, this->ptr[this->param1 + GET_OFF(src)]);
@@ -1633,6 +1638,7 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::generate(
         const within_config_t &config) {
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
 #define GET_OFF(field) offsetof(jit_args_bwd_t, field)
     this->mov(src_, this->ptr[this->param1 + GET_OFF(src)]);

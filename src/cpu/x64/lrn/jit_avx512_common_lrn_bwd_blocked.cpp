@@ -46,6 +46,7 @@ template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::generate() {
 
     this->preamble();
+    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
 
 #define GET_OFF(field) offsetof(jit_args_bwd_t, field)
     this->mov(this->src_, ptr[this->param_ + GET_OFF(src)]);
