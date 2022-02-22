@@ -298,4 +298,5 @@ mb1_ic32oc32_id5ih1iw17_od2oh1ow17kd3kh1kw1_sd4sh1sw1_pd1ph0pw0_n"3d_conv_stride
 
 # signed integer overflow in pointer offset calculations
 --reset --skip-impl=ref,x64:gemm
+--dir=FWD_D,BWD_D
 g64mb1ic64ih4480iw2976oc64oh4480ow2976kh3kw3ph1pw1_n"dw_offset_overflow"

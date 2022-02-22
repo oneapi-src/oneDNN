@@ -74,3 +74,16 @@ ic20oc32_iw13kw1pw0_n"tails_conv_1d_1x1:2"
 ic23oc64_iw13kw1pw0_n"tails_conv_1d_1x1:3"
 ic25oc24_iw13kw1pw0_n"tails_conv_1d_1x1:4"
 ic29oc32_iw13kw1pw0_n"tails_conv_1d_1x1:5"
+
+# test channel dimension
+ic65oc65_ih5oh5kh3ph1_n"2d_conv:mid_channel_tail"
+ic153oc153_ih5oh5kh3ph1_n"2d_conv:mid_channel_tail"
+ic207oc207_ih5oh5kh3ph1_n"2d_conv:large_channel_tail"
+
+ic65oc65_id5od5kd3pd1_ih1oh1kh1_iw1ow1kw1_n"3d_conv:mid_channel_tail"
+ic153oc153_id5od5kd3pd1_ih1oh1kh1_iw1ow1kw1_n"3d_conv:mid_channel_tail"
+ic207oc207_id5od5kd3pd1_ih1oh1kh1_iw1ow1kw1_n"3d_conv:large_channel_tail"
+
+ic65oc65_ih5oh5kh1ph0_n"1x1_conv:mid_channel_tail"
+ic153oc153_ih5oh5kh1ph0_n"1x1_conv:mid_channel_tail"
+ic207oc207_ih5oh5kh1ph0_n"1x1_conv:large_channel_tail"
