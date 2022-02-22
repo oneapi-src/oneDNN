@@ -117,10 +117,8 @@ bool dnnl_backend::register_kernels() {
 
     DNNL_REGISTER_KERNEL(impl::op_kind::ConvolutionBackpropData, conv_bwd_data)
 
-    DNNL_REGISTER_KERNEL(impl::op_kind::ConvolutionBackpropFilters,
-            convolution_backward_weights)
     DNNL_REGISTER_KERNEL(
-            op_kind::conv_bwd_f_biasadd_bwd, convolution_backward_weights)
+            impl::op_kind::ConvolutionBackpropFilters, conv_bwd_weights)
 
     // convtranspose related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::ConvTranspose, float_convtranspose_fwd)

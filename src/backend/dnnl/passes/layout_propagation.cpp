@@ -624,6 +624,12 @@ static void layout_propagation_for_permute(
                 // while output layout is set to opaque. At the second time,
                 // we need infer the input layout to avoid inserting the reorder
                 tmp_in_md = permute_OIX2XIO(out_md);
+            } else if (from_format == "OIX" && to_format == "XIO") {
+                // This is required when layout propagation is done more than
+                // once. At the first time, permute's input layout is strided
+                // while output layout is set to opaque. At the second time,
+                // we need infer the input layout to avoid inserting the reorder
+                tmp_in_md = permute_XIO2OIX(out_md);
             } else {
                 assertm(false, "not a supported permutation");
             }
@@ -889,6 +895,40 @@ static void layout_propagation_for_conv_bwd_data(op_ptr &op,
     insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
     value_ptr diff_src = op->get_output_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
+
+    // fill scratchpads dimensions and data type to scratchpad value_t
+    auto scratchpad_val = op->get_output_value(1);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    // make scratchpad as conv's last output
+    fill_layout_info(scratchpad_val, scratchpad_desc);
+}
+
+static void layout_propagation_for_conv_bwd_weights(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_conv_bwd_weights_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    value_ptr src = op->get_input_value(0);
+    fill_layout_info(src, pd.src_desc());
+
+    insert_reorder_before(op, 1, pd.diff_dst_desc(), reorder_ops);
+    value_ptr diff_dst = op->get_input_value(1);
+    fill_layout_info(diff_dst, pd.diff_dst_desc());
+
+    insert_reorder_after(op, 0, pd.diff_weights_desc(), reorder_ops);
+    value_ptr diff_weights = op->get_output_value(0);
+    fill_layout_info(diff_weights, pd.diff_weights_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
     auto scratchpad_val = op->get_output_value(1);
@@ -1175,6 +1215,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
                 layout_propagation_for_conv_bwd_data(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_weights) {
+                layout_propagation_for_conv_bwd_weights(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
                 layout_propagation_for_matmul(

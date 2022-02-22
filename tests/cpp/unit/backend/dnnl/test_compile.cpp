@@ -276,6 +276,7 @@ TEST(Compile, ConvolutionBackpropDataFp32) {
     conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>("output_shape", dims {8, 3, 224, 224});
 
     // prepare logical tensor
     impl::logical_tensor_t diff_src = utils::logical_tensor_init(
@@ -310,45 +311,6 @@ TEST(Compile, ConvolutionBackpropDataFp32) {
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(diff_src.id, &lt);
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
-}
-
-TEST(Compile, ConvolutionBackpropBiasaddBackpropFp32) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    impl::engine_t &eng = get_engine();
-
-    impl::op_t conv_op(impl::dnnl_impl::op_kind::conv_bwd_f_biasadd_bwd);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
-
-    // prepare logical tensor
-    impl::logical_tensor_t src = utils::logical_tensor_init(
-            0, {8, 3, 224, 224}, impl::data_type::f32);
-    impl::logical_tensor_t diff_weights = utils::logical_tensor_init(
-            2, {16, 3, 3, 3}, impl::data_type::f32, impl::layout_type::any);
-    impl::logical_tensor_t diff_bias = utils::logical_tensor_init(
-            3, dims {16}, impl::data_type::f32, impl::layout_type::any);
-    impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
-            4, {8, 16, 222, 222}, impl::data_type::f32);
-
-    std::vector<impl::logical_tensor_t> inputs {src, diff_dst};
-    std::vector<impl::logical_tensor_t> outputs {diff_weights, diff_bias};
-
-    size_t operator_num = get_dnnl_kernel_registry().get_register_kernels_num();
-    ASSERT_NE(operator_num, 0);
-
-    auto conv_bwd_kernel = get_dnnl_kernel_registry().create_kernel(conv_op);
-    ASSERT_TRUE(conv_bwd_kernel);
-
-    conv_bwd_kernel->compile(&conv_op, &eng, inputs, outputs);
-
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-    ASSERT_EQ(outputs[1].layout_type, impl::layout_type::opaque);
 }
 
 TEST(Compile, ConvtransposeFp32) {
@@ -5448,6 +5410,7 @@ TEST(Execute, ConvolutionBackpropData) {
     conv_op.set_attr<int64_t>("groups", 1);
     conv_op.set_attr<std::string>("data_format", "NCX");
     conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>("output_shape", dims {1, 1, 4, 4});
 
     // prepare logical tensor
     impl::logical_tensor_t diff_src_lt
@@ -5493,64 +5456,6 @@ TEST(Execute, ConvolutionBackpropData) {
     strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
-    }
-}
-
-TEST(Execute, ConvBwdBiasaddBwd) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            2.5, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> diff_dst {0.0, 1.0, 2.0, 3.0};
-    test::vector<float> ref_diff_weights {
-            -5.5, 3.0, 7.0, 10.5, 3.0, -0.5, 2.5, -8.0, 10.0};
-    test::vector<float> ref_diff_bias {6.0};
-    test::vector<float> diff_weights(ref_diff_weights.size(), 0.0);
-    test::vector<float> diff_bias(ref_diff_bias.size(), 0.0);
-
-    impl::op_t conv_op(impl::dnnl_impl::op_kind::conv_bwd_f_biasadd_bwd);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 0);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
-
-    // prepare input/output logical_tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t diff_weights_lt
-            = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
-    impl::logical_tensor_t diff_bias_lt
-            = utils::logical_tensor_init(2, dims {1}, impl::data_type::f32);
-    impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto conv_bwd_kernel = op_factory.create_kernel(conv_op);
-
-    conv_bwd_kernel->compile(&conv_op, &eng, {src_lt, diff_dst_lt},
-            {diff_weights_lt, diff_bias_lt});
-    ASSERT_EQ(diff_weights_lt.layout_type, impl::layout_type::strided);
-    ASSERT_EQ(diff_bias_lt.layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_weights_ts(diff_weights_lt, &eng, diff_weights.data());
-    impl::tensor_t diff_bias_ts(diff_bias_lt, &eng, diff_bias.data());
-
-    impl::stream_t &strm = get_stream();
-    conv_bwd_kernel->execute(&conv_op, &strm, {src_ts, diff_dst_ts},
-            {diff_weights_ts, diff_bias_ts});
-    strm.wait();
-    for (size_t i = 0; i < diff_weights.size(); ++i) {
-        ASSERT_FLOAT_EQ(diff_weights[i], ref_diff_weights[i]);
-    }
-    for (size_t i = 0; i < diff_bias.size(); ++i) {
-        ASSERT_FLOAT_EQ(diff_bias[i], ref_diff_bias[i]);
     }
 }
 

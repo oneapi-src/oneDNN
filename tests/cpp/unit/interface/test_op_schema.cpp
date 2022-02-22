@@ -1050,11 +1050,12 @@ TEST(OpSchema, ConvolutionBackpropData) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropData;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 9;
+    const size_t expected_attr_size = 10;
     const std::map<std::string, bool> attrs_data = {{"strides", true},
             {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
             {"auto_pad", false}, {"output_padding", false}, {"groups", false},
-            {"data_format", false}, {"filter_format", false}};
+            {"data_format", false}, {"filter_format", false},
+            {"output_shape", false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1152,11 +1153,11 @@ TEST(OpSchema, ConvolutionBackpropFilters) {
     const op_kind_t op_kind_ = op_kind::ConvolutionBackpropFilters;
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 8;
-    const std::map<std::string, bool> attrs_data
-            = {{"strides", true}, {"pads_begin", true}, {"pads_end", true},
-                    {"dilations", true}, {"auto_pad", false}, {"groups", false},
-                    {"data_format", false}, {"filter_format", false}};
+    const size_t expected_attr_size = 9;
+    const std::map<std::string, bool> attrs_data = {{"strides", true},
+            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
+            {"auto_pad", false}, {"groups", false}, {"data_format", false},
+            {"filter_format", false}, {"filter_shape", false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1185,15 +1186,13 @@ TEST(OpSchema, InferConvolutionBackpropFiltersOutputShape) {
 
     set_conv_common_attr(op_, strides, pads_begin, pads_end, dilations,
             auto_pad, data_format, filter_format, groups);
+    op_.set_attr("filter_shape", expected_out_shape);
 
     logical_tensor_t lt_data = logical_tensor_init(0, in_data, data_type::f32);
-    logical_tensor_t lt_weight_spatial_dims
-            = logical_tensor_init(1, data_type::f32);
     logical_tensor_t lt_output_delta
-            = logical_tensor_init(2, in_output_delta, data_type::f32);
-    std::vector<logical_tensor_t *> in {
-            &lt_data, &lt_weight_spatial_dims, &lt_output_delta};
-    logical_tensor_t lt_out = logical_tensor_init(3, data_type::f32);
+            = logical_tensor_init(1, in_output_delta, data_type::f32);
+    std::vector<logical_tensor_t *> in {&lt_data, &lt_output_delta};
+    logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
     std::vector<logical_tensor_t *> out {&lt_out};
 
     op_schema_->shape_infer(&op_, in, out);

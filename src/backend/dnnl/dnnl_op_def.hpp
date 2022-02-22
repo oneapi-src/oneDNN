@@ -3057,6 +3057,9 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
                         std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
+                .set_attr("output_shape", "describing output shape", false,
+                        attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .SET_CONV_COMMON_ATTRS
                 // New added attributes
                 .set_attr("primitive_attr_key", // TODO(qun) use fusion_info
@@ -3074,6 +3077,37 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
                 // Analysis rules
                 .set_shape_inference_function(
                         infer_dnnl_conv_bwd_data_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_weights, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(2)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "output_delta",
+                        "gradients tensor with respect to the output of the "
+                        "convolution")
+                .set_output(0, "weight_delta",
+                        "gradient tensor with respect to the weight of the "
+                        "convolution")
+                .set_output(1, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
+                .set_attr("filter_shape", "describing filter shape", false,
+                        attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .SET_CONV_COMMON_ATTRS
+                // New added attributes
+                .set_attr("canonicalized",
+                        "additional flag to indicate whether the op can be "
+                        "directly mapped to DNNL primitive",
+                        false, attribute_kind::b, false)
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
+                // Analysis rules
+                .set_shape_inference_function(
+                        infer_conv_bprop_filters_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
         op_schema_t()

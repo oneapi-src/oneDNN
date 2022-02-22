@@ -67,7 +67,6 @@ namespace op_kind {
     X(conv_bn_relu, Conv_bn_relu) \
     X(conv_relu, Conv_relu) \
     X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
-    X(conv_bwd_f_biasadd_bwd, ConvBwdF_biasAddBwd) \
     X(conv_bias_post_ops_chain_fusion, Conv_bias_post_ops_chain_fusion) \
     X(convtranspose_fusion, ConvTranspose_fusion) \
     X(matmul_bias, MatMul_bias) \
@@ -221,7 +220,8 @@ namespace op_kind {
     X(dnnl_resampling_bwd, Dnnl_resampling_bwd) \
     X(dnnl_concat, Dnnl_concat) \
     X(dnnl_layernorm_bwd, Dnnl_layernorm_bwd) \
-    X(float_conv_fusion, Float_conv_fusion)
+    X(float_conv_fusion, Float_conv_fusion) \
+    X(dnnl_conv_bwd_weights, Dnnl_conv_bwd_weights)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

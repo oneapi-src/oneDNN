@@ -564,14 +564,13 @@ static inline void verify_shape_infer_for_conv_bprop_data(
     set_conv_common_attr(op_, strides, pads_begin, pads_end, dilations,
             auto_pad, data_format, filter_format, groups);
     op_.set_attr("output_padding", output_padding);
+    op_.set_attr("output_shape", expected_out_shape);
 
     logical_tensor_t lt_data = logical_tensor_init(0, in_data, data_type::f32);
     logical_tensor_t lt_weight
             = logical_tensor_init(1, in_weight, data_type::f32);
-    logical_tensor_t lt_output_shape
-            = logical_tensor_init(2, in_output_shape, data_type::f32);
-    std::vector<logical_tensor_t *> in {&lt_data, &lt_weight, &lt_output_shape};
-    logical_tensor_t lt_out = logical_tensor_init(3, data_type::f32);
+    std::vector<logical_tensor_t *> in {&lt_data, &lt_weight};
+    logical_tensor_t lt_out = logical_tensor_init(2, data_type::f32);
     std::vector<logical_tensor_t *> out {&lt_out};
 
     // shape inference without explicitly setting auto_broadcast

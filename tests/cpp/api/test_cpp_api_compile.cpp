@@ -19,6 +19,280 @@
 #include "test_api_common.hpp"
 #include "gtest/gtest.h"
 
+struct dnnl_graph_test_conv_params_t {
+    std::vector<int64_t> input_dims;
+    std::vector<int64_t> ref_dst_dims;
+    std::vector<int64_t> kernel;
+    std::vector<int64_t> strides;
+    std::vector<int64_t> dilations;
+    std::vector<int64_t> pads_begin;
+    std::vector<int64_t> pads_end;
+    int64_t out_channels;
+    std::string auto_pad;
+    std::string data_format;
+    std::string filter_format;
+};
+
+class test_conv_compile_t
+    : public ::testing::TestWithParam<dnnl_graph_test_conv_params_t> {
+public:
+    void Test_Conv() {
+        auto params = ::testing::TestWithParam<
+                dnnl_graph_test_conv_params_t>::GetParam();
+
+        using namespace dnnl::graph;
+        engine::kind engine_kind = engine::kind::cpu;
+        engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
+        stream strm {eng};
+
+        graph g(engine_kind);
+
+        const auto &input_dims = params.input_dims;
+        const auto &ref_dst_dims = params.ref_dst_dims;
+        const auto &kernel = params.kernel;
+        const auto &strides = params.strides;
+        const auto &dilations = params.dilations;
+        const auto &pads_begin = params.pads_begin;
+        const auto &pads_end = params.pads_end;
+        const auto &out_channels = params.out_channels;
+        const auto &auto_pad = params.auto_pad;
+        const auto &data_format = params.data_format;
+        const auto &filter_format = params.filter_format;
+        const auto &in_channels
+                = (data_format == "NCX") ? input_dims[1] : input_dims.back();
+
+        std::vector<int64_t> filter_dims {-1, -1, -1, -1};
+        if (filter_format == "XIO") {
+            filter_dims[0] = kernel[0];
+            filter_dims[1] = kernel[1];
+            filter_dims[2] = in_channels;
+            filter_dims[3] = out_channels;
+        } else {
+            filter_dims[0] = out_channels;
+            filter_dims[1] = in_channels;
+            filter_dims[2] = kernel[0];
+            filter_dims[3] = kernel[1];
+        }
+
+        std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
+
+        // forward
+        logical_tensor lt1 {0, logical_tensor::data_type::f32, input_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt2 {1, logical_tensor::data_type::f32, filter_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt3 {2, logical_tensor::data_type::f32, infer_dst_dims,
+                logical_tensor::layout_type::undef};
+
+        op convfwd_op(0, op::kind::Convolution, "conv_fwd");
+
+        convfwd_op.set_attr<std::vector<int64_t>>("strides", strides);
+        convfwd_op.set_attr<std::vector<int64_t>>("dilations", dilations);
+        convfwd_op.set_attr<std::vector<int64_t>>("pads_begin", pads_begin);
+        convfwd_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
+        convfwd_op.set_attr<std::string>("auto_pad", auto_pad);
+        convfwd_op.set_attr<std::string>("data_format", data_format);
+        convfwd_op.set_attr<std::string>("filter_format", filter_format);
+
+        convfwd_op.add_input(lt1);
+        convfwd_op.add_input(lt2);
+        convfwd_op.add_output(lt3);
+
+        g.add_op(convfwd_op);
+
+        //create_partition
+        auto partitions = g.get_partitions(partition::policy::fusion);
+        ASSERT_EQ(partitions.size(), 1);
+
+        // check partition engine kind
+        ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
+
+        //get_ops
+        std::vector<size_t> ops = partitions[0].get_ops();
+        ASSERT_EQ(ops.size(), 1);
+        ASSERT_EQ(partitions[0].get_ops_num(), 1);
+
+        logical_tensor lt1_plain {0, logical_tensor::data_type::f32, input_dims,
+                logical_tensor::layout_type::strided};
+        logical_tensor lt2_plain {1, logical_tensor::data_type::f32,
+                filter_dims, logical_tensor::layout_type::strided};
+        logical_tensor lt3_plain {2, logical_tensor::data_type::f32,
+                infer_dst_dims, logical_tensor::layout_type::strided};
+
+        //compile partition
+        std::vector<logical_tensor> in0({lt1_plain, lt2_plain});
+        std::vector<logical_tensor> out0({lt3_plain});
+
+        auto cp = partitions[0].compile(in0, out0, eng);
+
+        ASSERT_EQ(cp.query_logical_tensor(2).get_dims()[0], ref_dst_dims[0]);
+        ASSERT_EQ(cp.query_logical_tensor(2).get_dims()[1], ref_dst_dims[1]);
+        ASSERT_EQ(cp.query_logical_tensor(2).get_dims()[2], ref_dst_dims[2]);
+        ASSERT_EQ(cp.query_logical_tensor(2).get_dims()[3], ref_dst_dims[3]);
+
+        std::vector<float> src(product(input_dims), 0.0);
+        std::vector<float> filter(product(filter_dims), 0.0);
+        std::vector<float> dst(product(input_dims), 0.0);
+
+        std::default_random_engine generator;
+        std::normal_distribution<float> distribution(-1.0f, 1.0f);
+        std::generate(src.begin(), src.end(),
+                [&]() { return distribution(generator); });
+        std::generate(filter.begin(), filter.end(),
+                [&]() { return distribution(generator); });
+
+        tensor src_ts(lt1_plain, eng, src.data());
+        tensor filter_ts(lt2_plain, eng, filter.data());
+        tensor dst_ts(out0[0], eng, dst.data());
+
+        cp.execute(strm, {src_ts, filter_ts}, {dst_ts});
+
+        strm.wait();
+
+        // backward filter
+        graph g1(engine_kind);
+        std::vector<int64_t> infer_filter_dims {-1, -1, -1, -1};
+        logical_tensor lt4 {3, logical_tensor::data_type::f32, input_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt5 {4, logical_tensor::data_type::f32, ref_dst_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt6 {5, logical_tensor::data_type::f32,
+                infer_filter_dims, logical_tensor::layout_type::undef};
+
+        op convbwd_filters_op(
+                1, op::kind::ConvolutionBackpropFilters, "conv_bwd_filters");
+
+        convbwd_filters_op.set_attr<std::vector<int64_t>>("strides", strides);
+        convbwd_filters_op.set_attr<std::vector<int64_t>>(
+                "dilations", dilations);
+        convbwd_filters_op.set_attr<std::vector<int64_t>>(
+                "pads_begin", pads_begin);
+        convbwd_filters_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
+        convbwd_filters_op.set_attr<std::string>("auto_pad", auto_pad);
+        convbwd_filters_op.set_attr<std::string>("data_format", data_format);
+        convbwd_filters_op.set_attr<std::string>(
+                "filter_format", filter_format);
+        convbwd_filters_op.set_attr<std::vector<int64_t>>(
+                "filter_shape", filter_dims);
+
+        convbwd_filters_op.add_input(lt4);
+        convbwd_filters_op.add_input(lt5);
+        convbwd_filters_op.add_output(lt6);
+
+        g1.add_op(convbwd_filters_op);
+
+        auto partitions1 = g1.get_partitions(partition::policy::fusion);
+        ASSERT_EQ(partitions1.size(), 1);
+        std::vector<size_t> ops1 = partitions1[0].get_ops();
+        ASSERT_EQ(ops1.size(), 1);
+        ASSERT_EQ(partitions1[0].get_ops_num(), 1);
+
+        logical_tensor lt4_plain {3, logical_tensor::data_type::f32, input_dims,
+                logical_tensor::layout_type::strided};
+        logical_tensor lt5_plain {4, logical_tensor::data_type::f32,
+                ref_dst_dims, logical_tensor::layout_type::strided};
+        logical_tensor lt6_plain {5, logical_tensor::data_type::f32,
+                infer_filter_dims, logical_tensor::layout_type::strided};
+
+        //compile partition
+        std::vector<logical_tensor> in1({lt4_plain, lt5_plain});
+        std::vector<logical_tensor> out1({lt6_plain});
+
+        auto cp1 = partitions1[0].compile(in1, out1, eng);
+
+        ASSERT_EQ(cp1.query_logical_tensor(5).get_dims()[0], filter_dims[0]);
+        ASSERT_EQ(cp1.query_logical_tensor(5).get_dims()[1], filter_dims[1]);
+        ASSERT_EQ(cp1.query_logical_tensor(5).get_dims()[2], filter_dims[2]);
+        ASSERT_EQ(cp1.query_logical_tensor(5).get_dims()[3], filter_dims[3]);
+
+        logical_tensor lt6_plain_infered {5, logical_tensor::data_type::f32,
+                filter_dims, logical_tensor::layout_type::strided};
+
+        tensor input_ts(lt4_plain, eng, src.data());
+        tensor outgrad_ts(lt5_plain, eng, dst.data());
+        tensor filtergrad_ts(lt6_plain_infered, eng, filter.data());
+
+        cp1.execute(strm, {input_ts, outgrad_ts}, {filtergrad_ts});
+
+        strm.wait();
+
+        // backward data
+        graph g2(engine_kind);
+        std::vector<int64_t> infer_data_dims {-1, -1, -1, -1};
+        logical_tensor lt7 {6, logical_tensor::data_type::f32, ref_dst_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt8 {7, logical_tensor::data_type::f32, filter_dims,
+                logical_tensor::layout_type::undef};
+        logical_tensor lt9 {8, logical_tensor::data_type::f32, infer_data_dims,
+                logical_tensor::layout_type::undef};
+
+        op convbwd_data_op(
+                2, op::kind::ConvolutionBackpropData, "conv_bwd_data");
+
+        convbwd_data_op.set_attr<std::vector<int64_t>>("strides", strides);
+        convbwd_data_op.set_attr<std::vector<int64_t>>("dilations", dilations);
+        convbwd_data_op.set_attr<std::vector<int64_t>>(
+                "pads_begin", pads_begin);
+        convbwd_data_op.set_attr<std::vector<int64_t>>("pads_end", pads_end);
+        convbwd_data_op.set_attr<std::string>("auto_pad", auto_pad);
+        convbwd_data_op.set_attr<std::string>("data_format", data_format);
+        convbwd_data_op.set_attr<std::string>("filter_format", filter_format);
+        convbwd_data_op.set_attr<std::vector<int64_t>>(
+                "output_shape", input_dims);
+
+        convbwd_data_op.add_input(lt7);
+        convbwd_data_op.add_input(lt8);
+        convbwd_data_op.add_output(lt9);
+
+        g2.add_op(convbwd_data_op);
+
+        auto partitions2 = g2.get_partitions(partition::policy::fusion);
+        ASSERT_EQ(partitions2.size(), 1);
+        std::vector<size_t> ops2 = partitions2[0].get_ops();
+        ASSERT_EQ(ops2.size(), 1);
+        ASSERT_EQ(partitions2[0].get_ops_num(), 1);
+
+        logical_tensor lt7_plain {6, logical_tensor::data_type::f32,
+                ref_dst_dims, logical_tensor::layout_type::strided};
+        logical_tensor lt8_plain {7, logical_tensor::data_type::f32,
+                filter_dims, logical_tensor::layout_type::strided};
+        logical_tensor lt9_plain {8, logical_tensor::data_type::f32,
+                infer_data_dims, logical_tensor::layout_type::strided};
+
+        //compile partition
+        std::vector<logical_tensor> in2({lt7_plain, lt8_plain});
+        std::vector<logical_tensor> out2({lt9_plain});
+
+        auto cp2 = partitions2[0].compile(in2, out2, eng);
+
+        ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[0], input_dims[0]);
+        ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[1], input_dims[1]);
+        ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[2], input_dims[2]);
+        ASSERT_EQ(cp2.query_logical_tensor(8).get_dims()[3], input_dims[3]);
+
+        tensor outputgrad_ts(lt7_plain, eng, dst.data());
+        tensor filter_ts2(lt8_plain, eng, filter.data());
+        tensor inputgrad_ts(out2[0], eng, src.data());
+
+        cp2.execute(strm, {outputgrad_ts, filter_ts2}, {inputgrad_ts});
+
+        strm.wait();
+    }
+};
+
+TEST_P(test_conv_compile_t, Test_Conv_Compile) {
+    Test_Conv();
+}
+
+INSTANTIATE_TEST_SUITE_P(Test_Conv_Compile, test_conv_compile_t,
+        ::testing::Values(
+                dnnl_graph_test_conv_params_t {{1, 56, 56, 64}, {1, 56, 56, 64},
+                        {1, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}, 64,
+                        "SAME_UPPER", "NXC", "XIO"},
+                dnnl_graph_test_conv_params_t {{1, 14, 14, 1024},
+                        {1, 7, 7, 2048}, {1, 1}, {2, 2}, {1, 1}, {0, 0}, {0, 0},
+                        2048, "SAME_UPPER", "NXC", "XIO"}));
+
 struct dnnl_graph_test_pool_params_t {
     std::vector<int64_t> input_dims;
     std::vector<int64_t> ref_dst_dims;

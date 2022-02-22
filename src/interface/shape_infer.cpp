@@ -306,11 +306,20 @@ status_t infer_conv_output_shape(op_t *n,
 status_t infer_conv_bprop_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper_t(inputs[0]); // data
     auto in1 = logical_tensor_wrapper_t(inputs[1]); // filter
+    auto out = logical_tensor_wrapper_t(outputs[0]); // dst
+    dims output_shape(in1.ndims());
+    if (!out.is_shape_unknown()) {
+        // use output shape if known
+        output_shape = out.vdims();
+    } else {
+        // TODO(Xinyu): support shape tensor
+        if (inputs.size() > 2) return status::unsupported;
+        if (!n->has_attr("output_shape")) return status::unsupported;
+        output_shape = n->get_attr<dims>("output_shape");
+    };
 
     // get attr value
-    const dim_t g = n->get_attr<dim_t>("groups");
     const auto &strides = n->get_attr<dims>("strides");
     const auto &dilations = n->get_attr<dims>("dilations");
     const auto &pads_begin = n->get_attr<dims>("pads_begin");
@@ -318,16 +327,17 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
     std::string fil_fmt = n->get_attr<std::string>("filter_format");
     std::string src_fmt = n->get_attr<std::string>("data_format");
 
-    // check if diff_dst channel == weight output channel.
-    // Since the input of conv_bwd_data op is diff_dst, which has the same shape
-    // with conv fwd op's dst, so it's channel should be equal to weight's o
-    // channel.
-    if (in0.get_src_c(src_fmt) != in1.get_weight_o(fil_fmt)) {
-        return status::invalid_shape;
-    }
-
-    dims src_sp = in0.get_src_spatial_dims(src_fmt);
+    // spatial dims
+    dims src_sp = output_shape;
     dims fil_sp = in1.get_weight_spatial_dims(fil_fmt);
+    if (src_fmt == "NCX") {
+        src_sp.erase(src_sp.begin(), src_sp.begin() + 2);
+    } else if (src_fmt == "NXC") {
+        src_sp.erase(src_sp.begin(), src_sp.begin() + 1);
+        src_sp.erase(src_sp.end() - 1, src_sp.end());
+    } else {
+        return status::unsupported;
+    }
 
     // if paddings are empty vectors?
     dims new_pads_begin(pads_begin);
@@ -340,11 +350,6 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
             || new_pads_begin.size() != src_sp.size()
             || new_pads_end.size() != src_sp.size()) {
         return status::invalid_shape;
-    }
-
-    dims output_padding(src_sp.size(), 0);
-    if (n->has_attr("output_padding")) {
-        output_padding = n->get_attr<dims>("output_padding");
     }
 
     if (n->has_attr("auto_pad")
@@ -361,29 +366,7 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
         n->set_attr("pads_end", new_pads_end);
     }
 
-    dims output_sp;
-    // third input - output_shape is optional.
-    // When output_shape is specified pads_begin and pads_end are ignored,
-    // and auto_pad defines how to distribute padding amount around the tensor.
-    if (inputs.size() == 3
-            && logical_tensor_wrapper_t(inputs[2]).ndims() != -1) {
-        // Since we have no access to the data of the third input
-        // (output_shape), we cannot set output spatial shape.
-        return status::unsupported;
-    } else {
-        for (size_t i = 0; i < src_sp.size(); ++i) {
-            dim_t padded
-                    = output_padding[i] - new_pads_begin[i] - new_pads_end[i];
-            dim_t dilated = dilations[i] * (fil_sp[i] - 1) + 1;
-            output_sp.push_back(
-                    strides[i] * (src_sp[i] - 1) + dilated + padded);
-        }
-    }
-
-    const dims out0_shape = make_data_dims(
-            src_fmt, in0.get_src_n(), in1.get_weight_i(fil_fmt) * g, output_sp);
-
-    set_shape_and_strides(*outputs[0], out0_shape);
+    set_shape_and_strides(*outputs[0], output_shape);
 
     return status::success;
 }
@@ -391,23 +374,37 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
 status_t infer_conv_bprop_filters_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
-    auto in0 = logical_tensor_wrapper_t(inputs[0]);
-    auto in2 = logical_tensor_wrapper_t(inputs[2]);
-    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    auto in0 = logical_tensor_wrapper_t(inputs[0]); // src
+    auto out = logical_tensor_wrapper_t(outputs[0]); // dst
+    dims filter_shape(in0.ndims());
+    if (!out.is_shape_unknown()) {
+        // use output shape if known
+        filter_shape = out.vdims();
+    } else {
+        // TODO(Xinyu): support shape tensor
+        if (inputs.size() > 2) return status::unsupported;
+        if (!n->has_attr("filter_shape")) return status::unsupported;
+        filter_shape = n->get_attr<dims>("filter_shape");
+    };
 
     // get attr value
     const auto &strides = n->get_attr<dims>("strides");
+    const auto &dilations = n->get_attr<dims>("dilations");
     const auto &pads_begin = n->get_attr<dims>("pads_begin");
     const auto &pads_end = n->get_attr<dims>("pads_end");
-    const auto &dilations = n->get_attr<dims>("dilations");
     std::string fil_fmt = n->get_attr<std::string>("filter_format");
     std::string src_fmt = n->get_attr<std::string>("data_format");
 
-    const dims src_dims = in0.vdims();
-    const dims output_delta_dims = in2.vdims();
-
+    // spatial dims
     dims src_sp = in0.get_src_spatial_dims(src_fmt);
-    dims output_delta_sp = in2.get_src_spatial_dims(src_fmt);
+    dims fil_sp = filter_shape;
+    if (fil_fmt == "OIX") {
+        fil_sp.erase(fil_sp.begin(), fil_sp.begin() + 2);
+    } else if (fil_fmt == "XIO") {
+        fil_sp.erase(fil_sp.end() - 2, fil_sp.end());
+    } else {
+        return status::unsupported;
+    }
 
     // if paddings are empty vectors?
     dims new_pads_begin(pads_begin);
@@ -416,7 +413,7 @@ status_t infer_conv_bprop_filters_output_shape(op_t *n,
     if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
 
     // strides and dilations are required and should be correctly provided.
-    if (strides.size() != src_sp.size() || dilations.size() != src_sp.size()
+    if (strides.size() != src_sp.size() || dilations.size() != fil_sp.size()
             || new_pads_begin.size() != src_sp.size()
             || new_pads_end.size() != src_sp.size()) {
         return status::invalid_shape;
@@ -425,41 +422,17 @@ status_t infer_conv_bprop_filters_output_shape(op_t *n,
     if (n->has_attr("auto_pad")
             && n->get_attr<std::string>("auto_pad") != "None") {
         std::string auto_pad = n->get_attr<std::string>("auto_pad");
-
-        if (auto_pad == "VALID") {
-            size_t rank = src_sp.size();
-            new_pads_begin.assign(rank, 0);
-            new_pads_end.assign(rank, 0);
-        } else if (auto_pad == "SAME_UPPER" || auto_pad == "SAME_LOWER") {
-            // Since we have no access to the data of the second input
-            // (weights_shape), we cannot calculate auto pads.
-            return status::unsupported;
+        // infer auto padding sizes
+        for (size_t i = 0; i < src_sp.size(); ++i) {
+            infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
+                    auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
 
         n->set_attr("pads_begin", new_pads_begin);
         n->set_attr("pads_end", new_pads_end);
     }
 
-    // Since we have no access to the data of the second input (weights_shape),
-    // we have to get weights spatial shape using another way.
-    // To do that we use transformed convolution output size formula.
-    dims fil_sp;
-    for (size_t i = 0; i < src_sp.size(); ++i) {
-        dim_t padded = src_sp[i] + new_pads_begin[i] + new_pads_end[i];
-        dim_t strided = strides[i] * (output_delta_sp[i] - 1);
-        fil_sp.push_back(((padded - strided - 1) / dilations[i]) + 1);
-    }
-
-    const dims out0_shape = make_filter_dims(
-            fil_fmt, in0.get_src_c(src_fmt), in2.get_src_c(src_fmt), fil_sp);
-
-    if (out0.ndims() != -1) {
-        if (!validate(out0_shape, out0.vdims())) {
-            return status::invalid_shape;
-        }
-    }
-
-    set_shape_and_strides(*outputs[0], out0_shape);
+    set_shape_and_strides(*outputs[0], filter_shape);
 
     return status::success;
 }

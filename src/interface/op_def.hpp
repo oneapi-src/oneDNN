@@ -320,42 +320,52 @@ DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropData, 1,
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_input(1, "weight", "weight tensor", "T")
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "weight", "weight tensor", "T1")
                 .set_input(2, "output_shape",
-                        "tensor, that specifies spatial shape of "
+                        "tensor, that specifies shape of "
                         "the output",
-                        "T")
-                .set_output(0, "output", "output tensor", "T")
+                        "T2")
+                .set_output(0, "output", "output tensor", "T1")
                 .set_attr("output_padding",
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .set_attr("output_shape", "describing output shape", false,
+                        attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .set_shape_inference_function(
                         infer_conv_bprop_data_output_shape)
                 .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvolutionBackpropFilters, 1,
         op_schema_t()
-                .set_num_inputs(3)
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_input(1, "weight", "weight tensor", "T")
-                .set_input(2, "output_delta",
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "output_delta",
                         "gradients tensor with respect to the output of the "
                         "convolution",
-                        "T")
+                        "T1")
+                .set_input(2, "filter_shape",
+                        "tensor, that specifies shape of filter", "T2")
                 .set_output(0, "weight_delta",
                         "gradient tensor with respect to the weight of the "
                         "convolution",
-                        "T")
+                        "T1")
+                .set_attr("filter_shape", "describing filter shape", false,
+                        attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .set_shape_inference_function(
                         infer_conv_bprop_filters_output_shape)
                 .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,

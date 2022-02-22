@@ -152,6 +152,13 @@ status_t infer_permute_output_shape(op_t *n,
     } else if (from_format == "XIO" && to_format == "OIX") {
         tmp = ltw(inputs[0]).reorder_weight_dims_strides();
         tmp_dims = ltw(tmp).vdims();
+    } else if (from_format == "OIX" && to_format == "XIO") {
+        auto in_dims = ltw(inputs[0]).vdims();
+        for (size_t i = 2; i < in_dims.size(); i++) { // X
+            tmp_dims.emplace_back(in_dims[i]);
+        }
+        tmp_dims.emplace_back(in_dims[1]); // I
+        tmp_dims.emplace_back(in_dims[0]); // O
     } else {
         assertm(false, "should not reach here");
         return status::unsupported;

@@ -534,6 +534,31 @@ void memory_planner_t::bind_memory_for_conv_bwd_data(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
+void memory_planner_t::bind_memory_for_conv_bwd_weights(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    memory mem;
+    size_t index = 0;
+    exec_args args;
+
+    // bind mem for inputs
+    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
+    args.insert({DNNL_ARG_SRC, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
+    args.insert({DNNL_ARG_DIFF_DST, mem});
+
+    // bind mem for outputs
+    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
+    args.insert({DNNL_ARG_DIFF_WEIGHTS, mem});
+
+    if (op->num_outputs() > 1) {
+        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
+        args.insert({DNNL_ARG_SCRATCHPAD, mem});
+    }
+
+    exec_args_set_.add_exec_args(args);
+}
+
 void memory_planner_t::bind_memory_for_batchnorm(op_t *op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     memory mem;
@@ -1172,6 +1197,9 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     bind_memory_for_bn_folding(op, p_engine);
                 } else if (op->get_kind() == op_kind::dnnl_conv_bwd_data) {
                     bind_memory_for_conv_bwd_data(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == op_kind::dnnl_conv_bwd_weights) {
+                    bind_memory_for_conv_bwd_weights(
+                            op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_batchnorm) {
                     bind_memory_for_batchnorm(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_batchnorm_bwd) {

@@ -28,6 +28,7 @@
 #include "interface/c_types_map.hpp"
 #include "interface/graph.hpp"
 #include "interface/op_schema.hpp"
+#include "interface/shape_infer.hpp"
 #include "utils/utils.hpp"
 
 #include "insert_ops.hpp"
@@ -1729,6 +1730,12 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             to_be_inserted_ops.emplace_back(out_perm_op);
 
             cur_op->set_attr<std::string>("data_format", "NCX");
+            if (cur_op->has_attr("output_shape")) {
+                auto nxc_dst_shape
+                        = cur_op->get_attr<impl::dims>("output_shape");
+                auto ncx_dst_shape = impl::canonicalize(nxc_dst_shape, "NXC");
+                cur_op->set_attr<impl::dims>("output_shape", ncx_dst_shape);
+            }
         }
 
         if (need_permute_1) {
@@ -1738,6 +1745,86 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             perm_op->set_attr<std::string>("to_format", "OIX");
             insert_op_before(perm_op, cur_op, 1);
             to_be_inserted_ops.emplace_back(perm_op);
+            cur_op->set_attr<std::string>("filter_format", "OIX");
+        }
+
+        // insert to_group
+        auto groups = cur_op->get_attr<int64_t>("groups");
+        if (groups > 1) {
+            op_ptr to_group_op
+                    = std::make_shared<impl::op_t>(op_kind::to_group);
+            to_group_op->set_attr<int64_t>("groups", groups);
+            insert_op_before(to_group_op, cur_op, 1);
+            to_be_inserted_ops.emplace_back(to_group_op);
+            cur_op->set_attr<int64_t>("groups", 1);
+        }
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+    return impl::status::success;
+}
+
+impl::status_t conv_bwd_weights_canonicalization(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_conv_bwd_weights) continue;
+
+        // insert permute
+        bool need_permute_0 = cur_op->has_attr("data_format")
+                ? (cur_op->get_attr<std::string>("data_format") == "NXC")
+                : false;
+        bool need_permute_1 = cur_op->has_attr("filter_format")
+                ? (cur_op->get_attr<std::string>("filter_format") == "XIO")
+                : false;
+
+        if (need_permute_0) {
+            // input permute
+            op_ptr in0_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            in0_perm_op->set_attr<std::string>("permute_kind", "permute");
+            in0_perm_op->set_attr<std::string>("from_format", "NXC");
+            in0_perm_op->set_attr<std::string>("to_format", "NCX");
+            insert_op_before(in0_perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(in0_perm_op);
+
+            op_ptr in1_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            in1_perm_op->set_attr<std::string>("permute_kind", "permute");
+            in1_perm_op->set_attr<std::string>("from_format", "NXC");
+            in1_perm_op->set_attr<std::string>("to_format", "NCX");
+            insert_op_before(in1_perm_op, cur_op, 1);
+            to_be_inserted_ops.emplace_back(in1_perm_op);
+
+            // output permute
+            if (need_permute_1) {
+                op_ptr out_perm_op
+                        = std::make_shared<impl::op_t>(op_kind::permute);
+                out_perm_op->set_attr<std::string>("permute_kind", "permute");
+                out_perm_op->set_attr<std::string>("from_format", "OIX");
+                out_perm_op->set_attr<std::string>("to_format", "XIO");
+                insert_op_after(out_perm_op, cur_op, 0);
+                to_be_inserted_ops.emplace_back(out_perm_op);
+
+                if (cur_op->has_attr("filter_shape")) {
+                    auto xio_dst_shape
+                            = cur_op->get_attr<impl::dims>("filter_shape");
+                    auto oix_dst_shape
+                            = impl::canonicalize(xio_dst_shape, "XIO");
+                    cur_op->set_attr<impl::dims>("filter_shape", oix_dst_shape);
+                }
+            }
+
+            cur_op->set_attr<std::string>("data_format", "NCX");
             cur_op->set_attr<std::string>("filter_format", "OIX");
         }
 
@@ -2857,6 +2944,9 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind()
                 == impl::op_kind::ConvolutionBackpropData) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_conv_bwd_data);
+        } else if (cur_op->get_kind()
+                == impl::op_kind::ConvolutionBackpropFilters) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_conv_bwd_weights);
         } else if (cur_op->get_kind() == impl::op_kind::MaxPool
                 || cur_op->get_kind() == impl::op_kind::AvgPool) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_pool);

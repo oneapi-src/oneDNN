@@ -3748,46 +3748,6 @@ TEST(PassPriority, TestMatmulDivAdd) {
     ASSERT_GT(pass5->get_priority(), pass2->get_priority());
 }
 
-TEST(Pass, FuseConvBwdBiasaddBwd) {
-    /*  ConvolutionBackpropFilters
-              |
-        BiasAddBackprop
-    */
-    graph_t agraph;
-    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
-    op_t op1 {0, ConvolutionBackpropFilters, "op1"};
-    set_conv_common_attr(op1);
-    op_t op2 {1, BiasAddBackprop, "op2"};
-
-    op1.add_input(lt_vec[0]);
-    op1.add_input(lt_vec[1]);
-    op1.add_input(lt_vec[2]);
-    op1.add_output(lt_vec[3]);
-    op2.add_input(lt_vec[3]);
-    op2.add_output(lt_vec[4]);
-
-    ASSERT_EQ(agraph.add_op(&op1), status::success);
-    ASSERT_EQ(agraph.add_op(&op2), status::success);
-    agraph.build_graph();
-    ASSERT_EQ(agraph.num_ops(), 2);
-
-    pass::pass_base_ptr apass = get_pass("conv_bwd_f_biasadd_bwd_fusion");
-    apass->run(agraph);
-
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
-
-    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::conv_bwd_f_biasadd_bwd);
-
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 2);
-
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
-}
-
 TEST(Pass, FuseMatmulBiasadd) {
     /*  matmul
            |
