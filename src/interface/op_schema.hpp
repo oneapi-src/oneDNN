@@ -220,7 +220,7 @@ public:
     const std::unordered_map<std::string, attribute_t> &get_attrs() const;
 
     /*! @brief Verify the op schema. */
-    bool verify(const op_t *l_op) const;
+    bool verify(const op_t *l_op, bool check_undefined_attrs = true) const;
 
     /*! @brief Infer shape with the op schema. */
     status_t shape_infer(op_t *n, std::vector<logical_tensor_t *> &inputs,
@@ -254,8 +254,8 @@ private:
     bool verify_attributes(
             const std::unordered_map<std::string, utils::attribute_value_t>
                     &actual_attrs,
-            const std::unordered_map<std::string, attribute_t> &expected_attrs)
-            const;
+            const std::unordered_map<std::string, attribute_t> &expected_attrs,
+            bool check_undefined_attrs) const;
     size_t get_max_valid_param_num(
             const std::set<size_t> &param_num, param_num_option option) const;
 

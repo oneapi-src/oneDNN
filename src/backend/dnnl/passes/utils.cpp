@@ -29,6 +29,7 @@
 #include "interface/shape_infer.hpp"
 #include "interface/value.hpp"
 #include "utils/debug.hpp"
+#include "utils/utils.hpp"
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"
@@ -524,7 +525,7 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
         // all ops after refactor done
         if (ops_need_refine.count(op->get_kind()) == 0) {
             opm->set_default_attribute(op);
-            if (!opm->verify(op)) {
+            if (!opm->verify(op, false)) {
                 assertm(false, "schema verify failed");
                 return impl::status::invalid_op;
             }
@@ -534,11 +535,12 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
             const auto &actual_attrs = op->get_attributes();
             for (const auto &elem : actual_attrs) {
                 // The matched_pattern attr is added by pattern matcher, we skip
-                // it. The backend attr is added by benchdnn ext, we skip it.
-                // The with_sum attr will be removed later, we skip it.
+                // it. The with_sum attr will be removed later, we skip it.
                 bool skip = elem.first == "matched_pattern"
-                        || elem.first == "backend" || elem.first == "with_sum";
+                        || elem.first == "with_sum";
                 if (!skip && expected_attrs.count(elem.first) == 0) {
+                    DEBUG_PRINT_ERROR(
+                            "attribute \"" + elem.first + "\" is not defined");
                     assertm(false, "undefined attrs");
                     return impl::status::invalid_op;
                 }
@@ -555,6 +557,9 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 bool ok = data_fmt == "NCX" && filter_fmt == "OIX"
                         && groups == 1;
                 if (!ok) {
+                    DEBUG_PRINT_ERROR("data_format:" + data_fmt + ";"
+                            + "filter_format:" + filter_fmt + ";"
+                            + "groups:" + std::to_string(groups));
                     assertm(false, "additional verify failed");
                     return status::invalid_op;
                 }

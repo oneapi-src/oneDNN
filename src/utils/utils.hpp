@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -58,6 +59,15 @@ namespace utils {
         status_t _status_ = f; \
         if (_status_ != status::success) return _status_; \
     } while (0)
+
+#ifndef NDEBUG
+#define DEBUG_PRINT_ERROR(message) \
+    do { \
+        std::cerr << "ERROR: " << message << std::endl; \
+    } while (0)
+#else
+#define DEBUG_PRINT_ERROR(message)
+#endif
 
 inline static size_t size_of(data_type_t dtype) {
     switch (dtype) {

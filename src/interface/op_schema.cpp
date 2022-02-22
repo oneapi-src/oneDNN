@@ -218,11 +218,13 @@ bool op_schema_t::verify_param_dtype(
 bool op_schema_t::verify_attributes(
         const std::unordered_map<std::string, utils::attribute_value_t>
                 &actual_attrs,
-        const std::unordered_map<std::string, attribute_t> &expected_attrs)
-        const {
+        const std::unordered_map<std::string, attribute_t> &expected_attrs,
+        bool check_undefined_attrs) const {
     // check if required attributes are not provided
     for (const auto &elem : expected_attrs) {
         if (elem.second.required_ && actual_attrs.count(elem.first) == 0) {
+            DEBUG_PRINT_ERROR(
+                    "attribute \"" + elem.first + "\" is required but not set");
             return false;
         }
     }
@@ -232,7 +234,20 @@ bool op_schema_t::verify_attributes(
         if (expected_attrs.count(attr_name) != 0
                 && elem.second.get_kind()
                         != expected_attrs.at(attr_name).attr_kind_) {
+            DEBUG_PRINT_ERROR(
+                    "attribute \"" + elem.first + "\" has invalid type");
             return false;
+        }
+    }
+
+    // check if user set undefined attributes
+    if (check_undefined_attrs) {
+        for (const auto &elem : actual_attrs) {
+            if (expected_attrs.count(elem.first) == 0) {
+                DEBUG_PRINT_ERROR("attribute \"" + elem.first
+                        + "\" is not defined in spec");
+                return false;
+            }
         }
     }
 
@@ -256,7 +271,7 @@ void op_schema_t::set_default_attribute(op_t *l_op) const {
     }
 }
 
-bool op_schema_t::verify(const op_t *l_op) const {
+bool op_schema_t::verify(const op_t *l_op, bool check_undefined_attrs) const {
     size_t actual_num_inputs = l_op->num_inputs();
     std::set<size_t> expected_num_inputs = get_num_inputs();
     bool param_num_verify_result = verify_param_num(
@@ -285,8 +300,8 @@ bool op_schema_t::verify(const op_t *l_op) const {
     if (tc_fn) { param_dtype_verify_result = tc_fn(l_op); }
     if (!param_dtype_verify_result) { return false; }
 
-    bool attr_verify_result
-            = verify_attributes(l_op->get_attributes(), attributes_);
+    bool attr_verify_result = verify_attributes(
+            l_op->get_attributes(), attributes_, check_undefined_attrs);
     return attr_verify_result;
 }
 
