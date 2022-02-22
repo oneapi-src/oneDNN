@@ -1,6 +1,6 @@
 # main op
 --reset
---dir=FWD_I,FWD_B,BWD_D
+--dir=FWD_I,FWD_B,BWD_D,BWD_W
 mb50ic64ih56oc64oh56kh1ph0
 
 # post binary
@@ -27,7 +27,7 @@ mb50ic64ih56oc64oh56kh1ph0
 # acdeb correctness test case
 --reset
 --mode=c
---dir=FWD_B,BWD_D
+--dir=FWD_B,BWD_D,BWD_W
 --stag=acdeb
 --wtag=any
 --dtag=acdeb
