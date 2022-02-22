@@ -477,16 +477,7 @@ static sc_op_ptr check_and_repartition(sc_graph_t &g,
 
 SC_INTERNAL_API void fuse_ops(sc_graph_t &g, const context_ptr &ctx) {
     if (!g.attrs_.get_or_else("temp.fuse", 1)) { return; }
-    // phase 0: add attrs to some specific ops
-    for (auto &op : g.ops_) {
-        if (op->isa<reorder_op_t>()) {
-            assert(op->get_inputs().size() == 1
-                    && op->get_outputs().size() == 1);
-            // Could not fuse other ops after padding reorder
-            if (op->dyn_cast<reorder_op_t>()->check_padding())
-                op->attrs_.set(op_attr_key::no_fuse, true);
-        }
-    }
+
     // mapping from op id => partition
     std::vector<fusion_partition_t::ptr> op_2_partition;
     op_2_partition.resize(g.ops_.size());

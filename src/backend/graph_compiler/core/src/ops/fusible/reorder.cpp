@@ -77,21 +77,14 @@ reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
             "input format " << info_.inputs_[0]->details_.get_format()
                             << " can not convert to "
                             << info_.outputs_[0]->details_.get_format() << ".");
+    if (use_output_loop()) { attrs_.set(op_attr_key::break_pre_fuse, true); }
+    if (check_padding()) { attrs_.set(op_attr_key::break_post_fuse, true); }
 }
 
 reorder_op_t::reorder_op_t(graph_tensor_ptr v, sc_data_format_t input_format,
         sc_data_format_t output_format)
-    : input_format_(input_format), output_format_(output_format) {
-    COMPILE_ASSERT(input_format.is_convertible(output_format),
-            "input format " << input_format << " can not convert to "
-                            << output_format << ".");
-    plain_dims_ = v->details_.get_plain_dims();
-    info_.inputs_.emplace_back(std::move(v));
-    info_.outputs_.emplace_back(
-            std::make_shared<graph_tensor>(this, info_.inputs_[0]->details_));
-    info_.outputs_[0]->details_.set_format(output_format);
-    op_name_ = "reorder";
-}
+    : reorder_op_t(
+            {std::move(v)}, {}, any_map_t {{"out_format", output_format}}) {}
 
 void reorder_op_t::prepare_fusion_data(fdata_map &fdmap) {
     auto &in_detail0 = fdmap.get(info_.inputs_[0]);
@@ -518,16 +511,16 @@ void infer_block2stride_reorder(slice_range_list &input_slice_list,
         dispatch_reorder_ranges(total_range_list, reorder_ranges_list,
                 output_format.to_plain());
 
-        if (ndim_begin) {
-            for (auto &range : reorder_ranges_list) {
-                // plain -> stride
-                slice_range stride_range;
-                infer_plain2stride_reorder(range, output_format.to_plain(),
-                        output_format, stride_range);
+        for (auto &range : reorder_ranges_list) {
+            // plain -> stride
+            slice_range stride_range;
+            infer_plain2stride_reorder(range, output_format.to_plain(),
+                    output_format, stride_range);
+            if (ndim_begin) {
                 stride_range.insert(stride_range.begin(), input_slice.begin(),
                         input_slice.begin() + ndim_begin);
-                range = std::move(stride_range);
             }
+            range = std::move(stride_range);
         }
         output_slice_list.insert(output_slice_list.end(),
                 reorder_ranges_list.begin(), reorder_ranges_list.end());
@@ -1274,11 +1267,26 @@ bool reorder_op_t::check_padding() const {
 }
 
 bool reorder_op_t::use_output_loop() const {
-    if (check_padding()) return true;
+    if (check_padding()) {
+        // block->stride
+        if (input_format_.is_blocking() && is_not_blocking(output_format_))
+            return false;
+        else if (input_format_.is_blocking() && output_format_.is_blocking()) {
+            // block->block: check the products of blocking dims whether same?
+            return (get_dims_product(
+                            get_inputs()[0]->details_.get_blocking_dims())
+                    != get_dims_product(
+                            get_outputs()[0]->details_.get_blocking_dims()));
+        }
+        return true;
+    }
     if (attrs_.get_or_else(op_attr_key::no_fuse, false)) {
         if (!get_input_format().is_blocking()) return true;
     }
     if (attrs_.get_or_else(op_attr_key::break_pre_fuse, false)) return true;
+    if (auto inp = get_inputs()[0]->producer_owner_->dyn_cast<input_op>()) {
+        return inp->is_arg_input();
+    }
     return false;
 }
 
