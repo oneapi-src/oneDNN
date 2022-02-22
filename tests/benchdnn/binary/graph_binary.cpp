@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,7 +106,6 @@ fill_status_t binary_graph_prb_t::handle_main_op_() {
             "binary");
 
     binary.set_attr("auto_broadcast", spec_.auto_broadcast);
-    binary.set_attr("backend", spec_.backend);
 
     ops_.emplace_back(binary);
     curr_out_map_ids_.assign({TENSOR_ID});

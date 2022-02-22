@@ -259,7 +259,8 @@ TEST(OpSchema, TestVerifyFunction) {
     const std::string arbitrary_name {"arbitrary"};
     conv_op.set_attr("arbitrary", arbitrary_value);
 
-    EXPECT_TRUE(conv_op_schema->verify(&conv_op));
+    // not allow undefined attribute
+    EXPECT_FALSE(conv_op_schema->verify(&conv_op));
 }
 
 TEST(OpSchema, InferConvOutputShape) {

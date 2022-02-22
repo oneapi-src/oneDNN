@@ -650,7 +650,6 @@ fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_src(
                     (lp_attr.src_zp == nullptr) ? std::vector<int64_t> {0L}
                                                 : *lp_attr.src_zp)
             .set_attr("qtype", std::string("per_tensor"))
-            .set_attr("in_type", qsrc_type)
             .set_attr("axis", static_cast<int64_t>(0));
     p.ops_.emplace_back(dequant_src);
 
@@ -703,7 +702,6 @@ fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_wei(
                     (lp_attr.wei_zp == nullptr) ? std::vector<int64_t> {0L}
                                                 : *lp_attr.wei_zp)
             .set_attr("qtype", qtype)
-            .set_attr("in_type", qwei_type)
             .set_attr("axis", static_cast<int64_t>(0));
     p.ops_.emplace_back(dequant_wei);
 
@@ -736,7 +734,6 @@ fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_dst(
                     (lp_attr.dst_zp == nullptr) ? std::vector<int64_t> {0L}
                                                 : *lp_attr.dst_zp)
             .set_attr("qtype", std::string("per_tensor"))
-            .set_attr("out_type", qdst_type)
             .set_attr("axis", static_cast<int64_t>(0));
     p.ops_.emplace_back(quant_dst);
 
