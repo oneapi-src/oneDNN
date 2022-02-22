@@ -374,7 +374,6 @@ struct jit_bnorm_bf16_emulation_t {
             bf16_emu_ = utils::make_unique<bf16_emulation_t>(h_, zmm_reserved_1,
                     zmm_reserved_2, zmm_reserved_3, reg_tmp, zmm_reserved_4,
                     zmm_reserved_4);
-            bf16_emu_->init_vcvtneps2bf16();
         }
     }
 
@@ -1043,6 +1042,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
         const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
 
         preamble();
+        if (jit_bf16_emu_.bf16_emu_)
+            jit_bf16_emu_.bf16_emu_->init_vcvtneps2bf16();
         sub(rsp, stack_size_required);
         load_common_params();
         jit_relu_.fwd_prepare_relu();
@@ -1331,6 +1332,8 @@ struct jit_bnorm_bwd_t : public jit_generator {
         const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
 
         preamble();
+        if (jit_bf16_emu_.bf16_emu_)
+            jit_bf16_emu_.bf16_emu_->init_vcvtneps2bf16();
         load_common_params();
         jit_relu_.bwd_prepare_relu();
         jit_tail_.prepare_tail();
