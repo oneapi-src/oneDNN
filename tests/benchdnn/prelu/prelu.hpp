@@ -96,11 +96,9 @@ int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
 int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem,
         const dnnl_engine_t &ref_engine = get_test_engine());
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &weights, dnn_mem_t &dst);
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &weights, dnn_mem_t &diff_src,
-        const dnn_mem_t &diff_dst, dnn_mem_t &diff_weights);
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
+
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
