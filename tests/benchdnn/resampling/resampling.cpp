@@ -258,7 +258,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
-    args_t args;
+    args_t args, ref_args;
 
     compare::compare_t cmp;
     const bool operations_order_can_be_different = prb->alg == linear;
@@ -266,16 +266,21 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (prb->dir & FLAG_FWD) {
         SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
+
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(binary_po_args, binary_po_dt);
-
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(binary_po_args, binary_po_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
+
             const float linear_trh = epsilon_dt(prb->sdt) > epsilon_dt(prb->ddt)
                     ? epsilon_dt(prb->sdt) // conversion error sdt->ddt
                     : 7 * epsilon_dt(prb->ddt); // algorithm calculation error
@@ -296,6 +301,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     } else {
         SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
+
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
@@ -303,7 +309,11 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, src_fp, dst_fp));
+            ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
+
             const float linear_trh = epsilon_dt(prb->ddt) > epsilon_dt(prb->sdt)
                     ? epsilon_dt(prb->ddt)
                     : 7 * epsilon_dt(prb->sdt);
