@@ -59,7 +59,7 @@ struct memory_block_t {
     size_t allocated_;
     memory_block_t *prev_;
     memory_block_t *next_;
-    runtime::stream_t *stream_;
+    runtime::engine_t *engine_;
     // here starts the allocatable memory
     char buffer_[0];
 

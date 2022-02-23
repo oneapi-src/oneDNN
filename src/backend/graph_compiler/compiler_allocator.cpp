@@ -53,9 +53,8 @@ engine_vtable_t graph_engine_vtable {compiler_graph_global_alloc,
         compiler_graph_global_free, compiler_graph_global_alloc,
         compiler_graph_global_free};
 
-stream_vtable_t graph_stream_vtable {compiler_graph_global_alloc,
-        compiler_graph_global_free, compiler_graph_global_alloc,
-        compiler_graph_global_free, sc_parallel_call_cpu_with_env_impl};
+compiler_graph_stream_t::compiler_graph_stream_t(compiler_graph_engine_t *eng)
+    : sc::runtime::stream_t {{sc_parallel_call_cpu_with_env_impl}, eng} {}
 
 } // namespace compiler_impl
 } // namespace impl

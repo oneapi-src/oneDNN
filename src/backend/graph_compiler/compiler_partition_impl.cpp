@@ -33,13 +33,9 @@ namespace graph {
 namespace impl {
 namespace compiler_impl {
 
-static std::unordered_map<impl::allocator_t *,
-        std::shared_ptr<compiler_graph_stream_t>>
-        global_graph_streams;
 static std::unordered_map<
         std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>, int>
         partition_count_map;
-static dnnl::graph::impl::utils::rw_mutex_t stream_rw_mutex_;
 
 impl::status_t compiler_partition_impl_t::infer_shape(
         std::vector<const impl::logical_tensor_t *> &inputs,
@@ -203,8 +199,7 @@ impl::status_t compiler_partition_impl_t::compile(
         sc::context_ptr ctx;
         ctx = sc::get_default_context();
         auto graph_engine = std::make_shared<compiler_graph_engine_t>(
-                &graph_engine_vtable);
-        graph_engine->allocator_ = aengine->get_allocator();
+                &graph_engine_vtable, aengine->get_allocator());
         ctx->engine_ = static_cast<sc::runtime::engine_t *>(graph_engine.get());
 
         sc::graph_driver(backend_graph_obj, 28, 10, ctx);
@@ -327,7 +322,9 @@ compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
     auto itr = partition_count_map.find(graph_engine_);
     if (itr != partition_count_map.end()) {
         itr->second--;
-        if (itr->second == 0) { sc::release_runtime_memory(nullptr); }
+        if (itr->second == 0) {
+            sc::release_runtime_memory(graph_engine_.get());
+        }
     }
     jit_func_ = nullptr;
     graph_engine_->allocator_->release();
@@ -338,26 +335,7 @@ impl::status_t compiler_compiled_partition_impl_t::execute(
         const std::vector<impl::tensor_t> &inputs,
         const std::vector<impl::tensor_t> &outputs) {
     // set backend runtime stream
-    compiler_graph_stream_t *backend_stream;
-    impl::allocator_t *alloc = engine_.get_allocator();
-    stream_rw_mutex_.lock_read();
-    bool stream_found
-            = global_graph_streams.find(alloc) != global_graph_streams.end();
-    stream_rw_mutex_.unlock_read();
-    if (stream_found) {
-        stream_rw_mutex_.lock_read();
-        backend_stream = global_graph_streams[alloc].get();
-        stream_rw_mutex_.unlock_read();
-    } else {
-        auto graph_stream = std::make_shared<compiler_graph_stream_t>(
-                &graph_stream_vtable);
-        stream_rw_mutex_.lock_write();
-        global_graph_streams[alloc] = graph_stream;
-        backend_stream = graph_stream.get();
-        backend_stream->allocator_ = engine_.get_allocator();
-        backend_stream->engine_ = engine_;
-        stream_rw_mutex_.unlock_write();
-    }
+    compiler_graph_stream_t backend_stream {graph_engine_.get()};
 
     std::vector<sc::generic_val> generic_args;
     generic_args.reserve(inputs.size() + outputs.size());
@@ -367,7 +345,7 @@ impl::status_t compiler_compiled_partition_impl_t::execute(
     for (auto in_tensor : inputs) {
         generic_args.emplace_back(in_tensor.get_data_handle());
     }
-    jit_func_->call_generic(backend_stream, generic_args.data());
+    jit_func_->call_generic(&backend_stream, generic_args.data());
     return status::success;
 }
 } // namespace compiler_impl

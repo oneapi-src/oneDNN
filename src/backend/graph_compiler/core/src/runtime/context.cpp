@@ -31,15 +31,15 @@ static void global_free(runtime::engine_t *eng, void *p) {
     return sc_global_aligned_free(p, 64);
 }
 
-static stream_vtable_t vtable {global_alloc, global_free,
-        sc::memory_pool::alloc_by_mmap, sc::memory_pool::dealloc_by_mmap,
-        sc_parallel_call_cpu_with_env_impl};
+static engine_vtable_t vtable {global_alloc, global_free,
+        sc::memory_pool::alloc_by_mmap, sc::memory_pool::dealloc_by_mmap};
 
-static stream_t default_stream {&vtable};
+static engine_t default_engine {&vtable};
+stream_t default_stream {{sc_parallel_call_cpu_with_env_impl}, &default_engine};
 
-stream_t *get_default_stream() {
-    return &default_stream;
-}
+static_assert(sizeof(stream_vtable_t) == sizeof(void *),
+        "stream_vtable_t has more than 1 field. Need to change "
+        "stream_t::vtable_ to pointer now");
 
 } // namespace runtime
 } // namespace sc

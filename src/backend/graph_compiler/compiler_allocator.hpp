@@ -32,20 +32,17 @@ namespace impl {
 namespace compiler_impl {
 
 struct compiler_graph_engine_t : public sc::runtime::engine_t {
-    impl::allocator_t *allocator_ = nullptr;
-    compiler_graph_engine_t(sc::runtime::engine_vtable_t *vtable)
-        : sc::runtime::engine_t {vtable} {}
+    impl::allocator_t *allocator_;
+    compiler_graph_engine_t(
+            sc::runtime::engine_vtable_t *vtable, impl::allocator_t *allocator)
+        : sc::runtime::engine_t {vtable}, allocator_ {allocator} {}
 };
 
 struct compiler_graph_stream_t : public sc::runtime::stream_t {
-    impl::allocator_t *allocator_ = nullptr;
-    impl::engine_t engine_; // used to ensure allocator's existence
-    compiler_graph_stream_t(sc::runtime::stream_vtable_t *vtable)
-        : sc::runtime::stream_t {vtable} {}
+    compiler_graph_stream_t(compiler_graph_engine_t *eng);
 };
 
 extern sc::runtime::engine_vtable_t graph_engine_vtable;
-extern sc::runtime::stream_vtable_t graph_stream_vtable;
 } // namespace compiler_impl
 } // namespace impl
 } // namespace graph

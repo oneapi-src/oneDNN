@@ -482,12 +482,13 @@ void amx_buffer_t::reset(sc::runtime::stream_t *stream) {
     stream_ = stream;
     // Based on jit_brgemm_conv_utils.cpp:2121
     const size_t amx_buf_size = 2 * utils::get_os_page_size();
-    ptr_ = stream->vtable_->persistent_alloc(stream, amx_buf_size);
+    ptr_ = stream->engine_->vtable_->persistent_alloc(
+            stream->engine_, amx_buf_size);
 }
 void amx_buffer_t::release() {
     if (ptr_) {
         assert(stream_);
-        stream_->vtable_->persistent_dealloc(stream_, ptr_);
+        stream_->engine_->vtable_->persistent_dealloc(stream_->engine_, ptr_);
         ptr_ = nullptr;
         stream_ = nullptr;
     }
