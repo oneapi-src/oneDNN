@@ -160,9 +160,8 @@ inline void get_sizes(const prb_t *prb, int64_t &outer_size,
     axis_size = prb->dims[prb->axis];
 }
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &dst,
-        const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
