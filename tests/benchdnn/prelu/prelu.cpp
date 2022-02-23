@@ -230,7 +230,8 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(fill_data(SRC, src_dt, src_fp), WARN);
     SAFE(fill_data(WEI, weights_dt, weights_fp), WARN);
 
-    args_t args;
+    args_t args, ref_args;
+
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_WEIGHTS, weights_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
@@ -243,10 +244,16 @@ int doit(const prb_t *prb, res_t *res) {
         dst_dt = dnn_mem_t(data_md, test_engine);
 
         args.set(DNNL_ARG_DST, dst_dt);
+
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_fwd(prb, src_fp, weights_fp, dst_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, weights_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
+
             compare::compare_t cmp;
             cmp.set_threshold(2 * epsilon_dt(prb->sdt[0]));
             cmp.set_zero_trust_percent(50.f); // Due to filling
@@ -270,11 +277,17 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_DIFF_WEIGHTS, d_weights_dt);
+
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(
-                    prb, src_fp, weights_fp, d_src_fp, d_dst_fp, d_weights_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS, weights_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, d_weights_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
 
             compare::compare_t cmp_src;
             cmp_src.set_threshold(2 * epsilon_dt(prb->sdt[0]));
