@@ -219,7 +219,8 @@ int doit(const prb_t *prb, res_t *res) {
                  binary_po_fp, test_engine, binary_po_only_positive_vals),
             WARN);
 
-    args_t args;
+    args_t args, ref_args;
+
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(binary_po_args, binary_po_dt);
@@ -227,7 +228,12 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        TIME_REF(compute_ref(prb, src_fp, binary_po_fp, dst_fp));
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
+
+        TIME_REF(compute_ref(prb, ref_args));
+
         compare::compare_t cmp;
         // `5` is a temporary magic const for GPU to pass norm algs.
         // TODO: consider change the filling with power-of-two values for better
