@@ -743,11 +743,7 @@ private:
                 hw(), a_data_type, b_data_type, acc_data_type);
 
         // Force mad for some cases.
-        if (is_small_ic() && !is_dw) {
-            if (is_bwd_d) fma_kind = fma_kind_t::mad;
-        } else if (is_dw) {
-            fma_kind = fma_kind_t::mad;
-        }
+        if (is_dw) fma_kind = fma_kind_t::mad;
 
 #ifdef GEN_CONV_DEBUG
         fma_kind = fma_kind::from_string(ir_utils::getenv_str(
