@@ -53,10 +53,6 @@ protected:
 TEST_P(sycl_memory_usm_test, Constructor) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
-#ifdef DNNL_SYCL_CUDA
-    SKIP_IF(eng_kind == engine::kind::gpu,
-            "USM is not supported on CUDA backend");
-#endif
 
     engine eng(eng_kind, 0);
     memory::dim n = 100;
@@ -98,10 +94,6 @@ TEST_P(sycl_memory_usm_test, Constructor) {
 TEST_P(sycl_memory_usm_test, ConstructorNone) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
-#ifdef DNNL_SYCL_CUDA
-    SKIP_IF(eng_kind == engine::kind::gpu,
-            "USM is not supported on CUDA backend");
-#endif
 
     engine eng(eng_kind, 0);
     memory::desc mem_d({0}, memory::data_type::f32, memory::format_tag::x);
@@ -123,10 +115,6 @@ TEST_P(sycl_memory_usm_test, ConstructorNone) {
 TEST_P(sycl_memory_usm_test, ConstructorAllocate) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
-#ifdef DNNL_SYCL_CUDA
-    SKIP_IF(eng_kind == engine::kind::gpu,
-            "USM is not supported on CUDA backend");
-#endif
 
     engine eng(eng_kind, 0);
     memory::dim n = 100;
@@ -158,10 +146,6 @@ TEST_P(sycl_memory_usm_test, ConstructorAllocate) {
 TEST_P(sycl_memory_usm_test, DefaultConstructor) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
-#ifdef DNNL_SYCL_CUDA
-    SKIP_IF(eng_kind == engine::kind::gpu,
-            "USM is not supported on CUDA backend");
-#endif
 
     engine eng(eng_kind, 0);
     memory::dim n = 100;

@@ -472,7 +472,7 @@ static auto cases_ef = []() {
     cases.push_back({{{{16, 16}, data_type::f32, tag::AB8a4b},
                              {{16, 16}, data_type::f32, tag::AB8a4b},
                              {{16, 16}, data_type::f32, tag::AB8a4b}},
-            {}, true, dnnl_unimplemented});
+            {}});
 
     return ::testing::ValuesIn(cases);
 };
