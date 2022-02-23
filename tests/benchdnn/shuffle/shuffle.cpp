@@ -165,7 +165,7 @@ int doit(const prb_t *prb, res_t *res) {
     const int i_arg = prb->dir == FWD_D ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
     const int o_arg = prb->dir == FWD_D ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
 
-    args_t args;
+    args_t args, ref_args;
 
     args.set(i_arg, src_dt);
     args.set(o_arg, dst_dt);
@@ -174,7 +174,11 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        TIME_REF(compute_ref(prb, src_fp, dst_fp));
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+
+        TIME_REF(compute_ref(prb, ref_args));
+
         compare::compare_t cmp;
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }

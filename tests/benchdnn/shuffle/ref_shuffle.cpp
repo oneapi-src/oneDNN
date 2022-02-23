@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,7 +19,13 @@
 
 namespace shuffle {
 
-void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
+void compute_ref(
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+
+    float *dst_ptr = (float *)dst;
+
     const int axis = prb->axis;
     const int64_t group_size = prb->group;
     const int64_t axis_size = prb->dims[axis];
@@ -49,7 +55,7 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
             [&](int64_t ou, int64_t a, int64_t in) {
                 auto src_off = ou * dim + a * inner_size + in;
                 auto dst_off = ou * dim + transpose(a) * inner_size + in;
-                dst.set_elem(dst_off, src.get_elem(src_off));
+                dst_ptr[dst_off] = src.get_elem(src_off);
             });
 }
 
