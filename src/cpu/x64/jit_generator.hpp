@@ -193,6 +193,30 @@ public:
         if (is_valid_isa(avx512_core)) {
             mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
         }
+
+#ifdef DNNL_ENABLE_MEM_DEBUG
+        // This section poisons vector registers with NaNs to catch situations
+        // when leftover trash in the register is used in a valid instruction
+        // without handling trash first.
+        {
+            // Preserve GPR since GeMM code relies on this one.
+            push(abi_not_param1);
+            if (is_valid_isa(avx512_core)) {
+                for (int i = 0; i < 32; i++) {
+                    init_vmm(Xbyak::Zmm(i), abi_not_param1, NAN);
+                }
+            } else if (is_valid_isa(avx)) {
+                for (int i = 0; i < 16; i++) {
+                    init_vmm(Xbyak::Ymm(i), abi_not_param1, NAN);
+                }
+            } else {
+                for (int i = 0; i < 16; i++) {
+                    init_vmm(Xbyak::Xmm(i), abi_not_param1, NAN);
+                }
+            }
+            pop(abi_not_param1);
+        }
+#endif
     }
 
     // This function returns the address on the stack of the fist argument
@@ -1497,6 +1521,17 @@ public:
       the floating point register
      */
     template <typename Vmm>
+    void init_vmm(Vmm vmm, Xbyak::Reg64 reg_tmp, float value) {
+        Xbyak::Xmm xmm_tmp(vmm.getIdx());
+        mov(reg_tmp, float2int(value));
+        uni_vmovq(xmm_tmp, reg_tmp);
+        if (vmm.isYMM() || vmm.isZMM())
+            uni_vbroadcastss(vmm, xmm_tmp);
+        else
+            uni_vshufps(vmm, xmm_tmp, xmm_tmp, 0);
+    }
+
+    template <typename Vmm>
     void init_saturate_f32(Vmm vmm_lbound, Vmm vmm_ubound, Xbyak::Reg64 reg_tmp,
             data_type_t idt, data_type_t odt, bool force_lbound = false) {
         using namespace data_type;
@@ -1504,16 +1539,6 @@ public:
 
         assert(IMPLICATION(idt == u8 || force_lbound,
                 vmm_lbound.getIdx() != vmm_ubound.getIdx()));
-
-        auto init_vmm = [&](Vmm vmm, float value) {
-            Xbyak::Xmm xmm_tmp(vmm.getIdx());
-            mov(reg_tmp, float2int(value));
-            uni_vmovq(xmm_tmp, reg_tmp);
-            if (vmm.isYMM() || vmm.isZMM())
-                uni_vbroadcastss(vmm, xmm_tmp);
-            else
-                uni_vshufps(vmm, xmm_tmp, xmm_tmp, 0);
-        };
 
         // No need to saturate on lower bound for signed integer types, as
         // the conversion to int would return INT_MIN, and then proper
@@ -1523,11 +1548,11 @@ public:
             uni_vpxor(vmm_lbound, vmm_lbound, vmm_lbound);
         else if (force_lbound) {
             const float saturation_lbound = odt == s8 ? INT8_MIN : INT32_MIN;
-            init_vmm(vmm_lbound, saturation_lbound);
+            init_vmm(vmm_lbound, reg_tmp, saturation_lbound);
         }
 
         const float saturation_ubound = types::max_value<float>(odt);
-        init_vmm(vmm_ubound, saturation_ubound);
+        init_vmm(vmm_ubound, reg_tmp, saturation_ubound);
     }
 
     template <typename Vmm>
