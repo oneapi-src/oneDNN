@@ -115,6 +115,10 @@ struct array_offset_calculator {
     array_offset_calculator() = default;
 
     template <typename... Targs>
+    array_offset_calculator(const dnn_mem_t &mem, Targs... dims)
+        : base_ptr_((Telem *)mem), dims_({dims...}) {}
+
+    template <typename... Targs>
     array_offset_calculator(Telem *base_ptr, Targs... dims)
         : base_ptr_(base_ptr), dims_({dims...}) {}
 
@@ -460,34 +464,15 @@ void prepare_ws_fwd(const prb_t &prb, std::vector<float> &ws_fwd_buffer,
         AOC<float> &ws_src_layer, AOC<float> &ws_src_iter,
         AOC<float> &ws_src_iter_c, AOC<float> &ws_gates, AOC<float> &ws_ht);
 
-void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
-        const float *src_layer_attention_, const float *src_iter_,
-        const float *src_iter_c_, const float *weights_layer_,
-        const float *weights_iter_, const float *weights_peephole_,
-        const float *weights_projection_, const float *bias_, float *dst_layer_,
-        float *dst_iter_, float *dst_iter_c_, const AOC<float> &ws_src_layer,
-        const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
-        const AOC<float> &ws_gates, const AOC<float> &ws_ht);
+void rnn_linear_fwd(const prb_t &prb, const args_t &args,
+        const AOC<float> &ws_src_layer, const AOC<float> &ws_src_iter,
+        const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates,
+        const AOC<float> &ws_ht);
 
-void compute_ref_fwd(const prb_t &prb, dnn_mem_t &src_layer_m,
-        dnn_mem_t &src_layer_attention_m, dnn_mem_t &src_iter_m,
-        dnn_mem_t &src_iter_c_m, dnn_mem_t &weights_layer_m,
-        dnn_mem_t &weights_iter_m, dnn_mem_t &weights_peephole_m,
-        dnn_mem_t &weights_projection_m, dnn_mem_t &bias_m,
-        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m, dnn_mem_t &dst_iter_c_m);
-
-void compute_ref_bwd(const prb_t &prb, dnn_mem_t &src_layer_m,
-        dnn_mem_t &src_layer_attention_m, dnn_mem_t &src_iter_m,
-        dnn_mem_t &src_iter_c_m, dnn_mem_t &diff_dst_layer_m,
-        dnn_mem_t &diff_dst_iter_m, dnn_mem_t &diff_dst_iter_c_m,
-        dnn_mem_t &weights_layer_m, dnn_mem_t &weights_iter_m,
-        dnn_mem_t &weights_peephole_m, dnn_mem_t &weights_projection_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
-        dnn_mem_t &dst_iter_c_m, dnn_mem_t &diff_src_layer_m,
-        dnn_mem_t &diff_src_layer_attention_m, dnn_mem_t &diff_src_iter_m,
-        dnn_mem_t &diff_src_iter_c_m, dnn_mem_t &diff_weights_layer_m,
-        dnn_mem_t &diff_weights_iter_m, dnn_mem_t &diff_weights_peephole_m,
-        dnn_mem_t &diff_weights_projection_m, dnn_mem_t &diff_bias_m);
+void compute_ref(const prb_t &prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
+void compute_ref_fwd(const prb_t &prb, const args_t &args);
+void compute_ref_bwd(const prb_t &prb, const args_t &args);
 
 int doit(const prb_t &prb, res_t *res);
 int bench(int argc, char **argv);

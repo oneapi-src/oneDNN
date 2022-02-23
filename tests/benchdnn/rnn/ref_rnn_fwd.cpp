@@ -64,8 +64,10 @@ void prepare_ws_fwd(const prb_t &prb, std::vector<float> &ws_fwd_buffer,
 /******************************* Copy Routines ********************************/
 /******************************************************************************/
 void prepare_projection_compensation(const prb_t &prb,
-        float *weights_projection_compensation_,
-        const float *weights_projection_) {
+        float *weights_projection_compensation_, const args_t &args) {
+    const dnn_mem_t &weights_projection_
+            = args.find(DNNL_ARG_WEIGHTS_PROJECTION);
+
     AOC<float> weights_projection_compensation(weights_projection_compensation_,
             prb.n_layer, prb.n_dir(), prb.dic);
     AOC<const float> weights_projection(
@@ -82,9 +84,12 @@ void prepare_projection_compensation(const prb_t &prb,
             }
 }
 
-void prepare_bias(const prb_t &prb, float *bias_with_compensation_,
-        const float *bias_, const float *weights_layer_,
-        const float *weights_iter_) {
+void prepare_bias(
+        const prb_t &prb, float *bias_with_compensation_, const args_t &args) {
+    const dnn_mem_t &bias_ = args.find(DNNL_ARG_BIAS);
+    const dnn_mem_t &weights_layer_ = args.find(DNNL_ARG_WEIGHTS_LAYER);
+    const dnn_mem_t &weights_iter_ = args.find(DNNL_ARG_WEIGHTS_ITER);
+
     AOC<const float> weights_layer(weights_layer_, prb.n_layer, prb.n_dir(),
             prb.slc, prb.n_gates(), prb.dhc);
     AOC<const float> weights_iter(weights_iter_, prb.n_layer, prb.n_dir(),
@@ -117,9 +122,12 @@ void prepare_bias(const prb_t &prb, float *bias_with_compensation_,
 
 void copy_init_fwd(const prb_t &prb, const AOC<float> &ws_src_layer,
         const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
-        const float *src_layer_, const float *src_iter_,
-        const float *src_iter_c_, rnn_iter_direction_t iter_dir,
+        const args_t &args, rnn_iter_direction_t iter_dir,
         rnn_layer_direction_t lay_dir, int64_t dir_val) {
+    const dnn_mem_t &src_layer_ = args.find(DNNL_ARG_SRC_LAYER);
+    const dnn_mem_t &src_iter_ = args.find(DNNL_ARG_SRC_ITER);
+    const dnn_mem_t &src_iter_c_ = args.find(DNNL_ARG_SRC_ITER_C);
+
     AOC<const float> src_layer(src_layer_, prb.n_iter, prb.mb * prb.slc);
     AOC<const float> src_iter(
             src_iter_, prb.n_layer, prb.n_dir(), prb.mb * prb.sic);
@@ -154,11 +162,15 @@ void copy_init_fwd(const prb_t &prb, const AOC<float> &ws_src_layer,
     }
 }
 
-void copy_res_fwd(const prb_t &prb, float *dst_layer_, float *dst_iter_,
-        float *dst_iter_c_, const AOC<const float> &ws_src_layer,
+void copy_res_fwd(const prb_t &prb, const args_t &args,
+        const AOC<const float> &ws_src_layer,
         const AOC<const float> &ws_src_iter,
         const AOC<const float> &ws_src_iter_c, rnn_iter_direction_t iter_dir,
         rnn_layer_direction_t lay_dir, int64_t dir_val, rnn_action_t action) {
+    const dnn_mem_t &dst_layer_ = args.find(DNNL_ARG_DST_LAYER);
+    const dnn_mem_t &dst_iter_ = args.find(DNNL_ARG_DST_ITER);
+    const dnn_mem_t &dst_iter_c_ = args.find(DNNL_ARG_DST_ITER_C);
+
     AOC<float> dst_iter(dst_iter_, prb.n_layer, prb.n_dir(), prb.mb, prb.dic);
     AOC<float> dst_iter_c(
             dst_iter_c_, prb.n_layer, prb.n_dir(), prb.mb, prb.dhc);
@@ -254,14 +266,20 @@ void rnn_cell_fwd(const prb_t &prb, float *dst_layer, float *dst_iter,
     }
 }
 
-void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
-        const float *src_layer_attention_, const float *src_iter_,
-        const float *src_iter_c_, const float *weights_layer_,
-        const float *weights_iter_, const float *weights_peephole_,
-        const float *weights_projection_, const float *bias_, float *dst_layer_,
-        float *dst_iter_, float *dst_iter_c_, const AOC<float> &ws_src_layer,
-        const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
-        const AOC<float> &ws_gates, const AOC<float> &ws_ht) {
+void rnn_linear_fwd(const prb_t &prb, const args_t &args,
+        const AOC<float> &ws_src_layer, const AOC<float> &ws_src_iter,
+        const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates,
+        const AOC<float> &ws_ht) {
+    const dnn_mem_t &src_layer_attention_ = args.find(DNNL_ARG_AUGRU_ATTENTION);
+    const dnn_mem_t &weights_layer_ = args.find(DNNL_ARG_WEIGHTS_LAYER);
+    const dnn_mem_t &weights_iter_ = args.find(DNNL_ARG_WEIGHTS_ITER);
+    const dnn_mem_t &weights_peephole_ = args.find(DNNL_ARG_WEIGHTS_PEEPHOLE);
+    const dnn_mem_t &weights_projection_
+            = args.find(DNNL_ARG_WEIGHTS_PROJECTION);
+    const dnn_mem_t &bias_ = args.find(DNNL_ARG_BIAS);
+
+    float *bias_ptr = (float *)bias_;
+
     bool is_lbr = prb.alg == LBR_GRU || prb.alg == LBR_AUGRU;
 
     float *bias_with_compensation = nullptr;
@@ -269,14 +287,13 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
     if (prb.is_int8()) {
         bias_with_compensation = new float[prb.n_layer * prb.n_dir()
                 * (prb.n_gates() + is_lbr) * prb.dhc];
-        prepare_bias(prb, bias_with_compensation, bias_, weights_layer_,
-                weights_iter_);
-        bias_ = bias_with_compensation;
+        prepare_bias(prb, bias_with_compensation, args);
+        bias_ptr = bias_with_compensation;
         if (prb.is_lstm_projection()) {
             weights_projection_compensation_
                     = new float[prb.n_layer * prb.n_dir() * prb.dic];
             prepare_projection_compensation(
-                    prb, weights_projection_compensation_, weights_projection_);
+                    prb, weights_projection_compensation_, args);
         }
     }
 
@@ -287,7 +304,7 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
     AOC<const float> weights_projection_compensation(
             weights_projection_compensation_, prb.n_layer, prb.n_dir(),
             prb.dic);
-    AOC<const float> bias(bias_, prb.n_layer, prb.n_dir(),
+    AOC<const float> bias(bias_ptr, prb.n_layer, prb.n_dir(),
             (prb.n_gates() + is_lbr) * prb.dhc);
     AOC<const float> weights_layer(weights_layer_, prb.n_layer, prb.n_dir(),
             prb.n_gates() * prb.dhc, prb.slc);
@@ -312,8 +329,8 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
         // ws to simplify the logic of the code
         BENCHDNN_PRINT(80,
                 "rnn_linear_fwd: call copy_init dir_val = " IFMT "\n", dir_val);
-        copy_init_fwd(prb, ws_src_layer, ws_src_iter, ws_src_iter_c, src_layer_,
-                src_iter_, src_iter_c_, iter_dir, lay_dir, dir_val);
+        copy_init_fwd(prb, ws_src_layer, ws_src_iter, ws_src_iter_c, args,
+                iter_dir, lay_dir, dir_val);
 
         // We run the grid of computation
         for (int64_t il = 0; il < prb.n_layer; il++) {
@@ -348,8 +365,8 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
         }
 
         // Finally we copy the results to the result buffers
-        copy_res_fwd(prb, dst_layer_, dst_iter_, dst_iter_c_, ws_src_layer,
-                ws_src_iter, ws_src_iter_c, iter_dir, lay_dir, dir_val, action);
+        copy_res_fwd(prb, args, ws_src_layer, ws_src_iter, ws_src_iter_c,
+                iter_dir, lay_dir, dir_val, action);
     };
 
     switch (prb.direction) {
@@ -375,24 +392,13 @@ void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
     delete[] weights_projection_compensation_;
 }
 
-void compute_ref_fwd(const prb_t &prb, dnn_mem_t &src_layer_m,
-        dnn_mem_t &src_layer_attention_m, dnn_mem_t &src_iter_m,
-        dnn_mem_t &src_iter_c_m, dnn_mem_t &weights_src_layer_m,
-        dnn_mem_t &weights_src_iter_m, dnn_mem_t &weights_peephole_m,
-        dnn_mem_t &weights_projection_m, dnn_mem_t &bias_m,
-        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
-        dnn_mem_t &dst_iter_c_m) {
+void compute_ref_fwd(const prb_t &prb, const args_t &args) {
     std::vector<float> ws_fwd_buffer;
     AOC<float> ws_src_layer, ws_src_iter, ws_src_iter_c, ws_gates, ws_ht;
     prepare_ws_fwd(prb, ws_fwd_buffer, ws_src_layer, ws_src_iter, ws_src_iter_c,
             ws_gates, ws_ht);
 
-    rnn_linear_fwd(prb, (float *)src_layer_m, (float *)src_layer_attention_m,
-            (float *)src_iter_m, (float *)src_iter_c_m,
-            (float *)weights_src_layer_m, (float *)weights_src_iter_m,
-            (float *)weights_peephole_m, (float *)weights_projection_m,
-            (float *)bias_m, (float *)dst_layer_m, (float *)dst_iter_m,
-            (float *)dst_iter_c_m, ws_src_layer, ws_src_iter, ws_src_iter_c,
+    rnn_linear_fwd(prb, args, ws_src_layer, ws_src_iter, ws_src_iter_c,
             ws_gates, ws_ht);
 }
 

@@ -56,10 +56,13 @@ void prepare_ws_bwd(const prb_t &prb, std::vector<float> &ws_bwd_buffer,
 
 void copy_init_bwd(const prb_t &prb, const AOC<float> &ws_diff_src_layer,
         const AOC<float> &ws_diff_src_iter,
-        const AOC<float> &ws_diff_src_iter_c, const float *diff_dst_layer_,
-        const float *diff_dst_iter_, const float *diff_dst_iter_c_,
+        const AOC<float> &ws_diff_src_iter_c, const args_t &args,
         rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
         int64_t dir_val) {
+    const dnn_mem_t &diff_dst_layer_ = args.find(DNNL_ARG_DIFF_DST_LAYER);
+    const dnn_mem_t &diff_dst_iter_ = args.find(DNNL_ARG_DIFF_DST_ITER);
+    const dnn_mem_t &diff_dst_iter_c_ = args.find(DNNL_ARG_DIFF_DST_ITER_C);
+
     AOC<const float> diff_dst_layer(
             diff_dst_layer_, prb.n_iter, prb.mb * prb.dlc(PRIMITIVE));
     AOC<const float> diff_dst_iter(
@@ -87,13 +90,16 @@ void copy_init_bwd(const prb_t &prb, const AOC<float> &ws_diff_src_layer,
     }
 }
 
-void copy_res_bwd(const prb_t &prb, float *diff_src_layer_,
-        float *diff_src_iter_, float *diff_src_iter_c_,
+void copy_res_bwd(const prb_t &prb, const args_t &args,
         const AOC<const float> &ws_diff_src_layer,
         const AOC<const float> &ws_diff_src_iter,
         const AOC<const float> &ws_diff_src_iter_c,
         rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
         int64_t dir_val, rnn_action_t action) {
+    const dnn_mem_t &diff_src_layer_ = args.find(DNNL_ARG_DIFF_SRC_LAYER);
+    const dnn_mem_t &diff_src_iter_ = args.find(DNNL_ARG_DIFF_SRC_ITER);
+    const dnn_mem_t &diff_src_iter_c_ = args.find(DNNL_ARG_DIFF_SRC_ITER_C);
+
     AOC<float> diff_src_iter(
             diff_src_iter_, prb.n_layer, prb.n_dir(), prb.mb, prb.sic);
     AOC<float> diff_src_iter_c(
@@ -184,19 +190,29 @@ void rnn_cell_bwd(const prb_t &prb, float *diff_src_layer,
     }
 }
 
-void rnn_linear_bwd(const prb_t &prb, const float *diff_dst_layer_,
-        const float *diff_dst_iter_, const float *diff_dst_iter_c_,
-        const float *src_layer_attention_, const float *weights_layer_,
-        const float *weights_iter_, const float *weights_peephole_,
-        const float *weights_projection_, const float *bias_,
-        float *diff_src_layer_, float *diff_src_layer_attention_,
-        float *diff_src_iter_, float *diff_src_iter_c_,
-        float *diff_weights_layer_, float *diff_weights_iter_,
-        float *diff_weights_peephole_, float *diff_weights_projection_,
-        float *diff_bias_, const AOC<const float> &ws_src_layer,
+void rnn_linear_bwd(const prb_t &prb, const args_t &args,
+        const AOC<const float> &ws_src_layer,
         const AOC<const float> &ws_src_iter,
         const AOC<const float> &ws_src_iter_c, const AOC<const float> &ws_gates,
         const AOC<const float> &ws_ht) {
+    const dnn_mem_t &src_layer_attention_ = args.find(DNNL_ARG_AUGRU_ATTENTION);
+    const dnn_mem_t &weights_layer_ = args.find(DNNL_ARG_WEIGHTS_LAYER);
+    const dnn_mem_t &weights_iter_ = args.find(DNNL_ARG_WEIGHTS_ITER);
+    const dnn_mem_t &weights_peephole_ = args.find(DNNL_ARG_WEIGHTS_PEEPHOLE);
+    const dnn_mem_t &weights_projection_
+            = args.find(DNNL_ARG_WEIGHTS_PROJECTION);
+    const dnn_mem_t &bias_ = args.find(DNNL_ARG_BIAS);
+    const dnn_mem_t &diff_src_layer_attention_
+            = args.find(DNNL_ARG_DIFF_AUGRU_ATTENTION);
+    const dnn_mem_t &diff_weights_layer_
+            = args.find(DNNL_ARG_DIFF_WEIGHTS_LAYER);
+    const dnn_mem_t &diff_weights_iter_ = args.find(DNNL_ARG_DIFF_WEIGHTS_ITER);
+    const dnn_mem_t &diff_weights_peephole_
+            = args.find(DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
+    const dnn_mem_t &diff_weights_projection_
+            = args.find(DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
+    const dnn_mem_t &diff_bias_ = args.find(DNNL_ARG_DIFF_BIAS);
+
     bool is_lbr = prb.alg == LBR_GRU || prb.alg == LBR_AUGRU;
 
     AOC<const float> weights_layer(weights_layer_, prb.n_layer, prb.n_dir(),
@@ -262,8 +278,7 @@ void rnn_linear_bwd(const prb_t &prb, const float *diff_dst_layer_,
         // we first need to copy the initial diff_dst_layer and
         // diff_dst_iter{,_c} into ws to simplify the logic of the code
         copy_init_bwd(prb, ws_diff_src_layer, ws_diff_src_iter,
-                ws_diff_src_iter_c, diff_dst_layer_, diff_dst_iter_,
-                diff_dst_iter_c_, iter_dir, lay_dir, dir_val);
+                ws_diff_src_iter_c, args, iter_dir, lay_dir, dir_val);
 
         // We run the grid of computation
         for (int64_t j = prb.n_layer - 1; j >= 0; j--) {
@@ -311,9 +326,8 @@ void rnn_linear_bwd(const prb_t &prb, const float *diff_dst_layer_,
         }
 
         // Finally we copy the results to the result buffers
-        copy_res_bwd(prb, diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
-                ws_diff_src_layer, ws_diff_src_iter, ws_diff_src_iter_c,
-                iter_dir, lay_dir, dir_val, action);
+        copy_res_bwd(prb, args, ws_diff_src_layer, ws_diff_src_iter,
+                ws_diff_src_iter_c, iter_dir, lay_dir, dir_val, action);
     };
 
     switch (prb.direction) {
@@ -338,41 +352,17 @@ void rnn_linear_bwd(const prb_t &prb, const float *diff_dst_layer_,
     delete[] cell_scratchpad_;
 }
 
-void compute_ref_bwd(const prb_t &prb, dnn_mem_t &src_layer_m,
-        dnn_mem_t &src_layer_attention_m, dnn_mem_t &src_iter_m,
-        dnn_mem_t &src_iter_c_m, dnn_mem_t &diff_dst_layer_m,
-        dnn_mem_t &diff_dst_iter_m, dnn_mem_t &diff_dst_iter_c_m,
-        dnn_mem_t &weights_layer_m, dnn_mem_t &weights_iter_m,
-        dnn_mem_t &weights_peephole_m, dnn_mem_t &weights_projection_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
-        dnn_mem_t &dst_iter_c_m, dnn_mem_t &diff_src_layer_m,
-        dnn_mem_t &diff_src_layer_attention_m, dnn_mem_t &diff_src_iter_m,
-        dnn_mem_t &diff_src_iter_c_m, dnn_mem_t &diff_weights_layer_m,
-        dnn_mem_t &diff_weights_iter_m, dnn_mem_t &diff_weights_peephole_m,
-        dnn_mem_t &diff_weights_projection_m, dnn_mem_t &diff_bias_m) {
+void compute_ref_bwd(const prb_t &prb, const args_t &args) {
     std::vector<float> ws_fwd_buffer;
     AOC<float> ws_src_layer, ws_src_iter, ws_src_iter_c, ws_gates, ws_ht;
     prepare_ws_fwd(prb, ws_fwd_buffer, ws_src_layer, ws_src_iter, ws_src_iter_c,
             ws_gates, ws_ht);
 
-    rnn_linear_fwd(prb, (float *)src_layer_m, (float *)src_layer_attention_m,
-            (float *)src_iter_m, (float *)src_iter_c_m,
-            (float *)weights_layer_m, (float *)weights_iter_m,
-            (float *)weights_peephole_m, (float *)weights_projection_m,
-            (float *)bias_m, (float *)dst_layer_m, (float *)dst_iter_m,
-            (float *)dst_iter_c_m, ws_src_layer, ws_src_iter, ws_src_iter_c,
+    rnn_linear_fwd(prb, args, ws_src_layer, ws_src_iter, ws_src_iter_c,
             ws_gates, ws_ht);
 
-    rnn_linear_bwd(prb, (float *)diff_dst_layer_m, (float *)diff_dst_iter_m,
-            (float *)diff_dst_iter_c_m, (float *)src_layer_attention_m,
-            (float *)weights_layer_m, (float *)weights_iter_m,
-            (float *)weights_peephole_m, (float *)weights_projection_m,
-            (float *)bias_m, (float *)diff_src_layer_m,
-            (float *)diff_src_layer_attention_m, (float *)diff_src_iter_m,
-            (float *)diff_src_iter_c_m, (float *)diff_weights_layer_m,
-            (float *)diff_weights_iter_m, (float *)diff_weights_peephole_m,
-            (float *)diff_weights_projection_m, (float *)diff_bias_m,
-            ws_src_layer, ws_src_iter, ws_src_iter_c, ws_gates, ws_ht);
+    rnn_linear_bwd(prb, args, ws_src_layer, ws_src_iter, ws_src_iter_c,
+            ws_gates, ws_ht);
 }
 
 } // namespace rnn
