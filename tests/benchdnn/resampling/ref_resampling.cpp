@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,8 +38,12 @@ float weight(const int64_t y, const int64_t y_max, const int64_t x_max) {
     return fabs(linear_map(y, y_max, x_max) - left(y, y_max, x_max));
 }
 
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
-        const std::vector<dnn_mem_t> &binary_po) {
+void compute_ref_fwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+
+    float *dst_ptr = (float *)dst;
+
     int64_t MB = prb->mb;
     int64_t IC = prb->ic;
     int64_t ID = prb->id;
@@ -56,6 +60,7 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
         const int64_t iw = near(ow, OW, IW);
         result = src.get_elem(src_off_f(prb, mb, ic, id, ih, iw));
     };
+
     auto ker_linear = [&](float &result, int64_t mb, int64_t ic, int64_t od,
                               int64_t oh, int64_t ow) {
         const int64_t id[2] = {left(od, OD, ID), right(od, OD, ID)};
@@ -82,7 +87,7 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
         result = cw;
     };
 
-    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
     dnnl::impl::parallel_nd(MB, IC, OD, OH, OW,
             [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
                 float result = 0.f;
@@ -92,22 +97,22 @@ void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
                     ker_linear(result, mb, ic, od, oh, ow);
                 }
                 const auto dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
-                std::vector<float> v_binary_vals(v_bin_po_mask.size());
-                for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-                    const auto bin_po_offset
-                            = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
-                    const float binary_val
-                            = binary_po[d].get_elem(bin_po_offset);
-                    v_binary_vals[d] = binary_val;
-                }
-                maybe_post_ops(prb->attr, result, dst.get_elem(dst_off),
-                        v_binary_vals);
-                dst.set_elem(dst_off, result);
+
+                const auto v_po_vals
+                        = prepare_po_vals(dst, args, v_po_masks, dst_off);
+
+                maybe_post_ops(
+                        prb->attr, result, dst.get_elem(dst_off), v_po_vals);
+                dst_ptr[dst_off] = result;
             });
 }
 
-void compute_ref_bwd(
-        const prb_t *prb, dnn_mem_t &diff_src, const dnn_mem_t &diff_dst) {
+void compute_ref_bwd(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &d_dst = args.find(DNNL_ARG_DIFF_DST);
+    const dnn_mem_t &d_src = args.find(DNNL_ARG_DIFF_SRC);
+
+    float *d_src_ptr = (float *)d_src;
+
     int64_t MB = prb->mb;
     int64_t IC = prb->ic;
     int64_t ID = prb->id;
@@ -117,19 +122,20 @@ void compute_ref_bwd(
     int64_t OH = prb->oh;
     int64_t OW = prb->ow;
 
-    auto ker_nearest = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
-                               int64_t ow) {
-        const auto diff_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
-        float diff_dst_val = diff_dst.get_elem(diff_dst_off);
-        const int64_t id = near(od, OD, ID);
-        const int64_t ih = near(oh, OH, IH);
-        const int64_t iw = near(ow, OW, IW);
-        ((float *)diff_src)[src_off_f(prb, mb, ic, id, ih, iw)] += diff_dst_val;
-    };
+    auto ker_nearest
+            = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
+                  const auto d_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
+                  float d_dst_val = d_dst.get_elem(d_dst_off);
+                  const int64_t id = near(od, OD, ID);
+                  const int64_t ih = near(oh, OH, IH);
+                  const int64_t iw = near(ow, OW, IW);
+                  d_src_ptr[src_off_f(prb, mb, ic, id, ih, iw)] += d_dst_val;
+              };
+
     auto ker_linear = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
                               int64_t ow) {
-        const auto diff_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
-        float diff_dst_val = diff_dst.get_elem(diff_dst_off);
+        const auto d_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
+        float d_dst_val = d_dst.get_elem(d_dst_off);
         const int64_t id[2] = {left(od, OD, ID), right(od, OD, ID)};
         const int64_t ih[2] = {left(oh, OH, IH), right(oh, OH, IH)};
         const int64_t iw[2] = {left(ow, OW, IW), right(ow, OW, IW)};
@@ -139,15 +145,15 @@ void compute_ref_bwd(
         for_(int i = 0; i < 2; i++)
         for_(int j = 0; j < 2; j++)
         for (int k = 0; k < 2; k++) {
-            ((float *)diff_src)[src_off_f(prb, mb, ic, id[i], ih[j], iw[k])]
-                    += wd[i] * wh[j] * ww[k] * diff_dst_val;
+            d_src_ptr[src_off_f(prb, mb, ic, id[i], ih[j], iw[k])]
+                    += wd[i] * wh[j] * ww[k] * d_dst_val;
         }
     };
 
-    // zeroing diff_src for correct result
+    // zeroing d_src for correct result
     dnnl::impl::parallel_nd(MB, IC, ID, IH, IW,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
-                diff_src.set_elem(src_off_f(prb, mb, ic, id, ih, iw), 0.);
+                d_src_ptr[src_off_f(prb, mb, ic, id, ih, iw)] = 0;
             });
 
     dnnl::impl::parallel_nd(MB, IC, [&](int64_t mb, int64_t ic) {
@@ -160,6 +166,14 @@ void compute_ref_bwd(
                 ker_linear(mb, ic, od, oh, ow);
             }
     });
+}
+
+void compute_ref(
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    if (prb->dir & FLAG_FWD)
+        compute_ref_fwd(prb, args);
+    else
+        compute_ref_bwd(prb, args);
 }
 
 } // namespace resampling
