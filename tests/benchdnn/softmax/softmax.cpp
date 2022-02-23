@@ -275,7 +275,7 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
     dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
-    args_t args;
+    args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {
         const auto &src_md = q(DNNL_ARG_SRC);
@@ -298,7 +298,10 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_fwd(prb, src_fp, dst_fp));
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
 
             compare::compare_t cmp;
 
@@ -352,7 +355,11 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, dst_fp, d_dst_fp, d_src_fp));
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
 
             compare::compare_t cmp;
 

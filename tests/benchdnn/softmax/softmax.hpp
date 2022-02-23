@@ -164,12 +164,13 @@ inline void get_sizes(const prb_t *prb, int64_t &outer_size,
 int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
 int fill_data_bwd(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int seed);
-void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
-void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &dst,
-        const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);
+
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
 void add_additional_softmax_check(compare::compare_t &cmp);
+
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
