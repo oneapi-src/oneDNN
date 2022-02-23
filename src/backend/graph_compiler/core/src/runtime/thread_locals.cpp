@@ -37,12 +37,11 @@ struct thread_local_registry_t {
     void release(engine_t *engine) {
         std::lock_guard<std::mutex> guard(lock_);
         for (auto node : tls_buffers_) {
-            if (engine == nullptr
-                    || static_cast<engine_t *>(node->stream_) == engine) {
+            if (engine == nullptr || node->engine_ == engine) {
                 node->main_memory_pool_.release();
                 node->thread_memory_pool_.release();
                 node->amx_buffer_.release();
-                node->stream_ = nullptr;
+                node->engine_ = nullptr;
             }
         }
     }

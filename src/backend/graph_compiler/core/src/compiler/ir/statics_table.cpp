@@ -24,7 +24,7 @@
 namespace sc {
 
 static_data_t::static_data_t(const void *indata, size_t size)
-    : aligned_buffer_t(size, runtime::get_default_stream()) {
+    : aligned_buffer_t(size, runtime::get_default_stream()->engine_) {
     memcpy(data_, indata, size);
 }
 
@@ -118,7 +118,7 @@ statics_table_t statics_table_t::load_from_file(const std::string &path) {
 
     COMPILE_ASSERT(initialized_size <= total_size,
             "Expecting initialized_size <= total_size");
-    static_data_t buf {total_size, runtime::get_default_stream()};
+    static_data_t buf {total_size, runtime::get_default_stream()->engine_};
 
     readitems = fread(buf.data_, initialized_size, 1, ofs);
     COMPILE_ASSERT(readitems == 1, "Bad EOF");

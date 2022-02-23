@@ -18,12 +18,11 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_LOCALS_HPP
 #include <assert.h>
 #include <list>
+#include "context.hpp"
 #include "memorypool.hpp"
 
 namespace sc {
 namespace runtime {
-struct engine_t;
-struct stream;
 
 struct amx_buffer_t {
     void *ptr_ = nullptr;
@@ -38,7 +37,7 @@ struct thread_local_registry_t;
 // sc::release_runtime_memory to manually release all thread local memory
 // managed by this struct
 struct thread_local_buffer_t {
-    stream_t *stream_ = nullptr;
+    engine_t *engine_ = nullptr;
     amx_buffer_t amx_buffer_;
     // if the current thread is the "main" thread, use this pool
     memory_pool::filo_memory_pool_t main_memory_pool_ {
@@ -73,8 +72,8 @@ private:
 // entry of the kernel
 inline thread_local_buffer_t &get_tls(runtime::stream_t *stream) {
     auto &ret = thread_local_buffer_t::tls_buffer_;
-    assert(ret.stream_ == nullptr || ret.stream_ == stream);
-    ret.stream_ = stream;
+    assert(ret.engine_ == nullptr || ret.engine_ == stream->engine_);
+    ret.engine_ = stream->engine_;
     return ret;
 }
 

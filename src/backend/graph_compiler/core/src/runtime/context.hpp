@@ -37,18 +37,13 @@ struct engine_vtable_t {
     dealloc_t temp_dealloc;
 };
 
-struct stream_vtable_t : public engine_vtable_t {
+struct stream_vtable_t {
     using parallel_call_cpu_t
             = void (*)(void (*)(void *, void *, int64_t, generic_val *), void *,
                     void *, int64_t, int64_t, int64_t, generic_val *);
     parallel_call_cpu_t parallel_call;
-
-    constexpr stream_vtable_t(alloc_t persist_alloc, dealloc_t persist_dealloc,
-            alloc_t tmp_alloc, dealloc_t tmp_dealloc,
-            parallel_call_cpu_t parallel_call_f)
-        : engine_vtable_t {persist_alloc, persist_dealloc, tmp_alloc,
-                tmp_dealloc}
-        , parallel_call(parallel_call_f) {}
+    constexpr stream_vtable_t(parallel_call_cpu_t pcall)
+        : parallel_call(pcall) {}
 };
 
 struct engine_t {
@@ -56,14 +51,24 @@ struct engine_t {
     engine_t(engine_vtable_t *vtable) : vtable_(vtable) {}
 };
 
-struct stream_t : public engine_t {
-    stream_t(stream_vtable_t *vtable) : engine_t {vtable} {}
-    stream_vtable_t *vtable() const {
-        return static_cast<stream_vtable_t *>(vtable_);
-    }
+struct stream_t {
+    // we are using stream_vtable_t instead of stream_vtable_t* because
+    // currently stream_vtable_t has only one field. Using the value type
+    // instead of the pointer saves a memory access. Need to change back to
+    // pointer if the vtable has move than 1 field
+    stream_vtable_t vtable_;
+    engine_t *engine_;
+
+    constexpr stream_t(stream_vtable_t vtable, engine_t *engine)
+        : vtable_ {vtable}, engine_ {engine} {}
+    const stream_vtable_t *vtable() const { return &vtable_; }
 };
 
-SC_API stream_t *get_default_stream();
+SC_API extern stream_t default_stream;
+
+inline stream_t *get_default_stream() {
+    return &default_stream;
+}
 
 } // namespace runtime
 

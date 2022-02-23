@@ -222,7 +222,7 @@ uint32_t context_t::get_max_vector_lanes(sc_data_etype etype) const {
 
 context_t::context_t(const scflags_t &flags, target_machine_t &&machine,
         runtime::engine_t *engine)
-    : engine_(engine ? engine : runtime::get_default_stream())
+    : engine_(engine ? engine : runtime::get_default_stream()->engine_)
     , flags_(flags)
     , machine_(std::move(machine)) {}
 

@@ -68,11 +68,11 @@ void *alloc_by_mmap(runtime::engine_t *eng, size_t sz) {
 
 memory_block_t *memory_block_t::make(runtime::stream_t *stream, size_t sz,
         memory_block_t *prev, memory_block_t *next) {
-    auto ret = stream->vtable()->temp_alloc(stream, sz);
+    auto ret = stream->engine_->vtable_->temp_alloc(stream->engine_, sz);
     memory_block_t *blk = reinterpret_cast<memory_block_t *>(ret);
     blk->size_ = sz;
     blk->allocated_ = sizeof(memory_block_t);
-    blk->stream_ = stream;
+    blk->engine_ = stream->engine_;
     static_assert(sizeof(memory_block_t) == offsetof(memory_block_t, buffer_),
             "sizeof(memory_block_t) == offsetof(memory_block_t, buffer_)");
     blk->prev_ = prev;
@@ -93,8 +93,8 @@ void dealloc_by_mmap(runtime::engine_t *eng, void *b) {
 static void free_memory_block_list(memory_block_t *b) {
     while (b) {
         memory_block_t *next = b->next_;
-        auto stream = b->stream_;
-        stream->vtable()->temp_dealloc(stream, b);
+        auto engine = b->engine_;
+        engine->vtable_->temp_dealloc(engine, b);
         b = next;
     }
 }
