@@ -95,6 +95,13 @@ inline std::vector<expr> get_slice_shape(const slice_range &range) {
     return ret;
 }
 
+inline bool share_with_output(const graph_tensor_ptr &gt) {
+    return std::any_of(gt->uses_.begin(), gt->uses_.end(),
+            [](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                return user.second->isa<output_op>();
+            });
+}
+
 /**
  * A slice of the tensor.
  * @param tptr_ the base tensor_ptr
