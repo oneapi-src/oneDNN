@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ struct prb_dims_t {
     dims_t dims;
     int ndims;
     std::string name;
+
+    int64_t nelems(int mask) const;
 };
 
 // Note: we could use a single type to contain both dims_t and vdims_t versions.
@@ -44,6 +46,7 @@ struct prb_vdims_t {
 
     int n_inputs() const { return static_cast<int>(vdims.size()); }
     int get_broadcast_mask(int i_input = 1) const;
+    int64_t nelems(int i_input, int mask) const;
 };
 
 // strides for SRC, WEI, and DST
