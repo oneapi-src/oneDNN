@@ -344,12 +344,11 @@ int fill_wei(
             prb->kh, prb->kw,
             [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
                     int64_t kw) {
-                const int64_t gen
-                        = 127 * kd + 131 * kh + 137 * kw + 139 * oc + 149 * ic;
+                const int64_t gen = 113 * g + 127 * kd + 131 * kh + 137 * kw
+                        + 139 * oc + 149 * ic + 151;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
-
                 ((float *)mem_00)[wei_off_f(prb, g, oc, ic, kd, kh, kw)]
                         = value;
             });
@@ -374,7 +373,6 @@ int fill_wei(
         int rc = std::memcmp((void *)mem_dt, (void *)mem_dt_s8, mem_dt.size());
         SAFE(rc == 0 ? OK : FAIL, WARN);
     }
-
     return OK;
 }
 
