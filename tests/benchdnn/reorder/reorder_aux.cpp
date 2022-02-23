@@ -126,10 +126,7 @@ int prb_t::get_compensation_mask(flag_bit_t flag) const {
 float *prb_t::generate_oscales() {
     const attr_t::scale_t &oscale = this->attr.oscale;
     const int mask = attr_t::get_default_mask(oscale.policy);
-
-    int64_t uniq_scales = 1;
-    for (int d = 0; d < this->ndims; ++d)
-        if (mask & (1 << d)) uniq_scales *= this->dims[d];
+    int64_t uniq_scales = nelems(mask);
 
     float *scales = (float *)zmalloc(sizeof(float) * uniq_scales, 64);
     SAFE_V(scales != nullptr ? OK : FAIL);

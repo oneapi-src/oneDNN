@@ -31,15 +31,6 @@
 
 namespace reorder {
 
-int get_n_scales(const prb_t *prb) {
-    const int mask = attr_t::get_default_mask(prb->attr.oscale.policy);
-    int n_scales = 1;
-    for (int d = 0; d < prb->ndims; ++d) {
-        if (mask & (1 << d)) n_scales *= prb->dims[d];
-    }
-    return n_scales;
-}
-
 // Filling for integers is different due to problematic int -> float conversion.
 // And it doesn't require many different points to be tested.
 int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
@@ -301,7 +292,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     }
 
     attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, get_n_scales(prb));
+    const int mask = attr_t::get_default_mask(prb->attr.oscale.policy);
+    attr_args.prepare_output_scales(prb->attr, prb->scales, prb->nelems(mask));
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -503,8 +495,9 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
+    const int mask = attr_t::get_default_mask(prb->attr.oscale.policy);
     maybe_prepare_runtime_scales(
-            scales, prb->attr.oscale, get_n_scales(prb), prb->scales);
+            scales, prb->attr.oscale, prb->nelems(mask), prb->scales);
     maybe_prepare_runtime_zero_points(
             src_zero_points_m, prb->attr, DNNL_ARG_SRC, 1, prb->src_zp);
     maybe_prepare_runtime_zero_points(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,24 @@
 *******************************************************************************/
 
 #include "utils/dims.hpp"
+
+static int64_t dims_nelems(const dims_t &dims, int ndims, int mask) {
+    int64_t nelems = 1;
+    for (int d = 0; d < ndims; d++) {
+        nelems *= (mask & (1 << d)) ? dims[d] : 1;
+    }
+    return nelems;
+}
+
+int64_t prb_dims_t::nelems(int mask) const {
+    return dims_nelems(dims, ndims, mask);
+}
+
+int64_t prb_vdims_t::nelems(int i_input, int mask) const {
+    assert(i_input <= n_inputs() && i_input >= 0);
+    const auto &dims = i_input == n_inputs() ? dst_dims : vdims[i_input];
+    return dims_nelems(dims, ndims, mask);
+}
 
 int prb_vdims_t::get_broadcast_mask(int i_input) const {
     int broadcast_mask = 0;
