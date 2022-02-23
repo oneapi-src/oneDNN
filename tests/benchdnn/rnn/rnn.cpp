@@ -547,6 +547,14 @@ int fill_bias(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
+void compute_ref(
+        const prb_t &prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    if (prb.prop != dnnl_backward)
+        compute_ref_fwd(prb, args);
+    else
+        compute_ref_bwd(prb, args);
+}
+
 static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
         dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
@@ -1000,7 +1008,7 @@ int doit(const prb_t &prb, res_t *res) {
     if (prb.alg == VANILLA_LSTM)
         SAFE(fill_memory(prb, DST_ITER_C, dst_iter_c_dt, dst_iter_c_fp), WARN);
 
-    args_t args;
+    args_t args, ref_args;
 
     // Running the forward pass
     args.set(DNNL_ARG_SRC_LAYER, src_layer_dt);
@@ -1022,10 +1030,20 @@ int doit(const prb_t &prb, res_t *res) {
 
     if (prb.prop != dnnl_backward) {
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_fwd(prb, src_layer_fp, src_layer_attention_fp,
-                    src_iter_fp, src_iter_c_fp, weights_layer_fp,
-                    weights_iter_fp, weights_peephole_fp, weights_projection_fp,
-                    bias_fp, dst_layer_fp, dst_iter_fp, dst_iter_c_fp));
+            ref_args.set(DNNL_ARG_SRC_LAYER, src_layer_fp);
+            ref_args.set(DNNL_ARG_AUGRU_ATTENTION, src_layer_attention_fp);
+            ref_args.set(DNNL_ARG_SRC_ITER, src_iter_fp);
+            ref_args.set(DNNL_ARG_SRC_ITER_C, src_iter_c_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS_LAYER, weights_layer_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS_ITER, weights_iter_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS_PEEPHOLE, weights_peephole_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS_PROJECTION, weights_projection_fp);
+            ref_args.set(DNNL_ARG_BIAS, bias_fp);
+            ref_args.set(DNNL_ARG_DST_LAYER, dst_layer_fp);
+            ref_args.set(DNNL_ARG_DST_ITER, dst_iter_fp);
+            ref_args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
 
             COMPARE_DAT(DST_LAYER, dst_layer, tag::abx /*tnc*/);
             COMPARE_DAT(DST_ITER, dst_iter, tag::abx /*ldnc*/);
@@ -1189,15 +1207,35 @@ int doit(const prb_t &prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, src_layer_fp, src_layer_attention_fp,
-                    src_iter_fp, src_iter_c_fp, diff_dst_layer_fp,
-                    diff_dst_iter_fp, diff_dst_iter_c_fp, weights_layer_fp,
-                    weights_iter_fp, weights_peephole_fp, weights_projection_fp,
-                    bias_fp, dst_layer_fp, dst_iter_fp, dst_iter_c_fp,
-                    diff_src_layer_fp, diff_src_layer_attention_fp,
-                    diff_src_iter_fp, diff_src_iter_c_fp, diff_weights_layer_fp,
-                    diff_weights_iter_fp, diff_weights_peephole_fp,
-                    diff_weights_projection_fp, diff_bias_fp));
+            ref_args.set(DNNL_ARG_SRC_LAYER, src_layer_fp);
+            ref_args.set(DNNL_ARG_AUGRU_ATTENTION, src_layer_attention_fp);
+            ref_args.set(DNNL_ARG_SRC_ITER, src_iter_fp);
+            ref_args.set(DNNL_ARG_SRC_ITER_C, src_iter_c_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS_LAYER, weights_layer_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS_ITER, weights_iter_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS_PEEPHOLE, weights_peephole_fp);
+            ref_args.set(DNNL_ARG_WEIGHTS_PROJECTION, weights_projection_fp);
+            ref_args.set(DNNL_ARG_BIAS, bias_fp);
+            ref_args.set(DNNL_ARG_DST_LAYER, dst_layer_fp);
+            ref_args.set(DNNL_ARG_DST_ITER, dst_iter_fp);
+            ref_args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST_LAYER, diff_dst_layer_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST_ITER, diff_dst_iter_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST_ITER_C, diff_dst_iter_c_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC_LAYER, diff_src_layer_fp);
+            ref_args.set(
+                    DNNL_ARG_DIFF_AUGRU_ATTENTION, diff_src_layer_attention_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC_ITER, diff_src_iter_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC_ITER_C, diff_src_iter_c_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_LAYER, diff_weights_layer_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_ITER, diff_weights_iter_fp);
+            ref_args.set(
+                    DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole_fp);
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_PROJECTION,
+                    diff_weights_projection_fp);
+            ref_args.set(DNNL_ARG_DIFF_BIAS, diff_bias_fp);
+
+            TIME_REF(compute_ref(prb, ref_args));
 
             COMPARE_DAT(DST_LAYER, dst_layer, tag::abx /*tnc*/);
             COMPARE_DAT(DST_ITER, dst_iter, tag::abx /*ldnc*/);

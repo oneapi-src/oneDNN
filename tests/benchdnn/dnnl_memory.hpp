@@ -127,6 +127,11 @@ struct dnn_mem_t {
         return static_cast<T *>(mapped_ptr_);
     }
 
+    explicit operator bool() const {
+        assert(is_mapped_);
+        return bool(mapped_ptr_);
+    }
+
     float get_elem(int64_t idx) const {
         void *data = (void *)*this;
         float elem = 0.0;
