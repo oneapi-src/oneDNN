@@ -49,10 +49,10 @@ struct op_inplace_pair_t {
 std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         op_t &op, primitive_attr_mgr_t &prm_attr_mgr) {
     // TODO(xxx) extend the set
-    const static std::set<impl::op_kind_t> ops {op_kind::mul_scales,
-            op_kind::add_zps, impl::op_kind::Reorder, impl::op_kind::TypeCast,
-            op_kind::dnnl_binary, op_kind::dnnl_eltwise, impl::op_kind::SoftMax,
-            impl::op_kind::LogSoftmax, op_kind::dnnl_softmax_bwd,
+    const static std::set<impl::op_kind_t> ops {op_kind::dnnl_mul_scales,
+            op_kind::dnnl_add_zps, op_kind::dnnl_reorder, op_kind::dnnl_binary,
+            op_kind::dnnl_eltwise, op_kind::dnnl_softmax,
+            op_kind::dnnl_logsoftmax, op_kind::dnnl_softmax_bwd,
             op_kind::dnnl_logsoftmax_bwd};
     std::vector<op_inplace_pair_t> pairs;
 
@@ -68,7 +68,7 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         // the post-ops input offset
         size_t index = 1;
         if (op.get_kind() == op_kind::dnnl_convolution
-                || op.get_kind() == impl::op_kind::MatMul
+                || op.get_kind() == op_kind::dnnl_matmul
                 || op.get_kind() == impl::op_kind::ConvTranspose) {
             index = op.has_attr("with_bias") && op.get_attr<bool>("with_bias")
                     ? 3 // src, wei, bias
@@ -860,7 +860,9 @@ void memory_planner_t::prepare_args_for_reorder_op(op_t *op,
         args.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, mem});
     }
 
-    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+    dnnl::primitive_attr prm_attr
+            = (op->has_attr("primitive_attr_key")
+                      && op->get_attr<int64_t>("primitive_attr_key") != -1)
             ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
             : dnnl::primitive_attr();
     dnnl::post_ops pops = prm_attr.get_post_ops();
@@ -1235,14 +1237,14 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
     ret = impl::topo_order_visit(
             impl::graph_t(subgraph).get_output_ops(), [&](impl::op_t *op) {
                 if (op->get_kind() == op_kind::dnnl_convolution
-                        || op->get_kind() == impl::op_kind::MatMul
+                        || op->get_kind() == op_kind::dnnl_matmul
                         || op->get_kind() == op_kind::dnnl_convtranspose
                         || op->get_kind() == op_kind::dnnl_conv_depthwise) {
                     prepare_args_for_conv_and_matmul(
                             op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_pool
-                        || op->get_kind() == impl::op_kind::SoftMax
-                        || op->get_kind() == impl::op_kind::LogSoftmax) {
+                        || op->get_kind() == op_kind::dnnl_softmax
+                        || op->get_kind() == op_kind::dnnl_logsoftmax) {
                     const bool is_training = op->has_attr("is_training")
                             ? op->get_attr<bool>("is_training")
                             : false;
@@ -1286,7 +1288,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     bind_memory_for_batchnorm(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
                     bind_memory_for_batchnorm_bwd(op, p_engine, prm_attr_mgr);
-                } else if (op->get_kind() == impl::op_kind::LayerNorm) {
+                } else if (op->get_kind() == op_kind::dnnl_layernorm) {
                     bind_memory_for_layernorm(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_layernorm_bwd) {
                     bind_memory_for_layernorm_bwd(op, p_engine, prm_attr_mgr);
@@ -1296,10 +1298,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_binary(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_constant) {
                     prepare_args_for_niso_op(op, p_engine, prm_attr_mgr);
-                } else if (op->get_kind() == impl::op_kind::Reorder
-                        || op->get_kind() == op_kind::mul_scales
-                        || op->get_kind() == op_kind::dnnl_u8_to_s8
-                        || op->get_kind() == impl::op_kind::TypeCast) {
+                } else if (op->get_kind() == op_kind::dnnl_mul_scales
+                        || op->get_kind() == op_kind::dnnl_reorder) {
                     prepare_args_for_reorder_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_resampling_bwd) {
                     prepare_args_for_resampling_bwd(op, p_engine, prm_attr_mgr);

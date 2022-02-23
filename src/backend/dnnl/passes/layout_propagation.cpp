@@ -35,14 +35,6 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 using value_ptr = std::shared_ptr<impl::value_t>;
 using ltw = impl::logical_tensor_wrapper_t;
 
-static value_ptr insert_scratchpad(op_ptr &op) {
-    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
-    value_ptr scratchpad_val
-            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
-    op->add_output(scratchpad_val);
-    return scratchpad_val;
-}
-
 static value_ptr insert_workspace(op_ptr &op) {
     logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
     value_ptr workspace_val
@@ -60,7 +52,7 @@ static inline void insert_reorder_before(op_ptr &op, size_t offset,
     if (make_dnnl_memory_desc(in_lt) == opt_mdesc || ltw(in_lt).is_any())
         return;
 
-    auto reorder_op = std::make_shared<op_t>(impl::op_kind::Reorder);
+    auto reorder_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
     insert_op_before(reorder_op, op, offset);
     reorder_ops.emplace_back(reorder_op);
     // set optimal layout to reorder's output
@@ -80,7 +72,7 @@ static inline void insert_reorder_after(op_ptr &op, size_t offset,
     if (make_dnnl_memory_desc(out_lt) == opt_mdesc || ltw(out_lt).is_any())
         return;
 
-    auto reorder_op = std::make_shared<op_t>(impl::op_kind::Reorder);
+    auto reorder_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
     insert_op_after(reorder_op, op, offset);
     reorder_ops.emplace_back(reorder_op);
     // set optimal layout to reorder's input
@@ -304,7 +296,7 @@ static void layout_propagation_for_matmul(op_ptr &op,
     fill_layout_info(dst, pd.dst_desc());
 
     // fill scratchpads dimensions and data type to scratchpad value_t
-    auto scratchpad_val = insert_scratchpad(op);
+    auto scratchpad_val = op->get_output_value(1);
     const memory::desc scratchpad_desc = pd.scratchpad_desc();
     const memory::dims dims = scratchpad_desc.dims();
     scratchpad_val->set_dims(dims);
@@ -448,7 +440,7 @@ static void layout_propagation_for_batchnorm_bwd(op_ptr &op,
     fill_layout_info(diff_beta, pd.diff_weights_desc());
 
     // make scratchpad as batchnorm's last output
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    value_ptr scratchpad_val = insert_empty_scratchpad(op);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -493,7 +485,7 @@ static void layout_propagation_for_layernorm(op_ptr &op,
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
-    if (op->num_outputs() > 1) {
+    if (op->num_outputs() > 2) {
         // keep_stats is true
         value_ptr mean = op->get_output_value(1);
         value_ptr variance = op->get_output_value(2);
@@ -501,8 +493,8 @@ static void layout_propagation_for_layernorm(op_ptr &op,
         fill_layout_info(variance, pd.variance_desc());
     }
 
-    // make scratchpad as batchnorm's last output
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    // scratchpad is layernorm's last output
+    value_ptr scratchpad_val = op->get_output_values().back();
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -868,11 +860,21 @@ static void layout_propagation_for_reorder(op_ptr &op) {
     auto out_lt = dst->get_logical_tensor();
 
     if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
+        assertm(!op->has_attr("change_layout")
+                        || !op->get_attr<bool>("change_layout"),
+                "the dnnl_reorder op's input and output layout must be known "
+                "if it changes layout");
+
         auto out_md = make_dnnl_memory_desc(in_lt);
         out_md.data.data_type
                 = static_cast<dnnl_data_type_t>(ltw(out_lt).data_type());
         fill_layout_info(dst, out_md);
     } else if (!ltw(out_lt).is_any() && ltw(in_lt).is_any()) {
+        assertm(!op->has_attr("change_layout")
+                        || !op->get_attr<bool>("change_layout"),
+                "the dnnl_reorder op's input and output layout must be known "
+                "if it changes layout");
+
         auto in_md = make_dnnl_memory_desc(out_lt);
         in_md.data.data_type
                 = static_cast<dnnl_data_type_t>(ltw(in_lt).data_type());
@@ -1025,17 +1027,17 @@ static void layout_propagation_for_dnnl_sum(op_ptr &op,
     assertm(!input_has_any_format,
             "input format of sum primitive cannot be any.");
 
-    if (ltw(dst->get_logical_tensor()).is_any()) {
-        auto pd = create_dnnl_sum_pd(op, p_engine, prm_attr_mgr);
+    auto pd = create_dnnl_sum_pd(op, p_engine, prm_attr_mgr);
 
+    if (ltw(dst->get_logical_tensor()).is_any()) {
         insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
         dst = op->get_output_value(0);
         fill_layout_info(dst, pd.dst_desc());
-
-        // make scratchpad as sum's last output
-        value_ptr scratchpad_val = insert_scratchpad(op);
-        fill_layout_info(scratchpad_val, pd.scratchpad_desc());
     }
+
+    // scratchpad is dnnl_sum's last output
+    value_ptr scratchpad_val = op->get_output_values().back();
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
 static void layout_propagation_for_softmax(op_ptr &op,
@@ -1056,8 +1058,8 @@ static void layout_propagation_for_softmax(op_ptr &op,
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
-    // make scratchpad as softmax's last output
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    // scratchpad is dnnl_softmax's last output
+    value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -1107,8 +1109,8 @@ static void layout_propagation_for_logsoftmax(op_ptr &op,
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
-    // make scratchpad as logsoftmax's last output
-    value_ptr scratchpad_val = insert_scratchpad(op);
+    // scratchpad is dnnl_logsoftmax's last output
+    value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
@@ -1248,7 +1250,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_weights) {
                 layout_propagation_for_conv_bwd_weights(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_matmul) {
                 layout_propagation_for_matmul(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_pool) {
@@ -1263,7 +1265,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
                 layout_propagation_for_batchnorm_bwd(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == impl::op_kind::LayerNorm) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_layernorm) {
                 layout_propagation_for_layernorm(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_layernorm_bwd) {
@@ -1280,7 +1282,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::permute) {
                 layout_propagation_for_permute(cur_op, reorder_ops);
-            } else if (cur_op->get_kind() == op_kind::mul_scales) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_mul_scales) {
                 layout_propagation_for_mul_scales(cur_op);
             } else if (cur_op->get_kind() == op_kind::to_group) {
                 layout_propagation_for_to_group(cur_op);
@@ -1290,9 +1292,7 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 layout_propagation_for_transpose(cur_op, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::expand) {
                 layout_propagation_for_expand(cur_op);
-            } else if (cur_op->get_kind() == impl::op_kind::Reorder
-                    || cur_op->get_kind() == impl::op_kind::TypeCast
-                    || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_reorder) {
                 layout_propagation_for_reorder(cur_op);
             } else if (cur_op->get_kind() == op_kind::squeeze) {
                 layout_propagation_for_squeeze(cur_op, reorder_ops);
@@ -1310,13 +1310,13 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
                 layout_propagation_for_binary(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == impl::op_kind::SoftMax) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_softmax) {
                 layout_propagation_for_softmax(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd) {
                 layout_propagation_for_softmax_bwd(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() == impl::op_kind::LogSoftmax) {
+            } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax) {
                 layout_propagation_for_logsoftmax(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {

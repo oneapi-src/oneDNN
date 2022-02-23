@@ -9894,7 +9894,8 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
             lt_ins = {&src_u8, &weight_s8};
         std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
 
-        p.compile(&cp, lt_ins, lt_outs, &engine);
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, &engine),
+                impl::status::success);
 
         if (with_bias)
             cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -17515,6 +17516,11 @@ TEST(Execute, Int8ConvBiasReluConvBiasReluBlock) {
 TEST(Execute, ReorderAddBf16) {
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core
+                    && eng.kind() == impl::engine_kind::cpu,
+            "Skip bf16 examples for systems that do not support avx512_core.");
 
     test::vector<uint16_t> src {1, 2, 3, 4, 5, 6};
     test::vector<uint16_t> post_src {1, 2, 3, 4, 5, 6};

@@ -257,14 +257,6 @@ inline bool is_preprocess_op(impl::op_t &op) {
     return preprocess_ops.count(op.get_kind()) != 0;
 }
 
-inline bool is_inplace(op_t &op) {
-    if (is_preprocess_op(op)) return true;
-
-    const static std::set<impl::op_kind_t> ops {
-            op_kind::mul_scales, op_kind::add_zps};
-    return ops.count(op.get_kind()) != 0;
-}
-
 void replace_op(std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
 
 inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
@@ -369,6 +361,14 @@ const std::unordered_map<impl::op_kind_t, std::unordered_set<impl::op_kind_t>> &
 get_post_ops_fusible_map();
 
 const std::string &kind2str(impl::op_kind_t kind);
+
+std::shared_ptr<impl::value_t> insert_empty_scratchpad(
+        std::shared_ptr<op_t> &op);
+
+// This function is used to check if a dnnl_reorder op is converted from or act
+// as a TypeCast op. This function will only return true for a dnnl_reorder op
+// which only has different input/output data type.
+bool is_typecast(const impl::op_t *op);
 
 } // namespace dnnl_impl
 } // namespace impl

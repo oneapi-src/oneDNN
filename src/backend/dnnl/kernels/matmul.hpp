@@ -91,10 +91,12 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
         if (quantized) {
+            // split quant/dequant to pairs of mul_scales and add_zps
+            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_matmul);
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_quantize);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
@@ -108,9 +110,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
 
         if (quantized) {
-            // split quant/dequant to pairs of mul_scales and add_zps
-            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
-            BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_matmul);
             BACKEND_DNNL_ADD_PASS(pipeline, folding_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);

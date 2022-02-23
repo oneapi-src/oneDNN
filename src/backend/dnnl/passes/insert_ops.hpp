@@ -72,10 +72,10 @@ impl::status_t insert_reshape_for_ndx2d_matmul(std::shared_ptr<subgraph_t> &sg);
 impl::status_t insert_expand_and_squeeze_for_matmul(
         std::shared_ptr<subgraph_t> &sg);
 
-/// Insert an dnnl_u8_to_s8 op for matmul's weight tensor
+/// Insert an dnnl_reorder op for matmul's weight tensor to shift the weight
+/// from u8 to s8
 ///
-/// Only valid for below scenarios:
-/// src and weight's dtype are both uint8
+/// Only valid for below scenarios: src and weight's dtype are both uint8
 impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg);
 
 /// Insert expand_to op to make PReLU input shapes meet DNNL requirements

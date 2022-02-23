@@ -130,7 +130,8 @@ create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->get_attr<int64_t>("primitive_attr_key") != -1) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -180,7 +181,8 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -239,7 +241,8 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->get_attr<int64_t>("primitive_attr_key") != -1) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -469,7 +472,8 @@ create_batchnorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
     auto flags = normalization_flag::use_scale | normalization_flag::use_shift;
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -548,7 +552,8 @@ create_layernorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -592,7 +597,8 @@ create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->get_attr<int64_t>("primitive_attr_key") != -1) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -687,17 +693,8 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     }
 
     float alpha = 0.f, beta = 0.f;
-    if (op->has_attr("alpha")) {
-        alpha = op->get_attr<float>("alpha");
-    } else if (op->has_attr("min")) {
-        alpha = op->get_attr<float>("min");
-    }
-
-    if (op->has_attr("beta")) {
-        beta = op->get_attr<float>("beta");
-    } else if (op->has_attr("max")) {
-        beta = op->get_attr<float>("max");
-    }
+    if (op->has_attr("alpha")) { alpha = op->get_attr<float>("alpha"); }
+    if (op->has_attr("beta")) { beta = op->get_attr<float>("beta"); }
 
     dnnl::primitive_attr prm_attr;
     if (op->has_attr("primitive_attr_key")
@@ -849,7 +846,8 @@ create_resampling_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
         int64_t key = op->get_attr<int64_t>("primitive_attr_key");
         prm_attr = prm_attr_mgr.get_attr(key);
     }
@@ -1095,7 +1093,7 @@ inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
     if (alg == algorithm::undef) {
         BACKEND_DNNL_ENFORCE(0, "Unsupported reduction op.");
     }
-    float p = op->get_attr<float>("p");
+    float p = op->has_attr("p") ? op->get_attr<float>("p") : 0.f;
 
     float eps = 0.0f;
 
@@ -1431,12 +1429,9 @@ struct reorder_executable_t : public op_executable_t {
                 op->get_output_value(0)->get_logical_tensor());
 
         dnnl::primitive_attr prm_attr;
-        if (op->has_attr("primitive_attr_key")) {
+        if (op->has_attr("primitive_attr_key")
+                && op->get_attr<int64_t>("primitive_attr_key") != -1) {
             int64_t attr_key = op->get_attr<int64_t>("primitive_attr_key");
-            prm_attr = prm_attr_mgr.get_attr(attr_key);
-        } else {
-            int64_t attr_key = prm_attr_mgr.init_attr();
-            op->set_attr<int64_t>("primitive_attr_key", attr_key);
             prm_attr = prm_attr_mgr.get_attr(attr_key);
         }
 
@@ -1478,11 +1473,6 @@ struct reorder_executable_t : public op_executable_t {
             std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(
                     zps, [](int64_t zp) { return static_cast<int32_t>(zp); });
             prm_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
-        }
-
-        if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
-            const int32_t u8_to_s8_shift = -128;
-            prm_attr.set_zero_points(DNNL_ARG_TO, mask, {u8_to_s8_shift});
         }
 
         pd_ = dnnl::reorder::primitive_desc(

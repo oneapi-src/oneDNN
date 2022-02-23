@@ -178,10 +178,10 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
             });
     ASSERT_NE(conv_op, subgraph->get_ops().end());
     auto &producer0 = (*conv_op)->get_input_value(0)->get_producer();
-    ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::mul_scales);
+    ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
     ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
     auto &producer1 = (*conv_op)->get_input_value(1)->get_producer();
-    ASSERT_EQ(producer1.get_kind(), dnnl_impl::op_kind::mul_scales);
+    ASSERT_EQ(producer1.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
     ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
 
     // 2. merge into int8 conv, change the input's scales to output scale
@@ -193,7 +193,7 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
             });
     auto &consumer
             = (*qconv_op)->get_output_value(0)->get_consumers()[0].get_op();
-    ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::mul_scales);
+    ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
     ASSERT_EQ(consumer.get_attr<std::vector<float>>("scales")[0],
             scales[0] * scales[0]);
 
@@ -300,13 +300,13 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     ASSERT_EQ(subgraph->get_ops().size(), 8);
     auto matmul_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
-                return op->get_kind() == op_kind::MatMul;
+                return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
     auto &producer0 = (*matmul_op)->get_input_value(0)->get_producer();
-    ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::mul_scales);
+    ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
     ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
     auto &producer1 = (*matmul_op)->get_input_value(1)->get_producer();
-    ASSERT_EQ(producer1.get_kind(), dnnl_impl::op_kind::mul_scales);
+    ASSERT_EQ(producer1.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
     ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
 
     // 2. merge into int8 matmul, change the input's scales to output scale
@@ -314,11 +314,11 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     dnnl_impl::folding_mul_scales(subgraph);
     auto qmatmul_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
-                return op->get_kind() == op_kind::MatMul;
+                return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
     auto &consumer
             = (*qmatmul_op)->get_output_value(0)->get_consumers()[0].get_op();
-    ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::mul_scales);
+    ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
     ASSERT_EQ(consumer.get_attr<std::vector<float>>("scales")[0],
             scales[0] * scales[0]);
 
@@ -330,7 +330,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
 
     qmatmul_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
-                return op->get_kind() == op_kind::MatMul;
+                return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
     ASSERT_TRUE((*qmatmul_op)->has_attr("primitive_attr_key"));
     int64_t key = (*qmatmul_op)->get_attr<int64_t>("primitive_attr_key");
@@ -548,14 +548,16 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     if (subgraph->get_ops()[0]->get_kind()
             == dnnl_impl::op_kind::dnnl_convolution) {
         ASSERT_EQ(subgraph->get_ops()[1]->get_kind(),
-                dnnl_impl::op_kind::mul_scales);
-        ASSERT_EQ(subgraph->get_ops()[2]->get_kind(), op_kind::Reorder);
+                dnnl_impl::op_kind::dnnl_mul_scales);
+        ASSERT_EQ(subgraph->get_ops()[2]->get_kind(),
+                dnnl_impl::op_kind::dnnl_reorder);
     } else {
         ASSERT_EQ(subgraph->get_ops()[0]->get_kind(),
-                dnnl_impl::op_kind::mul_scales);
+                dnnl_impl::op_kind::dnnl_mul_scales);
         ASSERT_EQ(subgraph->get_ops()[1]->get_kind(),
                 dnnl_impl::op_kind::dnnl_convolution);
-        ASSERT_EQ(subgraph->get_ops()[2]->get_kind(), op_kind::Reorder);
+        ASSERT_EQ(subgraph->get_ops()[2]->get_kind(),
+                dnnl_impl::op_kind::dnnl_reorder);
     }
 
     // insert preprocess and reorder ops
@@ -1054,7 +1056,7 @@ TEST(SubgraphPass, ExecutionArgsSet) {
 
 TEST(SubgraphPass, MemoryPlanning) {
     /*
-                / -> Reorder -> Reorder
+                / -> dnnl_reorder -> dnnl_reorder
                /
     mul_scales -> mul_scales -> permute -> mul_scales -> permute -> mul_scales
     -> mul_scales
@@ -1064,15 +1066,15 @@ TEST(SubgraphPass, MemoryPlanning) {
     std::vector<int64_t> shape_NCX {64, 32, 256, 256};
     std::vector<int64_t> shape_NXC {64, 256, 256, 32};
 
-    impl::op_t op1(1, dnnl_impl::op_kind::mul_scales, "op1");
-    impl::op_t op2(2, dnnl_impl::op_kind::mul_scales, "op2");
+    impl::op_t op1(1, dnnl_impl::op_kind::dnnl_mul_scales, "op1");
+    impl::op_t op2(2, dnnl_impl::op_kind::dnnl_mul_scales, "op2");
     impl::op_t op3(3, dnnl_impl::op_kind::permute, "op3");
-    impl::op_t op4(4, dnnl_impl::op_kind::mul_scales, "op4");
+    impl::op_t op4(4, dnnl_impl::op_kind::dnnl_mul_scales, "op4");
     impl::op_t op5(5, dnnl_impl::op_kind::permute, "op5");
-    impl::op_t op6(6, dnnl_impl::op_kind::mul_scales, "op6");
-    impl::op_t op7(7, dnnl_impl::op_kind::mul_scales, "op7");
-    impl::op_t op8(8, impl::op_kind::Reorder, "op8");
-    impl::op_t op9(9, impl::op_kind::Reorder, "op9");
+    impl::op_t op6(6, dnnl_impl::op_kind::dnnl_mul_scales, "op6");
+    impl::op_t op7(7, dnnl_impl::op_kind::dnnl_mul_scales, "op7");
+    impl::op_t op8(8, dnnl_impl::op_kind::dnnl_reorder, "op8");
+    impl::op_t op9(9, dnnl_impl::op_kind::dnnl_reorder, "op9");
 
     op1.set_attr<std::vector<float>>("scales", {0.5});
     op2.set_attr<std::vector<float>>("scales", {0.5});
@@ -1315,15 +1317,15 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
 
     dnnl_impl::lower_down(subgraph);
+    dnnl_impl::split_quant_dequant(subgraph);
     dnnl_impl::fuse_typecast_to_matmul(subgraph);
     dnnl_impl::fuse_typecast_to_add(subgraph);
     dnnl_impl::fuse_post_typecast_to_matmul(subgraph);
-    dnnl_impl::fuse_typecast_to_quantize(subgraph);
+    dnnl_impl::fuse_typecast_to_mul_scales(subgraph);
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::binary_canonicalization(subgraph);
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::infer_type(subgraph);
-    dnnl_impl::split_quant_dequant(subgraph);
     dnnl_impl::fuse_to_int8_matmul(subgraph);
     dnnl_impl::folding_mul_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
@@ -1395,7 +1397,10 @@ TEST(SubgraphPass, FuseTypecastToQuantize) {
             agraph.get_partitions()[0]->get_ops(), p_eng);
     // tc, quant
     ASSERT_EQ(subgraph->get_ops().size(), 2);
-    dnnl_impl::fuse_typecast_to_quantize(subgraph);
+    dnnl_impl::lower_down(subgraph);
+    dnnl_impl::split_quant_dequant(subgraph);
+    dnnl_impl::fuse_typecast_to_mul_scales(subgraph);
+    dnnl_impl::fuse_mul_scales_add_zps(subgraph);
     ASSERT_EQ(subgraph->get_ops().size(), 1);
 }
 

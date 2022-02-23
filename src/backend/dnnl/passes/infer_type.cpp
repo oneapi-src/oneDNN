@@ -66,8 +66,9 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
     bool changed;
     do {
         changed = false;
-        impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
-            if (op->get_kind() == op_kind::mul_scales
+        impl::status_t ret;
+        ret = impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
+            if (op->get_kind() == op_kind::dnnl_mul_scales
                     || op->get_kind() == op_kind::dnnl_constant) {
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
                 if (out_lt.data_type == impl::data_type::undef) {
@@ -75,19 +76,16 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
                             impl::data_type::f32);
                     changed = changed || true;
                 }
-            } else if (op->get_kind() == op_kind::add_zps) {
-                //This op should be fused, can't infer type for it
-                return impl::status::invalid_graph;
             } else if (op->get_kind() == op_kind::permute
-                    || op->get_kind() == impl::op_kind::Reorder
+                    || op->get_kind() == op_kind::dnnl_reorder
                     || op->get_kind() == op_kind::to_group
                     || op->get_kind() == op_kind::expand
                     || op->get_kind() == op_kind::squeeze
                     || op->get_kind() == impl::op_kind::StaticReshape
                     || op->get_kind() == op_kind::dnnl_binary
                     || op->get_kind() == op_kind::dnnl_eltwise
-                    || op->get_kind() == impl::op_kind::SoftMax
-                    || op->get_kind() == impl::op_kind::LogSoftmax
+                    || op->get_kind() == op_kind::dnnl_softmax
+                    || op->get_kind() == op_kind::dnnl_logsoftmax
                     || op->get_kind() == impl::op_kind::StaticTranspose) {
                 auto in_lt = op->get_input_value(0)->get_logical_tensor();
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
@@ -97,19 +95,6 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
                 } else if (in_lt.data_type == impl::data_type::undef) {
                     op->get_input_value(0)->set_data_type(out_lt.data_type);
                     changed = changed || true;
-                }
-            } else if (op->get_kind() == op_kind::dnnl_u8_to_s8) {
-                auto in_lt = op->get_input_value(0)->get_logical_tensor();
-                auto out_lt = op->get_output_value(0)->get_logical_tensor();
-                if (in_lt.data_type != impl::data_type::u8) {
-                    return impl::status::invalid_type;
-                }
-                if (out_lt.data_type == impl::data_type::undef) {
-                    op->get_output_value(0)->set_data_type(impl::data_type::s8);
-                }
-                if (op->get_output_value(0)->get_logical_tensor().data_type
-                        != impl::data_type::s8) {
-                    return impl::status::invalid_type;
                 }
             } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
                 // skip the scratchpad
@@ -129,6 +114,8 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
             }
             return impl::status::success;
         });
+
+        if (ret != impl::status::success) return ret;
     } while (changed);
 
     return impl::status::success;

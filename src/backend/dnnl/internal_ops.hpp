@@ -130,10 +130,10 @@ namespace op_kind {
     X(int8_relu_add, INT8_ReLU_add) \
     X(x8s8float_matmul_add, X8S8FLOAT_MatMul_add) \
     X(x8s8float_matmul_bias_add, X8S8FLOAT_MatMul_bias_add) \
-    X(mul_scales, Mul_scales) \
+    X(dnnl_mul_scales, Dnnl_mul_scales) \
     X(dnnl_constant, Dnnl_constant) \
-    X(add_zps, Add_zps) \
-    X(sub_zps, Sub_zps) \
+    X(dnnl_add_zps, Dnnl_add_zps) \
+    X(dnnl_sub_zps, Dnnl_sub_zps) \
     X(permute, Permute) \
     X(to_group, To_group) \
     X(expand, Expand) \
@@ -190,7 +190,6 @@ namespace op_kind {
     X(int8_avgpool, INT8_AvgPool) \
     X(int8_avgpool_add, INT8_AvgPool_add) \
     X(dnnl_pool, Dnnl_pool) \
-    X(dnnl_u8_to_s8, Dnnl_u8_to_s8) \
     X(dnnl_bn_folding, Dnnl_bn_folding) \
     X(dnnl_conv_bwd_data, Dnnl_conv_bwd_data) \
     X(x8x8float_matmul_div, X8X8FLOAT_MatMul_div) \
@@ -220,9 +219,14 @@ namespace op_kind {
     X(dnnl_resampling_bwd, Dnnl_resampling_bwd) \
     X(dnnl_concat, Dnnl_concat) \
     X(dnnl_layernorm_bwd, Dnnl_layernorm_bwd) \
-    X(float_conv_fusion, Float_conv_fusion) \
     X(dnnl_conv_bwd_weights, Dnnl_conv_bwd_weights) \
-    X(dnnl_pool_bwd, Dnnl_pool_bwd)
+    X(dnnl_pool_bwd, Dnnl_pool_bwd) \
+    X(dnnl_matmul, Dnnl_matmul) \
+    X(dnnl_softmax, Dnnl_softmax) \
+    X(dnnl_logsoftmax, Dnnl_logsoftmax) \
+    X(dnnl_layernorm, Dnnl_layernorm) \
+    X(dnnl_reorder, Dnnl_reorder) \
+    X(float_conv_fusion, Float_conv_fusion)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

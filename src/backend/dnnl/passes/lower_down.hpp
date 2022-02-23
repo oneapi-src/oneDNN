@@ -135,7 +135,7 @@ impl::status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg);
 // This pass is used to fuse those adjacent reorders.
 impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t fuse_typecast_to_quantize(std::shared_ptr<subgraph_t> &sg);
+impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t split_dynamic_quant(std::shared_ptr<subgraph_t> &sg);
 

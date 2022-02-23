@@ -53,7 +53,7 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose) {
             exec = std::make_shared<deconv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_matmul) {
             exec = std::make_shared<matmul_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
@@ -74,10 +74,8 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_concat) {
             exec = std::make_shared<concat_executable_t>(
                     cur_op, p_engine, prm_attr_mgr);
-        } else if (cur_op->get_kind() == op_kind::mul_scales
-                || cur_op->get_kind() == impl::op_kind::Reorder
-                || cur_op->get_kind() == impl::op_kind::TypeCast
-                || cur_op->get_kind() == op_kind::dnnl_u8_to_s8) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_mul_scales
+                || cur_op->get_kind() == op_kind::dnnl_reorder) {
             exec = std::make_shared<reorder_executable_t>(
                     cur_op, p_engine, prm_attr_mgr);
         } else if (cur_op->get_kind() == op_kind::dnnl_constant) {
@@ -105,7 +103,7 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
             exec = std::make_shared<batchnorm_bwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (cur_op->get_kind() == impl::op_kind::LayerNorm) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_layernorm) {
             exec = std::make_shared<layernorm_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_layernorm_bwd) {
@@ -123,13 +121,13 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
             exec = std::make_shared<binary_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (cur_op->get_kind() == impl::op_kind::SoftMax) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_softmax) {
             exec = std::make_shared<softmax_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd) {
             exec = std::make_shared<softmax_bwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
-        } else if (cur_op->get_kind() == impl::op_kind::LogSoftmax) {
+        } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax) {
             exec = std::make_shared<logsoftmax_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {

@@ -302,7 +302,7 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::Reorder) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_reorder) continue;
         auto in_md = make_dnnl_memory_desc(
                 cur_op->get_input_value(0)->get_logical_tensor());
         auto out_md = make_dnnl_memory_desc(
@@ -345,7 +345,7 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
 
         std::vector<bool> trans_flag(2);
         if (cur_op->has_attr("transpose_a"))
@@ -382,7 +382,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
 
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
         // skip due to dnnl cannot reshape such kind of strided memory desc
         if (cur_op->get_input_value(0)->has_producer()
                 && cur_op->get_input_value(0)->get_producer().get_kind()
@@ -444,7 +444,8 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
 
         // update the mask (mask is related to axis, after changing shape, the
         // axis is changed)
-        if (cur_op->has_attr("primitive_attr_key")) {
+        if (cur_op->has_attr("primitive_attr_key")
+                && cur_op->get_attr<int64_t>("primitive_attr_key") != -1) {
             int64_t key = cur_op->get_attr<int64_t>("primitive_attr_key");
             auto prm_attr = prm_attr_mgr.get_attr(key);
             scale_t ori_scales;
@@ -464,7 +465,7 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
 
         std::vector<op_ptr> expand_ops;
         expand_ops.reserve(cur_op->num_inputs());
@@ -555,7 +556,7 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
 
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != impl::op_kind::MatMul) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
 
         int32_t new_src0_dtype
                 = cur_op->get_input_value(0)->get_logical_tensor().data_type;
@@ -567,7 +568,7 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
             continue;
 
         int64_t key = -1;
-        if (cur_op->has_attr("primitive_attr_key")) {
+        if (cur_op->get_attr<int64_t>("primitive_attr_key") != -1) {
             key = cur_op->get_attr<int64_t>("primitive_attr_key");
         } else {
             key = prm_attr_mgr.init_attr();
@@ -581,8 +582,11 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
         std::vector<int32_t> adjusted_zp {current_zp[0] - 128};
         prm_attr.set_zero_points(DNNL_ARG_WEIGHTS, mask, adjusted_zp);
 
-        op_ptr u8_to_s8_op = std::make_shared<op_t>(op_kind::dnnl_u8_to_s8);
+        op_ptr u8_to_s8_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
+        u8_to_s8_op->set_attr<std::vector<int64_t>>(
+                "dst_zps", std::vector<int64_t> {-128});
         insert_op_before(u8_to_s8_op, cur_op, 1);
+        u8_to_s8_op->get_output_value(0)->set_data_type(impl::data_type::s8);
         to_be_inserted_ops.emplace_back(u8_to_s8_op);
     }
     for (const auto &op : to_be_inserted_ops)

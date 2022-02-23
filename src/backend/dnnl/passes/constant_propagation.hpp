@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ namespace dnnl_impl {
 namespace {
 inline bool has_scratchpad(impl::op_kind_t kind) {
     const static std::set<impl::op_kind_t> ops {op_kind::dnnl_convolution,
-            op_kind::dnnl_bn_folding, op_kind::dnnl_pool, impl::op_kind::MatMul,
+            op_kind::dnnl_bn_folding, op_kind::dnnl_pool, op_kind::dnnl_matmul,
             op_kind::dnnl_convtranspose};
     return ops.count(kind) != 0;
 }

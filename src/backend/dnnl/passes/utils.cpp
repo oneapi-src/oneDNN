@@ -266,7 +266,7 @@ void set_all_layout_to_any(std::vector<op_ptr> &subgraph) {
 // just a workaround at this moment.
 void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
     for (auto &op : subgraph) {
-        if (!(op->get_kind() == impl::op_kind::MatMul
+        if (!(op->get_kind() == op_kind::dnnl_matmul
                     || op->get_kind() == op_kind::dnnl_convolution))
             continue;
 
@@ -274,7 +274,7 @@ void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
         op->get_input_value(1)->set_property(property_type::constant);
 
         // set bias to be constant
-        if (op->get_attr<bool>("with_bias")) {
+        if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
             op->get_input_value(2)->set_property(property_type::constant);
         }
     }
@@ -493,38 +493,21 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
         // internal ops or improve the definition
         const static std::set<impl::op_kind_t> ops_need_refine = {
                 // dnnl internal ops
-                op_kind::mul_scales,
-                op_kind::add_zps,
                 op_kind::squeeze,
                 op_kind::expand,
                 op_kind::to_group,
                 op_kind::permute,
-                op_kind::dnnl_sum,
-                op_kind::dnnl_u8_to_s8,
-                op_kind::dnnl_constant,
-                op_kind::dnnl_batchnorm_bwd,
-                op_kind::dnnl_resampling_bwd,
-                op_kind::dnnl_layernorm_bwd,
                 // frontend ops that need to be lower to dnnl internal ops.
                 // but now, we reuse these frontend ops and set some new attrs
                 // for them, which makes them unwell defined
                 impl::op_kind::StaticReshape,
                 impl::op_kind::StaticTranspose,
-                impl::op_kind::TypeCast,
-                impl::op_kind::Quantize,
-                impl::op_kind::Dequantize,
-                impl::op_kind::MatMul,
-                impl::op_kind::Reorder,
-                impl::op_kind::LayerNorm,
-                impl::op_kind::SoftMax,
-                impl::op_kind::LogSoftmax,
         };
 
         // Validate
         // TODO(xxx) Skip unwell defined ops for now. we need to validate
         // all ops after refactor done
         if (ops_need_refine.count(op->get_kind()) == 0) {
-            opm->set_default_attribute(op);
             if (!opm->verify(op, false)) {
                 assertm(false, "schema verify failed");
                 return impl::status::invalid_op;
@@ -549,7 +532,8 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
 
         // Additional verifications
         if (op->get_kind() == op_kind::dnnl_convolution) {
-            bool canonicalized = op->get_attr<bool>("canonicalized");
+            bool canonicalized = op->has_attr("canonicalized")
+                    && op->get_attr<bool>("canonicalized");
             if (canonicalized) {
                 auto data_fmt = op->get_attr<std::string>("data_format");
                 auto filter_fmt = op->get_attr<std::string>("filter_format");
@@ -675,7 +659,7 @@ static bool post_binary_fusible_impl(const impl::op_t *base_op,
 
     // per mb_w broadcasted for 4d tensor MatMul
     int32_t output_ndims = static_cast<int32_t>(fused_shape.size());
-    if (base_op->get_kind() == impl::op_kind::MatMul && output_ndims == 4) {
+    if (base_op->get_kind() == op_kind::dnnl_matmul && output_ndims == 4) {
         int32_t w_axis = data_fmt == "NXC" ? 2 : 3;
         for (int32_t i = output_ndims - 1; i >= 0; i--) {
             if (other_shape[i] == 1) continue;
@@ -834,29 +818,20 @@ get_post_ops_fusible_map() {
     static const std::unordered_map<impl::op_kind_t,
             std::unordered_set<impl::op_kind_t>>
             fusible_map = {
-                    // conv
                     {dnnl_convolution,
                             {dnnl_eltwise, dnnl_binary, dnnl_convolution}},
-                    // deconv
                     {dnnl_convtranspose, {dnnl_eltwise, dnnl_binary}},
-                    // matmul
-                    {MatMul, {dnnl_eltwise, dnnl_binary}},
-                    // pool
+                    {dnnl_matmul, {dnnl_eltwise, dnnl_binary}},
                     {dnnl_pool, {dnnl_binary}},
-                    // eltwise
                     {dnnl_eltwise, {dnnl_binary}},
-                    // binary
                     {dnnl_binary, {dnnl_eltwise, dnnl_binary}},
                     // bn
                     {dnnl_batchnorm, {dnnl_eltwise}},
-                    {BatchNormInference, {dnnl_eltwise}},
-                    // reorder
-                    {Reorder, {dnnl_binary}},
-                    {int8_reorder, {dnnl_binary}},
                     // reduction
                     {dnnl_reduction, {dnnl_eltwise, dnnl_binary}},
                     // resample
                     {dnnl_resampling, {dnnl_eltwise, dnnl_binary}},
+                    {dnnl_reorder, {dnnl_binary}},
             };
     return fusible_map;
 }
@@ -910,6 +885,35 @@ bool prelu_doable(const std::vector<dim_t> &src_dims,
         }
     }
     return doable;
+}
+
+value_ptr insert_empty_scratchpad(op_ptr &op) {
+    logical_tensor_t lt = impl::empty_logical_tensor_with_default_id();
+    value_ptr scratchpad_val
+            = std::make_shared<value_t>(*op, op->num_outputs(), lt);
+    op->add_output(scratchpad_val);
+    scratchpad_val->set_data_type(impl::data_type::u8);
+    scratchpad_val->set_dims(impl::dims {0});
+    return scratchpad_val;
+}
+
+bool is_typecast(const impl::op_t *op) {
+    bool is_typecast = op->get_kind() == dnnl_impl::op_kind::dnnl_reorder
+            && !op->get_attr<bool>("change_layout")
+            && (!op->has_attr("qtype")
+                    || op->get_attr<std::string>("qtype") == "per_tensor")
+            && (!op->has_attr("axis") || op->get_attr<int64_t>("axis") == -1)
+            && !op->has_attr("scales") && !op->has_attr("src_zps")
+            && !op->has_attr("dst_zps")
+            && (!op->has_attr("with_runtime_scales")
+                    || !op->get_attr<bool>("with_runtime_scales"))
+            && (!op->has_attr("with_runtime_src_zps")
+                    || !op->get_attr<bool>("with_runtime_src_zps"))
+            && (!op->has_attr("with_runtime_dst_zps")
+                    || !op->get_attr<bool>("with_runtime_dst_zps"))
+            && op->get_input_value(0)->get_logical_tensor().data_type
+                    != op->get_output_value(0)->get_logical_tensor().data_type;
+    return is_typecast;
 }
 
 } // namespace dnnl_impl
