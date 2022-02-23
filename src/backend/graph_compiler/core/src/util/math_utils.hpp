@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,16 @@ std::vector<T> vector_mul(const std::vector<T> &inputs1, const T &input2) {
     };
     utils::parallel(func, 0, inputs1.size());
     return outputs;
+}
+
+template <class T>
+T get_dims_product(const std::vector<T> &dims) {
+    T ret = 1;
+    for (unsigned i = 0; i < dims.size(); ++i) {
+        ret *= dims[i];
+    }
+    assert(ret > 0 && "Overflow or non-constant shape detected");
+    return ret;
 }
 
 template <typename T,

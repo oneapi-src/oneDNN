@@ -28,20 +28,11 @@
 #include <runtime/config.hpp>
 #include <runtime/parallel.hpp>
 #include <util/any_map.hpp>
-#include <util/utils.hpp>
+#include <util/math_utils.hpp>
 
 using namespace sc::builder;
 namespace sc {
 namespace ops {
-
-static sc_dim get_dims_product(const sc_dims &dims) {
-  if (dims.empty()) { return 0; }
-  sc_dim ret = 1;
-  for (size_t i = 0; i < dims.size(); ++i) {
-    ret *= dims[i];
-  }
-  return ret;
-}
 
 template <typename T>
 static std::vector<T> concat_vec(
@@ -201,7 +192,8 @@ float gen_matmul_core_t::get_gflop() const {
   return get_a_batch_dims().empty() && get_a_batch_dims().empty()
     ? 2.f * plain_M * plain_N * plain_K / 1e9
     : 2.f * plain_M * plain_N * plain_K
-      * get_dims_product(get_a_batch_dims().size() > get_b_batch_dims().size()
+      * math_utils::get_dims_product(
+        get_a_batch_dims().size() > get_b_batch_dims().size()
           ? get_a_batch_dims()
           : get_b_batch_dims())
       / 1e9;
