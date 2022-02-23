@@ -21,6 +21,7 @@
 #include "gpu/nvidia/cudnn_matmul.hpp"
 #include "gpu/nvidia/cudnn_matmul_impl.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/sycl_cuda_memory_storage_helper.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 
@@ -39,13 +40,15 @@ struct cudnn_matmul_exec_base_t {
     virtual ~cudnn_matmul_exec_base_t() = default;
 
 protected:
-    template <typename read_acc_t, typename write_acc_t, typename scratch_acc_t,
-            typename bias_acc_t>
+    template <::sycl::access::mode bias_m, ::sycl::access::mode scratch_m>
     void interop_task(std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             engine_t *engine, ::sycl::handler &cgh,
-            nvidia::sycl_cuda_stream_t *cuda_stream, read_acc_t weights_acc,
-            read_acc_t src_acc, write_acc_t dst_acc, bias_acc_t bias_acc,
-            scratch_acc_t scratch_acc, float output_scale) {
+            nvidia::sycl_cuda_stream_t *cuda_stream,
+            sycl_memory_arg_t<::sycl::access::mode::read> arg_weights,
+            sycl_memory_arg_t<::sycl::access::mode::read> arg_src,
+            sycl_memory_arg_t<::sycl::access::mode::write> arg_dst,
+            sycl_memory_arg_t<bias_m> arg_bias,
+            sycl_memory_arg_t<scratch_m> arg_scratch, float output_scale) {
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -54,11 +57,11 @@ protected:
             auto cublas_handle = cuda_stream->get_cublas_handle();
             auto cudnn_handle = cuda_stream->get_cudnn_handle();
 
-            auto scratch = maybe_cast_to_ptr(scratch_acc, sc, ih);
-            auto bias = maybe_cast_to_ptr(bias_acc, sc, ih);
-            auto weights = sc.memory<void *>(ih, weights_acc);
-            auto src = sc.memory<void *>(ih, src_acc);
-            auto dst = sc.memory<void *>(ih, dst_acc);
+            void *scratch = arg_scratch.get_native_pointer(ih);
+            void *bias = arg_bias.get_native_pointer(ih);
+            void *weights = arg_weights.get_native_pointer(ih);
+            void *src = arg_src.get_native_pointer(ih);
+            void *dst = arg_dst.get_native_pointer(ih);
 
             matmul_impl_->execute(cublas_handle, cudnn_handle, weights, src,
                     dst, bias, scratch, output_scale);
@@ -108,18 +111,16 @@ struct cudnn_matmul_scratch_runtime_args_bias_exec_t
         init_scratch_buffer(scratchpad_size);
 
         return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-            auto wt_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
-            auto bias_acc = CTX_IN_ACCESSOR(DNNL_ARG_BIAS);
+            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
+            auto arg_scratch
+                    = sycl_memory_arg_t<::sycl::access::mode::read_write>(
+                            *scratch_buff_, cgh);
 
-            auto scratch_acc
-                    = scratch_buff_
-                              ->get_access<::sycl::access::mode::read_write>(
-                                      cgh);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, wt_acc,
-                    src_acc, dst_acc, bias_acc, scratch_acc, output_scale);
+            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
+                    arg_src, arg_dst, arg_bias, arg_scratch, output_scale);
         });
     }
 };
@@ -136,17 +137,17 @@ struct cudnn_matmul_runtime_args_scratch_exec_t
         init_scratch_buffer(scratchpad_size);
 
         return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto wt_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
-            auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+            auto arg_scratch
+                    = sycl_memory_arg_t<::sycl::access::mode::read_write>(
+                            *scratch_buff_, cgh);
+            auto arg_bias = sycl_memory_arg_t<::sycl::access::mode::read>();
 
-            auto scratch_acc
-                    = scratch_buff_
-                              ->get_access<::sycl::access::mode::read_write>(
-                                      cgh);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, wt_acc,
-                    src_acc, dst_acc, nullptr, scratch_acc, output_scale);
+            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
+                    arg_src, arg_dst, /*nullptr*/ arg_bias, arg_scratch,
+                    output_scale);
         });
     }
 };
@@ -160,13 +161,17 @@ struct cudnn_matmul_runtime_args_bias_exec_t : public cudnn_matmul_exec_base_t {
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-            auto wt_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
-            auto bias_acc = CTX_IN_ACCESSOR(DNNL_ARG_BIAS);
+            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
 
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, wt_acc,
-                    src_acc, dst_acc, bias_acc, nullptr, output_scale);
+            auto arg_scratch
+                    = sycl_memory_arg_t<::sycl::access::mode::read_write>();
+
+            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
+                    arg_src, arg_dst, arg_bias, /*nullptr*/ arg_scratch,
+                    output_scale);
         });
     }
 };
@@ -180,12 +185,17 @@ struct cudnn_matmul_runtime_args_exec_t : public cudnn_matmul_exec_base_t {
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-            auto wt_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, wt_acc,
-                    src_acc, dst_acc, nullptr, nullptr, output_scale);
+            auto arg_bias = sycl_memory_arg_t<::sycl::access::mode::read>();
+            auto arg_scratch
+                    = sycl_memory_arg_t<::sycl::access::mode::read_write>();
+
+            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
+                    arg_src, arg_dst, /*nullptr*/ arg_bias,
+                    /*nullptr*/ arg_scratch, output_scale);
         });
     }
 };
@@ -199,25 +209,15 @@ struct cudnn_matmul_bias_scratch_exec_t : public cudnn_matmul_exec_base_t {
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-            auto wt_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
-            auto bias_acc = CTX_IN_ACCESSOR(DNNL_ARG_BIAS);
+            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
+            auto arg_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                    memory_tracking::names::key_matmul_dst_in_acc_dt);
 
-            using read_write_acc_t = ::sycl::accessor<uint8_t, 1,
-                    ::sycl::access::mode::read_write>;
-
-            auto scratch_acc = read_write_acc_t(
-                    utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
-                            ctx.get_scratchpad_grantor()
-                                    .get_memory_storage(memory_tracking::names::
-                                                    key_matmul_dst_in_acc_dt)
-                                    .get())
-                            ->buffer()
-                            .get_access<::sycl::access::mode::read_write>(cgh));
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, wt_acc,
-                    src_acc, dst_acc, bias_acc, scratch_acc, output_scale);
+            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
+                    arg_src, arg_dst, arg_bias, arg_scratch, output_scale);
         });
     }
 };
@@ -231,24 +231,17 @@ struct cudnn_matmul_scratch_exec_t : public cudnn_matmul_exec_base_t {
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-            auto wt_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+            auto arg_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                    memory_tracking::names::key_matmul_dst_in_acc_dt);
 
-            using read_write_acc_t = ::sycl::accessor<uint8_t, 1,
-                    ::sycl::access::mode::read_write>;
+            auto arg_bias = sycl_memory_arg_t<::sycl::access::mode::read>();
 
-            auto scratch_acc = read_write_acc_t(
-                    utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
-                            ctx.get_scratchpad_grantor()
-                                    .get_memory_storage(memory_tracking::names::
-                                                    key_matmul_dst_in_acc_dt)
-                                    .get())
-                            ->buffer()
-                            .get_access<::sycl::access::mode::read_write>(cgh));
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, wt_acc,
-                    src_acc, dst_acc, nullptr, scratch_acc, output_scale);
+            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
+                    arg_src, arg_dst, /*nullptr*/ arg_bias, arg_scratch,
+                    output_scale);
         });
     }
 };
@@ -262,13 +255,17 @@ struct cudnn_matmul_bias_exec_t : public cudnn_matmul_exec_base_t {
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-            auto wt_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
-            auto bias_acc = CTX_IN_ACCESSOR(DNNL_ARG_BIAS);
+            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
 
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, wt_acc,
-                    src_acc, dst_acc, bias_acc, nullptr, output_scale);
+            auto arg_scratch
+                    = sycl_memory_arg_t<::sycl::access::mode::read_write>();
+
+            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
+                    arg_src, arg_dst, arg_bias, /*nullptr*/ arg_scratch,
+                    output_scale);
         });
     }
 };
@@ -282,12 +279,17 @@ struct cudnn_matmul_exec_t : public cudnn_matmul_exec_base_t {
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto src_acc = CTX_IN_ACCESSOR(DNNL_ARG_SRC);
-            auto wt_acc = CTX_IN_ACCESSOR(DNNL_ARG_WEIGHTS);
-            auto dst_acc = CTX_OUT_ACCESSOR(DNNL_ARG_DST);
+            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, wt_acc,
-                    src_acc, dst_acc, nullptr, nullptr, output_scale);
+            auto arg_bias = sycl_memory_arg_t<::sycl::access::mode::read>();
+            auto arg_scratch
+                    = sycl_memory_arg_t<::sycl::access::mode::read_write>();
+
+            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
+                    arg_src, arg_dst, /*nullptr*/ arg_bias,
+                    /*nullptr*/ arg_scratch, output_scale);
         });
     }
 };
