@@ -212,12 +212,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
 }
 
 tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
-    : shapes_(shapes) {
-    info_.inputs_.emplace_back(std::move(v));
-    info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
-    op_name_ = "tensor_view";
-    attrs_["shape"] = shapes;
-}
+    : tensor_view_op_t({std::move(v)}, {}, {{"shape", shapes}, {}}) {}
 
 bool tensor_view_op_t::try_penetrate(
         sc_data_format_t &new_output_format) const {
@@ -446,6 +441,10 @@ slice_range_list infer_tensor_view_slice(
 
 void tensor_view_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
+    if (share_with_output(get_inputs()[0])) {
+        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+        return;
+    }
     // search known ranges from any input of cur fusbile op
     slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
     slice_range_list known_ranges_list = known_ranges_map[0];
@@ -468,6 +467,10 @@ void tensor_view_op_t::infer_slice_ranges(
 
 void tensor_view_op_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
+    if (share_with_output(get_inputs()[0])) {
+        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+        return;
+    }
     if (fsmap.get(get_inputs()[0]).empty()) {
         slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
         // src

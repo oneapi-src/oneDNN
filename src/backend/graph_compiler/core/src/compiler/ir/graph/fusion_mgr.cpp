@@ -359,19 +359,23 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
     if (graph_.empty()) { return; }
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
-    auto ths = this;
-    auto alloc_func = [ths, &fdmap, &outs, &inargs](const sc_op_ptr &cur_node,
-                              const std::vector<sc::tensor_slice> &src,
-                              const std::vector<sc::tensor_slice> &dst,
-                              int64_t &hint_tick) {
+
+    std::function<void(const sc_op_ptr &cur_node,
+            const std::vector<sc::tensor_slice> &src,
+            const std::vector<sc::tensor_slice> &dst, int64_t &hint_tick)>
+            alloc_func;
+    alloc_func = [&](const sc_op_ptr &cur_node,
+                         const std::vector<sc::tensor_slice> &src,
+                         const std::vector<sc::tensor_slice> &dst,
+                         int64_t &hint_tick) {
         auto cur = cur_node->dyn_cast<fusible_op_t>();
         if (auto input_cur = cur->dyn_cast<input_op>()) {
             // if it is the input node
-            int input_idx = ths->get_input_idx(input_cur);
+            int input_idx = get_input_idx(input_cur);
             int arg_idx = input_idx - static_cast<int>(src.size());
             // if there is only one input node and only one output node, we need
             // to copy the src tensor to dst tensor, not inplemented
-            assert(ths->graph_.ops_.size() > 2);
+            assert(graph_.ops_.size() > 2);
             // for input node, use the input tensor
             if (arg_idx >= 0) {
                 expr tsr;
@@ -402,10 +406,11 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
 
             // if there is only one input node and only one output node, we need
             // to copy the src tensor to dst tensor, not inplemented
-            assert(ths->graph_.ops_.size() > 2);
+            assert(graph_.ops_.size() > 2);
             auto output_cur = static_cast<output_op *>(cur);
             auto &output_cur_in_detail = fdmap.get(output_cur->get_inputs()[0]);
-            int output_idx = ths->get_output_idx(output_cur);
+            if (output_cur_in_detail.buffer_.defined()) return;
+            int output_idx = get_output_idx(output_cur);
 
             // for output node, use the output tensor
             if (!dst.empty()) {
@@ -417,7 +422,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 expr tsr;
                 // query if outs is given by outside
                 if (!outs.empty()) {
-                    tsr = outs[ths->get_output_idx(output_cur)];
+                    tsr = outs[get_output_idx(output_cur)];
                 } else {
                     // Here, it will not be pushed into allocated_tensors_,
                     // because
@@ -440,6 +445,9 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             return;
         } else if (dynamic_cast<tensor_view_op_t *>(cur)) {
             auto &cur_in_detail = fdmap.get(cur->get_inputs()[0]);
+            COMPILE_ASSERT(!share_with_output(cur->get_inputs()[0]),
+                    "tensor view op could not share same input buffer with "
+                    "output op");
             auto &cur_out_detail = fdmap.get(cur->get_outputs()[0]);
             auto reshape_cur = static_cast<tensor_view_op_t *>(cur);
             cur_out_detail.need_alloc_ = false;
@@ -457,7 +465,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             return;
         } else if (dynamic_cast<constant_op_t *>(cur)) {
             auto &cur_out_detail = fdmap.get(cur->get_outputs()[0]);
-            ths->allocate_tensor(cur->get_outputs()[0], fdmap);
+            allocate_tensor(cur->get_outputs()[0], fdmap);
             return;
         } else {
             // for every sub-node that the current node can share buffer
@@ -467,6 +475,17 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             auto &inputs = cur->get_inputs();
             for (unsigned i = 0; i < outputs.size(); i++) {
                 auto &out_i_detail = fdmap.get(outputs[i]);
+                // check whether the output is one of the users
+                for (auto &user : outputs[i]->uses_) {
+                    if (user.second->isa<output_op>()) {
+                        // if it is the output node
+                        alloc_func(
+                                user.second.get_shared(), src, dst, hint_tick);
+                        break;
+                    }
+                }
+                if (out_i_detail.buffer_.defined()) continue;
+
                 for (auto j : share_map[i]) {
                     auto &in_j_detail = fdmap.get(inputs[j]);
                     if (in_j_detail.use_count_ == 1
@@ -479,20 +498,12 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                                     || in_j_detail.buffer_->attr().get_or_else(
                                             "read_buffer", false))
                                 continue;
+                        } else if (share_with_output(inputs[j])) {
+                            continue;
                         }
-                        // check whether the output is one of the users
-                        bool used_by_output = false;
-                        for (auto &user : inputs[j]->uses_) {
-                            if (user.second->isa<output_op>()) {
-                                used_by_output = true;
-                                break;
-                            }
-                        }
-                        if (used_by_output) continue;
                         // if the subnode is used only once, we can reuse
                         // its buffer
                         out_i_detail.need_alloc_ = false;
-                        in_j_detail.use_count_++;
                         // inplace tsr_slice_list_
                         out_i_detail.buffer_ = in_j_detail.buffer_;
                         break;
@@ -500,8 +511,9 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 }
                 // no node can share buffer with the current node
                 if (out_i_detail.need_alloc_) {
-                    ths->allocate_tensor(outputs[i], fdmap);
+                    allocate_tensor(outputs[i], fdmap);
                 }
+                assert(out_i_detail.buffer_.defined());
                 // set buffer reuse hint for loop lifetime analysis
                 // out_i_detail.tsr_slice_list may be empty when next op is
                 // output op
@@ -532,8 +544,8 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
     }
 }
 
-// This function can find the parent node in IR, if the node has no parent node,
-// return itself.
+// This function can find the parent node in IR, if the node has no parent
+// node, return itself.
 static stmt get_parent_node(stmt node) {
     if (!node->attr().has_key("builder.parent_node")) return node;
     stmt parent {node->attr()["builder.parent_node"]
