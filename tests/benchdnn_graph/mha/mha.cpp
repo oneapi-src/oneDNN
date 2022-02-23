@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ std::ostream &operator<<(std::ostream &s, const mha_graph_spec_t &spec) {
     dump_global_params(s);
     settings_t def;
 
+    s << "--pattern=" << spec.mha_pattern << " ";
     s << "--head=" << spec.head << " ";
     s << "--dt=" << convert_dt(spec.mha_inout_dt) << " ";
     s << "--tag=" << spec.tag << " ";
@@ -135,203 +136,127 @@ inline int fill_data(
 fill_status_t mha_graph_prb_t::build_mha_subgraph(
         const mha_graph_spec_t &spec) {
     using op = dnnl::graph::op;
-    const int QKV_IN_SIZE = 12;
-    int bs = spec.dims[0];
-    int seq_len = spec.dims[1];
-    int embed_sz = spec.dims[2];
-    int query_sz = embed_sz / spec.head;
 
-    //shapes
-    dims_t input_shape = spec.dims;
-    dims_t qkv_shape = {bs, seq_len, spec.head, query_sz};
-    dims_t qkv_transpose_shape = {bs, spec.head, seq_len, query_sz};
-    dims_t qkv_transpose_axis = {0, 2, 1, 3};
-    dims_t k2_transpose_shape = {bs, spec.head, query_sz, seq_len};
-    dims_t k2_transpose_axis = {0, 1, 3, 2};
-    dims_t qk_matmul_shape = {bs, spec.head, seq_len, seq_len};
-    dims_t attention_mask_shape = {bs, 1, 1, seq_len};
+    dims_t qkv_shape = {
+            spec.dims[0], spec.dims[1], spec.head, (spec.dims[2] / spec.head)};
+
     //attributes
-    bool special_zero = false;
+    dims_t qkv_transpose_axis = {0, 2, 1, 3};
+    dims_t k2_transpose_axis = {0, 1, 3, 2};
 
     size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
 
-    std::string str[QKV_IN_SIZE];
-    std::vector<dnnl::graph::op> ops;
-    ops.reserve(QKV_IN_SIZE);
-    //Q(i=0), K(i=1), V(i=2)
-    for (int i = 0; i < 3; i++) {
-        str[i * 4] = TENSOR_ID + "_INT8_" + std::to_string(i * 4);
-        str[i * 4 + 1] = TENSOR_ID + "_SRC_" + std::to_string(i * 4 + 1);
-        str[i * 4 + 2] = TENSOR_ID + "_DST_" + std::to_string(i * 4 + 2);
-        str[i * 4 + 3] = TENSOR_ID + "_TDST_" + std::to_string(i * 4 + 3);
-        if (spec.MHA_int8) {
-            tensor_descs_.emplace(
-                    str[i * 4], spec.mha_inout_dt, input_shape, spec.tag);
-        }
-        tensor_descs_.emplace(
-                str[i * 4 + 1], spec.mha_dt, input_shape, spec.tag);
-        tensor_descs_.emplace(str[i * 4 + 2], spec.mha_dt, qkv_shape, spec.tag);
-        tensor_descs_.emplace(
-                str[i * 4 + 3], spec.mha_dt, qkv_transpose_shape, spec.tag);
-        //Dequantize
-        if (spec.MHA_int8) {
-            new_op_id = ops_.size();
-            ops.emplace_back(op(new_op_id, op::kind::Dequantize,
-                    {tensor_descs_[str[i * 4]]},
-                    {tensor_descs_[str[i * 4 + 1]]},
-                    str[i * 4] + "_dequantize"));
+    build_tensor_desc(spec);
 
-            ops[new_op_id].set_attr<std::string>("qtype", spec.dequan_qtype);
-            ops[new_op_id].set_attr<std::vector<int64_t>>(
-                    "zps", spec.dequan_zps);
-            ops[new_op_id].set_attr<std::vector<float>>(
-                    "scales", spec.dequan_scales);
-            ops_.emplace_back(ops[new_op_id]);
-        }
-        //Reshape
-        new_op_id = ops_.size();
-        ops.emplace_back(op(new_op_id, op::kind::StaticReshape,
-                {tensor_descs_[str[i * 4 + 1]]},
-                {tensor_descs_[str[i * 4 + 2]]}, str[i * 4 + 1] + "_reshape"));
-        ops[new_op_id].set_attr("shape", qkv_shape);
-        ops[new_op_id].set_attr("special_zero", special_zero);
-        ops_.emplace_back(ops[new_op_id]);
-
-        //Transpose
-        new_op_id = ops_.size();
-        ops.emplace_back(op(new_op_id, op::kind::StaticTranspose,
-                {tensor_descs_[str[i * 4 + 2]]},
-                {tensor_descs_[str[i * 4 + 3]]},
-                str[i * 4 + 3] + "_transpose"));
-        ops[new_op_id].set_attr("order", qkv_transpose_axis);
-        ops_.emplace_back(ops[new_op_id]);
+    if (spec.mha_pattern == "v1") {
+        addDequanOp(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QSRC));
+        addDequanOp(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KSRC));
+        addDequanOp(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VSRC));
+        addStaticReshapeOp(spec, STRINGIFY(QSRC), STRINGIFY(QTSRC), qkv_shape);
+        addStaticReshapeOp(spec, STRINGIFY(KSRC), STRINGIFY(KTSRC), qkv_shape);
+        addStaticReshapeOp(spec, STRINGIFY(VSRC), STRINGIFY(VTSRC), qkv_shape);
+        addStaticTransposeOp(
+                spec, STRINGIFY(QTSRC), STRINGIFY(QDST), qkv_transpose_axis);
+        addStaticTransposeOp(
+                spec, STRINGIFY(KTSRC), STRINGIFY(KT2SRC), qkv_transpose_axis);
+        addStaticTransposeOp(
+                spec, STRINGIFY(KT2SRC), STRINGIFY(KDST), k2_transpose_axis);
+        addStaticTransposeOp(
+                spec, STRINGIFY(VTSRC), STRINGIFY(VDST), qkv_transpose_axis);
+    } else if (spec.mha_pattern == "v2") {
+        addDequanOp(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QDST));
+        addDequanOp(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KDST));
+        addDequanOp(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VDST));
+        //v3 pattern only s8/u8 so output will be from dequan op
+    } else if (spec.mha_pattern == "v3") {
+        addDequanOp(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QSRC));
+        addDequanOp(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KSRC));
+        addDequanOp(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VSRC));
+        addTypecastOp(STRINGIFY(QSRC), STRINGIFY(QDST));
+        addTypecastOp(STRINGIFY(KSRC), STRINGIFY(KDST));
+        addTypecastOp(STRINGIFY(VSRC), STRINGIFY(VDST));
     }
-    //K transpose 2
-    new_op_id = ops_.size();
-    const std::string KT2DST {TENSOR_ID + "_KT2DST"};
-    tensor_descs_.emplace(KT2DST, spec.mha_dt, k2_transpose_shape, spec.tag);
-    op k2_transpose_op(new_op_id, op::kind::StaticTranspose,
-            {tensor_descs_[str[7]]}, {tensor_descs_[KT2DST]}, "KT2_transpose");
-    k2_transpose_op.set_attr("order", k2_transpose_axis);
-    ops_.emplace_back(k2_transpose_op);
+
     //matmul Q.KT
-    new_op_id = ops_.size();
-    const std::string QKMATMULDST {TENSOR_ID + "_QKMATMULDST"};
-    tensor_descs_.emplace(QKMATMULDST, spec.mha_dt, qk_matmul_shape, spec.tag);
-    op qk_matmul_op(new_op_id, op::kind::MatMul,
-            {tensor_descs_[str[3]], tensor_descs_[KT2DST]},
-            {tensor_descs_[QKMATMULDST]}, "QK_matmul");
-    ops_.emplace_back(qk_matmul_op);
+    ops_.emplace_back(op(ops_.size(), op::kind::MatMul,
+            {tensor_descs_[STRINGIFY(QDST)], tensor_descs_[STRINGIFY(KDST)]},
+            {tensor_descs_[STRINGIFY(QKMATMULDST)]}, "QK_matmul"));
     //score
     new_op_id = ops_.size();
-    const std::string QKDIVSCALE {TENSOR_ID + "_QKDIVSCALE"};
-    const std::string QKDIV {TENSOR_ID + "_QKDIV"};
-    //Divscale is f32 or bf16 depending on input.
-    tensor_descs_.emplace(QKDIVSCALE, spec.mha_dt, {1}, spec.tag);
-    tensor_descs_.emplace(QKDIV, spec.mha_dt, qk_matmul_shape, spec.tag);
-    op qk_divide_op(new_op_id, op::kind::Divide,
-            {tensor_descs_[QKMATMULDST], tensor_descs_[QKDIVSCALE]},
-            {tensor_descs_[QKDIV]}, "SCORE_divide");
-    qk_divide_op.set_attr("auto_broadcast", std::string("numpy"));
-    ops_.emplace_back(qk_divide_op);
+    ops_.emplace_back(op(new_op_id, op::kind::Divide,
+            {tensor_descs_[STRINGIFY(QKMATMULDST)],
+                    tensor_descs_[STRINGIFY(QKDIVSCALE)]},
+            {tensor_descs_[STRINGIFY(QKDIVDST)]}, "SCORE_divide"));
+    ops_[new_op_id].set_attr("auto_broadcast", std::string("numpy"));
     //add
     new_op_id = ops_.size();
-    const std::string QKATTN {TENSOR_ID + "_QKATTN"};
-    const std::string QKADD {TENSOR_ID + "_QKADD"};
-    tensor_descs_.emplace(QKATTN, spec.mha_dt, attention_mask_shape, spec.tag);
-    tensor_descs_.emplace(QKADD, spec.mha_dt, qk_matmul_shape, spec.tag);
-    op qk_add_op(new_op_id, op::kind::Add,
-            {tensor_descs_[QKDIV], tensor_descs_[QKATTN]},
-            {tensor_descs_[QKADD]}, "SCORE_add");
-    qk_add_op.set_attr("auto_broadcast", std::string("numpy"));
-    ops_.emplace_back(qk_add_op);
+    ops_.emplace_back(op(new_op_id, op::kind::Add,
+            {tensor_descs_[STRINGIFY(QKDIVDST)],
+                    tensor_descs_[STRINGIFY(QKATTN)]},
+            {tensor_descs_[STRINGIFY(QKADD)]}, "SCORE_add"));
+    ops_[new_op_id].set_attr("auto_broadcast", std::string("numpy"));
     //softmax
     new_op_id = ops_.size();
-    const std::string QKSOFTMAX {TENSOR_ID + "_QKSOFTMAX"};
-    tensor_descs_.emplace(QKSOFTMAX, spec.mha_dt, qk_matmul_shape, spec.tag);
-    op qk_softmax_op(new_op_id, op::kind::SoftMax, {tensor_descs_[QKADD]},
-            {tensor_descs_[QKSOFTMAX]}, "SCORE_softmax");
-    qk_softmax_op.set_attr("axis", static_cast<int64_t>(3));
-    ops_.emplace_back(qk_softmax_op);
-    std::string intensor = QKSOFTMAX;
-    //For INT8 quantize and dequantize the softmax output.
-    if (spec.MHA_int8) {
-        new_op_id = ops_.size();
-        const std::string QKSOFTMAXQUAN {TENSOR_ID + "_QKSOFTMAXQUAN"};
-        tensor_descs_.emplace(
-                QKSOFTMAXQUAN, spec.mha_inout_dt, qk_matmul_shape, spec.tag);
-        op qk_softmax_quan_op(new_op_id, op::kind::Quantize,
-                {tensor_descs_[QKSOFTMAX]}, {tensor_descs_[QKSOFTMAXQUAN]},
-                "softmax_quantize");
-        qk_softmax_quan_op.set_attr<std::string>("qtype", spec.quan_qtype);
-        qk_softmax_quan_op.set_attr<std::vector<int64_t>>("zps", spec.quan_zps);
-        qk_softmax_quan_op.set_attr<std::vector<float>>(
-                "scales", spec.quan_scales);
-        ops_.emplace_back(qk_softmax_quan_op);
+    ops_.emplace_back(
+            op(new_op_id, op::kind::SoftMax, {tensor_descs_[STRINGIFY(QKADD)]},
+                    {tensor_descs_[STRINGIFY(QKSOFTMAX)]}, "SCORE_softmax"));
+    ops_[new_op_id].set_attr("axis", static_cast<int64_t>(3));
 
-        new_op_id = ops_.size();
-        const std::string QKSOFTMAXDEQUAN {TENSOR_ID + "_QKSOFTMAXDEQUAN"};
-        tensor_descs_.emplace(
-                QKSOFTMAXDEQUAN, spec.mha_dt, qk_matmul_shape, spec.tag);
-        op qk_softmax_dequan_op(new_op_id, op::kind::Dequantize,
-                {tensor_descs_[QKSOFTMAXQUAN]},
-                {tensor_descs_[QKSOFTMAXDEQUAN]}, "softmax_dequantize");
-        qk_softmax_dequan_op.set_attr<std::string>("qtype", spec.dequan_qtype);
-        qk_softmax_dequan_op.set_attr<std::vector<int64_t>>(
-                "zps", spec.dequan_zps);
-        qk_softmax_dequan_op.set_attr<std::vector<float>>(
-                "scales", spec.dequan_scales);
-        ops_.emplace_back(qk_softmax_dequan_op);
-        intensor = QKSOFTMAXDEQUAN;
+    //For INT8 quantize and dequantize the softmax output.
+    //For int8-bf16 there are typecast before and after quantize ops
+    std::string quan_tensor = STRINGIFY(QKSOFTMAX);
+    if (spec.mha_pattern == "v3") {
+        addTypecastOp(STRINGIFY(QKSOFTMAX), STRINGIFY(QKSOFTMAXQUANCAST));
+        quan_tensor = STRINGIFY(QKSOFTMAXQUANCAST);
+    }
+    addQuanOp(spec, quan_tensor, STRINGIFY(QKSOFTMAXQUAN));
+    addDequanOp(spec, STRINGIFY(QKSOFTMAXQUAN), STRINGIFY(QKSOFTMAXDEQUAN));
+    std::string matmul_qkvtensor = (spec.MHA_int8) ? STRINGIFY(QKSOFTMAXDEQUAN)
+                                                   : STRINGIFY(QKSOFTMAX);
+    if (spec.mha_pattern == "v3") {
+        addTypecastOp(matmul_qkvtensor, STRINGIFY(QKSOFTMAXDEQUANCAST));
+        matmul_qkvtensor = STRINGIFY(QKSOFTMAXDEQUANCAST);
     }
 
     //QKV matmul
-    new_op_id = ops_.size();
-    const std::string QKVMATMUL {TENSOR_ID + "_QKVMATMUL"};
-    tensor_descs_.emplace(
-            QKVMATMUL, spec.mha_dt, qkv_transpose_shape, spec.tag);
-    op qkv_matmul_op(new_op_id, op::kind::MatMul,
-            {tensor_descs_[intensor], tensor_descs_[str[11]]},
-            {tensor_descs_[QKVMATMUL]}, "QKV_matmul");
-    ops_.emplace_back(qkv_matmul_op);
+    ops_.emplace_back(op(ops_.size(), op::kind::MatMul,
+            {tensor_descs_[matmul_qkvtensor], tensor_descs_[STRINGIFY(VDST)]},
+            {tensor_descs_[STRINGIFY(QKVMATMUL)]}, "QKV_matmul"));
     //QKV transpose
-    new_op_id = ops_.size();
-    const std::string QKVTDST {TENSOR_ID + "_QKVTDST"};
-    tensor_descs_.emplace(QKVTDST, spec.mha_dt, qkv_shape, spec.tag);
-    op qkv_transpose_op(new_op_id, op::kind::StaticTranspose,
-            {tensor_descs_[QKVMATMUL]}, {tensor_descs_[QKVTDST]},
-            "QKV_transpose");
-    qkv_transpose_op.set_attr("order", qkv_transpose_axis);
-    ops_.emplace_back(qkv_transpose_op);
-    //QKV reshape
-    new_op_id = ops_.size();
-    const std::string QKVDST {TENSOR_ID + "_QKVDST"};
-    tensor_descs_.emplace(QKVDST, spec.mha_dt, input_shape, spec.tag);
-    op qkv_reshape_op(new_op_id, op::kind::StaticReshape,
-            {tensor_descs_[QKVTDST]}, {tensor_descs_[QKVDST]}, "QKV_reshape");
-    qkv_reshape_op.set_attr("shape", input_shape);
-    qkv_reshape_op.set_attr("special_zero", special_zero);
-    ops_.emplace_back(qkv_reshape_op);
+    addStaticTransposeOp(
+            spec, STRINGIFY(QKVMATMUL), STRINGIFY(QKVTDST), qkv_transpose_axis);
 
-    if (spec.MHA_int8) {
-        new_op_id = ops_.size();
-        const std::string QKVINT8DST {TENSOR_ID + "_QKVINT8DST"};
-        tensor_descs_.emplace(
-                QKVINT8DST, spec.mha_inout_dt, input_shape, spec.tag);
-        op qkv_quan_op(new_op_id, op::kind::Quantize, {tensor_descs_[QKVDST]},
-                {tensor_descs_[QKVINT8DST]}, "QKV_out_quan");
-        qkv_quan_op.set_attr<std::string>("qtype", spec.quan_qtype);
-        qkv_quan_op.set_attr<std::vector<int64_t>>("zps", spec.quan_zps);
-        qkv_quan_op.set_attr<std::vector<float>>("scales", spec.quan_scales);
-        ops_.emplace_back(qkv_quan_op);
+    if (spec.mha_pattern == "v1") {
+        addStaticReshapeOp(
+                spec, STRINGIFY(QKVTDST), STRINGIFY(QKVDST), spec.dims);
+    } else if (spec.mha_pattern == "v2") {
+        addReorderOp(STRINGIFY(QKVTDST), STRINGIFY(QKVDST));
+    } else if (spec.mha_pattern == "v3") {
+        addReorderOp(STRINGIFY(QKVTDST), STRINGIFY(QKVCASTDST));
+        addTypecastOp(STRINGIFY(QKVCASTDST), STRINGIFY(QKVDST));
+    } else {
+        return fill_status::UNHANDLED_CONFIG_OPTIONS;
     }
+
+    addQuanOp(spec, STRINGIFY(QKVDST), STRINGIFY(QKVINT8DST));
     curr_out_map_ids_.assign({TENSOR_ID});
     return fill_status::DONE;
 }
 
 void check_known_skipped_case(const mha_graph_spec_t *spec, res_t *res) {
+    if ((spec->mha_pattern == "")
+            || (spec->mha_pattern != "v1" && spec->mha_pattern != "v2"
+                    && spec->mha_pattern != "v3")) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+    }
+    if ((spec->mha_pattern == "v3")
+            && (spec->mha_inout_dt == graph_dt::f32
+                    || spec->mha_inout_dt == graph_dt::bf16)) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+    }
+
     if (spec->head > spec->dims[2]) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
     }
@@ -344,6 +269,7 @@ void check_known_skipped_case(const mha_graph_spec_t *spec, res_t *res) {
     }
 }
 int doit(const mha_graph_spec_t *spec, res_t *res) {
+
     if (bench_mode == LIST) return res->state = LISTED, OK;
     check_known_skipped_case(spec, res);
     if (res->state == SKIPPED) return OK;

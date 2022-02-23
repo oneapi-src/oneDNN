@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,8 +45,11 @@ void check_correctness(const settings_t &s) {
                 = dequan_attr.oscale.scale == 0 ? s.def_scale : dqattr_scale;
         for_(const auto &i_qscale : qscale)
         for (const auto &i_dqscale : dqscale) {
-            const mha_graph_spec_t spec(s.prb_dims.dims, s.prb_dims.ndims,
-                    i_head, i_dt, quan_attr, dequan_attr, i_qscale, i_dqscale);
+            std::string pattern = s.pattern == nullptr ? std::string()
+                                                       : std::string(s.pattern);
+            const mha_graph_spec_t spec(pattern, s.prb_dims.dims,
+                    s.prb_dims.ndims, i_head, i_dt, quan_attr, dequan_attr,
+                    i_qscale, i_dqscale);
             std::stringstream ss;
             ss << spec;
             const std::string cpp_pstr = ss.str();
@@ -77,6 +80,7 @@ int bench(int argc, char **argv) {
 
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_batch(bench, argv[0])
+                || parse_test_pattern_match(s.pattern, argv[0], "pattern")
                 || parse_axis(s.heads, def.heads, argv[0], "head")
                 || parse_dt(s.dt, def.dt, argv[0]) || parse_reset(s, argv[0])
                 || parse_attr_oscale(s.quan_oscale, argv[0], "attr-quan-oscale")
