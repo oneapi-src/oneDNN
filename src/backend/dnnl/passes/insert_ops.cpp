@@ -710,6 +710,85 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
     return impl::status::success;
 }
 
+impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+    for (auto &cur_op : subgraph) {
+        if ((cur_op->get_kind() != op_kind::dnnl_pool_bwd)
+                || cur_op->num_inputs() > 2)
+            continue;
+
+        op_ptr maxpool_fwd = std::make_shared<op_t>(op_kind::dnnl_pool);
+        maxpool_fwd->merge_attributes(cur_op->get_attributes());
+        maxpool_fwd->set_attr<std::string>("kind", "maxpool");
+
+        op_ptr maxpool_bwd = std::make_shared<op_t>(op_kind::dnnl_pool_bwd);
+        maxpool_bwd->merge_attributes(cur_op->get_attributes());
+
+        // connect src value
+        auto src_value = cur_op->get_input_value(0);
+        src_value->remove_consumer(*cur_op, 0);
+        src_value->add_consumer(*maxpool_fwd, 0);
+        maxpool_fwd->add_input(src_value);
+        src_value->add_consumer(*maxpool_bwd, 0);
+        maxpool_bwd->add_input(src_value);
+
+        // create dst value for fwd op
+        // this might be an extra end edge since no consumers
+        logical_tensor_t maxpool_fwd_dst
+                = impl::empty_logical_tensor_with_default_id();
+        maxpool_fwd_dst.data_type = src_value->get_logical_tensor().data_type;
+        value_ptr maxpool_fwd_dst_value
+                = std::make_shared<value_t>(*maxpool_fwd, 0, maxpool_fwd_dst);
+        maxpool_fwd->add_output(maxpool_fwd_dst_value);
+
+        // create scratchpad value for fwd op
+        logical_tensor_t maxpool_fwd_pad
+                = impl::empty_logical_tensor_with_default_id();
+        value_ptr scratchpad_val
+                = std::make_shared<value_t>(*maxpool_fwd, 1, maxpool_fwd_pad);
+        maxpool_fwd->add_output(scratchpad_val);
+        scratchpad_val->set_data_type(impl::data_type::u8);
+        scratchpad_val->set_dims(impl::dims {0});
+
+        // create ws value for fwd op
+        logical_tensor_t maxpool_fwd_ws
+                = impl::empty_logical_tensor_with_default_id();
+        value_ptr maxpool_fwd_ws_value
+                = std::make_shared<value_t>(*maxpool_fwd, 2, maxpool_fwd_ws);
+        maxpool_fwd->add_output(maxpool_fwd_ws_value);
+
+        // connect diff_dst and diff_src
+        auto diff_dst_value = cur_op->get_input_value(1);
+        diff_dst_value->remove_consumer(*cur_op, 1);
+        diff_dst_value->add_consumer(*maxpool_bwd, 1);
+        maxpool_bwd->add_input(diff_dst_value);
+        auto diff_src_value = cur_op->get_output_value(0);
+        maxpool_bwd->add_output(diff_src_value);
+
+        // connect scratchpad
+        auto maxpool_bwd_pad = cur_op->get_output_value(1);
+        maxpool_bwd->add_output(maxpool_bwd_pad);
+
+        // connect ws value
+        maxpool_fwd_ws_value->add_consumer(*maxpool_bwd, 2);
+        maxpool_bwd->add_input(maxpool_fwd_ws_value);
+
+        to_be_inserted_ops.emplace_back(maxpool_fwd);
+        to_be_inserted_ops.emplace_back(maxpool_bwd);
+        to_be_removed_ops.emplace_back(cur_op);
+    }
+    for (const auto &op : to_be_inserted_ops)
+        subgraph.emplace_back(op);
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+    return impl::status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

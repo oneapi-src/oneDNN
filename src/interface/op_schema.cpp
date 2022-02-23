@@ -279,11 +279,11 @@ bool op_schema_t::verify(const op_t *l_op, bool check_undefined_attrs) const {
     if (!param_num_verify_result) { return false; }
 
     // this is used to pass input dtype constraints to output
+    bool param_dtype_verify_result = true;
     std::unordered_map<std::string, std::set<data_type_t>> dtype_constraints
             = op_parameter_dtype_map_;
-    bool param_dtype_verify_result
-            = verify_param_dtype(l_op->get_input_values(), inputs_,
-                    inputs_option, dtype_constraints);
+    param_dtype_verify_result = verify_param_dtype(l_op->get_input_values(),
+            inputs_, inputs_option, dtype_constraints);
     if (!param_dtype_verify_result) { return false; }
 
     size_t actual_num_outputs = l_op->num_outputs();

@@ -273,9 +273,14 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     }
 
     algorithm algo = algorithm::undef;
+    prop_kind prop = prop_kind::forward_inference;
     if (op->get_attr<std::string>("kind") == "maxpool") {
         algo = algorithm::pooling_max;
         dilations = get_compatible_dilates(dilations, src.dims().size());
+        if (op->num_outputs() == 3) {
+            prop = prop_kind::forward_training;
+            op->set_attr<bool>("is_training", true);
+        }
     } else if (op->get_attr<std::string>("kind") == "avgpool") {
         const bool exclude_pad = op->get_attr<bool>("exclude_pad");
         algo = (exclude_pad || adj_pad)
@@ -287,9 +292,100 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     }
 
     dnnl::pooling_v2_forward::primitive_desc pd(
-            {prop_kind::forward_inference, algo, src, dst, strides, kernel,
-                    dilations, pads_begin, new_pads_end},
+            {prop, algo, src, dst, strides, kernel, dilations, pads_begin,
+                    new_pads_end},
             prm_attr, p_engine);
+
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
+}
+
+inline std::pair<dnnl::pooling_v2_backward::primitive_desc, bool>
+create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<dnnl::pooling_v2_backward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dims strides = op->get_attr<dims>("strides");
+    dims kernel = op->get_attr<dims>("kernel");
+    dims pads_begin = op->get_attr<dims>("pads_begin");
+    dims pads_end = op->get_attr<dims>("pads_end");
+    dims dilations(strides.size(), 0);
+    if (op->has_attr("dilations")) {
+        dilations = op->get_attr<dims>("dilations");
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto diff_dst = make_dnnl_memory_desc(
+            op->get_input_value(1)->get_logical_tensor());
+    auto diff_src = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    // infer dnnl expilicit pad
+    dims new_pads_end(pads_end);
+    bool adj_pad = false;
+    std::string rounding_type = "floor";
+    if (op->has_attr("rounding_type")) {
+        rounding_type = op->get_attr<std::string>("rounding_type");
+    }
+    if (rounding_type == "ceil") {
+        dims src_sp = src.dims();
+        src_sp.erase(src_sp.begin(), src_sp.begin() + 2);
+        dims output_sp = diff_dst.dims();
+        output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
+        for (size_t i = 0; i < kernel.size(); ++i) {
+            dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
+            if (op->get_kind() == impl::op_kind::AvgPool
+                    || (op->get_kind() == op_kind::dnnl_pool
+                            && op->get_attr<std::string>("kind") == "avgpool"))
+                dilated += 1;
+            dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
+                    - src_sp[i] - pads_begin[i];
+            new_pads_end[i] = cur_pads_end;
+        }
+        adj_pad = true;
+    }
+
+    algorithm algo = algorithm::undef;
+    if (op->get_attr<std::string>("kind") == "maxpool") {
+        algo = algorithm::pooling_max;
+        dilations = get_compatible_dilates(dilations, src.dims().size());
+    } else if (op->get_attr<std::string>("kind") == "avgpool") {
+        const bool exclude_pad = op->get_attr<bool>("exclude_pad");
+        algo = (exclude_pad || adj_pad)
+                ? algorithm::pooling_avg_exclude_padding
+                : algorithm::pooling_avg_include_padding;
+    } else {
+        BACKEND_DNNL_ENFORCE(0,
+                "Currently only MaxPoolBackprop/AvgPoolBackprop is supported.");
+    }
+
+    diff_dst = to_format_any(diff_dst);
+
+    dnnl::pooling_v2_forward::primitive_desc forward_hints
+            = dnnl::pooling_v2_forward::primitive_desc(
+                    {prop_kind::forward_training, algo, src, diff_dst, strides,
+                            kernel, dilations, pads_begin, new_pads_end},
+                    p_engine);
+
+    dnnl::pooling_v2_backward::primitive_desc pd(
+            {algo, diff_src, diff_dst, strides, kernel, dilations, pads_begin,
+                    new_pads_end},
+            p_engine, forward_hints);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1286,6 +1382,24 @@ struct pool_executable_t : public op_executable_t {
 private:
     dnnl::pooling_v2_forward::primitive_desc pd_;
     dnnl::pooling_v2_forward prim_;
+};
+
+struct pool_bwd_executable_t : public op_executable_t {
+    pool_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_pool_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::pooling_v2_backward(pd_);
+    }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::pooling_v2_backward::primitive_desc pd_;
+    dnnl::pooling_v2_backward prim_;
 };
 
 struct prelu_executable_t : public op_executable_t {

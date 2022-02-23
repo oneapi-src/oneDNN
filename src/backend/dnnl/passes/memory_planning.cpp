@@ -440,6 +440,79 @@ void memory_planner_t::prepare_args_for_siso_op(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
+void memory_planner_t::prepare_args_for_dnnl_pool(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        bool need_scratchpad, bool need_workspace) {
+    exec_args args;
+
+    memory mem;
+    size_t index = 0;
+
+    exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
+    args.insert({DNNL_ARG_FROM, mem});
+
+    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
+            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
+            : dnnl::primitive_attr();
+    dnnl::post_ops pops = prm_attr.get_post_ops();
+    for (int i = 0; i < pops.len(); i++) {
+        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_input_value(index++).get(), mem);
+            args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
+        } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_input_value(index++).get(), mem);
+            args.insert(
+                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
+        } else {
+        }
+    }
+
+    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
+    args.insert({DNNL_ARG_TO, mem});
+
+    if (need_scratchpad) {
+        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
+        args.insert({DNNL_ARG_SCRATCHPAD, mem});
+    }
+
+    if (need_workspace) {
+        if (need_scratchpad) {
+            exec_args_set_.find_value_mem_map(
+                    op->get_output_value(2).get(), mem);
+            args.insert({DNNL_ARG_WORKSPACE, mem});
+        } else {
+            exec_args_set_.find_value_mem_map(
+                    op->get_output_value(1).get(), mem);
+            args.insert({DNNL_ARG_WORKSPACE, mem});
+        }
+    }
+
+    exec_args_set_.add_exec_args(args);
+}
+
+void memory_planner_t::prepare_args_for_maxpoolbwd(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    exec_args args;
+
+    memory mem;
+
+    exec_args_set_.find_value_mem_map(op->get_input_value(2).get(), mem);
+    args.insert({DNNL_ARG_WORKSPACE, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
+    args.insert({DNNL_ARG_DIFF_DST, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
+    args.insert({DNNL_ARG_DIFF_SRC, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
+    args.insert({DNNL_ARG_SCRATCHPAD, mem});
+
+    exec_args_set_.add_exec_args(args);
+}
+
 void memory_planner_t::prepare_args_for_miso_op(op_t *op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     UNUSED(prm_attr_mgr);
@@ -1178,6 +1251,15 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                 } else if (op->get_kind() == op_kind::dnnl_softmax_bwd
                         || op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
                     prepare_args_for_softmax_bwd(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == op_kind::dnnl_pool) {
+                    const bool is_training = op->has_attr("is_training")
+                            ? op->get_attr<bool>("is_training")
+                            : false;
+                    prepare_args_for_dnnl_pool(
+                            op, p_engine, prm_attr_mgr, true, is_training);
+                } else if (op->get_kind() == op_kind::dnnl_pool_bwd
+                        && op->get_attr<std::string>("kind") == "maxpool") {
+                    prepare_args_for_maxpoolbwd(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_concat) {
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_eltwise

@@ -2912,12 +2912,14 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::variadic)
                 .set_num_inputs(std::set<size_t>({1, 32}))
-                .set_num_outputs(2)
+                .set_outputs_option(op_schema_t::param_num_option::optional)
+                .set_num_outputs(std::set<size_t>({2, 3}))
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
+                .set_output(2, "workspace", "workspace tensor")
                 // Attributes inherited from MaxPool and AvgPool.
                 .set_attr("strides", "the distance to slide the filter", true,
                         attribute_kind::is)
@@ -2957,8 +2959,49 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
+                .set_attr("is_training", "whether this is for training", false,
+                        attribute_kind::b)
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_pool_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_outputs(2)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "output_delta",
+                        "the gradient tensor with respect to output")
+                .set_input(2, "output_forward_indices",
+                        "(optional) indices of max values in output tensor")
+                .set_output(0, "input_delta",
+                        "the gradient tensor with respect to input")
+                .set_output(1, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
+                .set_attr("strides", "the distance to slide the filter", true,
+                        attribute_kind::is)
+                .set_attr("pads_begin", "top and left padding", true,
+                        attribute_kind::is)
+                .set_attr("pads_end", "bottom and right padding", true,
+                        attribute_kind::is)
+                .set_attr("kernel", "size of each filter", true,
+                        attribute_kind::is)
+                .set_attr("auto_pad", "how the padding is calculated", false,
+                        attribute_kind::s, "None")
+                .set_attr("dilations",
+                        "the distance in width and height between elements "
+                        "in the filter",
+                        false, attribute_kind::is,
+                        std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                // New added attributes
+                .set_attr("kind", "pooling kind, maxpool or avgpool", true,
+                        attribute_kind::s)
+                .set_shape_inference_function(infer_pool_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
         op_schema_t()

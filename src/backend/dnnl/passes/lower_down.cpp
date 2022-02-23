@@ -1852,6 +1852,133 @@ impl::status_t conv_bwd_weights_canonicalization(
     return impl::status::success;
 }
 
+impl::status_t maxpool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    for (auto &cur_op : subgraph) {
+        if (!(cur_op->get_kind() == impl::op_kind::MaxPool
+                    || (cur_op->get_kind() == op_kind::dnnl_pool
+                            && cur_op->get_attr<std::string>("kind")
+                                    == "maxpool")))
+            continue;
+
+        // insert permute
+        bool need_permute = cur_op->has_attr("data_format")
+                ? (cur_op->get_attr<std::string>("data_format") == "NXC")
+                : false;
+
+        if (need_permute) {
+            // src permute
+            // fwd and bwd may share the same src value
+            // check if it has been already permuted
+            auto src_value = cur_op->get_input_value(0);
+            if (!(src_value->has_producer()
+                        && src_value->get_producer().get_kind()
+                                == op_kind::permute
+                        && src_value->get_producer().get_attr<std::string>(
+                                   "to_format")
+                                == "NCX")) {
+                op_ptr in0_perm_op
+                        = std::make_shared<impl::op_t>(op_kind::permute);
+                in0_perm_op->set_attr<std::string>("permute_kind", "permute");
+                in0_perm_op->set_attr<std::string>("from_format", "NXC");
+                in0_perm_op->set_attr<std::string>("to_format", "NCX");
+                insert_op_before(in0_perm_op, cur_op, 0);
+                to_be_inserted_ops.emplace_back(in0_perm_op);
+            }
+
+            // dst permute
+            op_ptr out0_perm_op
+                    = std::make_shared<impl::op_t>(op_kind::permute);
+            out0_perm_op->set_attr<std::string>("permute_kind", "permute");
+            out0_perm_op->set_attr<std::string>("from_format", "NCX");
+            out0_perm_op->set_attr<std::string>("to_format", "NXC");
+            insert_op_after(out0_perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(out0_perm_op);
+
+            cur_op->set_attr<std::string>("data_format", "NCX");
+        }
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+    return impl::status::success;
+}
+
+impl::status_t maxpool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_pool_bwd) continue;
+
+        // insert permute
+        bool need_permute = cur_op->has_attr("data_format")
+                ? (cur_op->get_attr<std::string>("data_format") == "NXC")
+                : false;
+
+        if (need_permute) {
+            // src permute
+            // fwd and bwd may share the same src value
+            // check if it has been already permuted
+            auto src_value = cur_op->get_input_value(0);
+            if (!(src_value->has_producer()
+                        && src_value->get_producer().get_kind()
+                                == op_kind::permute
+                        && src_value->get_producer().get_attr<std::string>(
+                                   "to_format")
+                                == "NCX")) {
+                op_ptr in0_perm_op
+                        = std::make_shared<impl::op_t>(op_kind::permute);
+                in0_perm_op->set_attr<std::string>("permute_kind", "permute");
+                in0_perm_op->set_attr<std::string>("from_format", "NXC");
+                in0_perm_op->set_attr<std::string>("to_format", "NCX");
+                insert_op_before(in0_perm_op, cur_op, 0);
+                to_be_inserted_ops.emplace_back(in0_perm_op);
+            }
+
+            // diff_dst permute
+            op_ptr in1_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            in1_perm_op->set_attr<std::string>("permute_kind", "permute");
+            in1_perm_op->set_attr<std::string>("from_format", "NXC");
+            in1_perm_op->set_attr<std::string>("to_format", "NCX");
+            insert_op_before(in1_perm_op, cur_op, 1);
+            to_be_inserted_ops.emplace_back(in1_perm_op);
+
+            // diff_src permute
+            op_ptr out_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            out_perm_op->set_attr<std::string>("permute_kind", "permute");
+            out_perm_op->set_attr<std::string>("from_format", "NCX");
+            out_perm_op->set_attr<std::string>("to_format", "NXC");
+            insert_op_after(out_perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(out_perm_op);
+
+            cur_op->set_attr<std::string>("data_format", "NCX");
+        }
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+    return impl::status::success;
+}
+
 impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> swish_patterns;
@@ -2955,6 +3082,9 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             } else {
                 new_op->set_attr<std::string>("kind", "avgpool");
             }
+        } else if (cur_op->get_kind() == impl::op_kind::MaxPoolBackprop) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_pool_bwd);
+            new_op->set_attr<std::string>("kind", "maxpool");
         } else if (cur_op->get_kind() == impl::op_kind::SoftMaxBackprop) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_softmax_bwd);
         } else if (cur_op->get_kind() == impl::op_kind::LogSoftmaxBackprop) {

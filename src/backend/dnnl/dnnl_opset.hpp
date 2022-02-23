@@ -314,6 +314,7 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(dnnl_concat, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         dnnl_layernorm_bwd, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(dnnl_pool_bwd, 1)>());
     }
 };
 

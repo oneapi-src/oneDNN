@@ -8052,21 +8052,37 @@ TEST(Execute, MaxPoolBackwardWithIncides) {
                 4, {1, 1, 2, 2}, impl::data_type::s32);
     }
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto max_pool_bwd_kernel = op_factory.create_kernel(max_pool_bwd_op);
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
-    max_pool_bwd_kernel->compile(
-            &max_pool_bwd_op, &eng, {src_lt, diff_dst_lt}, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    max_pool_bwd_op.add_input(src_lt);
+    max_pool_bwd_op.add_input(diff_dst_lt);
+    max_pool_bwd_op.add_input(indices_lt);
+    max_pool_bwd_op.add_output(diff_src_lt);
+    impl::graph_t g(eng.kind());
+    ASSERT_EQ(g.add_op(&max_pool_bwd_op), impl::status::success);
+    g.build_graph();
+    impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src_lt, &diff_dst_lt, &indices_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_src_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t diff_src_ts(lt, &eng, diff_src.data());
     impl::tensor_t indices_ts(indices_lt, &eng, indices_data);
 
     impl::stream_t &strm = get_stream();
-    max_pool_bwd_kernel->execute(&max_pool_bwd_op, &strm,
-            {src_ts, indices_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(&strm, {src_ts, diff_dst_ts, indices_ts}, {diff_src_ts});
     strm.wait();
 
     for (size_t i = 0; i < diff_src.size(); ++i) {
@@ -8103,20 +8119,34 @@ TEST(Execute, MaxPoolBackwardWithoutIncides) {
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto max_pool_bwd_kernel = op_factory.create_kernel(max_pool_bwd_op);
-    max_pool_bwd_kernel->compile(
-            &max_pool_bwd_op, &eng, {src_lt, diff_dst_lt}, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    max_pool_bwd_op.add_input(src_lt);
+    max_pool_bwd_op.add_input(diff_dst_lt);
+    max_pool_bwd_op.add_output(diff_src_lt);
+    impl::graph_t g(eng.kind());
+    ASSERT_EQ(g.add_op(&max_pool_bwd_op), impl::status::success);
+    g.build_graph();
+    impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &diff_dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_src_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t diff_src_ts(lt, &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
-    max_pool_bwd_kernel->execute(
-            &max_pool_bwd_op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_src_ts});
     strm.wait();
 
     for (size_t i = 0; i < diff_src.size(); ++i) {
@@ -8148,12 +8178,27 @@ TEST(Execute, MaxPoolBackwardWithoutIncidesPlainGrad) {
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(3, output_dims, impl::data_type::f32);
 
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto max_pool_bwd_kernel = op_factory.create_kernel(max_pool_bwd_op);
-    max_pool_bwd_kernel->compile(
-            &max_pool_bwd_op, &eng, {src_lt, diff_dst_lt}, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
+    max_pool_bwd_op.add_input(src_lt);
+    max_pool_bwd_op.add_input(diff_dst_lt);
+    max_pool_bwd_op.add_output(diff_src_lt);
+    impl::graph_t g(eng.kind());
+    ASSERT_EQ(g.add_op(&max_pool_bwd_op), impl::status::success);
+    g.build_graph();
+    impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &diff_dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_src_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
     test::vector<float> src(product(input_dims), 1);
     test::vector<float> diff_dst(product(output_dims), 1);
@@ -8161,11 +8206,10 @@ TEST(Execute, MaxPoolBackwardWithoutIncidesPlainGrad) {
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t diff_src_ts(lt, &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
-    max_pool_bwd_kernel->execute(
-            &max_pool_bwd_op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_src_ts});
     strm.wait();
 }
 

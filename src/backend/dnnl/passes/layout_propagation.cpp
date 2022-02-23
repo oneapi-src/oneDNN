@@ -332,11 +332,40 @@ static void layout_propagation_for_pool(op_ptr &op,
     // make scratchpad as pool's last output
     value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
-    // if pooling's prop_kind id forward_training or backward
+
     if (op->has_attr("is_training") && op->get_attr<bool>("is_training")) {
-        value_ptr workspace_val = insert_workspace(op);
-        fill_layout_info(workspace_val, pd.workspace_desc());
+        value_ptr workspace_val = op->get_output_value(2);
+        const memory::desc &ws_md = pd.workspace_desc();
+#ifdef DNNL_GRAPH_LAYOUT_DEBUG
+        workspace_val->set_dims(ws_md.dims());
+        workspace_val->set_data_type(
+                static_cast<impl::data_type_t>(ws_md.data.data_type));
+#endif
+        fill_layout_info(workspace_val, ws_md);
     }
+}
+
+static void layout_propagation_for_pool_bwd(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair
+            = create_pool_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_before(op, 1, pd.diff_dst_desc(), reorder_ops);
+    value_ptr diff_dst = op->get_input_value(1);
+    fill_layout_info(diff_dst, pd.diff_dst_desc());
+
+    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    value_ptr diff_src = op->get_output_value(0);
+    fill_layout_info(diff_src, pd.diff_src_desc());
+
+    // make scratchpad as pool's last output
+    value_ptr scratchpad_val = op->get_output_value(1);
+    fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
 static void layout_propagation_for_batchnorm(op_ptr &op,
@@ -1224,6 +1253,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_pool) {
                 layout_propagation_for_pool(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind() == op_kind::dnnl_pool_bwd) {
+                layout_propagation_for_pool_bwd(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
                 layout_propagation_for_batchnorm(

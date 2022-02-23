@@ -200,7 +200,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::MaxPool, float_pooling_fwd)
     DNNL_REGISTER_KERNEL(op_kind::maxpool_add, float_pooling_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::AvgPoolBackprop, pooling_backward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::MaxPoolBackprop, pooling_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::MaxPoolBackprop, pooling_bwd_t)
 
     // softmax operators
     DNNL_REGISTER_KERNEL(impl::op_kind::SoftMax, softmax_fwd_t)

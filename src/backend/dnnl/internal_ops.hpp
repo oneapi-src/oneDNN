@@ -221,7 +221,8 @@ namespace op_kind {
     X(dnnl_concat, Dnnl_concat) \
     X(dnnl_layernorm_bwd, Dnnl_layernorm_bwd) \
     X(float_conv_fusion, Float_conv_fusion) \
-    X(dnnl_conv_bwd_weights, Dnnl_conv_bwd_weights)
+    X(dnnl_conv_bwd_weights, Dnnl_conv_bwd_weights) \
+    X(dnnl_pool_bwd, Dnnl_pool_bwd)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,
