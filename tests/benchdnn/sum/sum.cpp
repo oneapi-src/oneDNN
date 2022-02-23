@@ -139,7 +139,7 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
-    args_t args;
+    args_t args, ref_args;
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
@@ -153,12 +153,17 @@ int doit(const prb_t *prb, res_t *res) {
         src_dt.emplace_back(src_md, test_engine);
         SAFE(fill_src(prb, i_input, src_dt[i_input], src_fp[i_input]), WARN);
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
+        if (is_bench_mode(CORR))
+            ref_args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_fp[i_input]);
     }
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        TIME_REF(compute_ref(prb, src_fp, dst_fp));
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+
+        TIME_REF(compute_ref(prb, ref_args));
+
         compare::compare_t cmp;
         cmp.set_threshold(epsilon_dt(dst_md.data_type) * prb->n_inputs());
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);

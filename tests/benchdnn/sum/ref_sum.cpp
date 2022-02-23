@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,15 +21,18 @@
 namespace sum {
 
 void compute_ref(
-        const prb_t *prb, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst) {
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+
     float *dst_ptr = (float *)dst;
+
     const auto nelems = dst.nelems();
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t k) {
         dst_ptr[k] = 0;
         for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
-            const float *src_ptr = (const float *)src[i_input];
-            dst_ptr[k] += (src_ptr[k] * prb->scales[i_input]);
+            const dnn_mem_t &src_i = args.find(DNNL_ARG_MULTIPLE_SRC + i_input);
+            dst_ptr[k] += (src_i.get_elem(k) * prb->scales[i_input]);
         }
     });
 }
