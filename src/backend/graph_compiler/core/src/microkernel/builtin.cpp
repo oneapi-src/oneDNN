@@ -144,6 +144,11 @@ static const char *get_brgemm_name(scflags_t::brgemm_t backend) {
     return brgemm_names[static_cast<int>(backend)];
 }
 
+static const func_t &mark_brgemm_func(const func_t &f) {
+    f->attr()["is_brgemm_func_with_stream"] = true;
+    return f;
+}
+
 // returns the kernel creator and kernel caller pair
 static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
         scflags_t::brgemm_t backend, brgemm_mode mode, bool has_postop) {
@@ -178,8 +183,8 @@ static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
             caller_args.insert(
                     caller_args.end() - 1, post_args.begin(), post_args.end());
         }
-        func_t caller = _decl_func(
-                ss.str() + postfix, datatypes::void_t, std::move(caller_args));
+        func_t caller = mark_brgemm_func(_decl_func(
+                ss.str() + postfix, datatypes::void_t, std::move(caller_args)));
         return std::pair<func_t, func_t>(creator, caller);
     } else {
         ss << get_brgemm_name(backend) << "_brgemm_list";
@@ -209,8 +214,8 @@ static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
             caller_args.insert(
                     caller_args.end() - 1, post_args.begin(), post_args.end());
         }
-        func_t caller = _decl_func(
-                ss.str() + postfix, datatypes::void_t, std::move(caller_args));
+        func_t caller = mark_brgemm_func(_decl_func(
+                ss.str() + postfix, datatypes::void_t, std::move(caller_args)));
         return std::pair<func_t, func_t>(creator, caller);
     }
 }
@@ -260,8 +265,8 @@ static func_t declare_brgemm_update_funcs(
                 _arg_("c_buf", datatypes::pointer),
                 _arg_("stream", datatypes::pointer)};
 
-        func_t update
-                = _decl_func(ss.str(), datatypes::s32, std::move(update_args));
+        func_t update = mark_brgemm_func(
+                _decl_func(ss.str(), datatypes::s32, std::move(update_args)));
         return update;
     } else {
         ss << get_brgemm_name(backend) << "_brgemm_list_update";
@@ -281,8 +286,8 @@ static func_t declare_brgemm_update_funcs(
                 _arg_("postops_data", datatypes::pointer),
                 _arg_("c_buf", datatypes::pointer),
                 _arg_("stream", datatypes::pointer)};
-        func_t brgemm_func
-                = _decl_func(ss.str(), datatypes::s32, std::move(update_args));
+        func_t brgemm_func = mark_brgemm_func(
+                _decl_func(ss.str(), datatypes::s32, std::move(update_args)));
         return brgemm_func;
     }
 }
