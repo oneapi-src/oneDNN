@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,8 +41,9 @@ static int adjust_num_threads(int nthr, dim_t work_amount) {
 void parallel(int nthr, const std::function<void(int, int)> &f) {
     nthr = adjust_num_threads(nthr, INT64_MAX);
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
-    assert(nthr == 1);
-    f(0, 1);
+    for (int i = 0; i < nthr; ++i) {
+        f(i, nthr);
+    }
 #else
 #if defined(DNNL_ENABLE_ITT_TASKS)
     auto task_primitive_kind = itt::primitive_task_get_current_kind();
