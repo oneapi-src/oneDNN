@@ -5302,7 +5302,7 @@ TEST(Compile, ConvAddSharedInputs) {
     g.build_graph();
 
     // run pass
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -5370,7 +5370,7 @@ TEST(Compile, ConvAddInplace) {
     g.build_graph();
 
     // run pass
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -5680,7 +5680,7 @@ TEST(Execute, ConvolutionBnFp32) {
             impl::status::success);
 
     // run fusion partition
-    impl::pass::pass_base_ptr apass = get_pass("conv_bn_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -5791,7 +5791,7 @@ TEST(Compile, ConvBnSharedInputs) {
             impl::status::success);
 
     // run fusion partition
-    impl::pass::pass_base_ptr apass = get_pass("conv_bn_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -5877,7 +5877,8 @@ TEST(Execute, ConvAdd) {
         g.add_op(&add_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass("conv_post_ops_chain_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -5963,7 +5964,7 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6045,7 +6046,7 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6128,7 +6129,7 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6211,7 +6212,7 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6291,7 +6292,7 @@ TEST(Compile, ConvAddBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6365,7 +6366,7 @@ TEST(Execute, ConvAddRelu) {
     g.add_op(&relu_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_sum_relu_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6411,7 +6412,7 @@ TEST(Execute, ConvMultiplePostOps) {
     test::vector<float> mul_other {2.0, 2.0, 2.0, 2.0};
     test::vector<float> sum_other {-1.0, -2.0, -3.0, -4.0};
     test::vector<float> add_other {1.0};
-    test::vector<float> ref_dst {1.0, 6.0, 10.0, 2.0};
+    test::vector<float> ref_dst {0.0, 6.0, 10.0, 2.0};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
@@ -6427,8 +6428,7 @@ TEST(Execute, ConvMultiplePostOps) {
 
     impl::op_t mul_op(2, impl::op_kind::Multiply, "Mul");
     impl::op_t sum_op(3, impl::op_kind::Add, "Sum");
-    impl::op_t relu_op(4, impl::op_kind::ReLU, "ReLU");
-    impl::op_t add_op(5, impl::op_kind::Add, "Add");
+    impl::op_t add_op(4, impl::op_kind::Add, "Add");
 
     std::vector<int64_t> src_dims {1, 1, 4, 4};
     std::vector<int64_t> weight_dims {1, 1, 3, 3};
@@ -6460,8 +6460,6 @@ TEST(Execute, ConvMultiplePostOps) {
             = utils::logical_tensor_init(8, {1}, impl::data_type::f32);
     impl::logical_tensor_t add_dst_lt
             = utils::logical_tensor_init(9, dst_dims, impl::data_type::f32);
-    impl::logical_tensor_t relu_dst_lt
-            = utils::logical_tensor_init(10, dst_dims, impl::data_type::f32);
 
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
@@ -6473,9 +6471,7 @@ TEST(Execute, ConvMultiplePostOps) {
     sum_op.add_input(mul_dst_lt);
     sum_op.add_input(sum_other_lt);
     sum_op.add_output(sum_dst_lt);
-    relu_op.add_input(sum_dst_lt);
-    relu_op.add_output(relu_dst_lt);
-    add_op.add_input(relu_dst_lt);
+    add_op.add_input(sum_dst_lt);
     add_op.add_input(add_other_lt);
     add_op.add_output(add_dst_lt);
 
@@ -6483,11 +6479,11 @@ TEST(Execute, ConvMultiplePostOps) {
     g.add_op(&conv_op);
     g.add_op(&mul_op);
     g.add_op(&sum_op);
-    g.add_op(&relu_op);
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_bias_related_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("conv_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -7126,24 +7122,24 @@ TEST(Execute, ConvBiasEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param> params1 = {
-            eltwise_param {"conv_bias_abs_fusion", {-1.0}, {2.0, 1.5, 4.0, 0.5},
-                    impl::op_kind::Abs, "Abs", {}},
-            eltwise_param {"conv_bias_elu_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
+                    {2.0, 1.5, 4.0, 0.5}, impl::op_kind::Abs, "Abs", {}},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
                     {static_cast<float>(exp(-2) - 1), 1.5, 4.0, 0.5},
                     impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
-            eltwise_param {"conv_bias_hardtanh_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
                     {0.0, 1.5, 3.0, 0.5}, impl::op_kind::HardTanh, "HardTanh",
                     {{"min", 0.f}, {"max", 3.f}}},
-            eltwise_param {"conv_bias_sigmoid_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
                     sigmoid_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Sigmoid,
                     "Sigmoid", {}},
-            eltwise_param {"conv_bias_square_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
                     {4.0, 2.25, 16.0, 0.25}, impl::op_kind::Square, "Square",
                     {}},
-            eltwise_param {"conv_bias_tanh_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
                     tanh_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Tanh,
                     "Tanh", {}},
-            eltwise_param {"conv_bias_sqrt_fusion", {1.0},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {1.0},
                     sqrt_func({0.0, 3.5, 6.0, 2.5}), impl::op_kind::Sqrt,
                     "Sqrt", {}},
     };
@@ -7233,10 +7229,10 @@ TEST(Execute, ConvBiasAddEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param> params2 = {
-            eltwise_param {"conv_bias_sum_elu_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
                     {static_cast<float>(exp(-4.0) - 1), 2.5, 3.0, 0.5},
                     impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
-            eltwise_param {"conv_bias_sum_relu6_fusion", {3.0},
+            eltwise_param {"conv_bias_post_ops_chain_fusion", {3.0},
                     {0.0, 6.f, 6.f, 4.5}, impl::op_kind::HardTanh, "ReLU6",
                     {{"min", 0.f}, {"max", 6.f}}},
     };
@@ -7344,11 +7340,11 @@ TEST(Execute, ConvAddEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param> params = {
-            eltwise_param {"conv_sum_elu_fusion", {0.0},
+            eltwise_param {"conv_post_ops_chain_fusion", {0.0},
                     {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
                     impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
-            eltwise_param {"conv_sum_relu6_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
-                    impl::op_kind::HardTanh, "ReLU6",
+            eltwise_param {"conv_post_ops_chain_fusion", {0.0},
+                    {0.0, 3.5, 4.f, 1.5}, impl::op_kind::HardTanh, "ReLU6",
                     {{"min", 0.f}, {"max", 6.f}}},
     };
 
@@ -17471,7 +17467,7 @@ TEST(Execute, ChainedReLU) {
     utils::construct_chained_relu(&g);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 10);
+    ASSERT_EQ(g.get_ops().size(), 3);
 
     impl::pass::pass_base_ptr apass = get_pass("chained_relu_fusion");
     apass->run(g);

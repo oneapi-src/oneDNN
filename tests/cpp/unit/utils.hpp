@@ -1155,8 +1155,7 @@ inline void construct_int8_bf16_MHA(dnnl::graph::impl::graph_t *agraph,
     }
 }
 
-inline void construct_chained_relu(
-        dnnl::graph::impl::graph_t *agraph, int num = 10) {
+inline void construct_chained_relu(dnnl::graph::impl::graph_t *agraph) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::tests;
 
@@ -1168,25 +1167,10 @@ inline void construct_chained_relu(
     auto lt1 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
     auto lt2 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
     auto lt3 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
-    auto lt4 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
-    auto lt5 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
-    auto lt6 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
-    auto lt7 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
-    auto lt8 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
-    auto lt9 = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
-    auto lt10
-            = unit::utils::logical_tensor_init(lt_id++, shape, data_type::f32);
 
     impl::op_t relu0(lt_id++, impl::op_kind::ReLU, "relu");
     impl::op_t relu1(lt_id++, impl::op_kind::ReLU, "relu");
     impl::op_t relu2(lt_id++, impl::op_kind::ReLU, "relu");
-    impl::op_t relu3(lt_id++, impl::op_kind::ReLU, "relu");
-    impl::op_t relu4(lt_id++, impl::op_kind::ReLU, "relu");
-    impl::op_t relu5(lt_id++, impl::op_kind::ReLU, "relu");
-    impl::op_t relu6(lt_id++, impl::op_kind::ReLU, "relu");
-    impl::op_t relu7(lt_id++, impl::op_kind::ReLU, "relu");
-    impl::op_t relu8(lt_id++, impl::op_kind::ReLU, "relu");
-    impl::op_t relu9(lt_id++, impl::op_kind::ReLU, "relu");
 
     relu0.add_input(lt0);
     relu0.add_output(lt1);
@@ -1194,31 +1178,10 @@ inline void construct_chained_relu(
     relu1.add_output(lt2);
     relu2.add_input(lt2);
     relu2.add_output(lt3);
-    relu3.add_input(lt3);
-    relu3.add_output(lt4);
-    relu4.add_input(lt4);
-    relu4.add_output(lt5);
-    relu5.add_input(lt5);
-    relu5.add_output(lt6);
-    relu6.add_input(lt6);
-    relu6.add_output(lt7);
-    relu7.add_input(lt7);
-    relu7.add_output(lt8);
-    relu8.add_input(lt8);
-    relu8.add_output(lt9);
-    relu9.add_input(lt9);
-    relu9.add_output(lt10);
 
     agraph->add_op(&relu0);
     agraph->add_op(&relu1);
     agraph->add_op(&relu2);
-    agraph->add_op(&relu3);
-    agraph->add_op(&relu4);
-    agraph->add_op(&relu5);
-    agraph->add_op(&relu6);
-    agraph->add_op(&relu7);
-    agraph->add_op(&relu8);
-    agraph->add_op(&relu9);
 }
 
 class id_generator {

@@ -339,24 +339,12 @@ public:
                 // fp32 layoutnorm pattern
                 impl::op_kind::LayerNorm, impl::op_kind::LayerNormBackprop,
                 // f32 conv pattern
-                impl::op_kind::Convolution, op_kind::conv_relu,
-                op_kind::conv_add, op_kind::conv_add_relu,
-                op_kind::conv_add_elu, op_kind::conv_add_relu6,
-                op_kind::conv_bias, op_kind::conv_bias_elu,
-                op_kind::conv_bias_relu, op_kind::conv_bias_sigmoid,
-                op_kind::conv_bias_swish, op_kind::conv_bias_relu6,
-                op_kind::conv_bias_hardtanh, op_kind::conv_bias_square,
-                op_kind::conv_bias_tanh, op_kind::conv_bias_abs,
-                op_kind::conv_bias_sqrt, op_kind::conv_bias_add,
-                op_kind::conv_bias_add_elu, op_kind::conv_bias_add_relu,
-                op_kind::conv_bias_add_relu6, op_kind::conv_bias_bn,
-                op_kind::conv_bias_bn_add, op_kind::conv_bias_bn_add_relu,
-                op_kind::conv_bias_bn_relu, op_kind::conv_bn,
-                op_kind::conv_bn_add, op_kind::conv_bn_add_relu,
-                op_kind::conv_bn_relu, op_kind::dnnl_conv_depthwise,
+                impl::op_kind::Convolution, op_kind::conv_bias_swish,
+                op_kind::dnnl_conv_depthwise,
                 impl::op_kind::ConvolutionBackpropData,
                 impl::op_kind::ConvolutionBackpropFilters,
                 op_kind::conv_bias_post_ops_chain_fusion,
+                op_kind::conv_post_ops_chain_fusion,
                 // fp32 contranspose pattern
                 impl::op_kind::ConvTranspose, op_kind::convtranspose_fusion,
                 // fp32 matmul pattern

@@ -38,34 +38,7 @@ namespace op_kind {
     X(bn_relu, BatchNorm_relu) \
     X(bn_bwd_relu_bwd, BatchNormBwd_reluBwd) \
     X(bn_fwd_train_relu, BatchNormFwdTrain_relu) \
-    X(conv_add, Conv_add) \
-    X(conv_add_elu, Conv_add_elu) \
-    X(conv_add_relu, Conv_add_relu) \
-    X(conv_add_relu6, Conv_add_relu6) \
-    X(conv_bias, Conv_bias) \
-    X(conv_bias_abs, Conv_bias_abs) \
-    X(conv_bias_add, Conv_bias_add) \
-    X(conv_bias_add_elu, Conv_bias_add_elu) \
-    X(conv_bias_add_relu, Conv_bias_add_relu) \
-    X(conv_bias_add_relu6, Conv_bias_add_relu6) \
-    X(conv_bias_bn, Conv_bias_bn) \
-    X(conv_bias_bn_add, Conv_bias_bn_add) \
-    X(conv_bias_bn_add_relu, Conv_bias_bn_add_relu) \
-    X(conv_bias_bn_relu, Conv_bias_bn_relu) \
-    X(conv_bias_elu, Conv_bias_elu) \
-    X(conv_bias_hardtanh, Conv_bias_hardtanh) \
-    X(conv_bias_relu, Conv_bias_relu) \
-    X(conv_bias_relu6, Conv_bias_relu6) \
-    X(conv_bias_sigmoid, Conv_bias_sigmoid) \
-    X(conv_bias_sqrt, Conv_bias_sqrt) \
-    X(conv_bias_square, Conv_bias_square) \
     X(conv_bias_swish, Conv_bias_swish) \
-    X(conv_bias_tanh, Conv_bias_tanh) \
-    X(conv_bn, Conv_bn) \
-    X(conv_bn_add, Conv_bn_add) \
-    X(conv_bn_add_relu, Conv_bn_add_relu) \
-    X(conv_bn_relu, Conv_bn_relu) \
-    X(conv_relu, Conv_relu) \
     X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
     X(conv_bias_post_ops_chain_fusion, Conv_bias_post_ops_chain_fusion) \
     X(convtranspose_fusion, ConvTranspose_fusion) \
@@ -226,7 +199,8 @@ namespace op_kind {
     X(dnnl_logsoftmax, Dnnl_logsoftmax) \
     X(dnnl_layernorm, Dnnl_layernorm) \
     X(dnnl_reorder, Dnnl_reorder) \
-    X(float_conv_fusion, Float_conv_fusion)
+    X(float_conv_fusion, Float_conv_fusion) \
+    X(conv_post_ops_chain_fusion, Conv_post_ops_chain_fusion)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

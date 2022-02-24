@@ -139,7 +139,7 @@ public:
 #define DNNL_BACKEND_REGISTER_PASSES_CALL(passes_class_, pass_registry_) \
     pass::register_##passes_class_(pass_registry_);
 
-#define MAX_REPETITION 33
+#define MAX_REPETITION 4
 } // namespace pass
 } // namespace dnnl_impl
 } // namespace impl

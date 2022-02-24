@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,12 +40,12 @@ TEST(Op, FusedOp) {
     ASSERT_FALSE(conv.is_fused());
     ASSERT_FALSE(relu.is_fused());
 
-    op_t conv_relu {2, impl::dnnl_impl::op_kind::conv_relu,
-            std::string("conv_relu"), true};
-    conv_relu.add_op_ids({0, 1});
-    ASSERT_TRUE(conv_relu.is_fused());
+    op_t conv_post_ops {2, impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion,
+            std::string("conv_post_ops"), true};
+    conv_post_ops.add_op_ids({0, 1});
+    ASSERT_TRUE(conv_post_ops.is_fused());
 
-    std::vector<size_t> ret = conv_relu.get_op_ids();
+    std::vector<size_t> ret = conv_post_ops.get_op_ids();
     ASSERT_EQ(ret.size(), 2);
     ASSERT_EQ(ret[0], 0);
     ASSERT_EQ(ret[1], 1);

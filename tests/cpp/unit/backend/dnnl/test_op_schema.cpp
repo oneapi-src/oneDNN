@@ -85,10 +85,11 @@ TEST(OpSchema, Int8Matmul) {
 
 TEST(OpSchema, InferConvBiasOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
+            op_t::kind2str(
+                    impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -129,10 +130,11 @@ TEST(OpSchema, InferConvBiasOutputShape) {
 
 TEST(OpSchema, InferConvBiasOutputShapeAutoPad) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
+            op_t::kind2str(
+                    impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion)};
     std::vector<int64_t> strides = {1, 1};
     std::vector<int64_t> pads_begin = {}; // empty pads_begin
     std::vector<int64_t> pads_end = {}; // empty pads_end
@@ -159,10 +161,10 @@ TEST(OpSchema, InferConvBiasOutputShapeAutoPad) {
 
 TEST(OpSchema, InferConvBiasOutputShapeAutoPadNoDefaultAttribute) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
+            "conv_bias"};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {};
     std::vector<int64_t> pads_end = {};
@@ -189,10 +191,10 @@ TEST(OpSchema, InferConvBiasOutputShapeAutoPadNoDefaultAttribute) {
 
 TEST(OpSchema, InferConv3dBiasOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_node {impl::dnnl_impl::op_kind::conv_bias,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias)};
+    op_t a_node {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
+            "conv3d_bias"};
     std::vector<int64_t> strides = {2, 2, 2};
     std::vector<int64_t> pads_begin = {1, 1, 1};
     std::vector<int64_t> pads_end = {2, 2, 2};
@@ -229,115 +231,6 @@ TEST(OpSchema, InferConv3dBiasOutputShape) {
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
-}
-
-TEST(OpSchema, ConvBiasAddElu) {
-    const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_add_elu;
-    const size_t expected_in_size = 4;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 9;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"groups", false}, {"data_format", false},
-            {"filter_format", false}, {"alpha", true}};
-
-    verify_op_schema(conv_kind, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
-}
-
-TEST(OpSchema, ConvBiasAddRelu6) {
-    const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_add_relu6;
-    const size_t expected_in_size = 4;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 10;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"groups", false}, {"data_format", false},
-            {"filter_format", false}, {"min", true}, {"max", true}};
-
-    verify_op_schema(conv_kind, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
-}
-
-TEST(OpSchema, InferConvBiasAddEluOutputShape) {
-    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias_add_elu);
-    EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_add_elu,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias_add_elu)};
-    std::vector<int64_t> strides = {2, 2};
-    std::vector<int64_t> pads_begin = {1, 1};
-    std::vector<int64_t> pads_end = {2, 2};
-    std::vector<int64_t> dilations = {1, 1};
-    std::string data_format = "NCX";
-    std::string filter_format = "OIX";
-    int64_t groups = 1;
-
-    set_conv_common_attr(a_op, strides, pads_begin, pads_end, dilations, "None",
-            data_format, filter_format, groups);
-    a_op.set_attr("alpha", 1.f);
-
-    logical_tensor_t lt_data
-            = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
-    logical_tensor_t lt_weight
-            = logical_tensor_init(1, {512, 256, 3, 3}, data_type::f32);
-    logical_tensor_t lt_bias = logical_tensor_init(2, {1}, data_type::f32);
-    logical_tensor_t lt_added
-            = logical_tensor_init(3, {1, 512, 33, 33}, data_type::f32);
-    logical_tensor_t lt_o
-            = logical_tensor_init(4, data_type::f32, layout_type::strided);
-    std::vector<logical_tensor_t *> lt_in {
-            &lt_data, &lt_weight, &lt_bias, &lt_added};
-    std::vector<logical_tensor_t *> lt_out {&lt_o};
-    a_op_schema->shape_infer(&a_op, lt_in, lt_out);
-    auto unchanged_pads_begin
-            = a_op.get_attr<std::vector<int64_t>>("pads_begin");
-    auto unchanged_pads_end = a_op.get_attr<std::vector<int64_t>>("pads_end");
-    EXPECT_EQ(unchanged_pads_begin, pads_begin);
-    EXPECT_EQ(unchanged_pads_end, pads_end);
-
-    const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper_t(lt_o).vdims();
-    const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
-    EXPECT_EQ(infered_out_shape, expected_out_shape);
-
-    const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper_t(lt_o).vstrides();
-    const std::vector<int64_t> expected_out_strides
-            = compute_dense_strides(expected_out_shape);
-    EXPECT_EQ(infered_out_strides, expected_out_strides);
-}
-
-TEST(OpSchema, ConvBiasElu) {
-    const op_kind_t conv_kind = impl::dnnl_impl::op_kind::conv_bias_elu;
-    const size_t expected_in_size = 3;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 9;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"groups", false}, {"data_format", false},
-            {"filter_format", false}, {"alpha", true}};
-
-    verify_op_schema(conv_kind, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
-}
-
-TEST(OpSchema, ConvBiasHardtanh) {
-    std::set<op_kind_t> conv_kinds
-            = {impl::dnnl_impl::op_kind::conv_bias_hardtanh,
-                    impl::dnnl_impl::op_kind::conv_bias_relu6};
-    const size_t expected_in_size = 3;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 10;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"groups", false}, {"data_format", false},
-            {"filter_format", false}, {"min", true}, {"max", true}};
-
-    for (auto k : conv_kinds) {
-        verify_op_schema(k, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
 }
 
 TEST(OpSchema, InferSqueezeOutputShape) {
@@ -438,9 +331,7 @@ TEST(OpSchema, InferExpandOutputShapeBasedOnAxes) {
 }
 
 TEST(OpSchema, InferConvBiasAddReluWithNxcFormat) {
-    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias);
-    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_add);
-    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_add_relu);
+    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
 }
 
 TEST(OpSchema, MatmulFusion) {
@@ -687,10 +578,9 @@ TEST(OpSchema, InferBatchNormInferenceBiasAddOutputShape) {
 
 TEST(OpSchema, InferConvBnOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bn);
+            impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bn,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bn)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion, "conv_bn"};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -741,10 +631,10 @@ TEST(OpSchema, InferConvBnOutputShape) {
 
 TEST(OpSchema, InferConvBnAddOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bn_add);
+            impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bn_add,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bn_add)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion,
+            "conv_bn_add"};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -795,182 +685,13 @@ TEST(OpSchema, InferConvBnAddOutputShape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-TEST(OpSchema, InferConvBnReluOutputShape) {
-    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bn_relu);
-    EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bn_relu,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bn_relu)};
-    std::vector<int64_t> strides = {2, 2};
-    std::vector<int64_t> pads_begin = {1, 1};
-    std::vector<int64_t> pads_end = {2, 2};
-    std::vector<int64_t> dilations = {1, 1};
-    float epsilon = 0.001f;
-    std::string data_format = "NCX";
-    std::string filter_format = "OIX";
-    int64_t groups = 1;
-
-    set_conv_common_attr(a_op, strides, pads_begin, pads_end, dilations, "None",
-            data_format, filter_format, groups);
-    a_op.set_attr("epsilon", epsilon);
-
-    logical_tensor_t lt_data
-            = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
-    logical_tensor_t lt_weight
-            = logical_tensor_init(1, {512, 256, 3, 3}, data_type::f32);
-    logical_tensor_t lt_gamma
-            = logical_tensor_init(1, {1, 512}, data_type::f32);
-    logical_tensor_t lt_beta = logical_tensor_init(2, {1, 512}, data_type::f32);
-    logical_tensor_t lt_mean = logical_tensor_init(3, {1, 512}, data_type::f32);
-    logical_tensor_t lt_variance
-            = logical_tensor_init(4, {1, 512}, data_type::f32);
-    logical_tensor_t lt_o
-            = logical_tensor_init(5, data_type::f32, layout_type::strided);
-    std::vector<logical_tensor_t *> lt_in {
-            &lt_data, &lt_weight, &lt_gamma, &lt_beta, &lt_mean, &lt_variance};
-    std::vector<logical_tensor_t *> lt_out {&lt_o};
-    a_op_schema->shape_infer(&a_op, lt_in, lt_out);
-    auto unchanged_pads_begin
-            = a_op.get_attr<std::vector<int64_t>>("pads_begin");
-    auto unchanged_pads_end = a_op.get_attr<std::vector<int64_t>>("pads_end");
-    EXPECT_EQ(unchanged_pads_begin, pads_begin);
-    EXPECT_EQ(unchanged_pads_end, pads_end);
-
-    const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper_t(lt_o).vdims();
-    const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
-    EXPECT_EQ(infered_out_shape, expected_out_shape);
-
-    const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper_t(lt_o).vstrides();
-    const std::vector<int64_t> expected_out_strides
-            = compute_dense_strides(expected_out_shape);
-    EXPECT_EQ(infered_out_strides, expected_out_strides);
-}
-
-TEST(OpSchema, InferConvBiasBnOutputShape) {
-    std::set<op_kind_t> op_kinds = {impl::dnnl_impl::op_kind::conv_bias_bn,
-            impl::dnnl_impl::op_kind::conv_bias_bn_relu};
-    for (auto a_op_kind : op_kinds) {
-        const op_schema_t *a_op_schema
-                = op_schema_registry_t::get_op_schema(a_op_kind);
-        EXPECT_TRUE(nullptr != a_op_schema);
-        op_t a_op {a_op_kind, op_t::kind2str(a_op_kind)};
-        std::vector<int64_t> strides = {2, 2};
-        std::vector<int64_t> pads_begin = {1, 1};
-        std::vector<int64_t> pads_end = {2, 2};
-        std::vector<int64_t> dilations = {1, 1};
-        float epsilon = 0.001f;
-        std::string data_format = "NCX";
-        std::string filter_format = "OIX";
-        int64_t groups = 1;
-
-        set_conv_common_attr(a_op, strides, pads_begin, pads_end, dilations,
-                "None", data_format, filter_format, groups);
-        a_op.set_attr("epsilon", epsilon);
-
-        logical_tensor_t lt_data
-                = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
-        logical_tensor_t lt_weight
-                = logical_tensor_init(1, {512, 256, 3, 3}, data_type::f32);
-        logical_tensor_t lt_bias
-                = logical_tensor_init(1, {512}, data_type::f32);
-        logical_tensor_t lt_gamma
-                = logical_tensor_init(1, {1, 512}, data_type::f32);
-        logical_tensor_t lt_beta
-                = logical_tensor_init(2, {1, 512}, data_type::f32);
-        logical_tensor_t lt_mean
-                = logical_tensor_init(3, {1, 512}, data_type::f32);
-        logical_tensor_t lt_variance
-                = logical_tensor_init(4, {1, 512}, data_type::f32);
-        logical_tensor_t lt_o
-                = logical_tensor_init(5, data_type::f32, layout_type::strided);
-        std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_bias,
-                &lt_gamma, &lt_beta, &lt_mean, &lt_variance};
-        std::vector<logical_tensor_t *> lt_out {&lt_o};
-        a_op_schema->shape_infer(&a_op, lt_in, lt_out);
-        auto unchanged_pads_begin
-                = a_op.get_attr<std::vector<int64_t>>("pads_begin");
-        auto unchanged_pads_end
-                = a_op.get_attr<std::vector<int64_t>>("pads_end");
-        EXPECT_EQ(unchanged_pads_begin, pads_begin);
-        EXPECT_EQ(unchanged_pads_end, pads_end);
-
-        const std::vector<int64_t> infered_out_shape
-                = logical_tensor_wrapper_t(lt_o).vdims();
-        const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
-        EXPECT_EQ(infered_out_shape, expected_out_shape);
-
-        const std::vector<int64_t> infered_out_strides
-                = logical_tensor_wrapper_t(lt_o).vstrides();
-        const std::vector<int64_t> expected_out_strides
-                = compute_dense_strides(expected_out_shape);
-        EXPECT_EQ(infered_out_strides, expected_out_strides);
-    }
-}
-
-TEST(OpSchema, InferConvBnAddReluOutputShape) {
-    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bn_add_relu);
-    EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bn_add_relu,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bn_add_relu)};
-    std::vector<int64_t> strides = {2, 2};
-    std::vector<int64_t> pads_begin = {1, 1};
-    std::vector<int64_t> pads_end = {2, 2};
-    std::vector<int64_t> dilations = {1, 1};
-    float epsilon = 0.001f;
-    std::string data_format = "NCX";
-    std::string filter_format = "OIX";
-    int64_t groups = 1;
-
-    set_conv_common_attr(a_op, strides, pads_begin, pads_end, dilations, "None",
-            data_format, filter_format, groups);
-    a_op.set_attr("epsilon", epsilon);
-
-    logical_tensor_t lt_data
-            = logical_tensor_init(0, {1, 256, 64, 64}, data_type::f32);
-    logical_tensor_t lt_weight
-            = logical_tensor_init(1, {512, 256, 3, 3}, data_type::f32);
-    logical_tensor_t lt_gamma
-            = logical_tensor_init(1, {1, 512}, data_type::f32);
-    logical_tensor_t lt_beta = logical_tensor_init(2, {1, 512}, data_type::f32);
-    logical_tensor_t lt_mean = logical_tensor_init(3, {1, 512}, data_type::f32);
-    logical_tensor_t lt_variance
-            = logical_tensor_init(4, {1, 512}, data_type::f32);
-    logical_tensor_t lt_add
-            = logical_tensor_init(5, {1, 512, 33, 33}, data_type::f32);
-    logical_tensor_t lt_o
-            = logical_tensor_init(6, data_type::f32, layout_type::strided);
-    std::vector<logical_tensor_t *> lt_in {&lt_data, &lt_weight, &lt_gamma,
-            &lt_beta, &lt_mean, &lt_variance, &lt_add};
-    std::vector<logical_tensor_t *> lt_out {&lt_o};
-    a_op_schema->shape_infer(&a_op, lt_in, lt_out);
-    auto infered_pads_begin = a_op.get_attr<std::vector<int64_t>>("pads_begin");
-    auto infered_pads_end = a_op.get_attr<std::vector<int64_t>>("pads_end");
-    EXPECT_EQ(infered_pads_begin[0], 1);
-    EXPECT_EQ(infered_pads_begin[1], 1);
-    EXPECT_EQ(infered_pads_end[0], 2);
-    EXPECT_EQ(infered_pads_end[1], 2);
-
-    const std::vector<int64_t> infered_out_shape
-            = logical_tensor_wrapper_t(lt_o).vdims();
-    const std::vector<int64_t> expected_out_shape = {1, 512, 33, 33};
-    EXPECT_EQ(infered_out_shape, expected_out_shape);
-
-    const std::vector<int64_t> infered_out_strides
-            = logical_tensor_wrapper_t(lt_o).vstrides();
-    const std::vector<int64_t> expected_out_strides
-            = compute_dense_strides(expected_out_shape);
-    EXPECT_EQ(infered_out_strides, expected_out_strides);
-}
 
 TEST(OpSchema, InferConvBiasBnAddReluOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias_bn_add_relu);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_bn_add_relu,
-            op_t::kind2str(impl::dnnl_impl::op_kind::conv_bias_bn_add_relu)};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
+            "conv_bias_bn_add_relu"};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -1020,28 +741,6 @@ TEST(OpSchema, InferConvBiasBnAddReluOutputShape) {
     const std::vector<int64_t> expected_out_strides
             = compute_dense_strides(expected_out_shape);
     EXPECT_EQ(infered_out_strides, expected_out_strides);
-}
-
-TEST(OpSchema, ConvBiasFusion) {
-    std::set<op_kind_t> conv_kinds = {impl::dnnl_impl::op_kind::conv_bias,
-            impl::dnnl_impl::op_kind::conv_bias_abs,
-            impl::dnnl_impl::op_kind::conv_bias_relu,
-            impl::dnnl_impl::op_kind::conv_bias_sigmoid,
-            impl::dnnl_impl::op_kind::conv_bias_sqrt,
-            impl::dnnl_impl::op_kind::conv_bias_square,
-            impl::dnnl_impl::op_kind::conv_bias_tanh};
-    const size_t expected_in_size = 3;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 8;
-    const std::map<std::string, bool> attrs_data
-            = {{"strides", true}, {"pads_begin", true}, {"pads_end", true},
-                    {"dilations", true}, {"auto_pad", false}, {"groups", false},
-                    {"data_format", false}, {"filter_format", false}};
-
-    for (auto k : conv_kinds) {
-        verify_op_schema(k, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
 }
 
 TEST(OpSchema, DnnlBinary) {
