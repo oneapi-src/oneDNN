@@ -38,6 +38,10 @@ void base_perf_report_t::report(res_t *res, const char *prb_str) const {
     BENCHDNN_PRINT(0, "%s\n", str.c_str());
 };
 
+void base_perf_report_t::dump_engine(std::ostream &s) const {
+    s << engine_tgt_kind;
+}
+
 void base_perf_report_t::handle_option(std::ostream &s, const char *&option,
         res_t *res, const char *prb_str) const {
     timer::timer_t::mode_t mode = timer::timer_t::min;

@@ -22,7 +22,6 @@
 #endif
 
 #include "common.hpp"
-#include "dnnl_common.hpp"
 
 #define dnnl_mem_default_value 0xFF
 
@@ -39,41 +38,22 @@ struct dnn_mem_t {
     };
 
     dnn_mem_t() { map(); }
-
-    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine) {
-        active_ = (initialize(md, engine) == OK);
-    }
-
+    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine);
     dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
-            const handle_info_t &handle_info) {
-        active_ = (initialize(md, engine, handle_info) == OK);
-    }
+            const handle_info_t &handle_info);
 
     dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
-            const std::string &tag, dnnl_engine_t engine) {
-        active_ = (initialize(ndims, dims, dt, tag, engine) == OK);
-    }
+            const std::string &tag, dnnl_engine_t engine);
+    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
+            const std::string &tag, dnnl_engine_t engine);
+    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
+            dnnl_engine_t engine);
 
     dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
-            const dnnl_dims_t strides, dnnl_engine_t engine) {
-        active_ = (initialize(ndims, dims, dt, strides, engine) == OK);
-    }
-
-    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-            const std::string &tag, dnnl_engine_t engine) {
-        active_ = (initialize(md, dt, tag, engine) == OK);
-    }
-
-    dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-            dnnl_engine_t engine) {
-        active_ = (initialize(md, dt, tag::undef, engine) == OK);
-    }
+            const dnnl_dims_t strides, dnnl_engine_t engine);
 
     dnn_mem_t(const dnn_mem_t &rhs, dnnl_data_type_t dt, const std::string &tag,
-            dnnl_engine_t engine)
-        : dnn_mem_t(rhs.md_, dt, tag, engine) {
-        if (active_) reorder(rhs);
-    }
+            dnnl_engine_t engine);
 
     dnn_mem_t(const dnn_mem_t &rhs) = delete;
     dnn_mem_t &operator=(const dnn_mem_t &rhs) = delete;
@@ -132,33 +112,8 @@ struct dnn_mem_t {
         return bool(mapped_ptr_);
     }
 
-    float get_elem(int64_t idx) const {
-        void *data = (void *)*this;
-        float elem = 0.0;
-        switch (dt()) {
-            case dnnl_s8: elem = static_cast<int8_t *>(data)[idx]; break;
-            case dnnl_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
-            case dnnl_s32: elem = static_cast<int32_t *>(data)[idx]; break;
-            case dnnl_f32: elem = static_cast<float *>(data)[idx]; break;
-            case dnnl_f16: elem = static_cast<float16_t *>(data)[idx]; break;
-            case dnnl_bf16: elem = static_cast<bfloat16_t *>(data)[idx]; break;
-            default: assert(!"bad data type");
-        }
-        return elem;
-    }
-
-    void set_elem(int64_t idx, float value) {
-        void *data = (void *)*this;
-        switch (dt()) {
-            case dnnl_s8: ((int8_t *)data)[idx] = value; break;
-            case dnnl_u8: ((uint8_t *)data)[idx] = value; break;
-            case dnnl_s32: ((int32_t *)data)[idx] = value; break;
-            case dnnl_f32: ((float *)data)[idx] = value; break;
-            case dnnl_f16: ((float16_t *)data)[idx] = value; break;
-            case dnnl_bf16: ((bfloat16_t *)data)[idx] = value; break;
-            default: assert(!"bad data type");
-        }
-    }
+    float get_elem(int64_t idx) const;
+    void set_elem(int64_t idx, float value) const;
 
     int64_t get_scale_idx(
             int64_t data_idx, int scale_mask, const int ndims) const {
@@ -192,56 +147,19 @@ struct dnn_mem_t {
 
     bool is_canary_protected() const { return is_canary_protected_; }
 
-    void map() const {
-        assert(!is_mapped_ && "memory is already mapped");
-        is_mapped_ = true;
-
-        if (!m_) return;
-        auto mem = m_padded_ ? m_padded_ : m_;
-        DNN_SAFE_V(dnnl_memory_map_data(mem, &mapped_ptr_));
-    }
-
-    void unmap() const {
-        assert(is_mapped_ && "memory is not mapped");
-        is_mapped_ = false;
-
-        if (!m_) return;
-        auto mem = m_padded_ ? m_padded_ : m_;
-        DNN_SAFE_V(dnnl_memory_unmap_data(mem, mapped_ptr_));
-        mapped_ptr_ = NULL;
-    }
+    void map() const;
+    void unmap() const;
 
     static dnn_mem_t create_from_host_ptr(
             const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr);
 
     // Increases memory size to catch potential buffer overreads and
     // overwrites. The padded area is filled with a canary value.
-    static size_t pad_memory_size(size_t sz, bool *was_padded = nullptr) {
-        if (was_padded) *was_padded = false;
-        if (sz == 0 || !is_bench_mode(CORR)) return 0;
-
-        const int pad_size = 4096;
-        if (was_padded) *was_padded = true;
-        return sz + pad_size;
-    }
-
+    static size_t pad_memory_size(size_t sz, bool *was_padded = nullptr);
     // Increases memory descriptor size to catch potential buffer overreads and
     // overwrites. The padded area is filled with a canary value.
     static dnnl_memory_desc_t pad_memory_desc(
-            const dnnl_memory_desc_t &md, bool *was_padded = nullptr) {
-        if (was_padded) *was_padded = false;
-        size_t old_sz = dnnl_memory_desc_get_size(&md);
-        if (old_sz == 0 || !is_bench_mode(CORR)) return md;
-
-        size_t sz = pad_memory_size(old_sz, was_padded);
-        if (sz == old_sz) return md;
-
-        dnnl_memory_desc_t ret;
-        dnnl_dims_t dims = {(dnnl_dim_t)sz};
-        DNN_SAFE_V(
-                dnnl_memory_desc_init_by_tag(&ret, 1, dims, dnnl_u8, dnnl_x));
-        return ret;
-    }
+            const dnnl_memory_desc_t &md, bool *was_padded = nullptr);
 
     /* fields */
     dnnl_memory_desc_t md_ {};
@@ -265,91 +183,19 @@ private:
 
     int initialize_memory_create_sycl(const handle_info_t &handle_info);
     int initialize_memory_create_opencl(const handle_info_t &handle_info);
-
     int initialize_memory_create(const handle_info_t &handle_info);
 
     int initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
             const std::string &tag, dnnl_engine_t engine,
-            const handle_info_t &handle_info = handle_info_t::allocate()) {
-        is_mapped_ = false;
-
-        if (tag == tag::undef) {
-            md_ = md;
-            md_.data_type = dt;
-        } else {
-            SAFE(init_md(&md_, md.ndims, md.dims, dt, tag), CRIT);
-        }
-        engine_ = engine;
-        DNN_SAFE(dnnl_engine_get_kind(engine_, &engine_kind_), CRIT);
-
-        SAFE(initialize_memory_create(handle_info), CRIT);
-
-        size_t sz = dnnl_memory_desc_get_size(&md_);
-        if (is_canary_protected_) sz = pad_memory_size(sz);
-
-        // Do not fill a memory if its size is zero. Moreover, memset expects
-        // defined pointer, nullptr is not allowed.
-        if (sz != 0 && handle_info.is_allocate()) {
-            // Fill memory with a magic number (NAN for fp data types) to catch
-            // possible uninitialized access.
-            map();
-            memset(mapped_ptr_, dnnl_mem_default_value, sz);
-            unmap();
-        }
-
-        // Keep memory mapped and unmap only before execution
-        map();
-
-        return OK;
-    }
-
+            const handle_info_t &handle_info = handle_info_t::allocate());
     int initialize(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
-            const handle_info_t &handle_info = handle_info_t::allocate()) {
-        return initialize(md, md.data_type, tag::undef, engine, handle_info);
-    }
-
+            const handle_info_t &handle_info = handle_info_t::allocate());
     int initialize(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
-            const std::string &tag, dnnl_engine_t engine) {
-        dnnl_memory_desc_t xmd;
-        SAFE(init_md(&xmd, ndims, dims, dt, tag), CRIT);
-        SAFE(initialize(xmd, engine), CRIT);
-        return OK;
-    }
-
+            const std::string &tag, dnnl_engine_t engine);
     int initialize(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
-            const dnnl_dims_t strides, dnnl_engine_t engine) {
-        dnnl_memory_desc_t xmd;
-        DNN_SAFE(dnnl_memory_desc_init_by_strides(
-                         &xmd, ndims, dims, dt, strides),
-                CRIT);
-        SAFE(initialize(xmd, engine), CRIT);
-        return OK;
-    }
+            const dnnl_dims_t strides, dnnl_engine_t engine);
 
-    int cleanup_sycl();
-    int cleanup_opencl();
-
-    int cleanup() {
-        if (!active_) return OK;
-        unmap();
-        DNN_SAFE(dnnl_memory_destroy(m_), CRIT);
-        if (is_data_owner_) {
-            if (is_sycl_engine(engine_)) {
-                SAFE(cleanup_sycl(), CRIT);
-            } else if (is_opencl_engine(engine_)) {
-                SAFE(cleanup_opencl(), CRIT);
-            } else {
-                zfree(data_);
-            }
-        }
-        DNN_SAFE(dnnl_memory_destroy(m_padded_), CRIT);
-        return OK;
-    }
-
-    // Creates a memory object from the underlying buffer of an existing memory
-    // object `mem`. The size of `mem` must not be less than the size of `md`.
-    static int init_memory(dnnl_memory_t *ret, const dnnl_memory_desc_t &md,
-            dnnl_memory_t mem);
+    int cleanup();
 };
 
 // Checks that zero padding is preserved.

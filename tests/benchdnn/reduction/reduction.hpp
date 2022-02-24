@@ -20,7 +20,7 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 #include "dnn_types.hpp"
-#include "dnnl_memory.hpp"
+#include "dnnl_common.hpp"
 #include "utils/perf_report.hpp"
 #include "utils/settings.hpp"
 
