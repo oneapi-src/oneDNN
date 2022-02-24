@@ -862,6 +862,7 @@ private:
         return status::success;
     }
 
+    bool should_use_spatial_blocking(int d, int h, int w) const;
     void maybe_set_fuse_spatial();
     void maybe_set_hoist_masks_from_compute_loop();
     void maybe_set_bwd_d_stride_optimization(int iw_thr_blk);
