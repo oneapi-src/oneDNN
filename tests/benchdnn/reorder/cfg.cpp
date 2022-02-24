@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@
 
 namespace reorder {
 
-const int int_max_exact = 1 << 24;
-const int f16_max_exact = 1 << 14;
+const float int_max_exact = 1 << 24;
+const float f16_max_exact = 1 << 11;
 
 #define REG(dt, min, max) \
     const dt_conf_s CONCAT2(_conf_, dt) = {CONCAT2(dnnl_, dt), min, max}; \
@@ -39,7 +39,7 @@ REG(bf16, -int_max_exact, int_max_exact);
 // Do not exceed max float value representable in integer. Otherwise, we get
 // a correctness issue caused by different computations in reference and the
 // library.
-REG(s32, INT_MIN, (int)BENCHDNN_S32_TO_F32_SAT_CONST);
+REG(s32, INT_MIN, BENCHDNN_S32_TO_F32_SAT_CONST);
 REG(s8, INT8_MIN, INT8_MAX);
 REG(u8, 0, UINT8_MAX);
 

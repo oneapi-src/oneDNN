@@ -42,8 +42,8 @@ std::string flag2str(flag_bit_t flag);
 
 struct dt_conf_s {
     dnnl_data_type_t dt;
-    int min;
-    int max;
+    float min;
+    float max;
 };
 typedef const dt_conf_s *dt_conf_t;
 dt_conf_t dt2cfg(dnnl_data_type_t dt);
@@ -167,6 +167,9 @@ private:
     std::vector<std::string> stag_;
     std::string dtag_;
 };
+
+void compute_ref(const prb_t *prb, const args_t &args,
+        dnnl_primitive_t prim_ref = nullptr);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
