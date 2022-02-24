@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -504,6 +504,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Zmm>::compute_ker_dw(int ur_w,
                 if (jcp.is_fast_depthwise || !compute_kernel) {
                     vpmovsxbd(zmm_wei,
                             EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
+                    if (jcp.is_fast_depthwise)
+                        vpermd(zmm_wei, zmm_permute, zmm_wei);
                 } // else: already loaded weights from previous block
                 int zp_offset = 0;
                 for (int oi = 0; oi < ur_w; oi++) {
