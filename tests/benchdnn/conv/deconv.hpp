@@ -22,20 +22,24 @@
 #include <stdint.h>
 
 #include "common.hpp"
-#include "conv/conv_common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
-#include "dnnl_memory.hpp"
+
+#include "conv/conv_common.hpp"
 
 namespace deconv {
 void check_known_skipped_case(const conv::prb_t *prb, res_t *res);
 int doit(const conv::prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
+
 int transpose_data_wei(
         const conv::prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr);
 
 void compute_ref(const conv::prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
+
+int doit(const conv::prb_t *prb, res_t *res);
+int bench(int argc, char **argv);
 
 } // namespace deconv
 #endif

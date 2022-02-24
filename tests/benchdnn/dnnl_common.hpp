@@ -34,6 +34,7 @@ int check_primitive_cache(dnnl_primitive_t p);
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
+#include "dnnl_memory.hpp"
 #include "utils/dims.hpp"
 
 #define for_ for
@@ -217,8 +218,6 @@ inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
     dnnl_primitive_desc_query(pd, dnnl_query_impl_info_str, 0, &str);
     return str;
 }
-
-struct dnn_mem_t;
 
 struct args_t {
     args_t &set(int arg, const dnn_mem_t &mem);

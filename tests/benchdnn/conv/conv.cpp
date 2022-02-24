@@ -38,7 +38,7 @@
 #include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
-#include "conv/conv_common.hpp"
+#include "conv/conv.hpp"
 #include "eltwise/eltwise.hpp"
 #include "prelu/prelu.hpp"
 
