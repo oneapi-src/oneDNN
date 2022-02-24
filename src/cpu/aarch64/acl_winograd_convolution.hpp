@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Arm Ltd. and affiliates
+* Copyright 2020-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
 
             set_default_alg_kind(alg_kind::convolution_winograd);
 
-            acl_common_utils::acl_thread_bind();
+            acl_utils::acl_thread_bind();
 
             return status::success;
         }
@@ -130,7 +130,7 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
             // sum+eltwise post-ops
             if (eltwise_only || sum_with_eltwise) {
                 const auto act_type = po.entry_[sum_with_eltwise].eltwise.alg;
-                eltwise_ok = acl_common_utils::acl_act_ok(act_type);
+                eltwise_ok = acl_utils::acl_act_ok(act_type);
             }
 
             return eltwise_ok || (po.len() == 0);
