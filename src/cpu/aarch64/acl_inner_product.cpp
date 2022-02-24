@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,23 +21,18 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-using namespace dnnl::impl::status;
-using namespace dnnl::impl::memory_tracking::names;
-using namespace dnnl::impl::utils;
-
 status_t acl_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     // Lock here is needed because resource_mapper does not support
     // concurrent multithreaded access.
     std::lock_guard<std::mutex> _lock {this->mtx};
 
-    status_t status = status::success;
     auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    bool with_bias = pd()->aip_.with_bias;
-    bool with_sum = pd()->aip_.with_sum;
+    bool with_bias = pd()->aip.with_bias;
+    bool with_sum = pd()->aip.with_sum;
 
     // Retrieve primitive resource and configured Compute Library objects
     auto *acl_resource
@@ -64,7 +59,7 @@ status_t acl_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_obj.dst_tensor.allocator()->free();
     if (with_bias) { acl_obj.bia_tensor.allocator()->free(); }
 
-    return status;
+    return status::success;
 }
 
 } // namespace aarch64

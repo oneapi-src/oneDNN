@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,14 +22,10 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
-namespace matmul {
 
-using namespace dnnl::impl::status;
-using namespace dnnl::impl::utils;
-using namespace dnnl::impl::cpu::matmul;
-using namespace prop_kind;
+using namespace alg_kind;
+using namespace cpu::matmul;
 using namespace format_tag;
-using namespace dnnl::impl::alg_kind;
 
 namespace acl_matmul_utils {
 
@@ -58,7 +54,7 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
             wei_md, abcd, abdc, abc, acb, ab, ba);
     auto dst_tag = memory_desc_matches_one_of_tag(
             dst_md, abcd, abdc, abc, acb, ab, ba);
-    if (one_of(format_tag::undef, src_tag, wei_tag, dst_tag)) {
+    if (utils::one_of(format_tag::undef, src_tag, wei_tag, dst_tag)) {
         return status::unimplemented;
     }
     amp.is_transA = helper.transA() == 'T';
@@ -85,7 +81,7 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     // Fast-math mode
     auto math_mode = get_fpmath_mode();
     bool is_fastmath_enabled
-            = one_of(math_mode, fpmath_mode::bf16, fpmath_mode::any);
+            = utils::one_of(math_mode, fpmath_mode::bf16, fpmath_mode::any);
     amp.gemm_info.set_fast_math(is_fastmath_enabled);
 
     // Fused ReLU activation
@@ -95,29 +91,15 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     amp.alpha = attr.output_scales_.scales_[0];
 
     // Validate ACL transpose
-    if (amp.is_transA) {
-        auto acl_transA_st = arm_compute::NETranspose::validate(
-                &amp.src_acc_info, &amp.src_info);
-        if (acl_transA_st.error_code() != arm_compute::ErrorCode::OK) {
-            MAYBE_REPORT_ACL_ERROR(acl_transA_st.error_description().c_str());
-            return status::unimplemented;
-        }
-    }
-    if (amp.is_transB) {
-        auto acl_transB_st = arm_compute::NETranspose::validate(
-                &amp.wei_acc_info, &amp.wei_info);
-        if (acl_transB_st.error_code() != arm_compute::ErrorCode::OK) {
-            MAYBE_REPORT_ACL_ERROR(acl_transB_st.error_description().c_str());
-            return status::unimplemented;
-        }
-    }
+    if (amp.is_transA)
+        ACL_CHECK_VALID(arm_compute::NETranspose::validate(
+                &amp.src_acc_info, &amp.src_info));
+    if (amp.is_transB)
+        ACL_CHECK_VALID(arm_compute::NETranspose::validate(
+                &amp.wei_acc_info, &amp.wei_info));
     // Validate ACL GEMM
-    auto acl_st = arm_compute::NEGEMM::validate(&amp.src_info, &amp.wei_info,
-            nullptr, &amp.dst_info, amp.alpha, 0.0f, amp.gemm_info);
-    if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
-        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
-        return status::unimplemented;
-    }
+    ACL_CHECK_VALID(arm_compute::NEGEMM::validate(&amp.src_info, &amp.wei_info,
+            nullptr, &amp.dst_info, amp.alpha, 0.0f, amp.gemm_info));
 
     return status::success;
 }
@@ -175,7 +157,6 @@ bool acl_act_ok(alg_kind_t eltwise_activation) {
 
 } // namespace acl_matmul_utils
 
-} // namespace matmul
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl

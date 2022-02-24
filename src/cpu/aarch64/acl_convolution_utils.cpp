@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Arm Ltd. and affiliates
+* Copyright 2020-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -156,10 +156,10 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const auto acl_layout = is_nspc ? arm_compute::DataLayout::NHWC
                                     : arm_compute::DataLayout::NCHW;
 
-    auto acl_src_data_t = acl_common_utils::get_acl_data_t(src_d.data_type());
-    auto acl_wei_data_t = acl_common_utils::get_acl_data_t(wei_d.data_type());
-    auto acl_dst_data_t = acl_common_utils::get_acl_data_t(dst_d.data_type());
-    auto acl_bia_data_t = acl_common_utils::get_acl_data_t(bia_d.data_type());
+    auto acl_src_data_t = acl_utils::get_acl_data_t(src_d.data_type());
+    auto acl_wei_data_t = acl_utils::get_acl_data_t(wei_d.data_type());
+    auto acl_dst_data_t = acl_utils::get_acl_data_t(dst_d.data_type());
+    auto acl_bia_data_t = acl_utils::get_acl_data_t(bia_d.data_type());
 
     if (acl_bia_data_t == arm_compute::DataType::UNKNOWN)
         acl_bia_data_t = arm_compute::DataType::F32;
@@ -212,33 +212,14 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // is_eltwise(true) here stands for eltwise.scale == 1.f check
     acp.sum_with_eltwise = (post_ops.len() == 2) && post_ops.entry_[0].is_sum()
             && post_ops.entry_[1].is_eltwise(true);
-    acp.act_info = acl_common_utils::get_acl_act(attr);
+    acp.act_info = acl_utils::get_acl_act(attr);
 
     if (acp.sum_with_eltwise) {
-        // clang-format off
-        // Validate activation layer manually to check for return status
-        auto acl_al_st = arm_compute::NEActivationLayer::validate(
-            &acp.dst_info,
-            &acp.dst_info,
-            acp.act_info);
-        // clang-format on
-        if (acl_al_st.error_code() != arm_compute::ErrorCode::OK) {
-            MAYBE_REPORT_ACL_ERROR(acl_al_st.error_description().c_str());
-            return status::unimplemented;
-        }
-
-        // clang-format off
-        // Validate arithmetic addition manually to check for return status
-        auto acl_aa_st = arm_compute::NEArithmeticAddition::validate(
-            &acp.dst_info,
-            &acp.dst_info,
-            &acp.dst_info,
-            arm_compute::ConvertPolicy::SATURATE);
-        // clang-format on
-        if (acl_aa_st.error_code() != arm_compute::ErrorCode::OK) {
-            MAYBE_REPORT_ACL_ERROR(acl_aa_st.error_description().c_str());
-            return status::unimplemented;
-        }
+        ACL_CHECK_VALID(arm_compute::NEActivationLayer::validate( // eltwise
+                &acp.dst_info, &acp.dst_info, acp.act_info));
+        ACL_CHECK_VALID(arm_compute::NEArithmeticAddition::validate( // sum
+                &acp.dst_info, &acp.dst_info, &acp.dst_info,
+                arm_compute::ConvertPolicy::SATURATE));
     }
 
     return status::success;
@@ -254,7 +235,7 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     // clang-format off
     // Validate convolution manually to check for return status
-    auto acl_st = arm_compute::NEGEMMConvolutionLayer::validate(
+    ACL_CHECK_VALID(arm_compute::NEGEMMConvolutionLayer::validate(
         &acp.src_info,
         &acp.wei_info,
         acp.with_bias ? &acp.bia_info : nullptr,
@@ -263,12 +244,8 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         acp.weights_info,
         acp.dilation_info,
         acp.act_info,
-        acp.fast_math);
+        acp.fast_math));
     // clang-format on
-    if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
-        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
-        return status::unimplemented;
-    }
 
     return status::success;
 }
@@ -289,7 +266,7 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     // clang-format off
     // NOTE: indirect convolution method supports only nhwc layout.
-    auto acl_st = arm_compute::NEGEMMConv2d::validate(
+    ACL_CHECK_VALID(arm_compute::NEGEMMConv2d::validate(
         &acp.src_info,
         &acp.wei_info,
         acp.with_bias ? &acp.bia_info : nullptr,
@@ -298,12 +275,8 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
                                 acp.dilation_info,
                                 acp.act_info,
                                 acp.fast_math,
-                                1));
+                                1)));
     // clang-format on
-    if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
-        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
-        return status::unimplemented;
-    }
 
     return status::success;
 }
@@ -336,19 +309,15 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     // clang-format off
     // Validate convolution manually to check for return status
-    auto acl_st = arm_compute::NEWinogradConvolutionLayer::validate(
+    ACL_CHECK_VALID(arm_compute::NEWinogradConvolutionLayer::validate(
         &acp.src_info,
         &acp.wei_info,
         acp.with_bias ? &acp.bia_info : nullptr,
         &acp.dst_info,
         acp.padstride_info,
         acp.act_info,
-        true); // enable_fast_math flag in ACL Winograd
+        true)); // enable_fast_math flag in ACL Winograd
     // clang-format on
-    if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
-        MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
-        return status::unimplemented;
-    }
 
     return status::success;
 }

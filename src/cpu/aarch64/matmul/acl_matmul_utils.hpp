@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
-namespace matmul {
 
 struct acl_matmul_obj_t {
     arm_compute::NEGEMM gemm;
@@ -61,7 +60,6 @@ arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
 bool acl_act_ok(alg_kind_t eltwise_activation);
 } // namespace acl_matmul_utils
 
-} // namespace matmul
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl
