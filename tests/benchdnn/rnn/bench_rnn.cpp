@@ -23,7 +23,6 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "dnnl_common.hpp"
-#include "dnnl_memory.hpp"
 #include "utils/parser.hpp"
 
 #include "rnn/rnn.hpp"

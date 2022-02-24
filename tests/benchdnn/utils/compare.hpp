@@ -21,7 +21,6 @@
 
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
-#include "dnnl_memory.hpp"
 
 namespace compare {
 
