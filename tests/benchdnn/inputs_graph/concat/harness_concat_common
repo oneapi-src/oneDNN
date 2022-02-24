@@ -1,0 +1,14 @@
+--dtag=nchw
+--stag=nchw:nchw             --axis=1 64x128x28x28:64x128x28x28
+                             --axis=0 1x4096x14x14:1x4096x14x14
+--stag=nchw:nchw:nchw        --axis=3 8x16x384x64:8x16x384x384:8x16x384x384
+
+--dtag=nhwc
+--stag=nhwc:nhwc:nhwc        --axis=0 1x128x150x150:1x128x150x150:1x128x150x150
+                             --axis=1 1x64x600x600:1x64x600x600:1x64x600x600
+--stag=nhwc:nhwc                      64x64x112x112:64x64x112x112
+
+--dtag=hwcn
+--stag=hwcn:hwcn              --axis=2 1x1024x28x28:1x1024x28x28
+                              --axis=0 486x256x3x3:486x256x3x3
+--stag=hwcn:hwcn:hwcn         --axis=3 1x64x300x300:1x64x300x300:1x64x300x300

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -108,11 +108,6 @@ void check_known_skipped_case_graph(const ::concat::prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-    // Concat will support low precision in later releases
-    if (is_low_precision({convert_dt(prb->sdt), convert_dt(prb->ddt)})) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
 }
 
 fill_status_t concat_graph_prb_t::handle_main_op_() {
@@ -122,16 +117,26 @@ fill_status_t concat_graph_prb_t::handle_main_op_() {
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string DST {TENSOR_ID + "_DST"};
 
+    dt src_data_type, dst_data_type;
+    if (benchdnnext::is_low_precision({spec_.src_dt, spec_.dst_dt})) {
+        src_data_type = dt::f32;
+        dst_data_type = dt::f32;
+    } else {
+        src_data_type = spec_.src_dt;
+        dst_data_type = spec_.dst_dt;
+    }
+
     std::vector<dnnl::graph::logical_tensor> tensor_descs_srcs;
     tensor_descs_srcs.reserve(spec_.n_inputs());
 
     for (auto i = 0; i < spec_.n_inputs(); ++i) {
         const auto SRC_I = SRC + std::to_string(i);
         tensor_descs_.emplace(
-                SRC_I, spec_.src_dt, spec_.src_dims[i], spec_.raw_src_tag[i]);
+                SRC_I, src_data_type, spec_.src_dims[i], spec_.raw_src_tag[i]);
         tensor_descs_srcs.emplace_back(tensor_descs_[SRC_I]);
     }
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+    tensor_descs_.emplace(
+            DST, dst_data_type, spec_.dst_dims, spec_.raw_dst_tag);
 
     dnnl::graph::op concat(new_op_id, get_main_op_kind(), tensor_descs_srcs,
             {tensor_descs_[DST]}, "concat");
@@ -142,6 +147,25 @@ fill_status_t concat_graph_prb_t::handle_main_op_() {
     curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
+}
+
+fill_status_t concat_graph_prb_t::handle_low_precision_(
+        const ::concat::prb_t *prb_) {
+    low_precision_attr lp_attr = low_precision_attr::lp_attr(spec_.src_dt,
+            spec_.dst_dt, spec_.raw_src_tag[0], spec_.raw_dst_tag);
+
+    fill_status_t ctor_status;
+    ctor_status
+            = po_handler.concat.low_precision_handler.handle_low_precision_srcs(
+                    *this, lp_attr, spec_.n_inputs());
+    if (ctor_status != fill_status::DONE) return ctor_status;
+
+    ctor_status
+            = po_handler.concat.low_precision_handler.handle_low_precision_dst(
+                    *this, lp_attr);
+    if (ctor_status != fill_status::DONE) return ctor_status;
+
+    return ctor_status;
 }
 
 int doit(const ::concat::prb_t *prb, res_t *res) {

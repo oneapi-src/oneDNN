@@ -674,6 +674,44 @@ fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_src(
     return fill_status::DONE;
 }
 
+fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_srcs(
+        graph_prb_t &p, const low_precision_attr &lp_attr,
+        const size_t num_srcs) {
+    using op = dnnl::graph::op;
+
+    for (size_t i = 0; i < num_srcs; i++) {
+        const auto SRC_I_STR = "_SRC" + std::to_string(i);
+        const auto src_lt
+                = p.tensor_descs_[p.tensor_id["main"].back() + SRC_I_STR];
+        const auto src_dims = src_lt.get_dims();
+        const auto src_dt = lp_attr.src_dt;
+
+        const std::string IN_KEY = lp_attr.with_typecast ? "typecast" : "main";
+        const std::string SRC_I = p.tensor_id[IN_KEY].back() + SRC_I_STR;
+
+        const size_t new_op_id = p.ops_.size();
+        const std::string TENSOR_ID = std::to_string(new_op_id);
+        p.tensor_id["dequant_src"].push_back(TENSOR_ID);
+        const std::string QSRC {TENSOR_ID + SRC_I_STR};
+
+        const std::string qsrc_type = src_dt == dt::u8 ? "uint8" : "int8";
+
+        p.tensor_descs_.emplace(QSRC, src_dt, src_dims, lp_attr.stag);
+
+        op dequant_src(new_op_id, op::kind::Dequantize, {p.tensor_descs_[QSRC]},
+                {p.tensor_descs_[SRC_I]}, "dequant_src" + std::to_string(i));
+        dequant_src.set_attr("scales", std::vector<float> {1.f})
+                .set_attr("zps",
+                        (lp_attr.src_zp == nullptr) ? std::vector<int64_t> {0L}
+                                                    : *lp_attr.src_zp)
+                .set_attr("qtype", std::string("per_tensor"))
+                .set_attr("axis", static_cast<int64_t>(0));
+        p.ops_.emplace_back(dequant_src);
+    }
+
+    return fill_status::DONE;
+}
+
 fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_wei(
         graph_prb_t &p, const low_precision_attr &lp_attr) {
     using op = dnnl::graph::op;

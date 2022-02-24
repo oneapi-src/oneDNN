@@ -410,6 +410,12 @@ struct low_precision_attr {
                 data_format, data_format);
     };
 
+    // For op with src and dst data types and src and data formats e.g. concat
+    static low_precision_attr lp_attr(const dt &src_dt, const dt &dst_dt,
+            const std::string &stag, const std::string &dtag) {
+        return low_precision_attr(src_dt, dt::undef, dst_dt, stag, "", dtag);
+    };
+
     // For op with only one data type e.g. eltwise
     static low_precision_attr lp_attr(
             const dt &data_type, const std::string &data_format) {
@@ -478,6 +484,8 @@ private:
     struct low_precision_handler_t {
         fill_status handle_low_precision_src(
                 graph_prb_t &p, const low_precision_attr &lp_attr);
+        fill_status handle_low_precision_srcs(graph_prb_t &p,
+                const low_precision_attr &lp_attr, const size_t num_srcs);
         fill_status handle_low_precision_wei(
                 graph_prb_t &p, const low_precision_attr &lp_attr);
         fill_status handle_low_precision_dst(
@@ -492,6 +500,10 @@ private:
 
 public:
     union {
+        struct {
+            low_precision_handler_t low_precision_handler;
+        } concat;
+
         struct {
             bias_po_handler_t bias_handler;
             eltwise_po_handler_t eltw_handler;

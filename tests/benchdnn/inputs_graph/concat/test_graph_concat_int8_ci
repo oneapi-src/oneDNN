@@ -1,0 +1,9 @@
+--reset
+
+--sdt=u8
+--ddt=u8
+--batch=harness_concat_common
+
+--sdt=s8
+--ddt=s8
+--batch=harness_concat_common
