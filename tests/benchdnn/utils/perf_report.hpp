@@ -56,7 +56,7 @@ struct base_perf_report_t {
     virtual const int64_t *user_mb() const { return nullptr; }
 
     /* designed to be overloaded in reorder only to match verbose output */
-    virtual void dump_engine(std::ostream &s) const { s << engine_tgt_kind; }
+    virtual void dump_engine(std::ostream &s) const;
 
     /* primitive-specific properties (but with common interface) */
     virtual void dump_alg(std::ostream &) const { SAFE_V(FAIL); }
