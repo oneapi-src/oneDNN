@@ -24,8 +24,8 @@ SigmoidBackprop
 
 **Inputs**:
 
-* **1**: ``input`` - If *use_dst* is true, input is result of forward. Else,
-  input is *src* of forward. **Required.**
+* **1**:  ``data`` - If *use_dst* is true, data is result of forward. Else,
+  data is *src* of forward. **Required.**
 
   * **Type**: T
 

@@ -30,14 +30,23 @@ HardTanhBackprop
   * **Default value**: None
   * **Required**: *yes*
 
+* *use_dst*
+
+  * **Description**: If true, use *dst* to calculate gradient; else use *src*.
+  * **Range of values**: True or False
+  * **Type**: bool
+  * **Default value**: True
+  * **Required**: *no*
+
 **Inputs**:
 
-* **1**: ``output_delta`` - gradients tensor with respect to the output.
-  **Required.**
+* **1**:  ``data`` - If *use_dst* is true, data is result of forward. Else,
+  data is *src* of forward. **Required.**
 
   * **Type**: T
 
-* **2**: ``input_forward`` - input of forward. **Required.**
+* **2**: ``output_delta`` - gradients tensor with respect to the output.
+  **Required.**
 
   * **Type**: T
 
