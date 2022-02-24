@@ -140,7 +140,8 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
                 std::uniform_int_distribution<>(1, 1),
                 std::uniform_int_distribution<>(0, 4)};
         std::vector<std::uniform_int_distribution<>> igen_top
-                = sizeof_dt(prb->ddt) == 1 ? igen_top_int8 : igen_top_fp;
+                = dnnl_data_type_size(prb->ddt) == 1 ? igen_top_int8
+                                                     : igen_top_fp;
         const int sign = (idx_chunk % 2 != 0 && prb->sdt != dnnl_u8) ? -1 : 1;
         const int exp_ovfl_arg = 88 * sign;
         std::vector<int> top_val {

@@ -556,7 +556,8 @@ void check_sum_post_ops(
                 // Sum must have data type with the same size like dst on both
                 if (dst_dt != dnnl_data_type_undef
                         && sum_dt != dnnl_data_type_undef
-                        && sizeof_dt(dst_dt) != sizeof_dt(e.sum.dt)) {
+                        && dnnl_data_type_size(dst_dt)
+                                != dnnl_data_type_size(e.sum.dt)) {
                     res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
                     return;
                 }
@@ -845,7 +846,8 @@ static size_t get_md_size(const dnnl_memory_desc_t *md,
     // reference memories are always fp32, hence need rescaling factor
     size_t ref_mem_factor = 1;
     if (md->data_type != dnnl_data_type_undef)
-        ref_mem_factor = ::sizeof_dt(dnnl_f32) / ::sizeof_dt(md->data_type);
+        ref_mem_factor = dnnl_data_type_size(dnnl_f32)
+                / dnnl_data_type_size(md->data_type);
     // correctness pass allocates additional plain f32 memory to compare values.
     if (add_ref_out_size && is_bench_mode(CORR)) ref_mem_factor *= 2;
 
