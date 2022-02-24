@@ -229,7 +229,9 @@ public:
         hw_config_t try_hw_cfg(engine);
 
         // Try large GRF mode first.
-        try_hw_cfg.set_regs(try_hw_cfg.large_grf_support() ? 256 : 128);
+        int try_regs = try_hw_cfg.large_grf_support() ? 256 : 128;
+        if (g == 1 && is_f32_conv()) try_regs = 128;
+        try_hw_cfg.set_regs(try_regs);
 
         bool regs_overriden = false;
         bool max_tg_size_overriden = false;

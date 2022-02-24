@@ -231,9 +231,8 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     } else if (is_small_ic() && is_dp_fma()) {
         allow_grf_reorder = true;
     } else if (!is_a_grf_blocked
-            && ic_blk * a_data_type_size % grf_size() != 0) {
-        allow_grf_reorder = true;
-    } else if (!is_a_grf_blocked) {
+            && (ic_blk * a_data_type_size % grf_size() != 0
+                    || ic != bh->padded_size("ic"))) {
         allow_grf_reorder = true;
     }
 
@@ -338,9 +337,8 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
             && !utils::everyone_is(a_data_type, b_data_type, data_type::f32)) {
         allow_grf_reorder = true;
     } else if (!is_a_grf_blocked
-            && oc_blk * a_data_type_size % grf_size() != 0) {
-        allow_grf_reorder = true;
-    } else if (!is_a_grf_blocked) {
+            && (oc_blk * a_data_type_size % grf_size() != 0
+                    || oc != bh->padded_size("oc"))) {
         allow_grf_reorder = true;
     }
 
