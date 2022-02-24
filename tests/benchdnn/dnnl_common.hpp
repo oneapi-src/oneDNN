@@ -106,16 +106,6 @@ struct prec_traits<dnnl_u8> {
         default: assert(!"bad data_type"); \
     }
 
-inline size_t sizeof_dt(dnnl_data_type_t dt) {
-#define CASE(dt) \
-    case dt: return sizeof(typename prec_traits<dt>::type);
-
-    CASE_ALL(dt);
-
-#undef CASE
-    return 0;
-}
-
 /* std::numeric_limits::digits functionality */
 inline int digits_dt(dnnl_data_type_t dt) {
 #define CASE(dt) \

@@ -117,7 +117,7 @@ struct dnn_mem_t {
 
     int ndims() const { return md_.ndims; }
     dnnl_data_type_t dt() const { return md_.data_type; }
-    size_t sizeof_dt() const { return ::sizeof_dt(dt()); }
+    size_t sizeof_dt() const { return dnnl_data_type_size(md_.data_type); }
 
     void set_dt(dnnl_data_type_t dt) { md_.data_type = dt; }
 
