@@ -727,7 +727,7 @@ public:
         if (is_valid_isa(avx))
             vaddps(x, op1, op2);
         else {
-            assert(x.getIdx() == op1.getIdx());
+            if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
             addps(x, op2);
         }
     }
@@ -844,7 +844,7 @@ public:
         if (is_valid_isa(avx))
             vsubps(x, op1, op2);
         else {
-            assert(x.isEqualIfNotInherited(op1));
+            if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
             subps(x, op2);
         }
     }
