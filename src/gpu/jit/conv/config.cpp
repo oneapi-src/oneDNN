@@ -925,11 +925,13 @@ bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
 }
 
 void conv_config_t::maybe_set_fuse_spatial() {
+#ifdef GEN_CONV_DEBUG
     int env_value = getenv_int("fuse_spatial", -1);
     if (env_value != -1) {
         fuse_spatial = (bool)env_value;
         return;
     }
+#endif
 
     if (!is_fwd || is_small_ic()) return;
 
@@ -943,6 +945,13 @@ void conv_config_t::maybe_set_fuse_spatial() {
 }
 
 void conv_config_t::maybe_set_hoist_masks_from_compute_loop() {
+#ifdef GEN_CONV_DEBUG
+    int env_value = getenv_int("hoist_masks_from_compute_loop", -1);
+    if (env_value != -1) {
+        hoist_masks_from_compute_loop = (bool)env_value;
+        return;
+    }
+#endif
     if (!fuse_spatial) return;
 
     // Both nhwc layouts and mask hoisting require extra GRF memory so avoid
