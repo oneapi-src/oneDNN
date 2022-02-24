@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,14 @@
 
 SC_MODULE(pass.module_globals_resolve);
 namespace sc {
+
+static bool is_expr_nullptr(const expr &e) {
+    if (e->dtype_.is_pointer() && e.isa<constant>()) {
+        return e.checked_as<constant>()->value_.front().u64 == 0;
+    }
+    return false;
+}
+
 class module_globals_resolver_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
@@ -54,10 +62,23 @@ public:
                 return copy_attr(*v,
                         builder::make_call(
                                 get_parallel_call_with_env_func(), ret));
-
-            } else {
-                return ir_visitor_t::visit(v);
+            } else if (v->func_->attr_
+                    && v->func_->attr_->get_or_else(
+                            "is_brgemm_func_with_stream", false)) {
+                COMPILE_ASSERT(!v->args_.empty()
+                                && v->args_.back()->dtype_
+                                        == datatypes::pointer,
+                        "The last arg of brgemm function should be a "
+                        "pointer, got "
+                                << v);
+                if (is_expr_nullptr(v->args_.back())) {
+                    std::vector<expr> newargs;
+                    dispatch_expr_vector(v->args_, newargs);
+                    newargs.back() = current_rtl_ctx;
+                    return copy_attr(*v, builder::make_call(v->func_, newargs));
+                }
             }
+            return ir_visitor_t::visit(v);
         }
         std::vector<expr> ret;
         dispatch_expr_vector(v->args_, ret);
