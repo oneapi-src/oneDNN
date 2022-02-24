@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ struct acl_eltwise_fwd_t : public primitive_t {
                     aep_, data_md_, *desc(), *attr());
             if (conf_status != status::success) return status::unimplemented;
 
-            acl_common_utils::acl_thread_bind();
+            acl_utils::acl_thread_bind();
 
             return status::success;
         }

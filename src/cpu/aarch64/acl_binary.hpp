@@ -125,7 +125,7 @@ struct acl_binary_t : public primitive_t {
 
         status_t init(engine_t *engine) {
 
-            using namespace acl_common_utils;
+            using namespace acl_utils;
 
             // Only support f32 and s32 for now
             data_type_t ddt = dst_md(0)->data_type;
@@ -179,11 +179,7 @@ struct acl_binary_t : public primitive_t {
             }
 
             // Call operator specific validate function to check support
-            arm_compute::Status acl_st = validate(asp_);
-            if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
-                MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
-                return status::unimplemented;
-            }
+            ACL_CHECK_VALID(validate(asp_));
 
             // Initialize the ACL threads
             acl_thread_bind();

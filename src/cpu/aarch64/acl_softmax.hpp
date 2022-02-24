@@ -129,7 +129,7 @@ struct acl_softmax_fwd_t : public primitive_t {
             arm_compute::DataLayout acl_layout = arm_compute::DataLayout::NHWC;
 
             const arm_compute::DataType acl_data_t
-                    = acl_common_utils::get_acl_data_t(data_type);
+                    = acl_utils::get_acl_data_t(data_type);
 
             const int threads = dnnl_get_max_threads();
             if (inner_size_ == 1) {
@@ -189,20 +189,15 @@ struct acl_softmax_fwd_t : public primitive_t {
             }
 
             // Validate manually to check for return status
-            arm_compute::Status acl_st;
             if (asp_.is_logsoftmax) {
-                acl_st = arm_compute::NELogSoftmaxLayer::validate(
-                        &asp_.src_info, &asp_.dst_info, asp_.beta, asp_.axis);
+                ACL_CHECK_VALID(arm_compute::NELogSoftmaxLayer::validate(
+                        &asp_.src_info, &asp_.dst_info, asp_.beta, asp_.axis));
             } else {
-                acl_st = arm_compute::NESoftmaxLayer::validate(
-                        &asp_.src_info, &asp_.dst_info, asp_.beta, asp_.axis);
-            }
-            if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
-                MAYBE_REPORT_ACL_ERROR(acl_st.error_description().c_str());
-                return status::unimplemented;
+                ACL_CHECK_VALID(arm_compute::NESoftmaxLayer::validate(
+                        &asp_.src_info, &asp_.dst_info, asp_.beta, asp_.axis));
             }
 
-            acl_common_utils::acl_thread_bind();
+            acl_utils::acl_thread_bind();
 
             return status::success;
         }

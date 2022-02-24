@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Arm Ltd. and affiliates
+* Copyright 2021-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ struct acl_matmul_t : public primitive_t {
             if (conf_status != status::success) return status::unimplemented;
             // Number of threads in Compute Library is set by OMP_NUM_THREADS
             // dnnl_get_max_threads() == OMP_NUM_THREADS
-            acl_common_utils::acl_thread_bind();
+            acl_utils::acl_thread_bind();
 
             return status::success;
         }

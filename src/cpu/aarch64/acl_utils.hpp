@@ -21,13 +21,10 @@
 
 #include "oneapi/dnnl/dnnl_types.h"
 
-#include "common/bfloat16.hpp"
-#include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
-
 #include "cpu/cpu_engine.hpp"
 
 #include "arm_compute/runtime/NEON/NEFunctions.h"
@@ -38,7 +35,7 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-namespace acl_common_utils {
+namespace acl_utils {
 
 arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt);
 arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
@@ -68,12 +65,33 @@ status_t permute_common_dense_dimension_to_last(memory_desc_t *d0_permed,
         const memory_desc_t *d0, const memory_desc_t *d1,
         const memory_desc_t *d2);
 
-#define MAYBE_REPORT_ACL_ERROR(msg) \
+// Logs a custom 'info' line describing an unsupported case
+#define LOG_ACL_UNSUPPORTED(msg) \
     do { \
-        if (get_verbose()) printf("onednn_verbose,cpu,error,acl,%s\n", (msg)); \
+        if (get_verbose() >= 2) \
+            printf("onednn_verbose,cpu,acl,unsupported: %s\n", (msg)); \
     } while (0)
 
-} // namespace acl_common_utils
+// Returns unimplemented if error code x is NOT OK
+#define ACL_CHECK_VALID(x) \
+    do { \
+        arm_compute::Status s = x; \
+        if (s.error_code() != arm_compute::ErrorCode::OK) { \
+            LOG_ACL_UNSUPPORTED(s.error_description().c_str()); \
+            return dnnl::impl::status::unimplemented; \
+        } \
+    } while (0)
+
+// Returns unimplemented on condition x == true
+#define ACL_CHECK_SUPPORT(x, msg) \
+    do { \
+        if (x) { \
+            LOG_ACL_UNSUPPORTED(msg); \
+            return dnnl::impl::status::unimplemented; \
+        } \
+    } while (0)
+
+} // namespace acl_utils
 
 } // namespace aarch64
 } // namespace cpu

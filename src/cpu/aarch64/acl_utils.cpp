@@ -21,7 +21,7 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-namespace acl_common_utils {
+namespace acl_utils {
 
 using namespace dnnl::impl::alg_kind;
 using namespace data_type;
@@ -247,7 +247,7 @@ status_t permute_common_dense_dimension_to_last(memory_desc_t *d0_permed,
     return status::success;
 }
 
-} // namespace acl_common_utils
+} // namespace acl_utils
 
 } // namespace aarch64
 } // namespace cpu
