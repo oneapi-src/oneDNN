@@ -1236,7 +1236,8 @@ inline impl::logical_tensor_t create_convolution(id_generator &id_gen,
         const impl::dims &dilations, const impl::dims &pads_begin,
         const impl::dims &pads_end, const std::string &data_format,
         const std::string &filter_format, bool with_bias = false,
-        bool with_bn = false, float epsilon = 1e-6f, bool with_relu = false) {
+        bool with_bn = false, float epsilon = 1e-6f, bool with_relu = false,
+        bool use_biasadd = false) {
     impl::op_t conv(id_gen.get_id(), impl::op_kind::Convolution, "conv");
     conv.set_attr<int64_t>("groups", groups);
     conv.set_attr<impl::dims>("strides", strides);
@@ -1257,7 +1258,7 @@ inline impl::logical_tensor_t create_convolution(id_generator &id_gen,
 
     conv.add_input(src);
     conv.add_input(wei);
-    if (with_bias) {
+    if (with_bias && !use_biasadd) {
         auto bias = utils::logical_tensor_init(
                 id_gen.get_id(), impl::dims {oc}, src.data_type);
         bias.property = impl::property_type::constant;
@@ -1265,6 +1266,26 @@ inline impl::logical_tensor_t create_convolution(id_generator &id_gen,
     }
     conv.add_output(dst);
     agraph.add_op(&conv);
+
+    if (with_bias && use_biasadd) {
+        impl::op_t biasadd_op(
+                id_gen.get_id(), impl::op_kind::BiasAdd, "biasadd");
+        biasadd_op.set_attr<std::string>("data_format", data_format);
+
+        auto biasadd_src = dst;
+        auto bias = utils::logical_tensor_init(
+                id_gen.get_id(), impl::dims {oc}, biasadd_src.data_type);
+        bias.property = impl::property_type::constant;
+
+        dst = utils::logical_tensor_init(
+                id_gen.get_id(), biasadd_src.data_type);
+
+        biasadd_op.add_input(biasadd_src);
+        biasadd_op.add_input(bias);
+        biasadd_op.add_output(dst);
+
+        agraph.add_op(&biasadd_op);
+    }
 
     if (with_bn) {
         impl::op_t bn_op(
@@ -1380,7 +1401,8 @@ inline impl::logical_tensor_t create_int8_convolution(id_generator &id_gen,
         // args for int8 conv
         float src_scale, int64_t src_zp, float dst_scale, int64_t dst_zp,
         const std::vector<float> &wei_scales, impl::data_type_t dst_dtype,
-        bool is_quantize_dst = true) {
+        bool is_quantize_dst = true, bool use_biasadd = false,
+        bool is_quantize_wei = false) {
     assertm(!with_bn, "int8 conv not support bn now");
 
     auto dq_src = create_dequantize(
@@ -1399,9 +1421,20 @@ inline impl::logical_tensor_t create_int8_convolution(id_generator &id_gen,
             ? impl::dims {oc, ic, ks, ks}
             : impl::dims {ks, ks, ic, oc};
 
-    auto int8_wei = utils::logical_tensor_init(
-            id_gen.get_id(), wei_shape, impl::data_type::s8);
-    int8_wei.property = impl::property_type::constant;
+    impl::logical_tensor_t int8_wei;
+    if (is_quantize_wei) {
+        auto f32_wei = utils::logical_tensor_init(
+                id_gen.get_id(), wei_shape, impl::data_type::f32);
+        f32_wei.property = impl::property_type::constant;
+        int8_wei = create_quantize(id_gen, agraph, f32_wei, impl::data_type::s8,
+                "per_channel", std::vector<int64_t>(oc, 0), wei_scales,
+                (filter_format == "OIX") ? 0 : 3);
+    } else {
+        int8_wei = utils::logical_tensor_init(
+                id_gen.get_id(), wei_shape, impl::data_type::s8);
+        int8_wei.property = impl::property_type::constant;
+    }
+
     auto dq_wei = create_dequantize(id_gen, agraph, int8_wei, "per_channel",
             std::vector<int64_t>(oc, 0), wei_scales,
             (filter_format == "OIX") ? 0 : 3);
@@ -1410,7 +1443,7 @@ inline impl::logical_tensor_t create_int8_convolution(id_generator &id_gen,
 
     conv.add_input(dq_src);
     conv.add_input(dq_wei);
-    if (with_bias) {
+    if (with_bias && !use_biasadd) {
         auto bias = utils::logical_tensor_init(
                 id_gen.get_id(), impl::dims {oc}, dq_src.data_type);
         bias.property = impl::property_type::constant;
@@ -1418,6 +1451,26 @@ inline impl::logical_tensor_t create_int8_convolution(id_generator &id_gen,
     }
     conv.add_output(dst);
     agraph.add_op(&conv);
+
+    if (with_bias && use_biasadd) {
+        impl::op_t biasadd_op(
+                id_gen.get_id(), impl::op_kind::BiasAdd, "biasadd");
+        biasadd_op.set_attr<std::string>("data_format", data_format);
+
+        auto biasadd_src = dst;
+        auto bias = utils::logical_tensor_init(
+                id_gen.get_id(), impl::dims {oc}, biasadd_src.data_type);
+        bias.property = impl::property_type::constant;
+
+        dst = utils::logical_tensor_init(
+                id_gen.get_id(), biasadd_src.data_type);
+
+        biasadd_op.add_input(biasadd_src);
+        biasadd_op.add_input(bias);
+        biasadd_op.add_output(dst);
+
+        agraph.add_op(&biasadd_op);
+    }
 
     if (with_relu) {
         impl::op_t relu_op(id_gen.get_id(), impl::op_kind::ReLU, "relu");
@@ -1616,6 +1669,121 @@ inline void construct_int8_resnet50_stage2_block(
                 true, false, 1e-6f, /*no relu*/ false, scale_src, zp_src,
                 scale_out, zp_out, scale_wei, impl::data_type::u8,
                 /*not quantize dst*/ false);
+        auto dq3 = create_dequantize(
+                id_gen, *agraph, tmp, "per_tensor", {zp_src}, {scale_src}, 0);
+        auto add0 = create_add(id_gen, *agraph, int8_conv2, dq3);
+        auto relu0 = create_relu(id_gen, *agraph, add0);
+        tmp = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+                "per_tensor", std::vector<int64_t> {zp_out},
+                std::vector<float> {scale_out}, 0);
+    }
+}
+
+inline void construct_f32_resnet50_stage2_block(
+        dnnl::graph::impl::graph_t *agraph, id_generator &id_gen,
+        size_t three_conv_block_num = 2, bool use_biasadd = false) {
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), src_shape, impl::data_type::f32);
+
+    // 4-conv block
+    auto conv0 = create_convolution(id_gen, *agraph, src, ic, ks, oc, 1, {1, 1},
+            {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", use_biasadd, !use_biasadd,
+            1e-6f, true, use_biasadd);
+    auto conv1 = create_convolution(id_gen, *agraph, conv0, ic, ks, oc, 1,
+            {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", use_biasadd,
+            !use_biasadd, 1e-6f, true, use_biasadd);
+
+    auto conv2 = create_convolution(id_gen, *agraph, src, ic, ks, oc, 1, {1, 1},
+            {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", use_biasadd, !use_biasadd,
+            1e-6f,
+            /*no relu*/ false, use_biasadd);
+
+    auto conv3 = create_convolution(id_gen, *agraph, conv1, ic, ks, oc, 1,
+            {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", use_biasadd,
+            !use_biasadd, 1e-6f,
+            /*no relu*/ false, use_biasadd);
+    auto add0 = create_add(id_gen, *agraph, conv3, conv2);
+    auto relu0 = create_relu(id_gen, *agraph, add0);
+
+    // Two 3-conv block
+    impl::logical_tensor_t tmp = relu0;
+    for (size_t i = 0; i < three_conv_block_num; i++) {
+        auto conv0 = create_convolution(id_gen, *agraph, tmp, ic, ks, oc, 1,
+                {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", use_biasadd,
+                !use_biasadd, 1e-6f, true, use_biasadd);
+        auto conv1 = create_convolution(id_gen, *agraph, conv0, ic, ks, oc, 1,
+                {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", use_biasadd,
+                !use_biasadd, 1e-6f, true, use_biasadd);
+        auto conv2 = create_convolution(id_gen, *agraph, conv1, ic, ks, oc, 1,
+                {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", use_biasadd,
+                !use_biasadd, 1e-6f, /*no relu*/ false, use_biasadd);
+        auto add0 = create_add(id_gen, *agraph, conv2, tmp);
+        tmp = create_relu(id_gen, *agraph, add0);
+    }
+}
+
+inline void construct_itex_int8_resnet50_stage2_block(
+        dnnl::graph::impl::graph_t *agraph, id_generator &id_gen,
+        size_t three_conv_block_num = 2) {
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    float scale_src = 1 / 255.f, scale_out = 1;
+    int64_t zp_src = 0, zp_out = 78;
+    std::vector<float> scale_wei(oc, 1 / 127.f);
+
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), src_shape, impl::data_type::u8);
+
+    // 4-conv block
+    auto int8_conv0 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8, true, true, true);
+    auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8, true, true, true);
+
+    auto int8_conv2 = create_int8_convolution(id_gen, *agraph, int8_conv1, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f,
+            /*no relu*/ false, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8, true, true, true);
+
+    auto int8_conv3 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            /*no relu*/ false, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8,
+            /*not quantize dst*/ false, true, true);
+    auto dq3 = create_dequantize(id_gen, *agraph, int8_conv2, "per_tensor",
+            {zp_src}, {scale_src}, 0);
+    auto add0 = create_add(id_gen, *agraph, int8_conv3, dq3);
+    auto relu0 = create_relu(id_gen, *agraph, add0);
+    auto q2 = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+            "per_tensor", std::vector<int64_t> {zp_out},
+            std::vector<float> {scale_out}, 0);
+
+    // Two 3-conv block
+    impl::logical_tensor_t tmp = q2;
+    for (size_t i = 0; i < three_conv_block_num; i++) {
+        auto int8_conv0 = create_int8_convolution(id_gen, *agraph, tmp, ic, ks,
+                oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+                false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out,
+                scale_wei, impl::data_type::u8, true, true, true);
+        auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0,
+                ic, ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX",
+                true, false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out,
+                scale_wei, impl::data_type::u8, true, true, true);
+
+        auto int8_conv2 = create_int8_convolution(id_gen, *agraph, int8_conv1,
+                ic, ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX",
+                true, false, 1e-6f, /*no relu*/ false, scale_src, zp_src,
+                scale_out, zp_out, scale_wei, impl::data_type::u8,
+                /*not quantize dst*/ false, true, true);
         auto dq3 = create_dequantize(
                 id_gen, *agraph, tmp, "per_tensor", {zp_src}, {scale_src}, 0);
         auto add0 = create_add(id_gen, *agraph, int8_conv2, dq3);

@@ -42,40 +42,68 @@ bool check_grouped(op_t *op) {
 
 // Block creators used to construct large patterns
 pm::pb_op *conv_bias(const std::shared_ptr<pb_graph_t> &pgraph,
-        pm::pb_op *input, bool grouped = false) {
+        pm::pb_op *input, bool grouped = false, bool use_biasadd = false) {
     in_edges_t in_edges;
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     pm::pb_op *conv = pgraph->append_op(impl::op_kind::Convolution, in_edges);
-    conv->append_decision_function(check_input_num<3>);
+    pm::pb_op *conv_bias_dst = nullptr;
+    if (use_biasadd) {
+        conv->append_decision_function(check_input_num<2>);
+        pm::pb_op *biasadd = pgraph->append_op(
+                impl::op_kind::BiasAdd, in_edges_t {in_edge(0, conv, 0)});
+        conv_bias_dst = biasadd;
+    } else {
+        conv->append_decision_function(check_input_num<3>);
+        conv_bias_dst = conv;
+    }
     conv->append_decision_function(
             grouped ? check_grouped<true> : check_grouped<false>);
-    return conv;
+    return conv_bias_dst;
 };
 
 pm::pb_op *conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
-        pm::pb_op *input, bool grouped = false) {
+        pm::pb_op *input, bool grouped = false, bool use_biasadd = false) {
     in_edges_t in_edges;
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
 
     pm::pb_op *conv = pgraph->append_op(impl::op_kind::Convolution, in_edges);
-    conv->append_decision_function(check_input_num<3>);
+    pm::pb_op *conv_bias_dst = nullptr;
+    if (use_biasadd) {
+        conv->append_decision_function(check_input_num<2>);
+        pm::pb_op *biasadd = pgraph->append_op(
+                impl::op_kind::BiasAdd, in_edges_t {in_edge(0, conv, 0)});
+        conv_bias_dst = biasadd;
+    } else {
+        conv->append_decision_function(check_input_num<3>);
+        conv_bias_dst = conv;
+    }
     conv->append_decision_function(
             grouped ? check_grouped<true> : check_grouped<false>);
     pm::pb_op *relu = pgraph->append_op(
-            impl::op_kind::ReLU, in_edges_t {in_edge(0, conv, 0)});
+            impl::op_kind::ReLU, in_edges_t {in_edge(0, conv_bias_dst, 0)});
     return relu;
 };
 
 pm::pb_op *conv_bias_add_relu(const std::shared_ptr<pb_graph_t> &pgraph,
-        pm::pb_op *input, pm::pb_op *post_src, bool grouped = false) {
+        pm::pb_op *input, pm::pb_op *post_src, bool grouped = false,
+        bool use_biasadd = false) {
     in_edges_t in_edges;
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     pm::pb_op *conv = pgraph->append_op(impl::op_kind::Convolution, in_edges);
-    conv->append_decision_function(check_input_num<3>);
+    pm::pb_op *conv_bias_dst = nullptr;
+    if (use_biasadd) {
+        conv->append_decision_function(check_input_num<2>);
+        pm::pb_op *biasadd = pgraph->append_op(
+                impl::op_kind::BiasAdd, in_edges_t {in_edge(0, conv, 0)});
+        conv_bias_dst = biasadd;
+    } else {
+        conv->append_decision_function(check_input_num<3>);
+        conv_bias_dst = conv;
+    }
     conv->append_decision_function(
             grouped ? check_grouped<true> : check_grouped<false>);
 
-    in_edges_t add_in_edges = in_edges_t {in_edge(0, conv, 0)};
+    in_edges_t add_in_edges = in_edges_t {in_edge(0, conv_bias_dst, 0)};
     if (post_src) { add_in_edges.emplace_back(in_edge(1, post_src, 0)); }
     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add, add_in_edges);
     add->allow_internal_inputs({0, 1});
@@ -86,105 +114,213 @@ pm::pb_op *conv_bias_add_relu(const std::shared_ptr<pb_graph_t> &pgraph,
 };
 
 pm::pb_op *int8_conv_bias(const std::shared_ptr<pb_graph_t> &pgraph,
-        pm::pb_op *input, bool grouped = false) {
+        pm::pb_op *input, bool grouped = false, bool use_biasadd = false,
+        bool use_quant_wei = false) {
     in_edges_t in_edges;
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     pm::pb_op *dequant_src
             = pgraph->append_op(impl::op_kind::Dequantize, in_edges);
-    pm::pb_op *dequant_wei = pgraph->append_op(impl::op_kind::Dequantize);
+    pm::pb_op *dequant_wei = nullptr;
+    if (use_quant_wei) {
+        pm::pb_op *quant_wei = pgraph->append_op(impl::op_kind::Quantize);
+        dequant_wei = pgraph->append_op(impl::op_kind::Dequantize,
+                in_edges_t {in_edge(0, quant_wei, 0)});
+    } else {
+        dequant_wei = pgraph->append_op(impl::op_kind::Dequantize);
+    }
     pm::pb_op *conv = pgraph->append_op(impl::op_kind::Convolution,
             in_edges_t {
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
-    conv->append_decision_function(check_input_num<3>);
+    pm::pb_op *conv_bias_dst = nullptr;
+    if (use_biasadd) {
+        conv->append_decision_function(check_input_num<2>);
+        pm::pb_op *biasadd = pgraph->append_op(
+                impl::op_kind::BiasAdd, in_edges_t {in_edge(0, conv, 0)});
+        conv_bias_dst = biasadd;
+    } else {
+        conv->append_decision_function(check_input_num<3>);
+        conv_bias_dst = conv;
+    }
     conv->append_decision_function(
             grouped ? check_grouped<true> : check_grouped<false>);
     pm::pb_op *quant_dst = pgraph->append_op(
-            impl::op_kind::Quantize, in_edges_t {in_edge(0, conv, 0)});
+            impl::op_kind::Quantize, in_edges_t {in_edge(0, conv_bias_dst, 0)});
     return quant_dst;
 };
 
 pm::pb_op *int8_conv_bias_relu(const std::shared_ptr<pb_graph_t> &pgraph,
-        pm::pb_op *input, bool grouped = false) {
+        pm::pb_op *input, bool grouped = false, bool use_biasadd = false,
+        bool use_quant_wei = false) {
     in_edges_t in_edges;
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     pm::pb_op *dequant_src
             = pgraph->append_op(impl::op_kind::Dequantize, in_edges);
-    pm::pb_op *dequant_wei = pgraph->append_op(impl::op_kind::Dequantize);
+    pm::pb_op *dequant_wei = nullptr;
+    if (use_quant_wei) {
+        pm::pb_op *quant_wei = pgraph->append_op(impl::op_kind::Quantize);
+        dequant_wei = pgraph->append_op(impl::op_kind::Dequantize,
+                in_edges_t {in_edge(0, quant_wei, 0)});
+    } else {
+        dequant_wei = pgraph->append_op(impl::op_kind::Dequantize);
+    }
     pm::pb_op *conv = pgraph->append_op(impl::op_kind::Convolution,
             in_edges_t {
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
-    conv->append_decision_function(check_input_num<3>);
+    pm::pb_op *conv_bias_dst = nullptr;
+    if (use_biasadd) {
+        conv->append_decision_function(check_input_num<2>);
+        pm::pb_op *biasadd = pgraph->append_op(
+                impl::op_kind::BiasAdd, in_edges_t {in_edge(0, conv, 0)});
+        conv_bias_dst = biasadd;
+    } else {
+        conv->append_decision_function(check_input_num<3>);
+        conv_bias_dst = conv;
+    }
     conv->append_decision_function(
             grouped ? check_grouped<true> : check_grouped<false>);
     pm::pb_op *relu = pgraph->append_op(
-            impl::op_kind::ReLU, in_edges_t {in_edge(0, conv, 0)});
+            impl::op_kind::ReLU, in_edges_t {in_edge(0, conv_bias_dst, 0)});
     pm::pb_op *quant_dst = pgraph->append_op(
             impl::op_kind::Quantize, in_edges_t {in_edge(0, relu, 0)});
     return quant_dst;
 };
 
 pm::pb_op *int8_conv_bias_add_relu(const std::shared_ptr<pb_graph_t> &pgraph,
-        pm::pb_op *input, pm::pb_op *post_src, bool grouped = false) {
+        pm::pb_op *input, pm::pb_op *post_src, bool grouped = false,
+        bool use_biasadd = false, bool use_quant_wei = false,
+        bool f32_output = false) {
     in_edges_t in_edges, post_src_edges;
     if (input) { in_edges = in_edges_t {in_edge(0, input, 0)}; }
     if (post_src) { post_src_edges = in_edges_t {in_edge(0, post_src, 0)}; }
     pm::pb_op *dequant_src
             = pgraph->append_op(impl::op_kind::Dequantize, in_edges);
-    pm::pb_op *dequant_wei = pgraph->append_op(impl::op_kind::Dequantize);
+    pm::pb_op *dequant_wei = nullptr;
+    if (use_quant_wei) {
+        pm::pb_op *quant_wei = pgraph->append_op(impl::op_kind::Quantize);
+        dequant_wei = pgraph->append_op(impl::op_kind::Dequantize,
+                in_edges_t {in_edge(0, quant_wei, 0)});
+    } else {
+        dequant_wei = pgraph->append_op(impl::op_kind::Dequantize);
+    }
     pm::pb_op *dequant_other
             = pgraph->append_op(impl::op_kind::Dequantize, post_src_edges);
     pm::pb_op *conv = pgraph->append_op(impl::op_kind::Convolution,
             in_edges_t {
                     in_edge(0, dequant_src, 0), in_edge(1, dequant_wei, 0)});
-    conv->append_decision_function(check_input_num<3>);
+    pm::pb_op *conv_bias_dst = nullptr;
+    if (use_biasadd) {
+        conv->append_decision_function(check_input_num<2>);
+        pm::pb_op *biasadd = pgraph->append_op(
+                impl::op_kind::BiasAdd, in_edges_t {in_edge(0, conv, 0)});
+        conv_bias_dst = biasadd;
+    } else {
+        conv->append_decision_function(check_input_num<3>);
+        conv_bias_dst = conv;
+    }
     conv->append_decision_function(
             grouped ? check_grouped<true> : check_grouped<false>);
     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
-            in_edges_t {in_edge(0, conv, 0), in_edge(1, dequant_other, 0)});
+            in_edges_t {in_edge(0, conv_bias_dst, 0),
+                    in_edge(1, dequant_other, 0)});
     add->allow_internal_inputs({0, 1});
     pm::pb_op *relu = pgraph->append_op(
             impl::op_kind::ReLU, in_edges_t {in_edge(0, add, 0)});
-    pm::pb_op *quant_dst = pgraph->append_op(
-            impl::op_kind::Quantize, in_edges_t {in_edge(0, relu, 0)});
-    return quant_dst;
+    if (f32_output) {
+        return relu;
+    } else {
+        pm::pb_op *quant_dst = pgraph->append_op(
+                impl::op_kind::Quantize, in_edges_t {in_edge(0, relu, 0)});
+        return quant_dst;
+    }
 };
 
 // The F(x)+x basic residual block
 pm::pb_op *int8_identical_basic_resblock(
-        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input) {
-    pm::pb_op *quant_dst0 = int8_conv_bias_relu(pgraph, input);
-    pm::pb_op *quant_dst1 = int8_conv_bias_add_relu(pgraph, quant_dst0, input);
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input,
+        bool grouped = false, bool use_biasadd = false) {
+    pm::pb_op *quant_dst0
+            = int8_conv_bias_relu(pgraph, input, grouped, use_biasadd);
+    pm::pb_op *quant_dst1 = int8_conv_bias_add_relu(
+            pgraph, quant_dst0, input, grouped, use_biasadd);
     return quant_dst1;
 };
 
 // The F(x)+G(x) basic residual block
 pm::pb_op *int8_convolutional_basic_resblock(
-        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input) {
-    pm::pb_op *quant_dst0 = int8_conv_bias_relu(pgraph, input);
-    pm::pb_op *quant_dst1 = int8_conv_bias(pgraph, input);
-    pm::pb_op *quant_dst2
-            = int8_conv_bias_add_relu(pgraph, quant_dst0, quant_dst1);
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input,
+        bool grouped = false, bool use_biasadd = false) {
+    pm::pb_op *quant_dst0
+            = int8_conv_bias_relu(pgraph, input, grouped, use_biasadd);
+    pm::pb_op *quant_dst1 = int8_conv_bias(pgraph, input, grouped, use_biasadd);
+    pm::pb_op *quant_dst2 = int8_conv_bias_add_relu(
+            pgraph, quant_dst0, quant_dst1, grouped, use_biasadd);
     return quant_dst2;
 };
 
 // The F(x)+x bottleneck residual block
 pm::pb_op *int8_identical_bottleneck_resblock(
-        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input) {
-    pm::pb_op *quant_dst0 = int8_conv_bias_relu(pgraph, input);
-    pm::pb_op *quant_dst1 = int8_conv_bias_relu(pgraph, quant_dst0);
-    pm::pb_op *quant_dst2 = int8_conv_bias_add_relu(pgraph, quant_dst1, input);
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input,
+        bool grouped = false, bool use_biasadd = false,
+        bool use_quant_wei = false, bool f32_output = false) {
+    pm::pb_op *quant_dst0 = int8_conv_bias_relu(
+            pgraph, input, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst1 = int8_conv_bias_relu(
+            pgraph, quant_dst0, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst2 = int8_conv_bias_add_relu(pgraph, quant_dst1, input,
+            grouped, use_biasadd, use_quant_wei, f32_output);
     return quant_dst2;
 };
 
 // The F(x)+G(x) bottleneck residual block
 pm::pb_op *int8_convolutional_bottleneck_resblock(
-        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input) {
-    pm::pb_op *quant_dst0 = int8_conv_bias_relu(pgraph, input);
-    pm::pb_op *quant_dst1 = int8_conv_bias_relu(pgraph, quant_dst0);
-    pm::pb_op *quant_dst2 = int8_conv_bias(pgraph, input);
-    pm::pb_op *quant_dst3
-            = int8_conv_bias_add_relu(pgraph, quant_dst1, quant_dst2);
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input,
+        bool grouped = false, bool use_biasadd = false,
+        bool use_quant_wei = false) {
+    pm::pb_op *quant_dst0 = int8_conv_bias_relu(
+            pgraph, input, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst1 = int8_conv_bias_relu(
+            pgraph, quant_dst0, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst2 = int8_conv_bias(
+            pgraph, input, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst3 = int8_conv_bias_add_relu(pgraph, quant_dst1,
+            quant_dst2, grouped, use_biasadd, use_quant_wei);
     return quant_dst3;
+};
+
+pm::pb_op *int8_convolutional_bottleneck_resblock_v2(
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input,
+        bool grouped = false, bool use_biasadd = false,
+        bool use_quant_wei = false) {
+    pm::pb_op *quant_dst0 = int8_conv_bias_relu(
+            pgraph, input, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst1 = int8_conv_bias_relu(
+            pgraph, quant_dst0, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst2 = int8_conv_bias(
+            pgraph, quant_dst1, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst3 = int8_conv_bias_add_relu(
+            pgraph, input, quant_dst2, grouped, use_biasadd, use_quant_wei);
+    return quant_dst3;
+};
+
+pm::pb_op *convolutional_bottleneck_resblock(
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input,
+        bool grouped = false, bool use_biasadd = false) {
+    pm::pb_op *dst0 = conv_bias_relu(pgraph, input, grouped, use_biasadd);
+    pm::pb_op *dst1 = conv_bias_relu(pgraph, dst0, grouped, use_biasadd);
+    pm::pb_op *dst2 = conv_bias(pgraph, input, grouped, use_biasadd);
+    pm::pb_op *dst3
+            = conv_bias_add_relu(pgraph, dst1, dst2, grouped, use_biasadd);
+    return dst3;
+};
+
+pm::pb_op *identical_bottleneck_resblock(
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op *input,
+        bool grouped = false, bool use_biasadd = false) {
+    pm::pb_op *dst0 = conv_bias_relu(pgraph, input, grouped, use_biasadd);
+    pm::pb_op *dst1 = conv_bias_relu(pgraph, dst0, grouped, use_biasadd);
+    pm::pb_op *dst2
+            = conv_bias_add_relu(pgraph, dst1, input, grouped, use_biasadd);
+    return dst2;
 };
 
 } // namespace
@@ -2393,15 +2529,16 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-// Three conv fusion for f32 resnet
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, identical_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *relu0 = conv_bias_relu(pgraph, nullptr);
-                    pm::pb_op *relu1 = conv_bias_relu(pgraph, relu0);
-                    conv_bias_add_relu(pgraph, relu1, nullptr);
+                    identical_bottleneck_resblock(pgraph, nullptr);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    identical_bottleneck_resblock(pgraph, nullptr, false, true);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2411,16 +2548,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-// Four conv fusion for f32 resnet
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, convolutional_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *relu0 = conv_bias_relu(pgraph, nullptr);
-                    pm::pb_op *relu1 = conv_bias_relu(pgraph, relu0);
-                    pm::pb_op *conv2 = conv_bias(pgraph, nullptr);
-                    conv_bias_add_relu(pgraph, relu1, conv2);
+                    convolutional_bottleneck_resblock(pgraph, nullptr);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    convolutional_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2448,13 +2586,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-// Three conv fusion for int8 resnet
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_identical_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     int8_identical_bottleneck_resblock(pgraph, nullptr);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    int8_identical_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2464,13 +2606,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-// Four conv fusion for int8 resnet
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl,
         int8_convolutional_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     int8_convolutional_bottleneck_resblock(pgraph, nullptr);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2490,6 +2636,16 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_1_4_fusion)
                     output = int8_identical_bottleneck_resblock(pgraph, output);
                     output = int8_identical_bottleneck_resblock(pgraph, output);
                 })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, false, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, false, true);
+                })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
@@ -2505,11 +2661,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_2_fusion)
                     pm::pb_op *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
                             pgraph, nullptr);
-                    // 3 F(x)+x blocks
                     const size_t identical_residual_block_num = 3;
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
+                    // 3 F(x)+x blocks
+                    const size_t identical_residual_block_num = 3;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, false, true);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2526,11 +2692,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_3_fusion)
                     pm::pb_op *output = nullptr;
                     output = int8_convolutional_bottleneck_resblock(
                             pgraph, nullptr);
-                    // 5 F(x)+x blocks
                     const size_t identical_residual_block_num = 5;
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
+                    const size_t identical_residual_block_num = 5;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, false, true);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
@@ -2586,6 +2761,179 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_3_fusion)
                     const size_t identical_residual_block_num = 5;
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = int8_identical_basic_resblock(pgraph, output);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_1_4_fusion)
+        .set_priority(22.f) // high priority to support itex
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = convolutional_bottleneck_resblock(pgraph, nullptr);
+                    output = identical_bottleneck_resblock(pgraph, output);
+                    output = identical_bottleneck_resblock(pgraph, output);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = convolutional_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
+                    output = identical_bottleneck_resblock(
+                            pgraph, output, false, true);
+                    output = identical_bottleneck_resblock(
+                            pgraph, output, false, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::float_conv_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_2_fusion)
+        .set_priority(22.1f) // high priority to support itex
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = convolutional_bottleneck_resblock(pgraph, nullptr);
+                    // 3 F(x)+x blocks
+                    const size_t identical_residual_block_num = 3;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = identical_bottleneck_resblock(pgraph, output);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = convolutional_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
+                    // 3 F(x)+x blocks
+                    const size_t identical_residual_block_num = 3;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = identical_bottleneck_resblock(
+                                pgraph, output, false, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::float_conv_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_3_fusion)
+        .set_priority(22.2f) // high priority to support itex
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = convolutional_bottleneck_resblock(pgraph, nullptr);
+                    const size_t identical_residual_block_num = 5;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = identical_bottleneck_resblock(pgraph, output);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = convolutional_bottleneck_resblock(
+                            pgraph, nullptr, false, true);
+                    const size_t identical_residual_block_num = 5;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = identical_bottleneck_resblock(
+                                pgraph, output, false, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::float_conv_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// For itex int8 rn50 only (include the weight quantize into pattern)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, itex_int8_resnet50_stage_1_fusion)
+        .set_priority(22.1f) // high priority to support lz models
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock_v2(
+                            pgraph, nullptr, false, true, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, false, true, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, false, true, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// For itex int8 rn50 only (include the weight quantize into pattern)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, itex_int8_resnet50_stage_2_fusion)
+        .set_priority(22.2f) // high priority to support lz models
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock_v2(
+                            pgraph, nullptr, false, true, true);
+                    // 3 F(x)+x blocks
+                    const size_t identical_residual_block_num = 3;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, false, true, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// For itex int8 rn50 only (include the weight quantize into pattern)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, itex_int8_resnet50_stage_3_fusion)
+        .set_priority(22.3f) // high priority to support lz models
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock_v2(
+                            pgraph, nullptr, false, true, true);
+                    const size_t identical_residual_block_num = 5;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, false, true, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_conv_relu);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, itex_int8_resnet50_stage_4_fusion)
+        .set_priority(22.1f) // high priority to support lz models
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock_v2(
+                            pgraph, nullptr, false, true, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, false, true, true);
+                    output = int8_identical_bottleneck_resblock(pgraph, output,
+                            false, true, true, /* f32 output */ true);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

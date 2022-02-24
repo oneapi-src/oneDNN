@@ -18935,3 +18935,137 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
     ASSERT_EQ(pairs[0].input, outputs1[0]->id);
     ASSERT_EQ(pairs[0].output, outputs0[0]->id);
 }
+
+TEST(Execute, F32Resnet50Stage2Block) {
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    utils::id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    utils::construct_f32_resnet50_stage2_block(
+            &g, id_gen, 3, /* use biasadd */ true);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 42);
+
+    impl::pass::pass_base_ptr apass = get_pass("f32_resnet50_stage_2_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 28);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
+    }
+
+    std::cout << "----------------iter 1----------------\n";
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    std::cout << "----------------iter 2----------------\n";
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
+TEST(Execute, ItexInt8Resnet50Stage2Block) {
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    utils::id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    utils::construct_itex_int8_resnet50_stage2_block(&g, id_gen, 3);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 98);
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("itex_int8_resnet50_stage_2_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 28);
+    ASSERT_EQ(partition_outputs.size(), 1);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
+    }
+
+    std::cout << "----------------iter 1----------------\n";
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    std::cout << "----------------iter 2----------------\n";
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
