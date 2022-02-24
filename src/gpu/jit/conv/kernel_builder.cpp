@@ -5530,7 +5530,8 @@ public:
         }
 
         ir_error_not_expected()
-                << "Can't decompose into multiplication instructions.";
+                << "Can't decompose into multiplication instructions. A view: "
+                << a_view << ". B view: " << b_view;
     }
 
     const stmt_t &stmt() const { return stmt_; }
