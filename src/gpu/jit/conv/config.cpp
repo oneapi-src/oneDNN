@@ -165,10 +165,8 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     }
 
     bool use_sp_blocking = false;
-    if (hw_cfg.hw() >= ngen::HW::XeHPC && is_nhwc("src")) {
-        // sp blocking is only beneficial when there are no per-spatial masks,
-        // otherwise their overhead is too high.
-        if (kd * kh * kw != 1 || osp % 32 == 0) use_sp_blocking = true;
+    if (is_nhwc("src")) {
+        use_sp_blocking = should_use_spatial_blocking(od, oh, ow);
     } else if (src_layout.inner_block(0) == 1) {
         use_sp_blocking = true;
     } else if (is_dw) {
@@ -176,11 +174,12 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     }
 
     if (use_sp_blocking) {
-        bh->allow_split({osp_name});
         bh->allow_split({osp_name, "mb"});
         bh->reorder({osp_name, "mb"});
     } else {
         bh->reorder({"mb", osp_name});
+        if (mb >= 128 && (fuse_spatial ? osp : ow) % 4 != 0)
+            bh->allow_split({"mb"});
     }
     bh->reorder({"ic", "kw"});
 
@@ -269,10 +268,8 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     bh->allow_split({"ic"});
 
     bool use_w_blocking = false;
-    if (hw_cfg.hw() >= ngen::HW::XeHPC && is_nhwc("dst")) {
-        if (kd * kh * kw != 1 || id * ih * iw % 32 == 0) {
-            use_w_blocking = true;
-        }
+    if (is_nhwc("dst")) {
+        use_w_blocking = should_use_spatial_blocking(id, ih, iw);
     } else if (dst_layout.inner_block(0) == 1) {
         use_w_blocking = true;
     }
@@ -283,6 +280,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
         bh->reorder({"iw", "mb"});
     } else {
         bh->reorder({"mb", "iw"});
+        if (mb >= 128 && iw % 4 != 0) bh->allow_split({"mb"});
     }
 
     bh->compute();
@@ -917,6 +915,15 @@ const std::unordered_map<std::string, int> &conv_config_t::padded_dims() const {
 
 const std::unordered_map<std::string, int> &conv_config_t::dim_blocks() const {
     return bh->iter_dims();
+}
+
+bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
+    if (bh->max_iter_dim("mb") == 1) return true;
+    int sp = (kd * kh * kw == 1 && is_fwd) ? (d * h * w) : w;
+    int block = 32;
+    double mb_ratio = (double)mb / utils::rnd_up(mb, block);
+    double sp_ratio = (double)sp / utils::rnd_up(sp, block);
+    return sp_ratio >= mb_ratio;
 }
 
 void conv_config_t::maybe_set_fuse_spatial() {

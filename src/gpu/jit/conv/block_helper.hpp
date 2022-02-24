@@ -457,6 +457,10 @@ public:
     int thr_blk(const std::string &name) const { return dim(name).thr_blk(); }
     int tg_blk(const std::string &name) const { return dim(name).tg_blk(); }
 
+    dim_value_t max_iter_dim(const std::string &name) const {
+        return dim(name).max_dim(tile_level_t::iter);
+    }
+
     int padded_size(const std::string &name) const {
         return dim(name).padded_size();
     }
