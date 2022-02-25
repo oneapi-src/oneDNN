@@ -35,6 +35,7 @@ struct may_broadcast_t : public virtual op_base_trait_t {
     // returns -1 when it cannot broadcast
     virtual int get_broadcast_input() const = 0;
     virtual std::vector<int> infer_broadcast_axis() const = 0;
+    const std::vector<int> &get_plain_bc_axis() const { return plain_bc_axis_; }
 
 protected:
     std::vector<int> plain_bc_axis_;

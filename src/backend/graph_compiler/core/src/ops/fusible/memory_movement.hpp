@@ -49,6 +49,10 @@ private:
  *  - The reshaped tensor
  * Attrs:
  *  - shape: vector<int> - the output blocking shape
+ *  - format: sc_data_format_t - default: any. the format of the output logical
+ *    tensor
+ *  - expand_dim: bool - default: false. whether the tensor_view is a pure
+ *    dimension expansion (e.g. [a, b] --> [1, 1, a, b])
  * */
 class tensor_view_op_t : public movement_op_t,
                          public op_traits::auto_copyable_t {

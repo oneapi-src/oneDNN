@@ -20,35 +20,12 @@
 #include "../graph.hpp"
 namespace sc {
 
-/*
-An optimization pass to swap bcast and elementwise OP
-[v0] [v1]
-  \   /
-   add
-    |
-   [v3]  [v2] <--broadcast tensor
-     \    /
-      bcast
-        |
-      [b1]
-===============
-[v0] [v2] <--broadcast tensor
-  \   /
-   bcast
-    |
-   [v3]  [v1]
-     \    /
-       add
-        |
-      [b1]
-*/
-void elemwise_bcast_swap(
+SC_INTERNAL_API void elemwise_bcast_swap(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
-/* if is_output_plain is true, the outputs of the graph will be ensured in plain
-format. Otherwise, the output format will be kept as it is*/
+SC_INTERNAL_API void elemwise_dimension_alignment(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
-// todo: maybe add `is_input_plain` attrs
 SC_INTERNAL_API void layout_propagation(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 

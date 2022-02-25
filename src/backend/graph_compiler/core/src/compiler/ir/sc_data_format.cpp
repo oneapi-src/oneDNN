@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -175,7 +175,7 @@ sc_format_category sc_data_format_t::get_format_category() const {
     else if (format_code_.is_blocking())
         return sc_format_category::blocked;
     else
-        return sc_format_category::plain;
+        return sc_format_category::non_blocking;
 }
 
 void sc_data_format_t::to_string(std::ostream &os) const {

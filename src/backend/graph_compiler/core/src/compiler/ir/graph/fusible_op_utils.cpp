@@ -313,7 +313,7 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                 info.inputs_[0]->details_.get_format(), iter_vars,
                 vx_info.lanes, conditions, last_axis_mask);
     }
-    if (last_axis_mask != -1) {
+    if (last_axis_mask != -1 && floor > 0) {
         COMPILE_ASSERT(tail == 0,
                 "Currently we only support mask in vectorize compute not "
                 "tail.");

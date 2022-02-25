@@ -53,9 +53,10 @@ std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
     if (elt_dims.size() != bc_dims.size()) {
         std::vector<int> common_axes(elt_dims.size(), 0);
         // from right to left
-        int64_t i = elt_dims.size() - 1;
+        int64_t i = elt_dims.size();
         for (int64_t j = bc_dims.size() - 1; j >= 0; j--) {
-            for (; i >= 0; i--) {
+            while (i >= 1) {
+                i--;
                 if (elt_dims.at(i) == bc_dims.at(j)) {
                     common_axes.at(i) = 1;
                     break;
@@ -238,99 +239,82 @@ int binary_elementwise_op_impl_t::get_broadcast_input() const {
     }
 }
 
-static sc_data_format_t infer_blocking_format(
-        const logical_tensor_t &blocking_lt, const logical_tensor_t &plain_lt,
-        int blocking_in_index, int plain_in_index,
-        const std::vector<std::array<int, 2>> &common_axis) {
-    sc_data_format_t::blocking_t blocks;
-    blocks.fill(0);
-    std::vector<int> storage_args(plain_lt.get_plain_dims().size());
-    std::iota(storage_args.begin(), storage_args.end(), 0);
-    auto blocked_axis = blocking_lt.get_format().get_blocked_axis();
-
-    size_t pos = 0;
-    for (int i = common_axis.size() - 1; i >= 0; --i) {
-        // for {1,..}
-        int bs = plain_lt.get_format().format_code_.is_batch_format()
-                ? plain_lt.get_plain_dims().size() - 2
-                : 0;
-        if (plain_lt.get_plain_dims()[common_axis[i][plain_in_index] + bs] == 1
-                && blocked_axis.find(common_axis[i][blocking_in_index])
-                        != blocked_axis.end()) {
-            // consider padding condition
-            if (get_dims_product(blocking_lt.get_plain_dims())
-                    != get_dims_product(blocking_lt.get_blocking_dims())) {
-                for (auto block :
-                        blocked_axis[common_axis[i][blocking_in_index]]) {
-                    storage_args.push_back(common_axis[i][plain_in_index]);
-                    blocks[pos++] = block;
-                }
-                continue;
-            }
-            storage_args.push_back(common_axis[i][plain_in_index]);
-            blocks[pos++] = 1;
-        } else {
-            if (blocked_axis.find(common_axis[i][blocking_in_index])
-                    != blocked_axis.end()) {
-                for (auto block :
-                        blocked_axis[common_axis[i][blocking_in_index]]) {
-                    storage_args.push_back(common_axis[i][plain_in_index]);
-                    blocks[pos++] = block;
-                }
-            }
+static sc_data_format_t infer_broadcast_format(
+        const logical_tensor_t &target_lt, const logical_tensor_t &bc_lt) {
+    COMPILE_ASSERT(
+            bc_lt.get_plain_dims().size() == target_lt.get_plain_dims().size(),
+            "infer_blocking_format only support plain dimension aligned cases");
+    sc_data_format_kind_t target_lt_format_code
+            = target_lt.get_format().format_code_;
+    sc_data_format_t::blocking_t blocks = target_lt.get_format().blocks_;
+    sc_data_format_kind_t bc_lt_format_code = bc_lt.get_format().format_code_;
+    // start infer the blocks
+    sc_dims bc_plain_dim = bc_lt.get_plain_dims();
+    int block_dim = target_lt_format_code.ndims()
+            - target_lt_format_code.norig_dims();
+    int target_batch_dim = target_lt.get_plain_dims().size()
+            - target_lt_format_code.norig_dims();
+    for (int i = target_lt_format_code.norig_dims();
+            i < target_lt_format_code.ndims(); ++i) {
+        int blocking_axis = target_lt_format_code.get(i);
+        // if the axis's corresponding plain dim is 1
+        // blocks should also be 1
+        if (bc_plain_dim[target_batch_dim + blocking_axis] == 1) {
+            blocks[i - target_lt_format_code.norig_dims()] = 1;
         }
     }
-    // temporary fix for MHA case
-    // TODO(xxx): add an extension pass to align lhs and rhs dimension for
-    // broadcast/binary elementwise op
-    if (plain_lt.get_plain_dims().size()
-            == blocking_lt.get_plain_dims().size()) {
-        return sc_data_format_t(blocking_lt.get_format().format_code_, blocks);
-    }
-    return sc_data_format_t(
-            plain_lt.get_format().format_code_.is_batch_format(), storage_args,
-            blocks);
-}
-
-/**
- * @param a: the input's 0th index dims.
- * @param b: the input's 1th index dims.
- * @param bc_axis: default b(input's 1th index)need to do broadcast.
- * @return common_axis: record all common axis pair {{a axis, b axis}, ...}
- * for plain dims*/
-static std::vector<std::array<int, 2>> get_common_axis(const sc_dims &a,
-        const sc_dims &b, const std::vector<int> &bc_axis = {}) {
-    std::vector<std::array<int, 2>> common_axis;
-    if (!bc_axis.empty() && bc_axis != std::vector<int> {-1}
-            && a.size() != b.size()) {
-        COMPILE_ASSERT(
-                bc_axis.size() == b.size(), "Unexpected bc axis size found")
-        for (int i = 0; i < (int)b.size(); ++i) {
-            if (b[i] == a[bc_axis[i]]) {
-                common_axis.push_back({bc_axis[i], i});
-            }
-        }
+    // start infer the format code
+    if (target_lt_format_code.is_batch_format()
+            == bc_lt_format_code.is_batch_format()) {
+        // if both batch OR both non-batch
+        // smaller side's format code == larger side's format code
+        COMPILE_ASSERT(target_lt_format_code.norig_dims()
+                        == bc_lt_format_code.norig_dims(),
+                "Unsupported case for binary_elementwise query format.");
+        return sc_data_format_t(target_lt.get_format().format_code_, blocks);
     } else {
-        int i = a.size() - 1, j = b.size() - 1;
-        while (i >= 0 && j >= 0) {
-            if (a[i] == b[j]) {
-                common_axis.push_back({i, j});
-            } else {
-                if ((a[i] == 1 || b[j] == 1)) {
-                    common_axis.push_back({i, j});
-                } else {
-                    COMPILE_ASSERT(0,
-                            "No common axis: "
-                                    << i << " th axis doesn't have same value: "
-                                    << a[i] << " and " << b[j]
-                                    << " expected having 1 value");
+        // if one side is batch and another is non-batch
+        // needs to cast the dimension axis inside the storage args
+        if (target_lt_format_code.is_batch_format()
+                && !bc_lt_format_code.is_batch_format()) {
+            int dim_difference = bc_lt_format_code.norig_dims()
+                    - target_lt_format_code.norig_dims();
+            assert(dim_difference >= 0);
+            std::vector<int> bc_lt_storage_args(
+                    target_lt_format_code.ndims() + dim_difference, -1);
+            std::iota(bc_lt_storage_args.begin(), bc_lt_storage_args.end(), 0);
+            for (int i = 0; i < target_lt_format_code.ndims(); ++i) {
+                bc_lt_storage_args[i + dim_difference]
+                        = target_lt_format_code.get(i) + dim_difference;
+            }
+            return sc_data_format_t(false, bc_lt_storage_args, blocks);
+        } else {
+            int dim_difference = bc_lt_format_code.norig_dims()
+                    - target_lt_format_code.norig_dims();
+            std::vector<int> bc_lt_storage_args(
+                    bc_lt_format_code.norig_dims() + block_dim,
+                    -1); // ensure reorder is convertiable
+            for (int i = 0; i < target_lt_format_code.ndims(); ++i) {
+                if (i + dim_difference >= 0) {
+                    COMPILE_ASSERT(
+                            target_lt_format_code.get(i) + dim_difference >= 0,
+                            "Unsupported format encountered in "
+                            "binary_elementwise query format.");
+                    bc_lt_storage_args[i + dim_difference]
+                            = target_lt_format_code.get(i) + dim_difference;
                 }
             }
-            --i;
-            --j;
+            if (std::find(bc_lt_storage_args.begin(), bc_lt_storage_args.end(),
+                        -1)
+                    != bc_lt_storage_args.end()) {
+                COMPILE_ASSERT(0,
+                        "Unsupported format encountered in "
+                        "binary elementwise query format.");
+            }
+            return sc_data_format_t(true, bc_lt_storage_args, blocks);
         }
     }
-    return common_axis;
+    return sc_data_format_t(target_lt.get_format().format_code_);
 }
 
 void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
@@ -338,141 +322,31 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
     auto in0_format = info_.inputs_[0]->details_.get_format();
     auto in1_format = info_.inputs_[1]->details_.get_format();
+
     int bc_input_idx = get_broadcast_input();
-    std::vector<std::array<int, 2>> common_axis = get_common_axis(
-            info_.inputs_[bc_input_idx == -1 ? 0 : (1 - bc_input_idx)]
-                    ->details_.get_plain_dims(),
-            info_.inputs_[bc_input_idx == -1 ? 1 : bc_input_idx]
-                    ->details_.get_plain_dims(),
-            plain_bc_axis_);
-    // swap common axis
-    if (bc_input_idx == 0) {
-        std::for_each(common_axis.begin(), common_axis.end(),
-                [](std::array<int, 2> &arr) { std::swap(arr[0], arr[1]); });
-    }
 
-    COMPILE_ASSERT(!common_axis.empty(),
-            "binary elementwise op doesn't support two shape : "
-                    << utils::print_vector(
-                               info_.inputs_[0]->details_.get_plain_dims())
-                    << ", "
-                    << utils::print_vector(
-                               info_.inputs_[1]->details_.get_plain_dims())
-                    << "to query format, consider to use broadcast op");
-
-    if (in0_format.get_format_category() != in1_format.get_format_category()) {
-        // plain+block combination.
-        if (in0_format.is_blocking()) {
-            in_formats.push_back({in0_format});
-            // for {1} shape
-            if (info_.inputs_[1]->details_.get_plain_dims().size() == 1
-                    && info_.inputs_[1]->details_.get_plain_dims()[0] == 1
-                    && plain_bc_axis_ == std::vector<int> {-1}) {
-                in_formats.push_back({in1_format});
-            } else {
-                in_formats.push_back({infer_blocking_format(
-                        info_.inputs_[0]->details_, info_.inputs_[1]->details_,
-                        0, 1, common_axis)});
-            }
-            out_formats.push_back({in0_format});
-        } else {
-            // for {1} shape
-            if (info_.inputs_[0]->details_.get_plain_dims().size() == 1
-                    && info_.inputs_[0]->details_.get_plain_dims()[0] == 1
-                    && plain_bc_axis_ == std::vector<int> {-1}) {
-                in_formats.push_back({in0_format});
-            } else {
-                in_formats.push_back({infer_blocking_format(
-                        info_.inputs_[1]->details_, info_.inputs_[0]->details_,
-                        1, 0, common_axis)});
-            }
+    if (info_.inputs_[0]->details_.get_plain_dims().size()
+            != info_.inputs_[1]->details_.get_plain_dims().size()) {
+        COMPILE_ASSERT(in0_format == sc_data_format_t(format_kinds::A)
+                        || in1_format == sc_data_format_t(format_kinds::A),
+                "Unsupported format encountered in binary elementwise query "
+                "format.");
+        in_formats.push_back({in0_format});
+        in_formats.push_back({in1_format});
+        out_formats.push_back({!bc_input_idx ? in1_format : in0_format});
+    } else {
+        if (!bc_input_idx) {
+            auto target_format = infer_broadcast_format(
+                    info_.inputs_[1]->details_, info_.inputs_[0]->details_);
+            in_formats.push_back({target_format});
             in_formats.push_back({in1_format});
             out_formats.push_back({in1_format});
-        }
-    } else {
-        // plain+plain
-        if ((in0_format.is_plain() && in1_format.is_plain())) {
-            in_formats.push_back({in0_format});
-            in_formats.push_back({in1_format});
-            get_dims_product(info_.inputs_[0]->details_.get_plain_dims())
-                            >= get_dims_product(
-                                    info_.inputs_[1]->details_.get_plain_dims())
-                    ? out_formats.push_back({in0_format})
-                    : out_formats.push_back({in1_format});
-        } else if (info_.inputs_[0]->details_.get_plain_dims().size()
-                == info_.inputs_[1]->details_.get_plain_dims().size()) {
-            auto in0_blocked_axis = in0_format.get_blocked_axis();
-            auto in1_blocked_axis = in1_format.get_blocked_axis();
-            int index = get_dims_product(
-                                info_.inputs_[0]->details_.get_plain_dims())
-                            >= get_dims_product(
-                                    info_.inputs_[1]->details_.get_plain_dims())
-                    ? 0
-                    : 1;
-
-            auto base_format_code
-                    = (index ? in1_format : in0_format).format_code_;
-            auto base_blocked_axis
-                    = (index ? in1_blocked_axis : in0_blocked_axis);
-            size_t base_dims = base_format_code.norig_dims();
-            size_t max_dims = base_format_code.ndims();
-            sc_data_format_t::blocking_t blocks
-                    = (index ? in1_format : in0_format).blocks_;
-            for (size_t i = base_dims; i < max_dims; ++i) {
-                int axis = base_format_code.get(i);
-                if (info_.inputs_[0]->details_.get_plain_dims()[axis]
-                        != info_.inputs_[1]->details_.get_plain_dims()[axis]) {
-                    blocks[i - base_dims] = 1;
-                }
-            }
-            // blocks = {1, 64, 0, 0};
-            auto mixed_format = sc_data_format_t(base_format_code, blocks);
-            index ? in_formats.push_back({mixed_format})
-                  : in_formats.push_back({in0_format});
-            index ? in_formats.push_back({in1_format})
-                  : in_formats.push_back({mixed_format});
-            index ? out_formats.push_back({in1_format})
-                  : out_formats.push_back({in0_format});
         } else {
-            // block+ block
-            auto in0_blocked_axis = in0_format.get_blocked_axis();
-            auto in1_blocked_axis = in1_format.get_blocked_axis();
-            int index = in0_blocked_axis.size() >= in1_blocked_axis.size() ? 0
-                                                                           : 1;
-            bool same_blocked = true;
-            for (int i = common_axis.size() - 1; i >= 0; --i) {
-                if (info_.inputs_[0]->details_
-                                        .get_plain_dims()[common_axis[i][0]]
-                                == 1
-                        || info_.inputs_[1]
-                                        ->details_
-                                        .get_plain_dims()[common_axis[i][1]]
-                                == 1)
-                    continue;
-                if (in0_blocked_axis.find(common_axis[i][0])
-                                != in0_blocked_axis.end()
-                        && in1_blocked_axis.find(common_axis[i][1])
-                                != in1_blocked_axis.end()) {
-                    if (in0_blocked_axis[common_axis[i][0]]
-                            != in1_blocked_axis[common_axis[i][1]]) {
-                        same_blocked = false;
-                    }
-                }
-            }
-
-            if (same_blocked) {
-                in_formats.push_back({in0_format});
-                in_formats.push_back({in1_format});
-                index ? out_formats.push_back({in1_format})
-                      : out_formats.push_back({in0_format});
-            } else {
-                index ? in_formats.push_back({in1_format})
-                      : in_formats.push_back({in0_format});
-                index ? in_formats.push_back({in1_format})
-                      : in_formats.push_back({in0_format});
-                index ? out_formats.push_back({in1_format})
-                      : out_formats.push_back({in0_format});
-            }
+            auto target_format = infer_broadcast_format(
+                    info_.inputs_[0]->details_, info_.inputs_[1]->details_);
+            in_formats.push_back({in0_format});
+            in_formats.push_back({target_format});
+            out_formats.push_back({in0_format});
         }
     }
 }

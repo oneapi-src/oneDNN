@@ -19,6 +19,7 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
+#include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_data.hpp>
 #include <compiler/ir/graph/quantization/quantize_op.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
@@ -229,8 +230,8 @@ graph_tensor_ptr graph_tensor::copy() {
 
 void sc_op::replace_input(size_t index, const graph_tensor_ptr &new_input) {
     assert(index < info_.inputs_.size());
-    assert(info_.inputs_[index]->details_.get_plain_dims()
-            == new_input->details_.get_plain_dims());
+    assert(get_dims_product(info_.inputs_[index]->details_.get_plain_dims())
+            == get_dims_product(new_input->details_.get_plain_dims()));
     info_.inputs_[index]->detach_use(shared_from_this(), index);
     info_.inputs_[index] = new_input;
     new_input->attach_use(shared_from_this(), index);
