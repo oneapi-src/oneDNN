@@ -213,10 +213,34 @@ public:
     };
 
     status_t create_and_set_convolution_desc(const convolution_pd_t *pd) {
+
+        cudnnMathType_t cudnn_math_type = CUDNN_TENSOR_OP_MATH;
+
+        if (computation_data_type == CUDNN_DATA_FLOAT) {
+
+            dnnl_fpmath_mode_t dnnl_fpmath_mode;
+            dnnl_get_default_fpmath_mode(&dnnl_fpmath_mode);
+
+            switch (dnnl_fpmath_mode) {
+                case dnnl_fpmath_mode_strict:
+                    cudnn_math_type = CUDNN_FMA_MATH;
+                    break;
+                case dnnl_fpmath_mode_bf16:
+                    cudnn_math_type = CUDNN_TENSOR_OP_MATH;
+                    break;
+                case dnnl_fpmath_mode_f16:
+                    cudnn_math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
+                    break;
+                case dnnl_fpmath_mode_any:
+                    cudnn_math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
+                    break;
+            }
+        }
+
         CUDNN_EXECUTE_FUNC_V(cudnnCreateConvolutionDescriptor, &conv_desc);
         // Allow cuDNN to dispatch into Tensor Core implementations
         CHECK(CUDNN_EXECUTE_FUNC_S(
-                cudnnSetConvolutionMathType, conv_desc, CUDNN_TENSOR_OP_MATH));
+                cudnnSetConvolutionMathType, conv_desc, cudnn_math_type));
         CUDNN_EXECUTE_FUNC_V(cudnnSetConvolutionNdDescriptor, conv_desc,
                 ndims[x] - 2, padding, filter_strides, dilation,
                 cudnnConvolutionMode_t::CUDNN_CROSS_CORRELATION,
@@ -579,6 +603,9 @@ public:
                 descs[x], weights_desc, conv_desc, descs[y],
                 requested_algo_count, &returned_algo_count, perf.data()));
 
+        dnnl_fpmath_mode_t dnnl_fpmath_mode;
+        dnnl_get_default_fpmath_mode(&dnnl_fpmath_mode);
+
         auto submit_status = CUDNN_STATUS_NOT_SUPPORTED;
         for (size_t i = 0; i < returned_algo_count; i++) {
             submit_status = perf[i].status;
@@ -620,6 +647,10 @@ public:
                         break;
                     default: return status::unimplemented;
                 }
+                if ((computation_data_type == CUDNN_DATA_FLOAT)
+                        && (dnnl_fpmath_mode == dnnl_fpmath_mode_strict)
+                        && (perf[i].mathType != CUDNN_FMA_MATH))
+                    continue;
                 fwd_alg_kind = perf[i].algo;
                 CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetConvolutionMathType,
                         conv_desc, perf[i].mathType));
@@ -707,6 +738,10 @@ protected:
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnFindConvolutionBackwardDataAlgorithm,
                 handle, weights_desc, descs[y], conv_desc, descs[x],
                 requested_algo_count, &returned_algo_count, perf.data()));
+
+        dnnl_fpmath_mode_t dnnl_fpmath_mode;
+        dnnl_get_default_fpmath_mode(&dnnl_fpmath_mode);
+
         for (size_t i = 0; i < returned_algo_count; i++) {
             if (perf[i].status == CUDNN_STATUS_SUCCESS) {
                 switch (pd->desc()->alg_kind) {
@@ -737,6 +772,10 @@ protected:
                         break;
                     default: return status::unimplemented;
                 }
+                if ((computation_data_type == CUDNN_DATA_FLOAT)
+                        && (dnnl_fpmath_mode == dnnl_fpmath_mode_strict)
+                        && (perf[i].mathType != CUDNN_FMA_MATH))
+                    continue;
                 bwd_algo = perf[i].algo;
                 CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetConvolutionMathType,
                         conv_desc, perf[i].mathType));
@@ -849,6 +888,10 @@ public:
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnFindConvolutionBackwardFilterAlgorithm,
                 handle, descs[x], descs[y], conv_desc, weights_desc,
                 requested_algo_count, &returned_algo_count, perf.data()));
+
+        dnnl_fpmath_mode_t dnnl_fpmath_mode;
+        dnnl_get_default_fpmath_mode(&dnnl_fpmath_mode);
+
         for (size_t i = 0; i < returned_algo_count; i++) {
             if (perf[i].status == CUDNN_STATUS_SUCCESS) {
                 switch (pd->desc()->alg_kind) {
@@ -881,6 +924,10 @@ public:
                         break;
                     default: return status::unimplemented;
                 }
+                if ((computation_data_type == CUDNN_DATA_FLOAT)
+                        && (dnnl_fpmath_mode == dnnl_fpmath_mode_strict)
+                        && (perf[i].mathType != CUDNN_FMA_MATH))
+                    continue;
                 bwd_filter_algo = perf[i].algo;
                 CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetConvolutionMathType,
                         conv_desc, perf[i].mathType));
