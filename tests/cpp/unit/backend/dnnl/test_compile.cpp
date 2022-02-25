@@ -7659,9 +7659,6 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    SKIP_IF(engine.kind() == impl::engine_kind::gpu,
-            "Skip for GPU - not supported yet.");
-
     const std::vector<std::pair<size_t, test::vector<float>>> configs {
             {1,
                     {1., 1., 2., 2., 5., 5., 6., 6., 3., 3., 4., 4., 7., 7., 8.,
@@ -18803,9 +18800,6 @@ TEST(ExecuteSubgraphInt8, ReluAdd) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    SKIP_IF(engine.kind() == impl::engine_kind::gpu,
-            "Skip for GPU - not supported yet.");
-
     // prepare fp32 data
     std::vector<int64_t> shape {1, 3, 3};
     std::vector<bool> swaps {false, true};
@@ -18893,7 +18887,7 @@ TEST(ExecuteSubgraphInt8, ReluAdd) {
         qout_op.add_input(dst_add_f32);
         qout_op.add_output(dst_u8);
 
-        impl::graph_t g;
+        impl::graph_t g(engine.kind());
         g.add_op(&dqdata_relu_op);
         g.add_op(&relu_op);
         g.add_op(&dqdata_add_op);
@@ -18928,7 +18922,8 @@ TEST(ExecuteSubgraphInt8, ReluAdd) {
                 &src_u8, &src_add_u8};
         std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
 
-        p.compile(&cp, lt_ins, lt_outs, &engine);
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, &engine),
+                impl::status::success);
 
         cp.execute(&strm, {src_u8_ts, src_add_u8_ts}, {dst_u8_case2_ts});
         strm.wait();
