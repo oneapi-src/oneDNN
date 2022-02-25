@@ -51,8 +51,6 @@ dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
 
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
-
-    dnnl_memory_desc_t src_d, wei_d, dst_d, bia_d {};
     const auto &src_rt_dims
             = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
     const auto &weights_rt_dims = get_runtime_dims(
@@ -60,25 +58,20 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
     const auto &dst_rt_dims
             = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
 
-    SAFE(init_md(&src_d, prb->ndims, src_rt_dims.data(), prb->cfg[SRC].dt,
-                 prb->stag, prb->strides[STRIDES_SRC]),
-            CRIT);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(),
+            prb->cfg[SRC].dt, prb->stag, prb->strides[STRIDES_SRC]);
+    auto wei_d = dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(),
+            prb->cfg[WEI].dt, prb->wtag, prb->strides[STRIDES_WEI]);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, dst_rt_dims.data(),
+            prb->cfg[DST].dt, prb->dtag, prb->strides[STRIDES_DST]);
 
-    SAFE(init_md(&wei_d, prb->ndims, weights_rt_dims.data(), prb->cfg[WEI].dt,
-                 prb->wtag, prb->strides[STRIDES_WEI]),
-            CRIT);
-
-    SAFE(init_md(&dst_d, prb->ndims, dst_rt_dims.data(), prb->cfg[DST].dt,
-                 prb->dtag, prb->strides[STRIDES_DST]),
-            CRIT);
-
+    dnnl_memory_desc_t bia_d {};
     if (prb->bia_dt != dnnl_data_type_undef) {
         dims_t bia_dims;
         prep_bia_dims(prb, bia_dims);
         bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
-        DNN_SAFE(dnnl_memory_desc_init_by_strides(&bia_d, prb->ndims,
-                         bia_dims.data(), prb->bia_dt, nullptr),
-                WARN);
+        bia_d = dnn_mem_t::init_md(prb->ndims, bia_dims.data(), prb->bia_dt,
+                prb->dst_runtime_dim_mask() != 0 ? tag::abx : tag::any);
     }
 
     dnnl_matmul_desc_t op_d;
@@ -397,31 +390,28 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &src_dims = prb->src_dims();
     if (dnnl_memory_desc_equal(&src_md, &def_md)) {
         assert(prb->stag != tag::any);
-        SAFE(init_md(&src_md, prb->ndims, src_dims.data(), prb->cfg[SRC].dt,
-                     prb->stag, prb->strides[STRIDES_SRC]),
-                WARN);
+        src_md = dnn_mem_t::init_md(prb->ndims, src_dims.data(),
+                prb->cfg[SRC].dt, prb->stag, prb->strides[STRIDES_SRC]);
     }
 
     const auto &weights_dims = prb->weights_dims();
     if (dnnl_memory_desc_equal(&wei_md, &def_md)) {
         assert(prb->wtag != tag::any);
-        SAFE(init_md(&wei_md, prb->ndims, weights_dims.data(), prb->cfg[WEI].dt,
-                     prb->wtag, prb->strides[STRIDES_WEI]),
-                WARN);
+        wei_md = dnn_mem_t::init_md(prb->ndims, weights_dims.data(),
+                prb->cfg[WEI].dt, prb->wtag, prb->strides[STRIDES_WEI]);
     }
 
     if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
         assert(prb->dtag != tag::any);
-        SAFE(init_md(&dst_md, prb->ndims, prb->dst_dims.data(),
-                     prb->cfg[DST].dt, prb->dtag, prb->strides[STRIDES_DST]),
-                WARN);
+        dst_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
+                prb->cfg[DST].dt, prb->dtag, prb->strides[STRIDES_DST]);
     }
-    if (prb->bia_dt != dnnl_data_type_undef) {
+    if (prb->bia_dt != dnnl_data_type_undef
+            && dnnl_memory_desc_equal(&bia_md, &def_md)) {
         dims_t bia_dims;
         prep_bia_dims(prb, bia_dims);
-        DNN_SAFE(dnnl_memory_desc_init_by_strides(&bia_md, prb->ndims,
-                         bia_dims.data(), prb->bia_dt, nullptr),
-                WARN);
+        bia_md = dnn_mem_t::init_md(
+                prb->ndims, bia_dims.data(), prb->bia_dt, tag::abx);
     }
 
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);

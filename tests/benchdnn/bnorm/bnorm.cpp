@@ -423,7 +423,6 @@ int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_batch_normalization_desc_t bd;
-    dnnl_memory_desc_t data_d;
 
     dnnl_dims_t data_dims_0d = {prb->mb, prb->ic};
     dnnl_dims_t data_dims_1d = {prb->mb, prb->ic, prb->iw};
@@ -435,7 +434,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
             : prb->ndims == 4 ? data_dims_2d
                               : prb->ndims == 3 ? data_dims_1d : data_dims_0d;
 
-    SAFE(init_md(&data_d, prb->ndims, data_dims, prb->dt, prb->tag), CRIT);
+    auto data_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, prb->tag);
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (dir & FLAG_FWD) {

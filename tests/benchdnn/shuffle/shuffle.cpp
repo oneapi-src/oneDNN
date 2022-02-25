@@ -60,9 +60,8 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_shuffle_desc_t sd;
 
-    dnnl_memory_desc_t data_d;
-    SAFE(init_md(&data_d, prb->ndims, prb->dims.data(), prb->dt, prb->tag),
-            WARN);
+    auto data_d = dnn_mem_t::init_md(
+            prb->ndims, prb->dims.data(), prb->dt, prb->tag);
 
     if (prb->dir & FLAG_FWD) {
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference

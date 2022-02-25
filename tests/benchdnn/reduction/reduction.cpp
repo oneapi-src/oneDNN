@@ -33,15 +33,11 @@ namespace reduction {
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_reduction_desc_t rd;
-    dnnl_memory_desc_t src_desc, dst_desc;
 
-    SAFE(init_md(&src_desc, prb->ndims, prb->vdims[0].data(), prb->sdt,
-                 prb->stag),
-            WARN);
-
-    SAFE(init_md(&dst_desc, prb->ndims, prb->vdims[1].data(), prb->ddt,
-                 prb->dtag),
-            WARN);
+    auto src_desc = dnn_mem_t::init_md(
+            prb->ndims, prb->vdims[0].data(), prb->sdt, prb->stag);
+    auto dst_desc = dnn_mem_t::init_md(
+            prb->ndims, prb->vdims[1].data(), prb->ddt, prb->dtag);
 
     DNN_SAFE(dnnl_reduction_desc_init(&rd, alg2alg_kind(prb->alg), &src_desc,
                      &dst_desc, prb->p, prb->eps),

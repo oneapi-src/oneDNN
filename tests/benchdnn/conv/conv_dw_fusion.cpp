@@ -34,7 +34,6 @@ namespace conv_dw_fusion {
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_convolution_desc_t cd;
-    dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
     dnnl_dims_t src_2d_dims = {prb->mb, prb->ic, prb->ih, prb->iw};
@@ -71,15 +70,11 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
     std::string bia_tag = tag::any;
     std::string dst_tag = prb->dtag;
 
-    SAFE(init_md(&src_d, prb->ndims, src_dims, src_dt, prb->stag), WARN);
-
-    SAFE(init_md(&wei_d, prb->ndims + prb->has_groups, wei_dims, wei_dt,
-                 prb->wtag),
-            WARN);
-
-    SAFE(init_md(&bia_d, 1, bia_dims, bia_dt, bia_tag), WARN);
-
-    SAFE(init_md(&dst_d, prb->ndims, dst_dims, dst_dt, dst_tag), WARN);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, src_dims, src_dt, prb->stag);
+    auto wei_d = dnn_mem_t::init_md(
+            prb->ndims + prb->has_groups, wei_dims, wei_dt, prb->wtag);
+    auto bia_d = dnn_mem_t::init_md(1, bia_dims, bia_dt, bia_tag);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, dst_dims, dst_dt, dst_tag);
 
     dnnl_dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
     dnnl_dim_t dilates_nd[] = {prb->dd, prb->dh, prb->dw};

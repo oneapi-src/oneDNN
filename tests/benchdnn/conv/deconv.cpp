@@ -62,7 +62,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &dpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_deconvolution_desc_t cd;
-    dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
     dnnl_dims_t src_2d_dims = {prb->mb, prb->ic, prb->ih, prb->iw};
@@ -91,16 +90,13 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             ? dst_3d_dims
             : prb->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
-    SAFE(init_md(&src_d, prb->ndims, src_dims, prb->cfg[SRC].dt, prb->stag),
-            CRIT);
-    SAFE(init_md(&wei_d, prb->ndims + prb->has_groups, wei_dims,
-                 prb->cfg[WEI].dt, prb->wtag),
-            CRIT);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&bia_d, 1, bia_dims, prb->cfg[BIA].dt,
-                     dnnl_format_tag_any),
-            WARN);
-    SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->cfg[DST].dt, prb->dtag),
-            CRIT);
+    auto src_d = dnn_mem_t::init_md(
+            prb->ndims, src_dims, prb->cfg[SRC].dt, prb->stag);
+    auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups, wei_dims,
+            prb->cfg[WEI].dt, prb->wtag);
+    auto bia_d = dnn_mem_t::init_md(1, bia_dims, prb->cfg[BIA].dt, tag::any);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, dst_dims, prb->cfg[DST].dt, prb->dtag);
 
     dnnl_dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
     dnnl_dim_t dilates_nd[] = {prb->dd, prb->dh, prb->dw};

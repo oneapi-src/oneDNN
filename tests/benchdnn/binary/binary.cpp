@@ -98,19 +98,16 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
     dnnl_binary_desc_t bd;
-    std::vector<dnnl_memory_desc_t> src_d;
-    src_d.resize(prb->n_inputs());
+    std::vector<dnnl_memory_desc_t> src_d(prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const dims_t &i_vdims = prb->vdims[i_input];
-        SAFE(init_md(&src_d[i_input], prb->ndims, i_vdims.data(),
-                     prb->sdt[i_input], prb->stag[i_input]),
-                CRIT);
+        src_d[i_input] = dnn_mem_t::init_md(prb->ndims, i_vdims.data(),
+                prb->sdt[i_input], prb->stag[i_input]);
     }
 
-    dnnl_memory_desc_t dst_d;
-    SAFE(init_md(&dst_d, prb->ndims, prb->dst_dims.data(), prb->ddt, prb->dtag),
-            WARN);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, prb->dst_dims.data(), prb->ddt, prb->dtag);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
