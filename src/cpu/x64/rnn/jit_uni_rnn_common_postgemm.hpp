@@ -40,6 +40,9 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         : rnn_(rnn)
         , pd_(pd)
         , projection_(false)
+        , bias_dt_size_(types::data_type_size(rnn.bias_dt))
+        , cstate_dt_size_(types::data_type_size(rnn.src_iter_c_dt))
+        , is_avx512(mayiuse(avx512_core))
         , dscale_off_addr(0)
         , dshift_off_addr(0)
         , ymm_perm_mask_addr(0)
@@ -55,9 +58,9 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         , bf16_reg4(r13)
         , bf16_reg5(zmm28)
         , bf16_k_mask(k2)
-        , bf16_dq_reg_idx(15)
-        , bias_dt_size_(types::data_type_size(rnn.bias_dt))
-        , cstate_dt_size_(types::data_type_size(rnn.src_iter_c_dt)) {}
+        , tmp_reg(bf16_reg4)
+        , zmm_tail_k_mask(k3)
+        , bf16_dq_reg_idx(15) {}
 
     ~jit_uni_rnn_postgemm() {
         if (bf16_emu_) delete bf16_emu_;
@@ -319,14 +322,21 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     }
 
 protected:
-    void init_regs(float *weights_scales, size_t vlen) {
+    void init_regs(
+            float *weights_scales, size_t vlen, size_t tail_elements = 0) {
+        if (is_avx512 && tail_elements > 0) {
+            mov(tmp_reg, size_t((1 << tail_elements) - 1));
+            kmovq(zmm_tail_k_mask, tmp_reg);
+            is_zmm_mask_initialized = true;
+        }
         switch (pd_->weights_md()->data_type) {
             case data_type::bf16: {
                 /* bfloat downconvert init */
                 if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
                 /* init mask for upconvert */
-                mov(r13d, 1);
-                kmovd(bf16_k_mask, r13d);
+                const auto tmp_reg32 = tmp_reg.cvt32();
+                mov(tmp_reg32, 1);
+                kmovd(bf16_k_mask, tmp_reg32);
                 break;
             }
             case data_type::s8: {
@@ -362,9 +372,9 @@ protected:
         }
     }
 
-    void init_regs(size_t vlen) {
+    void init_regs(size_t vlen, size_t tail_elements = 0) {
         assert(pd_->weights_md()->data_type != data_type::s8);
-        return init_regs(nullptr, vlen);
+        return init_regs(nullptr, vlen, tail_elements);
     };
 
     void init_table(size_t vlen) {
@@ -423,12 +433,22 @@ protected:
         inc_regs(0, vlen);
     }
 
+#ifdef DNNL_ENABLE_FAST_RCP
     template <typename Vmm>
-    void fast_recip(Vmm s, Vmm tmp, bool packed) {
-        if (packed)
+    void fast_recip(Vmm s, Vmm tmp, int vlen_bytes) {
+        if (can_do_zmm_masked_tail_processing(s, vlen_bytes)) {
+            Xbyak::Zmm s_masked
+                    = Xbyak::Zmm(s.getIdx()) | zmm_tail_k_mask | T_z;
+            uni_vrcpps(tmp_masked, s);
+        } else if (vlen_bytes == (int)s.getBit() / 8) {
+            // no tail processing
             uni_vrcpps(tmp, s);
-        else
-            uni_vrcpss(tmp, s); // prevent divide by zero
+        } else if (4 == vlen_bytes) {
+            // special case for scalar-based tail processing to prevent divide by zero
+            uni_vrcpss(tmp, s);
+        } else
+            assert(!"unsupported case");
+
         // we add one Newton iteration
         uni_vmulps(s, s, tmp);
         uni_vmulps(s, s, tmp); // s <- s * tmp^2
@@ -436,6 +456,7 @@ protected:
         uni_vsubps(tmp, tmp, s);
         uni_vmovups(s, tmp); // s <- 2 * tmp - s * tmp^2
     }
+#endif
 
     // quantize from float to u8
     // Assumption: write_only = true assumes that the quantized value
@@ -459,6 +480,13 @@ protected:
             else
                 uni_vpacksswb(src, src, qd_vmm);
         }
+
+        if (can_do_zmm_masked_tail_processing(src, in_len)) {
+            Xbyak::Zmm src_masked = Xbyak::Zmm(src.getIdx()) | zmm_tail_k_mask;
+            vmovdqu8(dst, src_masked);
+            return;
+        }
+
         // Note that the results are interleaved by 128 bit chunks, so we need to merge them together
         switch (in_len) {
             case 64: { // Intel AVX-512
@@ -491,7 +519,7 @@ protected:
     // dequantize from s32 to float
     template <typename Vmm>
     void deq_w(data_type_t src_data_t, Vmm s, Vmm tmp1, Vmm tmp2,
-            dim_t scale_off, int mask, bool packed,
+            dim_t scale_off, int mask, int vlen_bytes,
             Xbyak::Reg64 *comp = nullptr) {
         // nothing to do if not int8
         if (!utils::one_of(src_data_t, data_type::u8, data_type::s8)) return;
@@ -504,31 +532,42 @@ protected:
         else {
             auto scales_ptr
                     = ptr[weights_scales_reg + scale_off * qscale_dt_size];
-            if (packed)
-                uni_vmovups(tmp1, scales_ptr);
-            else
-                uni_vmovss(tmp1, scales_ptr);
+            load(tmp1, scales_ptr, data_type::f32, vlen_bytes);
         }
         uni_vcvtdq2ps(s, s);
         // Here we subtract a compensation if need be
         if (comp) { uni_vsubps(s, s, ptr[*comp]); }
         uni_vmulps(tmp1, tmp1, dscale_off_addr);
 #ifdef DNNL_ENABLE_FAST_RCP
-        fast_recip(tmp1, tmp2, packed);
+        fast_recip(tmp1, tmp2, vlen_bytes);
         uni_vmulps(s, s, tmp1);
 #else
-        uni_vdivps(s, s, tmp1);
+        if (can_do_zmm_masked_tail_processing(s, vlen_bytes)) {
+            Xbyak::Zmm s_masked
+                    = Xbyak::Zmm(s.getIdx()) | zmm_tail_k_mask | T_z;
+            uni_vdivps(s_masked, s, tmp1);
+        } else
+            uni_vdivps(s, s, tmp1);
 #endif
     }
 
     // dequantize from u8 to float
     template <typename Vmm>
     void deq_h(Vmm dst, Xbyak::Address src, int in_len) {
-        if (4 == in_len) {
-            uni_vpinsrb(dst, dst, src, 0x0);
-            uni_vpmovzxbd(dst, dst);
-        } else {
+        if (can_do_zmm_masked_tail_processing(dst, in_len)) {
+            Xbyak::Zmm dst_masked
+                    = Xbyak::Zmm(dst.getIdx()) | zmm_tail_k_mask | T_z;
+            uni_vpmovzxbd(dst_masked, src);
+        } else if (4 == in_len) {
+            // special case for scalar-based tail processing
+            Xbyak::Xmm dst_xmm = Xbyak::Xmm(dst.getIdx());
+            uni_vpinsrb(dst_xmm, dst_xmm, src, 0x0);
+            uni_vpmovzxbd(dst_xmm, dst_xmm);
+        } else if (in_len == (int)dst.getBit() / 8) {
+            // no tail processing
             uni_vpmovzxbd(dst, src);
+        } else {
+            assert(!"unsupported case");
         }
         uni_vcvtdq2ps(dst, dst);
         uni_vsubps(dst, dst, dshift_off_addr);
@@ -539,16 +578,14 @@ protected:
     template <typename Vmm>
     void bf16_uc(Vmm dst, Xbyak::Address src, int in_len) {
         switch (in_len) {
-            case 64:
-                vpmovzxwd(dst, src);
-                vpslld(dst, dst, 0x10);
-                break;
-            case 4:
-                vpmovzxwd(dst | bf16_k_mask | T_z, src);
-                vpslld(dst, dst, 0x10);
-                break;
-            default: assert(!"unsupported");
+            case 64: vpmovzxwd(dst, src); break;
+            case 4: vpmovzxwd(dst | bf16_k_mask | T_z, src); break;
+            default:
+                assert(is_zmm_mask_initialized);
+                vpmovzxwd(dst | zmm_tail_k_mask | T_z, src);
         }
+
+        vpslld(dst, dst, 0x10);
     }
 
     // downconvert from float to bf16
@@ -571,7 +608,9 @@ protected:
             case 4:
                 uni_vpextrw(dst, Xbyak::Xmm(bf16_reg_dc.getIdx()), 0x0);
                 break;
-            default: assert(!"unsupported case");
+            default:
+                assert(is_zmm_mask_initialized);
+                vmovdqu16(dst, Xbyak::Zmm(bf16_dq_reg_idx) | zmm_tail_k_mask);
         }
     }
 
@@ -586,14 +625,7 @@ protected:
     void to_src(const Xbyak::Address &dst, const Vmm &src, data_type_t src_dt,
             int in_len, bool write_only = false) {
         switch (src_dt) {
-            case data_type::f32:
-                if (in_len == (int)src.getBit() / 8)
-                    uni_vmovups(dst, src);
-                else if (in_len == 4)
-                    uni_vmovss(dst, src);
-                else
-                    assert(!"unsupported");
-                break;
+            case data_type::f32: store(dst, src, src_dt, in_len); break;
             case data_type::bf16: bf16_dc(dst, src, in_len, write_only); break;
             case data_type::u8:
             case data_type::s8:
@@ -607,14 +639,7 @@ protected:
     void to_float(const Vmm &dst, const Xbyak::Address &src, data_type_t src_dt,
             int in_len) {
         switch (src_dt) {
-            case data_type::f32:
-                if (in_len == (int)dst.getBit() / 8)
-                    uni_vmovups(dst, src);
-                else if (in_len == 4)
-                    uni_vmovss(dst, src);
-                else
-                    assert(!"unsupported");
-                break;
+            case data_type::f32: load(dst, src, src_dt, in_len); break;
             case data_type::bf16: bf16_uc(dst, src, in_len); break;
             case data_type::u8:
             case data_type::s8: deq_h(dst, src, in_len); break;
@@ -622,11 +647,94 @@ protected:
         }
     }
 
+    template <typename Vmm>
+    void load(const Vmm &dst, const Xbyak::Address &src, data_type_t dt,
+            int vlen_bytes) {
+        if (can_do_zmm_masked_tail_processing(dst, vlen_bytes)) {
+            load_zmm_masked(dst, src, dt);
+            return;
+        }
+
+        if (((int)dst.getBit() / 8) == vlen_bytes)
+            uni_vmovups(dst, src);
+        else if (4 == vlen_bytes)
+            // special case for scalar-based tail processing
+            uni_vmovss(dst, src);
+        else
+            assert(!"unsupported case");
+    }
+
+    template <typename Vmm>
+    void compute_vaddps(
+            const Vmm &v1, const Vmm &v2, const Vmm &v3, int vlen_bytes) {
+        if (vlen_bytes == 4)
+            // special case for scalar-based tail processing
+            uni_vaddss(Xbyak::Xmm(v1.getIdx()), Xbyak::Xmm(v2.getIdx()),
+                    Xbyak::Xmm(v3.getIdx()));
+        else
+            uni_vaddps(v1, v2, v3);
+    }
+
+    template <typename Vmm>
+    void compute_vsubps(
+            const Vmm &v1, const Vmm &v2, const Vmm &v3, int vlen_bytes) {
+        if (vlen_bytes == 4)
+            // special case for scalar-based tail processing
+            uni_vsubss(Xbyak::Xmm(v1.getIdx()), Xbyak::Xmm(v2.getIdx()),
+                    Xbyak::Xmm(v3.getIdx()));
+        else
+            uni_vsubps(v1, v2, v3);
+    }
+
+    template <typename Vmm>
+    void compute_vmulps(
+            const Vmm &v1, const Vmm &v2, const Vmm &v3, int vlen_bytes) {
+        if (vlen_bytes == 4)
+            // special case for scalar-based tail processing
+            uni_vmulss(Xbyak::Xmm(v1.getIdx()), Xbyak::Xmm(v2.getIdx()),
+                    Xbyak::Xmm(v3.getIdx()));
+        else
+            uni_vmulps(v1, v2, v3);
+    }
+
+    template <typename Vmm>
+    void compute_vfmaddps(
+            const Vmm &v1, const Vmm &v2, const Vmm &v3, int vlen_bytes) {
+        if (vlen_bytes == 4)
+            // special case for scalar-based tail processing
+            uni_vfmadd231ss(Xbyak::Xmm(v1.getIdx()), Xbyak::Xmm(v2.getIdx()),
+                    Xbyak::Xmm(v3.getIdx()));
+        else
+            uni_vfmadd231ps(v1, v2, v3);
+    }
+
+    template <typename Vmm>
+    void store(const Xbyak::Address &dst, const Vmm &src, data_type_t dt,
+            int vlen_bytes) {
+        if (can_do_zmm_masked_tail_processing(src, vlen_bytes)) {
+            store_zmm_masked(dst, src, dt);
+            return;
+        }
+
+        MAYBE_UNUSED(dt);
+        if (((int)src.getBit() / 8) == vlen_bytes)
+            uni_vmovups(dst, src);
+        else if (4 == vlen_bytes)
+            // special case for scalar-based tail processing
+            uni_vmovss(dst, src);
+        else
+            assert(!"unsupported case");
+    }
+
     const rnn_utils::rnn_conf_t &rnn_;
     const rnn_pd_t *pd_;
     bool projection_;
     bf16_emulation_t *bf16_emu_ = nullptr;
+    const size_t bias_dt_size_;
+    const size_t cstate_dt_size_;
+    const bool is_avx512;
 
+private:
     // registers/Labels used for int8 quantization and conversions
     Xbyak::Address dscale_off_addr;
     Xbyak::Address dshift_off_addr;
@@ -647,9 +755,44 @@ protected:
     Xbyak::Zmm bf16_reg5;
     Xbyak::Reg64 bf16_reg_mask;
     Xbyak::Opmask bf16_k_mask;
+    Xbyak::Reg64 tmp_reg;
+    Xbyak::Opmask zmm_tail_k_mask;
+
     int bf16_dq_reg_idx;
-    const size_t bias_dt_size_;
-    const size_t cstate_dt_size_;
+    bool is_zmm_mask_initialized = false;
+
+    template <typename Vmm>
+    bool can_do_zmm_masked_tail_processing(Vmm vmm_reg, int in_len_bytes) {
+        const int vmm_bytes = vmm_reg.getBit() / 8;
+        return is_zmm_mask_initialized && vmm_bytes == 64
+                && in_len_bytes < vmm_bytes;
+    }
+
+    template <typename Vmm>
+    void load_zmm_masked(
+            const Vmm &dst, const Xbyak::Address &src, data_type_t dt) {
+        Xbyak::Zmm dst_masked
+                = Xbyak::Zmm(dst.getIdx()) | zmm_tail_k_mask | T_z;
+        switch (dt) {
+            case data_type::bf16: vmovdqu16(dst_masked, src); break;
+            case data_type::s8:
+            case data_type::u8: vmovdqu8(dst_masked, src); break;
+            default: vmovups(dst_masked, src);
+        }
+    }
+
+    template <typename Vmm>
+    void store_zmm_masked(
+            const Xbyak::Address &dst, const Vmm &src, data_type_t dt) {
+        const Xbyak::Zmm src_masked
+                = Xbyak::Zmm(src.getIdx()) | zmm_tail_k_mask;
+        switch (dt) {
+            case data_type::bf16: vmovdqu16(dst, src_masked); break;
+            case data_type::s8:
+            case data_type::u8: vmovdqu8(dst, src_masked); break;
+            default: vmovups(dst, src_masked);
+        }
+    }
 };
 
 } // namespace x64

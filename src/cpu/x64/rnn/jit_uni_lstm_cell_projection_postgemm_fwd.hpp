@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ protected:
         L(vector_loop_start_label);
         {
             uni_vmovups(in, ptr[addr_scratch_reg]);
-            deq_w(src_data_t, in, tmp1_vmm, tmp2_vmm, 0, mask, true,
+            deq_w(src_data_t, in, tmp1_vmm, tmp2_vmm, 0, mask, vlen,
                     &addr_wcomp_reg);
             to_src(ptr[addr_states_t_l_reg], in, src_data_t, vlen);
 
@@ -128,7 +128,7 @@ protected:
         {
 
             uni_vmovss(in, ptr[addr_scratch_reg]);
-            deq_w(src_data_t, in, tmp1_vmm, tmp2_vmm, 0, mask, false,
+            deq_w(src_data_t, in, tmp1_vmm, tmp2_vmm, 0, mask, scratch_dt_size,
                     &addr_wcomp_reg);
             to_src(ptr[addr_states_t_l_reg], in, src_data_t, scratch_dt_size);
 

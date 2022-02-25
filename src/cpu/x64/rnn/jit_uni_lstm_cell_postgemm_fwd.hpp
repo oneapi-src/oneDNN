@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -161,25 +161,25 @@ protected:
 
             // dequantize the gates from s32 to f32 if needed, add bias
             deq_w(src_data_t, G0, this->get_next_tmp_vmm(),
-                    this->get_next_tmp_vmm(), 0 * rnn_.dhc, mask, true);
+                    this->get_next_tmp_vmm(), 0 * rnn_.dhc, mask, vlen_);
             const auto bias_g0_vmm = this->get_next_tmp_vmm();
             to_float(bias_g0_vmm, B_addr(0), rnn_.bias_dt, vlen_);
             this->uni_vaddps(G0, G0, bias_g0_vmm);
 
             deq_w(src_data_t, G1, this->get_next_tmp_vmm(),
-                    this->get_next_tmp_vmm(), 1 * rnn_.dhc, mask, true);
+                    this->get_next_tmp_vmm(), 1 * rnn_.dhc, mask, vlen_);
             const auto bias_g1_vmm = this->get_next_tmp_vmm();
             to_float(bias_g1_vmm, B_addr(1), rnn_.bias_dt, vlen_);
             this->uni_vaddps(G1, G1, bias_g1_vmm);
 
             deq_w(src_data_t, G2, this->get_next_tmp_vmm(),
-                    this->get_next_tmp_vmm(), 2 * rnn_.dhc, mask, true);
+                    this->get_next_tmp_vmm(), 2 * rnn_.dhc, mask, vlen_);
             const auto bias_g2_vmm = this->get_next_tmp_vmm();
             to_float(bias_g2_vmm, B_addr(2), rnn_.bias_dt, vlen_);
             this->uni_vaddps(G2, G2, bias_g2_vmm);
 
             deq_w(src_data_t, G3, this->get_next_tmp_vmm(),
-                    this->get_next_tmp_vmm(), 3 * rnn_.dhc, mask, true);
+                    this->get_next_tmp_vmm(), 3 * rnn_.dhc, mask, vlen_);
             const auto bias_g3_vmm = this->get_next_tmp_vmm();
             to_float(bias_g3_vmm, B_addr(3), rnn_.bias_dt, vlen_);
             this->uni_vaddps(G3, G3, bias_g3_vmm);
@@ -280,13 +280,17 @@ protected:
 
             // dequantize the gates from s32 to f32 if needed
             deq_w(src_data_t, G0, this->get_next_tmp_xmm(),
-                    this->get_next_tmp_xmm(), 0 * rnn_.dhc, mask, false);
+                    this->get_next_tmp_xmm(), 0 * rnn_.dhc, mask,
+                    scratch_dt_size_);
             deq_w(src_data_t, G1, this->get_next_tmp_xmm(),
-                    this->get_next_tmp_xmm(), 1 * rnn_.dhc, mask, false);
+                    this->get_next_tmp_xmm(), 1 * rnn_.dhc, mask,
+                    scratch_dt_size_);
             deq_w(src_data_t, G2, this->get_next_tmp_xmm(),
-                    this->get_next_tmp_xmm(), 2 * rnn_.dhc, mask, false);
+                    this->get_next_tmp_xmm(), 2 * rnn_.dhc, mask,
+                    scratch_dt_size_);
             deq_w(src_data_t, G3, this->get_next_tmp_xmm(),
-                    this->get_next_tmp_xmm(), 3 * rnn_.dhc, mask, false);
+                    this->get_next_tmp_xmm(), 3 * rnn_.dhc, mask,
+                    scratch_dt_size_);
 
             // add biases
             const auto bias_g0_xmm = this->get_next_tmp_xmm();

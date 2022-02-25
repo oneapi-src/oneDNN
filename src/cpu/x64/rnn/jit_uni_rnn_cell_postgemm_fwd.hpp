@@ -132,7 +132,7 @@ protected:
             uni_vmovups(G, sg_addr);
 
             // dequantize the gates from s32 to f32 if needed
-            deq_w(src_data_t, G, tmp1_vmm, tmp2_vmm, 0, mask, true);
+            deq_w(src_data_t, G, tmp1_vmm, tmp2_vmm, 0, mask, vlen);
 
             // add biases
             to_float(tmp1_vmm, B_addr, rnn_.bias_dt, vlen);
@@ -180,7 +180,7 @@ protected:
             uni_vmovss(Gs, sg_addr);
 
             // dequantize the gates from s32 to f32 if needed
-            deq_w(src_data_t, G, tmp1_vmm, tmp2_vmm, 0, mask, true);
+            deq_w(src_data_t, G, tmp1_vmm, tmp2_vmm, 0, mask, scratch_dt_size);
 
             // add biases
             to_float(tmp1_vmm, B_addr, rnn_.bias_dt, sizeof(float));
