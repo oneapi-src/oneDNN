@@ -25,11 +25,6 @@ if(DNNL_USE_CLANG_SANITIZER)
     list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_memory.cpp)
 endif()
 
-# Switch off C API tests for CUDA since USM model is not supported
-if(NOT DNNL_SYCL_CUDA)
-    register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
-endif()
-
 # Create DPC++ buffer target.
 if(DNNL_WITH_SYCL)
     register_exe(${TEST_EXE}_buffer "${TEST_SOURCES}" "test" "dnnl_gtest")

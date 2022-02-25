@@ -54,8 +54,12 @@ struct cudnn_matmul_t : public primitive_t {
             bool s8_case = utils::everyone_is(s8, src_dt, wei_dt)
                     && utils::one_of(dst_dt, s8, f32);
 
-            bool ok = attr()->has_default_values(
-                              smask_t::oscale_runtime | smask_t::post_ops)
+            memory_desc_wrapper dst_mdw(dst_md());
+            auto dst_stride = dst_mdw.blocking_desc().strides;
+
+            bool ok = blocking_ok()
+                    && attr()->has_default_values(
+                            smask_t::oscale_runtime | smask_t::post_ops)
                     && attr_oscale_ok() && attr_post_ops_ok()
                     && set_default_formats()
                     && (f32_case || f16_case || s8_case)
@@ -64,7 +68,9 @@ struct cudnn_matmul_t : public primitive_t {
                                     && IMPLICATION(f16_case,
                                             utils::one_of(bia_dt, f16, f32))
                                     && IMPLICATION(s8_case,
-                                            utils::one_of(bia_dt, s8, f32))));
+                                            utils::one_of(bia_dt, s8, f32))))
+                    && !(with_bias() && s8_case)
+                    && (dst_stride[dst_md()->ndims - 1] == 1);
             if (!ok) return status::unimplemented;
 
             // Check for uniform batch values across src and wei since
@@ -97,6 +103,19 @@ struct cudnn_matmul_t : public primitive_t {
                 case 2: return p.contain(sum, 0) && p.contain(eltwise, 1);
                 default: return false;
             }
+        }
+
+        bool blocking_ok() const {
+            std::vector<const memory_desc_t *> mds
+                    = {src_md(), dst_md(), weights_md(0)};
+            if (with_bias()) mds.push_back(weights_md(1));
+            for (const memory_desc_t *md : mds) {
+                memory_desc_wrapper mdw(md);
+                if (mdw.is_blocking_desc()) {
+                    if (mdw.blocking_desc().inner_nblks != 0) { return false; }
+                }
+            }
+            return true;
         }
     };
 
