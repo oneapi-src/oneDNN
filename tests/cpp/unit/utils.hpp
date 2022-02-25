@@ -44,7 +44,7 @@ namespace utils {
     do { \
         if (cond) { \
             std::cout << "[  SKIPPED ] " << (msg) << std::endl; \
-            return; \
+            GTEST_SKIP(); \
         } \
     } while (0)
 

@@ -5452,7 +5452,7 @@ TEST(Compile, ConvAddInplace) {
 
     // TODO(qun): re-enable this test once library and bridge align the inplace
     // logic
-    GTEST_SKIP();
+    SKIP_IF(true, "library and bridge have different inplace logic");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -19017,7 +19017,9 @@ TEST(Execute, DynamicQuantizeS32ZpsPerTensor) {
 TEST(Execute, DynamicQuantizeS32ZpsPerChannel) {
     // oneDNN reorder primitive didn't support per channel asymmetric quantize
     // regression?
-    GTEST_SKIP();
+    SKIP_IF(true,
+            "oneDNN reorder primitive didn't support per channel asymmetric "
+            "quantize");
 
     // default engine kind is cpu.
     impl::engine_t &eng = get_engine();
@@ -19403,7 +19405,7 @@ TEST(Compile, SoftmaxGetInplacePair) {
 TEST(Compile, EltwiseGetInplacePair) {
     // TODO(qun): re-enable this test once library and bridge align the inplace
     // logic
-    GTEST_SKIP();
+    SKIP_IF(true, "library and bridge have different inplace logic");
 
     impl::engine_t &eng = get_engine();
 
