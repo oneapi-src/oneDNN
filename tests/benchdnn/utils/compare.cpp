@@ -65,12 +65,12 @@ compare_t::driver_check_func_args_t::driver_check_func_args_t(
     , rel_diff(diff / (fabsf(exp) > FLT_MIN ? fabsf(exp) : 1)) {}
 
 int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
-        const attr_t &attr, res_t *res, const dnnl_engine_t &engine) const {
+        const attr_t &attr, res_t *res) const {
     const auto nelems = got_mem.nelems();
     if (nelems == 0) return res->state = PASSED, OK;
     res->total = nelems;
 
-    dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, engine);
+    dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
     const auto dt = got_mem.dt();
     const bool has_eltwise = attr.post_ops.eltwise_index() != -1;
 

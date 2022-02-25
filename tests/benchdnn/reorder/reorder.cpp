@@ -131,12 +131,11 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
         // straight comparison of values in native plain layout.
         auto comp_md = dnn_mem_t::init_md(mem_ref.ndims(), mem_ref.md_.dims,
                 mem_ref.dt(), trim_tag_by_mask(prb->dtag, comp_mask));
-        const auto &engine = mem_ref.engine();
-        dnn_mem_t comp_m(comp_md, engine, {false, comp_handle});
+        dnn_mem_t comp_m(comp_md, mem_ref.engine(), {false, comp_handle});
 
         compare::compare_t cmp;
         cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
-        int status = cmp.compare(mem_ref, comp_m, attr_t(), res, engine);
+        int status = cmp.compare(mem_ref, comp_m, attr_t(), res);
 
         // Shift original compensation pointer for next compensation
         comp_handle += comp_m.nelems(true);
@@ -426,7 +425,7 @@ int doit(const prb_t *prb, res_t *res) {
         dst_dt.md_.extra = empty_extra;
 
         // TODO: enable additional checks for border values validity.
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res, dst_engine), WARN);
+        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
 
         // Restore extra for compensation comparison and performance mode.
         dst_dt.md_.extra = orig_dst_extra;
