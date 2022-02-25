@@ -227,9 +227,10 @@ bool resolve_node(const binding_t &bind_arg, match_context_t *ctx,
 bool match_pattern(op_t *first_op, const std::shared_ptr<pb_graph_t> &pattern,
         std::vector<op_t *> &fusion_ops) {
     match_context_t global_ctx {nullptr, nullptr};
+    match_context_t init_ctx {&global_ctx, pattern.get()};
     binding_t init_bind {BIND_NONE, first_op, 0, pattern.get(), 0};
     std::unordered_map<op_t *, pb_op *> matched_op_map;
-    if (!match_graph(init_bind, &global_ctx, matched_op_map)) { return false; }
+    if (!match_graph(init_bind, &init_ctx, matched_op_map)) { return false; }
 
     fusion_ops = reorder_matched_list(matched_op_map);
 
@@ -446,9 +447,6 @@ bool match_graph_helper(const binding_t &local_bind, match_context_t *ctx,
                 }
             }
         }
-
-        // forward local_context's io ports to parent_context
-        fill_parent_io_map(ctx, local_bind);
     }
 
     return true;
@@ -456,45 +454,37 @@ bool match_graph_helper(const binding_t &local_bind, match_context_t *ctx,
 //
 // match nested pattern starting from initial binding
 //
-bool match_graph(const binding_t &bind_arg, match_context_t *parent_ctx,
+bool match_graph(const binding_t &bind_arg, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op *> &matched_op_map) {
-    // Create local match context
-    match_context_t local_ctx {parent_ctx, bind_arg.bind_node};
     binding_t local_bind = bind_arg;
     // Get initial internal node to bind
     switch (bind_arg.bind_kind) {
         case BIND_NONE: {
-            local_bind.bind_node = local_ctx.get_graph()->get_nodes().front();
-            if (!match_graph_helper(local_bind, &local_ctx, matched_op_map))
+            local_bind.bind_node = ctx->get_graph()->get_nodes().front();
+            if (!match_graph_helper(local_bind, ctx, matched_op_map))
                 return false;
         } break;
         case BIND_IN: {
-            auto consumers = local_ctx.get_graph()->get_inner_consumer(
-                    bind_arg.bind_port);
+            auto consumers
+                    = ctx->get_graph()->get_inner_consumer(bind_arg.bind_port);
             assertm(consumers->size() == 1,
                     "pattern graph is restricted to have only 1 consumer "
                     "for in/out ports");
             local_bind.bind_node = (*consumers)[0]->first;
             local_bind.bind_port = (*consumers)[0]->second;
-            if (!match_graph_helper(local_bind, &local_ctx, matched_op_map))
+            if (!match_graph_helper(local_bind, ctx, matched_op_map))
                 return false;
         } break;
         case BIND_OUT: {
             std::shared_ptr<producer_t> prod
-                    = local_ctx.get_graph()->get_inner_producer(
-                            bind_arg.bind_port);
+                    = ctx->get_graph()->get_inner_producer(bind_arg.bind_port);
             local_bind.bind_node = prod->first;
             local_bind.bind_port = prod->second;
-            if (!match_graph_helper(local_bind, &local_ctx, matched_op_map))
+            if (!match_graph_helper(local_bind, ctx, matched_op_map))
                 return false;
         } break;
         default: break;
     }
-
-    // ctx: Fill in input port, output port map to op
-    // of parent context if this graph is an i/o pad.
-    // i/o pad from ops in the graph is already filled in at this point.
-    fill_parent_io_map(&local_ctx, local_bind);
 
     return true;
 }
@@ -507,8 +497,10 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op *> temp_op_map = matched_op_map;
         binding_t temp_bind = bind_arg;
         temp_bind.bind_node = alt_node;
-        if (match_graph(temp_bind, ctx, temp_op_map)) {
+        match_context_t local_ctx {ctx, temp_bind.bind_node};
+        if (match_graph(temp_bind, &local_ctx, temp_op_map)) {
             matched_op_map = temp_op_map;
+            fill_parent_io_map(&local_ctx, temp_bind);
             return true;
         }
     }
