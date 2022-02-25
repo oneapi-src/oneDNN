@@ -42,26 +42,7 @@ namespace op_kind {
     X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
     X(conv_bias_post_ops_chain_fusion, Conv_bias_post_ops_chain_fusion) \
     X(convtranspose_fusion, ConvTranspose_fusion) \
-    X(matmul_bias, MatMul_bias) \
-    X(matmul_bias_add, MatMul_bias_add) \
-    X(matmul_bias_add_relu, MatMul_bias_add_relu) \
-    X(matmul_bias_bn, MatMul_bias_bn) \
-    X(matmul_bias_elu, MatMul_bias_elu) \
-    X(matmul_bias_hardtanh, MatMul_bias_hardtanh) \
-    X(matmul_bias_relu, MatMul_bias_relu) \
-    X(matmul_bias_relu6, MatMul_bias_relu6) \
-    X(matmul_bias_gelu, MatMul_bias_gelu) \
-    X(matmul_bias_sigmoid, MatMul_bias_sigmoid) \
     X(matmul_bias_swish, MatMul_bias_swish) \
-    X(matmul_relu, MatMul_relu) \
-    X(matmul_elu, MatMul_elu) \
-    X(matmul_sigmoid, MatMul_sigmoid) \
-    X(matmul_hardtanh, MatMul_hardtanh) \
-    X(matmul_gelu, MatMul_gelu) \
-    X(matmul_add, MatMul_add) \
-    X(matmul_add_gelu, MatMul_add_gelu) \
-    X(matmul_add_relu, MatMul_add_relu) \
-    X(matmul_add_sigmoid, MatMul_add_sigmoid) \
     X(avgpool_add, AvgPool_add) \
     X(maxpool_add, MaxPool_add) \
     X(int8_conv, INT8_Conv) \
@@ -181,8 +162,6 @@ namespace op_kind {
     X(dnnl_prelu, Dnnl_prelu) \
     X(reorder_sum, Reorder_sum) \
     X(int8_reorder, INT8_reorder) \
-    X(matmul_div, MatMul_div) \
-    X(float_matmul_fusion, Float_matmul_fusion) \
     X(dnnl_batchnorm_bwd, Dnnl_batchnorm_bwd) \
     X(dnnl_softmax_bwd, Dnnl_softmax_bwd) \
     X(dnnl_logsoftmax_bwd, Dnnl_logsoftmax_bwd) \
@@ -200,7 +179,9 @@ namespace op_kind {
     X(float_conv_fusion, Float_conv_fusion) \
     X(conv_post_ops_chain_fusion, Conv_post_ops_chain_fusion) \
     X(quantized_convtranspose_fusion, Quantized_convtranspose_fusion) \
-    X(quantized_concat_fusion, Quantized_concat_fusion)
+    X(quantized_concat_fusion, Quantized_concat_fusion) \
+    X(matmul_post_ops_chain_fusion, MatMul_post_ops_chain_fusion) \
+    X(matmul_bias_post_ops_chain_fusion, MatMul_bias_post_ops_chain_fusion)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

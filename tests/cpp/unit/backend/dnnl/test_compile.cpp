@@ -3008,7 +3008,7 @@ TEST(Execute, MatmulReluFusion) {
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_relu_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3066,7 +3066,8 @@ TEST(Execute, MatmulBiasFusion) {
     g.add_op(&matmul_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3132,7 +3133,7 @@ TEST(Execute, MatmulSumBroadcast1d) {
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3199,7 +3200,7 @@ TEST(Execute, MatmulSumFusion) {
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3272,7 +3273,7 @@ TEST(Execute, MatmulSumGeluFusion) {
     ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_sum_gelu_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3344,7 +3345,7 @@ TEST(Execute, MatmulSumReluFusion) {
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_sum_relu_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3409,7 +3410,8 @@ TEST(Execute, MatmulBiasReluFusion) {
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_relu_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3473,7 +3475,8 @@ TEST(Execute, MatmulBiasGeluFusion) {
     ASSERT_EQ(g.add_op(&gelu_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_gelu_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3540,7 +3543,8 @@ TEST(Execute, MatmulBiasRelu6Fusion) {
     ASSERT_EQ(g.add_op(&hardtanh_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_relu6_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3607,7 +3611,8 @@ TEST(Execute, MatmulBiasHardtanhFusion) {
     ASSERT_EQ(g.add_op(&hardtanh_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_hardtanh_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3673,7 +3678,8 @@ TEST(Execute, MatmulBiasEluFusion) {
     ASSERT_EQ(g.add_op(&elu_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_elu_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3737,7 +3743,8 @@ TEST(Execute, MatmulBiasSigmoidFusion) {
     ASSERT_EQ(g.add_op(&sigmoid_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sigmoid_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3805,7 +3812,8 @@ TEST(Execute, MatmulBiasAddFusion) {
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -3880,7 +3888,8 @@ TEST(Execute, MatmulBiasAddPerTensorBroadcast) {
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass("matmul_bias_post_ops_chain_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -3954,7 +3963,8 @@ TEST(Execute, MatmulBiasAddPerChannelBroadcast) {
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass("matmul_bias_post_ops_chain_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -4020,7 +4030,8 @@ TEST(Compile, MatmulBiasAddUnsupportedBroadcast) {
         ASSERT_EQ(g.add_op(&add_op), impl::status::success);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass("matmul_bias_post_ops_chain_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -4085,7 +4096,8 @@ TEST(Execute, MatmulBiasAddReluFusion) {
     ASSERT_EQ(g.add_op(&relu_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_bias_sum_relu_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -4153,7 +4165,7 @@ TEST(Execute, MatmulDivFusion) {
     ASSERT_EQ(g.add_op(&div_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_div_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -4231,7 +4243,7 @@ TEST(Execute, MatmulDivAddFusion) {
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_mulordiv_add_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -4325,7 +4337,7 @@ TEST(Execute, MatmulSwapBinaryMulAddFusion) {
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_mulordiv_add_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_post_ops_chain_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -15171,7 +15183,7 @@ TEST(Compile, MatmulAddGetInplacePair) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 3);
 
-    impl::pass::pass_base_ptr apass1 = get_pass("matmul_sum_fusion");
+    impl::pass::pass_base_ptr apass1 = get_pass("matmul_post_ops_chain_fusion");
     impl::pass::pass_base_ptr apass2 = get_pass("matmul_pass");
 
     apass1->run(agraph);

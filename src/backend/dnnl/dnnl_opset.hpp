@@ -42,37 +42,6 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         convtranspose_fusion, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(bn_relu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(matmul_bias, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_bias_add, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_bias_add_relu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(matmul_bias_bn, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_bias_elu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_bias_hardtanh, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_bias_relu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_bias_relu6, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_bias_gelu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_bias_sigmoid, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(matmul_relu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(matmul_elu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(matmul_sigmoid, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_hardtanh, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(matmul_gelu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(matmul_add, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_add_gelu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_add_relu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        matmul_add_sigmoid, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(avgpool_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(maxpool_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(int8_conv, 1)>());
@@ -100,6 +69,10 @@ public:
                         int8_quant_wei_conv_bias_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         quantized_convtranspose_fusion, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        matmul_post_ops_chain_fusion, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        matmul_bias_post_ops_chain_fusion, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(int8_matmul, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         int8_quant_wei_matmul, 1)>());
@@ -267,7 +240,6 @@ public:
                         interpolate_fusion, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(dnnl_sum, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(dnnl_prelu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(matmul_div, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         dnnl_softmax_bwd, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(

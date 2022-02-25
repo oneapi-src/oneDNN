@@ -40,197 +40,6 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  */
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(matmul_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_relu_fusion)
-        .set_priority(8.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_elu_fusion)
-        .set_priority(8.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::Elu,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_elu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sigmoid_fusion)
-        .set_priority(8.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::Sigmoid,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_sigmoid);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_hardtanh_fusion)
-        .set_priority(8.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::HardTanh,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_hardtanh);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_gelu_fusion)
-        .set_priority(8.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::GELU,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_gelu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_div_fusion)
-        .set_priority(8.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::Divide,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_div);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_mulordiv_add_fusion)
-        .set_priority(9.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *div = pgraph->append_alternation(
-                            {impl::op_kind::Divide, impl::op_kind::Multiply},
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, div, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::float_matmul_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_fusion)
-        .set_priority(8.8f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_bias);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sigmoid_fusion)
-        .set_priority(8.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::Sigmoid,
-                            in_edges_t {in_edge(0, bias, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
-
-                    pgraph->append_op(impl::op_kind::Sigmoid,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::matmul_bias_sigmoid);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_swish_fusion)
         .set_priority(9.0f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -269,158 +78,155 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_swish_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_elu_fusion)
-        .set_priority(9.0f)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_post_ops_chain_fusion)
+        .set_priority(8.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
+                    pm::pb_op *pmatmul
                             = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
+                    pmatmul->append_decision_function(check_input_num<2>);
 
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::Elu,
-                            in_edges_t {in_edge(0, bias, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
+                    // Optional BN
+                    auto popt_graph
+                            = std::make_shared<pb_graph_t>("poptional_bn");
+                    auto pbn = popt_graph->append_op(
+                            impl::op_kind::BatchNormInference, "pbn");
+                    popt_graph->create_input_port(0, pbn, 0);
+                    popt_graph->create_output_port(0, pbn, 0);
+                    auto popt = pgraph->append_optional(
+                            popt_graph, {in_edge(0, pmatmul, 0)}, "popt");
 
-                    pgraph->append_op(impl::op_kind::Elu,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_bias_elu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
+                    // TODO(Yixin): special post op handle: swish is composed
+                    // by sigmoid and multiply
+                    auto other_postop_graph = std::make_shared<pb_graph_t>(
+                            "pother_postop_graph");
+                    pm::pb_op *pop = other_postop_graph->append_alternation(
+                            {impl::op_kind::Abs, impl::op_kind::Clamp,
+                                    impl::op_kind::Elu, impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh, impl::op_kind::Log,
+                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::SoftPlus, impl::op_kind::Pow,
+                                    impl::op_kind::ReLU, impl::op_kind::Round,
+                                    impl::op_kind::Sqrt, impl::op_kind::Square,
+                                    impl::op_kind::Tanh, impl::op_kind::Add,
+                                    impl::op_kind::Multiply,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Subtract},
+                            "pother_postop");
+                    other_postop_graph->create_input_port(0, pop, 0);
+                    other_postop_graph->create_input_port(1, pop, 1);
+                    other_postop_graph->create_output_port(0, pop, 0);
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu_fusion)
-        .set_priority(9.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, bias, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
-
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_bias_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_relu6_fusion)
-        .set_priority(9.1f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pm::pb_op *relu6
-                            = pgraph->append_op(impl::op_kind::HardTanh,
-                                    in_edges_t {in_edge(0, bias, 0)});
-                    relu6->set_attr<float>("min", 0);
-                    relu6->set_attr<float>("max", 6);
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
-
-                    pm::pb_op *relu6
-                            = pgraph->append_op(impl::op_kind::HardTanh,
-                                    in_edges_t {in_edge(0, matmul, 0)});
-                    relu6->set_attr<float>("min", 0);
-                    relu6->set_attr<float>("max", 6);
+                    pgraph->append_repetition(other_postop_graph, {0, 0}, 0,
+                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
+                            "prepetition");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::matmul_bias_relu6);
+                            op_kind::matmul_post_ops_chain_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_gelu_fusion)
-        .set_priority(9.0f)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, matmul_bias_post_ops_chain_fusion)
+        .set_priority(8.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
+                    pm::pb_op *pmatmul
                             = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
+                    pmatmul->append_decision_function(check_input_num<2>);
+                    pm::pb_op *biasadd
+                            = pgraph->append_op(impl::op_kind::BiasAdd,
+                                    in_edges_t {in_edge(0, pmatmul, 0)});
 
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::GELU,
-                            in_edges_t {in_edge(0, bias, 0)});
+                    // Optional BN
+                    auto popt_graph
+                            = std::make_shared<pb_graph_t>("poptional_bn");
+                    auto pbn = popt_graph->append_op(
+                            impl::op_kind::BatchNormInference, "pbn");
+                    popt_graph->create_input_port(0, pbn, 0);
+                    popt_graph->create_output_port(0, pbn, 0);
+                    auto popt = pgraph->append_optional(
+                            popt_graph, {in_edge(0, biasadd, 0)}, "popt");
+
+                    // TODO(Yixin): special post op handle: swish is composed
+                    // by sigmoid and multiply
+                    auto other_postop_graph = std::make_shared<pb_graph_t>(
+                            "pother_postop_graph");
+                    pm::pb_op *pop = other_postop_graph->append_alternation(
+                            {impl::op_kind::Abs, impl::op_kind::Clamp,
+                                    impl::op_kind::Elu, impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh, impl::op_kind::Log,
+                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::SoftPlus, impl::op_kind::Pow,
+                                    impl::op_kind::ReLU, impl::op_kind::Round,
+                                    impl::op_kind::Sqrt, impl::op_kind::Square,
+                                    impl::op_kind::Tanh, impl::op_kind::Add,
+                                    impl::op_kind::Multiply,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Subtract},
+                            "pother_postop");
+                    other_postop_graph->create_input_port(0, pop, 0);
+                    other_postop_graph->create_input_port(1, pop, 1);
+                    other_postop_graph->create_output_port(0, pop, 0);
+
+                    pgraph->append_repetition(other_postop_graph, {0, 0}, 0,
+                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
+                            "prepetition");
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
+                    pm::pb_op *pmatmul
                             = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
+                    pmatmul->append_decision_function(check_input_num<3>);
 
-                    pgraph->append_op(impl::op_kind::GELU,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_bias_gelu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
+                    // Optional BN
+                    auto popt_graph
+                            = std::make_shared<pb_graph_t>("poptional_bn");
+                    auto pbn = popt_graph->append_op(
+                            impl::op_kind::BatchNormInference, "pbn");
+                    popt_graph->create_input_port(0, pbn, 0);
+                    popt_graph->create_output_port(0, pbn, 0);
+                    auto popt = pgraph->append_optional(
+                            popt_graph, {in_edge(0, pmatmul, 0)}, "popt");
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_hardtanh_fusion)
-        .set_priority(9.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
+                    // TODO(Yixin): special post op handle: swish is composed
+                    // by sigmoid and multiply
+                    auto other_postop_graph = std::make_shared<pb_graph_t>(
+                            "pother_postop_graph");
+                    pm::pb_op *pop = other_postop_graph->append_alternation(
+                            {impl::op_kind::Abs, impl::op_kind::Clamp,
+                                    impl::op_kind::Elu, impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh, impl::op_kind::Log,
+                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::SoftPlus, impl::op_kind::Pow,
+                                    impl::op_kind::ReLU, impl::op_kind::Round,
+                                    impl::op_kind::Sqrt, impl::op_kind::Square,
+                                    impl::op_kind::Tanh, impl::op_kind::Add,
+                                    impl::op_kind::Multiply,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Subtract},
+                            "pother_postop");
+                    other_postop_graph->create_input_port(0, pop, 0);
+                    other_postop_graph->create_input_port(1, pop, 1);
+                    other_postop_graph->create_output_port(0, pop, 0);
 
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::HardTanh,
-                            in_edges_t {in_edge(0, bias, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
-
-                    pgraph->append_op(impl::op_kind::HardTanh,
-                            in_edges_t {in_edge(0, matmul, 0)});
+                    pgraph->append_repetition(other_postop_graph, {0, 0}, 0,
+                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
+                            "prepetition");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::matmul_bias_hardtanh);
+                            op_kind::matmul_bias_post_ops_chain_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
@@ -2255,153 +2061,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::x8s8f32_quant_wei_matmul_bias_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_relu_fusion)
-        .set_priority(10.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, bias, 0)});
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, add, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
-
-                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, add, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::matmul_bias_add_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_bias_sum_fusion)
-        .set_priority(9.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, bias, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<3>);
-
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_bias_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_fusion)
-        .set_priority(8.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_gelu_fusion)
-        .set_priority(10.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0)});
-
-                    pgraph->append_op(impl::op_kind::GELU,
-                            in_edges_t {in_edge(0, add, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_add_gelu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_relu_fusion)
-        .set_priority(10.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, add, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_add_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_sum_sigmoid_fusion)
-        .set_priority(10.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *matmul
-                            = pgraph->append_op(impl::op_kind::MatMul);
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pgraph->append_op(impl::op_kind::Sigmoid,
-                            in_edges_t {in_edge(0, add, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::matmul_add_sigmoid);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });

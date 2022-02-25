@@ -334,106 +334,12 @@ TEST(OpSchema, InferConvBiasAddReluWithNxcFormat) {
     infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
 }
 
-TEST(OpSchema, MatmulFusion) {
-    std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::matmul_relu,
-            impl::dnnl_impl::op_kind::matmul_elu,
-            impl::dnnl_impl::op_kind::matmul_sigmoid,
-            impl::dnnl_impl::op_kind::matmul_hardtanh,
-            impl::dnnl_impl::op_kind::matmul_gelu};
-    const size_t expected_in_size = 2;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"transpose_a", false}, {"transpose_b", false}};
-
-    for (auto k : matmul_kinds) {
-        verify_op_schema(k, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-
-    const std::set<size_t> expected_in_sizes = {2, 3};
-    for (auto s : expected_in_sizes) {
-        verify_op_schema(op_kind::MatMul, s, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-}
-
-TEST(OpSchema, MatmulBiasFusion) {
-    std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::matmul_bias,
-            impl::dnnl_impl::op_kind::matmul_bias_relu,
-            impl::dnnl_impl::op_kind::matmul_bias_sigmoid,
-            impl::dnnl_impl::op_kind::matmul_bias_gelu};
-    const size_t expected_in_size = 3;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"transpose_a", false}, {"transpose_b", false}};
-
-    for (auto k : matmul_kinds) {
-        verify_op_schema(k, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-}
-
-TEST(OpSchema, MatmulBiasAdd) {
-    std::set<op_kind_t> matmul_kinds
-            = {impl::dnnl_impl::op_kind::matmul_bias_add,
-                    impl::dnnl_impl::op_kind::matmul_bias_add_relu};
-    const size_t expected_in_size = 4;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"transpose_a", false}, {"transpose_b", false}};
-    for (auto k : matmul_kinds) {
-        verify_op_schema(k, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-}
-
-TEST(OpSchema, MatmulBiasBn) {
-    op_kind_t matmul_kinds = impl::dnnl_impl::op_kind::matmul_bias_bn;
-    const size_t expected_in_size = 7;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 3;
-    const std::map<std::string, bool> attrs_data = {
-            {"epsilon", true}, {"transpose_a", false}, {"transpose_b", false}};
-    verify_op_schema(matmul_kinds, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
-}
-
-TEST(OpSchema, MatMulBiasElu) {
-    op_kind_t matmul_kinds = impl::dnnl_impl::op_kind::matmul_bias_elu;
-    const size_t expected_in_size = 3;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 3;
-    const std::map<std::string, bool> attrs_data
-            = {{"alpha", true}, {"transpose_a", false}, {"transpose_b", false}};
-    verify_op_schema(matmul_kinds, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
-}
-
-TEST(OpSchema, MatmulBiasHardtanh) {
-    std::set<op_kind_t> matmul_kinds
-            = {impl::dnnl_impl::op_kind::matmul_bias_hardtanh,
-                    impl::dnnl_impl::op_kind::matmul_bias_relu6};
-    const size_t expected_in_size = 3;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 4;
-    const std::map<std::string, bool> attrs_data = {{"min", true},
-            {"max", true}, {"transpose_a", false}, {"transpose_b", false}};
-
-    for (auto k : matmul_kinds) {
-        verify_op_schema(k, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-}
-
 TEST(OpSchema, InferMatmulBiasOutputShape) {
     const op_schema_t *matmul_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::matmul_bias);
+            impl::dnnl_impl::op_kind::matmul_bias_post_ops_chain_fusion);
 
-    op_t matmul_op {impl::dnnl_impl::op_kind::matmul_bias,
-            op_t::kind2str(impl::dnnl_impl::op_kind::matmul_bias)};
+    op_t matmul_op {impl::dnnl_impl::op_kind::matmul_bias_post_ops_chain_fusion,
+            "matmul_bias"};
     bool transpose_a = true;
     matmul_op.set_attr("transpose_a", transpose_a);
 
@@ -482,10 +388,10 @@ TEST(OpSchema, InferMatmulBiasOutputShape) {
 
 TEST(OpSchema, InferMatmulBiasAddOutputShape) {
     const op_schema_t *matmul_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::matmul_bias_add);
+            impl::dnnl_impl::op_kind::matmul_bias_post_ops_chain_fusion);
 
-    op_t matmul_op {impl::dnnl_impl::op_kind::matmul_bias_add,
-            op_t::kind2str(impl::dnnl_impl::op_kind::matmul_bias_add)};
+    op_t matmul_op {impl::dnnl_impl::op_kind::matmul_bias_post_ops_chain_fusion,
+            "matmul_bias_add"};
     bool transpose_a = true;
     matmul_op.set_attr("transpose_a", transpose_a);
 

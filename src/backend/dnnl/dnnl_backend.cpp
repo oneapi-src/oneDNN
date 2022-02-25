@@ -153,26 +153,10 @@ bool dnnl_backend::register_kernels() {
 
     // matmul related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::MatMul, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_relu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_elu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_sigmoid, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_hardtanh, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_gelu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_relu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_gelu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_relu6, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_elu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_sigmoid, float_matmul)
     DNNL_REGISTER_KERNEL(op_kind::matmul_bias_swish, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_hardtanh, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_add, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_add_relu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_bn, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_add, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_add_gelu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_add_relu, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_add_sigmoid, float_matmul)
+    DNNL_REGISTER_KERNEL(op_kind::matmul_post_ops_chain_fusion, float_matmul)
+    DNNL_REGISTER_KERNEL(
+            op_kind::matmul_bias_post_ops_chain_fusion, float_matmul)
 
     // pooling related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::AvgPool, float_pooling_fwd)
@@ -321,8 +305,6 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::x8x8float_matmul_div_add, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::int8_MHA, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::f32_MHA, float_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::matmul_div, float_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::float_matmul_fusion, float_matmul);
 
     //eltwise+binary ops
     DNNL_REGISTER_KERNEL(op_kind::relu_add, float_eltwise_fwd);

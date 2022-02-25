@@ -533,244 +533,6 @@ DNNL_GRAPH_OP_SCHEMA(bn_relu, 1,
                         false, attribute_kind::s, "NXC")
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(matmul_bias, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_add, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_div, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_add_gelu, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_add_relu, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_add, 1,
-        op_schema_t()
-                .set_num_inputs(4)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_input(3, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_add_relu, 1,
-        op_schema_t()
-                .set_num_inputs(4)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_input(3, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_bn, 1,
-        op_schema_t()
-                .set_num_inputs(7)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_input(3, "gamma", "gamma scaling for normalized value")
-                .set_input(
-                        4, "beta", "bias added to the scaled normalized value")
-                .set_input(5, "mean", "value for mean normalization")
-                .set_input(6, "variance", "value for variance normalization")
-                .set_output(0, "output", "output tensor")
-                .set_attr("epsilon",
-                        " the number to be added to the variance to avoid "
-                        "division by zero",
-                        true, attribute_kind::f)
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_elu, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("alpha", "scale for the negative factor", true,
-                        attribute_kind::f)
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_hardtanh, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("min", "lower bound of values in the output", true,
-                        attribute_kind::f)
-                .set_attr("max", "upper bound of values in the output", true,
-                        attribute_kind::f)
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_relu, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_relu6, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("min",
-                        "lower bound of values in the output, should be 0",
-                        true, attribute_kind::f)
-                .set_attr("max",
-                        "upper bound of values in the output, should be 6",
-                        true, attribute_kind::f)
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_gelu, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_bias_sigmoid, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "bias", "bias tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_add_sigmoid, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_input(2, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_relu, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_elu, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_sigmoid, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_hardtanh, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(matmul_gelu, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "a", "first input tensor")
-                .set_input(1, "b", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_shape_inference_function(infer_matmul_output_shape)
-                .SET_MATMUL_COMMON_ATTRS)
-
 DNNL_GRAPH_OP_SCHEMA(int8_conv, 1,
         op_schema_t()
                 .set_num_inputs(2)
@@ -1401,6 +1163,29 @@ DNNL_GRAPH_OP_SCHEMA(quantized_convtranspose_fusion, 1,
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .set_shape_inference_function(infer_convtranspose_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(matmul_post_ops_chain_fusion, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({2, 34}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "output", "output tensor")
+                .set_shape_inference_function(infer_matmul_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(matmul_bias_post_ops_chain_fusion, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({3, 35}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "filter", "filter tensor")
+                .set_input(2, "bias", "bias tensor")
+                .set_output(0, "output", "output tensor")
+                .set_shape_inference_function(infer_matmul_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(int8_matmul, 1,
