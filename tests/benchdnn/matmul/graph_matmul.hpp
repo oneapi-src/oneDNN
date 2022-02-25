@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,8 +77,6 @@ struct matmul_graph_prb_t : public graph_prb_t {
     std::vector<dt> get_dtypes() const {
         return {spec_.src_dt, spec_.wei_dt, spec_.dst_dt};
     }
-
-    fill_status_t ctor_status;
 
 private:
     struct spec_t {

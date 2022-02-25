@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,6 +99,13 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
     auto src_dt = benchdnnext::set_main_op_dtype(spec_.src_dt);
     auto wei_dt = benchdnnext::set_main_op_dtype(spec_.wei_dt);
     auto dst_dt = benchdnnext::set_main_op_dtype(spec_.dst_dt);
+
+    for (auto actual_dt : {src_dt, wei_dt, dst_dt}) {
+        if (std::find(dt_constraints.begin(), dt_constraints.end(), actual_dt)
+                == dt_constraints.end()) {
+            return fill_status::UNSUPPORTED_CONFIG;
+        }
+    }
 
     if (spec_.has_groups && spec_.groups > 1) {
         const auto strides_permuted = get_acbdx_strides(wei_dims);
@@ -236,10 +243,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return OK;
 
     deconv_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
-        return res->state = UNIMPLEMENTED, FAIL;
-    }
+    if (!check_graph_creation_status(&graph_prb, res)) { return OK; }
 
     auto graph_h = graph_prb.to_graph();
     const auto spec = graph_prb.spec();
@@ -250,7 +254,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         return res->state = FAILED, FAIL;
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) return res->state = UNIMPLEMENTED, OK;
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();

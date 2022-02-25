@@ -35,7 +35,6 @@ struct lnorm_graph_prb_t : public graph_prb_t {
 
         ctor_status = fill_status::DONE;
     };
-    fill_status_t ctor_status;
 
 private:
     struct spec_t {

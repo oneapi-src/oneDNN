@@ -53,6 +53,7 @@ enum class fill_status {
 };
 typedef fill_status fill_status_t;
 
+bool check_graph_creation_status(const struct graph_prb_t *prb, res_t *res);
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res);
@@ -347,6 +348,8 @@ struct graph_prb_t {
     bool has_post_sum() const noexcept { return has_post_sum_; }
     bool has_post_eltwise() const noexcept { return has_post_eltwise_; }
     bool with_quantization() const noexcept { return with_quantization_; }
+
+    fill_status_t ctor_status;
 
 protected:
     std::vector<dnnl::graph::op> ops_;

@@ -24,6 +24,18 @@
 
 namespace benchdnnext {
 
+bool check_graph_creation_status(const graph_prb_t *prb, res_t *res) {
+    if (prb->ctor_status == fill_status::UNSUPPORTED_CONFIG) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return false;
+    } else if (prb->ctor_status == fill_status::UNSUPPORTED_OP
+            || prb->ctor_status == fill_status::UNKNOWN_ERROR) {
+        res->state = UNIMPLEMENTED;
+        return false;
+    }
+    return true;
+}
+
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res) {
@@ -48,6 +60,12 @@ void check_known_skipped_case_graph_common(
 void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res) {
     for (const auto &e : attr.post_ops.entry) {
         if (!e.is_eltwise_kind()) continue;
+
+        if (convert_alg_kind(e.eltwise.alg)
+                == dnnl::graph::op::kind::LastSymbol) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 
         check_graph_eltwise_params(
                 res, e.kind, e.eltwise.alpha, e.eltwise.beta);

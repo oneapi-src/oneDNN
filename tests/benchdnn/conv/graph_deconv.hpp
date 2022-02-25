@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,9 +79,9 @@ struct deconv_graph_prb_t : public graph_prb_t {
     const struct spec_t &spec() const noexcept { return spec_; }
     std::vector<float> &get_oscales() noexcept { return oscales; }
 
-    fill_status_t ctor_status;
-
 private:
+    const std::vector<dt> dt_constraints {dt::bf16, dt::f16, dt::f32};
+
     std::vector<float> oscales;
     std::vector<int64_t> src_zero_points;
     std::vector<int64_t> wei_zero_points;
