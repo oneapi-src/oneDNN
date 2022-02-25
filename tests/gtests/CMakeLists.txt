@@ -96,6 +96,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_matmul.cpp
                               test_resampling.cpp
                               test_reduction.cpp
+			      test_softmax_v2.cpp
                               )
 
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")

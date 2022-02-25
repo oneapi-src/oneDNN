@@ -24,6 +24,7 @@ append(CMAKE_CXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 
 if(DNNL_SYCL_CUDA)
     append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
+    append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")
 endif()
 
 # propagate sanitizer flags
@@ -42,6 +43,22 @@ append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_CXX_NOWARN_FLAGS}")
 
 file(GLOB_RECURSE sources *.cpp *.c)
 file(GLOB_RECURSE headers *.hpp *.h)
+
+
+# Remove tests for CUDA which use unimplemented primitives
+if(DNNL_SYCL_CUDA)
+    list(REMOVE_ITEM sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/bnorm_u8_via_binary_postops.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rnn_training_f32.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tutorials/matmul/inference_int8_matmul.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/binary.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/lstm.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/layer_normalization.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/prelu.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reduction.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reorder.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/shuffle.cpp)
+endif()
 
 # Skip SYCL, GPU and cross-engine examples
 foreach(f ${sources})

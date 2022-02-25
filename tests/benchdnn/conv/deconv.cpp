@@ -238,8 +238,10 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const bool bwd_tag_ok
                 = !((prb->dir == BWD_W || prb->dir == BWD_WB) && stag_is_axb);
         const bool tag_ok = fwd_tag_ok && bwd_tag_ok;
+        const bool data_type_ok
+                = prb->cfg[SRC].dt != dnnl_s8 && prb->cfg[SRC].dt != dnnl_u8;
         // TODO: specified wtag (even for supported formats) is not working?
-        if (!pad_ok || !out_ok || !post_ops_ok || !tag_ok) {
+        if (!pad_ok || !out_ok || !post_ops_ok || !tag_ok || !data_type_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
