@@ -69,6 +69,8 @@ create_default_graph_flow() {
     post_tune_passes.push_back(create_graph_pass("quantize_op_compensation",
             quantize::calculate_op_compensation, {}, pass_type::post_tune,
             true));
+    post_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
+            elemwise_dimension_alignment, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("layout_propagation",
             layout_propagation, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("tensor_view_transform",

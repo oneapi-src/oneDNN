@@ -331,6 +331,13 @@ void tensor_view_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
     sc_data_format_t output_format;
+    // temp workaround
+    if (attrs_.get_or_else<bool>("expand_dim", false)
+            && info_.inputs_[0]->details_.get_format()
+                    == attrs_.get<sc_data_format_t>("cache_input_format")) {
+        out_formats.push_back({info_.outputs_[0]->details_.get_format()});
+        in_formats.push_back({info_.inputs_[0]->details_.get_format()});
+    }
     bool can_penetrate = try_penetrate(output_format);
     if (can_penetrate) {
         out_formats.push_back({output_format});
