@@ -37,18 +37,16 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_softmax_v2_desc_t sd;
-    dnnl_memory_desc_t dst_d;
 
-    SAFE(init_md(&dst_d, prb->ndims, prb->dims.data(), prb->ddt, prb->dtag),
-            CRIT);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
 
     dnnl_alg_kind_t alg_kind = dnnl_softmax_accurate;
     if (prb->alg == LOGSOFTMAX) alg_kind = dnnl_softmax_log;
 
     if (prb->dir & FLAG_FWD) {
-        dnnl_memory_desc_t src_d;
-        SAFE(init_md(&src_d, prb->ndims, prb->dims.data(), prb->sdt, prb->stag),
-                CRIT);
+        auto src_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->sdt, prb->stag);
 
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
@@ -60,18 +58,14 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         // Re-create dst_md with source tag if dst was not specified, immitating
         // default value.
         if (prb->dtag == tag::any) {
-            SAFE(init_md(&dst_d, prb->ndims, prb->dims.data(), prb->ddt,
-                         prb->stag),
-                    CRIT);
+            dst_d = dnn_mem_t::init_md(
+                    prb->ndims, prb->dims.data(), prb->ddt, prb->stag);
         }
 
-        dnnl_memory_desc_t diff_src_d, diff_dst_d;
-        SAFE(init_md(&diff_src_d, prb->ndims, prb->dims.data(), prb->sdt,
-                     tag::any),
-                CRIT);
-        SAFE(init_md(&diff_dst_d, prb->ndims, prb->dims.data(), prb->ddt,
-                     tag::any),
-                CRIT);
+        auto diff_src_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->sdt, tag::any);
+        auto diff_dst_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->ddt, tag::any);
 
         DNN_SAFE(dnnl_softmax_v2_backward_desc_init(&sd, alg_kind, &diff_src_d,
                          &diff_dst_d, &dst_d, prb->axis),

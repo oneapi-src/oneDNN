@@ -36,19 +36,16 @@ namespace sum {
 static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
-    std::vector<dnnl_memory_desc_t> src_d;
-    src_d.resize(prb->n_inputs());
-
-    dnnl_memory_desc_t dst_d;
+    std::vector<dnnl_memory_desc_t> src_d(prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input)
-        SAFE(init_md(&src_d[i_input], prb->ndims, prb->dims.data(),
-                     prb->sdt[i_input], prb->stag[i_input]),
-                CRIT);
+        src_d[i_input] = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                prb->sdt[i_input], prb->stag[i_input]);
 
+    dnnl_memory_desc_t dst_d {};
     if (prb->dtag != tag::undef) {
-        SAFE(init_md(&dst_d, prb->ndims, prb->dims.data(), prb->ddt, prb->dtag),
-                CRIT);
+        dst_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
     }
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(

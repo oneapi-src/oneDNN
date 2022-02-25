@@ -15,7 +15,6 @@
 *******************************************************************************/
 
 #include <algorithm> // for std::reverse and std::copy
-#include <cctype> // for std::isdigit
 #include <functional> // for std::bind and std::placeholders
 #include <list>
 #include <string> // for std::string
@@ -463,7 +462,7 @@ std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
 bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag) {
     dnnl_memory_desc_t md_new_tag;
-    SAFE(init_md(&md_new_tag, md.ndims, md.dims, md.data_type, tag), CRIT);
+    md_new_tag = dnn_mem_t::init_md(md.ndims, md.dims, md.data_type, tag);
     return dnnl_memory_desc_equal(&md_new_tag, &md);
 }
 
@@ -649,102 +648,6 @@ bool is_nvidia_eltwise_ok(
         // case pk_t::RELU_DST: return alpha == 0.f;
         default: return false;
     };
-}
-
-int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
-        dnnl_data_type_t data_type, const std::string &tag_,
-        const dims_t &strides_) {
-    const bool use_strides = !strides_.empty();
-    // Ignore tag_ in case strides_ are explicitly provided
-    if (use_strides) {
-        std::vector<dnnl_dim_t> strides(strides_);
-        DNN_SAFE(dnnl_memory_desc_init_by_strides(
-                         md, ndims, dims, data_type, strides.data()),
-                CRIT);
-        return OK;
-    }
-    auto tag = normalize_tag(tag_, ndims);
-    if (tag == tag::undef || tag == tag::any || ndims == 0) {
-        dnnl_format_tag_t enum_tag = (tag == tag::undef || ndims == 0)
-                ? dnnl_format_tag_undef
-                : dnnl_format_tag_any;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                         md, ndims, dims, data_type, enum_tag),
-                CRIT);
-        return OK;
-    }
-
-    // Copy to temporary to handle dims == md->dims case.
-    dnnl_dims_t tmp_dims;
-    std::copy(dims, dims + ndims, tmp_dims);
-
-    *md = dnnl_memory_desc_t();
-    md->ndims = ndims;
-    if (ndims < 0 || ndims > DNNL_MAX_NDIMS) return FAIL;
-
-    std::copy(tmp_dims, tmp_dims + ndims, md->dims);
-    md->data_type = data_type;
-    md->format_kind = dnnl_blocked;
-
-    // Parse dimensions and their block sizes starting from the innermost one.
-    std::vector<std::pair<int, int>> dim_blocks;
-    int pos = (int)tag.size() - 1;
-    int ndims_from_tag = -1;
-    while (pos >= 0) {
-        int pos0 = pos;
-
-        --pos;
-        while (pos >= 0 && std::isdigit(tag[pos]))
-            pos--;
-
-        int dim_idx = std::tolower(tag[pos0]) - 'a';
-        if (dim_idx >= ndims) return FAIL;
-        ndims_from_tag = MAX2(dim_idx + 1, ndims_from_tag);
-        int block_str_len = pos0 - pos - 1;
-        int block = (block_str_len == 0)
-                ? 1
-                : std::stoi(tag.substr(pos + 1, block_str_len));
-        dim_blocks.emplace_back(dim_idx, block);
-    }
-    if (ndims_from_tag != ndims) return FAIL;
-
-    auto &blk = md->format_desc.blocking;
-
-    // Compute strides and fill inner block sizes/indices.
-    dnnl_dim_t stride = 1;
-    dnnl_dims_t full_inner_blks;
-    std::fill(full_inner_blks, full_inner_blks + ndims, 1);
-    for (auto &p : dim_blocks) {
-        int dim_idx = p.first;
-        int block = p.second;
-        if (block == 1) {
-            assert(blk.strides[dim_idx] == 0);
-            blk.strides[dim_idx] = stride;
-
-            dnnl_dim_t fib = full_inner_blks[dim_idx];
-            dnnl_dim_t padded_dim = md->dims[dim_idx] == DNNL_RUNTIME_DIM_VAL
-                    ? DNNL_RUNTIME_DIM_VAL
-                    : (md->dims[dim_idx] + fib - 1) / fib * fib;
-            md->padded_dims[dim_idx] = padded_dim;
-            if (padded_dim == DNNL_RUNTIME_DIM_VAL)
-                stride = DNNL_RUNTIME_DIM_VAL;
-            else
-                stride *= (padded_dim / fib);
-        } else {
-            full_inner_blks[dim_idx] *= block;
-            blk.inner_blks[blk.inner_nblks] = block;
-            blk.inner_idxs[blk.inner_nblks] = dim_idx;
-            blk.inner_nblks++;
-            stride *= block;
-        }
-    }
-
-    // Inner block sizes/indices are stored from the outermost to the innermost
-    // so need to reverse them.
-    std::reverse(blk.inner_blks, blk.inner_blks + blk.inner_nblks);
-    std::reverse(blk.inner_idxs, blk.inner_idxs + blk.inner_nblks);
-
-    return OK;
 }
 
 #if defined(_WIN32) && !defined(__GNUC__)

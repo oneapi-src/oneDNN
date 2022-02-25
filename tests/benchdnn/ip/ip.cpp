@@ -38,7 +38,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &ippd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_inner_product_desc_t ipd;
-    dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     dnnl_dims_t src_dims_0d = {prb->mb, prb->ic};
     dnnl_dims_t src_dims_1d = {prb->mb, prb->ic, prb->iw};
@@ -61,14 +60,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             : prb->ndims == 4 ? wei_dims_2d
                               : prb->ndims == 3 ? wei_dims_1d : wei_dims_0d;
 
-    SAFE(init_md(&src_d, prb->ndims, src_dims, prb->cfg[SRC].dt, prb->stag),
-            CRIT);
-    SAFE(init_md(&wei_d, prb->ndims, wei_dims, prb->cfg[WEI].dt, prb->wtag),
-            CRIT);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&bia_d, 1, bia_dims, prb->cfg[BIA].dt,
-                     dnnl_format_tag_any),
-            WARN);
-    SAFE(init_md(&dst_d, 2, dst_dims, prb->cfg[DST].dt, prb->dtag), CRIT);
+    auto src_d = dnn_mem_t::init_md(
+            prb->ndims, src_dims, prb->cfg[SRC].dt, prb->stag);
+    auto wei_d = dnn_mem_t::init_md(
+            prb->ndims, wei_dims, prb->cfg[WEI].dt, prb->wtag);
+    auto bia_d = dnn_mem_t::init_md(1, bia_dims, prb->cfg[BIA].dt, tag::any);
+    auto dst_d = dnn_mem_t::init_md(2, dst_dims, prb->cfg[DST].dt, prb->dtag);
 
     switch (prb->dir) {
         case FWD_D:

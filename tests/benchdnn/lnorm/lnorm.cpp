@@ -287,17 +287,16 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &lpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_layer_normalization_desc_t ld;
-    dnnl_memory_desc_t data_d, stat_d;
 
     const int64_t *data_dims = &prb->dims[0];
 
-    SAFE(init_md(&data_d, prb->ndims, data_dims, prb->dt, prb->tag), CRIT);
+    auto data_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, prb->tag);
 
+    dnnl_memory_desc_t stat_d;
     const dnnl_memory_desc_t *stat_d_ptr = nullptr;
     if (prb->stat_tag != tag::undef) {
-        SAFE(init_md(&stat_d, prb->ndims - 1, data_dims, dnnl_f32,
-                     prb->stat_tag),
-                CRIT);
+        stat_d = dnn_mem_t::init_md(
+                prb->ndims - 1, data_dims, dnnl_f32, prb->stat_tag);
         stat_d_ptr = &stat_d;
     }
 

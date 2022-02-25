@@ -61,7 +61,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &lpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_lrn_desc_t ld;
-    dnnl_memory_desc_t data_d;
 
     dnnl_dims_t data_dims_0d = {prb->mb, prb->ic};
     dnnl_dims_t data_dims_1d = {prb->mb, prb->ic, prb->iw};
@@ -73,7 +72,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             : prb->ndims == 4 ? data_dims_2d
                               : prb->ndims == 3 ? data_dims_1d : data_dims_0d;
 
-    SAFE(init_md(&data_d, prb->ndims, data_dims, prb->dt, prb->tag), CRIT);
+    auto data_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, prb->tag);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
     if (dir & FLAG_FWD) {

@@ -89,8 +89,6 @@ int fill_ws(
 static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &ppd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
-    dnnl_memory_desc_t src_d, dst_d;
-
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
     dnnl_dims_t src_2d_dims = {prb->mb, prb->ic, prb->ih, prb->iw};
     dnnl_dims_t src_3d_dims = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
@@ -106,13 +104,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             : prb->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     const auto src_tag = (dir & FLAG_FWD) ? prb->tag : tag::any;
-    const auto dst_tag = tag::any;
 
-    SAFE(init_md(&src_d, prb->ndims, src_dims, prb->cfg[SRC].dt, src_tag),
-            CRIT);
-
-    SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->cfg[DST].dt, dst_tag),
-            CRIT);
+    auto src_d = dnn_mem_t::init_md(
+            prb->ndims, src_dims, prb->cfg[SRC].dt, src_tag);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, dst_dims, prb->cfg[DST].dt, tag::any);
 
     dnnl_dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
     dnnl_dim_t kernel_nd[] = {prb->kd, prb->kh, prb->kw};

@@ -36,10 +36,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &epd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_eltwise_desc_t ed;
-    dnnl_memory_desc_t data_d;
 
-    SAFE(init_md(&data_d, prb->ndims, prb->dims.data(), prb->dt, prb->tag),
-            CRIT);
+    auto data_d = dnn_mem_t::init_md(
+            prb->ndims, prb->dims.data(), prb->dt, prb->tag);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 

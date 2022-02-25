@@ -21,9 +21,8 @@
 namespace self {
 
 static int check_bool_operator() {
-    dnnl_memory_desc_t md;
     dnnl_dim_t dims {1};
-    init_md(&md, 1, &dims, dnnl_f32, tag::abx);
+    auto md = dnn_mem_t::init_md(1, &dims, dnnl_f32, tag::abx);
     {
         dnn_mem_t m;
         if (m) return FAIL;

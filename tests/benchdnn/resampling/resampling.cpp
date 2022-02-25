@@ -66,8 +66,6 @@ int fill_dst(
 static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
-    dnnl_memory_desc_t src_d, dst_d;
-
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
     dnnl_dims_t src_2d_dims = {prb->mb, prb->ic, prb->ih, prb->iw};
     dnnl_dims_t src_3d_dims = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
@@ -85,9 +83,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     std::string src_tag = (prb->dir & FLAG_FWD) ? prb->tag : tag::any;
     std::string dst_tag = (prb->dir & FLAG_BWD) ? prb->tag : tag::any;
 
-    SAFE(init_md(&src_d, prb->ndims, src_dims, prb->sdt, src_tag), CRIT);
-
-    SAFE(init_md(&dst_d, prb->ndims, dst_dims, prb->ddt, dst_tag), CRIT);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, src_dims, prb->sdt, src_tag);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, dst_dims, prb->ddt, dst_tag);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
     dnnl_resampling_desc_t rd;
@@ -107,11 +104,10 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     dnnl_primitive_desc_t hint_fwd_pd_ {};
     dnnl_status_t status = dnnl_success;
     if (prb->dir & FLAG_BWD) {
-        dnnl_memory_desc_t fwd_src_d, fwd_dst_d;
-        SAFE(init_md(&fwd_src_d, prb->ndims, src_dims, prb->sdt, prb->tag),
-                CRIT);
-        SAFE(init_md(&fwd_dst_d, prb->ndims, dst_dims, prb->ddt, tag::any),
-                CRIT);
+        auto fwd_src_d
+                = dnn_mem_t::init_md(prb->ndims, src_dims, prb->sdt, prb->tag);
+        auto fwd_dst_d
+                = dnn_mem_t::init_md(prb->ndims, dst_dims, prb->ddt, tag::any);
 
         dnnl_resampling_desc_t rd_fwd;
         DNN_SAFE(dnnl_resampling_forward_desc_init(&rd_fwd,

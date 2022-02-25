@@ -864,9 +864,8 @@ int attr_args_t::prepare_post_ops_mds(
                 rhs_tensor_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
 
             dnnl_memory_desc_t rhs_tensor_desc;
-            SAFE(init_md(&rhs_tensor_desc, ndims, rhs_tensor_dims,
-                         po_rhs_tensor_entry.dt, po_rhs_tensor_entry.tag),
-                    WARN);
+            rhs_tensor_desc = dnn_mem_t::init_md(ndims, rhs_tensor_dims,
+                    po_rhs_tensor_entry.dt, po_rhs_tensor_entry.tag);
             mds.emplace((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                 | po_rhs_tensor_entry.arg_attr_mask),
                     rhs_tensor_desc);

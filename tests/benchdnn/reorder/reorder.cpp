@@ -129,10 +129,8 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
         // piece of memory which is described by shortened tag coming from prb
         // into a separate memory and reorder it to plain so that it is a
         // straight comparison of values in native plain layout.
-        dnnl_memory_desc_t comp_md {};
-        SAFE(init_md(&comp_md, mem_ref.ndims(), mem_ref.md_.dims, mem_ref.dt(),
-                     trim_tag_by_mask(prb->dtag, comp_mask)),
-                CRIT);
+        auto comp_md = dnn_mem_t::init_md(mem_ref.ndims(), mem_ref.md_.dims,
+                mem_ref.dt(), trim_tag_by_mask(prb->dtag, comp_mask));
         const auto &engine = mem_ref.engine();
         dnn_mem_t comp_m(comp_md, engine, {false, comp_handle});
 
@@ -164,11 +162,10 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     for (int d = 0; d < prb->ndims; ++d)
         if (prb->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
 
-    dnnl_memory_desc_t src_d, dst_d;
-    SAFE(init_md(&src_d, prb->ndims, dims.data(), prb->conf_in->dt, prb->stag),
-            CRIT);
-    SAFE(init_md(&dst_d, prb->ndims, dims.data(), prb->conf_out->dt, prb->dtag),
-            CRIT);
+    auto src_d = dnn_mem_t::init_md(
+            prb->ndims, dims.data(), prb->conf_in->dt, prb->stag);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, dims.data(), prb->conf_out->dt, prb->dtag);
 
     // Prepare and assign extra for dst_md.
     dnnl_memory_extra_desc_t dst_md_extra {};
@@ -312,15 +309,13 @@ int doit(const prb_t *prb, res_t *res) {
                 const_pd, dnnl_query_exec_arg_md, index);
     };
 
-    dnnl_memory_desc_t src_md, dst_md;
+    dnnl_memory_desc_t src_md {}, dst_md {};
     if (prb->runtime_dim_mask != 0) {
         // re-create memory descriptors with defined dims
-        SAFE(init_md(&src_md, prb->ndims, prb->dims.data(), prb->conf_in->dt,
-                     prb->stag),
-                CRIT);
-        SAFE(init_md(&dst_md, prb->ndims, prb->dims.data(), prb->conf_out->dt,
-                     prb->dtag),
-                CRIT);
+        src_md = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->conf_in->dt, prb->stag);
+        dst_md = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->conf_out->dt, prb->dtag);
     } else {
         src_md = q(DNNL_ARG_SRC);
         dst_md = q(DNNL_ARG_DST);
@@ -404,11 +399,10 @@ int doit(const prb_t *prb, res_t *res) {
 
         const auto assign_comp_mem = [&](dnn_mem_t &m, flag_bit_t flag) {
             if (prb->is_reorder_with_compensation(flag)) {
-                dnnl_memory_desc_t md;
                 dims_t dims = prb->get_compensation_dims(flag);
                 int ndims = static_cast<int>(dims.size());
-                SAFE(init_md(&md, ndims, dims.data(), dnnl_s32, tag::abx),
-                        CRIT);
+                auto md = dnn_mem_t::init_md(
+                        ndims, dims.data(), dnnl_s32, tag::abx);
                 m = dnn_mem_t(md, dst_engine);
             }
             return OK;

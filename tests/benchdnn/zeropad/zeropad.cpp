@@ -131,9 +131,8 @@ int doit(const prb_t *prb, res_t *res) {
     check_known_skipped_case(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    dnnl_memory_desc_t data_md {};
-    SAFE(init_md(&data_md, prb->ndims, prb->dims.data(), prb->dt, prb->tag),
-            WARN);
+    auto data_md = dnn_mem_t::init_md(
+            prb->ndims, prb->dims.data(), prb->dt, prb->tag);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     if (check_mem_size(data_md) != OK) {
@@ -154,10 +153,8 @@ int doit(const prb_t *prb, res_t *res) {
     }
     if (is_bench_mode(PERF)) {
         // Get plain memory desc size to have a proper padded area size.
-        dnnl_memory_desc_t plain_data_md {};
-        SAFE(init_md(&plain_data_md, prb->ndims, prb->dims.data(), prb->dt,
-                     tag::abx),
-                WARN);
+        auto plain_data_md = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, tag::abx);
         // Fill output bytes for perf_report.
         res->ibytes = 0; // Since we don't read any data from padding.
         res->obytes = dnnl_memory_desc_get_size(&data_md)

@@ -22,6 +22,7 @@
 #endif
 
 #include "common.hpp"
+#include "utils/dims.hpp"
 
 #define dnnl_mem_default_value 0xFF
 
@@ -160,6 +161,10 @@ struct dnn_mem_t {
     // overwrites. The padded area is filled with a canary value.
     static dnnl_memory_desc_t pad_memory_desc(
             const dnnl_memory_desc_t &md, bool *was_padded = nullptr);
+    // Initializes memory descriptor from sporadic tag or strides.
+    static dnnl_memory_desc_t init_md(int ndims, const dnnl_dims_t dims,
+            dnnl_data_type_t data_type, const std::string &tag,
+            const dims_t &strides_ = {});
 
     /* fields */
     dnnl_memory_desc_t md_ {};

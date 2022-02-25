@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <memory>
 #include <numeric>
 #include <string>
@@ -46,7 +47,7 @@ dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
 
 dnn_mem_t::dnn_mem_t(
         const dnnl_memory_desc_t &md, dnnl_data_type_t dt, dnnl_engine_t engine)
-    : dnn_mem_t(md, dt, tag::undef, engine) {}
+    : dnn_mem_t(md, dt, std::string(tag::undef), engine) {}
 dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
         const std::string &tag, dnnl_engine_t engine) {
     active_ = (initialize(md, dt, tag, engine) == OK);
@@ -260,6 +261,101 @@ dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(
     return ret;
 }
 
+dnnl_memory_desc_t dnn_mem_t::init_md(int ndims, const dnnl_dims_t dims,
+        dnnl_data_type_t data_type, const std::string &tag_,
+        const dims_t &strides_) {
+    dnnl_memory_desc_t md {};
+    const bool use_strides = !strides_.empty();
+    // Ignore tag_ in case strides_ are explicitly provided
+    if (use_strides) {
+        std::vector<dnnl_dim_t> strides(strides_);
+        DNN_SAFE_V(dnnl_memory_desc_init_by_strides(
+                &md, ndims, dims, data_type, strides.data()));
+        return md;
+    }
+
+    auto tag = normalize_tag(tag_, ndims);
+    if (tag == tag::undef || tag == tag::any || ndims == 0) {
+        dnnl_format_tag_t enum_tag = (tag == tag::undef || ndims == 0)
+                ? dnnl_format_tag_undef
+                : dnnl_format_tag_any;
+        DNN_SAFE_V(dnnl_memory_desc_init_by_tag(
+                &md, ndims, dims, data_type, enum_tag));
+        return md;
+    }
+
+    // Copy to temporary to handle dims == md->dims case.
+    dnnl_dims_t tmp_dims;
+    std::copy(dims, dims + ndims, tmp_dims);
+
+    md.ndims = ndims;
+    if (ndims < 0 || ndims > DNNL_MAX_NDIMS) SAFE_V(FAIL);
+
+    std::copy(tmp_dims, tmp_dims + ndims, md.dims);
+    md.data_type = data_type;
+    md.format_kind = dnnl_blocked;
+
+    // Parse dimensions and their block sizes starting from the innermost one.
+    std::vector<std::pair<int, int>> dim_blocks;
+    int pos = (int)tag.size() - 1;
+    int ndims_from_tag = -1;
+    while (pos >= 0) {
+        int pos0 = pos;
+
+        --pos;
+        while (pos >= 0 && std::isdigit(tag[pos]))
+            pos--;
+
+        int dim_idx = std::tolower(tag[pos0]) - 'a';
+        if (dim_idx >= ndims) SAFE_V(FAIL);
+        ndims_from_tag = MAX2(dim_idx + 1, ndims_from_tag);
+        int block_str_len = pos0 - pos - 1;
+        int block = (block_str_len == 0)
+                ? 1
+                : std::stoi(tag.substr(pos + 1, block_str_len));
+        dim_blocks.emplace_back(dim_idx, block);
+    }
+    if (ndims_from_tag != ndims) SAFE_V(FAIL);
+
+    auto &blk = md.format_desc.blocking;
+
+    // Compute strides and fill inner block sizes/indices.
+    dnnl_dim_t stride = 1;
+    dnnl_dims_t full_inner_blks;
+    std::fill(full_inner_blks, full_inner_blks + ndims, 1);
+    for (auto &p : dim_blocks) {
+        int dim_idx = p.first;
+        int block = p.second;
+        if (block == 1) {
+            assert(blk.strides[dim_idx] == 0);
+            blk.strides[dim_idx] = stride;
+
+            dnnl_dim_t fib = full_inner_blks[dim_idx];
+            dnnl_dim_t padded_dim = md.dims[dim_idx] == DNNL_RUNTIME_DIM_VAL
+                    ? DNNL_RUNTIME_DIM_VAL
+                    : (md.dims[dim_idx] + fib - 1) / fib * fib;
+            md.padded_dims[dim_idx] = padded_dim;
+            if (padded_dim == DNNL_RUNTIME_DIM_VAL)
+                stride = DNNL_RUNTIME_DIM_VAL;
+            else
+                stride *= (padded_dim / fib);
+        } else {
+            full_inner_blks[dim_idx] *= block;
+            blk.inner_blks[blk.inner_nblks] = block;
+            blk.inner_idxs[blk.inner_nblks] = dim_idx;
+            blk.inner_nblks++;
+            stride *= block;
+        }
+    }
+
+    // Inner block sizes/indices are stored from the outermost to the innermost
+    // so need to reverse them.
+    std::reverse(blk.inner_blks, blk.inner_blks + blk.inner_nblks);
+    std::reverse(blk.inner_idxs, blk.inner_idxs + blk.inner_nblks);
+
+    return md;
+}
+
 int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
 #ifdef DNNL_WITH_SYCL
     if (handle_info.is_host_ptr) {
@@ -404,7 +500,7 @@ int dnn_mem_t::initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
         md_ = md;
         md_.data_type = dt;
     } else {
-        SAFE(init_md(&md_, md.ndims, md.dims, dt, tag), CRIT);
+        md_ = dnn_mem_t::init_md(md.ndims, md.dims, dt, tag);
     }
     engine_ = engine;
     DNN_SAFE(dnnl_engine_get_kind(engine_, &engine_kind_), CRIT);
@@ -438,7 +534,7 @@ int dnn_mem_t::initialize(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
 int dnn_mem_t::initialize(int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t dt, const std::string &tag, dnnl_engine_t engine) {
     dnnl_memory_desc_t xmd;
-    SAFE(init_md(&xmd, ndims, dims, dt, tag), CRIT);
+    xmd = dnn_mem_t::init_md(ndims, dims, dt, tag);
     SAFE(initialize(xmd, engine), CRIT);
     return OK;
 }
