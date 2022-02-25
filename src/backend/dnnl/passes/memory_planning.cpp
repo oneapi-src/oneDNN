@@ -69,7 +69,7 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         size_t index = 1;
         if (op.get_kind() == op_kind::dnnl_convolution
                 || op.get_kind() == op_kind::dnnl_matmul
-                || op.get_kind() == impl::op_kind::ConvTranspose) {
+                || op.get_kind() == op_kind::dnnl_convtranspose) {
             index = op.has_attr("with_bias") && op.get_attr<bool>("with_bias")
                     ? 3 // src, wei, bias
                     : 2; // src, wei

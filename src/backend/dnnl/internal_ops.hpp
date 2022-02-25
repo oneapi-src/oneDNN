@@ -77,8 +77,6 @@ namespace op_kind {
     X(int8_quant_wei_conv_add_relu, INT8_Quant_wei_Conv_add_relu) \
     X(int8_conv_bias_add_relu, INT8_Conv_bias_add_relu) \
     X(int8_quant_wei_conv_bias_add_relu, INT8_Quant_wei_Conv_bias_add_relu) \
-    X(int8_convtranspose, INT8_ConvTranspose) \
-    X(int8_convtranspose_bias, INT8_ConvTranspose_bias) \
     X(int8_matmul, INT8_MatMul) \
     X(int8_quant_wei_matmul, INT8_Quant_wei_MatMul) \
     X(int8_matmul_bias, INT8_MatMul_bias) \
@@ -200,7 +198,8 @@ namespace op_kind {
     X(dnnl_layernorm, Dnnl_layernorm) \
     X(dnnl_reorder, Dnnl_reorder) \
     X(float_conv_fusion, Float_conv_fusion) \
-    X(conv_post_ops_chain_fusion, Conv_post_ops_chain_fusion)
+    X(conv_post_ops_chain_fusion, Conv_post_ops_chain_fusion) \
+    X(quantized_convtranspose_fusion, Quantized_convtranspose_fusion)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

@@ -248,6 +248,11 @@ public:
 
         return impl::status::success;
     }
+
+    impl::status_t prepare_inplace_pairs_impl() override {
+        inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
+        return impl::status::success;
+    }
 };
 
 using float_convtranspose_fwd = convtranspose_fwd_t</* quantized */ false>;

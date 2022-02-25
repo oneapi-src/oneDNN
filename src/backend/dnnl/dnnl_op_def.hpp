@@ -1397,28 +1397,15 @@ DNNL_GRAPH_OP_SCHEMA(convtranspose_fusion, 1,
                 .set_shape_inference_function(infer_convtranspose_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
-DNNL_GRAPH_OP_SCHEMA(int8_convtranspose, 1,
+DNNL_GRAPH_OP_SCHEMA(quantized_convtranspose_fusion, 1,
         op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "weight", "weight tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("output_padding",
-                        "additional amount of paddings to be added to each "
-                        "spatial axis in the output tensor",
-                        false, attribute_kind::is,
-                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
-                .set_shape_inference_function(infer_convtranspose_output_shape)
-                .SET_CONV_COMMON_ATTRS)
-
-DNNL_GRAPH_OP_SCHEMA(int8_convtranspose_bias, 1,
-        op_schema_t()
-                .set_num_inputs(3)
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3, 4}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "weight", "weight tensor")
                 .set_input(2, "bias", "bias tensor")
+                .set_input(3, "other", "other tensor")
                 .set_output(0, "output", "output tensor")
                 .set_attr("output_padding",
                         "additional amount of paddings to be added to each "

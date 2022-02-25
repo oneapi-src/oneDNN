@@ -1279,17 +1279,26 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                 // If the other in value of Add has mul_scales producer,
                 // then this pattern is a int8 pattern
                 size_t mul_scale_op_offset = 2;
-                auto other_in_val = post_op->get_input_value(
+                auto other_in_val0 = post_op->get_input_value(
                         1 - fuse_op_predecessor_offset);
-                if (other_in_val->has_producer()
-                        && other_in_val->get_producer().get_kind()
+
+                if (other_in_val0->has_producer()
+                        && other_in_val0->get_producer().get_kind()
                                 == op_kind::dnnl_mul_scales) {
                     mul_scale_op_offset = 1 - fuse_op_predecessor_offset;
                 }
+
+                auto other_in_val1
+                        = post_op->get_input_value(fuse_op_predecessor_offset);
+
                 if (mul_scale_op_offset != 2
-                        && is_output_scales_supported(base_op->get_kind())) {
+                        && is_output_scales_supported(base_op->get_kind())
+                        && ltw(other_in_val0->get_logical_tensor()).vdims()
+                                == ltw(other_in_val1->get_logical_tensor())
+                                           .vdims()) {
                     // for int8 cases (excluding OPs which don't support
-                    // output scales attribute)
+                    // output scales attribute and its inputs don't have
+                    // same dims)
                     auto in_val = post_op->get_input_value(mul_scale_op_offset);
                     auto &mul_scale_op = in_val->get_producer();
                     auto scales = mul_scale_op.get_attr<std::vector<float>>(

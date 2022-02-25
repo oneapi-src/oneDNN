@@ -99,9 +99,7 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         int8_quant_wei_conv_bias_add_relu, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        int8_convtranspose, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        int8_convtranspose_bias, 1)>());
+                        quantized_convtranspose_fusion, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(int8_matmul, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         int8_quant_wei_matmul, 1)>());

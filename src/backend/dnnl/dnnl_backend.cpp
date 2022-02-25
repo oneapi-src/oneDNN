@@ -250,9 +250,8 @@ bool dnnl_backend::register_kernels() {
             op_kind::x8s8f32_quant_wei_conv_bias_add_relu, quantized_conv)
 
     // quantized convtranspose
-    DNNL_REGISTER_KERNEL(op_kind::int8_convtranspose, quantized_convtranspose)
     DNNL_REGISTER_KERNEL(
-            op_kind::int8_convtranspose_bias, quantized_convtranspose)
+            op_kind::quantized_convtranspose_fusion, quantized_convtranspose)
 
     // quantized matmul
     DNNL_REGISTER_KERNEL(op_kind::int8_matmul, quantized_matmul);
