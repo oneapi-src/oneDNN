@@ -42,7 +42,7 @@ status_t fwd_conv_desc_create(
         convolution_desc_t *fwd_conv_d, const convolution_desc_t *bwd_conv_d) {
     // create a new weights descriptor with OC and IC transposed;
     // spatial inversion is handled by inverting indices on-the-fly
-    memory_desc_t fwd_weights_md {};
+    memory_desc_t fwd_weights_md;
     const memory_desc_t &bwd_weights_md = bwd_conv_d->weights_desc;
     const bool with_groups
             = bwd_weights_md.ndims == bwd_conv_d->diff_src_desc.ndims + 1;
