@@ -20,7 +20,7 @@
 #include <functional>
 
 #include "dnn_types.hpp"
-#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 namespace compare {
 
@@ -60,8 +60,7 @@ struct compare_t {
     }
 
     int compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
-            const attr_t &attr, res_t *res,
-            const dnnl_engine_t &engine = get_test_engine()) const;
+            const attr_t &attr, res_t *res) const;
 
 private:
     // Threshold for a point-to-point comparison.
