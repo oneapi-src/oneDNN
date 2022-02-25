@@ -388,7 +388,7 @@ public:
                 impl::op_kind::Interpolate, op_kind::interpolate_fusion,
                 impl::op_kind::InterpolateBackprop,
                 // concat
-                impl::op_kind::Concat,
+                impl::op_kind::Concat, op_kind::quantized_concat_fusion,
                 // reorder
                 impl::op_kind::Reorder, impl::op_kind::TypeCast,
                 op_kind::reorder_sum, op_kind::int8_reorder,

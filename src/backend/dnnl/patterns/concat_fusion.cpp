@@ -30,6 +30,34 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 #define MAX_NUM_OF_CONCAT 32
 
+namespace {
+bool check_scales_zps_all_equal(op_t *op) {
+    auto out_port = op->get_output_value(0);
+    if (out_port->get_consumers().empty()) return false;
+
+    auto &out_op = out_port->get_consumers()[0].get_op();
+    // We only want to accept int8 concat with inputs using
+    // the same scales and zps. Concat does not change range
+    // of values so output scales and zps should be same as well.
+    if (!out_op.has_attr("scales") || !out_op.has_attr("zps")) return false;
+    const auto expected_scales = out_op.get_attr<std::vector<float>>("scales");
+    const auto expected_zps = out_op.get_attr<std::vector<int64_t>>("zps");
+
+    for (size_t i = 0; i < op->num_inputs(); ++i) {
+        auto in_port = op->get_input_value(i);
+        if (!in_port->has_producer()) return false;
+
+        auto &in_op = in_port->get_producer();
+        if (!in_op.has_attr("scales") || !in_op.has_attr("zps")) return false;
+        auto scales = in_op.get_attr<std::vector<float>>("scales");
+        auto zps = in_op.get_attr<std::vector<int64_t>>("zps");
+        if (scales != expected_scales || zps != expected_zps) return false;
+    }
+
+    return true;
+}
+} // namespace
+
 /*!
  * \brief This provides concat-related fusion, i.e.
  *        int8-concat fusion
@@ -51,17 +79,18 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_concat_fusion)
                                 = pgraph->append_op(impl::op_kind::Dequantize);
                         input_edges.emplace_back(in_edge(i, dequant, 0));
                     }
-                    // TODO(dszwicht): compare scales and zps
                     pm::pb_op *concat = pgraph->append_op(
                             impl::op_kind::Concat, input_edges);
+                    concat->append_decision_function(
+                            check_scales_zps_all_equal);
 
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, concat, 0)});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::int8_concat);
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::quantized_concat_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });

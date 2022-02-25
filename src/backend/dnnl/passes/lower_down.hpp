@@ -52,6 +52,8 @@ impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg);
+
 impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg);

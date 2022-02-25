@@ -218,6 +218,9 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::Quantize, quantize_dequantize_t)
     DNNL_REGISTER_KERNEL(impl::op_kind::Dequantize, quantize_dequantize_t)
 
+    // quantized concat
+    DNNL_REGISTER_KERNEL(op_kind::quantized_concat_fusion, quantized_concat)
+
     // quantized conv
     DNNL_REGISTER_KERNEL(op_kind::int8_conv, quantized_conv)
     DNNL_REGISTER_KERNEL(op_kind::int8_conv_relu, quantized_conv)

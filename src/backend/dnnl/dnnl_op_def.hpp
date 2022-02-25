@@ -3253,6 +3253,18 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_concat, 1,
                 // Analysis rules
                 .set_shape_inference_function(infer_concat_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(quantized_concat_fusion, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({1, 32}))
+                .set_num_outputs(1)
+                .set_input(0, "a", "first input tensor")
+                .set_output(0, "output", "output tensor")
+                .set_attr("axis",
+                        "specifies which dimension to concatenate along", true,
+                        attribute_kind::i)
+                .set_shape_inference_function(infer_concat_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm_bwd, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)

@@ -10854,10 +10854,10 @@ TEST(Pass, Int8Concat) {
 
         pass::pass_base_ptr apass = get_pass("int8_concat_fusion");
         apass->run(agraph);
-        std::cout << i << std::endl;
         ASSERT_EQ(agraph.get_num_partitions(), 1);
         const auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-        ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::int8_concat);
+        ASSERT_EQ(fused_op->get_kind(),
+                dnnl_impl::op_kind::quantized_concat_fusion);
 
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), cur_num_dq);
         for (size_t k = 0; k < cur_num_dq; ++k) {
@@ -11238,4 +11238,62 @@ TEST(PassPriority, TestInt8ConvTransposeBiasEltwise) {
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
+}
+
+TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
+    /*
+          dq     dq
+           \     /
+            concat
+              |
+           quantize
+              |
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    std::vector<float> other_scales = {1.3f};
+    op_t dequant1 {0, Dequantize, "dequant1"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant2"};
+    dequant2.set_attr("scales", other_scales);
+    dequant2.set_attr("zps", zps);
+    op_t concat {2, Concat, "concat"};
+    concat.set_attr<int64_t>("axis", 1);
+    op_t quant {3, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_src_lt1
+            = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
+    logical_tensor_t src_lt1
+            = logical_tensor_init(1, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t int8_src_lt2
+            = logical_tensor_init(2, {2, 3}, {3, 1}, data_type::u8);
+    logical_tensor_t src_lt2
+            = logical_tensor_init(3, {2, 3}, {3, 1}, data_type::f32);
+    logical_tensor_t dst_lt = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t int8_dst_lt = logical_tensor_init(5, data_type::u8);
+    dequant1.add_input(int8_src_lt1);
+    dequant1.add_output(src_lt1);
+    dequant2.add_input(int8_src_lt2);
+    dequant2.add_output(src_lt2);
+    concat.add_input(src_lt1);
+    concat.add_input(src_lt2);
+    concat.add_output(dst_lt);
+    quant.add_input(dst_lt);
+    quant.add_output(int8_dst_lt);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&concat), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    ASSERT_EQ(agraph.build_graph(), status::success);
+
+    pass::pass_base_ptr apass = get_pass("int8_concat_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
 }

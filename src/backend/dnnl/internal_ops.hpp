@@ -185,7 +185,6 @@ namespace op_kind {
     X(dnnl_batchnorm_bwd, Dnnl_batchnorm_bwd) \
     X(dnnl_softmax_bwd, Dnnl_softmax_bwd) \
     X(dnnl_logsoftmax_bwd, Dnnl_logsoftmax_bwd) \
-    X(int8_concat, INT8_concat) \
     X(dnnl_resampling, Dnnl_resampling) \
     X(dnnl_resampling_bwd, Dnnl_resampling_bwd) \
     X(dnnl_concat, Dnnl_concat) \
@@ -199,7 +198,8 @@ namespace op_kind {
     X(dnnl_reorder, Dnnl_reorder) \
     X(float_conv_fusion, Float_conv_fusion) \
     X(conv_post_ops_chain_fusion, Conv_post_ops_chain_fusion) \
-    X(quantized_convtranspose_fusion, Quantized_convtranspose_fusion)
+    X(quantized_convtranspose_fusion, Quantized_convtranspose_fusion) \
+    X(quantized_concat_fusion, Quantized_concat_fusion)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

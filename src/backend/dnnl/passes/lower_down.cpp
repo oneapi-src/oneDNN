@@ -972,6 +972,56 @@ impl::status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+impl::status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_t *> fusion_ops;
+    for (const auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_concat) continue;
+        fusion_ops.emplace_back(cur_op.get());
+    }
+
+    if (fusion_ops.empty()) return impl::status::success;
+
+    for (auto &concat_op : fusion_ops) {
+        // We only support int8 Concat with the same scales and zps
+        // for all inputs. As Concat is not changing the range of values,
+        // we are simply ignoring here De/Quantize OPs by disconnecting
+        // them from the Concat.
+        std::vector<const op_t *> deleted_ops;
+
+        for (size_t i = 0; i < concat_op->num_inputs(); ++i) {
+            op_t &dq_op = concat_op->get_input_value(i)->get_producer();
+            assertm(dq_op.get_kind() == impl::op_kind::Dequantize,
+                    "int8 concat input values should be produced by Dequantize "
+                    "op.");
+            value_ptr in_value = dq_op.get_input_value(0);
+            in_value->remove_consumer(dq_op, 0);
+            concat_op->connect_input(i, in_value);
+            deleted_ops.push_back(&dq_op);
+        }
+
+        assertm(concat_op->get_output_value(0)->get_consumers().size() == 1,
+                "concat's successor op should only have one consumer.");
+        op_t &q_op
+                = concat_op->get_output_value(0)->get_consumers()[0].get_op();
+        assertm(q_op.get_kind() == impl::op_kind::Quantize,
+                "int8 concat output value should be consumed by Quantize op.");
+        value_ptr out_value = q_op.get_output_value(0);
+        concat_op->connect_output(0, out_value);
+        deleted_ops.push_back(&q_op);
+
+        for (const auto &del_op : deleted_ops) {
+            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                    [del_op](const op_ptr &f_op) {
+                        return f_op.get() == del_op;
+                    });
+            if (pos != subgraph.end()) subgraph.erase(pos);
+        }
+    }
+
+    return impl::status::success;
+}
+
 impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_t *> fusion_ops;

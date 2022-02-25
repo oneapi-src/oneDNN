@@ -75,6 +75,8 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        if (quantized) { BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_concat); }
+
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
@@ -153,6 +155,7 @@ public:
 };
 
 using float_concat = concat_t</* quantized */ false>;
+using quantized_concat = concat_t</* quantized */ true>;
 
 } // namespace dnnl_impl
 } // namespace impl
