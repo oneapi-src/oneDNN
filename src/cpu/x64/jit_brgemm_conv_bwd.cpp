@@ -56,11 +56,13 @@ status_t fwd_conv_desc_create(
     const int ndims_spatial = bwd_conv_d->diff_src_desc.ndims - 2;
     dims_t overflow_l;
     dims_t overflow_r;
+    dim_t ks = 1;
     for (int i = 0; i < ndims_spatial; i++) {
         // only unit strides are allowed for bwd-to-fwd conversion
         if (bwd_conv_d->strides[i] != 1) return status::unimplemented;
         const dim_t K
                 = bwd_weights_md.dims[bwd_weights_md.ndims - ndims_spatial + i];
+        ks *= K;
         const dim_t D = bwd_conv_d->dilates[i];
         const dim_t PL = bwd_conv_d->padding[0][i]; // left padding
         const dim_t PR = bwd_conv_d->padding[1][i]; // right padding
@@ -70,10 +72,25 @@ status_t fwd_conv_desc_create(
         overflow_r[i] = ((K - 1) * (D + 1) - PR) / S;
     }
 
-    return conv_desc_init(fwd_conv_d, prop_kind::forward_training,
+    CHECK(conv_desc_init(fwd_conv_d, prop_kind::forward_training,
             alg_kind::convolution_direct, &bwd_conv_d->diff_dst_desc,
             &fwd_weights_md, &bwd_conv_d->bias_desc, &bwd_conv_d->diff_src_desc,
-            bwd_conv_d->strides, bwd_conv_d->dilates, overflow_l, overflow_r);
+            bwd_conv_d->strides, bwd_conv_d->dilates, overflow_l, overflow_r));
+
+    // HACK: Set diff_src_desc and diff_dst_desc as a signal to the primitive
+    //       descriptor cache that we are using the bwd-via-fwd version of
+    //       fwd conv and thus need a separate cache entry. Only needed for
+    //       non-1x1 convs due to spatial inversion of weights. This assumes
+    //       that external users only use the API to create conv descs, and
+    //       relies on common/convolution.cpp only setting the expected mem descs.
+    // TODO: Pass this information via attributes or integrate the bwd-via-fwd
+    //       method directly into fwd conv implementations.
+    const bool with_spatial_inversion = ks > 1;
+    if (with_spatial_inversion) {
+        fwd_conv_d->diff_src_desc = fwd_conv_d->src_desc;
+        fwd_conv_d->diff_dst_desc = fwd_conv_d->dst_desc;
+    }
+    return status::success;
 }
 } // namespace
 
