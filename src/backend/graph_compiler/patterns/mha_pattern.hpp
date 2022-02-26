@@ -18,7 +18,7 @@
 
 #include <memory>
 
-#include "backend/graph_compiler/patterns/transformation_pattern.hpp"
+#include "backend/graph_compiler/patterns/fusions.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -28,15 +28,6 @@ namespace pass {
 
 using pb_graph_t = impl::utils::pm::pb_graph_t;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
-
-template <impl::data_type_t DTYPE>
-bool check_input_dtype(op_t *op) {
-    for (size_t i = 0; i < op->num_inputs(); ++i) {
-        logical_tensor_t iport = op->get_input_value(i)->get_logical_tensor();
-        if (iport.data_type != DTYPE) return false;
-    }
-    return true;
-}
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mha_pattern)
 // fp32 MHA pattern

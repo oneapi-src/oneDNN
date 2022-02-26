@@ -43,7 +43,7 @@ pass::pass_base_ptr get_pass(compiler_impl::compiler_backend_t &backend_ptr,
 }
 
 // test int8 MHA pattern (optimized graph)
-TEST(GCPatternTests, MHAInt8Pattern) {
+TEST(GCPatternTests, INT8MHAPattern) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
     add_MHA_subgraph(&agraph, true, true);
@@ -68,7 +68,7 @@ TEST(GCPatternTests, MHAInt8Pattern) {
 }
 
 // test fp32 MHA pattern
-TEST(GCPatternTests, MHAFp32Pattern) {
+TEST(GCPatternTests, FP32MHAPattern) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     add_MHA_subgraph(&agraph, false);
@@ -94,7 +94,7 @@ TEST(GCPatternTests, MHAFp32Pattern) {
 }
 
 // test fp32 MHA pattern alternative
-TEST(GCPatternTests, MHAFp32PatternAlternative) {
+TEST(GCPatternTests, FP32MHAPatternAlternative) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     add_MHA_subgraph_alternative(&agraph, false, false);
@@ -120,7 +120,7 @@ TEST(GCPatternTests, MHAFp32PatternAlternative) {
 }
 
 // test fp32 MHA pattern (no reshape)
-TEST(GCPatternTests, MHAFp32PatternOptionalReshape) {
+TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     utils::construct_f32_MHA(&agraph);
@@ -145,7 +145,7 @@ TEST(GCPatternTests, MHAFp32PatternOptionalReshape) {
 }
 
 // test bf16 MHA pattern
-TEST(GCPatternTests, MHABf16Pattern) {
+TEST(GCPatternTests, BF16MHAPattern) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     add_MHA_subgraph(&agraph, false, true, true);
@@ -178,7 +178,7 @@ TEST(GCPatternTests, MHABf16Pattern) {
 }
 
 // test bf16 MHA pattern alternative
-TEST(GCPatternTests, MHABf16PatternAlternative) {
+TEST(GCPatternTests, BF16MHAPatternAlternative) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     add_MHA_subgraph_alternative(&agraph, true, false);
@@ -211,7 +211,7 @@ TEST(GCPatternTests, MHABf16PatternAlternative) {
 }
 
 // test MHA pattern matcher v2 on graph variations
-TEST(GCPatternTests, MHAInt8PatternVariation1) {
+TEST(GCPatternTests, INT8MHAPatternVariation1) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
     get_int8_MHA_subgraph_varients(&agraph);
@@ -227,7 +227,7 @@ TEST(GCPatternTests, MHAInt8PatternVariation1) {
     ASSERT_EQ(partitions[0]->get_ops().size(), 20);
 }
 
-TEST(GCPatternTests, MHAInt8PatternVariation2) {
+TEST(GCPatternTests, INT8MHAPatternVariation2) {
     // replace divide with multiply
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
@@ -244,7 +244,7 @@ TEST(GCPatternTests, MHAInt8PatternVariation2) {
     ASSERT_EQ(partitions[0]->get_ops().size(), 20);
 }
 
-TEST(GCPatternTests, MHAInt8PatternVariation3) {
+TEST(GCPatternTests, INT8MHAPatternVariation3) {
     // set rescale output as Add's second input
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
@@ -260,4 +260,118 @@ TEST(GCPatternTests, MHAInt8PatternVariation3) {
     auto partitions = agraph.get_partitions();
     ASSERT_EQ(partitions.size(), 1);
     ASSERT_EQ(partitions[0]->get_ops().size(), 20);
+}
+
+TEST(GCPatternTests, FP32DLRMBottom) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_mlp_subgraph(&agraph, false, 1, 3, {13, 512, 256, 128},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_mlp_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+
+    ASSERT_EQ(p.num_ops(), 6);
+
+    ASSERT_EQ(partition_inputs.size(), 7);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, FP32DLRMTop) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_mlp_subgraph(&agraph, false, 1, 5, {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_mlp_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+
+    ASSERT_EQ(p.num_ops(), 10);
+
+    ASSERT_EQ(partition_inputs.size(), 11);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, INT8DLRMBottom) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    add_int8_mlp_subgraph(&agraph, 1, 3, {13, 512, 256, 128},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "int8_mlp_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+
+    ASSERT_EQ(p.num_ops(), 15);
+
+    ASSERT_EQ(partition_inputs.size(), 7);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, INT8DLRMTop) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    add_int8_mlp_subgraph(&agraph, 1, 5, {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "int8_mlp_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+
+    ASSERT_EQ(p.num_ops(), 25);
+
+    ASSERT_EQ(partition_inputs.size(), 11);
+    ASSERT_EQ(partition_outputs.size(), 1);
 }
