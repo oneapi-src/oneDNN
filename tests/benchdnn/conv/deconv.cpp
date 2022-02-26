@@ -26,8 +26,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "norm.hpp"
-
 #include "binary/binary.hpp"
 #include "conv/deconv.hpp"
 #include "prelu/prelu.hpp"

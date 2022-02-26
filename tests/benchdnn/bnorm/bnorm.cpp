@@ -29,7 +29,7 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "norm.hpp"
+#include "utils/norm.hpp"
 
 #include "bnorm/bnorm.hpp"
 

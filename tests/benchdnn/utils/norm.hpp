@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,24 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef NORM_HPP
-#define NORM_HPP
+#ifndef UTILS_NORM_HPP
+#define UTILS_NORM_HPP
 
-#include <assert.h>
-#include <float.h>
 #include <limits>
-#include <math.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "common.hpp"
 
 struct norm_t {
-    typedef float real_t;
-    typedef double acc_t;
-
     /* strictly speaking L0 is not a norm... it stands for the biggest
      * absolute element-wise difference and is used in diff_norm_t only */
     enum { L0, L1, L2, LINF, L8 = LINF, L_LAST };
@@ -41,7 +31,7 @@ struct norm_t {
             norm_[i] = 0;
     }
 
-    void update(real_t v) {
+    void update(float v) {
         norm_[L1] += ABS(v);
         norm_[L2] += v * v;
         norm_[L8] = MAX2(norm_[L8], ABS(v));
@@ -50,17 +40,15 @@ struct norm_t {
 
     void done() { norm_[L2] = sqrt(norm_[L2]); }
 
-    real_t operator[](int type) const { return norm_[type]; }
+    float operator[](int type) const { return norm_[type]; }
 
-    acc_t norm_[L_LAST];
+    double norm_[L_LAST];
     size_t num_;
 };
 
 struct diff_norm_t {
-    using real_t = norm_t::real_t;
-
-    void update(real_t a, real_t b) {
-        real_t diff = a - b;
+    void update(float a, float b) {
+        float diff = a - b;
         a_.update(a);
         b_.update(b);
         diff_.update(diff);
@@ -73,12 +61,12 @@ struct diff_norm_t {
         diff_.done();
     }
 
-    real_t rel_diff(int type) const {
+    float rel_diff(int type) const {
         if (type == norm_t::L0) return diff_.norm_[type];
         if (a_.norm_[type] == 0)
             return diff_.norm_[type] == 0
                     ? 0
-                    : std::numeric_limits<real_t>::infinity();
+                    : std::numeric_limits<float>::infinity();
         assert(a_.norm_[type] != 0);
         return diff_.norm_[type] / a_.norm_[type];
     }

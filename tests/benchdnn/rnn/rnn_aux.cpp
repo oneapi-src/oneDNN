@@ -16,8 +16,8 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "norm.hpp"
 #include "rnn/rnn_aux.hpp"
+#include "utils/norm.hpp"
 
 namespace rnn {
 
