@@ -31,7 +31,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "norm.hpp"
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
