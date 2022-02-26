@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "compiler_graph.hpp"
 #include "compiler_partition_impl.hpp"
 #include "patterns/mha_pattern.hpp"
+#include "patterns/mlp_pattern.hpp"
 #include "target_machine.hpp"
 
 namespace dnnl {
@@ -39,13 +40,17 @@ size_t compiler_backend_t::get_mem_size(const logical_tensor_t &lt) const {
 bool compiler_backend_t::register_passes() {
     REQUIRE_AVX512_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mha_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mlp_pattern, pass_registry_);
     REQUIRE_BF16_AMXBF16_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mha_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_mlp_pattern, pass_registry_);
     REQUIRE_BF16_AMXBF16_END
     REQUIRE_VNNI_AMXINT8_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mha_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(int8_mlp_pattern, pass_registry_);
     REQUIRE_VNNI_AMXINT8_END
     REQUIRE_AVX512_END
+    pass_registry_.sort_passes();
     return true;
 }
 

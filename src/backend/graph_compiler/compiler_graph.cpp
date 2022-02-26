@@ -35,7 +35,8 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::StaticTranspose, "transpose"},
                 {op_kind::SoftMax, "softmax"}, {op_kind::Divide, "div"},
                 {op_kind::Reorder, "reorder"}, {op_kind::Multiply, "mul"},
-                {op_kind::TypeCast, "cast"}};
+                {op_kind::TypeCast, "cast"}, {op_kind::ReLU, "relu"},
+                {op_kind::Sigmoid, "sigmoid"}, {op_kind::GELU, "gelu"}};
 
 sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<std::string, impl::utils::attribute_value_t>
