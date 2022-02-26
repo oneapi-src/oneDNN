@@ -964,6 +964,12 @@ private:
     void init_factors(const expr_t &e) {
         auto *nary = e.as_ptr<nary_op_t>();
         if (!nary) {
+            auto *unary = e.as_ptr<unary_op_t>();
+            if (unary && unary->op_kind == op_kind_t::_minus) {
+                init_factors(unary->a);
+                factors.back() *= -1;
+                return;
+            }
             init_normalize({e});
             return;
         }
