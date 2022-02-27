@@ -43,6 +43,7 @@ struct compare_t {
 
     compare_t() = default;
 
+    void set_norm_validation_mode(bool un) { use_norm_ = un; }
     void set_threshold(float trh) { trh_ = trh; }
     void set_zero_trust_percent(float ztp) { zero_trust_percent_ = ztp; }
     void set_data_kind(data_kind_t dk) { kind_ = dk; }
@@ -63,6 +64,8 @@ struct compare_t {
             const attr_t &attr, res_t *res) const;
 
 private:
+    // Switch between point-to-point and norm comparison.
+    bool use_norm_ = false;
     // Threshold for a point-to-point comparison.
     float trh_ = 0.f;
     // The default percent value of zeros allowed in the output.
@@ -72,6 +75,12 @@ private:
     // Driver-specific function that adds additional criteria for a test case to
     // pass.
     driver_check_func_t driver_check_func_;
+
+    // Internal validation methods under `compare` interface.
+    int compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
+            const attr_t &attr, res_t *res) const;
+    int compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
+            const attr_t &attr, res_t *res) const;
 };
 
 } // namespace compare
