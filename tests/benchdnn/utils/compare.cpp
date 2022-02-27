@@ -23,6 +23,7 @@
 
 #include "common.hpp"
 #include "utils/compare.hpp"
+#include "utils/norm.hpp"
 
 #include "eltwise/eltwise.hpp"
 
@@ -46,6 +47,24 @@ static void dump_point_values(const dnnl_memory_desc_t &md, data_kind_t kind,
             diff, rel_diff);
 }
 
+static void dump_norm_values(const diff_norm_t &diff_norm, data_kind_t kind) {
+    std::string skind;
+    if (kind != DAT_TOTAL) skind = "[" + std::string(data_kind2str(kind)) + "]";
+
+    BENCHDNN_PRINT(0,
+            "%s[L0] = %g\n"
+            "%s[L1] exp:%8g got:%8g diff:%8g rel_diff:%8g\n"
+            "%s[L2] exp:%8g got:%8g diff:%8g rel_diff:%8g\n"
+            "%s[L8] exp:%8g got:%8g diff:%8g rel_diff:%8g\n",
+            skind.c_str(), diff_norm.rel_diff(norm_t::L0), skind.c_str(),
+            diff_norm.a_[norm_t::L1], diff_norm.b_[norm_t::L1],
+            diff_norm.diff_[norm_t::L1], diff_norm.rel_diff(norm_t::L1),
+            skind.c_str(), diff_norm.a_[norm_t::L2], diff_norm.b_[norm_t::L2],
+            diff_norm.diff_[norm_t::L2], diff_norm.rel_diff(norm_t::L2),
+            skind.c_str(), diff_norm.a_[norm_t::L8], diff_norm.b_[norm_t::L8],
+            diff_norm.diff_[norm_t::L8], diff_norm.rel_diff(norm_t::L8));
+}
+
 bool compare_extreme_values(float a, float b) {
     if (std::isnan(a) && std::isnan(b)) return true;
     if (std::isinf(a) && std::isinf(b) && std::signbit(a) == std::signbit(b))
@@ -64,7 +83,52 @@ compare_t::driver_check_func_args_t::driver_check_func_args_t(
     , diff(fabsf(exp - got))
     , rel_diff(diff / (fabsf(exp) > FLT_MIN ? fabsf(exp) : 1)) {}
 
-int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
+int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
+        const attr_t &attr, res_t *res) const {
+    const auto nelems = got_mem.nelems();
+    if (nelems == 0) return res->state = PASSED, OK;
+    res->total = nelems;
+
+    dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
+    const auto dt = got_mem.dt();
+
+    int64_t zeros = 0;
+    diff_norm_t diff_norm;
+    for (int64_t i = 0; i < nelems; ++i) {
+        driver_check_func_args_t args(exp_mem, got_f32, i, dt);
+
+        if (std::isnan(args.exp_f32) && is_integral_dt(dt)) {
+            // Don't include integer max values into norm as they make it
+            // irrelevant for validation.
+            ;
+        } else if (is_cpu() && dt == dnnl_s32 && args.exp == max_dt(dnnl_s32)
+                && args.got >= BENCHDNN_S32_TO_F32_SAT_CONST
+                && args.got < max_dt(dnnl_s32)) {
+            // Don't include f32->s32 saturation values into norm as they make
+            // it irrelevant for validation.
+            ;
+        } else {
+            diff_norm.update(args.exp, args.got);
+        }
+
+        if (fabsf(args.got) == 0) zeros++;
+    }
+    diff_norm.done();
+
+    bool ok = diff_norm.rel_diff(norm_t::L2) <= trh_;
+    if (!ok) res->errors = 1;
+
+    const bool need_dump = verbose >= 99;
+    const bool dump = need_dump || !ok;
+    if (dump) dump_norm_values(diff_norm, kind_);
+
+    if (res->errors) res->state = FAILED;
+    if (res->state == EXECUTED) res->state = PASSED;
+
+    return res->state == FAILED ? FAIL : OK;
+}
+
+int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const attr_t &attr, res_t *res) const {
     const auto nelems = got_mem.nelems();
     if (nelems == 0) return res->state = PASSED, OK;
@@ -155,6 +219,12 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     if (res->state == EXECUTED) res->state = PASSED;
 
     return res->state == FAILED ? FAIL : OK;
+}
+
+int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
+        const attr_t &attr, res_t *res) const {
+    if (use_norm_) return compare_norm(exp_mem, got_mem, attr, res);
+    return compare_p2p(exp_mem, got_mem, attr, res);
 }
 
 } // namespace compare
