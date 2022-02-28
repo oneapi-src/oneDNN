@@ -616,6 +616,8 @@ static void layout_propagation_for_permute(
                 out_md = permute_NXC2NCX(in_md);
             } else if (from_format == "XIO" && to_format == "OIX") {
                 out_md = permute_XIO2OIX(in_md);
+            } else if (from_format == "OIX" && to_format == "XIO") {
+                out_md = permute_OIX2XIO(in_md);
             } else {
                 assertm(false, "not a supported permutation");
             }
@@ -641,6 +643,8 @@ static void layout_propagation_for_permute(
                 // for the case like conv's weight is set to ANY layout, need
                 // propagate output layout to input
                 in_md = permute_OIX2XIO(out_md);
+            } else if (from_format == "OIX" && to_format == "XIO") {
+                in_md = permute_XIO2OIX(out_md);
             } else {
                 assertm(false, "not a supported permutation");
             }

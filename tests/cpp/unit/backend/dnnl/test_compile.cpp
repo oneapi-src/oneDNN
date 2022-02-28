@@ -313,6 +313,51 @@ TEST(Compile, ConvolutionBackpropDataFp32) {
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 }
 
+TEST(Compile, ConvolutionBackpropFilterFp32) {
+    using dims = dnnl::graph::impl::dnnl_impl::dims;
+
+    impl::engine_t &eng = get_engine();
+
+    impl::op_t conv_op(impl::op_kind::ConvolutionBackpropFilters);
+    conv_op.set_attr<dims>("strides", dims {1, 1});
+    conv_op.set_attr<dims>("dilations", dims {1, 1});
+    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
+    conv_op.set_attr<dims>("pads_end", dims {0, 0});
+    conv_op.set_attr<std::string>("data_format", "NXC");
+    conv_op.set_attr<std::string>("filter_format", "XIO");
+    conv_op.set_attr<dims>("filter_shape", dims {3, 3, 64, 64});
+
+    // prepare logical tensor
+    impl::logical_tensor_t src = utils::logical_tensor_init(
+            0, {1, 224, 224, 64}, impl::data_type::f32);
+    impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            1, {1, 222, 222, 64}, impl::data_type::f32);
+    impl::logical_tensor_t diff_weight = utils::logical_tensor_init(
+            2, {3, 3, 64, 64}, impl::data_type::f32, impl::layout_type::any);
+
+    conv_op.add_input(src);
+    conv_op.add_input(diff_dst);
+    conv_op.add_output(diff_weight);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &diff_dst};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_weight};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+}
+
 TEST(Compile, ConvtransposeFp32) {
     using dims = impl::dnnl_impl::dims;
 
