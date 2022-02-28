@@ -26,9 +26,7 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"
-#include "backend/dnnl/f32_kernel_resource.hpp"
 #include "backend/dnnl/scratchpad.hpp"
-#include "backend/dnnl/tensor.hpp"
 #include "backend/dnnl/thread_local_cache.hpp"
 #include "backend/dnnl/utils.hpp"
 
