@@ -94,7 +94,7 @@ template <typename Vmm>
 _jit_avx512_common_conv_fwd_kernel<Vmm>::_jit_avx512_common_conv_fwd_kernel(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jcp(ajcp), attr_(attr) {
+    : jit_generator(jit_name()), jcp(ajcp), attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;

@@ -37,7 +37,8 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core), brg(abrd) {
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core)
+    , brg(abrd) {
 
     if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 

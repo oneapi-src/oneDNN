@@ -29,7 +29,7 @@ class jit_prelu_base_kernel_t : public jit_generator {
 public:
     jit_prelu_base_kernel_t(const cpu_isa_t &isa, const int vlen,
             const prelu::bcast &bcast, const memory_desc_wrapper &tensor_md,
-            const size_t number_vmm_single_compute);
+            const size_t number_vmm_single_compute, const char *name);
 
     size_t simd_w() const noexcept;
     prelu::bcast get_bcast() const noexcept;

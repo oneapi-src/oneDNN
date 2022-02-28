@@ -23,8 +23,8 @@ namespace x64 {
 
 jit_prelu_base_kernel_t::jit_prelu_base_kernel_t(const cpu_isa_t &isa, int vlen,
         const prelu::bcast &bcast, const memory_desc_wrapper &tensor_md,
-        size_t number_vmm_single_compute)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+        size_t number_vmm_single_compute, const char *name)
+    : jit_generator(name, nullptr, MAX_CODE_SIZE, true, isa)
     , isa_(isa)
     , simd_w_(vlen / sizeof(float))
     , bcast_(bcast)

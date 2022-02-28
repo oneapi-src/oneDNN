@@ -44,7 +44,7 @@ using namespace Xbyak;
 jit_avx2_conv_fwd_kernel_f32::jit_avx2_conv_fwd_kernel_f32(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, avx2)
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx2)
     , jcp(ajcp)
     , attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary) {

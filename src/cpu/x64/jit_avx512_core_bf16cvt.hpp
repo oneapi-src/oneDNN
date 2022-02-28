@@ -176,7 +176,8 @@ struct jit_avx512_core_cvt_ps_to_bf16_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_cvt_ps_to_bf16)
 
     jit_avx512_core_cvt_ps_to_bf16_t(size_t nelems = 0)
-        : nelems_(nelems)
+        : jit_generator(jit_name())
+        , nelems_(nelems)
         , simd_w_(16)
         , tail_mask_((1 << (nelems % simd_w_)) - 1)
         , is_dynamic_size_(nelems_ == 0) {
@@ -319,7 +320,9 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
 
     jit_avx512_core_cvt_bf16_to_ps_t(
             bool with_add = false, size_t row_stride = 0)
-        : with_add_(with_add), row_stride_(row_stride) {
+        : jit_generator(jit_name())
+        , with_add_(with_add)
+        , row_stride_(row_stride) {
         create_kernel();
     }
 
@@ -341,7 +344,8 @@ private:
 struct jit_avx512_core_add_cvt_ps_to_bf16_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_add_cvt_ps_to_bf16)
 
-    jit_avx512_core_add_cvt_ps_to_bf16_t() : simd_w_(16) {
+    jit_avx512_core_add_cvt_ps_to_bf16_t()
+        : jit_generator(jit_name()), simd_w_(16) {
         bf16_emu_ = new bf16_emulation_t(
                 this, one, even, selector, scratch, fp32_tmp, fp32_tmp);
 
@@ -453,10 +457,10 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_reorder_s16c_to_S16c2s)
 
     jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t()
-        : simd_w_(16), in_stride_(16) {}
+        : jit_generator(jit_name()), simd_w_(16), in_stride_(16) {}
 
     jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(int in_stride)
-        : simd_w_(16), in_stride_(in_stride) {}
+        : jit_generator(jit_name()), simd_w_(16), in_stride_(in_stride) {}
 
     ~jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t() {}
 

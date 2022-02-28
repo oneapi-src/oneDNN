@@ -67,7 +67,10 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t : public jit_generator {
 
     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
             jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), unsign_val_in_wino_domain(5) {}
+        : jit_generator(jit_name())
+        , jcp(ajcp)
+        , attr_(attr)
+        , unsign_val_in_wino_domain(5) {}
     void generate() override;
 
     int reg_inp_ind(int i) const {
@@ -263,7 +266,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t : public jit_generator {
 
     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
             jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr) {}
+        : jit_generator(jit_name()), jcp(ajcp), attr_(attr) {}
 
     void generate() override;
     bool maybe_relu(int position);
@@ -532,7 +535,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t : public jit_generator {
 
     jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr) {}
+        : jit_generator(jit_name()), jcp(ajcp), attr_(attr) {}
 
     static status_t init_conf(jit_conv_conf_2x3_wino_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_md,

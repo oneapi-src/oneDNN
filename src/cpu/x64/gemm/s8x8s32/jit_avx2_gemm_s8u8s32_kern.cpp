@@ -454,7 +454,7 @@ void jit_avx2_gemm_s8u8s32_kern::generate() {
 
 jit_avx2_gemm_s8u8s32_kern::jit_avx2_gemm_s8u8s32_kern(bool beta_zero,
         bool enable_offset_c, bool enable_offset_r, int unroll_m)
-    : jit_generator(nullptr, 100000)
+    : jit_generator(jit_name(), nullptr, 100000)
     , arg_a_(0)
     , arg_b_(0)
     , arg_c_(0)

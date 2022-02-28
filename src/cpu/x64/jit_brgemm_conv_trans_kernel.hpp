@@ -42,7 +42,7 @@ struct jit_avx512_core_brgemm_conv_trans_kernel_t : public jit_generator {
     using reg64_t = const Xbyak::Reg64;
 
     jit_avx512_core_brgemm_conv_trans_kernel_t(
-            const jit_brgemm_conv_conf_t &ajcp);
+            const jit_brgemm_conv_conf_t &ajcp, const char *name = jit_name());
 
     int dst_w(int out_w) const;
 

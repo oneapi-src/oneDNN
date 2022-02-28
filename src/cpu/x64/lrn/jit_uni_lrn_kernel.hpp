@@ -85,10 +85,10 @@ template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
 class jit_uni_lrn_kernel_t<Derived<isa, d_type>> : public jit_generator {
 public:
-    jit_uni_lrn_kernel_t(
-            void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE);
+    jit_uni_lrn_kernel_t(void *code_ptr = nullptr,
+            size_t code_size = MAX_CODE_SIZE, const char *name = jit_name());
     jit_uni_lrn_kernel_t(const within_config_t &J, void *code_ptr = nullptr,
-            size_t code_size = MAX_CODE_SIZE);
+            size_t code_size = MAX_CODE_SIZE, const char *name = jit_name());
 
     ~jit_uni_lrn_kernel_t();
 

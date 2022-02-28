@@ -515,7 +515,7 @@ void jit_avx512_core_gemv_bf16bf16f32_kern::generate() {
 // Function signature: gemv(*m, *n, *alpha, *a, *lda, *x, *incx, *y, *incy)
 jit_avx512_core_gemv_bf16bf16f32_kern::jit_avx512_core_gemv_bf16bf16f32_kern(
         bool trans)
-    : jit_generator(nullptr, 20000)
+    : jit_generator(jit_name(), nullptr, 20000)
     , arg_lda_(0)
     , arg_x_(0)
     , arg_incx_(0)

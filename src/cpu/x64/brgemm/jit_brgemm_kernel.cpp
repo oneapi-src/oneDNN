@@ -40,7 +40,7 @@ using namespace Xbyak;
 
 struct jit_brgemm_kernel_t : public jit_generator {
     jit_brgemm_kernel_t(const brgemm_t &abrg)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core)
+        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core)
         , brg(abrg)
         , postops_injector_(nullptr) {
 

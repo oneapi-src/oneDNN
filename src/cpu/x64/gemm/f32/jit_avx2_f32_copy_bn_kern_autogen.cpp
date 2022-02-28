@@ -24,7 +24,7 @@ namespace cpu {
 namespace x64 {
 
 jit_avx2_f32_copy_bn_kern::jit_avx2_f32_copy_bn_kern()
-    : jit_generator(nullptr, F32_COPY_KERNEL_CODE_SIZE) {}
+    : jit_generator(jit_name(), nullptr, F32_COPY_KERNEL_CODE_SIZE) {}
 
 void jit_avx2_f32_copy_bn_kern::generate() {
 

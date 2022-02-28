@@ -300,7 +300,7 @@ struct jit_softmax_base_t : public jit_generator {
     }
 
     jit_softmax_base_t(const softmax_pd_t *pd)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
         , pd_(pd)
         , src_d_(pd_->is_fwd() ? pd_->src_md() : pd_->diff_src_md())
         , dst_d_(pd_->dst_md())

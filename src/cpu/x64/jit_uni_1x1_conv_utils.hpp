@@ -169,7 +169,7 @@ struct rtus_driver_t : public jit_generator {
     rtus_driver_t(int iw, int stride_w, int src_step_h, int src_step_icb,
             int ws_step_icb, bool src_to_ws, size_t typesize, int ic,
             bool is_nspc = false)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
         , iw_(iw)
         , stride_w_(stride_w)
         , src_step_h_(src_step_h)

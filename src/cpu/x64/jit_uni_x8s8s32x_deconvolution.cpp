@@ -395,7 +395,7 @@ template <cpu_isa_t isa, typename Vmm>
 _jit_uni_x8s8s32x_deconv_fwd_kernel<isa,
         Vmm>::_jit_uni_x8s8s32x_deconv_fwd_kernel(const jit_conv_conf_t &ajcp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
     , jcp_(ajcp)
     , postops_injector_(nullptr) {
 

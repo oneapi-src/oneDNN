@@ -59,7 +59,8 @@ struct jit_brgemm_copy_to_coarse_t : public jit_generator {
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
     jit_brgemm_copy_to_coarse_t(const jit_brgemm_primitive_conf_t *conf)
-        : conf_(conf)
+        : jit_generator(jit_name())
+        , conf_(conf)
         , typesize_(conf_->isa == avx512_core_bf16_amx_int8
                           ? sizeof(int8_t)
                           : sizeof(bfloat16_t))

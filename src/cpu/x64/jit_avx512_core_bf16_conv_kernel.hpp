@@ -253,7 +253,8 @@ template <typename Vmm>
 struct _jit_avx512_core_bf16_bwd_data_kernel : public jit_generator {
 
     _jit_avx512_core_bf16_bwd_data_kernel(const jit_conv_conf_t &ajcp)
-        : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
+        : jit_generator(
+                jit_name(), nullptr, ker_code_size, true, avx512_core_bf16)
         , jcp(ajcp)
         , bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa))
@@ -461,7 +462,8 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(
             const jit_conv_conf_t &ajcp)
-        : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
+        : jit_generator(
+                jit_name(), nullptr, ker_code_size, true, avx512_core_bf16)
         , jcp(ajcp)
         , bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa)) {

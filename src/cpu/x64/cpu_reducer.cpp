@@ -101,8 +101,9 @@ struct reducer_2d_driver_t : public jit_generator {
     using data_t = typename prec_traits<data_type>::type;
 
     reducer_2d_driver_t(int n_src, size_t src_ld, size_t src_step,
-            size_t dst_step, bool nullify_dst)
-        : n_src_(n_src)
+            size_t dst_step, bool nullify_dst, const char *name)
+        : jit_generator(name)
+        , n_src_(n_src)
         , src_ld_(src_ld)
         , src_step_(src_step)
         , dst_step_(dst_step)
@@ -159,7 +160,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
     reducer_2d_driver_f_s_32_t(int n_src, size_t src_ld, size_t src_step,
             size_t dst_step, bool nullify_dst)
         : reducer_2d_driver_t<data_type>(
-                n_src, src_ld, src_step, dst_step, nullify_dst) {}
+                n_src, src_ld, src_step, dst_step, nullify_dst, jit_name()) {}
 
     void nullify_dst(int nloads, int load_len) {
         UNUSED(load_len);

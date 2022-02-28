@@ -43,7 +43,7 @@ class jit_avx512_common_lrn_kernel_fwd_t : public jit_generator {
 public:
     jit_avx512_common_lrn_kernel_fwd_t(prop_kind_t prop_kind, float alpha,
             float beta, float k, int local_size, void *code_ptr,
-            size_t code_size);
+            size_t code_size, const char *name = jit_name());
 
     using data_t = typename prec_traits<d_type>::type;
 

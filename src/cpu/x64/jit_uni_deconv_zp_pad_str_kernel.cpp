@@ -29,7 +29,8 @@ namespace zp {
 
 jit_uni_deconv_zp_pad_str_kernel_base_t::
         jit_uni_deconv_zp_pad_str_kernel_base_t(const jit_conv_conf_t &jcp)
-    : jcp_(jcp)
+    : jit_generator(jit_name())
+    , jcp_(jcp)
     , tail_size_(jcp.is_depthwise ? jcp.ngroups % jcp.ch_block
                                   : jcp.oc_without_padding % jcp.oc_block) {}
 

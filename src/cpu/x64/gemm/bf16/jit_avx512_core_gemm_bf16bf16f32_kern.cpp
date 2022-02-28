@@ -425,7 +425,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::generate() {
 
 jit_avx512_core_gemm_bf16bf16f32_kern::jit_avx512_core_gemm_bf16bf16f32_kern(
         bool beta_zero, bool alpha_one, bool use_zmm)
-    : jit_generator(nullptr, 170000)
+    : jit_generator(jit_name(), nullptr, 170000)
     , arg_a_(0)
     , arg_b_(0)
     , arg_c_(0)

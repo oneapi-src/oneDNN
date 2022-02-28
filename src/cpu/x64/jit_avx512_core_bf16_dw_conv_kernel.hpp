@@ -130,7 +130,7 @@ struct jit_avx512_dw_conv_bwd_data_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_bwd_data_kernel_bf16)
 
     jit_avx512_dw_conv_bwd_data_kernel_bf16(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp), bf16_emu_(nullptr) {
+        : jit_generator(jit_name()), jcp(ajcp), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
@@ -207,7 +207,7 @@ struct jit_avx512_dw_conv_bwd_weights_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_bwd_weights_kernel_bf16)
 
     jit_avx512_dw_conv_bwd_weights_kernel_bf16(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp), bf16_emu_(nullptr) {
+        : jit_generator(jit_name()), jcp(ajcp), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,

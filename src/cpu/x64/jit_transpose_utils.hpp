@@ -80,7 +80,7 @@ struct jit_transpose4x16_src : public jit_generator {
 
     jit_transpose4x16_src(const jit_1x1_conv_conf_t *aparams,
             jit_transpose4x16_src_t *tparams_)
-        : params(aparams), tparams(tparams_) {}
+        : jit_generator(jit_name()), params(aparams), tparams(tparams_) {}
 
     const jit_1x1_conv_conf_t *params;
     const jit_transpose4x16_src_t *tparams;
@@ -122,7 +122,8 @@ struct jit_diff_wei_trans_to_vnni_t : public jit_generator {
 
     jit_diff_wei_trans_to_vnni_t(const int &kd, const int &kh, const int &kw,
             const int &ic_block, const int &oc_block)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_bf16)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_bf16)
         , kd_(kd)
         , kh_(kh)
         , kw_(kw)

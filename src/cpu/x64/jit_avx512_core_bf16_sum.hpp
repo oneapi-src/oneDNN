@@ -49,7 +49,7 @@ struct jit_sum_call_s {
 
 struct jit_avx512_core_bf16_sum_kernel : public jit_generator {
     jit_avx512_core_bf16_sum_kernel(jit_sum_conf_t ajsp)
-        : jsp(ajsp), bf16_emu_(nullptr) {
+        : jit_generator(jit_name()), jsp(ajsp), bf16_emu_(nullptr) {
         if (!mayiuse(avx512_core_bf16))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserved_1,
                     bf16_emu_reserved_2, bf16_emu_reserved_3, bf16_emu_scratch,

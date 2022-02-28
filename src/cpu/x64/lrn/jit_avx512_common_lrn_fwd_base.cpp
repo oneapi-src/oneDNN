@@ -166,8 +166,8 @@ void jit_avx512_common_lrn_kernel_fwd_t<bf16>::store_tail(int tail_value,
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_avx512_common_lrn_kernel_fwd_t(
         prop_kind_t prop_kind, float alpha, float beta, float k, int local_size,
-        void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size, true, avx512_core_bf16)
+        void *code_ptr, size_t code_size, const char *name)
+    : jit_generator(name, code_ptr, code_size, true, avx512_core_bf16)
     , pk_(prop_kind)
     , alpha_(alpha)
     , beta_(beta)

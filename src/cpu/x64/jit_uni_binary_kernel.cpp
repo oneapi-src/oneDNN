@@ -33,8 +33,9 @@ static bcast_set_t get_supported_postops_bcast_strategies() {
 }
 
 binary_kernel_t::binary_kernel_t(const size_t vlen, const binary_pd_t *pd,
-        const jit_binary_conf_t conf, bool tail_kernel)
-    : vlen_(vlen)
+        const jit_binary_conf_t conf, const char *name, bool tail_kernel)
+    : jit_generator(name)
+    , vlen_(vlen)
     , simd_w_(vlen / sizeof(float))
     , pd_(pd)
     , conf_(conf)
@@ -82,7 +83,8 @@ size_t binary_kernel_t::get_tail_size() const {
 template <cpu_isa_t isa>
 jit_uni_binary_kernel_t<isa>::jit_uni_binary_kernel_t(
         const binary_pd_t *pd, const jit_binary_conf_t conf, bool tail_kernel)
-    : binary_kernel_t(cpu_isa_traits<isa>::vlen, pd, conf, tail_kernel)
+    : binary_kernel_t(
+            cpu_isa_traits<isa>::vlen, pd, conf, jit_name(), tail_kernel)
     , offt_src0_(vlen_ / (conf_.is_bf16 ? 2 : 1))
     , offt_src1_(conf_.use_stride_src1 ? offt_src0_ : 0)
     , io_(this, isa, {conf_.src0_type, conf_.src1_type, conf_.dst_type},

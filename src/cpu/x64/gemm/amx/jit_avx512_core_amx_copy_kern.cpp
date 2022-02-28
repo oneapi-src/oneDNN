@@ -496,7 +496,7 @@ void jit_avx512_core_amx_copy_kern::generate() {
 
 jit_avx512_core_amx_copy_kern::jit_avx512_core_amx_copy_kern(
         bool is_a, bool is_trans, int isize)
-    : jit_generator(nullptr, 800000), arg_b_(0) {
+    : jit_generator(jit_name(), nullptr, 800000), arg_b_(0) {
 
     is_a_ = is_a;
     is_trans_ = is_trans;
