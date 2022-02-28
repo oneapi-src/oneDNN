@@ -143,6 +143,44 @@ void brgemm_init_update(const expr &A, const expr &B, const expr &C,
         const expr &brg_c_buf = get_ir_null());
 
 /**
+ * Generates a generate call node to brgemm_init_update. If you want to use
+ * brgemm fusion, please use this interface. Notice that brgemm fusion needs all
+ * calculation of reduce axis done.
+ *
+ * @param A pointer (float)
+ * @param B pointer (float)
+ * @param C pointer (float)
+ * @param num s32
+ * @param M s32
+ * @param N s32
+ * @param K s32
+ * @param LDA s32
+ * @param LDB s32
+ * @param LDC s32
+ * @param stride_a s32
+ * @param stride_b s32
+ * @param dtypeA sc_data_type_t
+ * @param dtypeB sc_data_type_t
+ * @param brg_attrs any_map
+ * @param bd_mask bd_mask
+ * @param brg_postops_setting postops_setting
+ * @param brg_postops_data postops_data
+ * @param brg_c_buf c_buf
+ * */
+void brgemm_init_update_allow_fusion(const expr &A, const expr &B,
+        const expr &C, const expr &num, const expr &M, const expr &N,
+        const expr &K, const expr &LDA, const expr &LDB, const expr &LDC,
+        const expr &stride_a, const expr &stride_b,
+        const sc_data_type_t &dtypeA, const sc_data_type_t &dtypeB,
+        const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
+        const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const sc_brgemm_postops_setting_t &brg_postops_setting
+        = sc_brgemm_postops_setting_t(),
+        const std::vector<expr> &brg_postops_data
+        = create_initialed_postops_data(),
+        const expr &brg_c_buf = get_ir_null());
+
+/**
  * Generates a generate call node to brgemm_init_f32.
  *
  * @param C pointer (void)

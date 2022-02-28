@@ -434,7 +434,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
             out_tensors_[0], aidx, bidx, cidx, stride_a, stride_b, fidx1,
             fidx2);
 
-          sc::builtin::brgemm_init_update(tensor_ptr(A, aidx),
+          sc::builtin::brgemm_init_update_allow_fusion(tensor_ptr(A, aidx),
             tensor_ptr(B, bidx), tensor_ptr(C, cidx), K_num_blocks, M_block,
             N_block, K_block, K_block, N_block, N_block, stride_a, stride_b,
             A_dtype, B_dtype);
@@ -462,7 +462,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   } else {
     _named_for_(lm_c, m_o, 0, M_num_blocks, 1, for_type::PARALLEL) {
       _named_for_(ln_c, n_o, 0, N_num_blocks) {
-        sc::builtin::brgemm_init_update(
+        sc::builtin::brgemm_init_update_allow_fusion(
           tensor_ptr(A, std::vector<expr> {m_o, 0, 0, 0}),
           tensor_ptr(B,
             dtype_block > 1 ? std::vector<expr> {n_o, 0, 0, 0, 0}
