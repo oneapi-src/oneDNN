@@ -3671,12 +3671,19 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     esize, src_stride);
             auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
                     esize, dst_stride);
+            auto d_old = d;
+            bool d_half_grf_aligned
+                    = utils::one_of(d.byte_offset(), 0, grf_size / 2);
+            if (!d_half_grf_aligned) {
+                d = scope.alloc_reg_data(to_ir(dst_type).with_elems(esize));
+            }
             if (s.offset() != 0) {
                 auto t = tmp.format(0, src_type, esize, src_stride);
                 host->emov(esize, t, s);
                 s = t;
             }
             host->emov(esize, d, s);
+            if (!d_half_grf_aligned) host->emov(esize, d_old, d);
         }
         return;
     }
