@@ -685,6 +685,7 @@ layout_t normalize_conv_groups(const layout_t &layout, bool with_groups,
 
     ir_assert(!with_groups) << "Unexpected groups in source/destination.";
     if (is_dw) groups = layout.dim(1);
+    if (layout.dim(1) == 1) groups = 1;
     return split_dimension(layout, /*dim_idx=*/1, groups);
 }
 
