@@ -11,6 +11,7 @@ subset of the operation set.
 
 .. toctree::
 
+   arithmetic/Abs_1.rst
    arithmetic/Add_1.rst
    pooling/AvgPool_1.rst
    pooling/AvgPoolBackprop_1.rst
@@ -55,11 +56,13 @@ subset of the operation set.
    arithmetic/Maximum_1.rst
    arithmetic/Minimum_1.rst
    arithmetic/Multiply_1.rst
+   arithmetic/Negative_1.rst
    arithmetic/Pow_1.rst
    arithmetic/PowBackprop_1.rst
    arithmetic/PowBackpropExponent_1.rst
    activation/PReLU_1.rst
    lower_precision/Quantize_1.rst
+   arithmetic/Reciprocal_1.rst
    reduction/ReduceL1_1.rst
    reduction/ReduceL2_1.rst
    reduction/ReduceMax_1.rst
