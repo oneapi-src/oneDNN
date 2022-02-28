@@ -99,145 +99,28 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
     return trust;
 }
 
-inline double get_eps(const prb_t *prb, const data_kind_t kind) {
-    // Winograd specifics
-    if (prb->alg & WINO && prb->dir & FLAG_WEI) {
+int compare_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *res) {
+    compare::compare_t cmp;
+    cmp.set_data_kind(kind);
+
+    const bool compare_with_norm = (prb->alg & WINO);
+    cmp.set_norm_validation_mode(compare_with_norm);
+
+    float trh = prb->cfg[kind].eps;
+    if ((prb->alg & WINO) && (prb->dir & FLAG_WEI)) {
         // This is an empirical equation derived by observing growth error with
         // increasing 'k' dimension in gemm of winograd
         const float log_const = log10(0.125 * prb->mb * prb->oh * prb->ow);
-        return prb->cfg[kind].eps * (MAX2(1, pow(10, 0.4 * log_const)));
+        trh = prb->cfg[kind].eps * (MAX2(1, pow(10, 0.4 * log_const)));
     }
-    return prb->cfg[kind].eps;
-}
+    cmp.set_threshold(trh);
 
-inline int compare_data_p2p(const prb_t *prb, data_kind_t kind,
-        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    compare::compare_t cmp;
-    cmp.set_threshold(prb->cfg[kind].eps);
-    cmp.set_data_kind(kind);
     const float zpp = (1.f - get_non_zero_trust_percent(prb, kind)) * 100.f;
     cmp.set_zero_trust_percent(zpp);
+
     SAFE(cmp.compare(mem_fp, mem_dt, prb->attr, res), WARN);
     return res->state == FAILED ? FAIL : OK;
-}
-
-inline int compare_data_norm(const prb_t *prb, data_kind_t kind,
-        dnn_mem_t &mem_dt0, dnn_mem_t &mem_fp, res_t *res,
-        bool final_compare = true) {
-    const auto nelems = mem_dt0.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-    res->total = nelems;
-    res->errors = 1;
-
-    dnn_mem_t mem_dt(mem_dt0, dnnl_f32, tag::abx, get_test_engine());
-
-    const char *skind = data_kind2str(kind);
-
-    int in = 0, not_a_num = 0, below = 0, above = 0, non_zero = 0;
-
-    int sum_ind = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM);
-    auto sum_dt = (sum_ind != -1) ? prb->attr.post_ops.entry[sum_ind].sum.dt
-                                  : dnnl_data_type_undef;
-
-    bool diff_sum_dt = kind == DST && sum_dt != dnnl_data_type_undef
-            && sum_dt != prb->cfg[kind].dt;
-    dnnl_data_type_t f_dt = diff_sum_dt ? sum_dt : prb->cfg[kind].dt;
-    float f_min = diff_sum_dt ? lowest_dt(f_dt) : prb->cfg[kind].min;
-    float f_max = diff_sum_dt ? max_dt(f_dt) : prb->cfg[kind].max;
-
-    diff_norm_t diff_norm;
-
-    for (int64_t i = 0; i < mem_fp.nelems(); ++i) {
-        const float dt = mem_dt.get_elem(i);
-        const float fp0 = mem_fp.get_elem(i);
-        const float fp = round_to_nearest_representable(f_dt, fp0);
-
-        if (std::isnan(fp0) && is_integral_dt(f_dt)) {
-            // XXX: if reference fp0 value is nan, allow to return anything from
-            // the library for integral target data types.
-            not_a_num += 1;
-        } else if (is_cpu() && f_dt == dnnl_s32 && fp == max_dt(dnnl_s32)
-                && dt >= BENCHDNN_S32_TO_F32_SAT_CONST
-                && dt < max_dt(dnnl_s32)) {
-            // Don't include f32->s32 saturation values into final norm
-            above += 1;
-        } else if (fp0 < f_min) {
-            diff_norm.update(f_min, dt);
-            below += 1;
-        } else if (fp0 > f_max) {
-            diff_norm.update(f_max, dt);
-            above += 1;
-        } else {
-            diff_norm.update(fp, dt);
-            in += 1;
-        }
-
-        non_zero += fp != 0;
-    }
-
-    diff_norm.done();
-
-    const float eps = get_eps(prb, kind);
-    bool ok = diff_norm.rel_diff(norm_t::L2) <= eps;
-    if (ok) res->errors = 0;
-
-    if (res->errors) {
-        res->state = FAILED;
-        BENCHDNN_PRINT(0,
-                "@@@ [%s] %sdiff: err:%d, l0(``%g``) "
-                "l1:(%g,%g,%g,``%g``) "
-                "l2:(%g,%g,%g,``%g``) "
-                "l8:(%g,%g,%g,``%g``)\n",
-                skind, "final: ", (int)res->errors,
-                diff_norm.rel_diff(norm_t::L0), diff_norm.a_[norm_t::L1],
-                diff_norm.b_[norm_t::L1], diff_norm.diff_[norm_t::L1],
-                diff_norm.rel_diff(norm_t::L1), diff_norm.a_[norm_t::L2],
-                diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
-                diff_norm.rel_diff(norm_t::L2), diff_norm.a_[norm_t::L8],
-                diff_norm.b_[norm_t::L8], diff_norm.diff_[norm_t::L8],
-                diff_norm.rel_diff(norm_t::L8));
-    }
-
-    const double trust_rg_level = 0.3;
-    const double trust_nz_level = get_non_zero_trust_percent(prb, kind);
-
-    const double trust_rg = (double)in / res->total;
-    const double trust_nz = (double)non_zero / res->total;
-
-    const bool no_trust
-            = (trust_rg < trust_rg_level || trust_nz < trust_nz_level);
-
-    const bool dump = verbose >= 20
-            || (verbose >= 10 && (trust_rg < 1. || trust_nz < 1.));
-    if (dump) {
-        BENCHDNN_PRINT(0,
-                "@@@ [%s] %strust range:%.2f nz:%.2f "
-                "(level range:%.2f nz:%.2f). "
-                "in:%d nan:%d below:%d above:%d nz:%d total:%lu\n",
-                skind, "final: ", trust_rg, trust_nz, trust_rg_level,
-                trust_nz_level, in, not_a_num, below, above, non_zero,
-                (unsigned long)res->total);
-    }
-
-    if (no_trust) {
-        if (res->state != FAILED) res->state = MISTRUSTED;
-        BENCHDNN_PRINT(0,
-                "@@@ [%s] test-bug: trust is too low. "
-                "range:%.2f (?<%.2f) nz:%.2f (?<%.2f) (nz: %d total: %lu)\n",
-                skind, trust_rg, trust_rg_level, trust_nz, trust_nz_level,
-                non_zero, (unsigned long)res->total);
-    }
-
-    if (res->state == EXECUTED) res->state = PASSED;
-
-    return res->state == FAILED ? FAIL : OK;
-}
-int compare_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
-    const bool compare_with_norm = (prb->alg & WINO);
-    if (compare_with_norm)
-        return compare_data_norm(prb, kind, mem_dt, mem_fp, res);
-    return compare_data_p2p(prb, kind, mem_dt, mem_fp, res);
 }
 
 bool need_src_init(const prb_t *prb) {
