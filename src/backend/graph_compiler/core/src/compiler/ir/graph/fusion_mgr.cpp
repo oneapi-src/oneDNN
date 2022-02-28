@@ -335,6 +335,9 @@ void set_buffer_reuse_hint(int64_t &hint_tick, fdata_map &fdmap,
         auto &in_detail = fdmap.get(in);
         if (in_detail.buffer_.defined()) {
             auto in_tsr = in_detail.buffer_;
+            while (in_tsr.isa<tensorptr>()) {
+                in_tsr = in_tsr.static_as<tensorptr>()->base_->ptr_;
+            }
             in_tsr->attr().set(attr_keys::hint_last_access_tick, hint_tick);
         }
     }

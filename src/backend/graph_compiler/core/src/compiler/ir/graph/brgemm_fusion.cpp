@@ -45,7 +45,7 @@ public:
         if (v->type_ == intrin_type::brgemm
                 || v->type_ == intrin_type::list_brgemm) {
             if (v->intrin_attrs_->get_or_else(
-                        intrin_attr::allow_brgemm_fusion, true)) {
+                        intrin_attr::allow_brgemm_fusion, false)) {
                 valid_brgemm_count_++;
                 valid_brgemm_node_ = v.remove_const();
             }
@@ -324,7 +324,11 @@ stmt brgemm_fusion_register::remake_brgemm_intrinsic_by_fusion(
     new_args[brgemm_args::C] = last_out_;
     auto new_node = copy_attr(*node,
             make_expr<intrin_call_node>(node->type_, new_args,
-                    any_map_t {{intrin_attr::brgemm_extras, extra_args}}));
+                    any_map_t {{intrin_attr::brgemm_extras, extra_args},
+                            {intrin_attr::allow_brgemm_fusion,
+                                    node->intrin_attrs_->get_or_else(
+                                            intrin_attr::allow_brgemm_fusion,
+                                            false)}}));
     std::unordered_map<expr, expr> rmap = {{node, new_node}};
     brgemm_inplace_replacer_t replacer(
             rmap, last_out_.static_as<tensorptr>()->base_->ptr_);

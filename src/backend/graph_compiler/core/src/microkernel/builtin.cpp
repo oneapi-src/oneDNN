@@ -333,6 +333,25 @@ void brgemm_init_update(const expr &A, const expr &B, const expr &C,
                     postops_set});
 }
 
+void brgemm_init_update_allow_fusion(const expr &A, const expr &B,
+        const expr &C, const expr &num, const expr &M, const expr &N,
+        const expr &K, const expr &LDA, const expr &LDB, const expr &LDC,
+        const expr &stride_a, const expr &stride_b,
+        const sc_data_type_t &dtypeA, const sc_data_type_t &dtypeB,
+        const sc_brgemm_attrs_t &brg_attrs, const sc_brgemm_bd_mask_t &bd_mask,
+        const sc_brgemm_postops_setting_t &postops_set,
+        const std::vector<expr> &postops_data, const expr &c_buf) {
+    brgemm_init_update(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a, stride_b,
+            dtypeA, dtypeB, brg_attrs, bd_mask, postops_set, postops_data,
+            c_buf);
+    builder::get_current_builder()
+            ->get_current_scope()
+            .body.back()
+            .checked_as<evaluate>()
+            ->value_.checked_as<intrin_call>()
+            ->intrin_attrs_->set(intrin_attr::allow_brgemm_fusion, true);
+}
+
 void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
         const expr &M, const expr &N, const expr &K, const expr &LDA,
         const expr &LDB, const expr &LDC, const expr &stride_a,

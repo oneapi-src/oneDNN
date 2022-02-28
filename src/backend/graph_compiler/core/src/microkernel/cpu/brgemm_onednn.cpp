@@ -441,8 +441,9 @@ struct brg_desc_safe_t {
                     arg.M, arg.N, static_cast<int>(sc_dtype::F32));
             dnnl_dst_md.data_type = dnnl_out_dtype;
 
-            brgemm_desc_set_postops(
-                    &desc, &dnnl_pattr, &dnnl_dst_md, arg.N, dnnl_bias_dtype);
+            status = brgemm_desc_set_postops(
+                    &desc, &dnnl_pattr, &dnnl_dst_md, arg.LDC, dnnl_bias_dtype);
+            assert(status == dnnl::impl::status::success);
             // use local vars' lifetime
             status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
         } else {
