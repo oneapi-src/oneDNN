@@ -565,9 +565,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             if (oport >= current_op->num_outputs()) break;
             auto cons = current_op->get_output_value(static_cast<size_t>(oport))
                                 ->get_consumers();
-            if (cons.empty()) break;
-            assertm(cons.size() == 1,
-                    "repetition is restricted to have only 1 output");
+            if (cons.size() != 1) break;
             op_t *next_op = &(cons[0].get_op());
             temp_bind.bind_op = next_op;
 

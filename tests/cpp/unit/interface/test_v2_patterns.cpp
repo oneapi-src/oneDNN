@@ -1149,3 +1149,55 @@ TEST(PatternMatcherV2, NestedMatchingFailure) {
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
     ASSERT_EQ(fusion_ops.size(), 2);
 }
+
+TEST(PatternMatcherV2, RepetitionWithMultipleConsumers) {
+    /* pattern
+       conv
+        |
+       relu x [1,3)
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto pconv = graphp->append_op(Convolution, "pconv");
+    auto repbody = std::make_shared<pb_graph_t>("prepetitionbody");
+    auto prelu = repbody->append_op(ReLU, "prelu");
+    repbody->create_input_port(IN0, prelu, IN0);
+    repbody->create_output_port(OUT0, prelu, OUT0);
+    graphp->append_repetition(repbody, {OUT0, IN0}, 1, 3,
+            {in_edge(IN0, pconv, OUT0)}, "prepetition");
+
+    /* graph
+       conv
+        |
+       relu
+        / \
+   wildcard wildcard
+    */
+    graph_t agraph;
+    op_t conv {0, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t relu {1, ReLU, "relu"};
+    op_t wildcard1 {2, Wildcard, "w1"};
+    op_t wildcard2 {3, Wildcard, "w2"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
+    conv.add_input(lt_vec[2]);
+    conv.add_input(lt_vec[3]);
+    conv.add_output(lt_vec[4]);
+    relu.add_input(lt_vec[4]);
+    relu.add_output(lt_vec[5]);
+    wildcard1.add_input(lt_vec[5]);
+    wildcard1.add_output(lt_vec[6]);
+    wildcard2.add_input(lt_vec[5]);
+    wildcard2.add_output(lt_vec[7]);
+
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard1), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard2), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 2);
+}
