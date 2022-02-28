@@ -3232,31 +3232,38 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             new_op->set_attr<bool>("is_bias_add", true);
         } else if (is_eltwise_kind(cur_op->get_kind())) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
-            // convert the frontend op attr to backend op attr instead of
-            // directly merging them.
+            merge_common_eltwise_attrs(cur_op, new_op);
             merge_attr = false;
-            if (cur_op->has_attr("alpha")) {
-                new_op->set_attr<float>(
-                        "alpha", cur_op->get_attr<float>("alpha"));
-            } else if (cur_op->has_attr("min")) {
-                new_op->set_attr<float>(
-                        "alpha", cur_op->get_attr<float>("min"));
-            } else {
-                new_op->set_attr<float>("alpha", 0);
-            }
-
-            if (cur_op->has_attr("beta")) {
-                new_op->set_attr<float>(
-                        "beta", cur_op->get_attr<float>("beta"));
-            } else if (cur_op->has_attr("max")) {
-                new_op->set_attr<float>("beta", cur_op->get_attr<float>("max"));
-            } else {
-                new_op->set_attr<float>("beta", 0);
-            }
-
             new_op->set_attr<int64_t>("alg_kind",
                     static_cast<int64_t>(
                             get_eltwise_alg_map().at(cur_op->get_kind())));
+        } else if (is_eltwise_bwd_kind(cur_op->get_kind())) {
+            auto kind = cur_op->get_kind();
+            // TODO(xxx): consider the unification of inputs order in our spec
+            // ('output_delta' in most cases appears as 2nd input, but in below
+            // ones, as 1st)
+            if (kind == impl::op_kind::HardTanhBackprop
+                    || kind == impl::op_kind::ReLUBackprop
+                    || kind == impl::op_kind::SqrtBackprop) {
+                cur_op->swap_input_values(0, 1);
+            }
+            new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise_bwd);
+            merge_common_eltwise_attrs(cur_op, new_op);
+            const bool use_dst = cur_op->has_attr("use_dst")
+                    ? cur_op->get_attr<bool>("use_dst")
+                    : false;
+            new_op->set_attr("use_dst", use_dst);
+            merge_attr = false;
+            auto bwd_algo = get_eltwise_bwd_alg(kind, use_dst);
+            auto fwd_algo = get_eltwise_bwd_alg(kind, false);
+            if (bwd_algo == algorithm::undef) {
+                DEBUG_PRINT_ERROR("Unsupported etlwise bwd op.");
+                return impl::status::unsupported;
+            }
+            new_op->set_attr<int64_t>(
+                    "alg_kind", static_cast<int64_t>(bwd_algo));
+            new_op->set_attr<int64_t>(
+                    "fwd_alg_kind", static_cast<int64_t>(fwd_algo));
         } else if (cur_op->get_kind() == impl::op_kind::BatchNormInference
                 || cur_op->get_kind()
                         == impl::op_kind::BatchNormForwardTraining) {

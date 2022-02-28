@@ -168,6 +168,7 @@ namespace op_kind {
     X(dnnl_batchnorm, Dnnl_batchnorm) \
     X(dnnl_binary, Dnnl_binary) \
     X(dnnl_eltwise, Dnnl_eltwise) \
+    X(dnnl_eltwise_bwd, Dnnl_eltwise_bwd) \
     X(dnnl_shuffle, Dnnl_shuffle) \
     X(interpolate_fusion, Interpolate_fusion) \
     X(dnnl_sum, Dnnl_sum) \

@@ -370,7 +370,10 @@ public:
                 impl::op_kind::Log, impl::op_kind::Pow, impl::op_kind::ReLU,
                 op_kind::relu_add, impl::op_kind::Round, impl::op_kind::Sigmoid,
                 impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh,
-                op_kind::dnnl_sum,
+                impl::op_kind::EluBackprop, impl::op_kind::GELUBackprop,
+                impl::op_kind::HardTanhBackprop, impl::op_kind::ReLUBackprop,
+                impl::op_kind::SigmoidBackprop, impl::op_kind::SqrtBackprop,
+                impl::op_kind::TanhBackprop, op_kind::dnnl_sum,
                 // f32 binary pattern
                 impl::op_kind::Add, op_kind::add_relu, op_kind::add_sigmoid,
                 op_kind::add_multiply, impl::op_kind::Multiply,

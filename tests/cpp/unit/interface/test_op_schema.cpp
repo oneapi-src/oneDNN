@@ -1375,7 +1375,7 @@ TEST(OpSchema, InferHardTanhOutputShape) {
 
 TEST(OpSchema, HardTanhBackprop) {
     const op_kind_t op_kind_ = op_kind::HardTanhBackprop;
-    const size_t expected_in_size = 1;
+    const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
     const std::map<std::string, bool> attrs_data

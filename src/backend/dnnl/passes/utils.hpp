@@ -259,13 +259,16 @@ inline bool is_preprocess_op(impl::op_t &op) {
 
 void replace_op(std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
 
+void merge_common_eltwise_attrs(
+        std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op);
+
 inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
     static const std::map<op_kind_t, dnnl::algorithm> &eltwise_alg_map
             = {{impl::op_kind::Abs, dnnl::algorithm::eltwise_abs},
                     {impl::op_kind::Elu, dnnl::algorithm::eltwise_elu},
                     {impl::op_kind::Exp, dnnl::algorithm::eltwise_exp},
                     {impl::op_kind::GELU, dnnl::algorithm::eltwise_gelu_erf},
-                    {impl::op_kind::HardTanh, dnnl::algorithm::eltwise_clip},
+                    {impl::op_kind::HardTanh, dnnl::algorithm::eltwise_clip_v2},
                     {impl::op_kind::Log, dnnl::algorithm::eltwise_log},
                     {impl::op_kind::ReLU, dnnl::algorithm::eltwise_relu},
                     {impl::op_kind::Round, dnnl::algorithm::eltwise_round},
@@ -275,6 +278,32 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
                     {impl::op_kind::Tanh, dnnl::algorithm::eltwise_tanh},
                     {impl::op_kind::Pow, dnnl::algorithm::eltwise_pow}};
     return eltwise_alg_map;
+}
+
+inline dnnl::algorithm get_eltwise_bwd_alg(op_kind_t kind, bool use_dst) {
+    using algo = dnnl::algorithm;
+    switch (kind) {
+        case impl::op_kind::EluBackprop:
+            if (use_dst) return algo::eltwise_elu_use_dst_for_bwd;
+            return algo::eltwise_elu;
+        case impl::op_kind::GELUBackprop: return algo::eltwise_gelu_erf;
+        case impl::op_kind::HardTanhBackprop:
+            if (use_dst) return algo::eltwise_clip_v2_use_dst_for_bwd;
+            return algo::eltwise_clip_v2;
+        case impl::op_kind::ReLUBackprop:
+            if (use_dst) return algo::eltwise_relu_use_dst_for_bwd;
+            return algo::eltwise_relu;
+        case impl::op_kind::SigmoidBackprop:
+            if (use_dst) return algo::eltwise_logistic_use_dst_for_bwd;
+            return algo::eltwise_logistic;
+        case impl::op_kind::SqrtBackprop:
+            if (use_dst) return algo::eltwise_sqrt_use_dst_for_bwd;
+            return algo::eltwise_sqrt;
+        case impl::op_kind::TanhBackprop:
+            if (use_dst) return algo::eltwise_tanh_use_dst_for_bwd;
+            return algo::eltwise_tanh;
+        default: return algo::undef;
+    }
 }
 
 inline const std::map<op_kind_t, dnnl::algorithm> &get_reduction_alg_map() {
@@ -297,6 +326,14 @@ inline bool is_eltwise_kind(op_kind_t kind) {
             impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Pow};
     return eltwise_kinds.find(kind) != eltwise_kinds.end();
+}
+
+inline bool is_eltwise_bwd_kind(op_kind_t kind) {
+    const std::set<op_kind_t> eltwise_bwd_kinds {impl::op_kind::EluBackprop,
+            impl::op_kind::GELUBackprop, impl::op_kind::HardTanhBackprop,
+            impl::op_kind::ReLUBackprop, impl::op_kind::SigmoidBackprop,
+            impl::op_kind::SqrtBackprop, impl::op_kind::TanhBackprop};
+    return eltwise_bwd_kinds.find(kind) != eltwise_bwd_kinds.end();
 }
 
 inline bool is_binary_kind(op_kind_t kind) {

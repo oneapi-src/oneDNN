@@ -722,6 +722,48 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     return {pd, true};
 }
 
+inline std::pair<dnnl::eltwise_backward::primitive_desc, bool>
+create_eltwise_bwd_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<dnnl::eltwise_backward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    const auto alpha = op->get_attr<float>("alpha");
+    const auto beta = op->get_attr<float>("beta");
+    const auto bwd_algo
+            = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
+    const auto fwd_algo = static_cast<dnnl::algorithm>(
+            op->get_attr<int64_t>("fwd_alg_kind"));
+
+    auto forward_data = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    dnnl::eltwise_forward::primitive_desc fwd_hints(
+            {prop_kind::forward_training, fwd_algo, forward_data, alpha, beta},
+            prm_attr, p_engine);
+
+    auto backward_data = make_dnnl_memory_desc(
+            op->get_input_value(1)->get_logical_tensor());
+    dnnl::eltwise_backward::primitive_desc pd(
+            {bwd_algo, backward_data, backward_data, alpha, beta}, prm_attr,
+            p_engine, fwd_hints);
+
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
+}
+
 inline dnnl::sum::primitive_desc create_dnnl_sum_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr_t &prm_attr_mgr) {
@@ -1287,6 +1329,26 @@ struct eltwise_executable_t : public op_executable_t {
 private:
     dnnl::eltwise_forward::primitive_desc pd_;
     dnnl::eltwise_forward prim_;
+};
+
+struct eltwise_bwd_executable_t : public op_executable_t {
+    eltwise_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_eltwise_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::eltwise_backward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::eltwise_backward::primitive_desc pd_;
+    dnnl::eltwise_backward prim_;
 };
 
 struct binary_executable_t : public op_executable_t {

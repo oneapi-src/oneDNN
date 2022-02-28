@@ -503,10 +503,11 @@ DNNL_GRAPH_OP_SCHEMA(HardTanh, 1,
 
 DNNL_GRAPH_OP_SCHEMA(HardTanhBackprop, 1,
         op_schema_t()
-                .set_num_inputs(1)
+                .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_input(0, "output_delta",
                         "gradient tensor w.r.t. the output", "T")
+                .set_input(1, "input_forward", "input of forward", "T")
                 .set_output(0, "input_delta",
                         "gradient tensor w.r.t. the input of HardTanh", "T")
                 .set_attr("min", "lower bound of values in the output", true,

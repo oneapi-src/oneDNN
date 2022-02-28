@@ -4470,11 +4470,13 @@ TEST(Pass, DnnlSingleOpReplacement) {
     std::vector<op_kind_t> single_op_set_supported = {BatchNormInference, Add,
             ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop,
             BatchNormTrainingBackprop, ConvolutionBackpropData,
-            ConvolutionBackpropFilters, MaxPoolBackprop, ReLUBackprop,
-            GELUBackprop, LogSoftmax, LogSoftmaxBackprop, SoftMax, LayerNorm,
-            LayerNormBackprop, BatchNormForwardTraining, Elu, Exp, HardTanh,
-            Log, Multiply, Maximum, Minimum, Pow, Sqrt, Square, Tanh,
-            SoftMaxBackprop, DynamicQuantize, DynamicDequantize};
+            ConvolutionBackpropFilters, MaxPoolBackprop, Elu, Exp, HardTanh,
+            Log, LogSoftmax, SoftMax, Multiply, Maximum, Minimum, Pow, Sqrt,
+            Square, Tanh, EluBackprop, GELUBackprop, HardTanhBackprop,
+            LogSoftmaxBackprop, ReLUBackprop, SigmoidBackprop, SqrtBackprop,
+            TanhBackprop, LayerNorm, LayerNormBackprop,
+            BatchNormForwardTraining, SoftMaxBackprop, DynamicQuantize,
+            DynamicDequantize};
     for (auto akind : single_op_set_supported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);

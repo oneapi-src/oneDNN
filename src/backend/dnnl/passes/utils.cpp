@@ -569,6 +569,25 @@ void replace_op(op_ptr &org_op, op_ptr &new_op) {
     }
 }
 
+void merge_common_eltwise_attrs(
+        std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op) {
+    if (org_op->has_attr("alpha")) {
+        new_op->set_attr<float>("alpha", org_op->get_attr<float>("alpha"));
+    } else if (org_op->has_attr("min")) {
+        new_op->set_attr<float>("alpha", org_op->get_attr<float>("min"));
+    } else {
+        new_op->set_attr<float>("alpha", 0);
+    }
+
+    if (org_op->has_attr("beta")) {
+        new_op->set_attr<float>("beta", org_op->get_attr<float>("beta"));
+    } else if (org_op->has_attr("max")) {
+        new_op->set_attr<float>("beta", org_op->get_attr<float>("max"));
+    } else {
+        new_op->set_attr<float>("beta", 0);
+    }
+}
+
 std::vector<value_t *> get_constant_block_output_values(
         const std::vector<op_ptr> &subgraph) {
     using ltw = impl::logical_tensor_wrapper_t;

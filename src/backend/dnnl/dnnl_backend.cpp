@@ -143,8 +143,13 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::Sqrt, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Square, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Tanh, float_eltwise_fwd)
-    DNNL_REGISTER_KERNEL(impl::op_kind::ReLUBackprop, eltwise_backward)
-    DNNL_REGISTER_KERNEL(impl::op_kind::GELUBackprop, eltwise_backward)
+    DNNL_REGISTER_KERNEL(impl::op_kind::EluBackprop, eltwise_bwd_t)
+    DNNL_REGISTER_KERNEL(impl::op_kind::GELUBackprop, eltwise_bwd_t)
+    DNNL_REGISTER_KERNEL(impl::op_kind::HardTanhBackprop, eltwise_bwd_t)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ReLUBackprop, eltwise_bwd_t)
+    DNNL_REGISTER_KERNEL(impl::op_kind::SigmoidBackprop, eltwise_bwd_t)
+    DNNL_REGISTER_KERNEL(impl::op_kind::SqrtBackprop, eltwise_bwd_t)
+    DNNL_REGISTER_KERNEL(impl::op_kind::TanhBackprop, eltwise_bwd_t)
 
     // matmul related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::MatMul, float_matmul)

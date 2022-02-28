@@ -59,6 +59,9 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
             exec = std::make_shared<eltwise_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == op_kind::dnnl_eltwise_bwd) {
+            exec = std::make_shared<eltwise_bwd_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_shuffle) {
             exec = std::make_shared<shuffle_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
