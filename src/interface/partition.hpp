@@ -95,11 +95,12 @@ public:
 
     size_t num_ops() const { return pimpl_->get_ops().size(); }
 
-    std::unordered_set<size_t> get_op_ids() const {
-        std::unordered_set<size_t> ids;
+    std::vector<size_t> get_op_ids() const {
+        std::vector<size_t> ids;
         auto ops = pimpl_->get_ops();
+        ids.reserve(ops.size());
         for (auto &op : ops) {
-            ids.insert(op->get_id());
+            ids.emplace_back(op->get_id());
         }
         return ids;
     }

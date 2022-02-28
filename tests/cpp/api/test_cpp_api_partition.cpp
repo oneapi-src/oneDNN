@@ -78,6 +78,10 @@ TEST(api_partition, partition_test) {
     ASSERT_EQ(ops.size(), 2);
     ASSERT_EQ(partitions[0].get_ops_num(), 2);
 
+    // The returned op ids in partition must be in topo order
+    ASSERT_EQ(partitions[0].get_ops()[0], 0);
+    ASSERT_EQ(partitions[0].get_ops()[1], 1);
+
     logical_tensor lt1_plain {0, logical_tensor::data_type::f32, input_dims,
             logical_tensor::layout_type::strided};
     logical_tensor lt2_plain {1, logical_tensor::data_type::f32,
