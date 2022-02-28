@@ -154,7 +154,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_div_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_div_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_mulordiv_add_fusion)
         .set_priority(9.0f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -162,15 +162,16 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_div_add_fusion)
                             = pgraph->append_op(impl::op_kind::MatMul);
                     matmul->append_decision_function(check_input_num<2>);
 
-                    pm::pb_op *div = pgraph->append_op(impl::op_kind::Divide,
+                    pm::pb_op *div = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
                             in_edges_t {in_edge(0, matmul, 0)});
                     pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, div, 0)});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::matmul_div_add);
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::float_matmul_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });

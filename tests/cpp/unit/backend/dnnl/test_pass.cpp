@@ -3657,13 +3657,13 @@ TEST(Pass, FuseMatmulDivAdd) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 5);
 
-    pass::pass_base_ptr apass = get_pass("matmul_div_add_fusion");
+    pass::pass_base_ptr apass = get_pass("matmul_mulordiv_add_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::matmul_div_add);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::float_matmul_fusion);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -3716,7 +3716,7 @@ TEST(PassSystem, FuseMatmulDivAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::matmul_div_add);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::float_matmul_fusion);
 }
 
 // matmul->div->add should have higher priority than
@@ -3735,7 +3735,7 @@ TEST(PassPriority, TestMatmulDivAdd) {
             add
     */
     pass::pass_base_ptr pass1 = get_pass("matmul_div_fusion");
-    pass::pass_base_ptr pass2 = get_pass("matmul_div_add_fusion");
+    pass::pass_base_ptr pass2 = get_pass("matmul_mulordiv_add_fusion");
     pass::pass_base_ptr pass3 = get_pass("matmul_pass");
     pass::pass_base_ptr pass4 = get_pass("x8x8f32_matmul_div_fusion");
     pass::pass_base_ptr pass5 = get_pass("x8x8f32_matmul_div_add_fusion");

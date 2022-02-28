@@ -657,15 +657,12 @@ static bool post_binary_fusible_impl(const impl::op_t *base_op,
                     [](dim_t i) { return i == 1; }))
         return true;
 
-    // per mb_w broadcasted for 4d tensor MatMul
+    // any broadcasted for 4d tensor MatMul
     int32_t output_ndims = static_cast<int32_t>(fused_shape.size());
     if (base_op->get_kind() == op_kind::dnnl_matmul && output_ndims == 4) {
-        int32_t w_axis = data_fmt == "NXC" ? 2 : 3;
         for (int32_t i = output_ndims - 1; i >= 0; i--) {
             if (other_shape[i] == 1) continue;
-            if ((i != 0 && i != w_axis) || fused_shape[i] != other_shape[i]) {
-                return false;
-            }
+            if (fused_shape[i] != other_shape[i]) { return false; }
         }
         return true;
     }

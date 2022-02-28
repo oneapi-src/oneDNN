@@ -181,7 +181,7 @@ namespace op_kind {
     X(reorder_sum, Reorder_sum) \
     X(int8_reorder, INT8_reorder) \
     X(matmul_div, MatMul_div) \
-    X(matmul_div_add, MatMul_div_add) \
+    X(float_matmul_fusion, Float_matmul_fusion) \
     X(dnnl_batchnorm_bwd, Dnnl_batchnorm_bwd) \
     X(dnnl_softmax_bwd, Dnnl_softmax_bwd) \
     X(dnnl_logsoftmax_bwd, Dnnl_logsoftmax_bwd) \

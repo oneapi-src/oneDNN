@@ -4186,7 +4186,7 @@ TEST(Execute, MatmulDivAddFusion) {
     ASSERT_EQ(g.add_op(&add_op), impl::status::success);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("matmul_div_add_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("matmul_mulordiv_add_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -4216,6 +4216,96 @@ TEST(Execute, MatmulDivAddFusion) {
     for (size_t i = 0; i < ref_dst_data.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
     }
+}
+
+TEST(Execute, MatmulSwapBinaryMulAddFusion) {
+    impl::engine_t &engine = get_engine();
+
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t div_op(1, impl::op_kind::Multiply, "div_op");
+    impl::op_t add_op(2, impl::op_kind::Add, "add_op");
+
+    std::vector<int64_t> src_shape {2, 2, 2, 2};
+    std::vector<int64_t> div_shape {1};
+    std::vector<int64_t> add_shape {2, 1, 2, 2};
+
+    test::vector<float> src_data(product(src_shape));
+    test::vector<float> weight_data(product(src_shape));
+    test::vector<float> div_src1_data(product(div_shape));
+    test::vector<float> add_src1_data(product(add_shape));
+    test::vector<float> dst_data(product(src_shape), 0.0);
+
+    // random generate src, weight and bias data random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(), [&]() {
+        return static_cast<uint8_t>(f32_distribution(generator));
+    });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return static_cast<int8_t>(f32_distribution(generator)); });
+    std::generate(div_src1_data.begin(), div_src1_data.end(),
+            [&]() { return static_cast<int8_t>(f32_distribution(generator)); });
+    std::generate(add_src1_data.begin(), add_src1_data.end(),
+            [&]() { return static_cast<int8_t>(f32_distribution(generator)); });
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t div_src1
+            = utils::logical_tensor_init(2, div_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t div_dst
+            = utils::logical_tensor_init(4, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t add_src1
+            = utils::logical_tensor_init(5, add_shape, impl::data_type::f32);
+    impl::logical_tensor_t add_dst
+            = utils::logical_tensor_init(6, src_shape, impl::data_type::f32);
+
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    div_op.add_input(dst);
+    div_op.add_input(div_src1);
+    div_op.add_output(div_dst);
+    add_op.add_input(add_src1);
+    add_op.add_input(div_dst);
+    add_op.add_output(add_dst);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&div_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_mulordiv_add_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &weight, &div_src1, &add_src1};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
+
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t div_src1_ts(div_src1, &engine, div_src1_data.data());
+    impl::tensor_t add_src1_ts(add_src1, &engine, add_src1_data.data());
+    impl::tensor_t dst_ts(add_dst, &engine, dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src_ts, weight_ts, div_src1_ts, add_src1_ts}, {dst_ts});
+    strm.wait();
 }
 
 TEST(Execute, MaxPool) {
