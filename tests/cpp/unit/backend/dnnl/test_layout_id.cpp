@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@
 #include "interface/backend.hpp"
 
 #include "backend/dnnl/dnnl_backend.hpp"
-#include "backend/dnnl/tensor.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;

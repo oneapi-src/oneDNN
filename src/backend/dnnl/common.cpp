@@ -26,7 +26,6 @@
 
 #include "common.hpp"
 #include "dnnl_backend.hpp"
-#include "tensor.hpp"
 
 #ifndef DNNL_GRAPH_CPU_SYCL
 const size_t DNNL_CPU_MEMALIGNMENT = 4096;

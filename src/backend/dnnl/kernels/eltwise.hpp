@@ -23,7 +23,6 @@
 #include <unordered_set>
 
 #include "backend/dnnl/internal_ops.hpp"
-#include "backend/dnnl/tensor.hpp"
 
 namespace dnnl {
 namespace graph {

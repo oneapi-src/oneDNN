@@ -23,7 +23,6 @@
 #include "kernels/kernels.hpp"
 
 #include "patterns/fusions.hpp"
-#include "tensor.hpp"
 
 namespace dnnl {
 namespace graph {

@@ -31,7 +31,6 @@
 #include "utils/pm/pass_manager.hpp"
 
 #include "common.hpp"
-#include "tensor.hpp"
 #include "utils.hpp"
 
 #ifdef DNNL_GRAPH_LAYOUT_DEBUG

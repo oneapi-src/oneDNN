@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ set(OBJ_LIB ${LIB_NAME}_backend_dnnl_unit_test)
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_fused_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_id.cpp

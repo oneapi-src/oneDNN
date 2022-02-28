@@ -23,7 +23,6 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
-#include "backend/dnnl/f32_kernel_resource.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/infer_type.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"

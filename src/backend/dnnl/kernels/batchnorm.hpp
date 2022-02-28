@@ -39,10 +39,6 @@
 #include "backend/dnnl/thread_local_cache.hpp"
 #include "backend/dnnl/utils.hpp"
 
-// should be removed later
-#include "backend/dnnl/tensor.hpp"
-#include "backend/dnnl/utils.hpp"
-
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #include <dnnl_sycl.hpp>

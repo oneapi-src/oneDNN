@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
-#include "backend/dnnl/f32_kernel_resource.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/infer_type.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"

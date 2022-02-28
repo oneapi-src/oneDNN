@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,11 +18,10 @@
 #include <gtest/gtest.h>
 
 #include "cpp/unit/utils.hpp"
-#include "interface/backend.hpp"
-#include "interface/logical_tensor.hpp"
 
 #include "backend/dnnl/dnnl_backend.hpp"
-#include "backend/dnnl/tensor.hpp"
+#include "interface/backend.hpp"
+#include "interface/logical_tensor.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace dnnl_impl = dnnl::graph::impl::dnnl_impl;
@@ -30,10 +29,10 @@ namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(LogicalTensor, ImplicitEqualLayout) {
     using ltw = impl::logical_tensor_wrapper_t;
-    using data_type = dnnl_impl::dnnl_tensor_t::desc_t::data_type;
-    using format_tag = dnnl_impl::dnnl_tensor_t::desc_t::format_tag;
+    using data_type = dnnl::memory::data_type;
+    using format_tag = dnnl::memory::format_tag;
 
-    dnnl_impl::memory::desc md({1, 2, 3, 4}, data_type::f32, format_tag::nchw);
+    dnnl::memory::desc md({1, 2, 3, 4}, data_type::f32, format_tag::nchw);
     auto layout_idx = dnnl_impl::dnnl_backend::get_singleton().set_mem_desc(md);
     ASSERT_TRUE(layout_idx.has_value());
     auto backend_idx = dnnl_impl::dnnl_backend::get_singleton().get_id();

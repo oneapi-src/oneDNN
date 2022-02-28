@@ -20,8 +20,6 @@
 #include <memory>
 #include <vector>
 
-#include "backend/dnnl/tensor.hpp"
-
 namespace dnnl {
 namespace graph {
 namespace impl {
