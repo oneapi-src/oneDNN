@@ -42,7 +42,7 @@ jit_uni_pool_kernel<isa>::~jit_uni_pool_kernel() = default;
 template <cpu_isa_t isa>
 jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
         const jit_pool_conf_t &ajpp, const memory_desc_t *dst_md)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
     , jpp(ajpp)
     , bf16_emu_(nullptr) {
     if (jpp.is_bf16 && !isa_has_bf16(jpp.isa))

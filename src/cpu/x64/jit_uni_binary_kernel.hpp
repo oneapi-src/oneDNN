@@ -43,7 +43,8 @@ struct binary_kernel_t : public jit_generator {
     using bcast_t = binary_bcast_t;
 
     binary_kernel_t(const size_t vlen, const binary_pd_t *pd,
-            const jit_binary_conf_t conf, bool tail_kernel = false);
+            const jit_binary_conf_t conf, const char *name,
+            bool tail_kernel = false);
     ~binary_kernel_t() override = default;
 
     void operator()(jit_binary_call_s *p) { jit_generator::operator()(p); }

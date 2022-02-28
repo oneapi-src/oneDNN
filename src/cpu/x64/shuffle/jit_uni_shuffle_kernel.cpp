@@ -39,7 +39,7 @@ static size_t get_padding_size(const jit_shuffle_conf_t &conf) {
 template <cpu_isa_t isa>
 jit_uni_shuffle_kernel_t<isa>::jit_uni_shuffle_kernel_t(
         const jit_shuffle_conf_t conf)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
     , conf_(conf)
     , padding_size_(get_padding_size(conf)) {}
 

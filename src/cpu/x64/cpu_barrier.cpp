@@ -89,7 +89,7 @@ struct jit_t : public jit_generator {
     }
 
     // TODO: Need to check status
-    jit_t() { create_kernel(); }
+    jit_t() : jit_generator(jit_name()) { create_kernel(); }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_t)
 };

@@ -142,6 +142,7 @@ private:
 jit_pp_ker_t::jit_pp_ker_t(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp)
     : pp_ker_t(pd, jcp)
+    , jit_generator(jit_name())
     , number_of_reserved_zmm_regs_(0)
     , bias_data_type_size_(jcp.bias_data_type != data_type::undef
                       ? types::data_type_size(jcp.bias_data_type)

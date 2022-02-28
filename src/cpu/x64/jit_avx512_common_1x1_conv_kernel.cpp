@@ -50,7 +50,7 @@ using namespace Xbyak;
 jit_avx512_common_1x1_conv_kernel::jit_avx512_common_1x1_conv_kernel(
         const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jcp(ajcp), attr_(attr) {
+    : jit_generator(jit_name()), jcp(ajcp), attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;

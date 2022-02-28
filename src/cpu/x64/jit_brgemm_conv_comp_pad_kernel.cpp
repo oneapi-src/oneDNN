@@ -33,7 +33,8 @@ namespace jit_avx512_core_brgemm_conv_comp_pad_kernel {
 jit_avx512_core_brgemm_conv_comp_pad_kernel_t::
         jit_avx512_core_brgemm_conv_comp_pad_kernel_t(
                 const jit_brgemm_conv_conf_t &ajcp)
-    : jcp_(ajcp)
+    : jit_generator(jit_name())
+    , jcp_(ajcp)
     , inp_dsz_(jcp_.wei_dsz)
     , out_dsz_(jcp_.acc_dsz)
     , nb_ic_(utils::div_up(jcp_.ic, 4))

@@ -44,7 +44,7 @@ using namespace Xbyak;
 jit_avx512_core_bf16_1x1_conv_kernel::jit_avx512_core_bf16_1x1_conv_kernel(
         const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
+    : jit_generator(jit_name(), nullptr, ker_code_size, true, avx512_core_bf16)
     , jcp(ajcp)
     , attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary) {

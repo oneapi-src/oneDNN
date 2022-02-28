@@ -37,7 +37,7 @@ struct jit_uni_reduction_kernel_base_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_reduction)
 
     jit_uni_reduction_kernel_base_t(const jit_reduction_conf_t &conf)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, conf.isa)
+        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, conf.isa)
         , conf_(conf)
         , sum_scales_(conf_.sum_scales) {}
     virtual ~jit_uni_reduction_kernel_base_t() = default;

@@ -1050,7 +1050,7 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::generate() {
 jit_avx512_core_amx_fwd_kernel_t::jit_avx512_core_amx_fwd_kernel_t(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
     , jcp(ajcp)
     , attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {

@@ -79,7 +79,7 @@ class jit_avx512_core_gemv_s8x8s32_kern : public jit_generator {
 
 public:
     jit_avx512_core_gemv_s8x8s32_kern(ver_t ver)
-        : jit_generator(nullptr, 32 * 1024), ver(ver) {}
+        : jit_generator(jit_name(), nullptr, 32 * 1024), ver(ver) {}
 };
 
 } // namespace x64

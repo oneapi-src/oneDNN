@@ -129,7 +129,7 @@ struct jit_uni_dw_conv_bwd_data_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_bwd_data_kernel_f32)
 
     jit_uni_dw_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp) {}
+        : jit_generator(jit_name()), jcp(ajcp) {}
     jit_conv_conf_t jcp;
 
 private:
@@ -194,7 +194,7 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_bwd_weights_kernel_f32)
 
     jit_uni_dw_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp) {}
+        : jit_generator(jit_name()), jcp(ajcp) {}
 
     jit_conv_conf_t jcp;
 

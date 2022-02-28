@@ -43,7 +43,10 @@ template <typename Vmm>
 jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::
         jit_avx512_core_x8s8s32x_deconv_fwd_kernel(const jit_conv_conf_t &ajcp,
                 const primitive_attr_t &attr, const memory_desc_t &dst_md)
-    : jcp(ajcp), attr_(attr), postops_injector_(nullptr) {
+    : jit_generator(jit_name())
+    , jcp(ajcp)
+    , attr_(attr)
+    , postops_injector_(nullptr) {
 
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
         const std::size_t tail_size = jcp.is_depthwise

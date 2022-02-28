@@ -26,7 +26,8 @@ namespace x64 {
 
 jit_gates_reduction_t::jit_gates_reduction_t(
         const rnn_utils::rnn_conf_t &rnn, bool is_n_tail)
-    : rnn_(rnn)
+    : jit_generator(jit_name())
+    , rnn_(rnn)
     , is_n_tail_(is_n_tail)
     , n_block_(is_n_tail_ ? rnn_.diff_wei_brgemm.n_tail
                           : rnn_.diff_wei_brgemm.n_block)

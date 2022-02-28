@@ -38,7 +38,7 @@ struct jit_brgemm_trans_m_k_f32_t : public jit_brgemm_trans_src_t,
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_m_k_f32_t)
 
     jit_brgemm_trans_m_k_f32_t(const jit_brgemm_primitive_conf_t *conf)
-        : jit_brgemm_trans_src_t(conf) {}
+        : jit_brgemm_trans_src_t(conf), jit_generator(jit_name()) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -317,7 +317,7 @@ struct jit_brgemm_trans_m_k_bf16_t : public jit_brgemm_trans_src_t,
                                      public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_m_k_bf16_t)
     jit_brgemm_trans_m_k_bf16_t(const jit_brgemm_primitive_conf_t *conf)
-        : jit_brgemm_trans_src_t(conf) {}
+        : jit_brgemm_trans_src_t(conf), jit_generator(jit_name()) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -883,7 +883,8 @@ struct jit_trans_to_vnni_t : public jit_brgemm_trans_to_vnni_t,
     jit_trans_to_vnni_t(const jit_brgemm_primitive_conf_t *conf,
             jit_brgemm_trans_to_vnni_t::matrix_to_transform_t
                     matrix_to_transform)
-        : jit_brgemm_trans_to_vnni_t(conf, matrix_to_transform) {}
+        : jit_brgemm_trans_to_vnni_t(conf, matrix_to_transform)
+        , jit_generator(jit_name()) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -1185,7 +1186,8 @@ struct jit_copy_f32_t : public jit_brgemm_trans_to_vnni_t,
     jit_copy_f32_t(const jit_brgemm_primitive_conf_t *conf,
             jit_brgemm_trans_to_vnni_t::matrix_to_transform_t
                     matrix_to_transform)
-        : jit_brgemm_trans_to_vnni_t(conf, matrix_to_transform) {}
+        : jit_brgemm_trans_to_vnni_t(conf, matrix_to_transform)
+        , jit_generator(jit_name()) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -1326,7 +1328,7 @@ struct jit_brgemm_trans_wei_f32_t : public jit_brgemm_trans_wei_t,
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_wei_f32_t)
 
     jit_brgemm_trans_wei_f32_t(const jit_brgemm_primitive_conf_t *conf)
-        : jit_brgemm_trans_wei_t(conf) {}
+        : jit_brgemm_trans_wei_t(conf), jit_generator(jit_name()) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -1621,7 +1623,7 @@ struct jit_brgemm_trans_wei_bf16_t : public jit_brgemm_trans_wei_t,
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_trans_wei_bf16_t)
 
     jit_brgemm_trans_wei_bf16_t(const jit_brgemm_primitive_conf_t *conf)
-        : jit_brgemm_trans_wei_t(conf) {}
+        : jit_brgemm_trans_wei_t(conf), jit_generator(jit_name()) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -1861,7 +1863,8 @@ struct jit_amx_ip_trans_diff_wei_to_vnni_t : public jit_amx_ip_trans_diff_wei,
 
     jit_amx_ip_trans_diff_wei_to_vnni_t(const jit_brgemm_primitive_conf_t *jbgp,
             const int ext_ic_block, const int ext_oc_block)
-        : jit_amx_ip_trans_diff_wei(jbgp, ext_ic_block, ext_oc_block) {}
+        : jit_amx_ip_trans_diff_wei(jbgp, ext_ic_block, ext_oc_block)
+        , jit_generator(jit_name()) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }

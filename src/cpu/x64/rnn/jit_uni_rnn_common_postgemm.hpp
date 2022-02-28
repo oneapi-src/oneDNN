@@ -36,8 +36,10 @@ namespace x64 {
 
 struct jit_uni_rnn_postgemm : public jit_generator {
 
-    jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
-        : rnn_(rnn)
+    jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd,
+            const char *name)
+        : jit_generator(name)
+        , rnn_(rnn)
         , pd_(pd)
         , projection_(false)
         , bias_dt_size_(types::data_type_size(rnn.bias_dt))

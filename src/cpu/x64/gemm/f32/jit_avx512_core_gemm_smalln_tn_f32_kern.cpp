@@ -46,7 +46,10 @@ struct xbyak_gemm_smalln_tn_t : public jit_generator {
     xbyak_gemm_smalln_tn_t(int N, float beta, float alpha,
             void *code_ptr = nullptr,
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
-        : jit_generator(code_ptr, code_size), N(N), beta(beta), alpha(alpha) {}
+        : jit_generator(jit_name(), code_ptr, code_size)
+        , N(N)
+        , beta(beta)
+        , alpha(alpha) {}
 
     void generate() override ATTRIBUTE_OPTIMIZE {
         using namespace Xbyak;

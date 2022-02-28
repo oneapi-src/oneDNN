@@ -221,7 +221,7 @@ template <typename Vmm>
 struct _jit_avx512_common_conv_bwd_data_kernel_f32 : public jit_generator {
 
     _jit_avx512_common_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp) {}
+        : jit_generator(jit_name()), jcp(ajcp) {}
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_common_conv_bwd_data_kernel_f32)
     jit_conv_conf_t jcp;
@@ -381,7 +381,7 @@ private:
 struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     jit_avx512_common_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp) {}
+        : jit_generator(jit_name()), jcp(ajcp) {}
 
     void generate() override {
         if (jcp.harness != harness_nxc)

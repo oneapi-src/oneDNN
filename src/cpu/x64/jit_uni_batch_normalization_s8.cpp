@@ -207,7 +207,8 @@ struct jit_bnorm_base_t : public jit_generator {
         postamble();
     }
 
-    jit_bnorm_base_t(const batch_normalization_pd_t *pd) : pd_(pd) {}
+    jit_bnorm_base_t(const batch_normalization_pd_t *pd)
+        : jit_generator(jit_name()), pd_(pd) {}
 };
 
 template <cpu_isa_t isa>

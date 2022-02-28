@@ -25,7 +25,8 @@ namespace x64 {
 
 jit_diff_weights_peephole_t::jit_diff_weights_peephole_t(
         const rnn_utils::rnn_conf_t &rnn, const dim_t dhc_block_size)
-    : c_states_dt_(rnn.src_iter_c_dt)
+    : jit_generator(jit_name())
+    , c_states_dt_(rnn.src_iter_c_dt)
     , scratch_dt_(rnn.is_bf16() ? data_type::bf16 : data_type::f32)
     , dst_dt_(data_type::f32)
     , compute_block_size_(dhc_block_size)

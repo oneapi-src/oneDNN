@@ -27,7 +27,8 @@ struct jit_amx_tilecfg_t : public jit_generator {
 
     // TODO: Need to check status
     jit_amx_tilecfg_t()
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx) {
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx) {
         create_kernel();
     }
 
@@ -45,7 +46,8 @@ struct jit_amx_tilerelease_t : public jit_generator {
 
     // TODO: Need to check status
     jit_amx_tilerelease_t()
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx) {
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx) {
         create_kernel();
     }
 

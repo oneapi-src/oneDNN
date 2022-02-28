@@ -1730,7 +1730,8 @@ struct jit_bnorm_t : public jit_generator {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *bdesc) : bdesc_(bdesc) {
+    jit_bnorm_t(const batch_normalization_pd_t *bdesc)
+        : jit_generator(jit_name()), bdesc_(bdesc) {
         static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
                 "unsupported isa");
 

@@ -35,7 +35,7 @@ struct jit_uni_lstm_cell_postgemm_fwd
 
     jit_uni_lstm_cell_postgemm_fwd(
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
-        : jit_uni_rnn_postgemm(rnn, pd)
+        : jit_uni_rnn_postgemm(rnn, pd, jit_name())
         , jit_uni_lstm_cell_postgemm_t<isa>(
                   this, 6 /*tmp_id_begin*/, static_cast<bool>(bf16_emu_)) {}
 

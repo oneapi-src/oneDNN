@@ -32,8 +32,8 @@ namespace jit_avx512_core_brgemm_conv_trans_kernel {
 
 jit_avx512_core_brgemm_conv_trans_kernel_t::
         jit_avx512_core_brgemm_conv_trans_kernel_t(
-                const jit_brgemm_conv_conf_t &ajcp)
-    : jcp(ajcp) {
+                const jit_brgemm_conv_conf_t &ajcp, const char *name)
+    : jit_generator(name), jcp(ajcp) {
     inp_dsz = jcp.src_dsz;
     ic_block_sz = inp_dsz * jcp.ic_block;
     dst_w_block = dst_w(jcp.ow_block);
@@ -394,7 +394,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ow_block_body(
 jit_avx512_core_brgemm_conv_rtus_kernel_t::
         jit_avx512_core_brgemm_conv_rtus_kernel_t(
                 const jit_brgemm_conv_conf_t &ajcp)
-    : jit_avx512_core_brgemm_conv_trans_kernel_t(ajcp) {
+    : jit_avx512_core_brgemm_conv_trans_kernel_t(ajcp, jit_name()) {
     ic_block_sz = inp_dsz * jcp.LDA; // output may or may not be zero padded
     dst_h_offset = jcp.iwp * ic_block_sz;
 }

@@ -41,7 +41,8 @@ struct jit_avx512_core_amx_compute_zp_pbuff_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_compute_zp_pbuff_t)
 
     jit_avx512_core_amx_compute_zp_pbuff_t(const jit_conv_conf_t &ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp) {}
 
     static const int max_regs_ur = 30;
@@ -109,7 +110,8 @@ struct jit_avx512_core_amx_copy_to_wbuffer_t : public jit_generator {
     using reg64_t = Xbyak::Reg64;
 
     jit_avx512_core_amx_copy_to_wbuffer_t(const jit_conv_conf_t &ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp) {}
 
 private:
@@ -135,7 +137,8 @@ struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
     using reg64_t = Xbyak::Reg64;
 
     jit_avx512_core_amx_copy_to_pbuffer_t(const jit_conv_conf_t &ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp) {}
 
 private:
@@ -423,7 +426,8 @@ struct jit_avx512_core_amx_bwd_data_copy_kernel_t : public jit_generator {
     using reg64_t = Xbyak::Reg64;
 
     jit_avx512_core_amx_bwd_data_copy_kernel_t(jit_conv_conf_t ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp) {}
 
 private:
@@ -469,7 +473,8 @@ struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
 
     jit_avx512_core_amx_bwd_data_kernel_t(
             const jit_conv_conf_t ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp)
         , attr_(attr)
         , eltwise_injector_(nullptr) {
@@ -607,7 +612,8 @@ private:
 struct jit_avx512_core_amx_bwd_weights_kernel_t : public jit_generator {
 
     jit_avx512_core_amx_bwd_weights_kernel_t(const jit_conv_conf_t &ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp) {}
 
     ~jit_avx512_core_amx_bwd_weights_kernel_t() {}

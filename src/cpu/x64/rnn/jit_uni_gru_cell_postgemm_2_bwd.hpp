@@ -31,7 +31,7 @@ struct jit_uni_gru_cell_postgemm_part2_bwd : public jit_uni_rnn_postgemm {
 
     jit_uni_gru_cell_postgemm_part2_bwd(
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
-        : jit_uni_rnn_postgemm(rnn, pd) {}
+        : jit_uni_rnn_postgemm(rnn, pd, jit_name()) {}
 
     ~jit_uni_gru_cell_postgemm_part2_bwd() {}
 

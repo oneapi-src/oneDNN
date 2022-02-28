@@ -28,7 +28,8 @@ jit_prelu_backward_kernel_t::jit_prelu_backward_kernel_t(
     : jit_prelu_base_kernel_t(isa, vlen,
             prelu::get_bcast_type(memory_desc_wrapper(pd->diff_src_md(0)),
                     memory_desc_wrapper(pd->diff_weights_md(0))),
-            memory_desc_wrapper(pd->diff_src_md(0)), number_vmm_single_compute)
+            memory_desc_wrapper(pd->diff_src_md(0)), number_vmm_single_compute,
+            jit_name())
     , pd_(pd)
     , src_dt_(pd->src_md(0)->data_type)
     , wei_dt_(pd->weights_md(0)->data_type)

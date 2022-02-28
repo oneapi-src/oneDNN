@@ -64,7 +64,7 @@ struct xbyak_gemm_t : public jit_generator {
     xbyak_gemm_t(char isTransA, char isTransB, float beta, bool hasBias = false,
             void *code_ptr = nullptr,
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
-        : jit_generator(code_ptr, code_size)
+        : jit_generator(jit_name(), code_ptr, code_size)
         , isTransA(isTransA)
         , isTransB(isTransB)
         , beta(beta)
