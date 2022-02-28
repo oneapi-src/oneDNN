@@ -1,4 +1,4 @@
-.. SPDX-FileCopyrightText: 2020-2021 Intel Corporation
+.. SPDX-FileCopyrightText: 2020-2022 Intel Corporation
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
@@ -40,6 +40,8 @@ subset of the operation set.
    activation/Exp_1.rst
    activation/GELU_1.rst
    activation/GELUBackprop_1.rst
+   activation/HardSwish_1.rst
+   activation/HardSwishBackprop_1.rst
    activation/HardTanh_1.rst
    activation/HardTanhBackprop_1.rst
    movement/Index_1.rst
