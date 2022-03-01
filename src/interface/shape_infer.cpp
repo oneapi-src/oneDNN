@@ -603,9 +603,25 @@ status_t infer_pool_bwd_output_shape(op_t *n,
         }
     }
 
-    // We should compute output dense strides instead of
-    // directly copying input strides to it
-    set_shape_and_strides(*outputs[0], in0.vdims());
+    const bool is_maxpool = n->get_kind() == impl::op_kind::MaxPoolBackprop;
+    if (is_maxpool) {
+        // We should compute output dense strides instead of
+        // directly copying input strides to it
+        set_shape_and_strides(*outputs[0], in0.vdims());
+    } else {
+        // AvgPoolBackprop
+        dims diff_src_shape(in0.ndims());
+        if (!out0.is_shape_unknown()) {
+            // use output shape if known
+            diff_src_shape = out0.vdims();
+        } else {
+            // TODO(Xinyu): support shape tensor
+            if (inputs.size() > 1) return status::unsupported;
+            if (!n->has_attr("input_shape")) return status::unsupported;
+            diff_src_shape = n->get_attr<dims>("input_shape");
+        };
+        set_shape_and_strides(*outputs[0], diff_src_shape);
+    }
 
     // get attr value
     const dims &strides = n->get_attr<dims>("strides");
@@ -624,9 +640,9 @@ status_t infer_pool_bwd_output_shape(op_t *n,
         }
     }
 
-    const dims src_dims = in0.vdims();
-
-    dims src_sp = in0.get_src_spatial_dims(src_format);
+    // out0 is the diff_src, has same shape with src
+    const dims src_dims = out0.vdims();
+    dims src_sp = out0.get_src_spatial_dims(src_format);
 
     // if paddings are empty vectors?
     dims new_pads_begin(pads_begin);

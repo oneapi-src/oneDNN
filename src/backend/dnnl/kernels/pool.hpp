@@ -125,7 +125,7 @@ public:
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
+        BACKEND_DNNL_ADD_PASS(pipeline, pool_fwd_canonicalization);
 
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
@@ -300,8 +300,8 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
         BACKEND_DNNL_ADD_PASS(pipeline, insert_maxpool_forward);
-        BACKEND_DNNL_ADD_PASS(pipeline, maxpool_fwd_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, maxpool_bwd_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, pool_fwd_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, pool_bwd_canonicalization);
 
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
@@ -382,199 +382,6 @@ public:
             subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
         }
 
-        return impl::status::success;
-    }
-};
-
-struct pooling_backward : public dnnl::pooling_v2_backward,
-                          public kernel_base_t {
-    using super = dnnl::pooling_v2_backward;
-
-private:
-    dnnl::pooling_v2_forward::primitive_desc forward_hints_;
-    primitive_desc pd_;
-    op_kind_t kind_;
-
-    dnnl::engine p_engine_;
-    dnnl::stream p_stream_;
-
-public:
-    void compute(const dnnl_tensor_t &diff_dst, const dnnl_tensor_t &src,
-            dnnl_tensor_t &diff_src, const dnnl::engine &p_engine,
-            impl::allocator_t *alc, const dnnl::stream &p_stream,
-            dnnl_tensor_t indices = dnnl_tensor_t {}) {
-        // generate indices dnnl_tensor_t from src when it's needed
-        // but can't get from function parameters
-        if (kind_ == impl::op_kind::MaxPoolBackprop && indices.is_empty()) {
-            auto expected_src = src.reorder_if_differ_in(
-                    p_stream, forward_hints_.src_desc());
-            auto expected_dst
-                    = dnnl_tensor_t {forward_hints_.dst_desc(), p_engine, alc};
-            indices = dnnl_tensor_t {
-                    forward_hints_.workspace_desc(), p_engine, alc};
-            exec_args args {{DNNL_ARG_SRC, expected_src},
-                    {DNNL_ARG_DST, expected_dst},
-                    {DNNL_ARG_WORKSPACE, indices}};
-
-            dnnl::pooling_v2_forward(forward_hints_).execute(p_stream, args);
-        }
-
-        auto expected_diff_dst
-                = diff_dst.reorder_if_differ_in(p_stream, pd_.diff_dst_desc());
-        auto expected_diff_src
-                = diff_src.reorder_if_differ_in(p_stream, pd_.diff_src_desc());
-
-        exec_args args = exec_args {
-                {DNNL_ARG_DIFF_DST, expected_diff_dst},
-                {DNNL_ARG_DIFF_SRC, expected_diff_src},
-        };
-
-        if (!indices.is_empty()) { args.insert({DNNL_ARG_WORKSPACE, indices}); }
-
-        super(pd_).execute(p_stream, args);
-
-        if (expected_diff_src != diff_src) {
-            dnnl::reorder(expected_diff_src, diff_src)
-                    .execute(p_stream, expected_diff_src, diff_src);
-        }
-    }
-
-    impl::status_t compile_impl(const impl::op_t *op,
-            const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        // prepare the inputs and outputs' tensors' descs
-        std::string data_format = op->get_attr<std::string>("data_format");
-        size_t diff_dst_index
-                = (op->get_kind() == impl::op_kind::MaxPoolBackprop
-                          && inputs.size() > 2)
-                ? 2
-                : 1;
-        impl::logical_tensor_t src_lt = inputs.at(pool_bwd::kSrc);
-        impl::logical_tensor_t in_grad_lt = inputs.at(diff_dst_index);
-        impl::logical_tensor_t diff_src_lt = outputs.at(pool_bwd::kDiff_src);
-
-        dims strides = op->get_attr<dims>("strides");
-        dims kernel = op->get_attr<dims>("kernel");
-        dims pads_begin = op->get_attr<dims>("pads_begin");
-        dims pads_end = op->get_attr<dims>("pads_end");
-        dims dilations(strides.size(), 0);
-        if (op->has_attr("dilations")) {
-            dilations = op->get_attr<dims>("dilations");
-        }
-
-        auto src = make_dnnl_memory_desc(src_lt);
-        auto in_grad = make_dnnl_memory_desc(in_grad_lt);
-        auto diff_src = make_dnnl_memory_desc(diff_src_lt);
-        if (data_format == "NXC") {
-            src = permute_NXC2NCX(src);
-            in_grad = permute_NXC2NCX(in_grad);
-            diff_src = permute_NXC2NCX(diff_src);
-        }
-
-        // infer dnnl expilicit pad
-        dims new_pads_end(pads_end);
-        bool adj_pad = false;
-        std::string rounding_type = "floor";
-        if (op->has_attr("rounding_type")) {
-            rounding_type = op->get_attr<std::string>("rounding_type");
-        }
-        if (rounding_type == "ceil") {
-            dims src_sp = src.dims();
-            src_sp.erase(src_sp.begin(), src_sp.begin() + 2);
-            dims output_sp = in_grad.dims();
-            output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
-            for (size_t i = 0; i < kernel.size(); ++i) {
-                dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-                if (op->get_kind() == impl::op_kind::AvgPoolBackprop)
-                    dilated += 1;
-                dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
-                        - src_sp[i] - pads_begin[i];
-                new_pads_end[i] = cur_pads_end;
-            }
-            adj_pad = true;
-        }
-
-        kind_ = op->get_kind();
-        algorithm algo = algorithm::undef;
-        if (kind_ == impl::op_kind::AvgPoolBackprop) {
-            const bool exclude_pad = op->get_attr<bool>("exclude_pad");
-            algo = (exclude_pad || adj_pad)
-                    ? algorithm::pooling_avg_exclude_padding
-                    : algorithm::pooling_avg_include_padding;
-        } else if (kind_ == impl::op_kind::MaxPoolBackprop) {
-            algo = algorithm::pooling_max;
-            dilations = get_compatible_dilates(dilations, src.dims().size());
-        } else {
-            return status::unsupported;
-        }
-
-        p_engine_ = make_dnnl_engine(*g_engine);
-        in_grad = to_format_any(in_grad);
-        forward_hints_ = dnnl::pooling_v2_forward::primitive_desc(
-                {prop_kind::forward_training, algo, src, in_grad, strides,
-                        kernel, dilations, pads_begin, new_pads_end},
-                p_engine_);
-
-        pd_ = primitive_desc({algo, diff_src, in_grad, strides, kernel,
-                                     dilations, pads_begin, new_pads_end},
-                p_engine_, forward_hints_);
-
-        dnnl_tensor_t::desc_t optimal_diff_src_desc {pd_.diff_src_desc()};
-        impl::logical_tensor_t *raw_diff_src_lt
-                = const_cast<impl::logical_tensor_t *>(
-                        &outputs.at(pool_bwd::kDiff_src));
-        if (data_format == "NXC") {
-            optimal_diff_src_desc = permute_NCX2NXC(optimal_diff_src_desc);
-        }
-        fill_layout_info(raw_diff_src_lt, optimal_diff_src_desc);
-        return impl::status::success;
-    }
-
-    impl::status_t execute_impl(const impl::op_t *op,
-            const impl::stream_t *g_stream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) override {
-        p_stream_ = make_dnnl_stream(p_engine_, *g_stream);
-        impl::allocator_t *alc = g_stream->get_engine()->get_allocator();
-        std::string data_format = op->get_attr<std::string>("data_format");
-        auto diff_dst_index = (op->get_kind() == impl::op_kind::MaxPoolBackprop
-                                      && inputs.size() > 2)
-                ? 2
-                : 1;
-        auto &src_lt = const_cast<impl::logical_tensor_t &>(
-                inputs.at(pool_bwd::kSrc).get_logical_tensor());
-        auto &in_grad_lt = const_cast<impl::logical_tensor_t &>(
-                inputs.at(diff_dst_index).get_logical_tensor());
-        auto &diff_src_lt = const_cast<impl::logical_tensor_t &>(
-                outputs.at(pool_bwd::kDiff_src).get_logical_tensor());
-
-        auto src_desc = make_dnnl_memory_desc(src_lt);
-        auto in_grad_desc = make_dnnl_memory_desc(in_grad_lt);
-        auto diff_src_desc = make_dnnl_memory_desc(diff_src_lt);
-
-        if (data_format == "NXC") {
-            src_desc = permute_NXC2NCX(src_desc);
-            in_grad_desc = permute_NXC2NCX(in_grad_desc);
-            diff_src_desc = permute_NXC2NCX(diff_src_desc);
-        }
-
-        dnnl_tensor_t src {src_desc, p_engine_, alc,
-                inputs.at(pool_bwd::kSrc).get_data_handle()};
-        dnnl_tensor_t diff_dst {};
-        dnnl_tensor_t indices {};
-        if (op->get_kind() == impl::op_kind::MaxPoolBackprop
-                && inputs.size() > pool_bwd_with_indices::kDiff_dst) {
-            indices = dnnl_tensor_t {
-                    inputs.at(pool_bwd_with_indices::kIndices), p_engine_, alc};
-        }
-        diff_dst = dnnl_tensor_t {in_grad_desc, p_engine_, alc,
-                inputs.at(diff_dst_index).get_data_handle()};
-
-        dnnl_tensor_t diff_src {diff_src_desc, p_engine_, alc,
-                outputs.at(pool_bwd::kDiff_src).get_data_handle()};
-        pooling_backward::compute(
-                diff_dst, src, diff_src, p_engine_, alc, p_stream_, indices);
         return impl::status::success;
     }
 };

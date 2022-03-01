@@ -372,8 +372,8 @@ static void layout_propagation_for_pool_bwd(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 1, pd.diff_dst_desc(), reorder_ops);
-    value_ptr diff_dst = op->get_input_value(1);
+    insert_reorder_before(op, 0, pd.diff_dst_desc(), reorder_ops);
+    value_ptr diff_dst = op->get_input_value(0);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
     insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);

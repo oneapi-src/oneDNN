@@ -2586,12 +2586,11 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
 DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_inputs(std::set<size_t>({1, 2}))
                 .set_num_outputs(2)
-                .set_input(0, "input", "input tensor")
-                .set_input(1, "output_delta",
+                .set_input(0, "output_delta",
                         "the gradient tensor with respect to output")
-                .set_input(2, "output_forward_indices",
+                .set_input(1, "output_forward_indices",
                         "(optional) indices of max values in output tensor")
                 .set_output(0, "input_delta",
                         "the gradient tensor with respect to input")
@@ -2604,6 +2603,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
                         attribute_kind::is)
                 .set_attr("pads_end", "bottom and right padding", true,
                         attribute_kind::is)
+                .set_attr("exclude_pad", "a type of pooling strategy", false,
+                        attribute_kind::b)
                 .set_attr("kernel", "size of each filter", true,
                         attribute_kind::is)
                 .set_attr("auto_pad", "how the padding is calculated", false,
@@ -2617,10 +2618,12 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
+                .set_attr("input_shape", "describing input shape", true,
+                        attribute_kind::is)
                 // New added attributes
                 .set_attr("kind", "pooling kind, maxpool or avgpool", true,
                         attribute_kind::s)
-                .set_shape_inference_function(infer_pool_bwd_output_shape))
+                .set_shape_inference_function(infer_dnnl_pool_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
         op_schema_t()

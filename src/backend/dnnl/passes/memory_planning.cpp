@@ -494,17 +494,20 @@ void memory_planner_t::prepare_args_for_dnnl_pool(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_maxpoolbwd(op_t *op,
+void memory_planner_t::prepare_args_for_pool_bwd(op_t *op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     exec_args args;
 
     memory mem;
 
-    exec_args_set_.find_value_mem_map(op->get_input_value(2).get(), mem);
-    args.insert({DNNL_ARG_WORKSPACE, mem});
-
-    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
+    exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
     args.insert({DNNL_ARG_DIFF_DST, mem});
+
+    if (op->get_attr<std::string>("kind") == "maxpool") {
+        // maxpool bwd op must need workspace input
+        exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
+        args.insert({DNNL_ARG_WORKSPACE, mem});
+    }
 
     exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
     args.insert({DNNL_ARG_DIFF_SRC, mem});
@@ -1284,9 +1287,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                             : false;
                     prepare_args_for_dnnl_pool(
                             op, p_engine, prm_attr_mgr, true, is_training);
-                } else if (op->get_kind() == op_kind::dnnl_pool_bwd
-                        && op->get_attr<std::string>("kind") == "maxpool") {
-                    prepare_args_for_maxpoolbwd(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == op_kind::dnnl_pool_bwd) {
+                    prepare_args_for_pool_bwd(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_concat) {
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_eltwise

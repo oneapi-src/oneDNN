@@ -8349,13 +8349,11 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
-    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            3.0, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> diff_src(src.size(), 0.0);
     test::vector<float> ref_diff_src {-1.0, 1.5, 1.5, 10.0, 2.0, 4.0, 4.0, 4.0,
             2.0, 4.0, 4.0, 4.0, 12.0, -2.5, -2.5, -3.0};
     test::vector<float> diff_dst {
             -1.0, 3.0, 10.0, 4.0, 16.0, 8.0, 12.0, -5.0, -3.0};
+    test::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
     impl::op_t avg_pool_bwd_op(impl::op_kind::AvgPoolBackprop);
     avg_pool_bwd_op.set_attr<dims>("strides", {2, 2});
@@ -8364,31 +8362,41 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     avg_pool_bwd_op.set_attr<dims>("pads_end", {1, 1});
     avg_pool_bwd_op.set_attr<bool>("exclude_pad", true);
     avg_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
+    avg_pool_bwd_op.set_attr<std::vector<int64_t>>(
+            "input_shape", std::vector<int64_t> {1, 1, 4, 4});
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            0, {1, 1, 4, 4}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            2, {1, 1, 4, 4}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+    avg_pool_bwd_op.add_input(diff_dst_lt);
+    avg_pool_bwd_op.add_output(diff_src_lt);
+    impl::graph_t g(eng.kind());
+    ASSERT_EQ(g.add_op(&avg_pool_bwd_op), impl::status::success);
+    g.build_graph();
+    impl::pass::pass_base_ptr apass = get_pass("avg_pool_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto avg_pool_bwd_kernel = op_factory.create_kernel(avg_pool_bwd_op);
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&diff_dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_src_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
-    avg_pool_bwd_kernel->compile(&avg_pool_bwd_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t diff_src_ts(lt, &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
-    avg_pool_bwd_kernel->execute(
-            &avg_pool_bwd_op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(&strm, {diff_dst_ts}, {diff_src_ts});
     strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
@@ -8399,13 +8407,11 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
-    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            3.0, -1.0, 0, 3.0, -2.0, -1.0, 4.0};
-    test::vector<float> diff_src(src.size(), 0.0);
     test::vector<float> ref_diff_src {-0.25, 0.75, 0.75, 2.5, 1.0, 4.0, 4.0,
             2.0, 1.0, 4.0, 4.0, 2.0, 3.0, -1.25, -1.25, -3.0 / 4};
     test::vector<float> diff_dst {
             -1.0, 3.0, 10.0, 4.0, 16.0, 8.0, 12.0, -5.0, -3.0};
+    test::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
     impl::op_t avg_pool_bwd_op(impl::op_kind::AvgPoolBackprop);
     avg_pool_bwd_op.set_attr<dims>("strides", {2, 2});
@@ -8414,31 +8420,41 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     avg_pool_bwd_op.set_attr<dims>("pads_end", {1, 1});
     avg_pool_bwd_op.set_attr<bool>("exclude_pad", false);
     avg_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
+    avg_pool_bwd_op.set_attr<std::vector<int64_t>>(
+            "input_shape", std::vector<int64_t> {1, 1, 4, 4});
 
     // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            0, {1, 1, 4, 4}, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(1, {1, 1, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            2, {1, 1, 4, 4}, impl::data_type::f32, impl::layout_type::any);
 
-    std::vector<impl::logical_tensor_t> inputs {src_lt, diff_dst_lt};
-    std::vector<impl::logical_tensor_t> outputs {diff_src_lt};
+    avg_pool_bwd_op.add_input(diff_dst_lt);
+    avg_pool_bwd_op.add_output(diff_src_lt);
+    impl::graph_t g(eng.kind());
+    ASSERT_EQ(g.add_op(&avg_pool_bwd_op), impl::status::success);
+    g.build_graph();
+    impl::pass::pass_base_ptr apass = get_pass("avg_pool_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
 
-    auto &op_factory = get_dnnl_kernel_registry();
-    auto avg_pool_bwd_kernel = op_factory.create_kernel(avg_pool_bwd_op);
+    // compile
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> inputs {&diff_dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_src_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
-    avg_pool_bwd_kernel->compile(&avg_pool_bwd_op, &eng, inputs, outputs);
-    ASSERT_EQ(outputs[0].layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(outputs[0], &eng, diff_src.data());
+    impl::tensor_t diff_src_ts(lt, &eng, diff_src.data());
 
     impl::stream_t &strm = get_stream();
-    avg_pool_bwd_kernel->execute(
-            &avg_pool_bwd_op, &strm, {src_ts, diff_dst_ts}, {diff_src_ts});
+    cp.execute(&strm, {diff_dst_ts}, {diff_src_ts});
     strm.wait();
     for (size_t i = 0; i < diff_src.size(); ++i) {
         ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);

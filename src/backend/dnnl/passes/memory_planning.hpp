@@ -436,7 +436,7 @@ private:
             primitive_attr_mgr_t &prm_attr_mgr, bool need_scratchpad = false,
             bool need_workspace = false);
 
-    void prepare_args_for_maxpoolbwd(op_t *op, const dnnl::engine &p_engine,
+    void prepare_args_for_pool_bwd(op_t *op, const dnnl::engine &p_engine,
             primitive_attr_mgr_t &prm_attr_mgr);
 
     void prepare_args_for_miso_op(op_t *op, const dnnl::engine &p_engine,

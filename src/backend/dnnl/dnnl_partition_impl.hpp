@@ -363,7 +363,7 @@ public:
                 // f32 pooling pattern
                 impl::op_kind::AvgPool, impl::op_kind::MaxPool,
                 op_kind::avgpool_add, op_kind::maxpool_add,
-                impl::op_kind::MaxPoolBackprop,
+                impl::op_kind::MaxPoolBackprop, impl::op_kind::AvgPoolBackprop,
                 // fp32 eltwise pattern
                 impl::op_kind::Abs, impl::op_kind::Elu, impl::op_kind::Exp,
                 impl::op_kind::GELU, impl::op_kind::HardTanh,

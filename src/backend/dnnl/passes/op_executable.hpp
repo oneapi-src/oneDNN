@@ -331,14 +331,16 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
-    auto src = make_dnnl_memory_desc(
-            op->get_input_value(0)->get_logical_tensor());
     auto diff_dst = make_dnnl_memory_desc(
-            op->get_input_value(1)->get_logical_tensor());
+            op->get_input_value(0)->get_logical_tensor());
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    // infer dnnl expilicit pad
+    // use diff_src's shape and dtype to simulate a fake src
+    dnnl::memory::desc src(diff_src.dims(), diff_src.data_type(),
+            get_default_format(diff_src.dims()));
+
+    // infer dnnl explicit pad
     dims new_pads_end(pads_end);
     bool adj_pad = false;
     std::string rounding_type = "floor";
@@ -352,10 +354,7 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
         output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
         for (size_t i = 0; i < kernel.size(); ++i) {
             dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-            if (op->get_kind() == impl::op_kind::AvgPool
-                    || (op->get_kind() == op_kind::dnnl_pool
-                            && op->get_attr<std::string>("kind") == "avgpool"))
-                dilated += 1;
+            if (op->get_attr<std::string>("kind") == "avgpool") dilated += 1;
             dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
                     - src_sp[i] - pads_begin[i];
             new_pads_end[i] = cur_pads_end;

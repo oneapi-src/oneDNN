@@ -374,6 +374,52 @@ status_t infer_dnnl_constant_output_shape(op_t *n,
     return status::success;
 }
 
+status_t infer_dnnl_pool_bwd_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto diff_src_shape = n->get_attr<std::vector<int64_t>>("input_shape");
+    set_shape_and_strides(*outputs[0], diff_src_shape);
+
+    // get attr value
+    const dims &strides = n->get_attr<dims>("strides");
+    const dims &kernel = n->get_attr<dims>("kernel");
+    const dims &pads_begin = n->get_attr<dims>("pads_begin");
+    const dims &pads_end = n->get_attr<dims>("pads_end");
+    std::string src_format = n->get_attr<std::string>("data_format");
+
+    dims dilations(kernel.size(), 1);
+    if (n->has_attr("dilations")) {
+        auto dilations_tmp = n->get_attr<dims>("dilations");
+        if (dilations_tmp.size() != dilations.size()) {
+            return status::invalid_argument;
+        } else {
+            dilations = dilations_tmp;
+        }
+    }
+
+    impl::logical_tensor_wrapper_t diff_src_ltw(outputs[0]);
+    dims src_sp = diff_src_ltw.get_src_spatial_dims(src_format);
+
+    // if paddings are empty vectors?
+    dims new_pads_begin(pads_begin);
+    if (new_pads_begin.empty()) { new_pads_begin.assign(src_sp.size(), 0); }
+    dims new_pads_end(pads_end);
+    if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
+    if (n->has_attr("auto_pad")
+            && n->get_attr<std::string>("auto_pad") != "None") {
+        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+        // infer auto_pad
+        for (size_t i = 0; i < src_sp.size(); ++i) {
+            infer_auto_pad(src_sp[i], strides[i], kernel[i], dilations[i],
+                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+        }
+        n->set_attr("pads_begin", new_pads_begin);
+        n->set_attr("pads_end", new_pads_end);
+    }
+
+    return status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

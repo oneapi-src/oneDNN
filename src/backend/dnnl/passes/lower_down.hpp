@@ -74,9 +74,9 @@ impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg);
 impl::status_t conv_bwd_weights_canonicalization(
         std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t maxpool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
+impl::status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t maxpool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
+impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg);
 
