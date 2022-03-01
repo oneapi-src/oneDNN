@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <utility>
+
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -32,12 +34,6 @@
 using namespace conv;
 
 namespace deconv {
-
-inline static void swap(int64_t &a, int64_t &b) {
-    int64_t temp = a;
-    a = b;
-    b = temp;
-}
 
 int transpose_data_wei(
         const prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr) {
@@ -307,7 +303,7 @@ int doit(const prb_t *prb, res_t *res) {
     auto wei_tr_md = wei_md;
 
     const bool with_groups = true;
-    swap(wei_tr_md.dims[with_groups + 0], wei_tr_md.dims[with_groups + 1]);
+    std::swap(wei_tr_md.dims[with_groups + 0], wei_tr_md.dims[with_groups + 1]);
 
     const auto fp = dnnl_f32;
     const auto src_tag = tag::abx;
@@ -369,14 +365,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     args_t args, ref_args;
 
-    // Update prb descriptor to re-use convolution reference.
-    prb_t p_tr((desc_t)*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
-            prb->dtag, prb->alg, prb->attr, prb->mb, true);
-    swap(p_tr.ic, p_tr.oc);
-    swap(p_tr.ih, p_tr.oh);
-    swap(p_tr.id, p_tr.od);
-    swap(p_tr.iw, p_tr.ow);
-
     if (prb->dir & FLAG_FWD) {
         maybe_prepare_runtime_zero_points(src_zero_points_m, prb->attr,
                 DNNL_ARG_SRC, prb->ic, prb->src_zp);
@@ -405,7 +393,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
 
-            TIME_REF(deconv::compute_ref(&p_tr, ref_args, prim_ref));
+            TIME_REF(deconv::compute_ref(prb, ref_args, prim_ref));
             SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
         }
     } else if (prb->dir == BWD_D) {
@@ -423,7 +411,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(deconv::compute_ref(&p_tr, ref_args, prim_ref));
+            TIME_REF(deconv::compute_ref(prb, ref_args, prim_ref));
             SAFE(compare_data(prb, SRC, src_dt, src_fp, res), WARN);
         }
     } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
@@ -443,8 +431,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(deconv::compute_ref(&p_tr, ref_args, prim_ref));
-            SAFE(compare_data(&p_tr, WEI, wei_dt, wei_fp, res), WARN);
+            TIME_REF(deconv::compute_ref(prb, ref_args, prim_ref));
+            SAFE(compare_data(prb, WEI, wei_dt, wei_fp, res), WARN);
             if (prb->dir & FLAG_BIA)
                 SAFE(compare_data(prb, BIA, bia_dt, bia_fp, res), WARN);
         }
