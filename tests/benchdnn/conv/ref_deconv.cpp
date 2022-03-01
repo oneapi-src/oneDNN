@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <utility>
+
 #include "tests/test_thread.hpp"
 
 #include "conv/deconv.hpp"
@@ -145,12 +147,20 @@ void compute_ref_bwd_w(
 
 void compute_ref(
         const conv::prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    // Update prb descriptor to re-use convolution reference.
+    conv::prb_t prb_tr((conv::desc_t)*prb, prb->dir, prb->cfg, prb->stag,
+            prb->wtag, prb->dtag, prb->alg, prb->attr, prb->mb, true);
+    std::swap(prb_tr.ic, prb_tr.oc);
+    std::swap(prb_tr.ih, prb_tr.oh);
+    std::swap(prb_tr.id, prb_tr.od);
+    std::swap(prb_tr.iw, prb_tr.ow);
+
     if (prb->dir & FLAG_FWD)
-        compute_ref_fwd(prb, args, prim_ref);
+        compute_ref_fwd(&prb_tr, args, prim_ref);
     else if (prb->dir == BWD_D)
-        compute_ref_bwd_d(prb, args, prim_ref);
+        compute_ref_bwd_d(&prb_tr, args, prim_ref);
     else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI)
-        compute_ref_bwd_w(prb, args, prim_ref);
+        compute_ref_bwd_w(&prb_tr, args, prim_ref);
 }
 
 } // namespace deconv
