@@ -311,27 +311,24 @@ horizontal_fused_op_t::horizontal_fused_op_t(const std::string &name,
     attrs_ = attrs;
 }
 
-static std::unordered_map<graph_tensor_ptr, expr> make_ltrs2rtrs_map(
-        const std::vector<graph_tensor_ptr> &ltrs,
-        const std::vector<expr> &rtrs) {
-    assert(ltrs.size() == rtrs.size());
-    std::unordered_map<graph_tensor_ptr, expr> m;
-    for (size_t i = 0; i < ltrs.size(); i++) {
-        m[ltrs[i]] = rtrs[i];
+static std::vector<graph_tensor_ptr> select_graph_tensor_by_idx(
+        const std::vector<graph_tensor_ptr> &ins, const std::vector<int> &idx) {
+    std::vector<graph_tensor_ptr> outs;
+    outs.reserve(idx.size());
+    for (auto &i : idx) {
+        outs.push_back(ins[i]);
     }
-    return m;
+    return outs;
 }
 
-static std::vector<expr> get_op_rtrs(
-        std::unordered_map<graph_tensor_ptr, expr> &m,
-        const std::vector<graph_tensor_ptr> &ltrs) {
-    std::vector<expr> rtrs;
-    rtrs.reserve(ltrs.size());
-    for (const graph_tensor_ptr &ltr : ltrs) {
-        assert(m.find(ltr) != m.end());
-        rtrs.emplace_back(m[ltr]);
+static std::vector<expr> select_expr_by_idx(
+        const std::vector<expr> &ins, const std::vector<int> &idx) {
+    std::vector<expr> outs;
+    outs.reserve(idx.size());
+    for (auto &i : idx) {
+        outs.push_back(ins[i]);
     }
-    return rtrs;
+    return outs;
 }
 
 void horizontal_fused_op_t::schedule_loops(const stmt &body) {
@@ -366,18 +363,15 @@ ir_module_ptr horizontal_fused_op_t::get_func(context_ptr ctx) {
     auto modu = std::make_shared<ir_module_t>(ctx);
     std::vector<expr> ins, outs;
     auto func = graph::create_func_decl_for_op(this, ins, outs);
-    std::unordered_map<graph_tensor_ptr, expr> ins_ltrs2rtrs
-            = make_ltrs2rtrs_map(info_.inputs_, ins);
-    std::unordered_map<graph_tensor_ptr, expr> outs_ltrs2rtrs
-            = make_ltrs2rtrs_map(info_.outputs_, outs);
     func_inliner_t inliner;
     builder::ir_builder_t bld;
     bld.push_scope();
     for (auto &op : ops_to_merge_) {
-        op->info_.inputs_ = remake_logical_tensors(
-                op->attrs_.get<std::vector<graph_tensor_ptr>>("op_ins"));
-        op->info_.outputs_ = remake_logical_tensors(
-                op->attrs_.get<std::vector<graph_tensor_ptr>>("op_outs"));
+        auto &ins_idx = op->attrs_.get<std::vector<int>>("op_ins_idx");
+        auto &outs_idx = op->attrs_.get<std::vector<int>>("op_outs_idx");
+        op->info_.inputs_ = select_graph_tensor_by_idx(info_.inputs_, ins_idx);
+        op->info_.outputs_
+                = select_graph_tensor_by_idx(info_.outputs_, outs_idx);
         auto mod_to_merge = op->get_func(ctx);
         auto &global_vars = mod_to_merge->get_module_vars();
         for (auto &def_v : global_vars) {
@@ -386,10 +380,8 @@ ir_module_ptr horizontal_fused_op_t::get_func(context_ptr ctx) {
         auto f = mod_to_merge->get_entry_func();
         tensor_shrinker_t pass;
         f = std::const_pointer_cast<func_base>(pass(f));
-        std::vector<expr> op_in_args = get_op_rtrs(ins_ltrs2rtrs,
-                op->attrs_.get<std::vector<graph_tensor_ptr>>("op_ins"));
-        std::vector<expr> op_out_args = get_op_rtrs(outs_ltrs2rtrs,
-                op->attrs_.get<std::vector<graph_tensor_ptr>>("op_outs"));
+        std::vector<expr> op_in_args = select_expr_by_idx(ins, ins_idx);
+        std::vector<expr> op_out_args = select_expr_by_idx(outs, outs_idx);
         op_out_args.insert(
                 op_out_args.end(), op_in_args.begin(), op_in_args.end());
         auto callf = make_expr<call_node>(f, op_out_args);

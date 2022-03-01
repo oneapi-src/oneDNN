@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,15 +48,24 @@ static void do_horizontal_merge(
         auto ins = op->get_inputs();
         auto outs = op->get_outputs();
         auto new_outs = graph_op_t::remake_logical_tensors(outs);
-        op->attrs_["op_ins"] = ins;
-        op->attrs_["op_outs"] = new_outs;
+        std::vector<int> ins_idx;
+        std::vector<int> outs_idx;
         for (auto &in : ins) {
-            if (std::find(merged_ins.begin(), merged_ins.end(), in)
-                    == merged_ins.end()) {
+            auto it = std::find(merged_ins.begin(), merged_ins.end(), in);
+            if (it == merged_ins.end()) {
+                ins_idx.push_back(static_cast<int>(merged_ins.size()));
                 merged_ins.push_back(in);
+            } else {
+                ins_idx.push_back(it - merged_ins.begin());
             }
         }
-        merged_outs.insert(merged_outs.end(), new_outs.begin(), new_outs.end());
+        for (auto &out : new_outs) {
+            outs_idx.push_back(static_cast<int>(merged_outs.size()));
+            merged_outs.push_back(out);
+        }
+        op->attrs_["op_ins_idx"] = ins_idx;
+        op->attrs_["op_outs_idx"] = outs_idx;
+
         name += op->op_name_ + "_";
     }
     auto merged_op = std::make_shared<horizontal_fused_op_t>(
