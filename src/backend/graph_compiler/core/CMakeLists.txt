@@ -246,6 +246,8 @@ DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
 if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED" OR MSVC)
     add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
+    add_definitions(-DDNNL_ENABLE_MAX_CPU_ISA=1)
+    add_definitions(-DDNNL_ENABLE_CPU_ISA_HINTS=1)
     file(GLOB_RECURSE DNNL_SOURCES
         ${DNNL_PATH}/src/cpu/x64/brgemm/*.cpp
         ${DNNL_PATH}/src/cpu/x64/injectors/*.cpp
