@@ -1246,3 +1246,95 @@ TEST(PatternMatcherV2, MultipleConsumer) {
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
     ASSERT_EQ(fusion_ops.size(), 3);
 }
+
+TEST(PatternMatcherV2, MultipleConsumerDifferentPartition) {
+    /*Pattern
+     Matmul
+      |
+     Div
+      |
+     Add
+      |
+   SoftMax
+      |
+     Mul
+    */
+    /*Graph
+
+    \   /
+    Matmul
+      |
+     Div
+      |
+     Add
+      |
+   SoftMax
+      |  \________________
+     Mul                  \
+                   SoftMaxBackProp
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto matmul_node = graphp->append_op(MatMul, "matmul");
+    auto div_node = graphp->append_op(
+            Divide, {in_edge(IN0, matmul_node, OUT0)}, "div");
+    auto add_node
+            = graphp->append_op(Add, {in_edge(IN0, div_node, OUT0)}, "add");
+    auto softmax_node = graphp->append_op(
+            SoftMax, {in_edge(IN0, add_node, OUT0)}, "softmax");
+    softmax_node->allow_external_output(OUT0);
+    auto mul_node = graphp->append_op(
+            Multiply, {in_edge(IN0, softmax_node, OUT0)}, "mul");
+    UNUSED(mul_node);
+
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t div {1, Divide, "div"};
+    op_t add {2, Add, "add"};
+    op_t softmax {3, SoftMax, "softmax"};
+    op_t mul {4, Multiply, "mul"};
+    op_t softmaxbwd {5, SoftMaxBackprop, "softmaxbwd"};
+
+    auto lt0 = logical_tensor_init(0, impl::data_type::f32);
+    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
+    auto lt2 = logical_tensor_init(2, impl::data_type::f32);
+    matmul.add_input(lt0);
+    matmul.add_input(lt1);
+    matmul.add_output(lt2);
+    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
+    div.add_input(lt2);
+    div.add_input(lt3);
+    div.add_output(lt4);
+    auto lt5 = logical_tensor_init(5, impl::data_type::f32);
+    auto lt6 = logical_tensor_init(6, impl::data_type::f32);
+    add.add_input(lt4);
+    add.add_input(lt5);
+    add.add_output(lt6);
+    auto lt7 = logical_tensor_init(7, impl::data_type::f32);
+    softmax.add_input(lt6);
+    softmax.add_output(lt7);
+    auto lt8 = logical_tensor_init(8, impl::data_type::f32);
+    auto lt9 = logical_tensor_init(9, impl::data_type::f32);
+    mul.add_input(lt7);
+    mul.add_input(lt8);
+    mul.add_output(lt9);
+
+    auto lt10 = logical_tensor_init(10, impl::data_type::f32);
+    auto lt11 = logical_tensor_init(11, impl::data_type::f32);
+    softmaxbwd.add_input(lt7);
+    softmaxbwd.add_input(lt10);
+    softmaxbwd.add_output(lt11);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&softmax), status::success);
+    ASSERT_EQ(agraph.add_op(&mul), status::success);
+    ASSERT_EQ(agraph.add_op(&softmaxbwd), status::success);
+    agraph.build_graph();
+    dnnl_graph_graph_visualize(&agraph, 1);
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 5);
+}

@@ -162,7 +162,19 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
                 }
             }
             // find coupled node_output
-            if (!consumer_matched) { return false; }
+            if (!consumer_matched) {
+                // check if allow external output
+                if (node->get_node_kind() == pb_node_kind::PB_NODE_KIND_OP) {
+                    pb_op *p_op = dynamic_cast<pb_op *>(node);
+                    std::unordered_set<oport_t> external_outputs
+                            = p_op->get_allowed_external_outputs();
+                    if (!external_outputs.empty()
+                            && external_outputs.find(node_output_offset)
+                                    != external_outputs.end())
+                        continue;
+                }
+                return false;
+            }
         }
 
         // check if there are unmatched node outputs
