@@ -434,8 +434,8 @@ status_t gen9_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
 }
 
 void gen9_batch_normalization_bwd_t::pd_t::init_scratchpad() {
-    size_t size = 2 * conf.reduce_stat_nblocks * utils::rnd_up(conf.ic, 16);
-
+    size_t size
+            = 2 * utils::rnd_up(conf.ic, 16) * (1 + conf.reduce_stat_nblocks);
     auto scratchpad = scratchpad_registry().registrar();
     scratchpad.book(key_bnorm_reduction, size,
             types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
