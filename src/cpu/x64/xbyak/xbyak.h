@@ -1653,6 +1653,10 @@ private:
 	{
 		return op1.isREG(i32e) && ((op2.isREG(i32e) && op1.getBit() == op2.getBit()) || op2.isMEM());
 	}
+	static inline bool isValidXMM(const Operand& op1){
+		// SSE instructions do not support XMM16 - XMM31
+		return op1.isXMM() ?  op1.getIdx() <= 15 : true;
+	}
 	void rex(const Operand& op1, const Operand& op2 = Operand())
 	{
 		uint8_t rex = 0;
@@ -1969,6 +1973,7 @@ private:
 	void opGen(const Operand& reg, const Operand& op, int code, int pref, bool isValid(const Operand&, const Operand&), int imm8 = NONE, int preCode = NONE)
 	{
 		if (isValid && !isValid(reg, op)) XBYAK_THROW(ERR_BAD_COMBINATION)
+		if (!isValidXMM(reg) || !isValidXMM(op)) XBYAK_THROW(ERR_NOT_SUPPORTED)
 		if (pref != NONE) db(pref);
 		if (op.isMEM()) {
 			opModM(op.getAddress(), reg.getReg(), 0x0F, preCode, code, (imm8 != NONE) ? 1 : 0);
@@ -1979,16 +1984,19 @@ private:
 	}
 	void opMMX_IMM(const Mmx& mmx, int imm8, int code, int ext)
 	{
+		if (!isValidXMM(mmx)) XBYAK_THROW(ERR_NOT_SUPPORTED)
 		if (mmx.isXMM()) db(0x66);
 		opModR(Reg32(ext), mmx, 0x0F, code);
 		db(imm8);
 	}
 	void opMMX(const Mmx& mmx, const Operand& op, int code, int pref = 0x66, int imm8 = NONE, int preCode = NONE)
 	{
+		if (!isValidXMM(mmx) || !isValidXMM(op)) XBYAK_THROW(ERR_NOT_SUPPORTED)
 		opGen(mmx, op, code, mmx.isXMM() ? pref : NONE, isXMMorMMX_MEM, imm8, preCode);
 	}
 	void opMovXMM(const Operand& op1, const Operand& op2, int code, int pref)
 	{
+		if (!isValidXMM(op1) || !isValidXMM(op2)) XBYAK_THROW(ERR_NOT_SUPPORTED)
 		if (pref != NONE) db(pref);
 		if (op1.isXMM() && op2.isMEM()) {
 			opModM(op2.getAddress(), op1.getReg(), 0x0F, code);
@@ -2000,6 +2008,7 @@ private:
 	}
 	void opExt(const Operand& op, const Mmx& mmx, int code, int imm, bool hasMMX2 = false)
 	{
+		if (!isValidXMM(op) || !isValidXMM(mmx)) XBYAK_THROW(ERR_NOT_SUPPORTED)
 		if (hasMMX2 && op.isREG(i32e)) { /* pextrw is special */
 			if (mmx.isXMM()) db(0x66);
 			opModR(op.getReg(), mmx, 0x0F, 0xC5); db(imm);
