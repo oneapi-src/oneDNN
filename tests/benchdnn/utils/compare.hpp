@@ -30,7 +30,7 @@ struct compare_t {
     struct driver_check_func_args_t {
         driver_check_func_args_t(const dnn_mem_t &exp_mem,
                 const dnn_mem_t &got_f32, const int64_t i,
-                const dnnl_data_type_t data_type);
+                const dnnl_data_type_t data_type, const float trh);
 
         const dnnl_data_type_t dt = dnnl_data_type_undef;
         const int64_t idx = 0;
@@ -39,6 +39,7 @@ struct compare_t {
         const float got = 0.f;
         const float diff = 0.f;
         const float rel_diff = 0.f;
+        const float trh = 0.f;
     };
 
     compare_t() = default;

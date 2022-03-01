@@ -74,14 +74,15 @@ bool compare_extreme_values(float a, float b) {
 
 compare_t::driver_check_func_args_t::driver_check_func_args_t(
         const dnn_mem_t &exp_mem, const dnn_mem_t &got_f32, const int64_t i,
-        const dnnl_data_type_t data_type)
+        const dnnl_data_type_t data_type, const float trh)
     : dt(data_type)
     , idx(i)
     , exp_f32(exp_mem.get_elem(idx))
     , exp(round_to_nearest_representable(dt, exp_f32))
     , got(got_f32.get_elem(idx))
     , diff(fabsf(exp - got))
-    , rel_diff(diff / (fabsf(exp) > FLT_MIN ? fabsf(exp) : 1)) {}
+    , rel_diff(diff / (fabsf(exp) > FLT_MIN ? fabsf(exp) : 1))
+    , trh(trh) {}
 
 int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const attr_t &attr, res_t *res) const {
@@ -95,7 +96,7 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     int64_t zeros = 0;
     diff_norm_t diff_norm;
     for (int64_t i = 0; i < nelems; ++i) {
-        driver_check_func_args_t args(exp_mem, got_f32, i, dt);
+        driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
 
         if (std::isnan(args.exp_f32) && is_integral_dt(dt)) {
             // Don't include integer max values into norm as they make it
@@ -146,7 +147,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     const bool need_dump = verbose >= 99;
 
     const auto compare_point_values = [&](int64_t i) {
-        driver_check_func_args_t args(exp_mem, got_f32, i, dt);
+        driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
 
         bool ok = args.diff == 0.f;
         if (std::isnan(args.exp_f32) && is_integral_dt(dt)) {

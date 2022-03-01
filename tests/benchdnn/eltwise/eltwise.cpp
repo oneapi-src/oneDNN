@@ -362,12 +362,10 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
 
-    // Shouldn't be defined inside since not available when `eltwise_add_check`
-    // is invoked due to removed from stack.
-    const float trh = get_eltwise_threshold(prb->dt, prb->alg, is_fwd);
     compare::compare_t cmp;
     if (is_bench_mode(CORR)) {
-        cmp.set_threshold(trh);
+        const float trhd = get_eltwise_threshold(prb->dt, prb->alg, is_fwd);
+        cmp.set_threshold(trhd);
         cmp.set_zero_trust_percent(get_eltwise_zero_trust_percent(prb));
 
         const auto eltwise_add_check =
@@ -375,6 +373,7 @@ int doit(const prb_t *prb, res_t *res) {
                     // Some algorithms require absolute value comparison for inputs
                     // where catastrophic cancellation may happen.
                     const float src = arg_fp.get_elem(args.idx);
+                    const float trh = args.trh;
                     if (check_abs_err(prb, src, trh)) return args.diff <= trh;
                     if (prb->attr.post_ops.binary_index() != -1)
                         return args.diff <= trh;
