@@ -28,6 +28,7 @@ g64ic512oc512_ih240oh120kh3sh2dh0ph1_n"tails_conv:21"
 g128ic512oc512_ih240oh120kh3sh2dh0ph1_n"tails_conv:22"
 g1ic4ih84oc16oh20kh8sh4ph0_n"tails_conv:23"
 g4ic20ih5oc20oh5kh3ph1_n"tails_conv:24"
+g4ic16ih13oc16oh13kh3ph1n"tails_conv:25"
 
 # conv 1x1
 ic32oc13_ih13oh13kh1ph0_n"tails_conv_1x1:1"
