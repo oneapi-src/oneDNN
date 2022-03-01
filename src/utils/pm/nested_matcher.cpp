@@ -75,9 +75,12 @@ bool match_node_inputs(op_t *op, pb_node *node, match_context_t *ctx,
                 else
                     return false;
             }
-            std::shared_ptr<value_t> op_in_value = op->get_input_value(i);
+            iport_t node_iport = node_inputs[i].first;
+            if (op->num_inputs() < node_iport + 1) return false;
+            std::shared_ptr<value_t> op_in_value
+                    = op->get_input_value(node_iport);
             if (!op_in_value->has_producer()) return false;
-            op_t *in_op = op->get_input_op(i);
+            op_t *in_op = op->get_input_op(node_iport);
             size_t in_op_oport = op_in_value->get_offset();
             pb_node *in_node = node_inputs[i].second.first;
             oport_t in_node_oport = node_inputs[i].second.second;

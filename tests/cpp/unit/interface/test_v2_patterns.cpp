@@ -1201,3 +1201,48 @@ TEST(PatternMatcherV2, RepetitionWithMultipleConsumers) {
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
     ASSERT_EQ(fusion_ops.size(), 2);
 }
+
+TEST(PatternMatcherV2, MultipleConsumer) {
+    /*Pattern
+     Transpose
+      /     \____________
+   Matmul               /
+                     MatMul
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto trans = graphp->append_op(StaticTranspose, "trans");
+    auto mat1 = graphp->append_op(MatMul, {in_edge(IN1, trans, OUT0)}, "mat1");
+    auto mat2 = graphp->append_op(MatMul, {in_edge(IN1, trans, OUT0)}, "mat2");
+    UNUSED(mat1);
+    UNUSED(mat2);
+
+    graph_t agraph;
+    op_t transpose {0, StaticTranspose, "transpose"};
+    transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    op_t matmul1 {1, MatMul, "matmul1"};
+    op_t matmul2 {2, MatMul, "matmul2"};
+
+    auto lt0 = logical_tensor_init(0, impl::data_type::f32);
+    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
+    transpose.add_input(lt0);
+    transpose.add_output(lt1);
+    auto lt2 = logical_tensor_init(2, impl::data_type::f32);
+    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    matmul1.add_input(lt2);
+    matmul1.add_input(lt1);
+    matmul1.add_output(lt3);
+    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
+    auto lt5 = logical_tensor_init(5, impl::data_type::f32);
+    matmul2.add_input(lt4);
+    matmul2.add_input(lt1);
+    matmul2.add_output(lt5);
+
+    ASSERT_EQ(agraph.add_op(&transpose), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul1), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul2), status::success);
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 3);
+}
