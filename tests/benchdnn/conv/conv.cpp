@@ -42,6 +42,11 @@
 #include "eltwise/eltwise.hpp"
 #include "prelu/prelu.hpp"
 
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
+extern "C" bool dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
+        dnnl_engine_t engine);
+#endif
+
 namespace conv {
 
 double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
@@ -344,12 +349,11 @@ int fill_wei(
             prb->kh, prb->kw,
             [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
                     int64_t kw) {
-                const int64_t gen
-                        = 127 * kd + 131 * kh + 137 * kw + 139 * oc + 149 * ic;
+                const int64_t gen = 113 * g + 127 * kd + 131 * kh + 137 * kw
+                        + 139 * oc + 149 * ic + 151;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
-
                 ((float *)mem_00)[wei_off_f(prb, g, oc, ic, kd, kh, kw)]
                         = value;
             });
@@ -374,7 +378,6 @@ int fill_wei(
         int rc = std::memcmp((void *)mem_dt, (void *)mem_dt_s8, mem_dt.size());
         SAFE(rc == 0 ? OK : FAIL, WARN);
     }
-
     return OK;
 }
 
@@ -790,6 +793,14 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 #endif
 #endif
         } else if (is_gpu()) {
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
+            if (dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
+                        get_test_engine())) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+#endif
+
             bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
                     && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
                     && prb->dh == 0 && prb->dw == 0 && prb->pw < prb->kw

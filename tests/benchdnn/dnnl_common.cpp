@@ -840,8 +840,8 @@ static int validate_mem_size(size_t total_mem_size) {
     return fits_device_ram ? OK : FAIL;
 }
 
-static size_t get_md_size(
-        const dnnl_memory_desc_t *md, bool add_ref_size = false) {
+static size_t get_md_size(const dnnl_memory_desc_t *md,
+        bool add_ref_size = false, bool add_ref_out_size = false) {
     const auto mem_size = dnnl_memory_desc_get_size(md);
     // runtime mem size is not defined
     if (mem_size == 0 || mem_size == DNNL_RUNTIME_SIZE_VAL) return 0;
@@ -851,6 +851,9 @@ static size_t get_md_size(
     size_t ref_mem_factor = 1;
     if (md->data_type != dnnl_data_type_undef)
         ref_mem_factor = ::sizeof_dt(dnnl_f32) / ::sizeof_dt(md->data_type);
+    // correctness pass allocates additional plain f32 memory to compare values.
+    if (add_ref_out_size && is_bench_mode(CORR)) ref_mem_factor *= 2;
+
     // all memory is mapped once it is created and unmapped only before
     // primitive execution. Device memory requires additional buffer for mapped
     // memory.
@@ -878,21 +881,32 @@ static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
 #define MD(name) dnnl_query_##name##_md
     std::vector<dnnl_query_t> query_fwd_in_mds {MD(src), MD(weights)};
     std::vector<dnnl_query_t> query_fwd_out_mds {MD(dst), MD(workspace)};
+
     std::vector<dnnl_query_t> query_bwd_in_mds {
             MD(src), MD(weights), MD(dst), MD(diff_dst), MD(workspace)};
     std::vector<dnnl_query_t> query_bwd_out_mds {
             MD(diff_src), MD(diff_weights)};
-    std::vector<dnnl_query_t> query_mds = is_fwd
-            ? (want_input ? query_fwd_in_mds : query_fwd_out_mds)
-            : (want_input ? query_bwd_in_mds : query_bwd_out_mds);
 #undef MD
 
+    const auto &query_in_mds = is_fwd ? query_fwd_in_mds : query_bwd_in_mds;
+    const auto &query_out_mds = is_fwd ? query_fwd_out_mds : query_bwd_out_mds;
+
     size_t total_mem_size = 0;
-    for_(const auto query : query_mds)
-    for (int idx = 0; idx < n_idx; ++idx) {
-        const auto md = dnnl_primitive_desc_query_md(const_pd, query, idx);
-        total_mem_size += get_md_size(md, add_ref_size);
+    if (want_input) {
+        for_(const auto query : query_in_mds)
+        for (int idx = 0; idx < n_idx; ++idx) {
+            const auto md = dnnl_primitive_desc_query_md(const_pd, query, idx);
+            total_mem_size += get_md_size(md, add_ref_size);
+        }
+    } else {
+        const bool add_ref_out_size = true;
+        for_(const auto query : query_out_mds)
+        for (int idx = 0; idx < n_idx; ++idx) {
+            const auto md = dnnl_primitive_desc_query_md(const_pd, query, idx);
+            total_mem_size += get_md_size(md, add_ref_size, add_ref_out_size);
+        }
     }
+
     return total_mem_size;
 }
 

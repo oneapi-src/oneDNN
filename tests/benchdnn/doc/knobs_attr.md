@@ -41,26 +41,29 @@ passed to a primitive at run-time.
                      elements of dim0 and dim1 will be multiplied by scale
                      factors different for a pair of {dim0, dim1} points.
                      Number of scale factors is equal to dims[0] * dims[1].
-  - `per_mb_spatial` corresponds to `mask = (1 << 0) + (1 << 2) + (1 << 3)` and
+  - `per_dim_023`    corresponds to `mask = (1 << 0) + (1 << 2) + (1 << 3)` and
                      means elements of dim0, dim2 and dim3 will be multiplied
                      by scale factors different for {dim0, dim2, dim3} points.
                      Number of scale factors is equal to
-                     dims[0] * dims[2] * dim[3]. Mask is not fixed and can be
-                     different depending on ndims.
-  - `per_spatial`    corresponds to `mask = (1 << 2) + (1 << 3)` and means
+                     dims[0] * dims[2] * dim[3]. Intended to use for 4D tensors.
+  - `per_dim_23`     corresponds to `mask = (1 << 2) + (1 << 3)` and means
                      elements of dim2 and dim3 will be multiplied by scale
                      factors different for {dim2, dim3} points. Number of scale
-                     factors is equal to dims[2] * dim[3]. Mask is not fixed
-                     and can be different depending on ndims.
-  - `per_mb_w`       corresponds to `mask = (1 << 0) + (1 << 3)` and
+                     factors is equal to dims[2] * dim[3]. Intended to use for
+                     4D tensors.
+  - `per_dim_03`     corresponds to `mask = (1 << 0) + (1 << 3)` and
                      means elements of dim0 and dim3 will be multiplied by
                      scale factors different for {dim0, dim3} points.
                      Number of scale factors is equal to dims[0] * dims[3].
-                     Currently supported only in matmul primitive.
-  - `per_w`          corresponds to `mask = 1 << 3` and means elements of dim3
+                     Currently supported only in matmul primitive for 4D tensors.
+  - `per_dim_2`      corresponds to `mask = 1 << 2` and means elements of dim3
+                     will be multiplied by scale factors different for each
+                     point. Number of scale factors is equal to dims[2].
+                     Currently supported only in matmul primitive for 3D tensors.
+  - `per_dim_3`      corresponds to `mask = 1 << 3` and means elements of dim3
                      will be multiplied by scale factors different for each
                      point. Number of scale factors is equal to dims[3].
-                     Currently supported only in matmul primitive.
+                     Currently supported only in matmul primitive for 4D tensors.
   - `per_tensor`     means each element of original tensor will be multiplied
                      by a unique number. Number of scale factor is equal to
                      `nelems`. As of now supported only by binary post-ops.
