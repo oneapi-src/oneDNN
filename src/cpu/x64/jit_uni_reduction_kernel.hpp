@@ -34,7 +34,7 @@ namespace cpu {
 namespace x64 {
 
 struct jit_uni_reduction_kernel_base_t : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_resampling)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_reduction)
 
     jit_uni_reduction_kernel_base_t(const jit_reduction_conf_t &conf)
         : jit_generator(nullptr, MAX_CODE_SIZE, true, conf.isa)
