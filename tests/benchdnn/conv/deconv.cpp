@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -321,6 +321,15 @@ int doit(const prb_t *prb, res_t *res) {
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
     SAFE(init_prim_ref(prim_ref, prb), WARN);
 
+    const_dnnl_primitive_desc_t const_pd_ref;
+    if (prim_ref)
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim_ref, &const_pd_ref),
+                CRIT);
+    const auto q_ref = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd_ref, dnnl_query_exec_arg_md, index);
+    };
+
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = prim_ref ? get_cpu_engine() : get_test_engine();
 
@@ -345,7 +354,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_fp(dst_md, fp, src_tag, ref_engine);
     dnn_mem_t wei_tr_fp(wei_tr_md, fp, wei_tag, ref_engine);
     dnn_mem_t bia_fp(bia_md, fp, tag::x, ref_engine);
-    dnn_mem_t scratchpad_fp(scratchpad_md, ref_engine);
+    dnn_mem_t scratchpad_fp;
+
+    if (prim_ref)
+        scratchpad_fp = dnn_mem_t(q_ref(DNNL_ARG_SCRATCHPAD), ref_engine);
+
     dnn_mem_t src_zero_points_m;
     dnn_mem_t dst_zero_points_m;
 
