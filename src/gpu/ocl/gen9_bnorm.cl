@@ -800,7 +800,7 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         __global DATA_T *diff_dst, __global char *ws,
-        __global float *diff_scaleshift) {
+        __global float *temp_reduce) {
 
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
@@ -813,7 +813,7 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     const bool is_last_sp_block = (sp_block_idx == STAT_SP_NBLOCKS - 1);
 #endif
 
-    diff_scaleshift += group_c_offset;
+    temp_reduce += group_c_offset;
 
 #if USE_NHWC
     const int offset = c + sp_block_idx * STAT_SP_BLOCK * IC;
@@ -944,14 +944,13 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     }
 
     // diff_scaleshift (temp_reduce) is padded to IC16
-    STORE_FLOAT_1x16(&diff_scaleshift[mb_sp_idx * 16], diff_gamma[0]);
-    STORE_FLOAT_1x16(
-            &diff_scaleshift[REDUCE_STAT_NBLOCKS * IC16 + mb_sp_idx * 16],
+    STORE_FLOAT_1x16(&temp_reduce[mb_sp_idx * 16], diff_gamma[0]);
+    STORE_FLOAT_1x16(&temp_reduce[REDUCE_STAT_NBLOCKS * IC16 + mb_sp_idx * 16],
             diff_beta[0]);
 }
 
 NAMED_KERNEL_ATTR(REDUCE)
-__kernel void gen9_reduce_stats(__global float *reduce_temp,
+__kernel void gen9_reduce_stats(__global float *temp_reduce,
         __global float *diff_scaleshift, __global float *diff_shift,
         __global float *variance, float eps) {
 
@@ -964,15 +963,15 @@ __kernel void gen9_reduce_stats(__global float *reduce_temp,
     float diff_gamma = 0.0f;
     float diff_beta = 0.0f;
 
-    reduce_temp += REDUCE_STAT_NBLOCKS * 16 * group_c
+    temp_reduce += REDUCE_STAT_NBLOCKS * 16 * group_c
             + REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS * 16 * ic_sub_group
             + simd_id;
     for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
-        diff_gamma += reduce_temp[i * 16];
+        diff_gamma += temp_reduce[i * 16];
     }
-    reduce_temp += IC16 * REDUCE_STAT_NBLOCKS;
+    temp_reduce += IC16 * REDUCE_STAT_NBLOCKS;
     for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
-        diff_beta += reduce_temp[i * 16];
+        diff_beta += temp_reduce[i * 16];
     }
 
     if (ic_sub_group > 0) {
