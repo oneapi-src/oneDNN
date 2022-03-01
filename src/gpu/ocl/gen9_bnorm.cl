@@ -234,10 +234,8 @@ __kernel void gen9_calc_mean_var(
         }
     }
 
-    STORE_FLOAT_1x16(
-            &reduce_temp[group_c_offset + mb_sp_idx * 16 + simd_id], sum.s0);
-    STORE_FLOAT_1x16(
-            &reduce_temp[ver_offs + group_c_offset + mb_sp_idx * 16 + simd_id],
+    STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], sum.s0);
+    STORE_FLOAT_1x16(&reduce_temp[ver_offs + group_c_offset + mb_sp_idx * 16],
             sum_sq.s0);
 }
 
@@ -426,8 +424,7 @@ __kernel void gen9_calc_mean(
     }
 
     // reduce_temp is padded to IC16, no OOB writes
-    STORE_FLOAT_1x16(
-            &reduce_temp[group_c_offset + mb_sp_idx * 16 + simd_id], v_mean);
+    STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], v_mean);
 }
 
 NAMED_KERNEL_ATTR(REDUCE)
@@ -575,8 +572,7 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
         v_var += res0[i] + res1[i];
     }
     // reduce_temp is padded to IC16, no OOB writes
-    STORE_FLOAT_1x16(
-            &reduce_temp[group_c_offset + mb_sp_idx * 16 + simd_id], v_var);
+    STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], v_var);
 }
 
 NAMED_KERNEL_ATTR(REDUCE)
