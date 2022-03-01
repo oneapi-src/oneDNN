@@ -1338,3 +1338,49 @@ TEST(PatternMatcherV2, MultipleConsumerDifferentPartition) {
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
     ASSERT_EQ(fusion_ops.size(), 5);
 }
+
+TEST(PatternMatcherV2, NestedRepetitionOptional) {
+    auto pgraph = std::make_shared<pb_graph_t>("pgraph");
+    auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
+    auto matmul = mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
+    auto optional_add_subgraph
+            = std::make_shared<pb_graph_t>("optional_add_subgraph");
+    auto optional_add = optional_add_subgraph->append_op(
+            impl::op_kind::Add, "optional_add");
+    optional_add_subgraph->create_input_port(0, optional_add, 0);
+    optional_add_subgraph->create_output_port(0, optional_add, 0);
+    auto add = mlp_layer->append_optional(
+            optional_add_subgraph, {in_edge(0, matmul, 0)}, "add");
+
+    auto activation = mlp_layer->append_alternation(
+            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::GELU},
+            {in_edge(0, add, 0)}, "activation");
+
+    mlp_layer->create_input_port(0, matmul, 0);
+    mlp_layer->create_output_port(0, activation, 0);
+    pgraph->append_repetition(mlp_layer, {0, 0}, 1, 10, "rep_unit");
+
+    impl::graph_t agraph;
+    op_t matmul_op {0, MatMul, "matmul"};
+    op_t add_op {1, Add, "add"};
+    op_t relu {2, ReLU, "relu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    matmul_op.add_input(lt_vec[0]);
+    matmul_op.add_input(lt_vec[1]);
+    matmul_op.add_output(lt_vec[2]);
+    add_op.add_input(lt_vec[2]);
+    add_op.add_input(lt_vec[3]);
+    add_op.add_output(lt_vec[4]);
+    relu.add_input(lt_vec[4]);
+    relu.add_output(lt_vec[5]);
+
+    ASSERT_EQ(agraph.add_op(&matmul_op), status::success);
+    ASSERT_EQ(agraph.add_op(&add_op), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 3);
+}

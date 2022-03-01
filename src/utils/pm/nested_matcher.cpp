@@ -630,8 +630,8 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
                         "only 1 consumer");
                 op_t *current_op
                         = speculative_ctx.out_port_map[pmap.first].first;
-                if (!match_node_outputs(current_op, rep_node, &speculative_ctx,
-                            temp_op_map))
+                if (!match_node_outputs(
+                            current_op, rep_node, parent_ctx, temp_op_map))
                     return false;
             }
 
@@ -641,8 +641,8 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             if (bind_arg.bind_node->get_outputs().size() == 1) {
                 op_t *current_op
                         = speculative_ctx.in_port_map[pmap.second].first;
-                if (!match_node_inputs(current_op, rep_node, &speculative_ctx,
-                            temp_op_map))
+                if (!match_node_inputs(
+                            current_op, rep_node, parent_ctx, temp_op_map))
                     return false;
             }
         }
