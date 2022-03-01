@@ -306,3 +306,8 @@ g64mb1ic64ih4480iw2976oc64oh4480ow2976kh3kw3ph1pw1_n"dw_offset_overflow"
 --cfg=s8s8s32
 --attr-post-ops=sum:0.5:1+add:f32+abs+max:u8:per_tensor:any
 ic32ih13oc13oh13kh1ph0n"sum_injector_with_out_of_scope_references"
+
+# MFDNN7420: Generate all needed kernels in brgemm conv
+--reset
+--cfg=bf16bf16f32
+g1ic64ih31iw1oc64oh32ow1kh3kw3ph0pw0n"brgemm_conv_generate_kernels"
