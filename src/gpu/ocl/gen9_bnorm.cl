@@ -943,9 +943,14 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         diff_beta[0] += diff_beta[i];
     }
 
-    // diff_scaleshift (temp_reduce) is padded to IC16
-    STORE_FLOAT_1x16(&temp_reduce[mb_sp_idx * 16], diff_gamma[0]);
-    STORE_FLOAT_1x16(&temp_reduce[REDUCE_STAT_NBLOCKS * IC16 + mb_sp_idx * 16],
+    // scratchpad layout:
+    // IC16 - diff_gamma reduction, wrote by gen9_reduce_stats kernel
+    // REDUCE_STAT_NBLOCKS * IC16 - diff_gamma stats calculated by this kernel
+    // IC16 - diff_beta reduction, wrote by gen9_reduce_stats kernel
+    // REDUCE_STAT_NBLOCKS * IC16 - diff_beta stats calculated by this kernel
+    STORE_FLOAT_1x16(&temp_reduce[IC16 + mb_sp_idx * 16], diff_gamma[0]);
+    STORE_FLOAT_1x16(&temp_reduce[2 * IC16 + REDUCE_STAT_NBLOCKS * IC16
+                             + mb_sp_idx * 16],
             diff_beta[0]);
 }
 
@@ -963,13 +968,13 @@ __kernel void gen9_reduce_stats(__global float *temp_reduce,
     float diff_gamma = 0.0f;
     float diff_beta = 0.0f;
 
-    temp_reduce += REDUCE_STAT_NBLOCKS * 16 * group_c
+    temp_reduce += IC16 + REDUCE_STAT_NBLOCKS * 16 * group_c
             + REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS * 16 * ic_sub_group
             + simd_id;
     for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
         diff_gamma += temp_reduce[i * 16];
     }
-    temp_reduce += IC16 * REDUCE_STAT_NBLOCKS;
+    temp_reduce += IC16 + IC16 * REDUCE_STAT_NBLOCKS;
     for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
         diff_beta += temp_reduce[i * 16];
     }
@@ -998,7 +1003,7 @@ __kernel void gen9_reduce_stats(__global float *temp_reduce,
 #elif DIFF_SCALE == 1 || DIFF_SHIFT == 1
             diff_shift[c] = diff_beta;
 #else
-            diff_scaleshift[IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
+            diff_scaleshift[IC + IC * REDUCE_STAT_NBLOCKS + c] = diff_beta;
 #endif // #if DIFF_SCALESHIFT == 1
         }
     }
@@ -1028,7 +1033,7 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
     const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(diff_shift, c);
 #else
     const float diff_beta = MAYBE_LAST_IC_LOAD_FLOAT_1x16(
-            diff_scaleshift, REDUCE_STAT_NBLOCKS * IC + c);
+            diff_scaleshift, IC + REDUCE_STAT_NBLOCKS * IC + c);
 #endif // #if DIFF_SCALESHIFT == 1
 #endif // #if CALCULATE_DIFF_STATS == 1
 
