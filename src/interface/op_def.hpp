@@ -428,13 +428,19 @@ DNNL_GRAPH_OP_SCHEMA(EluBackprop, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "result_forward", "result of forward", "T")
+                .set_input(0, "data",
+                        "if use_dst is true, data is result of forward. Else, "
+                        "data is src of forward.",
+                        "T")
                 .set_input(1, "output_delta",
                         "gradient tensor w.r.t. the output", "T")
                 .set_output(0, "input_delta",
                         "gradient tensor w.r.t. the input of Elu", "T")
                 .set_attr("alpha", "scale for the negative factor", true,
                         attribute_kind::f)
+                .set_attr("use_dst",
+                        "if true, use dst to calculate gradient; else use src",
+                        false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -510,15 +516,21 @@ DNNL_GRAPH_OP_SCHEMA(HardTanhBackprop, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
+                .set_input(0, "data",
+                        "if use_dst is true, data is result of forward. Else, "
+                        "data is src of forward.",
+                        "T")
+                .set_input(1, "output_delta",
                         "gradient tensor w.r.t. the output", "T")
-                .set_input(1, "input_forward", "input of forward", "T")
                 .set_output(0, "input_delta",
                         "gradient tensor w.r.t. the input of HardTanh", "T")
                 .set_attr("min", "lower bound of values in the output", true,
                         attribute_kind::f)
                 .set_attr("max", "upper bound of values in the output", true,
                         attribute_kind::f)
+                .set_attr("use_dst",
+                        "if true, use dst to calculate gradient; else use src",
+                        false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1063,12 +1075,17 @@ DNNL_GRAPH_OP_SCHEMA(ReLUBackprop, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
+                .set_input(0, "data",
+                        "if use_dst is true, data is result of forward. Else, "
+                        "data is src of forward.",
+                        "T")
+                .set_input(1, "output_delta",
                         "gradient tensor w.r.t. the output", "T")
-                .set_input(1, "arg",
-                        "either forward input or output tensor of ReLU", "T")
                 .set_output(0, "input_delta",
                         "gradient tensor w.r.t. the input of ReLU", "T")
+                .set_attr("use_dst",
+                        "if true, use dst to calculate gradient; else use src",
+                        false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -1097,8 +1114,10 @@ DNNL_GRAPH_OP_SCHEMA(SigmoidBackprop, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input",
-                        "either forward input or output tensor of Sigmoid", "T")
+                .set_input(0, "data",
+                        "if use_dst is true, data is result of forward. Else, "
+                        "data is src of forward.",
+                        "T")
                 .set_input(1, "output_delta",
                         "gradient tensor w.r.t. the output", "T")
                 .set_output(0, "input_delta",
@@ -1178,12 +1197,12 @@ DNNL_GRAPH_OP_SCHEMA(SqrtBackprop, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
-                        "gradients tensor w.r.t. the output", "T")
-                .set_input(1, "input",
-                        "if use_dst is true, input is result of forward. Else, "
-                        "input is src of forward.",
+                .set_input(0, "data",
+                        "if use_dst is true, data is result of forward. Else, "
+                        "data is src of forward.",
                         "T")
+                .set_input(1, "output_delta",
+                        "gradients tensor w.r.t. the output", "T")
                 .set_output(0, "input_delta",
                         "the gradient tensor w.r.t. the input of Sqrt", "T")
                 .set_attr("use_dst",
@@ -1250,7 +1269,10 @@ DNNL_GRAPH_OP_SCHEMA(TanhBackprop, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input of forward", "T")
+                .set_input(0, "data",
+                        "if use_dst is true, data is result of forward. Else, "
+                        "data is src of forward.",
+                        "T")
                 .set_input(1, "output_delta",
                         "gradients tensor w.r.t. the output", "T")
                 .set_output(0, "input_delta",

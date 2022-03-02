@@ -3211,15 +3211,6 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
                     static_cast<int64_t>(
                             get_eltwise_alg_map().at(cur_op->get_kind())));
         } else if (is_eltwise_bwd_kind(cur_op->get_kind())) {
-            auto kind = cur_op->get_kind();
-            // TODO(xxx): consider the unification of inputs order in our spec
-            // ('output_delta' in most cases appears as 2nd input, but in below
-            // ones, as 1st)
-            if (kind == impl::op_kind::HardTanhBackprop
-                    || kind == impl::op_kind::ReLUBackprop
-                    || kind == impl::op_kind::SqrtBackprop) {
-                cur_op->swap_input_values(0, 1);
-            }
             new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise_bwd);
             merge_common_eltwise_attrs(cur_op, new_op);
             const bool use_dst = cur_op->has_attr("use_dst")
@@ -3227,6 +3218,7 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
                     : false;
             new_op->set_attr("use_dst", use_dst);
             merge_attr = false;
+            auto kind = cur_op->get_kind();
             auto bwd_algo = get_eltwise_bwd_alg(kind, use_dst);
             auto fwd_algo = get_eltwise_bwd_alg(kind, false);
             if (bwd_algo == algorithm::undef) {

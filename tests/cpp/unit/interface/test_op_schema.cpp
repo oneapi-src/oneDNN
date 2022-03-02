@@ -1246,8 +1246,9 @@ TEST(OpSchema, EluBackprop) {
     const op_kind_t op_kind_ = op_kind::EluBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"alpha", true}};
+    const std::map<std::string, bool> attrs_data
+            = {{"alpha", true}, {"use_dst", false}};
+    const size_t expected_attr_size = attrs_data.size();
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1377,9 +1378,9 @@ TEST(OpSchema, HardTanhBackprop) {
     const op_kind_t op_kind_ = op_kind::HardTanhBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 2;
     const std::map<std::string, bool> attrs_data
-            = {{"min", true}, {"max", true}};
+            = {{"min", true}, {"max", true}, {"use_dst", false}};
+    const size_t expected_attr_size = attrs_data.size();
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1929,8 +1930,8 @@ TEST(OpSchema, ReLUBackprop) {
     const op_kind_t op_kind_ = op_kind::ReLUBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<std::string, bool> attrs_data = {{"use_dst", false}};
+    const size_t expected_attr_size = attrs_data.size();
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);

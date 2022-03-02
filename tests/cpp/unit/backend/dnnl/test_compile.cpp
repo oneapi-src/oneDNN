@@ -7154,11 +7154,11 @@ void test_eltwise_bwd_common(
         const test::vector<float> &diff_dst_data,
         const test::vector<float> &ref_diff_src, dnnl::graph::impl::dims &dims,
         const dnnl_graph_op_kind_t op_kind, const std::string &op_name,
-        bool fwd_data_first,
         const std::map<std::string, float> &attrs_data = {}) {
     static const std::set<dnnl_graph_op_kind_t> with_support_for_use_dst {
-            impl::op_kind::SigmoidBackprop, impl::op_kind::SqrtBackprop,
-            impl::op_kind::TanhBackprop};
+            impl::op_kind::EluBackprop, impl::op_kind::HardTanhBackprop,
+            impl::op_kind::ReLUBackprop, impl::op_kind::SigmoidBackprop,
+            impl::op_kind::SqrtBackprop, impl::op_kind::TanhBackprop};
     const test::vector<float> &fwd_data = fwd_data_pair.first;
     const bool is_fwd_data_src = fwd_data_pair.second;
 
@@ -7179,13 +7179,8 @@ void test_eltwise_bwd_common(
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(2, dims, impl::data_type::f32);
 
-    if (fwd_data_first) {
-        op.add_input(fwd_data_lt);
-        op.add_input(diff_dst_lt);
-    } else {
-        op.add_input(diff_dst_lt);
-        op.add_input(fwd_data_lt);
-    }
+    op.add_input(fwd_data_lt);
+    op.add_input(diff_dst_lt);
     op.add_output(diff_src_lt);
 
     impl::engine_t &eng = get_engine();
@@ -7203,12 +7198,8 @@ void test_eltwise_bwd_common(
     p.init(part);
 
     impl::compiled_partition_t cp(p);
-    std::vector<const impl::logical_tensor_t *> inputs;
-    if (fwd_data_first) {
-        inputs = {&fwd_data_lt, &diff_dst_lt};
-    } else {
-        inputs = {&diff_dst_lt, &fwd_data_lt};
-    }
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &fwd_data_lt, &diff_dst_lt};
     std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
     p.compile(&cp, inputs, outputs, &eng);
 
@@ -7218,12 +7209,7 @@ void test_eltwise_bwd_common(
             diff_dst_lt, &eng, const_cast<float *>(diff_dst_data.data()));
     impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src_data.data());
 
-    std::vector<impl::tensor_t> input_ts;
-    if (fwd_data_first) {
-        input_ts = {fwd_data_ts, diff_dst_ts};
-    } else {
-        input_ts = {diff_dst_ts, fwd_data_ts};
-    }
+    std::vector<impl::tensor_t> input_ts {fwd_data_ts, diff_dst_ts};
     std::vector<impl::tensor_t> output_ts {diff_src_ts};
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, input_ts, output_ts);
@@ -7276,6 +7262,8 @@ TEST(Execute, Elu) {
 TEST(Execute, EluBackward) {
     test::vector<float> src {
             0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
+    test::vector<float> dst {0, -0.632121, 0.0723652, -0.0358293, 40, -1,
+            0.188521, -0.517965, 88.371};
     test::vector<float> diff_dst {
             3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
     test::vector<float> ref_diff_src {3, -2.57516, 0.0194608, -0.0539432, 70, 0,
@@ -7285,7 +7273,9 @@ TEST(Execute, EluBackward) {
     const std::map<std::string, float> attrs_data {{"alpha", 1.f}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::EluBackprop, "elu_bw", true, attrs_data);
+            impl::op_kind::EluBackprop, "elu_bw", attrs_data);
+    test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
+            impl::op_kind::EluBackprop, "elu_bw", attrs_data);
 }
 
 TEST(Execute, Exp) {
@@ -7322,7 +7312,7 @@ TEST(Execute, GeluBackward) {
     dnnl::graph::impl::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::GELUBackprop, "gelu_bw", true);
+            impl::op_kind::GELUBackprop, "gelu_bw");
 }
 
 TEST(Execute, Hardtanh) {
@@ -7339,6 +7329,8 @@ TEST(Execute, Hardtanh) {
 TEST(Execute, HardtanhBackward) {
     test::vector<float> src {
             0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
+    test::vector<float> dst {
+            0, -1, 0.0723652, -0.0364869, 2, -1, 0.188521, -0.729739, 2};
     test::vector<float> diff_dst {
             3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
     test::vector<float> ref_diff_src {
@@ -7348,7 +7340,9 @@ TEST(Execute, HardtanhBackward) {
     const std::map<std::string, float> attrs_data {{"min", -1.f}, {"max", 2.f}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::HardTanhBackprop, "hardtanh_bw", false, attrs_data);
+            impl::op_kind::HardTanhBackprop, "hardtanh_bw", attrs_data);
+    test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
+            impl::op_kind::HardTanhBackprop, "hardtanh_bw", attrs_data);
 }
 
 TEST(Execute, Relu) {
@@ -7363,6 +7357,8 @@ TEST(Execute, Relu) {
 TEST(Execute, ReluBackward) {
     test::vector<float> src {
             0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
+    test::vector<float> dst {
+            0, -0, 0.0723652, -0, 40, -0, 0.188521, -0, 88.371};
     test::vector<float> diff_dst {
             3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
     test::vector<float> ref_diff_src {
@@ -7371,7 +7367,9 @@ TEST(Execute, ReluBackward) {
     dnnl::graph::impl::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::ReLUBackprop, "relu_bw", false);
+            impl::op_kind::ReLUBackprop, "relu_bw");
+    test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
+            impl::op_kind::ReLUBackprop, "relu_bw");
 }
 
 TEST(Execute, Sigmoid) {
@@ -7396,9 +7394,9 @@ TEST(Execute, SigmoidBackward) {
     dnnl::graph::impl::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::SigmoidBackprop, "sigmoid_bw", true);
+            impl::op_kind::SigmoidBackprop, "sigmoid_bw");
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::SigmoidBackprop, "sigmoid_bw", true);
+            impl::op_kind::SigmoidBackprop, "sigmoid_bw");
 }
 
 TEST(Execute, Sqrt) {
@@ -7423,9 +7421,9 @@ TEST(Execute, SqrtBackward) {
     dnnl::graph::impl::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::SqrtBackprop, "sqrt_bw", false);
+            impl::op_kind::SqrtBackprop, "sqrt_bw");
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::SqrtBackprop, "sqrt_bw", false);
+            impl::op_kind::SqrtBackprop, "sqrt_bw");
 }
 
 TEST(Execute, Square) {
@@ -7476,9 +7474,9 @@ TEST(Execute, TanhBackward) {
     dnnl::graph::impl::dims dims {1, 3, 3};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::TanhBackprop, "tanh_bw", true);
+            impl::op_kind::TanhBackprop, "tanh_bw");
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::TanhBackprop, "tanh_bw", true);
+            impl::op_kind::TanhBackprop, "tanh_bw");
 }
 
 struct eltwise_param {
