@@ -11,6 +11,7 @@
 | conv+bias+relu                       | GPU      | FP16      | @ref gpu_simple_pattern_fp16_cpp                      |
 | inplace computation                  | CPU      | FP32      | @ref cpu_inplace_ports_cpp                            |
 | Single operator partition            | CPU      | FP32      | @ref cpu_single_op_partition_f32_cpp                  |
+| Simple CNN Training                  | CPU      | FP32      | @ref cpu_cnn_training_f32_cpp                         |
 
 ## C API examples
 
