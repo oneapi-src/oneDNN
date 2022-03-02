@@ -79,15 +79,23 @@ bool match_node_inputs(op_t *op, pb_node *node, match_context_t *ctx,
             if (op->num_inputs() < node_iport + 1) return false;
             std::shared_ptr<value_t> op_in_value
                     = op->get_input_value(node_iport);
-            if (!op_in_value->has_producer()) return false;
-            op_t *in_op = op->get_input_op(node_iport);
-            size_t in_op_oport = op_in_value->get_offset();
             pb_node *in_node = node_inputs[i].second.first;
-            oport_t in_node_oport = node_inputs[i].second.second;
-            binding_t in_bind(
-                    BIND_OUT, in_op, in_op_oport, in_node, in_node_oport);
-            if (!match_graph_helper(in_bind, ctx, copied_op_map)) {
-                return false;
+            if (!op_in_value->has_producer()) {
+                // in this case, only optional can survive
+                if (in_node->get_node_kind()
+                        != pb_node_kind::PB_NODE_KIND_REPETITION)
+                    return false;
+                repetition_t *rep_node = dynamic_cast<repetition_t *>(in_node);
+                if (rep_node->get_min_rep() != 0) return false;
+            } else {
+                op_t *in_op = op->get_input_op(node_iport);
+                size_t in_op_oport = op_in_value->get_offset();
+                oport_t in_node_oport = node_inputs[i].second.second;
+                binding_t in_bind(
+                        BIND_OUT, in_op, in_op_oport, in_node, in_node_oport);
+                if (!match_graph_helper(in_bind, ctx, copied_op_map)) {
+                    return false;
+                }
             }
         }
     } else { // commutative ops need to consider switching inputs
@@ -515,7 +523,7 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
         match_context_t local_ctx {ctx, temp_bind.bind_node};
         if (match_graph(temp_bind, &local_ctx, temp_op_map)) {
             matched_op_map = temp_op_map;
-            fill_parent_io_map(&local_ctx, temp_bind);
+            fill_parent_io_map(&local_ctx, bind_arg);
             return true;
         }
     }
