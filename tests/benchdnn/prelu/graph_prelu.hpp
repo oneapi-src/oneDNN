@@ -40,6 +40,9 @@ struct prelu_graph_prb_t : public graph_prb_t {
 private:
     struct spec_t {
         spec_t(const ::prelu::prb_t *prb) noexcept;
+        bool is_bwd_pass {false};
+        dnnl::graph::op::kind op_kind;
+
         dims_t data_dims;
         dims_t slope_dims;
 
@@ -56,7 +59,7 @@ private:
     fill_status_t handle_main_op_();
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::PReLU;
+        return spec_.op_kind;
     }
 
 public:
