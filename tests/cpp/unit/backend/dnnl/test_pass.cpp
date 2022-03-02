@@ -11390,3 +11390,54 @@ TEST(Pass, FailToFuseSoftPlusForwardAndBackwardWithUnsupportedBetaAttrValue) {
         ASSERT_EQ(agraph.get_num_partitions(), 0);
     }
 }
+
+TEST(Pass, FuseConvBwdBiasaddBwd) {
+    /*       Wildcard
+        \        /\
+      Convolution  BiasAddBackprop
+    BackpropFilters
+    */
+    graph_t agraph;
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    op_t op0 {0, ReLU, "op0"};
+    op_t op1 {1, ConvolutionBackpropFilters, "op1"};
+    set_conv_common_attr(op1);
+    op_t op2 {2, BiasAddBackprop, "op2"};
+
+    op0.add_input(lt_vec[0]);
+    op0.add_output(lt_vec[1]);
+    op1.add_input(lt_vec[2]);
+    op1.add_input(lt_vec[1]);
+    op1.add_output(lt_vec[4]);
+    op2.add_input(lt_vec[1]);
+    op2.add_output(lt_vec[5]);
+
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+    ASSERT_EQ(agraph.add_op(&op1), status::success);
+    ASSERT_EQ(agraph.add_op(&op2), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    pass::pass_base_ptr apass = get_pass("conv_bwd_weights_bwd_bias_fusion");
+    apass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::dnnl_conv_bwd_weights);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    std::unordered_set<size_t> input_ids;
+    input_ids.insert(agraph.get_partitions()[0]->get_inputs()[0].id);
+    input_ids.insert(agraph.get_partitions()[0]->get_inputs()[1].id);
+    input_ids.insert(agraph.get_partitions()[0]->get_inputs()[2].id);
+    ASSERT_TRUE(input_ids.find(2) != input_ids.end());
+    ASSERT_TRUE(input_ids.find(1) != input_ids.end());
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 2);
+    std::unordered_set<size_t> output_ids;
+    output_ids.insert(agraph.get_partitions()[0]->get_outputs()[0].id);
+    output_ids.insert(agraph.get_partitions()[0]->get_outputs()[1].id);
+    ASSERT_TRUE(output_ids.find(4) != output_ids.end());
+    ASSERT_TRUE(output_ids.find(5) != output_ids.end());
+}
