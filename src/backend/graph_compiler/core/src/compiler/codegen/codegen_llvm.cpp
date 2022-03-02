@@ -682,6 +682,11 @@ public:
 
     void view(intrin_call_c v) override {
         auto cate = get_etype_category_nothrow(v->dtype_.type_code_);
+#if SC_LLVM_BACKEND > 10
+        using shuffle_idx_t = int;
+#else
+        using shuffle_idx_t = uint32_t;
+#endif
         switch (v->type_) {
             case intrin_type::reinterpret: {
                 assert(v->args_.size() == 1);
@@ -888,26 +893,80 @@ public:
                         break;
                 }
             } break;
-            // todo: (yijie) enable these ops when enabling trans2d OP. It also
-            // needs shuffle vector intrinsic
 
-            // case intrin_type::unpack_high:
-            // case intrin_type::unpack_low: {
-            //     assert(v->args_.size() == 2);
-            //     COMPILE_ASSERT(v->dtype_.lanes_ == 8,
-            //             "Expecting 8-lane for unpack_*: " << v);
-            //     auto inval1 = generate_expr(v->args_[0]);
-            //     auto inval2 = generate_expr(v->args_[1]);
-            //     static const uint32_t hi_array[]
-            //             = {2, 10, 2 + 1, 10 + 1, 6, 14, 6 + 1, 14 + 1};
-            //     static const uint32_t lo_array[]
-            //             = {0, 8, 0 + 1, 8 + 1, 4, 12, 4 + 1, 12 + 1};
-            //     ArrayRef<uint32_t> arr = v->type_ == intrin_type::unpack_high
-            //             ? hi_array
-            //             : lo_array;
-            //     current_val_
-            //             = builder_.CreateShuffleVector(inval1, inval2, arr);
-            // } break;
+            case intrin_type::unpack_high:
+            case intrin_type::unpack_low: {
+                assert(v->args_.size() == 2);
+                COMPILE_ASSERT(v->dtype_.lanes_ == 8,
+                        "Expecting 8-lane for unpack: " << v);
+                auto inval1 = generate_expr(v->args_[0]);
+                auto inval2 = generate_expr(v->args_[1]);
+                static const shuffle_idx_t hi_array[]
+                        = {2, 10, 2 + 1, 10 + 1, 6, 14, 6 + 1, 14 + 1};
+                static const shuffle_idx_t lo_array[]
+                        = {0, 8, 0 + 1, 8 + 1, 4, 12, 4 + 1, 12 + 1};
+                ArrayRef<shuffle_idx_t> arr
+                        = v->type_ == intrin_type::unpack_high ? hi_array
+                                                               : lo_array;
+                current_val_
+                        = builder_.CreateShuffleVector(inval1, inval2, arr);
+            } break;
+            case intrin_type::shuffle: {
+                assert(v->args_.size() == 3);
+                COMPILE_ASSERT(v->dtype_.lanes_ == 8,
+                        "Expecting 8-lane for shuffle: " << v);
+                auto inval1 = generate_expr(v->args_[0]);
+                auto inval2 = generate_expr(v->args_[1]);
+                auto imm8 = get_expr_as_int(v->args_[2]);
+                shuffle_idx_t array[8];
+                for (int i = 0; i <= 6; i += 2) {
+                    auto arr_idx = i / 2;
+                    auto val_idx = (imm8 >> i) % 4;
+                    if (i >= 4) {
+                        array[arr_idx] = val_idx + 8;
+                        array[arr_idx + 4] = val_idx + 8 + 4;
+                    } else {
+                        array[arr_idx] = val_idx;
+                        array[arr_idx + 4] = val_idx + 4;
+                    }
+                }
+                current_val_
+                        = builder_.CreateShuffleVector(inval1, inval2, array);
+            } break;
+            case intrin_type::permute: {
+                assert(v->args_.size() == 3);
+                COMPILE_ASSERT(v->dtype_.lanes_ == 8,
+                        "Expecting 8-lane for permute: " << v);
+                auto inval1 = generate_expr(v->args_[0]);
+                auto inval2 = generate_expr(v->args_[1]);
+                auto imm8 = get_expr_as_int(v->args_[2]);
+                shuffle_idx_t array[8];
+                auto low_idx = 0, high_idx = 0;
+                switch (imm8 % 4) {
+                    case 0: break;
+                    case 1: low_idx += 4; break;
+                    case 2: low_idx += 8; break;
+                    case 3: low_idx += 12; break;
+                    default: break;
+                }
+                array[0] = low_idx;
+                array[1] = low_idx + 1;
+                array[2] = low_idx + 2;
+                array[3] = low_idx + 3;
+                switch ((imm8 >> 4) % 4) {
+                    case 0: break;
+                    case 1: high_idx += 4; break;
+                    case 2: high_idx += 8; break;
+                    case 3: high_idx += 12; break;
+                    default: break;
+                }
+                array[4] = high_idx;
+                array[5] = high_idx + 1;
+                array[6] = high_idx + 2;
+                array[7] = high_idx + 3;
+                current_val_
+                        = builder_.CreateShuffleVector(inval1, inval2, array);
+            } break;
             default: {
                 std::stringstream ss;
                 ss << "Intrinsics not implemented ";

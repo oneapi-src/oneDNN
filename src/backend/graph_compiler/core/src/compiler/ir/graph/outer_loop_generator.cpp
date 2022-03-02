@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "fusible_op_utils.hpp"
 #include "fusion_mgr.hpp"
 #include "utils.hpp"
 #include "visitor.hpp"
@@ -62,9 +63,11 @@ static void fuse_outer_loops(for_loop outer_loop) {
         loops.push_back(cur_loop);
         cur_loop = get_next_inner_loop(cur_loop);
     }
+    if (!loop_can_be_fused(loops[0])) { return; }
     int64_t fused_number = get_loop_range(loops[0]);
     for (size_t i = 1; i < loops.size() - 1; i++) {
         if (fused_number >= max_fused_number) { break; }
+        if (!loop_can_be_fused(loops[i])) { break; }
         loops[0]->fuse(loops[i]);
         fused_number = fused_number * get_loop_range(loops[i]);
     }
