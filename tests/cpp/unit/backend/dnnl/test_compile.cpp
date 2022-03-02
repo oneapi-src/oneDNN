@@ -7187,8 +7187,8 @@ void test_eltwise_bwd_common(
 
     impl::logical_tensor_t fwd_data_lt
             = utils::logical_tensor_init(0, dims, impl::data_type::f32);
-    impl::logical_tensor_t diff_src_lt
-            = utils::logical_tensor_init(1, dims, impl::data_type::f32);
+    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+            1, dims, impl::data_type::f32, impl::layout_type::any);
     impl::logical_tensor_t diff_dst_lt
             = utils::logical_tensor_init(2, dims, impl::data_type::f32);
 

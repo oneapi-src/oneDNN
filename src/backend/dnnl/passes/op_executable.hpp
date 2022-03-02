@@ -757,11 +757,11 @@ create_eltwise_bwd_pd(std::shared_ptr<impl::op_t> &op,
             {prop_kind::forward_training, fwd_algo, forward_data, alpha, beta},
             prm_attr, p_engine);
 
-    auto backward_data = make_dnnl_memory_desc(
-            op->get_input_value(1)->get_logical_tensor());
+    auto diff_src = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
     dnnl::eltwise_backward::primitive_desc pd(
-            {bwd_algo, backward_data, backward_data, alpha, beta}, prm_attr,
-            p_engine, fwd_hints);
+            {bwd_algo, diff_src, forward_data, alpha, beta}, prm_attr, p_engine,
+            fwd_hints);
 
     pd_cache.insert({op.get(), pd});
 

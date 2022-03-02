@@ -219,6 +219,13 @@ static void layout_propagation_for_eltwise_bwd(op_ptr &op,
     value_ptr data = op->get_input_value(0);
     fill_layout_info(data, opt_desc);
 
+    insert_reorder_before(op, 1, pd.diff_dst_desc(), reorder_ops);
+    value_ptr diff_dst = op->get_input_value(1);
+    fill_layout_info(diff_dst, opt_desc);
+
+    value_ptr diff_src = op->get_output_value(0);
+    fill_layout_info(diff_src, pd.diff_src_desc());
+
     value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
