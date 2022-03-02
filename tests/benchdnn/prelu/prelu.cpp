@@ -25,7 +25,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "prelu/prelu.hpp"
 
@@ -184,6 +183,17 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    const auto trh_dt = kind == WEI ? prb->sdt[1] : prb->sdt[0];
+    cmp.set_threshold(2 * epsilon_dt(trh_dt));
+
+    // Weights are very sparse, no sense to test for trust, otherwise filling
+    // is specific to cover half non-zeros only.
+    const float zero_trust_percent = kind == WEI ? 99.f : 50.f;
+    cmp.set_zero_trust_percent(zero_trust_percent);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -245,13 +255,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_WEIGHTS, weights_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-            cmp.set_threshold(2 * epsilon_dt(prb->sdt[0]));
-            cmp.set_zero_trust_percent(50.f); // Due to filling
-            cmp.set_data_kind(DST);
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
         }
     } else {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
@@ -280,21 +284,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, d_weights_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-
-            compare::compare_t cmp_src;
-            cmp_src.set_threshold(2 * epsilon_dt(prb->sdt[0]));
-            cmp_src.set_zero_trust_percent(50.f); // Due to filling
-            cmp_src.set_data_kind(SRC);
-            SAFE(cmp_src.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
-
-            compare::compare_t cmp_wei;
-            cmp_wei.set_threshold(2 * epsilon_dt(prb->sdt[1]));
-            // Weights are very sparse, no sense to test for trust.
-            cmp_wei.set_zero_trust_percent(100.f);
-            cmp_wei.set_data_kind(WEI);
-            SAFE(cmp_wei.compare(d_weights_fp, d_weights_dt, prb->attr, res),
-                    WARN);
+            check_correctness(prb, {SRC, WEI}, args, ref_args, setup_cmp, res);
         }
     }
 

@@ -24,7 +24,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "shuffle/shuffle.hpp"
 
@@ -123,6 +122,9 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -160,27 +162,38 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
-    SAFE(fill_src(prb, src_dt, src_fp), WARN);
-
-    const int i_arg = prb->dir == FWD_D ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
-    const int o_arg = prb->dir == FWD_D ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
-
     args_t args, ref_args;
 
-    args.set(i_arg, src_dt);
-    args.set(o_arg, dst_dt);
-    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    if (prb->dir & FLAG_FWD) {
+        SAFE(fill_src(prb, src_dt, src_fp), WARN);
 
-    SAFE(execute_and_wait(prim, args, res), WARN);
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_DST, dst_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    if (is_bench_mode(CORR)) {
-        ref_args.set(DNNL_ARG_SRC, src_fp);
-        ref_args.set(DNNL_ARG_DST, dst_fp);
+        SAFE(execute_and_wait(prim, args, res), WARN);
 
-        TIME_REF(compute_ref(prb, ref_args));
+        if (is_bench_mode(CORR)) {
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
 
-        compare::compare_t cmp;
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
+        }
+    } else {
+        SAFE(fill_src(prb, dst_dt, dst_fp), WARN);
+
+        args.set(DNNL_ARG_DIFF_DST, dst_dt);
+        args.set(DNNL_ARG_DIFF_SRC, src_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+
+        SAFE(execute_and_wait(prim, args, res), WARN);
+
+        if (is_bench_mode(CORR)) {
+            ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
+
+            check_correctness(prb, {SRC}, args, ref_args, setup_cmp, res);
+        }
     }
 
     return measure_perf(res, prim, args);

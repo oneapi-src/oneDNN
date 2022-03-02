@@ -450,7 +450,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (fused_bia_md.data_type != dnnl_data_type_undef)
         SAFE(fused_bia_dt.reorder(bia_fp1), WARN);
 
-    args_t args, args0, args1;
+    args_t args, args0, args1, ref_args;
 
     if (prb->dir & FLAG_FWD) {
         args0.set(DNNL_ARG_SRC, src_dt0);
@@ -511,13 +511,17 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            dnn_mem_t dst_fused(dst_dt, fp, tag::abx, test_engine);
-            dnn_mem_t dst_unfused(dst_dt1, fp, tag::abx, test_engine);
+            compare::compare_t cmp;
+            cmp.set_data_kind(DST);
             // Used p1 to avoid writing separate compare function. Compare uses
             // prb->cfg which can be u8s8u8 while after fusion it may be u8s8s8,
             // thus, compare() will saturate values which is not correct.
-            SAFE(conv::compare_data(p1.get(), DST, dst_fused, dst_unfused, res),
-                    WARN);
+            conv::setup_cmp(cmp, p1.get(), DST, ref_args);
+
+            dnn_mem_t dst_fused(dst_dt, fp, tag::abx, test_engine);
+            dnn_mem_t dst_unfused(dst_dt1, fp, tag::abx, test_engine);
+
+            cmp.compare(dst_unfused, dst_fused, prb->attr, res);
         }
     } else {
         assert(!"Backward is not supported");

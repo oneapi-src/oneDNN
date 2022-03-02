@@ -34,8 +34,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
-#include "utils/norm.hpp"
 
 #include "binary/binary.hpp"
 #include "conv/conv.hpp"
@@ -98,30 +96,6 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
     }
 
     return trust;
-}
-
-int compare_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
-    compare::compare_t cmp;
-    cmp.set_data_kind(kind);
-
-    const bool compare_with_norm = (prb->alg & WINO);
-    cmp.set_norm_validation_mode(compare_with_norm);
-
-    float trh = prb->cfg[kind].eps;
-    if ((prb->alg & WINO) && (prb->dir & FLAG_WEI)) {
-        // This is an empirical equation derived by observing growth error with
-        // increasing 'k' dimension in gemm of winograd
-        const float log_const = log10(0.125 * prb->mb * prb->oh * prb->ow);
-        trh = prb->cfg[kind].eps * (MAX2(1, pow(10, 0.4 * log_const)));
-    }
-    cmp.set_threshold(trh);
-
-    const float zpp = (1.f - get_non_zero_trust_percent(prb, kind)) * 100.f;
-    cmp.set_zero_trust_percent(zpp);
-
-    SAFE(cmp.compare(mem_fp, mem_dt, prb->attr, res), WARN);
-    return res->state == FAILED ? FAIL : OK;
 }
 
 bool need_src_init(const prb_t *prb) {
@@ -705,6 +679,24 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    const bool compare_with_norm = (prb->alg & WINO);
+    cmp.set_norm_validation_mode(compare_with_norm);
+
+    float trh = prb->cfg[kind].eps;
+    if ((prb->alg & WINO) && (prb->dir & FLAG_WEI)) {
+        // This is an empirical equation derived by observing growth error with
+        // increasing 'k' dimension in gemm of winograd
+        const float log_const = log10(0.125 * prb->mb * prb->oh * prb->ow);
+        trh = prb->cfg[kind].eps * (MAX2(1, pow(10, 0.4 * log_const)));
+    }
+    cmp.set_threshold(trh);
+
+    const float zpp = (1.f - get_non_zero_trust_percent(prb, kind)) * 100.f;
+    cmp.set_zero_trust_percent(zpp);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -835,8 +827,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
 
-            TIME_REF(compute_ref(prb, ref_args, prim_ref));
-            SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
         }
     } else if (prb->dir == BWD_D) {
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
@@ -852,8 +844,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(compute_ref(prb, ref_args, prim_ref));
-            SAFE(compare_data(prb, SRC, src_dt, src_fp, res), WARN);
+            check_correctness(
+                    prb, {SRC}, args, ref_args, setup_cmp, res, prim_ref);
         }
     } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
         args.set(DNNL_ARG_SRC, src_dt);
@@ -871,10 +863,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(compute_ref(prb, ref_args, prim_ref));
-            SAFE(compare_data(prb, WEI, wei_dt, wei_fp, res), WARN);
-            if (prb->dir & FLAG_BIA)
-                SAFE(compare_data(prb, BIA, bia_dt, bia_fp, res), WARN);
+            check_correctness(
+                    prb, {WEI, BIA}, args, ref_args, setup_cmp, res, prim_ref);
         }
     } else {
         SAFE(FAIL, CRIT);

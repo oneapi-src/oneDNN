@@ -286,6 +286,7 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
         const args_t &args, res_t *res) {
     stream_t stream(engine);
     std::vector<dnnl_exec_arg_t> dnnl_args;
+
     execute_unmap_args(args, dnnl_args);
 
     DNN_SAFE(exec_func(stream, dnnl_args), CRIT);
@@ -293,14 +294,6 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
     if (res) res->state = EXECUTED;
 
     execute_map_args(args);
-
-    if (is_bench_mode(CORR)) {
-        for (int i = 0; i < args.size(); ++i) {
-            SAFE(check_zero_padding(args.dnn_mem(i), args.arg(i), res), WARN);
-            SAFE(check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res),
-                    WARN);
-        }
-    }
 
     return OK;
 }

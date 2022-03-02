@@ -28,7 +28,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "bnorm/bnorm.hpp"
 #include "lnorm/lnorm.hpp"
@@ -375,41 +374,59 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
-/* When the error is larger than eps, It could be
- * due to catastrophic cancellation in final result
- * which is computed as `Y = a * X + b`.
- * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
- * Then large error in `a * X` could result in a final
- * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
- * which has no meaningful digits left in mantissa.*/
-void add_additional_fwd_lnorm_check(const prb_t *&prb, const dnn_mem_t &ss_fp,
-        const dnn_mem_t &sh_fp, const dnn_mem_t &dst_fp, const float &eps,
-        compare::compare_t &cmp) {
-    using cmp_args_t = compare::compare_t::driver_check_func_args_t;
-    const auto lnorm_add_check = [&](const cmp_args_t &args) {
-        bool scale_or_shift = prb->use_ss() || prb->use_sc() || prb->use_sh();
-        if (!scale_or_shift) return false;
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    const int f32_mant_digits = 24;
+    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
+    float trh = trh_coeff * ((kind == SRC || kind == DST) ? 5e-7 : 0);
+    if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
+        trh = trh_coeff * 5e-6;
+    cmp.set_threshold(trh);
 
-        dims_t l_dims = md2dims(dst_fp.md_);
-        dims_t dims_idx = off2dims_idx(l_dims, args.idx);
-        int64_t c = dims_idx[prb->ndims - 1];
-        const float beta = prb->use_sh() ? ((const float *)sh_fp)[c]
-                                         : ((const float *)ss_fp)[prb->c + c];
-        /* Using an empirically derived threshold,
-         * check if cancellation error
-         * in `|Y| = |a*X - (-b)|` is huge.*/
-        bool maybe_cancellation_error
-                = (fabsf(args.got - beta)
-                          / (fabsf(args.got) > FLT_MIN ? fabsf(args.got) : 1))
-                > 1.0f;
-        if (maybe_cancellation_error) {
-            /* Check for error in `a * X` */
-            float diff_aX
-                    = fabsf((args.got - beta) - (args.got + args.diff - beta));
-            return diff_aX <= eps;
-        }
-        return false;
-    };
+    // TODO: improve bf16 filling
+    if (prb->dt == dnnl_bf16) cmp.set_zero_trust_percent(99.f);
+
+    // When the error is larger than `trh`, it could be due to a catastrophic
+    // cancellation in final result which is computed as `Y = a * X + b`.
+    // When `a * X` is close to `b` and their signs are opposite, then large
+    // error in `a * X` could result in a final result (which has a cancellation
+    // i.e. `|Y| = |a*X - (-b)|`), which has no meaningful digits left in
+    // mantissa.
+    //
+    // Since lambda is called when stack is unavailable, need to capture `prb`
+    // and `kind` by value to avoid using dangling references.
+    const auto lnorm_add_check =
+            [&, kind, prb](
+                    const compare::compare_t::driver_check_func_args_t &args) {
+                const bool has_shift = prb->use_sh() || prb->use_ss();
+                if (!((prb->dir & FLAG_FWD) && kind == DST && has_shift))
+                    return false;
+
+                const auto &ss = ref_args.find(DNNL_ARG_SCALE_SHIFT);
+                const auto &sh = ref_args.find(DNNL_ARG_SHIFT);
+                const bool shift_only = prb->use_sh();
+                const float *sh_ptr
+                        = shift_only ? (const float *)sh : (const float *)ss;
+
+                const auto &dst = ref_args.find(DNNL_ARG_DST);
+                const int64_t c = dst.get_scale_idx(
+                        args.idx, 1 << (prb->ndims - 1) /* last_dim_mask */);
+                const int64_t c_idx = c + (shift_only ? 0 : prb->c);
+                const float beta = sh_ptr[c_idx];
+                // Using an empirically derived threshold, check if
+                // cancellation error in `|Y| = |a*X - (-b)|` is huge.
+                const float abs_exp = fabsf(args.exp);
+                const float norm_denom = abs_exp > FLT_MIN ? abs_exp : 1.f;
+                const float abs_exp_delta = fabsf(args.exp - beta);
+                bool maybe_cancel_error = abs_exp_delta / norm_denom > 1.f;
+                if (!maybe_cancel_error) return false;
+
+                // Check for error in `a * X`
+                float diff_aX = fabsf((args.exp - beta) - (args.got - beta));
+                float rel_diff_aX = diff_aX
+                        / (abs_exp_delta > FLT_MIN ? abs_exp_delta : 1.f);
+                return rel_diff_aX <= args.trh;
+            };
     cmp.set_driver_check_function(lnorm_add_check);
 }
 
@@ -518,33 +535,13 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SHIFT, sh_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-
-            compare::compare_t cmp_data;
-            const int digits_f32 = 24;
-            const float eps = (1 << (digits_f32 - digits_dt(prb->dt))) * 5e-7;
-            cmp_data.set_threshold(eps);
-            cmp_data.set_data_kind(DATA);
-            // TODO: improve bf16 filling
-            if (prb->dt == dnnl_bf16) cmp_data.set_zero_trust_percent(100.f);
-
-            add_additional_fwd_lnorm_check(
-                    prb, ss_fp, sh_fp, dst_fp, eps, cmp_data);
-            SAFE(cmp_data.compare(dst_fp, dst_dt, prb->attr, res), WARN);
-
+            std::vector<data_kind_t> kinds {DST};
             if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
-                compare::compare_t cmp_mean;
-                cmp_mean.set_data_kind(MEAN);
-                if (prb->dt == dnnl_bf16 || prb->dt == dnnl_f16)
-                    cmp_mean.set_zero_trust_percent(100.f);
-                SAFE(cmp_mean.compare(mean_fp, mean_dt, prb->attr, res), WARN);
-
-                compare::compare_t cmp_var;
-                cmp_var.set_data_kind(VAR);
-                if (prb->dt == dnnl_bf16 || prb->dt == dnnl_f16)
-                    cmp_var.set_zero_trust_percent(100.f);
-                SAFE(cmp_var.compare(var_fp, var_dt, prb->attr, res), WARN);
+                kinds.push_back(MEAN);
+                kinds.push_back(VAR);
             }
+
+            check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
         }
     } else {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
@@ -597,28 +594,12 @@ int doit(const prb_t *prb, res_t *res) {
                     d_ss_fp);
             ref_args.set(DNNL_ARG_DIFF_SHIFT, d_sh_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
+            std::vector<data_kind_t> kinds {SRC};
+            if ((use_ss || use_sc) && (prb->dir & FLAG_WEI))
+                kinds.push_back(use_sc ? SC : SS);
+            if (use_sh && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
 
-            compare::compare_t cmp_data;
-            const int digits_f32 = 24;
-            const float eps = (1 << (digits_f32 - digits_dt(prb->dt))) * 2e-7;
-            cmp_data.set_threshold(eps);
-            cmp_data.set_data_kind(DATA);
-            cmp_data.set_zero_trust_percent(70.f);
-            SAFE(cmp_data.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
-
-            if ((use_ss || use_sc) && (prb->dir & FLAG_WEI)) {
-                compare::compare_t cmp_ss;
-                cmp_ss.set_threshold(eps);
-                cmp_ss.set_data_kind(use_ss ? SS : SC);
-                SAFE(cmp_ss.compare(d_ss_fp, d_ss_dt, prb->attr, res), WARN);
-            }
-            if (use_sh && (prb->dir & FLAG_WEI)) {
-                compare::compare_t cmp_sh;
-                cmp_sh.set_threshold(eps);
-                cmp_sh.set_data_kind(SH);
-                SAFE(cmp_sh.compare(d_sh_fp, d_sh_dt, prb->attr, res), WARN);
-            }
+            check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
         }
     }
 

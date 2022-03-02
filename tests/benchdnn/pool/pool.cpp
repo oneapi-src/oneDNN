@@ -25,7 +25,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "pool/pool.hpp"
@@ -210,6 +209,24 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    cmp.set_threshold(prb->cfg[kind].eps);
+    cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
+
+    const auto pooling_add_check
+            = [&](const compare::compare_t::driver_check_func_args_t &args) {
+                  // cuDNN bug: it spits fp16 min value as -inf,
+                  // not -65504.
+                  if (is_nvidia_gpu() && args.dt == dnnl_f16) {
+                      return args.exp == lowest_dt(args.dt)
+                              && std::isinf(args.got) && std::signbit(args.got);
+                  }
+                  return false;
+              };
+    cmp.set_driver_check_function(pooling_add_check);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -284,28 +301,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
             ref_args.set(binary_po_args, binary_po_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-            cmp.set_threshold(prb->cfg[DST].eps);
-            cmp.set_data_kind(DST);
-            cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
-
-            const auto pooling_add_check
-                    = [&](const compare::compare_t::driver_check_func_args_t
-                                      &args) {
-                          // cuDNN bug: it spits fp16 min value as -inf,
-                          // not -65504.
-                          if (is_nvidia_gpu() && args.dt == dnnl_f16) {
-                              return args.exp == lowest_dt(args.dt)
-                                      && std::isinf(args.got)
-                                      && std::signbit(args.got);
-                          }
-                          return false;
-                      };
-            cmp.set_driver_check_function(pooling_add_check);
-
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
         }
     }
 
@@ -352,13 +348,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-            cmp.set_threshold(prb->cfg[SRC].eps);
-            cmp.set_data_kind(SRC);
-            cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
-            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
+            check_correctness(prb, {SRC}, args, ref_args, setup_cmp, res);
         }
     }
 

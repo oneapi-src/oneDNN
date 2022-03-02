@@ -25,7 +25,6 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "reorder.hpp"
 
@@ -284,6 +283,34 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    const bool has_s32
+            = prb->conf_in->dt == dnnl_s32 || prb->conf_out->dt == dnnl_s32;
+    const bool has_s8
+            = prb->conf_in->dt == dnnl_s8 || prb->conf_out->dt == dnnl_s8;
+    const bool has_u8
+            = prb->conf_in->dt == dnnl_u8 || prb->conf_out->dt == dnnl_u8;
+    // For u8 4/7 inputs becomes 0, for s32/s8 3/7 inputs becomes 0;
+    const float zero_trust_percent
+            = has_u8 ? 58.f : (has_s32 || has_s8) ? 43.f : 30.f;
+    cmp.set_zero_trust_percent(zero_trust_percent);
+
+    // Additional check to avoid false-positive result from f32->s32 conversion
+    // in case of sum post-op on GPU happening when two max_dt values
+    // are summed together.
+    const auto reorder_add_check
+            = [&](const compare::compare_t::driver_check_func_args_t &args) {
+                  if (args.dt == dnnl_s32 && args.got == max_dt(args.dt)
+                          && is_gpu()) {
+                      // 128.f = float(INT_MAX) - BENCHDNN_S32_TO_F32_SAT_CONST;
+                      return args.diff == 128.f;
+                  }
+                  return false;
+              };
+    cmp.set_driver_check_function(reorder_add_check);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -367,34 +394,6 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        compare::compare_t cmp;
-        cmp.set_data_kind(DATA);
-        const bool has_s32
-                = src_md.data_type == dnnl_s32 || dst_md.data_type == dnnl_s32;
-        const bool has_s8
-                = src_md.data_type == dnnl_s8 || dst_md.data_type == dnnl_s8;
-        const bool has_u8
-                = src_md.data_type == dnnl_u8 || dst_md.data_type == dnnl_u8;
-        if (has_u8)
-            cmp.set_zero_trust_percent(58.f); // 4/7 inputs becomes 0
-        else if (has_s32 || has_s8)
-            cmp.set_zero_trust_percent(43.f); // 3/7 inputs becomes 0
-
-        // A hack to avoid false-positive result from f32->s32 conversion
-        // in case of sum post-op on GPU happening when two max_dt values
-        // are summed together.
-        using cmp_args_t = compare::compare_t::driver_check_func_args_t;
-        const auto reorder_add_check = [&](const cmp_args_t &args) {
-            if (args.dt == dnnl_s32 && args.got == max_dt(args.dt)
-                    && is_gpu()) {
-                // 128.f = float(INT_MAX)
-                //                - BENCHDNN_S32_TO_F32_SAT_CONST;
-                return args.diff == 128.f;
-            }
-            return false;
-        };
-        cmp.set_driver_check_function(reorder_add_check);
-
         const auto assign_comp_mem = [&](dnn_mem_t &m, flag_bit_t flag) {
             if (prb->is_reorder_with_compensation(flag)) {
                 dims_t dims = prb->get_compensation_dims(flag);
@@ -415,26 +414,22 @@ int doit(const prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_SRC_1, dst_s8_comp_ref); // Additional input
         ref_args.set(DNNL_ARG_SRC_2, dst_zp_comp_ref); // Additional input
 
-        TIME_REF(compute_ref(prb, ref_args));
-
-        // Validate main reorder part.
         // Remove extra desc so that reorders with compensation could have
         // proper reorder from blocked layout to plain for comparison.
         dnnl_memory_extra_desc_t empty_extra {};
         const auto orig_dst_extra = dst_dt.md_.extra;
         dst_dt.md_.extra = empty_extra;
 
-        // TODO: enable additional checks for border values validity.
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        // Validate main reorder part.
+        check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
 
         // Restore extra for compensation comparison and performance mode.
         dst_dt.md_.extra = orig_dst_extra;
 
         // Validate compensated reorder part.
         if (prb->is_reorder_with_compensation(FLAG_ANY)) {
-            SAFE(compare_compensation(
-                         prb, dst_s8_comp_ref, dst_zp_comp_ref, dst_dt, res),
-                    WARN);
+            compare_compensation(
+                    prb, dst_s8_comp_ref, dst_zp_comp_ref, dst_dt, res);
         }
     }
 

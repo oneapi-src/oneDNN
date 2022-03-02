@@ -27,7 +27,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "softmax/softmax.hpp"
 
@@ -225,7 +224,29 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
-void add_additional_softmax_check(compare::compare_t &cmp) {
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    const auto trh_dt = (prb->dir & FLAG_FWD) ? prb->ddt : prb->sdt;
+    const float trh_coeff_log = prb->alg == LOGSOFTMAX ? 5 : 1;
+    const float trh_coeff_f32 = trh_dt == dnnl_f32 ? 10.f : 1.f;
+    const float trh_coeff_bwd = (prb->dir & FLAG_FWD) ? 1.f : 4.f;
+    const float trh = trh_coeff_log * trh_coeff_bwd * trh_coeff_f32
+            * epsilon_dt(trh_dt);
+    cmp.set_threshold(trh);
+
+    const int64_t axis_size = prb->dims[prb->axis];
+    const int64_t n_zeros = (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8)
+            ? (axis_size - 1)
+            : MAX2(0, axis_size - 8);
+    float zero_trust_percent = 100.f * n_zeros / axis_size;
+    // Note:
+    // * Logsoftmax over axis of size `1` does not make any sense.
+    // * Logsoftmax for u8 dst does not make any sense either.
+    if (prb->alg == LOGSOFTMAX && (axis_size == 1 || prb->ddt == dnnl_u8))
+        zero_trust_percent = 100.f;
+    if (prb->dir & FLAG_BWD) zero_trust_percent = 30.f;
+    cmp.set_zero_trust_percent(zero_trust_percent);
+
     const auto softmax_add_check
             = [&](const compare::compare_t::driver_check_func_args_t &args) {
                   // SSE4.1 and OpenCL rdiff tolerance is too high for
@@ -297,32 +318,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-
-            const float trh_coeff_log = prb->alg == LOGSOFTMAX ? 5 : 1;
-            const float trh_coeff_f32 = dst_dt.dt() == dnnl_f32 ? 10.f : 1.f;
-            const float trh
-                    = trh_coeff_log * trh_coeff_f32 * epsilon_dt(dst_dt.dt());
-            cmp.set_threshold(trh);
-
-            const int64_t axis_size = prb->dims[prb->axis];
-            const int64_t n_zeros = dst_dt.sizeof_dt() == 1
-                    ? (axis_size - 1)
-                    : MAX2(0, axis_size - 8);
-            float zero_percent = 100.f * n_zeros / axis_size;
-            // Note:
-            // * Logsoftmax over axis of size `1` does not make any sense.
-            // * Logsoftmax for u8 dst does not make any sense either.
-            if (prb->alg == LOGSOFTMAX
-                    && (axis_size == 1 || dst_dt.dt() == dnnl_u8))
-                zero_percent = 100.f;
-            cmp.set_zero_trust_percent(zero_percent);
-
-            add_additional_softmax_check(cmp);
-
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
         }
     } else {
         const auto &dst_md = q(DNNL_ARG_DST);
@@ -355,19 +351,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-
-            const float trh_coeff_f32
-                    = d_src_md.data_type == dnnl_f32 ? 10.f : 1.f;
-            const float trh
-                    = 4 * trh_coeff_f32 * epsilon_dt(d_src_md.data_type);
-            cmp.set_threshold(trh);
-
-            add_additional_softmax_check(cmp);
-
-            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
+            check_correctness(prb, {SRC}, args, ref_args, setup_cmp, res);
         }
     }
 

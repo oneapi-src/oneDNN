@@ -123,50 +123,39 @@ void parse_result(
         case EXECUTED:
             if (is_bench_mode(PERF)) {
                 want_perf_report = true;
-                if (status == FAIL)
-                    bs.failed++;
-                else
-                    bs.passed++;
-                break;
+                bs.passed++;
             } else if (is_bench_mode(RUN)) {
-                assert(status == OK);
                 BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
                 want_perf_report = false;
                 break;
             }
         case FAILED:
-            assert(status == FAIL);
             bs.failed++;
             BENCHDNN_PRINT(0, "%d:%s (errors:%lu total:%lu) __REPRO: %s\n",
                     bs.tests, state, (unsigned long)res.errors,
                     (unsigned long)res.total, pstr);
             break;
         case SKIPPED:
-            assert(status == OK);
             BENCHDNN_PRINT(0, "%d:%s (%s) __REPRO: %s\n", bs.tests, state,
                     skip_reason2str(res.reason), pstr);
             bs.skipped++;
             break;
         case UNIMPLEMENTED:
-            assert(status == OK);
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.unimplemented++;
             bs.failed++;
             break;
         case MISTRUSTED:
-            assert(status == OK);
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             want_perf_report = true;
             bs.mistrusted++;
             break;
         case PASSED:
-            assert(status == OK);
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             want_perf_report = true;
             bs.passed++;
             break;
         case LISTED:
-            assert(status == OK);
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.listed++;
             break;

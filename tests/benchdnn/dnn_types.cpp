@@ -109,13 +109,11 @@ const char *data_kind2str(data_kind_t kind) {
         case BIA: return "BIA";
         case DST: return "DST";
         case ACC: return "ACC";
-        case DATA: return "DATA";
         case MEAN: return "MEAN";
         case VAR: return "VAR";
         case SS: return "SS";
         case SC: return "SC";
         case SH: return "SH";
-        case GWEI: return "GWEI";
         case DST_ITER: return "DST_ITER";
         case DST_ITER_C: return "DST_ITER_C";
         case AUGRU_ATTENTION: return "AUGRU_ATTENTION";

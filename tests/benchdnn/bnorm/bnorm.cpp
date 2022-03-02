@@ -29,7 +29,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "bnorm/bnorm.hpp"
 
@@ -222,85 +221,6 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &mem_fp,
-        const dnn_mem_t &mem_dt, res_t *res, const dnn_mem_t *ss = nullptr,
-        const dnn_mem_t *sh = nullptr) {
-    compare::compare_t cmp;
-    cmp.set_data_kind(kind);
-
-    // Since bwd testing is done using results from forward which are random
-    // fp32 values, diff_ss starts fluctuating, so we check norm for both data
-    // and SS, SC and SH.
-    const bool compare_with_norm = (prb->dir & FLAG_BWD);
-    cmp.set_norm_validation_mode(compare_with_norm);
-
-    const int f32_mant_digits = 24;
-    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
-    float trh = trh_coeff * (kind == DATA ? 5e-7 : 0);
-    if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
-        trh = trh_coeff * 5e-6;
-
-#ifdef DNNL_EXPERIMENTAL
-    const bool bnorm_single_pass
-            = dnnl::impl::experimental::use_bnorm_stats_one_pass();
-#else
-    const bool bnorm_single_pass = false;
-#endif
-
-    const bool use_relaxed_validation = is_nvidia_gpu() || bnorm_single_pass;
-    if (use_relaxed_validation) {
-        // Nvidia: cuDNN stores unbiased variance which requires rescaling by
-        // `(N - 1) / N`, where `N = MB * Spatial`. Hence, we cannot set the
-        // threshold to 0...
-        // Also mean could be computed using a single pass formula.
-        //
-        // On Intel GPUs mean and variance could be rounded incorrectly because
-        // they are calculated using fast but potentially unstable formula.
-        if (kind == MEAN) trh = 1e-7;
-        if (kind == VAR) trh = 4e-7;
-    }
-    cmp.set_threshold(trh);
-
-    // When the error is larger than `trh`, it could be due to a catastrophic
-    // cancellation in final result which is computed as `Y = a * X + b`.
-    // When `a * X` is close to `b` and their signs are opposite, then large
-    // error in `a * X` could result in a final result (which has a cancellation
-    // i.e. `|Y| = |a*X - (-b)|`), which has no meaningful digits left in
-    // mantissa.
-    const auto bnorm_add_check
-            = [&](const compare::compare_t::driver_check_func_args_t &args) {
-                  const bool check_cond
-                          = (prb->dir & FLAG_FWD) && kind == DATA && (ss || sh);
-                  if (!check_cond) return false;
-
-                  const bool shift_only = (prb->use_sc() || prb->use_sh());
-                  const float *sh_ptr = shift_only ? (const float *)*sh
-                                                   : (const float *)*ss;
-
-                  const int64_t c = mem_dt.get_scale_idx(
-                          args.idx, 1 << 1 /* channel_mask */);
-                  const int64_t c_idx = c + (shift_only ? 0 : prb->ic);
-                  const float beta = sh_ptr[c_idx];
-                  // Using an empirically derived threshold, check if
-                  // cancellation error in `|Y| = |a*X - (-b)|` is huge.
-                  const float abs_exp = fabsf(args.exp);
-                  const float norm_denom = abs_exp > FLT_MIN ? abs_exp : 1.f;
-                  const float abs_exp_delta = fabsf(args.exp - beta);
-                  bool maybe_cancel_error = abs_exp_delta / norm_denom > 1.f;
-                  if (!maybe_cancel_error) return false;
-
-                  // Check for error in `a * X`
-                  float diff_aX = fabsf((args.exp - beta) - (args.got - beta));
-                  float rel_diff_aX = diff_aX
-                          / (abs_exp_delta > FLT_MIN ? abs_exp_delta : 1.f);
-                  return rel_diff_aX <= args.trh;
-              };
-    cmp.set_driver_check_function(bnorm_add_check);
-
-    SAFE(cmp.compare(mem_fp, mem_dt, prb->attr, res), WARN);
-    return res->state == FAILED ? FAIL : OK;
-}
-
 int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
     if (ws_dt.ndims() == 0) return OK;
 
@@ -455,6 +375,88 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    // Since bwd testing is done using results from forward which are random
+    // fp32 values, diff_ss starts fluctuating, so we check norm for both data
+    // and SS, SC and SH.
+    const bool compare_with_norm = (prb->dir & FLAG_BWD);
+    cmp.set_norm_validation_mode(compare_with_norm);
+
+    const int f32_mant_digits = 24;
+    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
+    float trh = trh_coeff * ((kind == SRC || kind == DST) ? 5e-7 : 0);
+    if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
+        trh = trh_coeff * 5e-6;
+
+#ifdef DNNL_EXPERIMENTAL
+    const bool bnorm_single_pass
+            = dnnl::impl::experimental::use_bnorm_stats_one_pass();
+#else
+    const bool bnorm_single_pass = false;
+#endif
+
+    const bool use_relaxed_validation = is_nvidia_gpu() || bnorm_single_pass;
+    if (use_relaxed_validation) {
+        // Nvidia: cuDNN stores unbiased variance which requires rescaling by
+        // `(N - 1) / N`, where `N = MB * Spatial`. Hence, we cannot set the
+        // threshold to 0...
+        // Also mean could be computed using a single pass formula.
+        //
+        // On Intel GPUs mean and variance could be rounded incorrectly because
+        // they are calculated using fast but potentially unstable formula.
+        if (kind == MEAN) trh = 1e-7;
+        if (kind == VAR) trh = 4e-7;
+    }
+    cmp.set_threshold(trh);
+
+    // TODO: improve bf16 filling
+    if (prb->dt == dnnl_bf16) cmp.set_zero_trust_percent(99.f);
+
+    // When the error is larger than `trh`, it could be due to a catastrophic
+    // cancellation in final result which is computed as `Y = a * X + b`.
+    // When `a * X` is close to `b` and their signs are opposite, then large
+    // error in `a * X` could result in a final result (which has a cancellation
+    // i.e. `|Y| = |a*X - (-b)|`), which has no meaningful digits left in
+    // mantissa.
+    //
+    // Since lambda is called when stack is unavailable, need to capture `prb`
+    // and `kind` by value to avoid using dangling references.
+    const auto bnorm_add_check =
+            [&, kind, prb](
+                    const compare::compare_t::driver_check_func_args_t &args) {
+                const bool has_shift = prb->use_sh() || prb->use_ss();
+                if (!((prb->dir & FLAG_FWD) && kind == DST && has_shift))
+                    return false;
+
+                const auto &ss = ref_args.find(DNNL_ARG_SCALE_SHIFT);
+                const auto &sh = ref_args.find(DNNL_ARG_SHIFT);
+                const bool shift_only = prb->use_sh();
+                const float *sh_ptr
+                        = shift_only ? (const float *)sh : (const float *)ss;
+
+                const auto &dst = ref_args.find(DNNL_ARG_DST);
+                const int64_t c = dst.get_scale_idx(
+                        args.idx, 1 << 1 /* channel_mask */);
+                const int64_t c_idx = c + (shift_only ? 0 : prb->ic);
+                const float beta = sh_ptr[c_idx];
+                // Using an empirically derived threshold, check if
+                // cancellation error in `|Y| = |a*X - (-b)|` is huge.
+                const float abs_exp = fabsf(args.exp);
+                const float norm_denom = abs_exp > FLT_MIN ? abs_exp : 1.f;
+                const float abs_exp_delta = fabsf(args.exp - beta);
+                bool maybe_cancel_error = abs_exp_delta / norm_denom > 1.f;
+                if (!maybe_cancel_error) return false;
+
+                // Check for error in `a * X`
+                float diff_aX = fabsf((args.exp - beta) - (args.got - beta));
+                float rel_diff_aX = diff_aX
+                        / (abs_exp_delta > FLT_MIN ? abs_exp_delta : 1.f);
+                return rel_diff_aX <= args.trh;
+            };
+    cmp.set_driver_check_function(bnorm_add_check);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -568,14 +570,15 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
 
-            TIME_REF(compute_ref(prb, ref_args));
+            std::vector<data_kind_t> kinds {DST};
             if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
-                SAFE(compare(prb, MEAN, mean_fp, mean_dt, res), WARN);
-                SAFE(compare(prb, VAR, var_fp, var_dt, res), WARN);
+                kinds.push_back(MEAN);
+                kinds.push_back(VAR);
             }
-            SAFE(compare(prb, DATA, dst_fp, dst_dt, res, &ss_fp, &sh_fp), WARN);
-            if (prb->debug_check_ws)
-                SAFE(check_fwd_ws(dst_dt, ws_dt, res), WARN);
+
+            check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
+
+            if (prb->debug_check_ws) check_fwd_ws(dst_dt, ws_dt, res);
         }
     }
 
@@ -639,15 +642,12 @@ int doit(const prb_t *prb, res_t *res) {
                     d_ss_fp);
             ref_args.set(DNNL_ARG_DIFF_SHIFT, d_sh_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-            if ((use_ss || use_sc) && (prb->dir & FLAG_WEI)) {
-                SAFE(compare(prb, use_sc ? SC : SS, d_ss_fp, d_ss_dt, res),
-                        WARN);
-            }
-            if (use_sh && (prb->dir & FLAG_WEI)) {
-                SAFE(compare(prb, SH, d_sh_fp, d_sh_dt, res), WARN);
-            }
-            SAFE(compare(prb, DATA, d_src_fp, d_src_dt, res), WARN);
+            std::vector<data_kind_t> kinds {SRC};
+            if ((use_ss || use_sc) && (prb->dir & FLAG_WEI))
+                kinds.push_back(use_sc ? SC : SS);
+            if (use_sh && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
+
+            check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
         }
     }
 

@@ -106,8 +106,7 @@ void data_deq10n(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_,
 void gates_reduction(
         const prb_t &prb, const float *b_gates_, float *diff_bias_);
 
-int compare_dat(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res);
+rnn_data_kind_t data_kind2rnn_data_kind(data_kind_t data_kind);
 
 }; // namespace rnn
 

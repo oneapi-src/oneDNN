@@ -35,9 +35,6 @@
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
 
-#define COMPARE_DAT(kind, a) \
-    compare_dat(prb, kind, CONCAT2(a, _dt), CONCAT2(a, _fp), res);
-
 // Using hidden attr API for testing RNN
 dnnl_status_t dnnl_primitive_attr_set_rnn_tparams(dnnl_primitive_attr_t attr,
         bool mode, dnnl_dim_t ngates, const float *scales, float cscale);
@@ -541,11 +538,12 @@ int fill_bias(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 }
 
 void compute_ref(
-        const prb_t &prb, const args_t &args, dnnl_primitive_t prim_ref) {
-    if (prb.prop != dnnl_backward)
-        compute_ref_fwd(prb, args);
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    const prb_t &prb_ = *prb;
+    if (prb_.prop != dnnl_backward)
+        compute_ref_fwd(prb_, args);
     else
-        compute_ref_bwd(prb, args);
+        compute_ref_bwd(prb_, args);
 }
 
 static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
@@ -877,6 +875,75 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    const auto rnn_kind = data_kind2rnn_data_kind(kind);
+    const auto &cfg = prb->cfg[rnn_kind];
+    // factor 2 is because of the sum of 2 GEMMs
+    int64_t fwd_acc_dim = 2 * prb->n_gates() + 1;
+    if (prb->alg == VANILLA_GRU || prb->alg == VANILLA_AUGRU)
+        fwd_acc_dim *= prb->sic;
+    int64_t bwdd_acc_dim = prb->n_gates() * prb->dhc;
+    int64_t bwdw_acc_dim = prb->mb;
+    int64_t acc_dim = fwd_acc_dim;
+    if (prb->prop == dnnl_backward) acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
+    // Here the factor 4 just gives some wiggle room for fp32 testing
+
+    float trh = 4
+            * (1 + (prb->prop == dnnl_backward)) // double wiggle room for bwd
+            * ((prb->direction == dnnl_bidirectional_sum)
+                    + 1) // double trh if bidir_sum
+            * ceilf(log2f(acc_dim * prb->n_iter)) * cfg.eps;
+    // expect exact value for int8
+    if (cfg.dt == dnnl_u8 || cfg.dt == dnnl_s8) trh = 0.f;
+    cmp.set_threshold(trh);
+
+    // Note: we do an eltwise comparison only when:
+    // - we use skip_nonlinear;
+    // - we do not use skip_nonlinear and we test only one cell execution;
+    // - for int8 computations the tensor is not DST_ITER_C;
+    // If the above conditions are not met, we check only L1, L2 and L8.
+
+    // Rough rationale for the `DST_ITER_C` exception in int8 case:
+    // - The formula for one-step c-state is:
+    //   c_t = f_t * c_{t−1} + i_t * c~_t.
+    //   Here all computations happen in f32 (f_t, i_t, and c~_t are dequantized
+    //   right before the computations + the corresponding bias added).
+    // - In int8 case we don't have much control over these components and
+    //   cannot surmount potential cancellations, if any.
+    //   In practice, I observed that the relative element-wise error of values
+    //   in `DST_ITER_C` was bigger (up-to 8e-5) whenever the values
+    //   themselves were smaller (which indirectly means the problem is exactly
+    //   in the cancellation). Unfortunately, this even happened with only one
+    //   layer and one time stamp.
+    // - So, for now the solution is to use l1- l2- and l_inf-norms to validate
+    //   `DST_ITER_C`. When we switch testing on using precise
+    //   integer arithmetic based on modulo operation in rnn_tparams (instead of
+    //   current unreliable re-scaling), this testing weakness should go away.
+    // - Just an obvious side note: `DST_LAYER` and `DST_ITER`
+    //   are immediate dequantization of the corresponding u8 tensors. Hence,
+    //   as long as we get precise u8 intermediate results (and so far we do),
+    //   the f32 result should be pretty accurate -- the dequantization is just
+    //   two simple ops: f32 = scale * u8 + shift.
+    bool check_p2p = (prb->skip_nonlinear
+            || ((prb->n_layer == 1) && (prb->n_iter == 1)));
+    if (prb->is_int8() && rnn_kind == DST_ITER_C) check_p2p = false;
+    cmp.set_norm_validation_mode(!check_p2p);
+
+    const auto rnn_add_check =
+            [&, prb](const compare::compare_t::driver_check_func_args_t &args) {
+                // Limitation from current filling.
+                // TODO: find a better filling to get rid of this...
+                if ((prb->alg == LBR_GRU || prb->alg == LBR_AUGRU
+                            || prb->alg == VANILLA_RNN)
+                        && prb->prop == dnnl_backward) {
+                    return args.diff < args.trh;
+                }
+                return false;
+            };
+    cmp.set_driver_check_function(rnn_add_check);
+}
+
 int doit(const prb_t &prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -1040,11 +1107,13 @@ int doit(const prb_t &prb, res_t *res) {
             ref_args.set(DNNL_ARG_DST_ITER, dst_iter_fp);
             ref_args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
+            std::vector<data_kind_t> kinds {
+                    data_kind_t::DST, data_kind_t::DST_ITER};
+            if (prb.alg == VANILLA_LSTM) {
+                kinds.push_back(data_kind_t::DST_ITER_C);
+            }
 
-            COMPARE_DAT(DST_LAYER, dst_layer);
-            COMPARE_DAT(DST_ITER, dst_iter);
-            if (prb.alg == VANILLA_LSTM) COMPARE_DAT(DST_ITER_C, dst_iter_c);
+            check_correctness(&prb, kinds, args, ref_args, setup_cmp, res);
         }
     } else {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
@@ -1231,26 +1300,22 @@ int doit(const prb_t &prb, res_t *res) {
                     diff_weights_projection_fp);
             ref_args.set(DNNL_ARG_DIFF_BIAS, diff_bias_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-
-            COMPARE_DAT(DST_LAYER, dst_layer);
-            COMPARE_DAT(DST_ITER, dst_iter);
-            if (prb.alg == VANILLA_LSTM) COMPARE_DAT(DST_ITER_C, dst_iter_c);
-
-            COMPARE_DAT(DIFF_SRC_LAYER, diff_src_layer);
+            std::vector<data_kind_t> kinds {data_kind_t::DST,
+                    data_kind_t::DST_ITER, data_kind_t::SRC,
+                    data_kind_t::SRC_ITER, data_kind_t::WEI,
+                    data_kind_t::WEI_ITER, data_kind_t::BIA};
+            if (prb.alg == VANILLA_LSTM) {
+                kinds.push_back(data_kind_t::DST_ITER_C);
+                kinds.push_back(data_kind_t::SRC_ITER_C);
+            }
             if (prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU)
-                COMPARE_DAT(DIFF_AUGRU_ATTENTION, diff_src_layer_attention);
-            COMPARE_DAT(DIFF_SRC_ITER, diff_src_iter);
-            if (prb.alg == VANILLA_LSTM)
-                COMPARE_DAT(DIFF_SRC_ITER_C, diff_src_iter_c);
-
-            COMPARE_DAT(DIFF_WEIGHTS_LAYER, diff_weights_layer);
-            COMPARE_DAT(DIFF_WEIGHTS_ITER, diff_weights_iter);
+                kinds.push_back(data_kind_t::AUGRU_ATTENTION);
             if (prb.is_lstm_peephole())
-                COMPARE_DAT(DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole);
+                kinds.push_back(data_kind_t::WEI_PEEPHOLE);
             if (prb.is_lstm_projection())
-                COMPARE_DAT(DIFF_WEIGHTS_PROJECTION, diff_weights_projection);
-            COMPARE_DAT(DIFF_BIAS, diff_bias);
+                kinds.push_back(data_kind_t::WEI_PROJECTION);
+
+            check_correctness(&prb, kinds, args, ref_args, setup_cmp, res);
         }
     }
 

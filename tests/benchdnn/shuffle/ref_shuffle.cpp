@@ -21,8 +21,10 @@ namespace shuffle {
 
 void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
-    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
-    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+    const int src_arg = prb->dir == FWD_D ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
+    const int dst_arg = prb->dir == FWD_D ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
+    const dnn_mem_t &src = args.find(src_arg);
+    const dnn_mem_t &dst = args.find(dst_arg);
 
     float *dst_ptr = (float *)dst;
 

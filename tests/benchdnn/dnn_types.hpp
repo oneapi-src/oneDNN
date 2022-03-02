@@ -79,13 +79,11 @@ enum data_kind_t {
     DST,
     ACC,
     // bnorm, lnorm
-    DATA,
     MEAN,
     VAR,
     SS,
     SC,
     SH,
-    GWEI,
     // rnn
     DST_ITER,
     DST_ITER_C,
