@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -455,6 +455,39 @@ struct jit_pool_call_s {
     float ker_area_h;
     size_t ur_bc; // contains number of channel blocks to processing
     size_t b_c; // contains number of channel blocks already processed
+};
+
+struct jit_shuffle_conf_t {
+    unsigned ndims = 0;
+
+    unsigned mb = 0, c = 0, d = 0, h = 0, w = 0, sp = 0;
+
+    unsigned stride_mb = 0;
+    unsigned blk_size = 0;
+    unsigned group_size = 0;
+    unsigned axis = 0;
+    unsigned axis_size = 0;
+    unsigned simd_tail = 0;
+    unsigned simd_w = 0;
+
+    jit_memory_tag_kind_t tag_kind = jit_memory_tag_kind_t::undef;
+    data_type_t data_type = data_type::undef;
+    size_t dt_size = 0;
+    unsigned el_size_of_indices = 0;
+    dim_t c_split_size = 0;
+    dim_t sp_split_size = 0;
+
+    cpu_isa_t isa = isa_any;
+};
+
+struct jit_shuffle_call_s {
+    const void *src = nullptr;
+    void *dst = nullptr;
+    const void *input_off_ptr = nullptr;
+
+    dim_t cb_loop_size
+            = 0; // number of loop iterations over corresponding C batches
+    bool is_padded_block = false;
 };
 
 } // namespace aarch64
