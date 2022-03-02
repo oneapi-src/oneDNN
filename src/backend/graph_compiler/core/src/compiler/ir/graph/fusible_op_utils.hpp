@@ -39,6 +39,7 @@ size_t get_dims_product(const sc_dims &dims);
 inline uint32_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
     return std::min(16U, ctx->get_max_vector_lanes(detype));
 }
+bool loop_can_be_fused(const for_loop &loop);
 
 class outer_loop_generator_t;
 ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,

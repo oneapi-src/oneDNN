@@ -437,6 +437,10 @@ size_t get_dims_product(const sc_dims &dims) {
     return ret;
 }
 
+bool loop_can_be_fused(const for_loop &loop) {
+    return get_expr_as_int(loop->step_) == INT64_C(1);
+}
+
 slice_range_map search_known_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap) {
     slice_range_map known_ranges_map;
