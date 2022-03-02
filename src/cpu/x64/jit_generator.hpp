@@ -44,9 +44,13 @@
 #define ATTRIBUTE_OPTIMIZE
 #endif
 
-#define DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_name) \
-    const char *name() const override { return STRINGIFY(jit_name); } \
-    const char *source_file() const override { return __FILE__; }
+#define DECLARE_CPU_JIT_AUX_FUNCTIONS(gen_name) \
+    const char *name() const override { return STRINGIFY(gen_name); } \
+    const char *source_file() const override { return __FILE__; } \
+    static const char *jit_name() { \
+        static constexpr char ret[] = "/oneDNN:" STRINGIFY(gen_name); \
+        return ret; \
+    }
 
 namespace dnnl {
 namespace impl {
