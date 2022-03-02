@@ -29,7 +29,7 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/norm.hpp"
+#include "utils/compare.hpp"
 
 #include "bnorm/bnorm.hpp"
 
@@ -222,157 +222,82 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
-        const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss = nullptr,
+static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &mem_fp,
+        const dnn_mem_t &mem_dt, res_t *res, const dnn_mem_t *ss = nullptr,
         const dnn_mem_t *sh = nullptr) {
-    const char *skind = data_kind2str(kind);
-
-    const int f32_mant_digits = 24;
-    const float eps_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
-    float eps = eps_coeff * (kind == DATA ? 5e-7 : 0);
-    if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
-        eps = eps_coeff * 5e-6;
-
-    if (is_nvidia_gpu()) {
-        // cuDNN stores unbiased variance which requires rescaling by
-        // `(N - 1) / N`, where `N = MB * Spatial`. Hence, we cannot set the
-        // threshold to 0...
-        // Also the mean could also be rounded incorrectly (how?!)
-        if (kind == MEAN) eps = 1e-7;
-        if (kind == VAR) eps = 4e-7;
-    }
-
-#ifdef DNNL_EXPERIMENTAL
-    const bool use_relaxed_validation
-            = dnnl::impl::experimental::use_bnorm_stats_one_pass();
-#else
-    const bool use_relaxed_validation = false;
-#endif
-    if (use_relaxed_validation) {
-        // On Intel GPUs mean and variance could be rounded incorrectly because
-        // they are calculated using fast but potentially unstable formula.
-        if (kind == MEAN) eps = 1e-7;
-        if (kind == VAR) eps = 4e-7;
-    }
+    compare::compare_t cmp;
+    cmp.set_data_kind(kind);
 
     // Since bwd testing is done using results from forward which are random
     // fp32 values, diff_ss starts fluctuating, so we check norm for both data
     // and SS, SC and SH.
-    const bool rely_on_norm = prb->dir & FLAG_BWD;
+    const bool compare_with_norm = (prb->dir & FLAG_BWD);
+    cmp.set_norm_validation_mode(compare_with_norm);
 
-    const int64_t N = kind == DATA ? prb->mb : 1;
-    const int64_t C = kind == DATA ? prb->ic : prb->ic * (kind == SS ? 2 : 1);
-    const int64_t SP = kind == DATA ? prb->id * prb->ih * prb->iw : 1;
+    const int f32_mant_digits = 24;
+    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
+    float trh = trh_coeff * (kind == DATA ? 5e-7 : 0);
+    if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
+        trh = trh_coeff * 5e-6;
 
-    const bool use_sc = prb->use_sc();
-    const bool use_sh = prb->use_sh();
+#ifdef DNNL_EXPERIMENTAL
+    const bool bnorm_single_pass
+            = dnnl::impl::experimental::use_bnorm_stats_one_pass();
+#else
+    const bool bnorm_single_pass = false;
+#endif
 
-    const auto nelems = N * C * SP;
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total += rely_on_norm ? 1 : nelems;
-
-    diff_norm_t diff_norm;
-    for_(int64_t n = 0; n < N; n++)
-    for_(int64_t c = 0; c < C; c++)
-    for (int64_t sp = 0; sp < SP; ++sp) {
-        int64_t i = (n * C + c) * SP + sp;
-        const float dt = dt_mem.get_elem(i);
-        const float fp0 = fp_mem.get_elem(i);
-        const float fp = kind == DATA
-                ? round_to_nearest_representable(prb->dt, fp0)
-                : fp0;
-        float diff = 0.f, rel_diff = 0.f;
-        bool ok = true;
-
-        if (rely_on_norm) {
-            diff_norm.update(fp, dt);
-        } else {
-            diff = fabsf(fp - dt);
-            rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-            ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
-
-            /* When the error is larger than eps, It could be
-             * due to catastrophic cancellation in final result
-             * which is computed as `Y = a * X + b`.
-             * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
-             * Then large error in `a * X` could result in a final
-             * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
-             * which has no meaningful digits left in mantissa.*/
-            if (!ok && (prb->dir & FLAG_FWD) && kind == DATA && ss && sh) {
-                const float beta = (use_sc || use_sh)
-                        ? ((const float *)*sh)[c]
-                        : ((const float *)*ss)[prb->ic + c];
-                /* Using an empirically derived threshold,
-                 * check if cancellation error
-                 * in `|Y| = |a*X - (-b)|` is huge.*/
-                bool maybe_cancellation_error
-                        = (fabsf(fp - beta)
-                                  / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1))
-                        > 1.0f;
-                if (maybe_cancellation_error) {
-                    /* Check for error in `a * X` */
-                    float diff_aX = fabsf((fp - beta) - (dt - beta));
-                    float rel_diff_aX = diff_aX
-                            / (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta)
-                                                          : 1);
-                    ok = rel_diff_aX <= eps;
-                }
-            }
-
-            res->errors += !ok;
-        }
-
-        bool dump = (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 99);
-        if (dump) {
-            std::stringstream ss;
-            if (kind == DATA) {
-                int64_t mb, c, d, h, w;
-                inv_data_off(prb, i, mb, c, d, h, w);
-                ss << mb << "," << c << "," << d << "," << h << "," << w;
-            } else if (kind == SS) {
-                ss << i / prb->ic << "," << i % prb->ic;
-            } else {
-                ss << i;
-            }
-
-            std::string ind_str = ss.str();
-            BENCHDNN_PRINT(0,
-                    "[%4ld][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, prb->dir & FLAG_BWD ? "D_" : "", skind,
-                    ind_str.c_str(), fp, dt, diff, rel_diff);
-        }
+    const bool use_relaxed_validation = is_nvidia_gpu() || bnorm_single_pass;
+    if (use_relaxed_validation) {
+        // Nvidia: cuDNN stores unbiased variance which requires rescaling by
+        // `(N - 1) / N`, where `N = MB * Spatial`. Hence, we cannot set the
+        // threshold to 0...
+        // Also mean could be computed using a single pass formula.
+        //
+        // On Intel GPUs mean and variance could be rounded incorrectly because
+        // they are calculated using fast but potentially unstable formula.
+        if (kind == MEAN) trh = 1e-7;
+        if (kind == VAR) trh = 4e-7;
     }
+    cmp.set_threshold(trh);
 
-    if (rely_on_norm) {
-        diff_norm.done();
-        const bool ok = diff_norm.rel_diff(norm_t::L1) <= eps
-                && diff_norm.rel_diff(norm_t::L2) <= eps
-                && diff_norm.rel_diff(norm_t::L8) <= eps;
-        res->errors += !ok;
+    // When the error is larger than `trh`, it could be due to a catastrophic
+    // cancellation in final result which is computed as `Y = a * X + b`.
+    // When `a * X` is close to `b` and their signs are opposite, then large
+    // error in `a * X` could result in a final result (which has a cancellation
+    // i.e. `|Y| = |a*X - (-b)|`), which has no meaningful digits left in
+    // mantissa.
+    const auto bnorm_add_check
+            = [&](const compare::compare_t::driver_check_func_args_t &args) {
+                  const bool check_cond
+                          = (prb->dir & FLAG_FWD) && kind == DATA && (ss || sh);
+                  if (!check_cond) return false;
 
-        if (res->errors || verbose >= 5) {
-            const int vl = res->errors ? 0 : 2;
-            BENCHDNN_PRINT(vl,
-                    "@@@ [%s%s] diff: l0(``%g``) "
-                    "l1:(%g,%g,%g,``%g``) "
-                    "l2:(%g,%g,%g,``%g``) "
-                    "l8:(%g,%g,%g,``%g``)\n",
-                    prb->dir & FLAG_BWD ? "D_" : "", skind,
-                    diff_norm.rel_diff(norm_t::L0), diff_norm.a_[norm_t::L1],
-                    diff_norm.b_[norm_t::L1], diff_norm.diff_[norm_t::L1],
-                    diff_norm.rel_diff(norm_t::L1), diff_norm.a_[norm_t::L2],
-                    diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
-                    diff_norm.rel_diff(norm_t::L2), diff_norm.a_[norm_t::L8],
-                    diff_norm.b_[norm_t::L8], diff_norm.diff_[norm_t::L8],
-                    diff_norm.rel_diff(norm_t::L8));
-        }
-    }
+                  const bool shift_only = (prb->use_sc() || prb->use_sh());
+                  const float *sh_ptr = shift_only ? (const float *)*sh
+                                                   : (const float *)*ss;
 
-    if (res->errors) res->state = FAILED;
-    if (res->state == EXECUTED) res->state = PASSED;
+                  const int64_t c = mem_dt.get_scale_idx(
+                          args.idx, 1 << 1 /* channel_mask */);
+                  const int64_t c_idx = c + (shift_only ? 0 : prb->ic);
+                  const float beta = sh_ptr[c_idx];
+                  // Using an empirically derived threshold, check if
+                  // cancellation error in `|Y| = |a*X - (-b)|` is huge.
+                  const float abs_exp = fabsf(args.exp);
+                  const float norm_denom = abs_exp > FLT_MIN ? abs_exp : 1.f;
+                  const float abs_exp_delta = fabsf(args.exp - beta);
+                  bool maybe_cancel_error = abs_exp_delta / norm_denom > 1.f;
+                  if (!maybe_cancel_error) return false;
 
+                  // Check for error in `a * X`
+                  float diff_aX = fabsf((args.exp - beta) - (args.got - beta));
+                  float rel_diff_aX = diff_aX
+                          / (abs_exp_delta > FLT_MIN ? abs_exp_delta : 1.f);
+                  return rel_diff_aX <= args.trh;
+              };
+    cmp.set_driver_check_function(bnorm_add_check);
+
+    SAFE(cmp.compare(mem_fp, mem_dt, prb->attr, res), WARN);
     return res->state == FAILED ? FAIL : OK;
 }
 
@@ -647,8 +572,7 @@ int doit(const prb_t *prb, res_t *res) {
                 SAFE(compare(prb, MEAN, mean_fp, mean_dt, res), WARN);
                 SAFE(compare(prb, VAR, var_fp, var_dt, res), WARN);
             }
-            dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-            SAFE(compare(prb, DATA, dst_fp, dst, res, &ss_fp, &sh_fp), WARN);
+            SAFE(compare(prb, DATA, dst_fp, dst_dt, res, &ss_fp, &sh_fp), WARN);
             if (prb->debug_check_ws)
                 SAFE(check_fwd_ws(dst_dt, ws_dt, res), WARN);
         }
@@ -722,8 +646,7 @@ int doit(const prb_t *prb, res_t *res) {
             if (use_sh && (prb->dir & FLAG_WEI)) {
                 SAFE(compare(prb, SH, d_sh_fp, d_sh_dt, res), WARN);
             }
-            dnn_mem_t d_src(d_src_dt, fp, tag, test_engine);
-            SAFE(compare(prb, DATA, d_src_fp, d_src, res), WARN);
+            SAFE(compare(prb, DATA, d_src_fp, d_src_dt, res), WARN);
         }
     }
 
