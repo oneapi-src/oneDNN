@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2022 Intel Corporation
+* Copyright 2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +23,9 @@
 #if DNNL_X64
 #include "cpu/x64/shuffle/jit_uni_shuffle.hpp"
 using namespace dnnl::impl::cpu::x64;
+#elif DNNL_AARCH64
+#include "cpu/aarch64/shuffle/jit_uni_shuffle.hpp"
+using namespace dnnl::impl::cpu::aarch64;
 #endif
 
 namespace dnnl {
@@ -36,6 +40,7 @@ constexpr impl_list_item_t impl_list[] = REG_SHUFFLE_P({
         CPU_INSTANCE_X64(jit_uni_shuffle_t<avx512_core>)
         CPU_INSTANCE_X64(jit_uni_shuffle_t<avx>)
         CPU_INSTANCE_X64(jit_uni_shuffle_t<sse41>)
+        CPU_INSTANCE_AARCH64(jit_uni_shuffle_t<sve_512>)
         CPU_INSTANCE(ref_shuffle_t)
         /* eol */
         nullptr,
