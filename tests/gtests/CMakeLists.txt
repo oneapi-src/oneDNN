@@ -97,6 +97,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_resampling.cpp
                               test_reduction.cpp
 			      test_softmax_v2.cpp
+                              test_concurrency.cpp
                               )
 
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,17 +30,6 @@
 
 namespace dnnl {
 
-bool is_sycl_engine(dnnl_engine_kind_t eng_kind) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (eng_kind == dnnl_cpu) return true;
-#endif
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (eng_kind == dnnl_gpu) return true;
-#endif
-    return false;
-}
-
 class memory_test_c_t : public ::testing::TestWithParam<dnnl_engine_kind_t> {
 protected:
     void SetUp() override {
@@ -64,7 +53,8 @@ class memory_test_cpp_t : public ::testing::TestWithParam<dnnl_engine_kind_t> {
 
 TEST_P(memory_test_c_t, OutOfMemory) {
     SKIP_IF(!engine, "Engine is not found.");
-    SKIP_IF(is_sycl_engine(eng_kind), "Do not test C API with SYCL.");
+    SKIP_IF(is_sycl_engine(static_cast<engine::kind>(eng_kind)),
+            "Do not test C API with SYCL.");
 
     dnnl_dim_t sz = std::numeric_limits<memory::dim>::max();
     dnnl_dims_t dims = {sz};
@@ -85,7 +75,7 @@ TEST_P(memory_test_cpp_t, OutOfMemory) {
 
     engine eng(eng_kind, 0);
 
-    bool is_sycl = is_sycl_engine(eng_kind_c);
+    bool is_sycl = is_sycl_engine(eng_kind);
 
     auto sz = std::numeric_limits<memory::dim>::max();
 #ifdef DNNL_WITH_SYCL

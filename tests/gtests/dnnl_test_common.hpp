@@ -117,6 +117,17 @@ inline bool is_nvidia_gpu(const dnnl::engine &eng) {
     return false;
 }
 
+inline bool is_sycl_engine(dnnl::engine::kind eng_kind) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (eng_kind == dnnl::engine::kind::cpu) return true;
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (eng_kind == dnnl::engine::kind::gpu) return true;
+#endif
+    return false;
+}
+
 inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
     bool supported = true; // optimism
 
