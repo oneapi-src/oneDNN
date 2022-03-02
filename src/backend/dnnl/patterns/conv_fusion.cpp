@@ -1194,6 +1194,27 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                     return fused_op;
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, conv_bwd_weights_bwd_bias_fusion)
+        .set_enable(false)
+        .set_priority(9.7f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *wildcard = pgraph->append_op(
+                            impl::op_kind::Wildcard, "pwild");
+                    pgraph->append_op(impl::op_kind::ConvolutionBackpropFilters,
+                            in_edges_t {in_edge(1, wildcard, 0)});
+                    pgraph->append_op(impl::op_kind::BiasAddBackprop,
+                            in_edges_t {in_edge(0, wildcard, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::dnnl_conv_bwd_weights);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass
