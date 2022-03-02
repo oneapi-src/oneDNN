@@ -90,6 +90,7 @@ enum rnn_data_kind_t {
     // AUGRU requires an addtional argument for attention.
     AUGRU_ATTENTION,
     DIFF_AUGRU_ATTENTION,
+    KIND_TOTAL,
 };
 const char *rnn_data_kind2str(rnn_data_kind_t kind);
 
@@ -468,7 +469,7 @@ void rnn_linear_fwd(const prb_t &prb, const args_t &args,
         const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates,
         const AOC<float> &ws_ht);
 
-void compute_ref(const prb_t &prb, const args_t &args,
+void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 void compute_ref_fwd(const prb_t &prb, const args_t &args);
 void compute_ref_bwd(const prb_t &prb, const args_t &args);

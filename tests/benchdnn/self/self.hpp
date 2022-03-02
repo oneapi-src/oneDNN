@@ -76,6 +76,7 @@ namespace self {
     } while (0)
 
 void common();
+void res();
 void conv();
 void bnorm();
 void memory();

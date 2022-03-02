@@ -27,7 +27,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "ip/ip.hpp"
@@ -296,6 +295,15 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    cmp.set_threshold(prb->cfg[DST].eps);
+
+    // TODO: why so bad filling?
+    const float zero_trust_percent = kind == WEI || kind == BIA ? 90.f : 80.f;
+    cmp.set_zero_trust_percent(zero_trust_percent);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -400,13 +408,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(compute_ref(prb, ref_args, prim_ref));
-
-            compare::compare_t cmp;
-            cmp.set_threshold(prb->cfg[DST].eps);
-            cmp.set_data_kind(DST);
-            cmp.set_zero_trust_percent(80.f); // TODO: why so bad filling?
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
         }
     } else if (prb->dir == BWD_D) {
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
@@ -422,13 +425,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(compute_ref(prb, ref_args, prim_ref));
-
-            compare::compare_t cmp;
-            cmp.set_threshold(prb->cfg[SRC].eps);
-            cmp.set_data_kind(SRC);
-            cmp.set_zero_trust_percent(80.f); // TODO: why so bad filling?
-            SAFE(cmp.compare(src_fp, src_dt, prb->attr, res), WARN);
+            check_correctness(
+                    prb, {SRC}, args, ref_args, setup_cmp, res, prim_ref);
         }
     } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
         args.set(DNNL_ARG_SRC, src_dt);
@@ -446,19 +444,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
-            TIME_REF(compute_ref(prb, ref_args, prim_ref));
-
-            compare::compare_t cmp;
-            cmp.set_threshold(prb->cfg[WEI].eps);
-            cmp.set_data_kind(WEI);
-            cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
-            SAFE(cmp.compare(wei_fp, wei_dt, prb->attr, res), WARN);
-            if (prb->dir & FLAG_BIA) {
-                cmp.set_threshold(prb->cfg[BIA].eps);
-                cmp.set_data_kind(BIA);
-                cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
-                SAFE(cmp.compare(bia_fp, bia_dt, prb->attr, res), WARN);
-            }
+            check_correctness(
+                    prb, {WEI, BIA}, args, ref_args, setup_cmp, res, prim_ref);
         }
     }
 

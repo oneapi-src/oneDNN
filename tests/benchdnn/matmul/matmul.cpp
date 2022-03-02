@@ -26,7 +26,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "matmul/matmul.hpp"
@@ -357,6 +356,12 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    cmp.set_threshold(prb->cfg[kind].eps);
+    cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -505,12 +510,7 @@ int doit(const prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
         ref_args.set(binary_po_args, binary_po_fp);
 
-        TIME_REF(compute_ref(prb, ref_args, prim_ref));
-        compare::compare_t cmp;
-        cmp.set_threshold(prb->cfg[DST].eps);
-        cmp.set_data_kind(DST);
-        cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        check_correctness(prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
     }
 
     return measure_perf(res, prim, args);

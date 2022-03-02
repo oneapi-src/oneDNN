@@ -145,6 +145,7 @@ void compute_ref_bwd_w(
     }
 }
 
+// This is dispatched from conv::compute_ref. See additional comment there.
 void compute_ref(
         const conv::prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     // Update prb descriptor to re-use convolution reference.

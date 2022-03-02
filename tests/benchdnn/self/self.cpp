@@ -32,6 +32,7 @@ int bench(int argc, char **argv) {
     }
 
     common();
+    res();
     conv();
     bnorm();
     memory();

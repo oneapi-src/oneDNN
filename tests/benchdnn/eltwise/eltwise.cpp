@@ -25,7 +25,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "eltwise/eltwise.hpp"
@@ -324,6 +323,34 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    const float trh
+            = get_eltwise_threshold(prb->dt, prb->alg, prb->dir & FLAG_FWD);
+    cmp.set_threshold(trh);
+
+    cmp.set_zero_trust_percent(get_eltwise_zero_trust_percent(prb));
+
+    // Since lambda is called when stack is unavailable, need to capture `prb`
+    // by value to avoid using dangling references.
+    const auto eltwise_add_check =
+            [&, prb](const compare::compare_t::driver_check_func_args_t &args) {
+                // Some algorithms require absolute value comparison for inputs
+                // where catastrophic cancellation may happen.
+                const auto &src = ref_args.find(DNNL_ARG_SRC);
+                const auto &dst = ref_args.find(DNNL_ARG_DST);
+                const auto &source
+                        = ((prb->dir & FLAG_BWD) && prb->use_dst()) ? dst : src;
+                const float s = source.get_elem(args.idx);
+                if (check_abs_err(prb, s, args.trh))
+                    return args.diff <= args.trh;
+                if (prb->attr.post_ops.binary_index() != -1)
+                    return args.diff <= args.trh;
+                return false;
+            };
+    cmp.set_driver_check_function(eltwise_add_check);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -373,29 +400,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(fill_data(prb, SRC, src_dt, src_fp), WARN);
 
-    const bool is_fwd = prb->dir & FLAG_FWD;
-    dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
-
-    compare::compare_t cmp;
-    if (is_bench_mode(CORR)) {
-        const float trhd = get_eltwise_threshold(prb->dt, prb->alg, is_fwd);
-        cmp.set_threshold(trhd);
-        cmp.set_zero_trust_percent(get_eltwise_zero_trust_percent(prb));
-
-        const auto eltwise_add_check =
-                [&](const compare::compare_t::driver_check_func_args_t &args) {
-                    // Some algorithms require absolute value comparison for inputs
-                    // where catastrophic cancellation may happen.
-                    const float src = arg_fp.get_elem(args.idx);
-                    const float trh = args.trh;
-                    if (check_abs_err(prb, src, trh)) return args.diff <= trh;
-                    if (prb->attr.post_ops.binary_index() != -1)
-                        return args.diff <= trh;
-                    return false;
-                };
-        cmp.set_driver_check_function(eltwise_add_check);
-    }
-
     args_t args, ref_args;
 
     args.set(DNNL_ARG_SRC, src_dt);
@@ -411,8 +415,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(binary_po_args, binary_po_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
         }
     }
 
@@ -465,8 +468,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
 
-            TIME_REF(compute_ref(prb, ref_args));
-            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
+            check_correctness(prb, {SRC}, args, ref_args, setup_cmp, res);
         }
     }
 

@@ -17,7 +17,6 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "rnn/rnn_aux.hpp"
-#include "utils/compare.hpp"
 
 namespace rnn {
 
@@ -470,95 +469,26 @@ float one_m_square(float x) {
     return 1 - x * x;
 }
 
-data_kind_t rnn_data_kind2data_kind(rnn_data_kind_t rnn_data_kind) {
-    switch (rnn_data_kind) {
-        case DST_LAYER: return DST;
-        case DST_ITER: return data_kind_t::DST_ITER;
-        case DST_ITER_C: return data_kind_t::DST_ITER_C;
-        case DIFF_SRC_LAYER: return SRC;
-        case DIFF_AUGRU_ATTENTION: return data_kind_t::AUGRU_ATTENTION;
-        case DIFF_SRC_ITER: return data_kind_t::SRC_ITER;
-        case DIFF_SRC_ITER_C: return data_kind_t::SRC_ITER_C;
-        case DIFF_WEIGHTS_LAYER: return WEI;
-        case DIFF_WEIGHTS_ITER: return WEI_ITER;
-        case DIFF_WEIGHTS_PEEPHOLE: return WEI_PEEPHOLE;
-        case DIFF_WEIGHTS_PROJECTION: return WEI_PROJECTION;
-        case DIFF_BIAS: return BIA;
+rnn_data_kind_t data_kind2rnn_data_kind(data_kind_t data_kind) {
+    switch (data_kind) {
+        case data_kind_t::DST: return rnn_data_kind_t::DST_LAYER;
+        case data_kind_t::DST_ITER: return rnn_data_kind_t::DST_ITER;
+        case data_kind_t::DST_ITER_C: return rnn_data_kind_t::DST_ITER_C;
+        case data_kind_t::SRC: return rnn_data_kind_t::DIFF_SRC_LAYER;
+        case data_kind_t::AUGRU_ATTENTION:
+            return rnn_data_kind_t::DIFF_AUGRU_ATTENTION;
+        case data_kind_t::SRC_ITER: return rnn_data_kind_t::DIFF_SRC_ITER;
+        case data_kind_t::SRC_ITER_C: return rnn_data_kind_t::DIFF_SRC_ITER_C;
+        case data_kind_t::WEI: return rnn_data_kind_t::DIFF_WEIGHTS_LAYER;
+        case data_kind_t::WEI_ITER: return rnn_data_kind_t::DIFF_WEIGHTS_ITER;
+        case data_kind_t::WEI_PEEPHOLE:
+            return rnn_data_kind_t::DIFF_WEIGHTS_PEEPHOLE;
+        case data_kind_t::WEI_PROJECTION:
+            return rnn_data_kind_t::DIFF_WEIGHTS_PROJECTION;
+        case data_kind_t::BIA: return rnn_data_kind_t::DIFF_BIAS;
         default: assert(!"unknown data kind");
     }
-    return DAT_TOTAL;
-}
-
-int compare_dat(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
-    compare::compare_t cmp;
-    cmp.set_data_kind(rnn_data_kind2data_kind(kind));
-
-    // factor 2 is because of the sum of 2 GEMMs
-    int64_t fwd_acc_dim = 2 * prb.n_gates() + 1;
-    if (prb.alg == VANILLA_GRU || prb.alg == VANILLA_AUGRU)
-        fwd_acc_dim *= prb.sic;
-    int64_t bwdd_acc_dim = prb.n_gates() * prb.dhc;
-    int64_t bwdw_acc_dim = prb.mb;
-    int64_t acc_dim = fwd_acc_dim;
-    if (prb.prop == dnnl_backward) acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
-    // Here the factor 4 just gives some wiggle room for fp32 testing
-    float trh = 4
-            * (1 + (prb.prop == dnnl_backward)) // double wiggle room for bwd
-            * ((prb.direction == dnnl_bidirectional_sum)
-                    + 1) // double trh if bidir_sum
-            * ceilf(log2f(acc_dim * prb.n_iter)) * prb.cfg[kind].eps;
-    // expect exact value for int8
-    if (prb.cfg[kind].dt == dnnl_u8 || prb.cfg[kind].dt == dnnl_s8) trh = 0.f;
-    cmp.set_threshold(trh);
-
-    // Note: we do an eltwise comparison only when:
-    // - we use skip_nonlinear;
-    // - we do not use skip_nonlinear and we test only one cell execution;
-    // - for int8 computations the tensor is not DST_ITER_C;
-    // If the above conditions are not met, we check only L1, L2 and L8.
-
-    // Rough rationale for the `DST_ITER_C` exception in int8 case:
-    // - The formula for one-step c-state is:
-    //   c_t = f_t * c_{t−1} + i_t * c~_t.
-    //   Here all computations happen in f32 (f_t, i_t, and c~_t are dequantized
-    //   right before the computations + the corresponding bias added).
-    // - In int8 case we don't have much control over these components and
-    //   cannot surmount potential cancellations, if any.
-    //   In practice, I observed that the relative element-wise error of values
-    //   in `DST_ITER_C` was bigger (up-to 8e-5) whenever the values
-    //   themselves were smaller (which indirectly means the problem is exactly
-    //   in the cancellation). Unfortunately, this even happened with only one
-    //   layer and one time stamp.
-    // - So, for now the solution is to use l1- l2- and l_inf-norms to validate
-    //   `DST_ITER_C`. When we switch testing on using precise
-    //   integer arithmetic based on modulo operation in rnn_tparams (instead of
-    //   current unreliable re-scaling), this testing weakness should go away.
-    // - Just an obvious side note: `DST_LAYER` and `DST_ITER`
-    //   are immediate dequantization of the corresponding u8 tensors. Hence,
-    //   as long as we get precise u8 intermediate results (and so far we do),
-    //   the f32 result should be pretty accurate -- the dequantization is just
-    //   two simple ops: f32 = scale * u8 + shift.
-    bool check_norm0
-            = (prb.skip_nonlinear || ((prb.n_layer == 1) && (prb.n_iter == 1)));
-    if (prb.is_int8() && kind == DST_ITER_C) check_norm0 = false;
-    cmp.set_norm_validation_mode(!check_norm0);
-
-    const auto rnn_add_check
-            = [&](const compare::compare_t::driver_check_func_args_t &args) {
-                  // Limitation from current filling.
-                  // TODO: find a better filling to get rid of this...
-                  if ((prb.alg == LBR_GRU || prb.alg == LBR_AUGRU
-                              || prb.alg == VANILLA_RNN)
-                          && prb.prop == dnnl_backward) {
-                      return args.diff < args.trh;
-                  }
-                  return false;
-              };
-    cmp.set_driver_check_function(rnn_add_check);
-
-    SAFE(cmp.compare(mem_fp, mem_dt, prb.attr, res), WARN);
-    return OK;
+    return KIND_TOTAL;
 }
 
 void prb_t::set_qparams(float fp_min, float fp_max) {

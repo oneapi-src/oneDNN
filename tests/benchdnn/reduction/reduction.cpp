@@ -23,7 +23,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "reduction/reduction.hpp"
@@ -169,6 +168,14 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    // `5` is a temporary magic const for GPU to pass norm algs.
+    // TODO: consider change the filling with power-of-two values for better
+    // answer precision.
+    cmp.set_threshold(5 * epsilon_dt(prb->ddt));
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -229,14 +236,7 @@ int doit(const prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_DST, dst_fp);
         ref_args.set(binary_po_args, binary_po_fp);
 
-        TIME_REF(compute_ref(prb, ref_args));
-
-        compare::compare_t cmp;
-        // `5` is a temporary magic const for GPU to pass norm algs.
-        // TODO: consider change the filling with power-of-two values for better
-        // answer precision.
-        cmp.set_threshold(5 * epsilon_dt(prb->ddt));
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
     return measure_perf(res, prim, args);

@@ -26,6 +26,7 @@
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
+#include "utils/compare.hpp"
 #include "utils/perf_report.hpp"
 #include "utils/settings.hpp"
 
@@ -339,6 +340,9 @@ float oscale(const prb_t *prb, int oc);
 
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
+
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
 
 void compute_ref_direct_fwd(const prb_t *prb, const args_t &args);
 void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args);

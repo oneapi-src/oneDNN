@@ -204,19 +204,25 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             compare_point_values(i);
     }
 
-    const auto zeros_percent = 100.f * zeros / nelems;
-    if (nelems >= 10 && zeros_percent > zero_trust_percent_) {
-        res->state = MISTRUSTED;
-        std::string skind;
-        if (kind_ != DAT_TOTAL)
-            skind = "[" + std::string(data_kind2str(kind_)) + "]";
-        BENCHDNN_PRINT(2,
-                "No trust stats [%s]: z:%2.0f%% (>%2.0f%%) (z: %ld, "
-                "total: %ld)\n",
-                skind.c_str(), zeros_percent, zero_trust_percent_,
-                (long)zeros.load(), (long)nelems);
-    }
+    // Set state to FAILED in case of any errors.
     if (n_errors) res->errors = n_errors, res->state = FAILED;
+    // State could be already FAILED, check zero trust for non-FAILED only.
+    if (res->state != FAILED) {
+        const auto zeros_percent = 100.f * zeros / nelems;
+        if (nelems >= 10 && zeros_percent > zero_trust_percent_) {
+            res->state = MISTRUSTED;
+            std::string skind;
+            if (kind_ != DAT_TOTAL)
+                skind = "[" + std::string(data_kind2str(kind_)) + "]";
+            BENCHDNN_PRINT(2,
+                    "No trust stats [%s]: z:%2.0f%% (>%2.0f%%) (z: %ld, "
+                    "total: %ld)\n",
+                    skind.c_str(), zeros_percent, zero_trust_percent_,
+                    (long)zeros.load(), (long)nelems);
+        }
+    }
+    // Set PASSED if no failure in current or previous checks happened and test
+    // can be trusted.
     if (res->state == EXECUTED) res->state = PASSED;
 
     return res->state == FAILED ? FAIL : OK;

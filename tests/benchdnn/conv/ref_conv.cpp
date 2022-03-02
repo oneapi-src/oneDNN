@@ -17,6 +17,7 @@
 #include "tests/test_thread.hpp"
 
 #include "conv/conv_common.hpp"
+#include "conv/deconv.hpp"
 
 namespace conv {
 
@@ -377,6 +378,15 @@ void compute_ref_bwd_w(
 
 void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    // Since deconv uses conv::prb_t, using a common templated interface for
+    // correctness validation requires compute_ref function to be in the same
+    // namespace, thus, we need to dispatch to deconv::compute_ref here. The
+    // alternative solution is to separate deconv and conv drivers completely.
+    if (prb->is_deconv) {
+        deconv::compute_ref(prb, args, prim_ref);
+        return;
+    }
+
     if (prb->dir & FLAG_FWD)
         compute_ref_fwd(prb, args, prim_ref);
     else if (prb->dir == BWD_D)

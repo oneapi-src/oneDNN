@@ -27,7 +27,6 @@
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "sum/sum.hpp"
 
@@ -105,6 +104,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(dts, FWD_D, res);
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    cmp.set_threshold(epsilon_dt(prb->ddt) * prb->n_inputs());
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -160,11 +164,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (is_bench_mode(CORR)) {
         ref_args.set(DNNL_ARG_DST, dst_fp);
 
-        TIME_REF(compute_ref(prb, ref_args));
-
-        compare::compare_t cmp;
-        cmp.set_threshold(epsilon_dt(dst_md.data_type) * prb->n_inputs());
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
     return measure_perf(res, prim, args);

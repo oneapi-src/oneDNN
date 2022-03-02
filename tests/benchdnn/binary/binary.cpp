@@ -24,7 +24,6 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "utils/compare.hpp"
 
 #include "binary/binary.hpp"
 #include "eltwise/eltwise.hpp"
@@ -190,6 +189,31 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 }
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args) {
+    cmp.set_threshold(epsilon_dt(prb->ddt));
+    // Since lambda is called when stack is unavailable, need to capture `prb`
+    // by value to avoid using dangling references.
+    const auto binary_add_check
+            = [prb](const compare::compare_t::driver_check_func_args_t &args) {
+                  // fp16 result can slightly mismatch for division due to
+                  // difference in backends implementations.
+                  return prb->alg == alg_t::DIV
+                          ? args.diff < epsilon_dt(args.dt)
+                          : false;
+              };
+    cmp.set_driver_check_function(binary_add_check);
+
+    const std::vector<alg_t> cmp_alg = {
+            alg_t::GE, alg_t::GT, alg_t::LE, alg_t::LT, alg_t::EQ, alg_t::NE};
+    const bool is_cmp = std::any_of(
+            cmp_alg.cbegin(), cmp_alg.cend(), [&](const alg_t alg) {
+                return (prb->alg == alg) || prb->attr.post_ops.find(alg) >= 0;
+            });
+
+    if (is_cmp) cmp.set_zero_trust_percent(99.f);
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -269,30 +293,7 @@ int doit(const prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_DST, dst_fp);
         ref_args.set(binary_po_args, binary_po_fp);
 
-        TIME_REF(compute_ref(prb, ref_args));
-
-        compare::compare_t cmp;
-        cmp.set_threshold(epsilon_dt(dst_dt.dt()));
-        const auto binary_add_check =
-                [&](const compare::compare_t::driver_check_func_args_t &args) {
-                    // fp16 result can slightly mismatch for division due to difference
-                    // in backends implementations.
-                    return prb->alg == alg_t::DIV
-                            ? args.diff < epsilon_dt(args.dt)
-                            : false;
-                };
-        cmp.set_driver_check_function(binary_add_check);
-
-        const std::vector<alg_t> cmp_alg = {alg_t::GE, alg_t::GT, alg_t::LE,
-                alg_t::LT, alg_t::EQ, alg_t::NE};
-        const bool is_cmp = std::any_of(
-                cmp_alg.cbegin(), cmp_alg.cend(), [&](const alg_t alg) {
-                    return (prb->alg == alg)
-                            || prb->attr.post_ops.find(alg) >= 0;
-                });
-
-        if (is_cmp) cmp.set_zero_trust_percent(100.f);
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
     return measure_perf(res, prim, args);
