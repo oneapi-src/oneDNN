@@ -40,7 +40,7 @@ TEST(Op, FusedOp) {
     ASSERT_FALSE(conv.is_fused());
     ASSERT_FALSE(relu.is_fused());
 
-    op_t conv_post_ops {2, impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion,
+    op_t conv_post_ops {2, impl::dnnl_impl::op_kind::conv_post_ops_fusion,
             std::string("conv_post_ops"), true};
     conv_post_ops.add_op_ids({0, 1});
     ASSERT_TRUE(conv_post_ops.is_fused());

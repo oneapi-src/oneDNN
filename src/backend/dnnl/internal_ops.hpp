@@ -40,24 +40,12 @@ namespace op_kind {
     X(bn_fwd_train_relu, BatchNormFwdTrain_relu) \
     X(conv_bias_swish, Conv_bias_swish) \
     X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
-    X(conv_bias_post_ops_chain_fusion, Conv_bias_post_ops_chain_fusion) \
+    X(conv_bias_post_ops_fusion, conv_bias_post_ops_fusion) \
     X(convtranspose_fusion, ConvTranspose_fusion) \
     X(matmul_bias_swish, MatMul_bias_swish) \
     X(avgpool_add, AvgPool_add) \
     X(maxpool_add, MaxPool_add) \
-    X(int8_conv, INT8_Conv) \
-    X(int8_quant_wei_conv, INT8_Quant_wei_Conv) \
-    X(int8_conv_bias, INT8_Conv_bias) \
-    X(int8_quant_wei_conv_bias, INT8_Quant_wei_Conv_bias) \
-    X(int8_conv_relu, INT8_Conv_relu) \
-    X(int8_quant_wei_conv_relu, INT8_Quant_wei_Conv_relu) \
-    X(int8_conv_bias_add, INT8_Conv_bias_add) \
-    X(int8_conv_bias_relu, INT8_Conv_bias_relu) \
-    X(int8_quant_wei_conv_bias_relu, INT8_Quant_wei_Conv_bias_relu) \
-    X(int8_conv_add_relu, INT8_Conv_add_relu) \
-    X(int8_quant_wei_conv_add_relu, INT8_Quant_wei_Conv_add_relu) \
-    X(int8_conv_bias_add_relu, INT8_Conv_bias_add_relu) \
-    X(int8_quant_wei_conv_bias_add_relu, INT8_Quant_wei_Conv_bias_add_relu) \
+    X(int8_conv_post_ops_fusion, INT8_conv_post_ops_chain) \
     X(int8_matmul, INT8_MatMul) \
     X(int8_quant_wei_matmul, INT8_Quant_wei_MatMul) \
     X(int8_matmul_bias, INT8_MatMul_bias) \
@@ -115,12 +103,6 @@ namespace op_kind {
     X(multiply_add, Multiply_add) \
     X(maximum_add, Maximum_add) \
     X(minimum_add, Minimum_add) \
-    X(x8s8f32_conv, X8S8F32_Conv) \
-    X(x8s8f32_conv_bias, X8S8F32_Conv_bias) \
-    X(x8s8f32_conv_relu, X8S8F32_Conv_relu) \
-    X(x8s8f32_conv_bias_relu, X8S8F32_Conv_bias_relu) \
-    X(x8s8f32_conv_add_relu, X8S8F32_Conv_add_relu) \
-    X(x8s8f32_conv_bias_add_relu, X8S8F32_Conv_bias_add_relu) \
     X(x8s8f32_quant_wei_matmul_add, X8S8F32_Quant_wei_MatMul_add) \
     X(x8s8f32_quant_wei_matmul_bias_add, X8S8F32_Quant_wei_MatMul_bias_add) \
     X(x8s8f32_quant_wei_matmul, X8S8F32_Quant_wei_MatMul) \
@@ -132,13 +114,6 @@ namespace op_kind {
             X8S8F32_Quant_wei_MatMul_bias_sigmoid) \
     X(x8s8f32_quant_wei_matmul_gelu, X8S8F32_Quant_wei_MatMul_gelu) \
     X(x8s8f32_quant_wei_matmul_bias_gelu, X8S8F32_Quant_wei_MatMul_bias_gelu) \
-    X(x8s8f32_quant_wei_conv, X8S8F32_Quant_wei_Conv) \
-    X(x8s8f32_quant_wei_conv_bias, X8S8F32_Quant_wei_Conv_bias) \
-    X(x8s8f32_quant_wei_conv_relu, X8S8F32_Quant_wei_Conv_relu) \
-    X(x8s8f32_quant_wei_conv_bias_relu, X8S8F32_Quant_wei_Conv_bias_relu) \
-    X(x8s8f32_quant_wei_conv_add_relu, X8S8F32_Quant_wei_Conv_add_relu) \
-    X(x8s8f32_quant_wei_conv_bias_add_relu, \
-            X8S8F32_Quant_wei_Conv_bias_add_relu) \
     X(int8_avgpool, INT8_AvgPool) \
     X(int8_avgpool_add, INT8_AvgPool_add) \
     X(dnnl_pool, Dnnl_pool) \
@@ -177,7 +152,7 @@ namespace op_kind {
     X(dnnl_layernorm, Dnnl_layernorm) \
     X(dnnl_reorder, Dnnl_reorder) \
     X(float_conv_fusion, Float_conv_fusion) \
-    X(conv_post_ops_chain_fusion, Conv_post_ops_chain_fusion) \
+    X(conv_post_ops_fusion, conv_post_ops_fusion) \
     X(quantized_convtranspose_fusion, Quantized_convtranspose_fusion) \
     X(quantized_concat_fusion, Quantized_concat_fusion) \
     X(matmul_post_ops_chain_fusion, MatMul_post_ops_chain_fusion) \

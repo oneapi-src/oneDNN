@@ -5570,7 +5570,7 @@ TEST(Compile, ConvAddSharedInputs) {
     g.build_graph();
 
     // run pass
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -5638,7 +5638,7 @@ TEST(Compile, ConvAddInplace) {
     g.build_graph();
 
     // run pass
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -5948,7 +5948,7 @@ TEST(Execute, ConvolutionBnFp32) {
             impl::status::success);
 
     // run fusion partition
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6059,7 +6059,7 @@ TEST(Compile, ConvBnSharedInputs) {
             impl::status::success);
 
     // run fusion partition
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6145,8 +6145,7 @@ TEST(Execute, ConvAdd) {
         g.add_op(&add_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass
-                = get_pass("conv_post_ops_chain_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -6232,7 +6231,7 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6314,7 +6313,7 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6397,7 +6396,7 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6480,7 +6479,7 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6560,7 +6559,7 @@ TEST(Compile, ConvAddBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6634,7 +6633,7 @@ TEST(Execute, ConvAddRelu) {
     g.add_op(&relu_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -6750,8 +6749,7 @@ TEST(Execute, ConvMultiplePostOps) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass
-            = get_pass("conv_bias_post_ops_chain_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -7511,24 +7509,24 @@ TEST(Execute, ConvBiasEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param> params1 = {
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {2.0, 1.5, 4.0, 0.5}, impl::op_kind::Abs, "Abs", {}},
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {static_cast<float>(exp(-2) - 1), 1.5, 4.0, 0.5},
                     impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {0.0, 1.5, 3.0, 0.5}, impl::op_kind::HardTanh, "HardTanh",
                     {{"min", 0.f}, {"max", 3.f}}},
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     sigmoid_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Sigmoid,
                     "Sigmoid", {}},
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {4.0, 2.25, 16.0, 0.25}, impl::op_kind::Square, "Square",
                     {}},
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     tanh_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Tanh,
                     "Tanh", {}},
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {1.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {1.0},
                     sqrt_func({0.0, 3.5, 6.0, 2.5}), impl::op_kind::Sqrt,
                     "Sqrt", {}},
     };
@@ -7618,10 +7616,10 @@ TEST(Execute, ConvBiasAddEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param> params2 = {
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {-1.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {static_cast<float>(exp(-4.0) - 1), 2.5, 3.0, 0.5},
                     impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
-            eltwise_param {"conv_bias_post_ops_chain_fusion", {3.0},
+            eltwise_param {"conv_bias_post_ops_fusion", {3.0},
                     {0.0, 6.f, 6.f, 4.5}, impl::op_kind::HardTanh, "ReLU6",
                     {{"min", 0.f}, {"max", 6.f}}},
     };
@@ -7729,11 +7727,11 @@ TEST(Execute, ConvAddEltwise) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     std::vector<eltwise_param> params = {
-            eltwise_param {"conv_post_ops_chain_fusion", {0.0},
+            eltwise_param {"conv_post_ops_fusion", {0.0},
                     {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
                     impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
-            eltwise_param {"conv_post_ops_chain_fusion", {0.0},
-                    {0.0, 3.5, 4.f, 1.5}, impl::op_kind::HardTanh, "ReLU6",
+            eltwise_param {"conv_post_ops_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
+                    impl::op_kind::HardTanh, "ReLU6",
                     {{"min", 0.f}, {"max", 6.f}}},
     };
 
@@ -10342,9 +10340,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("int8_conv_bias_fusion")
-                : get_pass("int8_conv_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -11351,9 +11347,7 @@ TEST(ExecuteSubgraphInt8, Conv2dRelu) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("int8_conv_bias_relu_fusion")
-                : get_pass("int8_conv_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -11565,9 +11559,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("int8_conv_bias_add_relu_fusion")
-                : get_pass("int8_conv_add_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -11778,9 +11770,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("int8_conv_bias_add_relu_fusion")
-                : get_pass("int8_conv_add_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -11950,9 +11940,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("x8s8f32_conv_bias_fusion")
-                : get_pass("x8s8f32_conv_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -12117,9 +12105,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("x8s8f32_conv_bias_relu_fusion")
-                : get_pass("x8s8f32_conv_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -12318,9 +12304,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("x8s8f32_conv_bias_add_relu_fusion")
-                : get_pass("x8s8f32_conv_add_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -12526,9 +12510,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("x8s8f32_conv_bias_add_relu_fusion")
-                : get_pass("x8s8f32_conv_add_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -14378,15 +14360,13 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         g.add_op(&qout_node2);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass1 = get_pass("int8_conv_fusion");
-        impl::pass::pass_base_ptr apass2
-                = get_pass("int8_conv_add_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
 
-        apass1->run(g);
-        apass2->run(g);
+        apass->run(g);
+
         ASSERT_EQ(g.get_num_partitions(), 2);
-        auto part1 = g.get_partitions()[0]; // int8_conv
-        auto part2 = g.get_partitions()[1]; // int8_conv_sum_elu
+        auto part2 = g.get_partitions()[0]; // int8_conv_sum_relu
+        auto part1 = g.get_partitions()[1]; // int8_conv
 
         // compile
         impl::partition_t p1, p2;
@@ -15395,9 +15375,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("int8_quant_wei_conv_bias_add_relu_fusion")
-                : get_pass("int8_quant_wei_conv_add_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -19999,7 +19977,7 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
 
     impl::pass::pass_base_ptr apass1
             = get_pass("int8_identical_bottleneck_resblock_fusion");
-    impl::pass::pass_base_ptr apass2 = get_pass("int8_conv_bias_fusion");
+    impl::pass::pass_base_ptr apass2 = get_pass("int8_conv_post_ops_fusion");
     apass1->run(g);
     apass2->run(g);
     ASSERT_EQ(g.get_num_partitions(), 2);

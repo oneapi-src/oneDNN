@@ -27,33 +27,6 @@
 using namespace dnnl::graph::impl;
 using namespace dnnl::graph::tests::unit::utils;
 
-TEST(OpSchema, Int8Conv) {
-    std::set<op_kind_t> conv_kinds = {impl::dnnl_impl::op_kind::int8_conv,
-            impl::dnnl_impl::op_kind::int8_conv_relu};
-    const size_t expected_in_size = 2;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 12;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"groups", false}, {"data_format", false},
-            {"filter_format", false}, {"qtype", false}, {"axis", false},
-            {"scales", true}, {"zps", true}};
-
-    for (auto k : conv_kinds) {
-        verify_op_schema(k, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-
-    std::set<op_kind_t> conv_bias_kinds
-            = {impl::dnnl_impl::op_kind::int8_conv_bias,
-                    impl::dnnl_impl::op_kind::int8_conv_bias_relu};
-    const size_t expected_in_size2 = 3;
-    for (auto k : conv_bias_kinds) {
-        verify_op_schema(k, expected_in_size2, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-}
-
 TEST(OpSchema, Int8Matmul) {
     std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::int8_matmul,
             impl::dnnl_impl::op_kind::int8_matmul_relu,
@@ -85,11 +58,11 @@ TEST(OpSchema, Int8Matmul) {
 
 TEST(OpSchema, InferConvBiasOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion,
             op_t::kind2str(
-                    impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion)};
+                    impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion)};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -130,11 +103,11 @@ TEST(OpSchema, InferConvBiasOutputShape) {
 
 TEST(OpSchema, InferConvBiasOutputShapeAutoPad) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion,
             op_t::kind2str(
-                    impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion)};
+                    impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion)};
     std::vector<int64_t> strides = {1, 1};
     std::vector<int64_t> pads_begin = {}; // empty pads_begin
     std::vector<int64_t> pads_end = {}; // empty pads_end
@@ -161,10 +134,10 @@ TEST(OpSchema, InferConvBiasOutputShapeAutoPad) {
 
 TEST(OpSchema, InferConvBiasOutputShapeAutoPadNoDefaultAttribute) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
-            "conv_bias"};
+    op_t a_op {
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion, "conv_bias"};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {};
     std::vector<int64_t> pads_end = {};
@@ -191,10 +164,10 @@ TEST(OpSchema, InferConvBiasOutputShapeAutoPadNoDefaultAttribute) {
 
 TEST(OpSchema, InferConv3dBiasOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_node {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
-            "conv3d_bias"};
+    op_t a_node {
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion, "conv3d_bias"};
     std::vector<int64_t> strides = {2, 2, 2};
     std::vector<int64_t> pads_begin = {1, 1, 1};
     std::vector<int64_t> pads_end = {2, 2, 2};
@@ -331,7 +304,7 @@ TEST(OpSchema, InferExpandOutputShapeBasedOnAxes) {
 }
 
 TEST(OpSchema, InferConvBiasAddReluWithNxcFormat) {
-    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
+    infer_conv_shape(impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion);
 }
 
 TEST(OpSchema, InferMatmulBiasOutputShape) {
@@ -484,9 +457,9 @@ TEST(OpSchema, InferBatchNormInferenceBiasAddOutputShape) {
 
 TEST(OpSchema, InferConvBnOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion);
+            impl::dnnl_impl::op_kind::conv_post_ops_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion, "conv_bn"};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_post_ops_fusion, "conv_bn"};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -537,10 +510,9 @@ TEST(OpSchema, InferConvBnOutputShape) {
 
 TEST(OpSchema, InferConvBnAddOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion);
+            impl::dnnl_impl::op_kind::conv_post_ops_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_post_ops_chain_fusion,
-            "conv_bn_add"};
+    op_t a_op {impl::dnnl_impl::op_kind::conv_post_ops_fusion, "conv_bn_add"};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};
     std::vector<int64_t> pads_end = {2, 2};
@@ -594,9 +566,9 @@ TEST(OpSchema, InferConvBnAddOutputShape) {
 
 TEST(OpSchema, InferConvBiasBnAddReluOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
-            impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion);
+            impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion);
     EXPECT_TRUE(nullptr != a_op_schema);
-    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_chain_fusion,
+    op_t a_op {impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion,
             "conv_bias_bn_add_relu"};
     std::vector<int64_t> strides = {2, 2};
     std::vector<int64_t> pads_begin = {1, 1};

@@ -84,9 +84,8 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::conv_bias_swish, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::dnnl_conv_depthwise, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::conv_simple_resblock, float_conv_fwd)
-    DNNL_REGISTER_KERNEL(
-            op_kind::conv_bias_post_ops_chain_fusion, float_conv_fwd)
-    DNNL_REGISTER_KERNEL(op_kind::conv_post_ops_chain_fusion, float_conv_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::conv_bias_post_ops_fusion, float_conv_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::conv_post_ops_fusion, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::float_conv_fusion, float_conv_fwd)
 
     DNNL_REGISTER_KERNEL(impl::op_kind::ConvolutionBackpropData, conv_bwd_data)
@@ -211,35 +210,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::quantized_concat_fusion, quantized_concat)
 
     // quantized conv
-    DNNL_REGISTER_KERNEL(op_kind::int8_conv, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_conv_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias_add, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_conv_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_conv_bias_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_bias, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_bias_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_conv_bias_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv, quantized_conv)
-    DNNL_REGISTER_KERNEL(
-            op_kind::int8_quant_wei_conv_bias_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv_bias_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_conv_bias, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_quant_wei_conv, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_quant_wei_conv_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_quant_wei_conv_bias, quantized_conv)
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_conv_bias_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_conv_add_relu, quantized_conv)
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_conv_bias_add_relu, quantized_conv)
+    DNNL_REGISTER_KERNEL(op_kind::int8_conv_post_ops_fusion, quantized_conv)
 
     // quantized convtranspose
     DNNL_REGISTER_KERNEL(
