@@ -560,10 +560,11 @@ stmt_t access_builder_t::create_send_stmt(const send_t &send) {
         off = shuffle_t::make_broadcast(off_base0 + off_const0, send.slots)
                 + shuffle_t::make(off_const_vec);
     }
-    auto _mask
-            = (send.is_prefetch() ? expr_t()
-                                  : mem_walker_->get_mask(0, send.access_size(),
-                                          send.mask_size(), send.nmasks()));
+    bool allow_fail = send.is_prefetch();
+    auto _mask = mem_walker_->get_mask(
+            0, send.access_size(), send.mask_size(), send.nmasks(), allow_fail);
+    if (_mask.is_empty()) return stmt_t();
+
     auto _reg_buf = (send.is_prefetch()
                     ? expr_t()
                     : reg_buf_ + reg_layout_walker_->offset_bytes());
