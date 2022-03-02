@@ -89,6 +89,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         int get_brg_idx(int bs, int m, bool do_initialization, bool is_N_tail,
                 bool is_K_tail) const {
             auto bs_idx = jcp_.use_uker ? batchsizes[bs] : 0;
+            assert(bs_idx >= 0);
             return (((m * bs_c + bs_idx) * 2
                             + static_cast<int>(do_initialization))
                                    * 2

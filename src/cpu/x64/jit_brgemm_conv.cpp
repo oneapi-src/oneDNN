@@ -112,7 +112,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             const int kd_f
                     = KD - div_up(max(0, iid - ID + (KD - 1) * DD + 1), DD);
             const auto kd_l = nstl::min(KD_BLOCK, kd_f - kd_s);
-            for (int ioh = 0; ioh < jcp_.oh; ioh += jcp_.oh_block) {
+            for (int ioh = 0; ioh < jcp_.oh; ioh++) {
 
                 const auto iih = ioh * SH - TP;
                 const auto kh_s
@@ -121,6 +121,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                         = KH - div_up(max(0, iih - IH + (KH - 1) * DH + 1), DH);
                 const auto kh_l = nstl::min(KH_BLOCK, kh_f - kh_s);
                 const auto bs = kd_l * kh_l * jcp_.kw;
+                if (bs < 0) continue;
 
                 if (batchsizes[bs] == -1) {
                     batchsizes[bs] = bs_c;
@@ -601,12 +602,13 @@ status_t brgemm_convolution_fwd_t<isa>::init(engine_t *engine) {
         }
     }
 
-    if (jcp.exec_type != exec_trans) {
-        for_(int i_N = N_begin; i_N < N_end; i_N++)
-        for (int i_M = M_begin; i_M < M_end; i_M++) {
-            // init "init" and "po" kernels for cases then we never call brgemm kernels
-            // e.g. for d/h padded areas
-            // TODO: do this only if d/h padding > kd/kh
+    for_(int i_N = N_begin; i_N < N_end; i_N++)
+    for (int i_M = M_begin; i_M < M_end; i_M++) {
+        // init "init" and "po" kernels for cases then we never call brgemm kernels
+        // e.g. for d/h padded areas
+        // TODO: do this only if d/h padding > kd/kh
+        if (IMPLICATION(jcp.exec_type == exec_trans,
+                    jcp.od > jcp.id || jcp.oh > jcp.ih)) {
             auto M = (i_M) ? jcp.M_tail : jcp.M;
             add_po_kernels(i_N, M, M, need_postwork);
         }
@@ -1084,7 +1086,7 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(char *dst_base, char *dst,
                                     int ow_pw_s, int ow_pw_l) {
         auto ker_po_idx = get_ker_po_idx(ow_pw_l - 1, is_postwork, is_oc_tail);
         const auto outwork_ker = kernels_po_[ker_po_idx].get();
-        assert(ow_pw_l == outwork_ker->brg.bcast_dim);
+        assert(outwork_ker != nullptr && ow_pw_l == outwork_ker->brg.bcast_dim);
         if (is_postwork) {
             p.apply_comp = has_postcomp;
             p.a_zp_compensation = has_postcomp && jcp.src_zero_point
@@ -1139,6 +1141,7 @@ void brgemm_convolution_fwd_t<isa>::call_brgemm_kernel(brgemm_thread_ctx_t &btc,
     const auto &jcp = _pd->jcp_;
 
     const auto brg_ker = brg_kernels_[brg_idx].get();
+    assert(brg_ker != nullptr);
 
     // TODO: avoid costly tile reconfigurations
     if (is_amx) {
