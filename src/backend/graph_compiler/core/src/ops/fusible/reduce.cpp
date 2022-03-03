@@ -119,9 +119,17 @@ reduce_op_t::reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
     if (new_reduce_dims.empty()) new_reduce_dims.push_back(1);
     if (outs.empty()) {
         logical_tensor_t out;
-        out = logical_tensor_t(get_reduced_format(ins[0]->details_.get_format(),
-                                       plain_rd_axis_),
-                new_reduce_dims, ins[0]->details_.dtype_);
+        if (keep_dims_) {
+            out = logical_tensor_t(
+                    get_reduced_format(
+                            ins[0]->details_.get_format(), plain_rd_axis_),
+                    new_reduce_dims, ins[0]->details_.dtype_);
+        } else {
+            out = logical_tensor_t(
+                    sc_data_format_t::get_plain_by_dims(new_reduce_dims.size()),
+                    new_reduce_dims, ins[0]->details_.dtype_);
+        }
+
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this, out));
     } else {
         COMPILE_ASSERT(outs.size() == 1, "Wrong op output size.\n");
@@ -147,15 +155,47 @@ reduce_op_t::reduce_op_t(graph_tensor_ptr v, const std::string &rd_name,
 void reduce_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
+    const auto &in_fmt = info_.inputs_[0]->details_.get_format();
     if (keep_dims_) {
-        const auto &in_fmt = info_.inputs_[0]->details_.get_format();
         out_formats.push_back({get_reduced_format(in_fmt, plain_rd_axis_)});
     } else {
         auto out_shape_size = info_.inputs_[0]->details_.get_plain_dims().size()
                 - plain_rd_axis_.size();
         if (out_shape_size == 0) out_shape_size = 1;
-        out_formats.push_back(
-                {sc_data_format_t::get_plain_by_dims(out_shape_size)});
+        if (!in_fmt.is_blocking()) {
+            out_formats.push_back(
+                    {sc_data_format_t::get_plain_by_dims(out_shape_size)});
+        } else {
+            COMPILE_ASSERT(plain_rd_axis_.size() == 1,
+                    "Currently we only support 1 reduce axis when input is "
+                    "blocking with keep_dims_=false.")
+            sc_data_format_t new_format;
+            auto &new_code = new_format.format_code_;
+            int new_code_i = 0;
+            for (int i = 0; i < in_fmt.format_code_.ndims(); i++) {
+                if (in_fmt.format_code_.get(i) < plain_rd_axis_[0]) {
+                    new_code.set(new_code_i, in_fmt.format_code_.get(i));
+                    new_code_i++;
+                } else if (in_fmt.format_code_.get(i) == plain_rd_axis_[0]) {
+                    continue;
+                } else {
+                    new_code.set(new_code_i, in_fmt.format_code_.get(i) - 1);
+                    new_code_i++;
+                }
+            }
+            if (!in_fmt.format_code_.collect_blocking_index(plain_rd_axis_[0])
+                            .empty()) {
+                if (in_fmt.format_code_
+                                .collect_blocking_index(plain_rd_axis_[0])
+                                .at(0)
+                        == 0) {
+                    new_format.blocks_[0] = in_fmt.blocks_[1];
+                } else {
+                    new_format.blocks_[0] = in_fmt.blocks_[0];
+                }
+            }
+            out_formats.push_back({new_format});
+        }
     }
 }
 

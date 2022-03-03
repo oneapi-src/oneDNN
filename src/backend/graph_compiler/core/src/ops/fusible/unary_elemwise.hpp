@@ -70,6 +70,18 @@ public:
     };
 };
 
+class select_one_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+    select_one_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("select_one", ins, outs, attrs) {}
+    select_one_op_t(
+            const std::vector<graph_tensor_ptr> &ins, const any_map_t &attrs);
+    select_one_op_t(graph_tensor_ptr v)
+        : unary_elementwise_op_impl_t(std::move(v), "select_one") {};
+};
+
 class round_op_t : public unary_elementwise_op_impl_t {
 public:
     DECLARE_COMPUTE_ELEMENT();

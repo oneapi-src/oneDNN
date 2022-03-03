@@ -133,6 +133,14 @@ expr relu_op_t::compute_element(expr in, int mask_count, float mask_value) {
             in, make_expr<constant_node>((int64_t)0, in->dtype_));
 }
 
+expr select_one_op_t::compute_element(
+        expr in, int mask_count, float mask_value) {
+    return builder::make_select(
+            in > make_expr<constant_node>((float)0.0f, in->dtype_),
+            make_expr<constant_node>((float)1.0f, in->dtype_),
+            make_expr<constant_node>((float)0.0f, in->dtype_));
+}
+
 expr round_op_t::compute_element(expr in, int mask_count, float mask_value) {
     return builder::make_round(in);
 }
@@ -342,6 +350,7 @@ OP_REGISTER(exp_op_t, exp)
 OP_REGISTER(erf_op_t, erf)
 OP_REGISTER(tanh_op_t, tanh)
 OP_REGISTER(relu_op_t, relu)
+OP_REGISTER(select_one_op_t, select_one)
 OP_REGISTER(round_op_t, round)
 OP_REGISTER(squared_root_op_t, squared_root)
 OP_REGISTER(cast_op_t, cast)

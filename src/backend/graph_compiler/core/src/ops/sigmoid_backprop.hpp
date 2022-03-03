@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_GELU_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_GELU_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_SIGMOID_BACKPROP_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_SIGMOID_BACKPROP_HPP
 
 #include <memory>
 #include <vector>
@@ -23,19 +23,10 @@
 namespace sc {
 namespace ops {
 
-class gelu_op : public graph_op_t, public op_traits::auto_copyable_t {
+class sigmoid_backprop_op : public graph_op_t,
+                            public op_traits::auto_copyable_t {
 public:
-    gelu_op(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph() override;
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
-};
-
-class gelu_backprop_op : public graph_op_t, public op_traits::auto_copyable_t {
-public:
-    gelu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
+    sigmoid_backprop_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     std::shared_ptr<sc_graph_t> get_graph() override;
     void query_format(context_ptr ctx,

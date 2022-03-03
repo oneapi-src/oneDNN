@@ -149,21 +149,15 @@ static void make_value_check_call(const std::vector<expr> &outs,
 }
 
 static graph_tensor_ptr get_linked_output_tsr(const graph_tensor_ptr &ltensor) {
-    if (ltensor->uses_.size() > 1) {
+    if (!ltensor->uses_.empty()) {
         for (size_t i = 0; i < ltensor->uses_.size(); i++) {
             if (ltensor->uses_[i].second->isa<tensor_view_op_t>()) {
-                return nullptr;
-            }
-        }
-    }
-    // if next ops are reshape->output, node should use output ltensor as
-    // output.
-    if (!ltensor->uses_.empty()
-            && ltensor->uses_[0].second->isa<tensor_view_op_t>()) {
-        auto reshape = ltensor->uses_[0].second;
-        for (auto &cld : reshape->get_outputs()[0]->uses_) {
-            if (cld.second->isa<output_op>()) {
-                return cld.second->get_inputs()[cld.first];
+                auto reshape = ltensor->uses_[0].second;
+                for (auto &cld : reshape->get_outputs()[0]->uses_) {
+                    if (cld.second->isa<output_op>()) {
+                        return cld.second->get_inputs()[cld.first];
+                    }
+                }
             }
         }
     }

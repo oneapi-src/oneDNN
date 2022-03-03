@@ -888,6 +888,12 @@ void fusion_manager::do_compute_block(
             = [&](fslice_map &fsmap, const sc_op_ptr &begin_op) -> bool {
         op_dep_matrix_t dep(graph_);
         infer_status_map_t stat_map;
+        for (auto &in : graph_.get_input_ops()) {
+            if (!in->stc_cast<input_op>()->is_arg_input()
+                    && dep.lookup(in, begin_op) != 1) {
+                return false;
+            }
+        }
         int begin_anchor_id = begin_op->dyn_cast<fusible_op_t>()->anchor_id_;
         auto begin_iter
                 = std::find(sorted_ops_.begin(), sorted_ops_.end(), begin_op);

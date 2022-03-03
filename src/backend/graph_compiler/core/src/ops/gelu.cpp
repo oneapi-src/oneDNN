@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,20 @@ gelu_op::gelu_op(const std::vector<graph_tensor_ptr> &ins,
     }
     attrs_ = attrs;
     op_name_ = "gelu";
+}
+
+gelu_backprop_op::gelu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+    COMPILE_ASSERT(ins.size() == 2, "Wrong op input size.\n");
+    info_.inputs_ = ins;
+    if (outs.empty()) {
+        info_.outputs_.emplace_back(
+                std::make_shared<graph_tensor>(this, ins[0]->details_));
+    } else {
+        info_.outputs_ = outs;
+    }
+    attrs_ = attrs;
+    op_name_ = "gelu_backprop";
 }
 
 std::shared_ptr<sc_graph_t> gelu_op::get_graph() {
@@ -85,11 +99,121 @@ std::shared_ptr<sc_graph_t> gelu_op::get_graph() {
     return graph;
 }
 
+std::shared_ptr<sc_graph_t> gelu_backprop_op::get_graph() {
+    auto graph = std::make_shared<sc_graph_t>();
+    // create new input logical tensors
+    std::vector<graph_tensor_ptr> inputs, outputs;
+    inputs = remake_logical_tensors(info_.inputs_);
+    outputs = remake_logical_tensors(info_.outputs_);
+
+    // input
+    graph->make_input(inputs);
+    bool is_bf16
+            = info_.inputs_[0]->details_.dtype_.is_etype(sc_data_etype::BF16);
+    sc_op_ptr fitting_const1, fitting_const2, fitting_const3, fitting_const4,
+            two, one, neg_one, half;
+    fitting_const1 = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {0.0356774f}),
+            datatypes::f32, sc_dims {1});
+    fitting_const2 = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {0.797885f}),
+            datatypes::f32, sc_dims {1});
+    fitting_const3 = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {0.0535161f}),
+            datatypes::f32, sc_dims {1});
+    fitting_const4 = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {0.398942f}),
+            datatypes::f32, sc_dims {1});
+    two = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {2.0f}),
+            datatypes::f32, sc_dims {1});
+    one = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {1.0f}),
+            datatypes::f32, sc_dims {1});
+    neg_one = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {-1.0f}),
+            datatypes::f32, sc_dims {1});
+    half = graph->make<constant_op_t>(
+            std::make_shared<static_data_t>(std::vector<float> {0.5f}),
+            datatypes::f32, sc_dims {1});
+    graph_tensor_ptr inputs0 = inputs[0];
+    graph_tensor_ptr inputs1 = inputs[1];
+    if (is_bf16) {
+        auto cast0 = graph->make(
+                "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
+        inputs0 = cast0->get_outputs()[0];
+    }
+    // x*x
+    auto mul0 = graph->make("mul", {inputs0, inputs0}, {}, {});
+    // 0.0356774x*x
+    auto mul1 = graph->make("mul",
+            {mul0->get_outputs()[0], fitting_const1->get_outputs()[0]}, {}, {});
+    // 0.0356774x*x+0.797885
+    auto add0 = graph->make("add",
+            {mul1->get_outputs()[0], fitting_const2->get_outputs()[0]}, {}, {});
+    // (0.0356774x*x+0.797885)*x
+    auto mul2 = graph->make("mul", {add0->get_outputs()[0], inputs0}, {}, {});
+    // tanh((0.0356774x*x+0.797885)*x)
+    auto tanh0 = graph->make("tanh", {mul2->get_outputs()[0]}, {}, {});
+    // 0.5*tanh((0.0356774x*x+0.797885)*x)
+    auto mul3 = graph->make(
+            "mul", {tanh0->get_outputs()[0], half->get_outputs()[0]}, {}, {});
+
+    // 0.053561x*x
+    auto mul4 = graph->make("mul",
+            {mul0->get_outputs()[0], fitting_const3->get_outputs()[0]}, {}, {});
+    // 0.053561x*x+0.398942
+    auto add1 = graph->make("add",
+            {mul4->get_outputs()[0], fitting_const4->get_outputs()[0]}, {}, {});
+    // (0.053561x*x+0.398942)*x
+    auto mul5 = graph->make("mul", {add1->get_outputs()[0], inputs0}, {}, {});
+
+    // exp{(0.0356774x*x+0.797885)*x}
+    auto exp = graph->make("exp", {mul2->get_outputs()[0]}, {}, {});
+    // -(0.0356774x*x+0.797885)*x
+    auto mul6 = graph->make(
+            "mul", {mul2->get_outputs()[0], neg_one->get_outputs()[0]}, {}, {});
+    // exp{-(0.0356774x*x+0.797885)*x}
+    auto exp1 = graph->make("exp", {mul6->get_outputs()[0]}, {}, {});
+    // exp{(0.0356774x*x+0.797885)*x} + exp{-(0.0356774x*x+0.797885)*x}
+    auto add2 = graph->make(
+            "add", {exp->get_outputs()[0], exp1->get_outputs()[0]}, {}, {});
+    // sech((0.0356774x*x+0.797885)*x)
+    auto div = graph->make(
+            "div", {two->get_outputs()[0], add2->get_outputs()[0]}, {}, {});
+
+    // sech^2((0.0356774x*x+0.797885)*x)
+    auto mul7 = graph->make(
+            "mul", {div->get_outputs()[0], div->get_outputs()[0]}, {}, {});
+    // (0.053561x*x+0.398942)*x*sech^2((0.0356774x*x+0.797885)*x)
+    auto mul8 = graph->make(
+            "mul", {mul5->get_outputs()[0], mul7->get_outputs()[0]}, {}, {});
+
+    auto add3 = graph->make(
+            "add", {mul3->get_outputs()[0], mul8->get_outputs()[0]}, {}, {});
+    auto add4 = graph->make(
+            "add", {add3->get_outputs()[0], half->get_outputs()[0]}, {}, {});
+
+    if (is_bf16) {
+        add4 = graph->make(
+                "cast", add4->get_outputs(), {}, {{"dtype", datatypes::bf16}});
+    }
+    auto mul10 = graph->make("mul", {add4->get_outputs()[0], inputs1}, {}, {});
+    // output
+    graph->make_output(mul10->get_outputs());
+    return graph;
+}
+
 void gelu_op::query_format(context_ptr ctx,
+        std::vector<std::vector<sc_data_format_t>> &in_formats,
+        std::vector<std::vector<sc_data_format_t>> &out_formats) {}
+
+void gelu_backprop_op::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {}
 
 } // namespace ops
 
 OP_REGISTER(ops::gelu_op, gelu)
+OP_REGISTER(ops::gelu_backprop_op, gelu_backprop)
 } // namespace sc
