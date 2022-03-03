@@ -87,6 +87,8 @@ protected:
         const auto is_training
                 = pd_->desc()->prop_kind == prop_kind::forward_training;
 
+        const bool is_augru = pd_->cell_kind() == alg_kind::vanilla_augru;
+
         const int mask = pd_->attr()->rnn_weights_qparams_.mask_;
         float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
 
@@ -108,6 +110,7 @@ protected:
         const auto addr_scratch_gates_reg = abi_param2;
         const auto addr_bias_reg = abi_param3;
         const auto addr_states_t_l_reg = abi_param4;
+        const auto addr_attn_reg = r15;
 #ifdef _WIN32
         const auto addr_states_t_l_copy_reg = r11;
         const auto addr_states_tm1_l_reg = r12;
@@ -117,9 +120,12 @@ protected:
         const auto base_args = get_stack_params_address();
         mov(addr_states_t_l_copy_reg, ptr[base_args]);
         mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
+        if (is_augru) mov(addr_attn_reg, ptr[base_args + 48]);
 #else
         const auto addr_states_t_l_copy_reg = abi_param5;
         const auto addr_states_tm1_l_reg = abi_param6;
+        const auto base_args = get_stack_params_address();
+        if (is_augru) mov(addr_attn_reg, ptr[base_args + 32]);
 #endif
 
         // helper lambda to address the gates and biases
@@ -202,19 +208,48 @@ protected:
                         to_src(wg_addr(2, loop_ur_idx), G2(loop_ur_idx),
                                 src_data_t, current_vlen);
 
-                    // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
                     load(G0(loop_ur_idx), sg_addr(0, loop_ur_idx),
                             scratch_data_t, current_vlen);
                     load(tmp1_vmm, one_addr, scratch_data_t, current_vlen);
-                    compute_vsubps(
-                            tmp1_vmm, tmp1_vmm, G0(loop_ur_idx), current_vlen);
-                    to_float(tmp2_vmm,
-                            ptr[addr_states_tm1_l_reg + loop_ur_idx * vlen_dst],
-                            src_data_t, current_vlen);
-                    compute_vmulps(G0(loop_ur_idx), G0(loop_ur_idx), tmp2_vmm,
-                            current_vlen);
-                    compute_vfmaddps(G0(loop_ur_idx), tmp1_vmm, G2(loop_ur_idx),
-                            current_vlen);
+                    if (is_augru) {
+                        // for augru there is additional step G01 = 1 - a * G0
+                        // states_t_l = states_tm1_l * G01 + (1 - G01) * G2
+                        // or
+                        // G01 = a * G0 and
+                        // states_t_l = states_tm1_l * (1 - G01) + G01 * G2
+                        const Xmm tmp2s_vmm(tmp2_vmm.getIdx());
+                        to_float(tmp2s_vmm, ptr[addr_attn_reg], src_data_t,
+                                hstate_dt_size);
+                        uni_vbroadcastss(tmp2_vmm, tmp2s_vmm);
+                        // G01 = a * G0
+                        compute_vmulps(G0(loop_ur_idx), G0(loop_ur_idx),
+                                tmp2_vmm, current_vlen);
+                        to_float(tmp2_vmm,
+                                ptr[addr_states_tm1_l_reg
+                                        + loop_ur_idx * vlen_dst],
+                                src_data_t, current_vlen);
+                        // tmp1 = 1 - G01
+                        compute_vsubps(tmp1_vmm, tmp1_vmm, G0(loop_ur_idx),
+                                current_vlen);
+                        // tmp2 = states_tm1_l * tmp1
+                        compute_vmulps(
+                                tmp2_vmm, tmp2_vmm, tmp1_vmm, current_vlen);
+                        // states_t_l = G01 * G2 + tmp2
+                        compute_vfmadd213ps(G0(loop_ur_idx), G2(loop_ur_idx),
+                                tmp2_vmm, current_vlen);
+                    } else {
+                        // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
+                        compute_vsubps(tmp1_vmm, tmp1_vmm, G0(loop_ur_idx),
+                                current_vlen);
+                        to_float(tmp2_vmm,
+                                ptr[addr_states_tm1_l_reg
+                                        + loop_ur_idx * vlen_dst],
+                                src_data_t, current_vlen);
+                        compute_vmulps(G0(loop_ur_idx), G0(loop_ur_idx),
+                                tmp2_vmm, current_vlen);
+                        compute_vfmadd231ps(G0(loop_ur_idx), tmp1_vmm,
+                                G2(loop_ur_idx), current_vlen);
+                    }
                     to_src(ptr[addr_states_t_l_reg + loop_ur_idx * vlen_dst],
                             G0(loop_ur_idx), src_data_t, current_vlen);
                     // if states_t_l_copy is a non null ptr, we write the output to it too

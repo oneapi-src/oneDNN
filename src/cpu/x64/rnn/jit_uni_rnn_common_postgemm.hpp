@@ -158,6 +158,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 rnn, dst_iter_, dst_iter_ld);
         const rnn_utils::ws_states_iter_aoc<const src_iter_t> src_iter(
                 rnn, src_iter_, src_iter_ld);
+        const rnn_utils::augru_attention_aoc<const dst_layer_t> augru_attention(
+                rnn, augru_attention_);
         const auto dst_iter_c = rnn_utils::make_raw_aoc(dst_iter_c_,
                 types::data_type_size(rnn.dst_iter_c_dt),
                 rnn.ws_states_iter_c_nld, dst_iter_c_ld);
@@ -182,6 +184,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         void *param7_, *param8_;
         void *param9_ = (void *)weights_scales_;
         const size_t param10_ = block_step;
+        const void *param11_;
 
         switch (pd_->cell_kind()) {
             case alg_kind::vanilla_lstm:
@@ -199,14 +202,27 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 param7_ = nullptr;
                 param8_ = nullptr;
                 break;
+            case alg_kind::lbr_augru:
+                param6_ = SAFE_PTR(src_iter, m, 0);
+                param7_ = SAFE_PTR(scratch_cell, m, 0, 0);
+                param8_ = ws_grid_ ? &ws_Wh_b(m, 0) : nullptr;
+                param11_ = SAFE_PTR(augru_attention, m);
+                break;
+            case alg_kind::vanilla_augru:
+                param6_ = SAFE_PTR(src_iter, m, 0);
+                param7_ = nullptr;
+                param8_ = nullptr;
+                param11_ = SAFE_PTR(augru_attention, m);
+                break;
             default:
                 param6_ = nullptr;
                 param7_ = nullptr;
                 param8_ = nullptr;
+                param11_ = nullptr;
                 break;
         }
         this->operator()(param1_, param2_, param3_, param4_, param5_, param6_,
-                param7_, param8_, param9_, param10_);
+                param7_, param8_, param9_, param10_, param11_);
 #undef SAFE_PTR
     }
 
@@ -700,7 +716,7 @@ protected:
     }
 
     template <typename Vmm>
-    void compute_vfmaddps(
+    void compute_vfmadd231ps(
             const Vmm &v1, const Vmm &v2, const Vmm &v3, int vlen_bytes) {
         if (vlen_bytes == 4)
             // special case for scalar-based tail processing
@@ -708,6 +724,17 @@ protected:
                     Xbyak::Xmm(v3.getIdx()));
         else
             uni_vfmadd231ps(v1, v2, v3);
+    }
+
+    template <typename Vmm>
+    void compute_vfmadd213ps(
+            const Vmm &v1, const Vmm &v2, const Vmm &v3, int vlen_bytes) {
+        if (vlen_bytes == 4)
+            // special case for scalar-based tail processing
+            uni_vfmadd213ss(Xbyak::Xmm(v1.getIdx()), Xbyak::Xmm(v2.getIdx()),
+                    Xbyak::Xmm(v3.getIdx()));
+        else
+            uni_vfmadd213ps(v1, v2, v3);
     }
 
     template <typename Vmm>
