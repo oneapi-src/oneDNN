@@ -159,6 +159,11 @@ struct gt_map_t {
     gt_map_t &operator=(const gt_map_t &other) = delete;
 };
 
+struct buffer_reuse_identity;
+using tsr_reuse_vec = std::vector<expr>;
+using buffer_identity_count
+        = std::unordered_map<buffer_reuse_identity, tsr_reuse_vec>;
+
 // fusion_data_t is related to buffer and slice range info of fusible op
 struct fusion_data_t {
     // the number of uses of the tensor in the graph. TODO: Should be replaced
@@ -186,8 +191,8 @@ struct fusion_data_t {
 private:
     expr buffer_;
     friend class fusion_manager;
-    friend void set_buffer_reuse_hint(
-            int64_t &, fdata_map &, const sc_op_ptr &, const expr &, bool);
+    friend void set_buffer_reuse_hint(buffer_identity_count &, int64_t &,
+            fdata_map &, const sc_op_ptr &, const expr &, bool);
 };
 
 struct fuse_state_t {
@@ -208,4 +213,11 @@ struct fuse_anchor_t {
 };
 
 } // namespace sc
+
+namespace std {
+template <>
+struct hash<sc::buffer_reuse_identity> {
+    std::size_t operator()(const sc::buffer_reuse_identity &in) const;
+};
+} // namespace std
 #endif
