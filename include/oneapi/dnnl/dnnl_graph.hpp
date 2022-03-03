@@ -32,6 +32,43 @@
 namespace dnnl {
 namespace graph {
 
+/// @addtogroup dnnl_graph_api_status
+/// Definitions of status values returned by the library functions.
+///
+/// @{
+
+/// Status values returned by the library functions.
+enum class status {
+    /// The operation was successful
+    success = dnnl_graph_result_success,
+    /// The operation was not ready
+    not_ready = dnnl_graph_result_not_ready,
+    /// The operation failed because device was not found
+    not_found = dnnl_graph_result_error_device_not_found,
+    /// The operation failed because requested functionality is not implemented.
+    unsupported = dnnl_graph_result_error_unsupported,
+    /// The operation failed because of incorrect function arguments
+    invalid_argument = dnnl_graph_result_error_invalid_argument,
+    /// The operation failed because of the failed compilation
+    compile_fail = dnnl_graph_result_error_compile_fail,
+    /// The operation failed because of incorrect index
+    invalid_index = dnnl_graph_result_error_invalid_index,
+    /// The operation failed because of incorrect graph
+    invalid_graph = dnnl_graph_result_error_invalid_graph,
+    /// The operation failed because of incorrect shape
+    invalid_shape = dnnl_graph_result_error_invalid_shape,
+    /// The operation failed because of incorrect type
+    invalid_type = dnnl_graph_result_error_invalid_type,
+    /// The operation failed because of incorrect op
+    invalid_op = dnnl_graph_result_error_invalid_op,
+    /// The operation failed because of missing inputs or outputs
+    miss_ins_outs = dnnl_graph_result_error_miss_ins_outs,
+    /// Unknown error
+    unknown = dnnl_graph_result_error_unknown,
+};
+
+/// @} dnnl_api_status
+
 /// @addtogroup dnnl_graph_api_allocator Allocator
 /// Definitions of allocator
 ///
@@ -1271,9 +1308,17 @@ public:
     ///
     /// @param op An operator that represents the entry of frameworks'
     ///    graph
-    void add_op(const op &op) {
-        error::check_succeed(dnnl_graph_add_op(get(), op.get()),
-                "adding op to the graph failed");
+    /// @param allow_exception A flag indicating whether the method is allowed
+    ///    to throw an exception if it fails to add the op to the graph.
+    /// @returns #success or a status describing the error otherwise.
+    status add_op(const op &op, bool allow_exception = true) {
+        dnnl_graph_result_t ret = dnnl_graph_add_op(get(), op.get());
+
+        if (allow_exception) {
+            error::check_succeed(ret, "could not add op to the graph");
+        }
+
+        return static_cast<status>(ret);
     }
 
     /// Vector to store the partitions

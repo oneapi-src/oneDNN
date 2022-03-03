@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,4 +36,16 @@ TEST(GraphApiTest, GetPartitionsTest) {
     auto partitions = g.get_partitions();
 
     EXPECT_EQ(partitions.size(), 1);
+}
+
+TEST(GraphApiTest, AddOp) {
+    using namespace dnnl::graph;
+    engine::kind engine_kind = engine::kind::cpu;
+    graph g(engine_kind);
+
+    op conv(0, op::kind::Convolution, "conv");
+
+    const bool allow_exception = false;
+    ASSERT_NE(g.add_op(conv, allow_exception), status::success);
+    EXPECT_THROW(g.add_op(conv), error);
 }
