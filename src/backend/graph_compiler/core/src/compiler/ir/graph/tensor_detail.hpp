@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,8 @@ public:
     const sc_data_format_t &get_format() const { return format_; }
     // sets the data format and invalidate the cached blocking_dims
     void set_format(const sc_data_format_t &newv);
+    // gets the size of the tensor in bytes
+    size_t size() const;
 
 private:
     template <typename T, typename Dummy>

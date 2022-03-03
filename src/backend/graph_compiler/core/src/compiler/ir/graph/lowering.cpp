@@ -15,6 +15,8 @@
  *******************************************************************************/
 
 #include "lowering.hpp"
+#include <limits>
+#include <list>
 #include <memory>
 #include <string>
 #include <utility>
@@ -168,6 +170,137 @@ static graph_tensor_ptr get_linked_output_tsr(const graph_tensor_ptr &ltensor) {
     return nullptr;
 }
 
+struct lowering_visitor_state_t {
+    std::unordered_map<graph_tensor_ptr, size_t> tensor_pending_refcount_;
+    op_visitor_t::updater_func topo_sorter_;
+    std::vector<size_t> op_exec_tick_;
+    //  need to visit the input outs in reversed order to align to old lowering
+    //  input argument order (like pop_back_selector). Our visitor must visit
+    //  the input ops first
+    std::list<sc_op_ptr>::iterator input_op_itr;
+    size_t cur_tick_ = 0;
+
+    lowering_visitor_state_t(sc_graph_t &g)
+        : topo_sorter_ {op_visitor_t::create_DAG_updater(g.ops_.size())}
+        , op_exec_tick_(g.ops_.size()) {}
+
+    size_t &get_tensor_pending_refcount(const graph_tensor_ptr &p) {
+        auto itr = tensor_pending_refcount_.find(p);
+        if (itr == tensor_pending_refcount_.end()) {
+            auto ret = tensor_pending_refcount_.insert(
+                    std::make_pair(p, p->uses_.size()));
+            return ret.first->second;
+        }
+        return itr->second;
+    }
+
+    op_visitor_t::updater_func get_updater() {
+        auto ths = this;
+        return [ths](op_visitor_t *vis, const sc_op_ptr &op) {
+            for (auto &in : op->get_inputs()) {
+                ths->get_tensor_pending_refcount(in)--;
+            }
+            auto tick = ths->cur_tick_++;
+            if (op->isa<output_op>() || op->isa<constant_op_t>()) {
+                ths->op_exec_tick_[op->logical_op_id_] = 0;
+            } else {
+                ths->op_exec_tick_[op->logical_op_id_] = tick;
+            }
+            ths->topo_sorter_(vis, op);
+        };
+    }
+
+    using queue_iterator_t = std::list<sc_op_ptr>::iterator;
+    op_visitor_t::selector_func get_selector() {
+        auto ths = this;
+        return [ths](op_visitor_t *vis) -> sc_op_ptr {
+            if (ths->cur_tick_ == 0) {
+                ths->input_op_itr = vis->to_visit_.end();
+                --ths->input_op_itr;
+            }
+            if (ths->input_op_itr != queue_iterator_t()) {
+                // if there is input ops, return and advance the input_op_itr
+                auto ret = *ths->input_op_itr;
+                auto to_remove = ths->input_op_itr;
+                if (ths->input_op_itr == vis->to_visit_.begin()) {
+                    ths->input_op_itr = queue_iterator_t();
+                } else {
+                    --ths->input_op_itr;
+                }
+                vis->to_visit_.erase(to_remove);
+
+                SC_MODULE_INFO << "Scheduling const/input: iter "
+                               << ths->cur_tick_ << ", Op " << ret->op_name_
+                               << "_" << ret->logical_op_id_;
+                return ret;
+            }
+            // fast path: if there is only one op, just pop it
+            if (vis->to_visit_.size() == 1) {
+                auto ret = vis->to_visit_.back();
+                vis->to_visit_.pop_back();
+                return ret;
+            }
+            float best_score = std::numeric_limits<float>::lowest();
+            std::list<sc_op_ptr>::reverse_iterator to_remove;
+
+            // visit the queue in reversed order to align to old lowering input
+            // argument order (like pop_back_selector)
+            for (auto itr = vis->to_visit_.rbegin();
+                    itr != vis->to_visit_.rend(); ++itr) {
+                auto op = *itr;
+                assert(!op->isa<input_op>() && !op->isa<constant_op_t>());
+                float cur_score = 0;
+
+                // for each input tensor, check if the refcount=1. If so, it
+                // means that after the Op is visited, the input tensor is no
+                // longer needed
+                // compute the score of each visitable candidate op.
+                // the score is "SUM_{each input
+                // tensor}(sizeof(tensor)*heat_modifier) - SUM_{each output
+                // tensor}(sizeof(tensor))"
+                for (auto &in : op->get_inputs()) {
+                    if (ths->get_tensor_pending_refcount(in) == 1) {
+                        // compute the heat modifier of the tensor. The hotter
+                        // the tensor is (computed lately), the larger the
+                        // modifier.
+                        auto owner = in->producer_owner_;
+                        auto tick_diff = ths->cur_tick_
+                                - ths->op_exec_tick_[owner->logical_op_id_];
+                        assert(ths->cur_tick_
+                                > ths->op_exec_tick_[owner->logical_op_id_]);
+                        float heat_modifier;
+                        switch (tick_diff) {
+                            case 0:
+                            case 1: heat_modifier = 1.1f; break;
+                            case 2: heat_modifier = 1.05f; break;
+                            default: heat_modifier = 1.0f;
+                        }
+                        float cur_tsr = in->details_.size() * heat_modifier;
+                        cur_score += cur_tsr;
+                    }
+                }
+                for (auto &out : op->get_outputs()) {
+                    float cur_tsr = out->details_.size();
+                    cur_score -= cur_tsr;
+                }
+                SC_MODULE_INFO << "Scheduling score: iter " << ths->cur_tick_
+                               << ", Op " << op->op_name_ << "_"
+                               << op->logical_op_id_ << " = " << cur_score;
+                if (cur_score > best_score) {
+                    best_score = cur_score;
+                    to_remove = itr;
+                }
+            }
+            auto ret = *to_remove;
+            SC_MODULE_INFO << "Scheduling selects: iter " << ths->cur_tick_
+                           << ", Op " << ret->op_name_ << "_"
+                           << ret->logical_op_id_;
+            vis->to_visit_.erase(std::next(to_remove).base());
+            return ret;
+        };
+    }
+};
+
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args) {
     // todo(zhichen): move to drive.
@@ -177,8 +310,9 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         visualize(ctx->flags_.dump_graph_, graph);
     }
     result_dump_config_t dump_config {ctx->flags_.graph_dump_results_};
-    op_visitor_t vis {op_visitor_t::pop_back_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size())};
+    lowering_visitor_state_t visiter_state(graph);
+    op_visitor_t vis {
+            visiter_state.get_selector(), visiter_state.get_updater()};
     std::vector<expr> params;
     stmts func_body = make_stmt<stmts_node_t>(std::vector<stmt>());
     stmts init_body = make_stmt<stmts_node_t>(std::vector<stmt>());

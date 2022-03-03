@@ -193,6 +193,14 @@ void logical_tensor_t::set_format(const sc_data_format_t &newv) {
     internal_update();
 }
 
+size_t logical_tensor_t::size() const {
+    size_t sz = utils::get_sizeof_type(dtype_);
+    for (auto z : get_blocking_dims()) {
+        sz *= z;
+    }
+    return sz;
+}
+
 void graph_tensor::attach_use(sc_op_ptr op, int index) {
     uses_.emplace_back(std::make_pair(index, std::move(op)));
 }
