@@ -1111,7 +1111,7 @@ public:
     /// Returns all op’s id of the partition
     ///
     /// @returns An unordered set of op ids
-    std::vector<size_t> get_ops() {
+    std::vector<size_t> get_ops() const {
         auto num = get_ops_num();
         std::vector<size_t> ops(num);
 
