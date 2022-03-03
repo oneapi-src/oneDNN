@@ -129,7 +129,7 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
                                     + bias(2, j));
 
             if (rnn.is_augru) {
-                const auto a = reinterpret_as_float(augru_attention(i, j));
+                const auto a = reinterpret_as_float(augru_attention(i));
                 G0 = 1 - a * G0;
             }
 
@@ -367,7 +367,8 @@ void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
     // dG0^ = dh * (ht-1 - G2) * u * (1 - G0)
     // dht-1 (part) = dh * G0
     parallel_nd(rnn.mb, [&](dim_t i) {
-        PRAGMA_OMP_SIMD()
+        acc_data_t diff_attention = 0.0f;
+        PRAGMA_OMP_SIMD(reduction(+ : diff_attention))
         for (int j = 0; j < rnn.dhc; j++) {
             const float h = src_iter(i, j);
             const float dHt = diff_dst_iter(i, j) + diff_dst_layer(i, j);
@@ -377,14 +378,15 @@ void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
                     * x_m_square(ws_gates(i, 0, j));
 
             if (rnn.is_augru) {
-                diff_augru_attention(i, j) = dG0 * ws_gates(i, 0, j);
-                dG0 *= augru_attention(i, j);
+                diff_attention += dG0 * ws_gates(i, 0, j);
+                dG0 *= augru_attention(i);
             }
 
             diff_src_iter(i, j) = dHt * ws_gates(i, 0, j);
             scratch_gates(i, 0, j) = to_src(dG0);
             scratch_gates(i, 2, j) = to_src(dG2);
         }
+        if (rnn.is_augru) diff_augru_attention(i) = diff_attention;
     });
 }
 

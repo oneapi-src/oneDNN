@@ -1216,11 +1216,11 @@ private:
 template <typename T>
 struct augru_attention_aoc {
     augru_attention_aoc(const rnn_conf_t &rnn, T *data)
-        : state_(data, rnn.mb, 1) {}
-    T &operator()(int batch, int dhc) const { return state_(batch, 0); }
+        : state_(data, rnn.mb) {}
+    T &operator()(int batch) const { return state_(batch); }
 
 private:
-    const dnnl::impl::utils::array_offset_calculator<T, 2> state_;
+    const dnnl::impl::utils::array_offset_calculator<T, 1> state_;
 };
 
 template <typename T>
