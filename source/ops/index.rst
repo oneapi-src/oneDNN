@@ -27,6 +27,8 @@ subset of the operation set.
    convolution/ConvolutionBackpropData_1.rst
    convolution/ConvolutionBackpropFilters_1.rst
    convolution/ConvTranspose_1.rst
+   convolution/ConvTransposeBackpropData_1.rst
+   convolution/ConvTransposeBackpropFilters_1.rst
    lower_precision/Dequantize_1.rst
    arithmetic/Divide_1.rst
    lower_precision/DynamicDequantize_1.rst
