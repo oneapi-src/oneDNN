@@ -147,10 +147,10 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_op_num(
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_ops(
         partition_t *partition, size_t num, size_t *ops) {
+    if (utils::any_null(partition, ops)) { return status::invalid_argument; }
+
     auto ids = partition->get_op_ids();
-    if (ids.size() != num || ops == nullptr) {
-        return status::invalid_argument;
-    }
+    if (ids.size() != num) { return status::invalid_argument; }
 
     int idx = 0;
     for (auto it = ids.begin(); it != ids.end(); ++it, ++idx) {
@@ -162,9 +162,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_ops(
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_id(
         const partition_t *partition, size_t *id) {
-    if (partition == nullptr || id == nullptr) {
-        return status::invalid_argument;
-    }
+    if (utils::any_null(partition, id)) { return status::invalid_argument; }
 
     *id = partition->id();
     return status::success;
@@ -174,9 +172,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
         compiled_partition_t *compiled_partition, uint64_t in_num,
         const logical_tensor_t **inputs, uint64_t out_num,
         const logical_tensor_t **outputs, const engine_t *engine) {
-    if (partition == nullptr || engine == nullptr) {
-        return status::invalid_argument;
-    }
+    if (utils::any_null(partition, engine)) { return status::invalid_argument; }
 
     std::vector<const logical_tensor_t *> in {inputs, inputs + in_num};
     std::vector<const logical_tensor_t *> out {outputs, outputs + out_num};
@@ -204,9 +200,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports_num(
         const partition_t *partition, uint64_t *num) {
-    if (partition == nullptr || num == nullptr) {
-        return status::invalid_argument;
-    }
+    if (utils::any_null(partition, num)) { return status::invalid_argument; }
 
     *num = static_cast<uint64_t>(partition->get_inputs_num());
     return status::success;
@@ -214,9 +208,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports_num(
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports_num(
         const partition_t *partition, uint64_t *num) {
-    if (partition == nullptr || num == nullptr) {
-        return status::invalid_argument;
-    }
+    if (utils::any_null(partition, num)) { return status::invalid_argument; }
 
     *num = static_cast<uint64_t>(partition->get_outputs_num());
     return status::success;
@@ -275,6 +267,10 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
 status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_create(
         compiled_partition_t **created_compiled_partition,
         partition_t *partition) {
+    if (utils::any_null(created_compiled_partition, partition)) {
+        return status::invalid_argument;
+    }
+
     *created_compiled_partition = new compiled_partition_t {*partition};
     return status::success;
 }
@@ -283,6 +279,10 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         const compiled_partition_t *compiled_partition, const stream_t *stream,
         const uint64_t num_inputs, const tensor_t **inputs,
         const uint64_t num_outputs, const tensor_t **outputs) {
+    if (utils::any_null(stream, compiled_partition, inputs, outputs)) {
+        return status::invalid_argument;
+    }
+
     if (stream->get_engine()->kind() == engine_kind::gpu) {
         return status::invalid_argument;
     } else {
@@ -290,9 +290,6 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         return status::invalid_argument;
 #endif
     }
-
-    if (utils::any_null(stream, compiled_partition, inputs, outputs))
-        return status::invalid_argument;
 
     std::vector<tensor_t> ins, outs;
     ins.reserve(num_inputs);
