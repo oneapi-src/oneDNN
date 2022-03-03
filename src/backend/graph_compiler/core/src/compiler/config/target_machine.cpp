@@ -221,10 +221,11 @@ uint32_t context_t::get_max_vector_lanes(sc_data_etype etype) const {
 }
 
 context_t::context_t(const scflags_t &flags, target_machine_t &&machine,
-        runtime::engine_t *engine)
+        runtime::engine_t *engine, bool bwise_fusion)
     : engine_(engine ? engine : runtime::get_default_stream()->engine_)
     , flags_(flags)
-    , machine_(std::move(machine)) {}
+    , machine_(std::move(machine))
+    , bwise_fusion_(bwise_fusion) {}
 
 target_machine_t get_native_target_machine() {
     target_machine_t tm(target_machine_t::type::cpu, nullptr);

@@ -74,8 +74,8 @@ void compute_block_elemwise(const std::vector<const tensor_slice *> &src,
         const tensor_slice &dst, sc_op_info_t &info,
         fusion_compute_func_t compute);
 
-std::vector<int> transform_axis_plain2blocking(const sc_data_format_t &fmt,
-        const std::vector<int> &plain_axis, int bs_offset);
+std::vector<int> transform_axis_plain2blocking(
+        const graph_tensor_ptr &gt, const std::vector<int> &plain_axis);
 
 std::string fusion_create_var_idx();
 std::string fusion_create_idx();

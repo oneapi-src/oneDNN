@@ -45,21 +45,27 @@ static bool slice_full_on_axes(
     return true;
 }
 
-std::vector<int> transform_axis_plain2blocking(const sc_data_format_t &fmt,
-        const std::vector<int> &plain_axis, int bs_offset) {
+std::vector<int> transform_axis_plain2blocking(
+        const graph_tensor_ptr &gt, const std::vector<int> &plain_axis) {
+    auto fmt = gt->details_.get_format();
+    int bs_ndim = 0;
+    if (fmt.format_code_.is_batch_format()) {
+        bs_ndim = static_cast<int>(gt->details_.get_blocking_dims().size())
+                - fmt.format_code_.ndims();
+    }
     // If format is any, just return.
     if (fmt.is_any()) { return plain_axis; }
     std::vector<int> real_axis;
     auto p2bmp = fmt.format_code_.collect_p2b_mapping();
     for (auto &i : plain_axis) {
-        if (i < bs_offset) {
+        if (i < bs_ndim) {
             real_axis.emplace_back(i);
         } else {
             std::vector<int> res;
-            res.resize(p2bmp[i - bs_offset].size());
-            std::transform(p2bmp[i - bs_offset].begin(),
-                    p2bmp[i - bs_offset].end(), res.begin(),
-                    [&bs_offset](const int &v) { return v + bs_offset; });
+            res.resize(p2bmp[i - bs_ndim].size());
+            std::transform(p2bmp[i - bs_ndim].begin(), p2bmp[i - bs_ndim].end(),
+                    res.begin(),
+                    [&bs_ndim](const int &v) { return v + bs_ndim; });
             real_axis.insert(real_axis.end(), res.begin(), res.end());
         }
     }
@@ -450,14 +456,58 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
 }
 
 std::vector<int> reduce_op_t::get_rd_axis() const {
-    auto fmt = info_.inputs_[0]->details_.get_format();
-    int bs_ndim = 0;
-    if (fmt.format_code_.is_batch_format()) {
-        bs_ndim = static_cast<int>(
-                          info_.inputs_[0]->details_.get_blocking_dims().size())
-                - fmt.format_code_.ndims();
+    return transform_axis_plain2blocking(info_.inputs_[0], plain_rd_axis_);
+}
+
+sc_dims reduce_op_t::get_bwise_fuse_shrink_dims() const {
+    if (!keep_dims_) return {};
+    auto real_rd_axis = get_rd_axis();
+    auto input_dims = info_.outputs_[0]->details_.get_blocking_dims();
+    int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
+            info_.outputs_[0]);
+    int min_rd_axis
+            = (*std::min_element(real_rd_axis.begin(), real_rd_axis.end()));
+    return {input_dims.begin(),
+            input_dims.begin() + std::min(offset, min_rd_axis + 1)};
+}
+
+void reduce_op_t::collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) {
+    auto rd_axis = get_rd_axis();
+    int invalid_size = 0;
+    for (auto &ax : rd_axis) {
+        if (ax < bw_size)
+            invalid_size++;
+        else
+            break;
     }
-    return transform_axis_plain2blocking(fmt, plain_rd_axis_, bs_ndim);
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
+            bw_lt_map, get_inputs()[0], bw_size);
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(bw_lt_map,
+            get_outputs()[0], keep_dims_ ? bw_size : (bw_size - invalid_size));
+}
+
+void reduce_op_t::collect_shrinked_axes_map(
+        int bw_size, gt2axes_map &bw_axes_map) {
+    auto rd_axis = get_rd_axis();
+    std::vector<int> bw_axes;
+    int valid_cnt = 0;
+    for (int i = 0; i < bw_size; i++) {
+        auto iter = std::find(rd_axis.begin(), rd_axis.end(), i);
+        if (iter != rd_axis.end()) {
+            bw_axes.emplace_back(-1);
+        } else {
+            bw_axes.emplace_back(valid_cnt++);
+        }
+    }
+    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+            bw_axes_map, get_inputs()[0], bw_size);
+    if (keep_dims_) {
+        op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+                bw_axes_map, get_outputs()[0], bw_size);
+    } else {
+        op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+                bw_axes_map, get_outputs()[0], bw_axes);
+    }
 }
 
 void reduce_op_t::compute_block(context_ptr ctx,

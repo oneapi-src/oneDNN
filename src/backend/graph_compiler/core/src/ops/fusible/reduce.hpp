@@ -29,7 +29,9 @@ enum class reduce_operator : int {
 };
 
 // reduce op
-class reduce_op_t : public fusible_op_t, public op_traits::auto_copyable_t {
+class reduce_op_t : public fusible_op_t,
+                    public op_traits::auto_copyable_t,
+                    public op_traits::batchwise_shrinkable_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -50,6 +52,11 @@ public:
     std::vector<int> get_rd_axis() const;
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
+
+    sc_dims get_bwise_fuse_shrink_dims() const override;
+    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
+    void collect_shrinked_axes_map(
+            int bw_size, gt2axes_map &bw_axes_map) override;
 
 private:
     // the axis which need reduction

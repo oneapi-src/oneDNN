@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,9 +46,11 @@ bool tunable_op_t::is_valid(const context_ptr &ctx) {
 }
 
 ir_module_ptr tunable_op_t::get_func(context_ptr ctx) {
-    auto ret = std::make_shared<ir_module_t>(ctx);
+    auto run_ctx = std::make_shared<context_t>(*ctx);
+    run_ctx->bwise_fusion_ = attrs_.get_or_else(op_attr_key::bwise_fuse, false);
+    auto ret = std::make_shared<ir_module_t>(run_ctx);
     auto gen_ptr = create_generator();
-    set_config_if_empty(ctx, gen_ptr.get());
+    set_config_if_empty(run_ctx, gen_ptr.get());
     std::vector<expr> ins;
     std::vector<expr> outs;
     auto func = graph::create_func_decl_for_op(this, ins, outs);
@@ -57,11 +59,11 @@ ir_module_ptr tunable_op_t::get_func(context_ptr ctx) {
     bld.push_scope();
     std::vector<for_loop> loops;
     bool status = gen_ptr->generate(
-            ctx, config_data_.get(), nullptr, ins, outs, loops);
+            run_ctx, config_data_.get(), nullptr, ins, outs, loops);
     assert(status);
     bld.push_returns(true);
     auto body = bld.pop_scope();
-    gen_ptr->schedule_loops(ctx, config_data_.get(), body, loops);
+    gen_ptr->schedule_loops(run_ctx, config_data_.get(), body, loops);
     auto args = outs;
     args.insert(args.end(), ins.begin(), ins.end());
 

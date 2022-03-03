@@ -50,8 +50,9 @@ struct context_t {
     sc::runtime::engine_t *engine_;
     scflags_t flags_;
     target_machine_t machine_;
+    bool bwise_fusion_;
     context_t(const scflags_t &flags, target_machine_t &&machine,
-            runtime::engine_t *engine = nullptr);
+            runtime::engine_t *engine = nullptr, bool bwise_fusion = false);
     context_t(const context_t &) = default;
     uint32_t get_max_vector_lanes(sc_data_etype etype) const;
 };

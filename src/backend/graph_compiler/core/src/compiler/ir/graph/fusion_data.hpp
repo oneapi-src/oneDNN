@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "graph_map.hpp"
 #include <compiler/ir/sc_expr.hpp>
 #include <unordered_map>
 
@@ -29,11 +30,6 @@ namespace sc {
 using slice_range = std::vector<std::pair<expr, expr>>;
 using slice_range_list = std::vector<slice_range>;
 using slice_range_map = std::unordered_map<int, slice_range_list>;
-
-template <typename keyT>
-struct gt_map_t;
-using fdata_map = gt_map_t<fusion_data_t>;
-using fslice_map = gt_map_t<slice_range_list>;
 
 enum class infer_status_code : int {
     OK = 0, // Successful
@@ -95,12 +91,7 @@ inline std::vector<expr> get_slice_shape(const slice_range &range) {
     return ret;
 }
 
-inline bool share_with_output(const graph_tensor_ptr &gt) {
-    return std::any_of(gt->uses_.begin(), gt->uses_.end(),
-            [](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
-                return user.second->isa<output_op>();
-            });
-}
+bool share_with_output(const graph_tensor_ptr &gt);
 
 /**
  * A slice of the tensor.
@@ -147,16 +138,6 @@ struct tensor_slice {
 
     // is_full
     bool is_full() const;
-};
-
-// the map based on graph_tensor key
-template <typename keyT>
-struct gt_map_t {
-    std::unordered_map<graph_tensor *, keyT> datamap_;
-    keyT &get(graph_tensor *);
-    keyT &get(const graph_tensor_ptr &);
-    void clear() { datamap_.clear(); }
-    gt_map_t &operator=(const gt_map_t &other) = delete;
 };
 
 struct buffer_reuse_identity;

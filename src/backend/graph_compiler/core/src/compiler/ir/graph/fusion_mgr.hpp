@@ -174,6 +174,9 @@ public:
     // get real tensors list vector in output logical tensors
     std::vector<std::vector<tensor_slice>> get_output_tsr_slices_list(
             fusible_op_t *op, fdata_map &fdmap, fslice_map &fsmap) const;
+
+    // copy fusion mgr, return shared_ptr of fusion_mgr
+    std::shared_ptr<fusion_manager> copy() const;
 };
 
 // todo: remove and use standard graph::make
@@ -197,7 +200,6 @@ std::shared_ptr<output_op> fusion_manager::make<output_op>(
         const graph_tensor_ptr &arg);
 
 using fusion_mgr_ptr = std::shared_ptr<fusion_manager>;
-
 } // namespace sc
 
 #endif

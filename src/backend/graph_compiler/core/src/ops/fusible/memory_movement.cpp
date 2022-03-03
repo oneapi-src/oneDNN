@@ -499,6 +499,38 @@ void tensor_view_op_t::pre_slice_ranges(
     }
 }
 
+sc_dims tensor_view_op_t::get_bwise_fuse_shrink_dims() const {
+    auto old_dims = info_.inputs_[0]->details_.get_blocking_dims();
+    auto new_dims = get_shapes();
+    sc_dims bw_dims;
+    int offset
+            = std::min(op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
+                               info_.inputs_[0]),
+                    op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
+                            info_.outputs_[0]));
+    int common_size = std::min(old_dims.size(), new_dims.size());
+    for (int i = 0; i < std::min(common_size, offset); i++) {
+        if (old_dims[i] == new_dims[i])
+            bw_dims.emplace_back(new_dims[i]);
+        else
+            break;
+    }
+    return bw_dims;
+}
+
+sc_op_ptr tensor_view_op_t::bw_shrinked_copy(
+        gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) {
+    auto ins = get_inputs()[0];
+    auto cache_input_format = ins->details_.get_format();
+    COMPILE_ASSERT(bw_lt_map.haskey(ins),
+            "tensor_view_op: new input graph tensor not found in map")
+    auto plain_shape = sc_data_format_t::get_padded_plain_shapes(
+            bw_lt_map.get(ins)->details_.get_blocking_dims(),
+            cache_input_format);
+    return op_traits::batchwise_shrinkable_t::bw_shrinked_copy(
+            bw_lt_map, shrinked_graph, {{"shape", plain_shape}});
+}
+
 void tensor_view_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {}

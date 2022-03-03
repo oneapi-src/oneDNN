@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <utility>
+#include "fused_op.hpp"
 #include "fusible_op.hpp"
 #include "fusion_mgr.hpp"
 #include "outer_loop_generator.hpp"

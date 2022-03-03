@@ -40,6 +40,52 @@
 SC_MODULE(graph.fusion);
 
 namespace sc {
+fusion_mgr_ptr fusion_manager::copy() const {
+    fusion_mgr_ptr new_fmgr = std::make_shared<fusion_manager>();
+    auto &graph = get_graph();
+    for (auto &op : graph.ops_) {
+        if (!op->is_removed_ && !op->dyn_cast<input_op>()
+                && !op->dyn_cast<output_op>()
+                && !op->dyn_cast<op_traits::copyable_t>()) {
+            return new_fmgr;
+        }
+    }
+    op_visitor_t vis(op_visitor_t::dequeue_selector,
+            op_visitor_t::create_DAG_updater(graph.ops_.size()));
+    std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> old_new_lt_map;
+    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+        sc_op_ptr new_node;
+        if (node->dyn_cast<input_op>()) {
+            new_node = new_fmgr->make_input(
+                    copy_logical_tsr(node->get_outputs()));
+
+            // "unique_id" for integration
+            new_node->attrs_ = node->attrs_;
+        } else {
+            std::vector<graph_tensor_ptr> ins;
+            ins.reserve(node->get_inputs().size());
+            for (auto &t : node->get_inputs()) {
+                ins.emplace_back(old_new_lt_map.at(t));
+            }
+            if (node->dyn_cast<output_op>()) {
+                const auto &outtsr = ins[0];
+                new_node = new_fmgr->make<output_op>(outtsr);
+                // "unique_id" for integration
+                new_node->attrs_ = node->attrs_;
+            } else {
+                new_node = node->dyn_cast<op_traits::copyable_t>()->copy(ins,
+                        copy_logical_tsr(node->get_outputs()),
+                        new_fmgr->get_graph());
+            }
+        }
+        // recording old graph_tensor->new graph_tensor
+        for (size_t i = 0; i < new_node->get_outputs().size(); ++i) {
+            old_new_lt_map[node->get_outputs()[i]] = new_node->get_outputs()[i];
+        }
+    });
+    new_fmgr->get_graph().attrs_ = graph.attrs_;
+    return new_fmgr;
+}
 
 int fusion_manager::get_input_idx(sc_op *v) const {
     auto itr = input_idx_map_.find(v);
@@ -51,22 +97,6 @@ int fusion_manager::get_output_idx(sc_op *v) const {
     assert(itr != output_idx_map_.end());
     return itr->second;
 }
-
-template <typename keyT>
-keyT &gt_map_t<keyT>::get(graph_tensor *v) {
-    auto itr = datamap_.find(v);
-    if (itr != datamap_.end()) { return itr->second; }
-    auto &ret = datamap_[v];
-    return ret;
-}
-
-template <typename keyT>
-keyT &gt_map_t<keyT>::get(const graph_tensor_ptr &v) {
-    return get(v.get());
-}
-
-template struct gt_map_t<fusion_data_t>;
-template struct gt_map_t<slice_range_list>;
 
 template <>
 std::shared_ptr<input_op> fusion_manager::make<input_op>() {

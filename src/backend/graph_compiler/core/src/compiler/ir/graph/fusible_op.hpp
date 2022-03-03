@@ -28,13 +28,10 @@ namespace sc {
 using slice_range = std::vector<std::pair<expr, expr>>;
 using slice_range_list = std::vector<slice_range>;
 
-template <typename keyT>
-struct gt_map_t;
-using fdata_map = gt_map_t<fusion_data_t>;
-using fslice_map = gt_map_t<slice_range_list>;
-
 struct infer_status_map_t;
 struct tensor_slice;
+
+using fslice_map = gt_map_t<slice_range_list>;
 
 /**
  * A fuser will do actual code injection on the fusion point. It will be managed
@@ -238,6 +235,7 @@ struct vectorized_info_t {
 
 class binary_elementwise_op_t : public fusible_op_t,
                                 public op_traits::may_broadcast_t,
+                                public op_traits::batchwise_shrinkable_t,
                                 public op_traits::brgemm_fusion_acceptable_t,
                                 public op_traits::auto_copyable_with_trait_t<
                                         op_traits::brgemm_fusion_acceptable_t> {
@@ -245,6 +243,7 @@ class binary_elementwise_op_t : public fusible_op_t,
 
 class unary_elementwise_op_t : public fusible_op_t,
                                public op_traits::brgemm_fusion_acceptable_t,
+                               public op_traits::batchwise_shrinkable_t,
                                public op_traits::auto_copyable_with_trait_t<
                                        op_traits::brgemm_fusion_acceptable_t> {
 };
