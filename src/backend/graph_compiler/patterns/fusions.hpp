@@ -16,6 +16,8 @@
 #ifndef BACKEND_GRAPH_COMPILER_PATTERNS_FUSIONS_HPP
 #define BACKEND_GRAPH_COMPILER_PATTERNS_FUSIONS_HPP
 
+#include <vector>
+
 #include "backend/graph_compiler/patterns/transformation_pattern.hpp"
 
 namespace dnnl {
@@ -33,6 +35,15 @@ bool check_input_dtype(op_t *op) {
     }
 
     return true;
+}
+
+bool check_reduce_attrs(op_t *op) {
+    auto attrs = op->get_attributes();
+    if (attrs.find("axes") != attrs.end()
+            && !attrs["axes"].get<std::vector<int64_t>>().empty()) {
+        return true;
+    }
+    return false;
 }
 
 } // namespace pass

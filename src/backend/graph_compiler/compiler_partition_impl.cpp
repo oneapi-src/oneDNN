@@ -132,11 +132,15 @@ impl::status_t compiler_partition_impl_t::compile(
         std::unordered_map<size_t, sc::sc_op_ptr> inputs_map, outputs_map;
         compiler_graph_impl_t sub_graph;
         size_t id = 0;
+        std::vector<size_t> out_lt_ids(outputs.size());
         for (auto &in_lt : inputs) {
             sc::sc_op_ptr in_ret;
             in_ret = sub_graph.make_compiler_backend_input(in_lt);
             inputs_map[in_lt.id] = in_ret;
             in_ret->attrs_.set("unique_id", id++);
+        }
+        for (auto &out_lt : outputs) {
+            out_lt_ids.emplace_back(out_lt.id);
         }
         impl::graph_t temp_graph(copied_ops_);
         auto output_ops = temp_graph.get_output_ops();
@@ -161,16 +165,12 @@ impl::status_t compiler_partition_impl_t::compile(
             }
             // translate output value
             for (auto &out_value : cur_op->get_output_values()) {
+                auto lt = out_value->get_logical_tensor();
                 consumer_lt.emplace_back(
-                        compiler_graph_impl_t::convert_logical_tensor(
-                                out_value->get_logical_tensor()));
-            }
-
-            sc::sc_op_ptr ret;
-            ret = sub_graph.make_backend_op(cur_op, producer_lt, consumer_lt);
-            if (utils::is_output_op(cur_op->shared_from_this())) {
-                for (size_t i = 0; i < consumer_lt.size(); ++i) {
-                    auto out_ret = sub_graph.make_output({consumer_lt[i]});
+                        compiler_graph_impl_t::convert_logical_tensor(lt));
+                if (std::find(out_lt_ids.begin(), out_lt_ids.end(), lt.id)
+                        != out_lt_ids.end()) {
+                    auto out_ret = sub_graph.make_output({consumer_lt.back()});
                     out_ret->attrs_.set("unique_id", id++);
                     sc::sc_data_format_t output_format
                             = out_ret->get_inputs()[0]->details_.get_format();
@@ -179,12 +179,12 @@ impl::status_t compiler_partition_impl_t::compile(
                                 std::vector<sc::sc_data_format_t> {
                                         output_format});
                     }
-                    outputs_map[cur_op->get_output_values()[i]
-                                        ->get_logical_tensor()
-                                        .id]
-                            = out_ret;
+                    outputs_map[lt.id] = out_ret;
                 }
             }
+            // translate op
+            sc::sc_op_ptr ret;
+            ret = sub_graph.make_backend_op(cur_op, producer_lt, consumer_lt);
             sub_graph.op_mapping_[cur_op->get_id()] = ret;
             return impl::status::success;
         });

@@ -375,3 +375,81 @@ TEST(GCPatternTests, INT8DLRMTop) {
     ASSERT_EQ(partition_inputs.size(), 11);
     ASSERT_EQ(partition_outputs.size(), 1);
 }
+
+TEST(GCPatternTests, FP32MLPTraining1) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_mlp_training_graph(&agraph, 1, 3, {13, 512, 256, 128},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU},
+            {impl::op_kind::ReLUBackprop, impl::op_kind::ReLUBackprop,
+                    impl::op_kind::ReLUBackprop});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass_fwd = get_pass(
+            compiler_backend_ptr, "fp32_mlp_forward_pattern_3layers");
+    pass::pass_base_ptr apass_bwd
+            = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern");
+
+    apass_fwd->run(agraph);
+    apass_bwd->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 6);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 12);
+}
+
+TEST(GCPatternTests, FP32MLPTraining2) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_mlp_training_graph(&agraph, 1, 4, {415, 512, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::Sigmoid},
+            {impl::op_kind::SigmoidBackprop, impl::op_kind::ReLUBackprop,
+                    impl::op_kind::ReLUBackprop, impl::op_kind::ReLUBackprop});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass_fwd = get_pass(
+            compiler_backend_ptr, "fp32_mlp_forward_pattern_4layers");
+    pass::pass_base_ptr apass_bwd
+            = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern");
+
+    apass_fwd->run(agraph);
+    apass_bwd->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 8);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 16);
+}
+
+TEST(GCPatternTests, FP32MLPTraining3) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_mlp_training_graph(&agraph, 1, 5, {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid},
+            {impl::op_kind::SigmoidBackprop, impl::op_kind::ReLUBackprop,
+                    impl::op_kind::ReLUBackprop, impl::op_kind::ReLUBackprop,
+                    impl::op_kind::ReLUBackprop});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass_fwd = get_pass(
+            compiler_backend_ptr, "fp32_mlp_forward_pattern_5layers");
+    pass::pass_base_ptr apass_bwd
+            = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern");
+
+    apass_fwd->run(agraph);
+    apass_bwd->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 10);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 20);
+}
