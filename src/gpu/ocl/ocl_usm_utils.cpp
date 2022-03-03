@@ -64,7 +64,12 @@ struct ext_func_t {
     template <typename... Args>
     typename cpp_compat::invoke_result<F, Args...>::type operator()(
             engine_t *engine, Args... args) const {
-        return ext_func_ptrs_.at(get_ocl_platform(engine))(args...);
+        auto f = get_func(engine);
+        return f(args...);
+    }
+
+    F get_func(engine_t *engine) const {
+        return ext_func_ptrs_.at(get_ocl_platform(engine));
     }
 
 private:
@@ -109,6 +114,14 @@ private:
 };
 
 } // namespace
+
+bool is_usm_supported(engine_t *engine) {
+    using clSharedMemAllocINTEL_func_t = void *(*)(cl_context, cl_device_id,
+            cl_ulong *, size_t, cl_uint, cl_int *);
+    static ext_func_t<clSharedMemAllocINTEL_func_t> ext_func(
+            "clSharedMemAllocINTEL");
+    return (bool)ext_func.get_func(engine);
+}
 
 void *malloc_host(engine_t *engine, size_t size) {
     using clHostMemAllocINTEL_func_t = void *(*)(cl_context, const cl_ulong *,

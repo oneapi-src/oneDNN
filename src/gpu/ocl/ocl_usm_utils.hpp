@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ namespace usm {
 
 enum class ocl_usm_kind_t { unknown, host, device, shared };
 
+bool is_usm_supported(engine_t *engine);
 void *malloc_host(engine_t *engine, size_t size);
 void DNNL_API *malloc_device(engine_t *engine, size_t size);
 void DNNL_API *malloc_shared(engine_t *engine, size_t size);

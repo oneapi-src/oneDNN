@@ -173,8 +173,12 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                     default: assert(!"not expected");
                 }
             } else {
-                cl_mem null_mem = nullptr;
-                CHECK(kernel->set_arg(i, sizeof(cl_mem), &null_mem));
+                if (usm::is_usm_supported(stream.engine())) {
+                    CHECK(kernel->set_usm_arg(stream.engine(), i, nullptr));
+                } else {
+                    cl_mem null_mem = nullptr;
+                    CHECK(kernel->set_arg(i, sizeof(cl_mem), &null_mem));
+                }
             }
         } else if (arg.is_local()) {
             CHECK(kernel->set_arg(i, arg.size(), arg.value()));
