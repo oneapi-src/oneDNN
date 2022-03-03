@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,9 @@ public:
     using ir_visitor_t::dispatch;
     int func_id;
     func_c dispatch(func_c v) override {
+        if (v->attr_ && v->attr_->get_or_else("skip_trace", false)) {
+            return v;
+        }
         func_id = register_traced_func(v->name_);
         auto oldbody = v->body_;
         assert(oldbody.isa<stmts>());

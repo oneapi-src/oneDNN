@@ -49,6 +49,12 @@ struct tensor_slice;
 struct fusion_data_t;
 struct fuse_state_t;
 
+template <typename valT>
+struct gt_map_t;
+using fdata_map = gt_map_t<fusion_data_t>;
+using gt2gt_map = gt_map_t<graph_tensor_ptr>;
+using gt2axes_map = gt_map_t<std::vector<int>>;
+
 /** VConst struct record possible varible in constant value, e.g.
  *
  *   const int a = k * b;
@@ -157,6 +163,8 @@ constexpr const char *break_post_fuse = "break_post_fuse";
 constexpr const char *break_pre_fuse = "break_pre_fuse";
 // Fuse Anchor
 constexpr const char *inner_anchor = "inner_anchor";
+// Batchwise fused
+constexpr const char *bwise_fuse = "bwise_fuse";
 }; // namespace op_attr_key
 
 class SC_INTERNAL_API sc_op : public virtual op_base_trait_t,

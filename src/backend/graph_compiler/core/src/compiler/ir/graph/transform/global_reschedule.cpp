@@ -267,7 +267,7 @@ static void bypass_preop_fusion_rule(
     }
 }
 
-using gr_rule = std::function<void(sc_graph_t &graph, context_ptr ctx)>;
+using gr_rule = std::function<void(sc_graph_t &graph, const context_ptr &ctx)>;
 
 static std::vector<gr_rule> gr_rule_list = {bypass_preop_fusion_rule};
 

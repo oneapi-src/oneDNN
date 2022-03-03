@@ -55,7 +55,8 @@ private:
  *    dimension expansion (e.g. [a, b] --> [1, 1, a, b])
  * */
 class tensor_view_op_t : public movement_op_t,
-                         public op_traits::auto_copyable_t {
+                         public op_traits::auto_copyable_t,
+                         public op_traits::batchwise_shrinkable_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -68,6 +69,9 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     sc_dims get_shapes() const;
     bool try_penetrate(sc_data_format_t &new_output_format) const;
+    sc_dims get_bwise_fuse_shrink_dims() const override;
+    sc_op_ptr bw_shrinked_copy(
+            gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) override;
 
 private:
     sc_dims shapes_;
@@ -112,7 +116,9 @@ private:
     sc_dims shapes_;
 };
 
-class reorder_op_t : public movement_op_t, public op_traits::auto_copyable_t {
+class reorder_op_t : public movement_op_t,
+                     public op_traits::auto_copyable_t,
+                     public op_traits::batchwise_shrinkable_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
@@ -136,6 +142,8 @@ public:
             const std::vector<shape_dtype_pair> &) override;
     bool check_padding() const;
     bool use_output_loop() const;
+    sc_dims get_bwise_fuse_shrink_dims() const override;
+    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
 
 private:
     sc_dims plain_dims_;

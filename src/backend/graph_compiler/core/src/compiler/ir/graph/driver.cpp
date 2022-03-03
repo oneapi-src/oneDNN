@@ -89,6 +89,8 @@ create_default_graph_flow() {
             graph_constant_input_folding, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("inplace_transform",
             inplace_transform, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("batchwise_merge",
+            batchwise_merge, {}, pass_type::post_tune, true));
 
     // get passes map
     std::unordered_map<std::string, basic_graph_pass_ptr> passes_map;

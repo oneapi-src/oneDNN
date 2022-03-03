@@ -486,15 +486,8 @@ std::vector<int> binary_elementwise_op_impl_t::get_bc_axis() const {
     int bc_input_idx = get_broadcast_input();
     if (bc_input_idx == -1) return {};
     if (plain_bc_axis_ == std::vector<int> {-1}) return plain_bc_axis_;
-    auto fmt = info_.inputs_[1 - bc_input_idx]->details_.get_format();
-    int bs_ndim = 0;
-    if (fmt.format_code_.is_batch_format()) {
-        bs_ndim = static_cast<int>(info_.inputs_[1 - bc_input_idx]
-                                           ->details_.get_blocking_dims()
-                                           .size())
-                - fmt.format_code_.ndims();
-    }
-    return transform_axis_plain2blocking(fmt, plain_bc_axis_, bs_ndim);
+    return transform_axis_plain2blocking(
+            info_.inputs_[1 - bc_input_idx], plain_bc_axis_);
 }
 
 bool binary_elementwise_op_impl_t::register_brgemm_fusion(
@@ -508,6 +501,80 @@ bool binary_elementwise_op_impl_t::register_brgemm_fusion(
     return brg_reg.register_op_infos(shared_from_this(),
             outputs[0]->get_tensor_ptr(), inputs[1]->get_tensor_ptr(),
             inputs[1]->get_shape());
+}
+
+sc_dims binary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() const {
+    auto &in0_detail = info_.inputs_[0]->details_;
+    auto &in1_detail = info_.inputs_[1]->details_;
+    if (in0_detail.get_format().format_code_.is_batch_format()
+            != in1_detail.get_format().format_code_.is_batch_format()) {
+        return {};
+    }
+    auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
+    int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
+            info_.outputs_[0]);
+    return {output_dims.begin(), output_dims.begin() + offset};
+}
+
+void binary_elementwise_op_impl_t::collect_shrinked_lt_map(
+        int bw_size, gt2gt_map &bw_lt_map) {
+    int bc_idx = get_broadcast_input();
+    if (bc_idx == -1)
+        op_traits::batchwise_shrinkable_t::collect_shrinked_lt_map(
+                bw_size, bw_lt_map);
+    std::vector<graph_tensor_ptr> new_ins;
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
+            bw_lt_map, get_outputs()[0], bw_size);
+    auto old_ins = get_inputs();
+    bool keep_dims = get_inputs()[0]->details_.get_blocking_dims().size()
+            == get_inputs()[1]->details_.get_blocking_dims().size();
+    auto bc_axis = get_bc_axis();
+    int valid_size = 0;
+    for (auto &ax : bc_axis) {
+        if (ax < bw_size)
+            valid_size++;
+        else
+            break;
+    }
+    for (size_t i = 0; i < get_inputs().size(); i++) {
+        op_traits::batchwise_shrinkable_t::record_shrinked_gt(bw_lt_map,
+                get_inputs()[i],
+                static_cast<int>(i) == bc_idx && !keep_dims ? valid_size
+                                                            : bw_size);
+    }
+}
+
+void binary_elementwise_op_impl_t::collect_shrinked_axes_map(
+        int bw_size, gt2axes_map &bw_axes_map) {
+    int bc_idx = get_broadcast_input();
+    if (bc_idx == -1)
+        op_traits::batchwise_shrinkable_t::collect_shrinked_axes_map(
+                bw_size, bw_axes_map);
+    std::vector<graph_tensor_ptr> new_ins;
+    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+            bw_axes_map, get_outputs()[0], bw_size);
+    auto old_ins = get_inputs();
+    bool keep_dims = get_inputs()[0]->details_.get_blocking_dims().size()
+            == get_inputs()[1]->details_.get_blocking_dims().size();
+    auto bc_axis = get_bc_axis();
+    std::vector<int> bw_axes;
+    for (int i = 0; i < bw_size; i++) {
+        auto iter = std::find(bc_axis.begin(), bc_axis.end(), i);
+        if (iter != bc_axis.end()) {
+            bw_axes.emplace_back(iter - bc_axis.begin());
+        } else {
+            bw_axes.emplace_back(-1);
+        }
+    }
+    for (size_t i = 0; i < get_inputs().size(); i++) {
+        if (static_cast<int>(i) == bc_idx && !keep_dims) {
+            op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+                    bw_axes_map, get_inputs()[i], bw_axes);
+        } else {
+            op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+                    bw_axes_map, get_inputs()[i], bw_size);
+        }
+    }
 }
 
 void compute_block_broadcast(const std::vector<const tensor_slice *> &src,

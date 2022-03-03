@@ -24,7 +24,9 @@
 namespace sc {
 namespace ops {
 
-class SC_INTERNAL_API matmul_core_op_t : public tunable_op_t {
+class SC_INTERNAL_API matmul_core_op_t
+    : public tunable_op_t,
+      public op_traits::batchwise_shrinkable_t {
 public:
     matmul_core_op_t(const std::vector<graph_tensor_ptr> &producer_lt,
             const std::vector<graph_tensor_ptr> &consumer_lt,
@@ -34,7 +36,7 @@ public:
             std::vector<std::vector<sc_data_format_t>> &out_formats) override;
     body_generator_ptr create_generator() override;
     float get_gflop() override;
-    sc_dims get_batch_dims();
+    sc_dims get_batch_dims() const;
     sc_op_ptr do_compensations(
             sc_graph_t &mgr, const context_ptr &ctx) override;
     sc_op_ptr get_data_compensation(sc_graph_t &mgr);
@@ -42,6 +44,13 @@ public:
     std::vector<sc_op_ptr> get_s8s8_and_weight_compensation(
             sc_graph_t &mgr, bool s8s8_compensation);
     sc_op_ptr get_constant_compensation(sc_graph_t &mgr);
+
+    sc_dims get_bwise_fuse_shrink_dims() const override;
+
+    void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
+
+    void collect_shrinked_axes_map(
+            int bw_size, gt2axes_map &bw_axes_map) override;
 };
 } // namespace ops
 } // namespace sc

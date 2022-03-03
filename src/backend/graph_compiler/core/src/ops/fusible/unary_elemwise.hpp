@@ -51,6 +51,8 @@ public:
 
     virtual expr compute_element(expr in, int mask_count, float mask_value) = 0;
 
+    sc_dims get_bwise_fuse_shrink_dims() const override;
+
 private:
     vectorized_info_t vx_info_;
 };

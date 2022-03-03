@@ -482,7 +482,8 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
       }
       // this is the gemm output
       if (fusion
-        && M_num_blocks >= runtime_config_t::get().threads_per_instance_) {
+        && (ctx->bwise_fusion_
+          || M_num_blocks >= runtime_config_t::get().threads_per_instance_)) {
         fusion->create_output_fusion_anchor({tensor_slice(
           C, {{m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}})});
       }

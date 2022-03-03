@@ -14,9 +14,11 @@
  * limitations under the License.
  *******************************************************************************/
 #include "matmul_core.hpp"
+#include <algorithm>
 #include <memory>
 #include <numeric>
 #include "templates/matmul_core.hpp"
+#include <compiler/ir/graph/graph_map.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <util/utils.hpp>
@@ -79,7 +81,7 @@ float matmul_core_op_t::get_gflop() {
     return create_generator()->get_gflop();
 }
 
-sc_dims matmul_core_op_t::get_batch_dims() {
+sc_dims matmul_core_op_t::get_batch_dims() const {
     auto &A_dims = info_.inputs_[0]->details_.get_plain_dims();
     auto &B_dims = info_.inputs_[1]->details_.get_plain_dims();
     return A_dims.size() > B_dims.size()
@@ -439,6 +441,149 @@ sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
                             data_zero_points[0] * weight_zero_points[0]},
                     {"temp.var", attrs_["temp.padded_A_K"]}});
     return constant_node;
+}
+
+sc_dims matmul_core_op_t::get_bwise_fuse_shrink_dims() const {
+    // Skip plain matmul temporarily
+    if (get_outputs()[0]->details_.get_format().is_plain()) return {};
+
+    // Currently fordbid N-axis fuse, skip check weight
+    int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
+            info_.outputs_[0]);
+
+    auto out_fmt = info_.outputs_[0]->details_.get_format(),
+         inp_fmt = info_.inputs_[0]->details_.get_format();
+    auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping(),
+         inp_p2b_map = inp_fmt.format_code_.collect_p2b_mapping();
+
+    COMPILE_ASSERT(out_p2b_map.size() >= 2,
+            "Matmul core output should at least have MN dimension")
+    int N_first_idx = out_p2b_map.back().front();
+    int M_last_idx = out_p2b_map.at(out_p2b_map.size() - 2).back();
+    COMPILE_ASSERT(N_first_idx > 0 && M_last_idx > 0,
+            "Unexpected matmul core blocking format found: " << out_fmt)
+    offset = std::min(offset, std::min(M_last_idx, N_first_idx));
+    // validate input according shrinked output graph tensor
+    int cnt = 0;
+    int bs_size = get_batch_dims().size();
+    for (; cnt < (offset - bs_size); cnt++) {
+        auto plain_pos = out_fmt.format_code_.get(cnt);
+        if (inp_p2b_map[plain_pos].front() != cnt) break;
+    }
+    auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
+    offset = bs_size + cnt;
+    return {output_dims.begin(), output_dims.begin() + offset};
+}
+
+void matmul_core_op_t::collect_shrinked_lt_map(
+        int bw_size, gt2gt_map &bw_lt_map) {
+    // set output
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
+            bw_lt_map, get_outputs()[0], bw_size);
+    auto &out_plain_dims
+            = bw_lt_map.get(get_outputs()[0])->details_.get_plain_dims();
+    auto old_inp_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto old_wei_dims = get_inputs()[1]->details_.get_plain_dims();
+    // MK
+    sc_dims inp_plain_dims = {
+            out_plain_dims.at(out_plain_dims.size() - 2), old_inp_dims.back()};
+    // KN
+    sc_dims wei_plain_dims
+            = {old_wei_dims.at(old_wei_dims.size() - 2), out_plain_dims.back()};
+
+    int bs_out = out_plain_dims.size() - 2;
+    int bs_inp = old_inp_dims.size() - 2;
+    int bs_wei = old_wei_dims.size() - 2;
+
+    for (int i = 1; i <= bs_out; i++) {
+        if (i <= bs_inp) {
+            inp_plain_dims.insert(inp_plain_dims.begin(),
+                    out_plain_dims.at(out_plain_dims.size() - 2 - i));
+        }
+        if (i <= bs_wei) {
+            wei_plain_dims.insert(wei_plain_dims.begin(),
+                    out_plain_dims.at(out_plain_dims.size() - 2 - i));
+        }
+    }
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
+            bw_lt_map, get_inputs()[0], inp_plain_dims);
+    op_traits::batchwise_shrinkable_t::record_shrinked_gt(
+            bw_lt_map, get_inputs()[1], wei_plain_dims);
+}
+
+void matmul_core_op_t::collect_shrinked_axes_map(
+        int bw_size, gt2axes_map &bw_axes_map) {
+    auto ins = get_inputs()[0], wei = get_inputs()[1], out = get_outputs()[0];
+    int bs_inp = get_inputs()[0]->details_.get_plain_dims().size() - 2;
+    int bs_wei = get_inputs()[1]->details_.get_plain_dims().size() - 2;
+    int bs_out = get_outputs()[0]->details_.get_plain_dims().size() - 2;
+    auto get_idx = [](const graph_tensor_ptr &gt) {
+        std::vector<int> batch;
+        auto fmt = gt->details_.get_format();
+        bool batch_fmt = fmt.format_code_.is_batch_format();
+        auto p2b_map = fmt.format_code_.collect_p2b_mapping();
+        if (batch_fmt) {
+            int batch_size
+                    = static_cast<int>(gt->details_.get_blocking_dims().size()
+                            - fmt.format_code_.ndims());
+            for (int i = 0; i < batch_size; i++) {
+                batch.emplace_back(i);
+            }
+        } else {
+            for (size_t i = 0; i < p2b_map.size() - 2; i++) {
+                batch.insert(batch.end(), p2b_map[i].begin(), p2b_map[i].end());
+            }
+        }
+        std::vector<std::vector<int>> ret;
+        ret.emplace_back(batch);
+        ret.emplace_back(p2b_map[p2b_map.size() - 2]);
+        ret.emplace_back(p2b_map[p2b_map.size() - 1]);
+        return ret;
+    };
+
+    auto BMK = get_idx(ins), BKN = get_idx(wei), BMN = get_idx(out);
+
+    auto get_idx_type = [](const std::vector<std::vector<int>> &map, int idx) {
+        for (size_t i = 0; i < map.size(); i++) {
+            if (std::find(map[i].begin(), map[i].end(), idx) != map[i].end())
+                return static_cast<int>(i);
+        }
+        assert(0); // should never goto here
+        return -1;
+    };
+    std::vector<int> BMK_idx, BKN_idx;
+    for (int i = 0; i < bw_size; i++) {
+        int idx_type = get_idx_type(BMN, i);
+        if (idx_type == 0) {
+            auto find_iter = std::find(BMN[0].begin(), BMN[0].end(), i);
+            int batch_idx = std::distance(BMN[0].begin(), find_iter);
+            // reversed position
+            int batch_idx_rev = bs_out - batch_idx;
+            if (batch_idx_rev <= bs_inp) {
+                BMK_idx.emplace_back(BMK[idx_type][bs_inp - batch_idx_rev]);
+            } else {
+                BMK_idx.emplace_back(-1);
+            }
+            if (batch_idx_rev <= bs_wei) {
+                BKN_idx.emplace_back(BKN[idx_type][bs_wei - batch_idx_rev]);
+            } else {
+                BKN_idx.emplace_back(-1);
+            }
+        } else if (idx_type == 1) {
+            BMK_idx.emplace_back(BMK[idx_type][0]);
+            BKN_idx.emplace_back(-1);
+        } else if (idx_type == 2) {
+            BMK_idx.emplace_back(-1);
+            BKN_idx.emplace_back(BKN[idx_type][0]);
+        }
+    }
+
+    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+            bw_axes_map, ins, BMK_idx);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+            bw_axes_map, wei, BKN_idx);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
+            bw_axes_map, out, bw_size);
 }
 
 } // namespace ops

@@ -29,6 +29,9 @@ SC_INTERNAL_API void elemwise_dimension_alignment(
 SC_INTERNAL_API void layout_propagation(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void batchwise_merge(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 void fuse_ops(sc_graph_t &g, const context_ptr &ctx = get_default_context());
 
 SC_INTERNAL_API void graph_inline(
