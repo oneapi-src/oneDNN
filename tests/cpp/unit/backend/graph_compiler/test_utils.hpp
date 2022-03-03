@@ -1498,4 +1498,158 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
     agraph->add_op(&dequant_output);
 }
 
+static bool apply_use_dst(bool use_dst, impl::op_kind_t op_kind) {
+    if (!use_dst
+            && (op_kind == impl::op_kind::ReLUBackprop
+                    || op_kind == impl::op_kind::SigmoidBackprop)) {
+        return false;
+    }
+    return true;
+}
+
+/*
+act_type: Activation function op after each layer of matmul (forward order)
+act_backprop_type: Activation backprop function op before each matmul
+                   (reverse order)
+e.g. {ReLU, Sigmoid} ==> {SigmoidBackprop, ReLUBackprop}
+formula: X_{i+1} = Activation(Z{i}); Z_{i} = X_{i}W_{i} + bias_{i}
+*/
+inline void add_mlp_training_graph(impl::graph_t *agraph, int batch_size,
+        int layer, std::vector<int> hidden_size,
+        std::vector<impl::op_kind_t> act_type,
+        std::vector<impl::op_kind_t> act_backprop_type, bool use_bf16 = false,
+        bool use_dst = true) {
+    impl::data_type_t dtype
+            = use_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+    size_t lt_idx = 0;
+    size_t op_idx = 0;
+    std::vector<impl::logical_tensor_t> z_lts;
+    std::vector<impl::logical_tensor_t> weight_lts;
+    std::vector<impl::logical_tensor_t> x_lts;
+
+    std::vector<impl::dim_t> layer_input_size {batch_size, hidden_size[0]};
+    impl::logical_tensor_t input
+            = utils::logical_tensor_init(lt_idx++, layer_input_size, dtype);
+    x_lts.push_back(input);
+
+    // constructing the forward calculations
+    for (int i = 0; i < layer; ++i) {
+        std::vector<impl::dim_t> layer_weight_size {
+                hidden_size[i], hidden_size[i + 1]};
+        std::vector<impl::dim_t> layer_bias_size {hidden_size[i + 1]};
+        std::vector<impl::dim_t> layer_dst_size {
+                batch_size, hidden_size[i + 1]};
+
+        impl::logical_tensor_t weight, bias, matmul_dst, act_dst;
+
+        weight = utils::logical_tensor_init(lt_idx++, layer_weight_size, dtype);
+        weight_lts.push_back(weight);
+        bias = utils::logical_tensor_init(lt_idx++, layer_bias_size, dtype);
+        matmul_dst
+                = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
+        z_lts.push_back(matmul_dst);
+        act_dst = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
+        x_lts.push_back(act_dst);
+
+        std::string layer_suffix = "_layer" + std::to_string(i);
+        impl::op_t matmul {
+                op_idx++, impl::op_kind::MatMul, "matmul" + layer_suffix};
+        impl::op_t activation {
+                op_idx++, act_type[i], "activation" + layer_suffix};
+
+        matmul.add_input(input);
+        matmul.add_input(weight);
+        matmul.add_input(bias);
+        matmul.add_output(matmul_dst);
+
+        activation.add_input(matmul_dst);
+        activation.add_output(act_dst);
+
+        agraph->add_op(&matmul);
+        agraph->add_op(&activation);
+
+        input = act_dst;
+    }
+
+    impl::logical_tensor_t grad_y = utils::logical_tensor_init(
+            lt_idx++, {batch_size, hidden_size[layer]}, dtype);
+
+    // constructing backward calculations
+    for (int i = 0; i < layer; ++i) {
+        std::vector<impl::dim_t> grad_z_size {
+                batch_size, hidden_size[layer - i]};
+        std::vector<impl::dim_t> grad_x_size {
+                batch_size, hidden_size[layer - i - 1]};
+        std::vector<impl::dim_t> grad_w_size {
+                hidden_size[layer - i - 1], hidden_size[layer - i]};
+        std::vector<impl::dim_t> transposed_x_size {
+                hidden_size[layer - i - 1], batch_size};
+        std::vector<impl::dim_t> transposed_weight_size {
+                hidden_size[layer - i], hidden_size[layer - i - 1]};
+        std::vector<impl::dim_t> grad_bias_size {hidden_size[layer - i]};
+
+        impl::logical_tensor_t activation_backprop_out, grad_x, grad_weight,
+                grad_bias, transposed_weight_out, transposed_x_out;
+        activation_backprop_out
+                = utils::logical_tensor_init(lt_idx++, grad_z_size, dtype);
+        grad_x = utils::logical_tensor_init(lt_idx++, grad_x_size, dtype);
+        grad_weight = utils::logical_tensor_init(lt_idx++, grad_w_size, dtype);
+        grad_bias = utils::logical_tensor_init(lt_idx++, grad_bias_size, dtype);
+        transposed_weight_out = utils::logical_tensor_init(
+                lt_idx++, transposed_weight_size, dtype);
+        transposed_x_out = utils::logical_tensor_init(
+                lt_idx++, transposed_x_size, dtype);
+
+        std::string layer_suffix = "_layer" + std::to_string(layer - i - 1);
+        impl::op_t activation_backward {op_idx++, act_backprop_type[i],
+                "activation_backprop" + layer_suffix};
+        if (!apply_use_dst(use_dst, act_backprop_type[i])) {
+            activation_backward.set_attr("use_dst", false);
+        }
+        impl::op_t transpose_weight {op_idx++, impl::op_kind::StaticTranspose,
+                "transpose_weight" + layer_suffix};
+        transpose_weight.set_attr("order", std::vector<int64_t> {1, 0});
+        impl::op_t transpose_x {op_idx++, impl::op_kind::StaticTranspose,
+                "transpose_x" + layer_suffix};
+        transpose_x.set_attr("order", std::vector<int64_t> {1, 0});
+        impl::op_t matmul_weight {
+                op_idx++, impl::op_kind::MatMul, "grad_weight" + layer_suffix};
+        impl::op_t matmul_x {
+                op_idx++, impl::op_kind::MatMul, "grad_x" + layer_suffix};
+        impl::op_t reduce_bias {
+                op_idx++, impl::op_kind::ReduceSum, "grad_bias" + layer_suffix};
+        reduce_bias.set_attr("axes", std::vector<int64_t> {0});
+
+        // X_{i+1} = act(Z_{i})
+        if (!apply_use_dst(use_dst, act_backprop_type[i])) {
+            activation_backward.add_input(z_lts[layer - i - 1]);
+        } else {
+            activation_backward.add_input(x_lts[layer - i]);
+        }
+        activation_backward.add_input(grad_y);
+        activation_backward.add_output(activation_backprop_out);
+        transpose_weight.add_input(weight_lts[layer - i - 1]);
+        transpose_weight.add_output(transposed_weight_out);
+        matmul_x.add_input(activation_backprop_out);
+        matmul_x.add_input(transposed_weight_out);
+        matmul_x.add_output(grad_x);
+        transpose_x.add_input(x_lts[layer - i - 1]);
+        transpose_x.add_output(transposed_x_out);
+        matmul_weight.add_input(transposed_x_out);
+        matmul_weight.add_input(activation_backprop_out);
+        matmul_weight.add_output(grad_weight);
+        reduce_bias.add_input(activation_backprop_out);
+        reduce_bias.add_output(grad_bias);
+
+        agraph->add_op(&activation_backward);
+        agraph->add_op(&transpose_weight);
+        agraph->add_op(&transpose_x);
+        agraph->add_op(&matmul_weight);
+        agraph->add_op(&matmul_x);
+        agraph->add_op(&reduce_bias);
+
+        grad_y = grad_x;
+    }
+}
+
 #endif

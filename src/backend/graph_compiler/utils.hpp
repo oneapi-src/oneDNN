@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,14 +41,6 @@ inline auto func_map(const T &inputs, const F &fn)
     for (const auto &input : inputs)
         r.push_back(fn(input));
     return r;
-}
-
-inline bool is_output_op(const std::shared_ptr<op_t> &aop) {
-    size_t num_consumers = 0;
-    for (size_t i = 0; i < aop->num_outputs(); ++i) {
-        num_consumers += aop->num_output_consumers(i);
-    }
-    return num_consumers == 0;
 }
 
 } // namespace utils

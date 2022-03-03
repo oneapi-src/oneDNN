@@ -36,7 +36,11 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::SoftMax, "softmax"}, {op_kind::Divide, "div"},
                 {op_kind::Reorder, "reorder"}, {op_kind::Multiply, "mul"},
                 {op_kind::TypeCast, "cast"}, {op_kind::ReLU, "relu"},
-                {op_kind::Sigmoid, "sigmoid"}, {op_kind::GELU, "gelu"}};
+                {op_kind::Sigmoid, "sigmoid"}, {op_kind::GELU, "gelu"},
+                {op_kind::ReLUBackprop, "relu_backprop"},
+                {op_kind::SigmoidBackprop, "sigmoid_backprop"},
+                {op_kind::GELUBackprop, "gelu_backprop"},
+                {op_kind::ReduceSum, "reduce"}};
 
 sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<std::string, impl::utils::attribute_value_t>
@@ -134,6 +138,31 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                 convert_data_type(aop->get_output_value(0)
                                           ->get_logical_tensor()
                                           .data_type));
+        return make(compiler_backend_op.find(aop->get_kind())->second,
+                producer_lt, consumer_lt, backend_attrs);
+    } else if (aop->get_kind() == op_kind::ReduceSum) {
+        std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
+                = aop->get_attributes();
+        assert(attrs.find("axes") != attrs.end());
+        auto dim = aop->get_input_value(0)->get_logical_tensor().ndims;
+        std::vector<int64_t> axes = attrs["axes"].get<std::vector<int64_t>>();
+        std::vector<int> rd_axis(axes.size());
+        std::transform(axes.begin(), axes.end(), rd_axis.begin(),
+                [dim](int64_t axis) -> int {
+                    assert(axis < dim && axis >= -dim);
+                    if (axis < 0) {
+                        return dim + axis;
+                    } else {
+                        return axis;
+                    }
+                });
+        backend_attrs.set("rd_axis", rd_axis);
+        backend_attrs.set("rd_op", 0);
+        if (attrs.find("keep_dims") != attrs.end()) {
+            backend_attrs.set("keep_dims", attrs["keep_dims"].get<bool>());
+        } else {
+            backend_attrs.set("keep_dims", false);
+        }
         return make(compiler_backend_op.find(aop->get_kind())->second,
                 producer_lt, consumer_lt, backend_attrs);
     }
