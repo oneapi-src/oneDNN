@@ -31,7 +31,12 @@
 namespace sc {
 
 ir_module_ptr fusible_op_t::get_func(context_ptr ctx) {
-    outer_loop_generator_t gen;
+    int base_idx = 0;
+    if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
+        // if bc side (smaller side) is the lhs, we need to set base_idx to 1
+        if (!binary_node->get_broadcast_input()) { base_idx = 1; }
+    }
+    outer_loop_generator_t gen(base_idx);
     return fusible_op_get_func(this, gen, ctx, true);
 }
 

@@ -30,7 +30,9 @@
     F(add); \
     F(reorder); \
     F(reduce); \
-    F(relu);
+    F(relu); \
+    F(relu_backprop); \
+    F(sigmoid_backprop);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;
 

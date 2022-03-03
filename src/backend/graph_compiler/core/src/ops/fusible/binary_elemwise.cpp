@@ -146,8 +146,9 @@ static slice_range_list infer_broadcast_slice(slice_range_list known_range_list,
     slice_range_list bc_range_list(known_range_list.size());
     for (size_t i = 0; i < bc_range_list.size(); i++) {
         auto &known_range = known_range_list[i];
-        COMPILE_ASSERT(
-                known_range.size() == bc_dim.size(), "Unexpected cases found")
+        COMPILE_ASSERT(known_range.size() == bc_dim.size()
+                        || bc_axis == std::vector<int> {-1},
+                "Unexpected cases found")
         for (size_t j = 0; j < known_range.size(); j++) {
             if (bc_axis.end() != std::find(bc_axis.begin(), bc_axis.end(), j)) {
                 bc_range_list[i].emplace_back(known_range.at(j));
@@ -375,6 +376,7 @@ void binary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
                 || (info_.inputs_[0]->details_.get_blocking_dims()
                         != output->details_.get_blocking_dims())) {
             info_.tensor_share_info_ = {};
+            inplace_ = 0;
         } else {
             info_.tensor_share_info_ = {{0, {0}}};
         }
@@ -385,6 +387,7 @@ void binary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
                 || (info_.inputs_[1]->details_.get_blocking_dims()
                         != output->details_.get_blocking_dims())) {
             info_.tensor_share_info_ = {};
+            inplace_ = 0;
         } else {
             info_.tensor_share_info_ = {{0, {1}}};
         }
@@ -441,7 +444,15 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
         set_unknown_slice_ranges(this, known_ranges_map, fsmap, stat_map);
     }
     // set outputs slice range
-    outslice = known_ranges_map[inplace_ == 2 ? 1 : 0];
+    int bc_idx = get_broadcast_input();
+    if (bc_idx != -1 && bc_idx == inplace_ - 1) {
+        // inplace_ is 0 or 1 or 2
+        // if we have inplace_, but the inplace_ side is the smaller side
+        // we need to follow the bc_idx rather than inplace_ to set outslice
+        outslice = known_ranges_map[1 - bc_idx];
+    } else {
+        outslice = known_ranges_map[inplace_ == 2 ? 1 : 0];
+    }
 }
 
 void binary_elementwise_op_impl_t::pre_slice_ranges(
