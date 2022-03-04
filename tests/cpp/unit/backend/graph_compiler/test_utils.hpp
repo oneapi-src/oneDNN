@@ -26,7 +26,6 @@
 #include "cpp/unit/utils.hpp"
 #include "interface/graph.hpp"
 #include "interface/partition.hpp"
-#include "oneapi/dnnl/dnnl_graph.hpp"
 
 #define REQUIRE_AVX512() \
     if (!::sc::get_default_context()->machine_.cpu_flags_.fAVX512F) { \

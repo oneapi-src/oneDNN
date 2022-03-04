@@ -16,7 +16,6 @@
 #include "backend/graph_compiler/compiler_backend.hpp"
 #include "interface/graph.hpp"
 #include "interface/partition.hpp"
-#include "oneapi/dnnl/dnnl_graph.hpp"
 
 #include "cpp/unit/unit_test_common.hpp"
 #include "test_utils.hpp"
