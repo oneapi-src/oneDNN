@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,23 @@ namespace shuffle {
 shuffle_graph_prb_t::spec_t::spec_t(const ::shuffle::prb_t *prb) {
     dtype = convert_dt(prb->dt);
     axis = prb->axis;
-    group = prb->group;
+    if (prb->dir & FLAG_FWD) {
+        group = prb->group;
+    } else {
+        // example (axis = 1)
+        //
+        //     | (4, '8', 4, 4)
+        //  reshape
+        //     | (4, '2', '4', 4, 4)
+        // transpose
+        //     | (4, '4', '2', 4, 4)
+        //  reshape
+        //     | (4, '8', 4, 4)
+        //
+        // If we look at this pattern from up to bottom, then groups_fwd = 4,
+        // from bottom to up however, groups_bwd = 2 = channel_dim / groups_fwd
+        group = prb->dims[prb->axis] / prb->group;
+    }
     raw_tag = prb->tag;
 
     // reshape0
