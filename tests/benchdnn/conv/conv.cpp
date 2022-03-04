@@ -94,6 +94,7 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
             trust = 0.8 * prb->cfg[DST].f_sparsity; /* why? */
             break;
         case DST: trust /= (1.f + negative_to_zero()); break;
+        default: assert(!"unsupported data kind");
     }
 
     return trust;

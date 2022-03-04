@@ -116,8 +116,16 @@ const char *data_kind2str(data_kind_t kind) {
         case SC: return "SC";
         case SH: return "SH";
         case GWEI: return "GWEI";
+        case DST_ITER: return "DST_ITER";
+        case DST_ITER_C: return "DST_ITER_C";
+        case AUGRU_ATTENTION: return "AUGRU_ATTENTION";
+        case SRC_ITER: return "SRC_ITER";
+        case SRC_ITER_C: return "SRC_ITER_C";
+        case WEI_ITER: return "WEI_ITER";
+        case WEI_PEEPHOLE: return "WEI_PEEPHOLE";
+        case WEI_PROJECTION: return "WEI_PROJECTION";
+        default: assert(!"incorrect data kind");
     }
-    assert(!"incorrect data kind");
     return "incorrect data kind";
 }
 
