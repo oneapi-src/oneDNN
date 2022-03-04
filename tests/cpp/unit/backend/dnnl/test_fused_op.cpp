@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl_graph.hpp"
-
 #include <array>
 #include <limits>
 

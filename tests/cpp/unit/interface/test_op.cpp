@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl_graph.hpp"
-
 #include <array>
 #include <limits>
 
@@ -29,138 +27,6 @@
 #include "interface/partition_impl.hpp"
 
 #include "cpp/unit/utils.hpp"
-
-/**
- * 1. Create a dnnl::graph::op object
- * 2. Validate if dnnl::graph::op has expected contents
- * 3. Validate if the backend object dnnl::graph::impl::op_t is consistent with dnnl::graph::op
- */
-TEST(Op, Validate) {
-    struct param {
-        size_t id;
-        dnnl::graph::logical_tensor::data_type dtype;
-        int ndims;
-        dnnl::graph::logical_tensor::layout_type ltype;
-    };
-    std::array<int64_t, 5> proto_dims = {{1, 2, 3, 4, 5}};
-    std::vector<param> proto_inputs {
-            {0, dnnl::graph::logical_tensor::data_type::s8, 1,
-                    dnnl::graph::logical_tensor::layout_type::undef},
-            {2, dnnl::graph::logical_tensor::data_type::f32, 2,
-                    dnnl::graph::logical_tensor::layout_type::undef}};
-    std::vector<param> proto_outputs {
-            {3, dnnl::graph::logical_tensor::data_type::s8, 3,
-                    dnnl::graph::logical_tensor::layout_type::undef},
-            {4, dnnl::graph::logical_tensor::data_type::f32, 4,
-                    dnnl::graph::logical_tensor::layout_type::undef},
-            {5, dnnl::graph::logical_tensor::data_type::undef, 5,
-                    dnnl::graph::logical_tensor::layout_type::undef}};
-
-    dnnl::graph::op bridge_op(0, dnnl::graph::op::kind::Add, "kAdd");
-
-    std::vector<std::shared_ptr<dnnl::graph::logical_tensor>> inputs;
-    for (auto &proto : proto_inputs) {
-        inputs.emplace_back(std::make_shared<dnnl::graph::logical_tensor>(
-                proto.id, proto.dtype,
-                std::vector<int64_t> {begin(proto_dims),
-                        std::next(begin(proto_dims), proto.ndims)},
-                proto.ltype));
-        bridge_op.add_input(*inputs.back());
-    }
-
-    std::vector<std::shared_ptr<dnnl::graph::logical_tensor>> outputs;
-    for (auto &proto : proto_outputs) {
-        outputs.emplace_back(std::make_shared<dnnl::graph::logical_tensor>(
-                proto.id, proto.dtype,
-                std::vector<int64_t> {begin(proto_dims),
-                        std::next(begin(proto_dims), proto.ndims)},
-                proto.ltype));
-        bridge_op.add_output(*outputs.back());
-    }
-
-    // Validate internal representation
-    auto backend_op = bridge_op.get();
-    ASSERT_EQ(backend_op->get_kind(), kAdd);
-    ASSERT_STREQ(backend_op->get_name().c_str(), "kAdd");
-
-    auto compare2
-            = [&](const std::vector<std::shared_ptr<dnnl::graph::impl::value_t>>
-                              &actual,
-                      const std::vector<param> &expected) {
-                  ASSERT_EQ(actual.size(), expected.size());
-                  for (size_t i = 0; i < expected.size(); i++) {
-                      const dnnl::graph::impl::logical_tensor_t lt
-                              = actual[i]->get_logical_tensor();
-                      ASSERT_EQ(lt.ndims, expected[i].ndims);
-                      for (size_t j = 0; j < lt.ndims; j++) {
-                          ASSERT_EQ(lt.dims[j], proto_dims[j]);
-                      }
-                  }
-              };
-
-    compare2(backend_op->get_input_values(), proto_inputs);
-    compare2(backend_op->get_output_values(), proto_outputs);
-}
-
-/**
- * 1. Create a dnnl::graph::op object
- * 2. Attempt to add input with dims = -1
- * 3. Validate backend's structure integrity - expect ndims==-1 (undefined)
- */
-TEST(Op, UnknownInputDims) {
-    dnnl::graph::op bridge_op(0, dnnl::graph::op::kind::Add, "kAdd");
-    dnnl::graph::logical_tensor input {0,
-            dnnl::graph::logical_tensor::data_type::undef,
-            dnnl::graph::logical_tensor::layout_type::undef};
-    bridge_op.add_input(input);
-
-    auto backend_op = bridge_op.get();
-    auto inputs = backend_op->get_input_values();
-    ASSERT_FALSE(inputs.empty());
-    ASSERT_EQ(inputs.front()->get_logical_tensor().ndims, -1);
-}
-
-/**
- * 1. Create a dnnl::graph::op object
- * 2. Attempt to add input with dims = 0
- * 3. Validate backend's structure integrity - expect ndims != -1 (undefined)
- */
-TEST(Op, InputDims0) {
-    dnnl::graph::op bridge_op(0, dnnl::graph::op::kind::Add, "kAdd");
-    dnnl::graph::logical_tensor input(0,
-            dnnl::graph::logical_tensor::data_type::undef, 0,
-            dnnl::graph::logical_tensor::layout_type::undef);
-    bridge_op.add_input(input);
-
-    auto backend_op = bridge_op.get();
-    auto inputs = backend_op->get_input_values();
-    ASSERT_FALSE(inputs.empty());
-    ASSERT_NE(inputs.front()->get_logical_tensor().ndims, -1);
-}
-
-TEST(Op, AddInputsOutputs) {
-    dnnl::graph::op add_op {
-            0, dnnl::graph::op::kind::Convolution, std::string("convolution")};
-
-    dnnl::graph::logical_tensor lt_1 {0,
-            dnnl::graph::logical_tensor::data_type::f32, 0,
-            dnnl::graph::logical_tensor::layout_type::any};
-    dnnl::graph::logical_tensor lt_2 {1,
-            dnnl::graph::logical_tensor::data_type::f32, 1,
-            dnnl::graph::logical_tensor::layout_type::any};
-
-    add_op.add_input(lt_1);
-    add_op.add_output(lt_2);
-
-    auto backend_op = add_op.get();
-    auto inputs = backend_op->get_input_values();
-    ASSERT_EQ(inputs.back()->get_logical_tensor().data_type, dnnl_graph_f32);
-    ASSERT_EQ(inputs.size(), 1);
-    ASSERT_EQ(inputs.back()->get_logical_tensor().id, 0);
-
-    auto outputs = backend_op->get_output_values();
-    ASSERT_EQ(outputs.back()->get_logical_tensor().id, 1);
-}
 
 TEST(Op, ValidateMatmul) {
     using namespace dnnl::graph::impl;
