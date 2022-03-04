@@ -1,6 +1,6 @@
 --reset
 
---dir=FWD_D
+--dir=FWD_D,BWD_D
 --dt=f32,bf16
 --tag=abx,axb
 
