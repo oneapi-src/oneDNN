@@ -223,68 +223,33 @@ struct enum_hash_t {
 struct kernel_base_t {
     virtual ~kernel_base_t() = default;
 
-    template <typename T>
-    impl::status_t compile(const T *op_or_part, const impl::engine_t *aengine,
+    impl::status_t compile(const dnnl_partition_impl_t *part,
+            const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs) {
-        auto ret = compile_impl(op_or_part, aengine, inputs, outputs);
+        auto ret = compile_impl(part, aengine, inputs, outputs);
         if (ret != impl::status::success) return ret;
         return prepare_inplace_pairs_impl();
     }
 
-    template <typename T>
-    impl::status_t execute(const T *op_or_part, const impl::stream_t *astream,
-            const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) {
-        return execute_impl(op_or_part, astream, inputs, outputs);
-    }
-
-    // This function is used in fused op mode
-    virtual impl::status_t compile_impl(const impl::op_t *aop,
-            const impl::engine_t *aengine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
-        UNUSED(aop);
-        UNUSED(aengine);
-        UNUSED(inputs);
-        UNUSED(outputs);
-        return impl::status::success;
-    }
-
-    // This function is used in fused op mode
-    virtual impl::status_t execute_impl(const impl::op_t *aop,
+    impl::status_t execute(const dnnl_partition_impl_t *part,
             const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) {
-        UNUSED(aop);
-        UNUSED(astream);
-        UNUSED(inputs);
-        UNUSED(outputs);
-        return impl::status::success;
+        return execute_impl(part, astream, inputs, outputs);
     }
 
-    // This function is used in subgraph mode
     virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) {
-        UNUSED(part);
-        UNUSED(aengine);
-        UNUSED(inputs);
-        UNUSED(outputs);
-        return status::success;
-    }
+            const std::vector<impl::logical_tensor_t> &outputs)
+            = 0;
 
-    // This function is used in subgraph mode
     virtual impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
-            const std::vector<impl::tensor_t> &outputs) {
-        UNUSED(astream);
-        UNUSED(inputs);
-        UNUSED(outputs);
-        return impl::status::success;
-    }
+            const std::vector<impl::tensor_t> &outputs)
+            = 0;
 
     virtual impl::status_t prepare_inplace_pairs_impl() {
         return impl::status::success;
