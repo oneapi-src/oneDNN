@@ -480,7 +480,7 @@ amx_buffer_t::~amx_buffer_t() {
 }
 void amx_buffer_t::reset(sc::runtime::stream_t *stream) {
     if (!stream) stream = sc::runtime::get_default_stream();
-    stream_ = stream;
+    engine_ = stream->engine_;
     // Based on jit_brgemm_conv_utils.cpp:2121
     const size_t amx_buf_size = 2 * utils::get_os_page_size();
     ptr_ = stream->engine_->vtable_->persistent_alloc(
@@ -488,10 +488,10 @@ void amx_buffer_t::reset(sc::runtime::stream_t *stream) {
 }
 void amx_buffer_t::release() {
     if (ptr_) {
-        assert(stream_);
-        stream_->engine_->vtable_->persistent_dealloc(stream_->engine_, ptr_);
+        assert(engine_);
+        engine_->vtable_->persistent_dealloc(engine_, ptr_);
         ptr_ = nullptr;
-        stream_ = nullptr;
+        engine_ = nullptr;
     }
 }
 } // namespace runtime
