@@ -226,6 +226,45 @@ DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceMin, 8.f)
 DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceProd, 8.f)
 DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceSum, 8.f)
 
+#define SOFTPLUS_ATTR_CHECK() \
+    append_decision_function([](op_t *graph_op) -> bool { \
+        const auto beta = graph_op->get_attr<int64_t>("beta"); \
+        if (beta != -1 && beta != 1) return false; \
+        return true; \
+    })
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_pass)
+        .set_priority(8.f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op *softplus = pgraph->append_op(
+                            impl::op_kind::SoftPlus, "softplus");
+                    softplus->SOFTPLUS_ATTR_CHECK();
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(impl::op_kind::SoftPlus);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_bw_pass)
+        .set_priority(8.f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op *softplus_bw = pgraph->append_op(
+                            impl::op_kind::SoftPlusBackprop, "softplus_bw");
+                    softplus_bw->SOFTPLUS_ATTR_CHECK();
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            impl::op_kind::SoftPlusBackprop);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

@@ -3203,6 +3203,24 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             new_op->set_attr<int64_t>("alg_kind",
                     static_cast<int64_t>(dnnl::algorithm::binary_add));
             new_op->set_attr<bool>("is_bias_add", true);
+        } else if (cur_op->get_kind() == impl::op_kind::SoftPlus
+                || cur_op->get_kind() == impl::op_kind::SoftPlusBackprop) {
+            // special treatment for SoftPlus and SoftPlusBackprop, as their
+            // algorithm depends on beta value. We accept only -1 and 1.
+            const auto beta = cur_op->get_attr<int64_t>("beta");
+            const auto algo = (beta == 1) ? dnnl::algorithm::eltwise_soft_relu
+                                          : dnnl::algorithm::eltwise_logsigmoid;
+            if (cur_op->get_kind() == impl::op_kind::SoftPlus) {
+                new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+            } else { // SoftPlusBackprop
+                new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise_bwd);
+                new_op->set_attr("fwd_alg_kind", static_cast<int64_t>(algo));
+                new_op->set_attr("use_dst", false);
+            }
+            // supported algorithms formulas already contain information about
+            // 'beta', no need to merge this attribute.
+            new_op->set_attr<int64_t>("alg_kind", static_cast<int64_t>(algo));
+            merge_attr = false;
         } else if (is_eltwise_kind(cur_op->get_kind())) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
             merge_common_eltwise_attrs(cur_op, new_op);

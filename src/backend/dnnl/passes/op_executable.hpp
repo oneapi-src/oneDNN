@@ -739,8 +739,9 @@ create_eltwise_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
-    const auto alpha = op->get_attr<float>("alpha");
-    const auto beta = op->get_attr<float>("beta");
+    const float alpha
+            = op->has_attr("alpha") ? op->get_attr<float>("alpha") : 0.f;
+    const float beta = op->has_attr("beta") ? op->get_attr<float>("beta") : 0.f;
     const auto bwd_algo
             = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
     const auto fwd_algo = static_cast<dnnl::algorithm>(

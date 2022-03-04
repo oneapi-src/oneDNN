@@ -7093,17 +7093,18 @@ test::vector<float> round_func(const test::vector<float> &ref_dst) {
     return out;
 }
 
+template <typename attr_data_t = float>
 void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
         dnnl::graph::impl::dims &dims, const dnnl_graph_op_kind_t op_kind,
         const std::string &op_name,
-        const std::map<std::string, float> &attrs_data = {}) {
+        const std::map<std::string, attr_data_t> &attrs_data = {}) {
     impl::engine_t &eng = get_engine();
     impl::op_t op(op_kind, op_name);
 
     test::vector<float> dst(src.size(), 0.0);
 
     for (const auto &attr_data : attrs_data) {
-        op.set_attr<float>(attr_data.first, attr_data.second);
+        op.set_attr<attr_data_t>(attr_data.first, attr_data.second);
     }
 
     impl::logical_tensor_t src_lt
@@ -7148,7 +7149,8 @@ void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
     cp.execute(&strm, {src_ts}, {dst_ts});
     strm.wait();
 
-    if (op_kind == impl::op_kind::Log || op_kind == impl::op_kind::GELU) {
+    if (op_kind == impl::op_kind::Log || op_kind == impl::op_kind::GELU
+            || op_kind == impl::op_kind::SoftPlus) {
         for (size_t i = 0; i < src.size(); ++i) {
             ASSERT_TRUE(std::fabs(dst[i] - ref_dst[i]) < 0.00001);
         }
@@ -7159,12 +7161,13 @@ void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
     }
 }
 
+template <typename attr_data_t = float>
 void test_eltwise_bwd_common(
         const std::pair<test::vector<float>, bool> &fwd_data_pair,
         const test::vector<float> &diff_dst_data,
         const test::vector<float> &ref_diff_src, dnnl::graph::impl::dims &dims,
         const dnnl_graph_op_kind_t op_kind, const std::string &op_name,
-        const std::map<std::string, float> &attrs_data = {}) {
+        const std::map<std::string, attr_data_t> &attrs_data = {}) {
     static const std::set<dnnl_graph_op_kind_t> with_support_for_use_dst {
             impl::op_kind::EluBackprop, impl::op_kind::HardTanhBackprop,
             impl::op_kind::ReLUBackprop, impl::op_kind::SigmoidBackprop,
@@ -7174,7 +7177,7 @@ void test_eltwise_bwd_common(
 
     impl::op_t op(op_kind, op_name);
     for (const auto &attr_data : attrs_data) {
-        op.set_attr<float>(attr_data.first, attr_data.second);
+        op.set_attr<attr_data_t>(attr_data.first, attr_data.second);
     }
     if (with_support_for_use_dst.count(op_kind)) {
         op.set_attr<bool>("use_dst", !is_fwd_data_src);
@@ -7407,6 +7410,44 @@ TEST(Execute, SigmoidBackward) {
             impl::op_kind::SigmoidBackprop, "sigmoid_bw");
     test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
             impl::op_kind::SigmoidBackprop, "sigmoid_bw");
+}
+
+TEST(Execute, SoftPlus) {
+    test::vector<float> src {
+            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
+    test::vector<float> ref_dst_case1 = {-0.693147, -1.31326, -0.657619,
+            -0.711557, -0, -50, -0.603322, -1.12315, -0};
+    test::vector<float> ref_dst_case2 = {0.693147, 0.313262, 0.729984, 0.67507,
+            40, 0, 0.791844, 0.393416, 88.371};
+
+    dnnl::graph::impl::dims dims {1, 3, 3};
+    const std::map<std::string, int64_t> attrs_data_case1 {{"beta", -1}};
+    const std::map<std::string, int64_t> attrs_data_case2 {{"beta", 1}};
+
+    test_eltwise_common(src, ref_dst_case1, dims, impl::op_kind::SoftPlus,
+            "softplus", attrs_data_case1);
+    test_eltwise_common(src, ref_dst_case2, dims, impl::op_kind::SoftPlus,
+            "softplus", attrs_data_case2);
+}
+
+TEST(Execute, SoftPlusBackward) {
+    test::vector<float> src {
+            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
+    test::vector<float> diff_dst {
+            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
+    test::vector<float> ref_diff_src_case1 {1.5, -5.11741, 0.00937849,
+            -0.0284842, 2.97385e-16, 0, 0.341607, -0.147739, 0};
+    test::vector<float> ref_diff_src_case2 {1.5, -1.88259, 0.0100823,
+            -0.0274636, 70, 0, 0.412478, -0.0712156, 88.5838};
+
+    dnnl::graph::impl::dims dims {1, 3, 3};
+    const std::map<std::string, int64_t> attrs_data_case1 {{"beta", -1}};
+    const std::map<std::string, int64_t> attrs_data_case2 {{"beta", 1}};
+
+    test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case1, dims,
+            impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case1);
+    test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case2, dims,
+            impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case2);
 }
 
 TEST(Execute, Sqrt) {
