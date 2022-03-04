@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <memory>
 #include <numeric>
+#include <utility>
 #include "templates/matmul_core.hpp"
 #include <compiler/ir/graph/graph_map.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
@@ -72,9 +73,11 @@ matmul_core_op_t::matmul_core_op_t(const std::vector<graph_tensor_ptr> &ins,
 }
 
 body_generator_ptr matmul_core_op_t::create_generator() {
-    return utils::make_unique<gen_matmul_core_t>(
+    auto mat_gen = utils::make_unique<gen_matmul_core_t>(
             graph::extract_detail_from_tensors(get_inputs()),
             graph::extract_detail_from_tensors(get_outputs()));
+    mat_gen->bwise_fusion_ = attrs_.get_or_else(op_attr_key::bwise_fuse, false);
+    return std::move(mat_gen);
 }
 
 float matmul_core_op_t::get_gflop() {

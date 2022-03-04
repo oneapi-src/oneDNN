@@ -567,10 +567,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     COMPILE_ASSERT(mainop->get_outputs().size() == 1,
             "Expecting single output tunable op");
     auto gen_ptr = mainop->create_generator();
-    auto run_ctx = std::make_shared<context_t>(*ctx);
-    run_ctx->bwise_fusion_
-            = mainop->attrs_.get_or_else(op_attr_key::bwise_fuse, false);
-    mainop->set_config_if_empty(run_ctx, gen_ptr.get());
+    mainop->set_config_if_empty(ctx, gen_ptr.get());
 
     std::vector<expr> ins;
     // real_outs are the output tensors in the function arguments
@@ -631,8 +628,8 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
         }
     }
     std::vector<for_loop> loops;
-    bool status = gen_ptr->generate(run_ctx, mainop->get_config().get(),
-            mgr_.get(), origin_ins, outs, loops);
+    bool status = gen_ptr->generate(ctx, mainop->get_config().get(), mgr_.get(),
+            origin_ins, outs, loops);
     assert(status);
     bld.push_returns(true);
     auto body = bld.pop_scope();
@@ -648,7 +645,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     } else {
         fuse_outs = real_outs;
     }
-    out_failed = mgr_->prepare_and_check(run_ctx, fstate);
+    out_failed = mgr_->prepare_and_check(ctx, fstate);
     if (!out_failed.empty()) {
         mgr_->clear_anchor();
         return nullptr;
@@ -667,7 +664,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     }
     func->body_ = std::move(body);
     gen_ptr->schedule_loops(
-            run_ctx, mainop->get_config().get(), func->body_, loops);
+            ctx, mainop->get_config().get(), func->body_, loops);
     modu->add_func({func});
     modu->set_entry_func_idx(0);
     return modu;

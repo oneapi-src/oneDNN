@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <ops/body_generator.hpp>
+
 namespace sc {
 namespace ops {
 struct matmul_core_config_t {
@@ -37,6 +38,8 @@ public:
   };
   using parent = body_generator_t<matmul_core_config_t>;
   using parent::generate;
+
+  bool bwise_fusion_ = false;
 
   gen_matmul_core_t(
     std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs);
