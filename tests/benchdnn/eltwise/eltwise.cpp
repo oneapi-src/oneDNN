@@ -42,7 +42,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
-    if (prb->dir & FLAG_FWD) {
+    if (dir & FLAG_FWD) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
 
@@ -50,10 +50,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                          &ed, prop, alg, &data_d, prb->alpha, prb->beta),
                 WARN);
     } else {
-        dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
-                         prb->dims.data(), prb->dt, dnnl_format_tag_any),
-                WARN);
+        auto diff_data_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, tag::any);
+
         DNN_SAFE(dnnl_eltwise_backward_desc_init(&ed, alg, &diff_data_d,
                          &data_d, prb->alpha, prb->beta),
                 WARN);
@@ -71,6 +70,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         return res->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
+
+    // Return if pd is not the one being tested
+    if ((dir & FLAG_FWD) != (prb->dir & FLAG_FWD)) return OK;
 
     res->impl_name = query_impl_info(epd);
     if (maybe_skip(res->impl_name)) {
@@ -157,6 +159,11 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             // catastrohic cancellation.
             return (prb->dir & FLAG_BWD) && !std::signbit(s)
                     && (1.f / (1.f + expf(s))) <= comp_err;
+        case alg_t::LOGISTIC_DST:
+            // when s = logistic(x) ~~ 1, it leads to high relative error of
+            // s * (1 - s) due to catastrohic cancellation.
+            return (prb->dir & FLAG_BWD)
+                    && ((1 - s) <= comp_err || s <= comp_err);
         case alg_t::SWISH: {
             // catch cancellation happening when W(s) ~~ -1 in (1 + W(s))
             // formula part on backward.
@@ -183,7 +190,7 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
 }
 
 static float get_eltwise_zero_trust_percent(const prb_t *prb) {
-    float ztp = 60.f; // default for eltwise due to filling.
+    float ztp = 65.f; // default for eltwise due to filling.
     switch (prb->alg) {
         case alg_t::LINEAR:
             if (prb->alpha == 0) ztp = 100.f;
@@ -300,6 +307,14 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         return;
     }
 
+    // Since source is needed for non-use-dst algorithms, it is incorrect to
+    // let forward path overwrite it.
+    is_invalid = (prb->dir & FLAG_BWD) && !prb->use_dst() && prb->inplace;
+    if (is_invalid) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
+
     if (is_nvidia_gpu()) {
         if (!is_nvidia_eltwise_ok(prb->dir, prb->alg, prb->alpha)
                 || !prb->attr.post_ops.is_def()) {
@@ -320,47 +335,44 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    const_dnnl_primitive_desc_t const_fpd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_fpd), CRIT);
 
-    if (check_mem_size(const_pd) != OK) {
+    if (check_mem_size(const_fpd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
+    const auto q = [](const_dnnl_primitive_desc_t pd,
+                           int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
     };
 
-    const bool is_fwd = prb->dir & FLAG_FWD;
-    const auto &src_md = q(DNNL_ARG_SRC);
-    const auto &dst_md = q(DNNL_ARG_DST);
-    const auto &data_md = !is_fwd && prb->use_dst() ? dst_md : src_md;
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &src_md = q(const_fpd, DNNL_ARG_SRC);
+    const auto &dst_md = q(const_fpd, DNNL_ARG_DST);
+    const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
+
     const auto &test_engine = get_test_engine();
 
-    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, test_engine);
-    dnn_mem_t src_dt(data_md, test_engine);
+    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t src_dt(src_md, test_engine);
 
-    // we need src_fp for proper comparison, => no in-place reference
-    dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, test_engine);
     dnn_mem_t placeholder_dst_dt;
-    if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, test_engine); }
+    if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(dst_md, test_engine); }
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
     SAFE(binary::setup_binary_po(
-                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+                 const_fpd, binary_po_args, binary_po_dt, binary_po_fp),
             WARN);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
     SAFE(fill_data(prb, SRC, src_dt, src_fp), WARN);
 
-    args_t args, ref_args;
-
+    const bool is_fwd = prb->dir & FLAG_FWD;
     dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
 
     compare::compare_t cmp;
@@ -383,14 +395,16 @@ int doit(const prb_t *prb, res_t *res) {
         cmp.set_driver_check_function(eltwise_add_check);
     }
 
+    args_t args, ref_args;
+
+    args.set(DNNL_ARG_SRC, src_dt);
+    args.set(DNNL_ARG_DST, dst_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    args.set(binary_po_args, binary_po_dt);
+
+    SAFE(execute_and_wait(prim, args, res), WARN);
+
     if (prb->dir & FLAG_FWD) {
-        args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_DST, dst_dt);
-        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(binary_po_args, binary_po_dt);
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
@@ -399,21 +413,40 @@ int doit(const prb_t *prb, res_t *res) {
             TIME_REF(compute_ref(prb, ref_args));
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
-    } else {
-        const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
+    }
+
+    if (prb->dir & FLAG_BWD) {
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
+        SAFE(init_prim(tmp_prim, init_pd, prb, res, FLAG_BWD, const_fpd), WARN);
+        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+        prim.reset(tmp_prim.release());
+
+        const_dnnl_primitive_desc_t const_bpd;
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_bpd), CRIT);
+
+        if (check_mem_size(const_bpd) != OK) {
+            return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+        }
+
+        const auto &d_dst_md = q(const_bpd, DNNL_ARG_DIFF_DST);
+        const auto &d_src_md = q(const_bpd, DNNL_ARG_DIFF_SRC);
+        const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
         dnn_mem_t d_dst_fp
-                = dnn_mem_t(d_data_md, dnnl_f32, tag::abx, test_engine);
-        d_dst_dt = dnn_mem_t(d_data_md, test_engine);
+                = dnn_mem_t(d_dst_md, dnnl_f32, tag::abx, test_engine);
+        d_dst_dt = dnn_mem_t(d_dst_md, test_engine);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
         if (!prb->inplace) {
-            placeholder_d_src_dt = dnn_mem_t(d_data_md, test_engine);
+            placeholder_d_src_dt = dnn_mem_t(d_src_md, test_engine);
         }
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
+        scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);
+
         SAFE(fill_data(prb, DST, d_dst_dt, d_dst_fp), WARN);
 
+        args.clear();
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
@@ -423,9 +456,8 @@ int doit(const prb_t *prb, res_t *res) {
             args.set(DNNL_ARG_SRC, src_dt);
         }
 
-        // The only driver which has reference preceding library computations.
-        // This is needed to get filling from dst_fp for use_dst case. Another
-        // approach may be to use forward pd to run backward.
+        SAFE(execute_and_wait(prim, args, res), WARN);
+
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
@@ -433,13 +465,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
 
             TIME_REF(compute_ref(prb, ref_args));
-            if (prb->use_dst()) SAFE(dst_dt.reorder(dst_fp), WARN);
-        }
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
-        if (is_bench_mode(CORR))
             SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
+        }
     }
 
     return measure_perf(res, prim, args);
