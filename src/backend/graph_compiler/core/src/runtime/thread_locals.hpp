@@ -26,7 +26,7 @@ namespace runtime {
 
 struct amx_buffer_t {
     void *ptr_ = nullptr;
-    stream_t *stream_ = nullptr;
+    engine_t *engine_ = nullptr;
     ~amx_buffer_t();
     void reset(stream_t *stream);
     void release();
