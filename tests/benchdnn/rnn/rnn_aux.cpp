@@ -17,7 +17,7 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "rnn/rnn_aux.hpp"
-#include "utils/norm.hpp"
+#include "utils/compare.hpp"
 
 namespace rnn {
 
@@ -470,163 +470,32 @@ float one_m_square(float x) {
     return 1 - x * x;
 }
 
-namespace {
-void inv_tnc_off_f(const prb_t &prb, rnn_data_kind_t kind, size_t off,
-        int64_t &t, int64_t &n, int64_t &c) {
-    auto C = prb.dlc(PRIMITIVE);
-    if (kind == DST_LAYER && prb.with_projection) C = prb.dic;
-    if (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) C = prb.slc;
-
-    c = off % C;
-    off /= C;
-    n = off % prb.mb;
-    off /= prb.mb;
-    t = off % prb.n_iter;
-    off /= prb.n_iter;
-    assert(off == 0);
-}
-
-void inv_ldnc_off_f(const prb_t &prb, rnn_data_kind_t kind, size_t off,
-        int64_t &l, int64_t &d, int64_t &n, int64_t &c) {
-    auto C = prb.dhc;
-    if (kind == DST_ITER && prb.with_projection) C = prb.dic;
-    if (kind == SRC_ITER || kind == DIFF_SRC_ITER) C = prb.sic;
-    c = off % C;
-    off /= C;
-    n = off % prb.mb;
-    off /= prb.mb;
-    d = off % prb.n_dir();
-    off /= prb.n_dir();
-    l = off % prb.n_layer;
-    off /= prb.n_layer;
-    assert(off == 0);
-}
-
-void inv_ldigo_off_f(const prb_t &prb, rnn_data_kind_t kind, size_t off,
-        int64_t &l, int64_t &d, int64_t &ic, int64_t &g, int64_t &oc) {
-    auto IC = (kind == WEIGHTS_LAYER || kind == DIFF_WEIGHTS_LAYER) ? prb.slc
-                                                                    : prb.sic;
-    oc = off % prb.dhc;
-    off /= prb.dhc;
-    g = off % prb.n_gates();
-    off /= prb.n_gates();
-    ic = off % IC;
-    off /= IC;
-    d = off % prb.n_dir();
-    off /= prb.n_dir();
-    l = off % prb.n_layer;
-    off /= prb.n_layer;
-    assert(off == 0);
-}
-
-void inv_ldio_off_f(const prb_t &prb, rnn_data_kind_t kind, size_t off,
-        int64_t &l, int64_t &d, int64_t &ic, int64_t &oc) {
-    auto OC = (kind == WEIGHTS_PROJECTION || kind == DIFF_WEIGHTS_PROJECTION)
-            ? prb.dic
-            : prb.dhc;
-    auto IC = prb.dhc; // assume weights_projection
-    if (kind == WEIGHTS_PEEPHOLE || kind == DIFF_WEIGHTS_PEEPHOLE) IC = 3;
-    if (kind == BIAS || kind == DIFF_BIAS) IC = prb.n_bias();
-    oc = off % OC;
-    off /= OC;
-    ic = off % IC;
-    off /= IC;
-    d = off % prb.n_dir();
-    off /= prb.n_dir();
-    l = off % prb.n_layer;
-    off /= prb.n_layer;
-    assert(off == 0);
-}
-
-void print_value(const prb_t &prb, rnn_data_kind_t kind, int64_t i, float fp,
-        float dt, float diff = 0, float rel_diff = 0,
-        bool final_compare = true) {
-    const char *skind = rnn_data_kind2str(kind);
-
-    int64_t n = 0, t = 0, c = 0, l = 0, d = 0, ic = 0, oc = 0, g = 0;
-    switch (kind) {
-        case SRC_LAYER:
-        case AUGRU_ATTENTION:
-        case DST_LAYER:
-        case DIFF_SRC_LAYER:
-        case DIFF_AUGRU_ATTENTION:
-        case DIFF_DST_LAYER:
-            inv_tnc_off_f(prb, kind, i, t, n, c);
-            BENCHDNN_PRINT(0,
-                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                    "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, final_compare ? "" : "REORDER ", skind, t, n, c,
-                    fp, dt, diff, rel_diff);
-            break;
-
-        case SRC_ITER:
-        case DST_ITER:
-        case SRC_ITER_C:
-        case DST_ITER_C:
-        case DIFF_SRC_ITER:
-        case DIFF_DST_ITER:
-        case DIFF_SRC_ITER_C:
-        case DIFF_DST_ITER_C:
-            inv_ldnc_off_f(prb, kind, i, l, d, n, c);
-            BENCHDNN_PRINT(0,
-                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT
-                    "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, final_compare ? "" : "REORDER ", skind, l, d, n, c,
-                    fp, dt, diff, rel_diff);
-            break;
-
-        case WEIGHTS_LAYER:
-        case WEIGHTS_ITER:
-        case DIFF_WEIGHTS_LAYER:
-        case DIFF_WEIGHTS_ITER:
-            inv_ldigo_off_f(prb, kind, i, l, d, ic, g, oc);
-            BENCHDNN_PRINT(0,
-                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
-                    "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, final_compare ? "" : "REORDER ", skind, l, d, ic,
-                    g, oc, fp, dt, diff, rel_diff);
-            break;
-
-        case WEIGHTS_PEEPHOLE:
-        case WEIGHTS_PROJECTION:
-        case BIAS:
-        case DIFF_WEIGHTS_PEEPHOLE:
-        case DIFF_WEIGHTS_PROJECTION:
-        case DIFF_BIAS:
-            inv_ldio_off_f(prb, kind, i, l, d, ic, oc);
-            BENCHDNN_PRINT(0,
-                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT
-                    "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, final_compare ? "" : "REORDER ", skind, l, d, ic,
-                    oc, fp, dt, diff, rel_diff);
-            break;
-
+data_kind_t rnn_data_kind2data_kind(rnn_data_kind_t rnn_data_kind) {
+    switch (rnn_data_kind) {
+        case DST_LAYER: return DST;
+        case DST_ITER: return data_kind_t::DST_ITER;
+        case DST_ITER_C: return data_kind_t::DST_ITER_C;
+        case DIFF_SRC_LAYER: return SRC;
+        case DIFF_AUGRU_ATTENTION: return data_kind_t::AUGRU_ATTENTION;
+        case DIFF_SRC_ITER: return data_kind_t::SRC_ITER;
+        case DIFF_SRC_ITER_C: return data_kind_t::SRC_ITER_C;
+        case DIFF_WEIGHTS_LAYER: return WEI;
+        case DIFF_WEIGHTS_ITER: return WEI_ITER;
+        case DIFF_WEIGHTS_PEEPHOLE: return WEI_PEEPHOLE;
+        case DIFF_WEIGHTS_PROJECTION: return WEI_PROJECTION;
+        case DIFF_BIAS: return BIA;
         default: assert(!"unknown data kind");
     }
+    return DAT_TOTAL;
 }
 
-} // namespace
-
 int compare_dat(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res, bool final_compare = false) {
-    const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
+        dnn_mem_t &mem_fp, res_t *res) {
+    compare::compare_t cmp;
+    cmp.set_data_kind(rnn_data_kind2data_kind(kind));
 
-    res->total += nelems;
-
-    diff_norm_t diff_norm;
-    size_t errors = 0;
-
-//#define BENCHDNN_RNN_PRINT_STATISTICS
-#ifdef BENCHDNN_RNN_PRINT_STATISTICS
-    double min_dt, max_dt, mean_dt = 0.0f, var_dt = 0.0f;
-    double min_fp, max_fp, mean_fp = 0.0f, var_fp = 0.0f;
-    min_dt = max_dt = mem_dt.get_elem(0);
-    min_fp = max_fp = mem_fp.get_elem(0);
-#endif
-
-    int64_t fwd_acc_dim = 2 * prb.n_gates()
-            + 1; // factor 2 is because of the sum of 2 GEMMs
+    // factor 2 is because of the sum of 2 GEMMs
+    int64_t fwd_acc_dim = 2 * prb.n_gates() + 1;
     if (prb.alg == VANILLA_GRU || prb.alg == VANILLA_AUGRU)
         fwd_acc_dim *= prb.sic;
     int64_t bwdd_acc_dim = prb.n_gates() * prb.dhc;
@@ -634,137 +503,62 @@ int compare_dat(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     int64_t acc_dim = fwd_acc_dim;
     if (prb.prop == dnnl_backward) acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
     // Here the factor 4 just gives some wiggle room for fp32 testing
-    float rel_eps = 4
+    float trh = 4
             * (1 + (prb.prop == dnnl_backward)) // double wiggle room for bwd
             * ((prb.direction == dnnl_bidirectional_sum)
-                    + 1) // double threshold if bidir_sum
+                    + 1) // double trh if bidir_sum
             * ceilf(log2f(acc_dim * prb.n_iter)) * prb.cfg[kind].eps;
-#ifdef BENCHDNN_RNN_PRINT_STATISTICS
-    printf("rel_eps(%a) eps(%a) %ld\n", rel_eps, prb.cfg[kind].eps, acc_dim);
-#endif
+    // expect exact value for int8
+    if (prb.cfg[kind].dt == dnnl_u8 || prb.cfg[kind].dt == dnnl_s8) trh = 0.f;
+    cmp.set_threshold(trh);
 
-    /* Note: we do an eltwise comparison only when:
-       - we use skip_nonlinear;
-       - we do not use skip_nonlinear and we test only one cell execution;
-       - for int8 computations the tensor is not DST_ITER_C;
-       If the above conditions are not met, we check only norm-1,
-       norm-2 and inf-norm.
+    // Note: we do an eltwise comparison only when:
+    // - we use skip_nonlinear;
+    // - we do not use skip_nonlinear and we test only one cell execution;
+    // - for int8 computations the tensor is not DST_ITER_C;
+    // If the above conditions are not met, we check only L1, L2 and L8.
 
-       Rough rationale for the `DST_ITER_C` exception in int8 case:
-       - The formula for one-step c-state is:
-         c_t = f_t * c_{t−1} + i_t * c~_t.
-         Here all computations happen in f32 (f_t, i_t, and c~_t are dequantized
-         right before the computations + the corresponding bias added).
-       - In int8 case we don't have much control over these components and
-         cannot surmount potential cancellations, if any.
-         In practice, I observed that the relative element-wise error of values
-         in `DST_ITER_C` was bigger (up-to 8e-5) whenever the values
-         themselves were smaller (which indirectly means the problem is exactly
-         in the cancellation). Unfortunately, this even happened with only one
-         layer and one time stamp.
-       - So, for now the solution is to use l1- l2- and l_inf-norms to validate
-         `DST_ITER_C`. When we switch testing on using precise
-         integer arithmetic based on modulo operation in rnn_tparams (instead of
-         current unreliable re-scaling), this testing weakness should go away.
-       - Just an obvious side note: `DST_LAYER` and `DST_ITER`
-         are immediate dequantization of the corresponding u8 tensors. Hence,
-         as long as we get precise u8 intermediate results (and so far we do),
-         the f32 result should be pretty accurate -- the dequantization is just
-         two simple ops: f32 = scale * u8 + shift.
-    */
+    // Rough rationale for the `DST_ITER_C` exception in int8 case:
+    // - The formula for one-step c-state is:
+    //   c_t = f_t * c_{t−1} + i_t * c~_t.
+    //   Here all computations happen in f32 (f_t, i_t, and c~_t are dequantized
+    //   right before the computations + the corresponding bias added).
+    // - In int8 case we don't have much control over these components and
+    //   cannot surmount potential cancellations, if any.
+    //   In practice, I observed that the relative element-wise error of values
+    //   in `DST_ITER_C` was bigger (up-to 8e-5) whenever the values
+    //   themselves were smaller (which indirectly means the problem is exactly
+    //   in the cancellation). Unfortunately, this even happened with only one
+    //   layer and one time stamp.
+    // - So, for now the solution is to use l1- l2- and l_inf-norms to validate
+    //   `DST_ITER_C`. When we switch testing on using precise
+    //   integer arithmetic based on modulo operation in rnn_tparams (instead of
+    //   current unreliable re-scaling), this testing weakness should go away.
+    // - Just an obvious side note: `DST_LAYER` and `DST_ITER`
+    //   are immediate dequantization of the corresponding u8 tensors. Hence,
+    //   as long as we get precise u8 intermediate results (and so far we do),
+    //   the f32 result should be pretty accurate -- the dequantization is just
+    //   two simple ops: f32 = scale * u8 + shift.
     bool check_norm0
             = (prb.skip_nonlinear || ((prb.n_layer == 1) && (prb.n_iter == 1)));
     if (prb.is_int8() && kind == DST_ITER_C) check_norm0 = false;
+    cmp.set_norm_validation_mode(!check_norm0);
 
-    for (int64_t i = 0; i < nelems; ++i) {
-        const float dt = mem_dt.get_elem(i);
-        const float fp = mem_fp.get_elem(i);
-#ifdef BENCHDNN_RNN_PRINT_STATISTICS
-        min_dt = MIN2(dt, min_dt);
-        min_fp = MIN2(dt, min_fp);
-        max_dt = MAX2(dt, max_dt);
-        max_fp = MAX2(dt, max_fp);
-        mean_dt += dt;
-        mean_fp += fp;
-        if (i > 0) {
-            double tmp_dt = (double(i + 1) * dt - mean_dt);
-            var_dt += (tmp_dt * tmp_dt) / (i * (i + 1));
-            double tmp_fp = (double(i + 1) * fp - mean_fp);
-            var_fp += (tmp_fp * tmp_fp) / (i * (i + 1));
-        }
-#endif
-        diff_norm.update(fp, dt);
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+    const auto rnn_add_check
+            = [&](const compare::compare_t::driver_check_func_args_t &args) {
+                  // Limitation from current filling.
+                  // TODO: find a better filling to get rid of this...
+                  if ((prb.alg == LBR_GRU || prb.alg == LBR_AUGRU
+                              || prb.alg == VANILLA_RNN)
+                          && prb.prop == dnnl_backward) {
+                      return args.diff < args.trh;
+                  }
+                  return false;
+              };
+    cmp.set_driver_check_function(rnn_add_check);
 
-        bool ok = true;
-        if (check_norm0) {
-            const float diff_threshold = prb.cfg[kind].eps;
-
-            ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
-            if (prb.cfg[kind].dt == dnnl_u8
-                    || prb.cfg[kind].dt
-                            == dnnl_s8) // expect exact value for int8
-                ok = diff == 0;
-
-            // TODO: Dirty hack to make testing green. Find an original source
-            // of the problem and find a better solution.
-            if (!ok
-                    && (prb.alg == LBR_GRU || prb.alg == LBR_AUGRU
-                            || prb.alg == VANILLA_RNN)
-                    && prb.prop == dnnl_backward) {
-                ok = diff < diff_threshold;
-            }
-
-            errors += !ok;
-        }
-
-        bool dump = (check_norm0 && !ok && (errors < 10 || verbose >= 10))
-                || (final_compare && verbose >= 50);
-        if (dump)
-            print_value(prb, kind, i, fp, dt, diff, rel_diff, final_compare);
-    }
-
-    diff_norm.done();
-
-    if (!check_norm0) {
-        if (!((diff_norm.rel_diff(norm_t::L1) <= rel_eps)
-                    && (diff_norm.rel_diff(norm_t::L2) <= rel_eps)
-                    && (diff_norm.rel_diff(norm_t::L8) <= rel_eps)))
-            errors++;
-    }
-
-    if (final_compare || errors) {
-        const char *skind = rnn_data_kind2str(kind);
-        const int vl = errors ? 0 : 2;
-        BENCHDNN_PRINT(vl,
-                "@@@ [%s] %sdiff: l0(``%g``) "
-                "l1:(%g,%g,%g,``%g``) "
-                "l2:(%g,%g,%g,``%g``) "
-                "l8:(%g,%g,%g,``%g``)\n",
-                skind, final_compare ? "final: " : "",
-                diff_norm.rel_diff(norm_t::L0), diff_norm.a_[norm_t::L1],
-                diff_norm.b_[norm_t::L1], diff_norm.diff_[norm_t::L1],
-                diff_norm.rel_diff(norm_t::L1), diff_norm.a_[norm_t::L2],
-                diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
-                diff_norm.rel_diff(norm_t::L2), diff_norm.a_[norm_t::L8],
-                diff_norm.b_[norm_t::L8], diff_norm.diff_[norm_t::L8],
-                diff_norm.rel_diff(norm_t::L8));
-    }
-
-    res->errors += errors;
-    if (errors != 0) res->state = FAILED;
-
-    if (final_compare && res->state == EXECUTED) res->state = PASSED;
-
-#ifdef BENCHDNN_RNN_PRINT_STATISTICS
-    printf("dt: min(%a) max(%a) mean(%a), var(%a)\n", min_dt, max_dt,
-            mean_dt / nelems, var_dt / nelems);
-    printf("fp: min(%a) max(%a) mean(%a), var(%a)\n", min_fp, max_fp,
-            mean_fp / nelems, var_fp / nelems);
-#endif
-
-    return errors != 0 ? FAIL : OK;
+    SAFE(cmp.compare(mem_fp, mem_dt, prb.attr, res), WARN);
+    return OK;
 }
 
 void prb_t::set_qparams(float fp_min, float fp_max) {

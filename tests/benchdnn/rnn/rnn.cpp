@@ -35,14 +35,8 @@
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
 
-#define COMPARE_DAT(kind, a, lay) \
-    do { \
-        dnn_mem_t CONCAT2(a, _dt_plain)( \
-                CONCAT2(a, _dt), fp, lay, test_engine); \
-        SAFE(compare_dat(prb, kind, CONCAT2(a, _dt_plain), CONCAT2(a, _fp), \
-                     res, true), \
-                WARN); \
-    } while (0)
+#define COMPARE_DAT(kind, a) \
+    compare_dat(prb, kind, CONCAT2(a, _dt), CONCAT2(a, _fp), res);
 
 // Using hidden attr API for testing RNN
 dnnl_status_t dnnl_primitive_attr_set_rnn_tparams(dnnl_primitive_attr_t attr,
@@ -127,7 +121,7 @@ int check_ldoi_s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
     if (is_gpu()) return OK;
 
     // we compare ldio_f32 -> ldio_s8 to ldio_f32 -> ldoi_f32 -> ldio_s8
-    // fp is in ldio
+    // f32 is in ldio
     dnn_mem_t mem_ldoi_f32(mem_fp.md_, dnnl_f32, "ldoi", get_test_engine());
     dnn_mem_t mem_s8_src(mem_dt.md_, dnnl_s8, get_test_engine());
 
@@ -939,24 +933,29 @@ int doit(const prb_t &prb, res_t *res) {
     dnn_mem_t workspace_dt(workspace_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
-    const auto fp = dnnl_f32;
-    dnn_mem_t src_layer_fp(src_layer_md, fp, tag::abx /*tnc*/, test_engine);
+    dnn_mem_t src_layer_fp(
+            src_layer_md, dnnl_f32, tag::abx /*tnc*/, test_engine);
     dnn_mem_t src_layer_attention_fp(
-            src_layer_attention_md, fp, tag::abx /*tnc*/, test_engine);
-    dnn_mem_t src_iter_fp(src_iter_md, fp, tag::abx /*ldnc*/, test_engine);
-    dnn_mem_t src_iter_c_fp(src_iter_c_md, fp, tag::abx /*ldnc*/, test_engine);
+            src_layer_attention_md, dnnl_f32, tag::abx /*tnc*/, test_engine);
+    dnn_mem_t src_iter_fp(
+            src_iter_md, dnnl_f32, tag::abx /*ldnc*/, test_engine);
+    dnn_mem_t src_iter_c_fp(
+            src_iter_c_md, dnnl_f32, tag::abx /*ldnc*/, test_engine);
     dnn_mem_t weights_layer_fp(
-            weights_layer_md, fp, tag::abx /*ldigo*/, test_engine);
+            weights_layer_md, dnnl_f32, tag::abx /*ldigo*/, test_engine);
     dnn_mem_t weights_iter_fp(
-            weights_iter_md, fp, tag::abx /*ldigo*/, test_engine);
+            weights_iter_md, dnnl_f32, tag::abx /*ldigo*/, test_engine);
     dnn_mem_t weights_peephole_fp(
-            weights_peephole_md, fp, tag::abx /*ldgo*/, test_engine);
+            weights_peephole_md, dnnl_f32, tag::abx /*ldgo*/, test_engine);
     dnn_mem_t weights_projection_fp(
-            weights_projection_md, fp, tag::abx /*ldio*/, test_engine);
-    dnn_mem_t bias_fp(bias_md, fp, tag::abx /*ldgo*/, test_engine);
-    dnn_mem_t dst_layer_fp(dst_layer_md, fp, tag::abx /*tnc*/, test_engine);
-    dnn_mem_t dst_iter_fp(dst_iter_md, fp, tag::abx /*ldnc*/, test_engine);
-    dnn_mem_t dst_iter_c_fp(dst_iter_c_md, fp, tag::abx /*ldnc*/, test_engine);
+            weights_projection_md, dnnl_f32, tag::abx /*ldio*/, test_engine);
+    dnn_mem_t bias_fp(bias_md, dnnl_f32, tag::abx /*ldgo*/, test_engine);
+    dnn_mem_t dst_layer_fp(
+            dst_layer_md, dnnl_f32, tag::abx /*tnc*/, test_engine);
+    dnn_mem_t dst_iter_fp(
+            dst_iter_md, dnnl_f32, tag::abx /*ldnc*/, test_engine);
+    dnn_mem_t dst_iter_c_fp(
+            dst_iter_c_md, dnnl_f32, tag::abx /*ldnc*/, test_engine);
 
     dnn_mem_t bwd_weights_layer_dt;
     dnn_mem_t bwd_weights_iter_dt;
@@ -1044,10 +1043,9 @@ int doit(const prb_t &prb, res_t *res) {
 
             TIME_REF(compute_ref(prb, ref_args));
 
-            COMPARE_DAT(DST_LAYER, dst_layer, tag::abx /*tnc*/);
-            COMPARE_DAT(DST_ITER, dst_iter, tag::abx /*ldnc*/);
-            if (prb.alg == VANILLA_LSTM)
-                COMPARE_DAT(DST_ITER_C, dst_iter_c, tag::abx /*ldnc*/);
+            COMPARE_DAT(DST_LAYER, dst_layer);
+            COMPARE_DAT(DST_ITER, dst_iter);
+            if (prb.alg == VANILLA_LSTM) COMPARE_DAT(DST_ITER_C, dst_iter_c);
         }
     } else {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
@@ -1107,29 +1105,29 @@ int doit(const prb_t &prb, res_t *res) {
         scratchpad_dt = dnn_mem_t(bwd_scratchpad_md, test_engine);
 
         dnn_mem_t diff_src_layer_fp(
-                diff_src_layer_md, fp, tag::abx /*tnc*/, test_engine);
-        dnn_mem_t diff_src_layer_attention_fp(
-                diff_src_layer_attention_md, fp, tag::abx /*tnc*/, test_engine);
+                diff_src_layer_md, dnnl_f32, tag::abx /*tnc*/, test_engine);
+        dnn_mem_t diff_src_layer_attention_fp(diff_src_layer_attention_md,
+                dnnl_f32, tag::abx /*tnc*/, test_engine);
         dnn_mem_t diff_src_iter_fp(
-                diff_src_iter_md, fp, tag::abx /*ldnc*/, test_engine);
+                diff_src_iter_md, dnnl_f32, tag::abx /*ldnc*/, test_engine);
         dnn_mem_t diff_src_iter_c_fp(
-                diff_src_iter_c_md, fp, tag::abx /*ldnc*/, test_engine);
-        dnn_mem_t diff_weights_layer_fp(
-                diff_weights_layer_md, fp, tag::abx /*ldigo*/, test_engine);
-        dnn_mem_t diff_weights_iter_fp(
-                diff_weights_iter_md, fp, tag::abx /*ldigo*/, test_engine);
-        dnn_mem_t diff_weights_peephole_fp(
-                diff_weights_peephole_md, fp, tag::abx /*ldgo*/, test_engine);
-        dnn_mem_t diff_weights_projection_fp(
-                diff_weights_projection_md, fp, tag::abx /*ldio*/, test_engine);
+                diff_src_iter_c_md, dnnl_f32, tag::abx /*ldnc*/, test_engine);
+        dnn_mem_t diff_weights_layer_fp(diff_weights_layer_md, dnnl_f32,
+                tag::abx /*ldigo*/, test_engine);
+        dnn_mem_t diff_weights_iter_fp(diff_weights_iter_md, dnnl_f32,
+                tag::abx /*ldigo*/, test_engine);
+        dnn_mem_t diff_weights_peephole_fp(diff_weights_peephole_md, dnnl_f32,
+                tag::abx /*ldgo*/, test_engine);
+        dnn_mem_t diff_weights_projection_fp(diff_weights_projection_md,
+                dnnl_f32, tag::abx /*ldio*/, test_engine);
         dnn_mem_t diff_bias_fp(
-                diff_bias_md, fp, tag::abx /*ldgo*/, test_engine);
+                diff_bias_md, dnnl_f32, tag::abx /*ldgo*/, test_engine);
         dnn_mem_t diff_dst_layer_fp(
-                diff_dst_layer_md, fp, tag::abx /*tnc*/, test_engine);
+                diff_dst_layer_md, dnnl_f32, tag::abx /*tnc*/, test_engine);
         dnn_mem_t diff_dst_iter_fp(
-                diff_dst_iter_md, fp, tag::abx /*ldnc*/, test_engine);
+                diff_dst_iter_md, dnnl_f32, tag::abx /*ldnc*/, test_engine);
         dnn_mem_t diff_dst_iter_c_fp(
-                diff_dst_iter_c_md, fp, tag::abx /*ldnc*/, test_engine);
+                diff_dst_iter_c_md, dnnl_f32, tag::abx /*ldnc*/, test_engine);
 
         SAFE(bwd_weights_iter_dt.reorder(weights_iter_dt), WARN);
         SAFE(bwd_weights_layer_dt.reorder(weights_layer_dt), WARN);
@@ -1236,31 +1234,24 @@ int doit(const prb_t &prb, res_t *res) {
 
             TIME_REF(compute_ref(prb, ref_args));
 
-            COMPARE_DAT(DST_LAYER, dst_layer, tag::abx /*tnc*/);
-            COMPARE_DAT(DST_ITER, dst_iter, tag::abx /*ldnc*/);
-            if (prb.alg == VANILLA_LSTM)
-                COMPARE_DAT(DST_ITER_C, dst_iter_c, tag::abx /*ldnc*/);
+            COMPARE_DAT(DST_LAYER, dst_layer);
+            COMPARE_DAT(DST_ITER, dst_iter);
+            if (prb.alg == VANILLA_LSTM) COMPARE_DAT(DST_ITER_C, dst_iter_c);
 
-            COMPARE_DAT(DIFF_SRC_LAYER, diff_src_layer, tag::abx /*tnc*/);
+            COMPARE_DAT(DIFF_SRC_LAYER, diff_src_layer);
             if (prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU)
-                COMPARE_DAT(DIFF_AUGRU_ATTENTION, diff_src_layer_attention,
-                        tag::abx /*tnc*/);
-            COMPARE_DAT(DIFF_SRC_ITER, diff_src_iter, tag::abx /*ldnc*/);
+                COMPARE_DAT(DIFF_AUGRU_ATTENTION, diff_src_layer_attention);
+            COMPARE_DAT(DIFF_SRC_ITER, diff_src_iter);
             if (prb.alg == VANILLA_LSTM)
-                COMPARE_DAT(
-                        DIFF_SRC_ITER_C, diff_src_iter_c, tag::abx /*ldnc*/);
+                COMPARE_DAT(DIFF_SRC_ITER_C, diff_src_iter_c);
 
-            COMPARE_DAT(
-                    DIFF_WEIGHTS_LAYER, diff_weights_layer, tag::abx /*ldigo*/);
-            COMPARE_DAT(
-                    DIFF_WEIGHTS_ITER, diff_weights_iter, tag::abx /*ldigo*/);
+            COMPARE_DAT(DIFF_WEIGHTS_LAYER, diff_weights_layer);
+            COMPARE_DAT(DIFF_WEIGHTS_ITER, diff_weights_iter);
             if (prb.is_lstm_peephole())
-                COMPARE_DAT(DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole,
-                        tag::abx /*ldgo*/);
+                COMPARE_DAT(DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole);
             if (prb.is_lstm_projection())
-                COMPARE_DAT(DIFF_WEIGHTS_PROJECTION, diff_weights_projection,
-                        tag::abx /*ldio*/);
-            COMPARE_DAT(DIFF_BIAS, diff_bias, tag::abx /*ldgo*/);
+                COMPARE_DAT(DIFF_WEIGHTS_PROJECTION, diff_weights_projection);
+            COMPARE_DAT(DIFF_BIAS, diff_bias);
         }
     }
 

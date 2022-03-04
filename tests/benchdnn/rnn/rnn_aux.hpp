@@ -107,7 +107,7 @@ void gates_reduction(
         const prb_t &prb, const float *b_gates_, float *diff_bias_);
 
 int compare_dat(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res, bool final_compare);
+        dnn_mem_t &mem_fp, res_t *res);
 
 }; // namespace rnn
 

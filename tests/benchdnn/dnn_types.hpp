@@ -72,13 +72,13 @@ std::ostream &operator<<(std::ostream &s, const std::vector<T> &v) {
     return s;
 }
 
-typedef int data_kind_t;
-enum {
+enum data_kind_t {
     SRC = 0,
     WEI,
     BIA,
     DST,
     ACC,
+    // bnorm, lnorm
     DATA,
     MEAN,
     VAR,
@@ -86,7 +86,17 @@ enum {
     SC,
     SH,
     GWEI,
-    DAT_TOTAL
+    // rnn
+    DST_ITER,
+    DST_ITER_C,
+    AUGRU_ATTENTION,
+    SRC_ITER,
+    SRC_ITER_C,
+    WEI_ITER,
+    WEI_PEEPHOLE,
+    WEI_PROJECTION,
+
+    DAT_TOTAL,
 };
 const char *data_kind2str(data_kind_t kind);
 
