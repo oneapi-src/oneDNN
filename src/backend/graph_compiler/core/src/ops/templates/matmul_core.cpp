@@ -222,8 +222,16 @@ void gen_matmul_core_t::get_and_check_blocks(const logical_tensor_t &ta,
     M_block = ta.get_format().blocks_[0];
     K_block = ta.get_format().blocks_[1];
   }
-  N_block = tb.get_format().blocks_[1];
-  assert(K_block == tb.get_format().blocks_[0]);
+  if (!tb.get_format().is_blocking()) {
+    COMPILE_ASSERT(is_config_set, "config must be set with plain input.");
+    COMPILE_ASSERT(tb.dtype_ == datatypes::f32,
+      "the datatype of B must be f32 when B is plain.");
+    N_block = config.N_block;
+  } else {
+    N_block = tb.get_format().blocks_[1];
+    assert(K_block == tb.get_format().blocks_[0]);
+  }
+
   COMPILE_ASSERT(!is_config_set
       || (M_block == config.M_block && K_block == config.K_block
         && N_block == config.N_block),
@@ -241,81 +249,203 @@ void gen_matmul_core_t::get_and_check_blocks(const logical_tensor_t &ta,
 }
 
 void gen_matmul_core_t::get_brgemm_and_fusion_params(const logical_tensor_t &ta,
-  const logical_tensor_t &tb, const logical_tensor_t &tc,
-  std::vector<expr> &aidx, std::vector<expr> &bidx, std::vector<expr> &cidx,
-  int &stride_a, int &stride_b, std::vector<std::pair<expr, expr>> &fidx1,
-  std::vector<std::pair<expr, expr>> &fidx2) {
+  const logical_tensor_t &tb, const logical_tensor_t &tc, const int &M_block,
+  const int &K_block, const int &N_block, std::vector<expr> &aidx,
+  std::vector<expr> &bidx, std::vector<expr> &cidx, int &LDA, int &LDB,
+  int &LDC, int &stride_a, int &stride_b,
+  std::vector<std::pair<expr, expr>> &fidx1,
+  std::vector<std::pair<expr, expr>> &fidx2,
+  std::vector<std::pair<expr, expr>> &fidx3) {
   if (ta.get_format().format_code_.is_batch_format()
-    || tb.get_format().format_code_.is_batch_format()) {
-    assert(tc.get_format().format_code_.is_batch_format());
+    || ta.get_plain_dims().size() == 2) {
+    if (!ta.get_format().is_blocking()) {
+      // BMK or MK
+      LDA = ta.get_plain_dims()[ta.get_plain_dims().size() - 1];
+      stride_a = K_block;
+    }
+    if (!tb.get_format().is_blocking()) {
+      COMPILE_ASSERT(tb.dtype_ == datatypes::f32,
+        "the datatype of B must be f32 when B is plain.");
+      if (tb.get_format().is_same_format_kind(
+            sc_data_format_t(format_kinds::BKN))
+        || tb.get_format().is_same_format_kind(
+          sc_data_format_t(format_kinds::KN))) {
+        // BKN or KN
+        LDB = tb.get_plain_dims()[tb.get_plain_dims().size() - 1];
+        stride_b = LDB * K_block;
+        assert(bidx.size() >= 2);
+        std::swap(bidx[bidx.size() - 1], bidx[bidx.size() - 2]);
+      } else {
+        COMPILE_ASSERT(0,
+          "unsupported format "
+            << tb.get_format()
+            << ", brgemm does not support K axis is the last axis for B");
+      }
+    }
+    if (!tc.get_format().is_blocking()) {
+      // BMN or MN
+      LDC = tb.get_plain_dims()[tb.get_plain_dims().size() - 1];
+    }
     return;
   }
-  bool flag = false;
+  bool flag_s = false; // used for updating stride_a/stride_b
+  bool flag_l = false; // used for updating LDA/LDB/LDC
   int bds = ta.get_plain_dims().size() - 2;
   std::vector<expr> aidx_ = aidx;
   std::vector<expr> bidx_ = bidx;
   std::vector<expr> cidx_ = cidx;
   std::vector<std::pair<expr, expr>> fidx1_ = fidx1;
   std::vector<std::pair<expr, expr>> fidx2_ = fidx2;
+  std::vector<std::pair<expr, expr>> fidx3_ = fidx3;
   int batch_idx = 0;
-  for (uint8_t i = 0; i < (uint8_t)ta.get_plain_dims().size(); i++) {
-    if (ta.get_format().format_code_.get(i)
-      == ta.get_format().format_code_.get(ta.get_plain_dims().size())) {
-      aidx_[i] = aidx[bds];
-    } else if (ta.get_format().format_code_.get(i)
-      == ta.get_format().format_code_.get(ta.get_plain_dims().size() + 1)) {
-      aidx_[i] = aidx[bds + 1];
-      flag = true;
-      continue;
-    } else {
-      aidx_[i] = aidx[batch_idx];
-      batch_idx++;
+
+  // update aidx, LDA and stride_a according to the format of tensor A
+  if (!ta.get_format().is_blocking()) {
+    LDA = 1;
+    stride_a = K_block;
+    size_t flag_l_idx = 0, flag_s_idx = 0;
+    for (size_t i = 0; i < ta.get_plain_dims().size(); i++) {
+      if (ta.get_format().format_code_.get(i) == bds) { // M axis
+        aidx_[i] = aidx[bds];
+        flag_l = true;
+        flag_l_idx = i;
+      } else if (ta.get_format().format_code_.get(i)
+        == bds + 1) { // K(reduce) axis
+        aidx_[i] = aidx[bds + 1];
+        flag_s = true;
+        flag_s_idx = i;
+      } else { // Batch axes
+        aidx_[i] = aidx[batch_idx];
+        batch_idx++;
+      }
+      if (flag_l && flag_l_idx < i) { LDA *= ta.get_blocking_dims()[i]; }
+      if (flag_s && flag_s_idx < i) { stride_a *= ta.get_blocking_dims()[i]; }
     }
-    if (flag) { stride_a *= ta.get_blocking_dims()[i]; }
+  } else {
+    for (size_t i = 0; i < ta.get_plain_dims().size(); i++) {
+      if (ta.get_format().format_code_.get(i)
+        == ta.get_format().format_code_.get(ta.get_plain_dims().size())) {
+        // M axis
+        aidx_[i] = aidx[bds];
+      } else if (ta.get_format().format_code_.get(i)
+        == ta.get_format().format_code_.get(ta.get_plain_dims().size() + 1)) {
+        // K(reduce) axis
+        aidx_[i] = aidx[bds + 1];
+        flag_s = true;
+        continue;
+      } else { // Batch axes
+        aidx_[i] = aidx[batch_idx];
+        batch_idx++;
+      }
+      if (flag_s) { stride_a *= ta.get_blocking_dims()[i]; }
+    }
   }
   aidx.swap(aidx_);
 
-  flag = false;
+  flag_s = false;
+  flag_l = false;
   batch_idx = 0;
-  for (uint8_t i = 0; i < (uint8_t)tb.get_plain_dims().size(); i++) {
-    if (tb.get_format().format_code_.get(i)
-      == tb.get_format().format_code_.get(tb.get_plain_dims().size())) {
-      bidx_[i] = bidx[bds + 1];
-      flag = true;
-      continue;
-    } else if (tb.get_format().format_code_.get(i)
-      == tb.get_format().format_code_.get(tb.get_plain_dims().size() + 1)) {
-      bidx_[i] = bidx[bds];
-    } else {
-      bidx_[i] = bidx[batch_idx];
-      batch_idx++;
+  // update bidx and stride_b according to the format of tensor B
+  if (!tb.get_format().is_blocking()) {
+    COMPILE_ASSERT(tb.dtype_ == datatypes::f32,
+      "the datatype of B must be f32 when B is plain.");
+    LDB = 1;
+    stride_b = K_block;
+    size_t flag_l_idx = 0, flag_s_idx = 0;
+    for (size_t i = 0; i < tb.get_plain_dims().size(); i++) {
+      if (tb.get_format().format_code_.get(i) == bds) { // K(reduce) axis
+        bidx_[i] = bidx[bds + 1];
+        flag_l = true;
+        flag_l_idx = i;
+        flag_s = true;
+        flag_s_idx = i;
+      } else if (tb.get_format().format_code_.get(i) == bds + 1) { // N axis
+        bidx_[i] = bidx[bds];
+      } else { // Batch axes
+        bidx_[i] = bidx[batch_idx];
+        batch_idx++;
+      }
+      if (flag_l && flag_l_idx < i) { LDB *= tb.get_blocking_dims()[i]; }
+      if (flag_s && flag_s_idx < i) { stride_b *= tb.get_blocking_dims()[i]; }
     }
-    if (flag) { stride_b *= tb.get_blocking_dims()[i]; }
+  } else {
+    for (size_t i = 0; i < tb.get_plain_dims().size(); i++) {
+      if (tb.get_format().format_code_.get(i)
+        == tb.get_format().format_code_.get(tb.get_plain_dims().size())) {
+        // K(reduce) axis
+        bidx_[i] = bidx[bds + 1];
+        flag_s = true;
+        continue;
+      } else if (tb.get_format().format_code_.get(i)
+        == tb.get_format().format_code_.get(tb.get_plain_dims().size() + 1)) {
+        // N axis
+        bidx_[i] = bidx[bds];
+      } else { // Batch axes
+        bidx_[i] = bidx[batch_idx];
+        batch_idx++;
+      }
+      if (flag_s) { stride_b *= tb.get_blocking_dims()[i]; }
+    }
   }
   bidx.swap(bidx_);
 
+  flag_l = false;
   batch_idx = 0;
-  for (uint8_t i = 0; i < (uint8_t)tc.get_plain_dims().size(); i++) {
-    if (tc.get_format().format_code_.get(i)
-      == tc.get_format().format_code_.get(tc.get_plain_dims().size())) {
-      cidx_[i] = cidx[bds];
-      fidx1_[i] = fidx1[bds];
-      fidx2_[i] = fidx2[bds];
-    } else if (tc.get_format().format_code_.get(i)
-      == tc.get_format().format_code_.get(tc.get_plain_dims().size() + 1)) {
-      cidx_[i] = cidx[bds + 1];
-      fidx1_[i] = fidx1[bds + 1];
-      fidx2_[i] = fidx2[bds + 1];
-    } else {
-      cidx_[i] = cidx[batch_idx];
-      fidx1_[i] = fidx1[batch_idx];
-      fidx2_[i] = fidx2[batch_idx];
-      batch_idx++;
+  // update cidx and fidx according to the format of tensor C
+  if (!tc.get_format().is_blocking()) {
+    LDC = 1;
+    for (size_t i = 0; i < tc.get_plain_dims().size(); i++) {
+      if (tc.get_format().format_code_.get(i) == bds) { // M axis
+        cidx_[i] = cidx[bds];
+        fidx1_[i] = fidx1[bds];
+        fidx2_[i] = fidx2[bds];
+        fidx3_[i] = fidx3[bds];
+        flag_l = true;
+        continue;
+      } else if (tc.get_format().format_code_.get(i) == bds + 1) { // N axis
+        cidx_[i] = cidx[bds + 1];
+        fidx1_[i] = fidx1[bds + 1];
+        fidx2_[i] = fidx2[bds + 1];
+        fidx3_[i] = fidx3[bds + 1];
+      } else { // Batch axes
+        cidx_[i] = cidx[batch_idx];
+        fidx1_[i] = fidx1[batch_idx];
+        fidx2_[i] = fidx2[batch_idx];
+        fidx3_[i] = fidx3[batch_idx];
+        batch_idx++;
+      }
+      if (flag_l) { LDC *= tc.get_blocking_dims()[i]; }
+    }
+  } else {
+    for (size_t i = 0; i < tc.get_plain_dims().size(); i++) {
+      if (tc.get_format().format_code_.get(i)
+        == tc.get_format().format_code_.get(tc.get_plain_dims().size())) {
+        // M axis
+        cidx_[i] = cidx[bds];
+        fidx1_[i] = fidx1[bds];
+        fidx2_[i] = fidx2[bds];
+        fidx3_[i] = fidx3[bds];
+      } else if (tc.get_format().format_code_.get(i)
+        == tc.get_format().format_code_.get(tc.get_plain_dims().size() + 1)) {
+        // N axis
+        cidx_[i] = cidx[bds + 1];
+        fidx1_[i] = fidx1[bds + 1];
+        fidx2_[i] = fidx2[bds + 1];
+        fidx3_[i] = fidx3[bds + 1];
+      } else {
+        // Batch axes
+        cidx_[i] = cidx[batch_idx];
+        fidx1_[i] = fidx1[batch_idx];
+        fidx2_[i] = fidx2[batch_idx];
+        fidx3_[i] = fidx3[batch_idx];
+        batch_idx++;
+      }
     }
   }
   cidx.swap(cidx_);
   fidx1.swap(fidx1_);
   fidx2.swap(fidx2_);
+  fidx3.swap(fidx3_);
 }
 
 void gen_matmul_core_t::schedule_loops(context_ptr ctx,
@@ -339,11 +469,6 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   const matmul_core_config_t &config, fusion_manager *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
-  // matmul_core will support plain format as input in the future
-  COMPILE_ASSERT(!in_tensors_[0].get_format().is_plain()
-      && !in_tensors_[1].get_format().is_plain(),
-    "matmul_core should input blocking format");
-
   // Init
   auto A_dtype = get_A_dtype(), B_dtype = get_B_dtype();
   int M_block = 0, K_block = 0, N_block = 0, M_num_blocks = 0, N_num_blocks = 0,
@@ -352,20 +477,12 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   get_and_check_blocks(in_tensors_[0], in_tensors_[1], config, M_num_blocks,
     K_num_blocks, M_block, K_block, N_block, B_K_num_blocks, N_num_blocks);
 
-  bool is_config_set
-    = config.M_block != 0 && config.K_block != 0 && config.N_block != 0;
-  COMPILE_ASSERT(!is_config_set
-      || (M_block == config.M_block && K_block == config.K_block
-        && N_block == config.N_block),
-    "Unmatched config with input format");
-
   int dtype_block = 1;
   if (B_dtype == datatypes::bf16) {
     dtype_block = 2;
   } else if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
     dtype_block = 4;
   }
-
   if (dtype_block > 1) {
     COMPILE_ASSERT(in_tensors_[1].get_format().blocks_[2] == -1
         || in_tensors_[1].get_format().blocks_[2] == dtype_block,
@@ -408,36 +525,58 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
       }
       idxs_small
         = {idxs.begin() + batch_dims_size - small_batch_dims_size, idxs.end()};
+
+      std::vector<std::pair<expr, expr>> fidx3
+        = !out_tensors_[0].get_format().is_blocking()
+        ? concat_vec(batch_tensor_slice_ranges,
+          {{0, M_num_blocks * M_block}, {0, N_num_blocks * N_block}})
+        : concat_vec(batch_tensor_slice_ranges,
+          {{0, M_num_blocks}, {0, N_num_blocks}, {0, M_block}, {0, N_block}});
+
       _named_for_(lm_c, m_o, 0, M_num_blocks) {
         _named_for_(ln_c, n_o, 0, N_num_blocks) {
           std::vector<expr> aidx = concat_vec(
             get_a_batch_dims().size() > get_b_batch_dims().size() ? idxs
                                                                   : idxs_small,
-            std::vector<expr> {m_o, 0, 0, 0});
+            !in_tensors_[0].get_format().is_blocking()
+              ? std::vector<expr> {m_o * M_block, 0}
+              : std::vector<expr> {m_o, 0, 0, 0});
           std::vector<expr> bidx = concat_vec(
             get_a_batch_dims().size() > get_b_batch_dims().size() ? idxs_small
                                                                   : idxs,
-            std::vector<expr> {n_o, 0, 0, 0});
-          std::vector<expr> cidx
-            = concat_vec(idxs, std::vector<expr> {m_o, n_o, 0, 0});
-          fidx1 = concat_vec(batch_tensor_slice_ranges,
-            {{m_o, 1}, {n_o, 1}, {0, M_block}, {0, N_block}});
-          fidx2 = concat_vec(batch_tensor_slice_ranges,
-            {{m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}});
+            !in_tensors_[1].get_format().is_blocking()
+              ? std::vector<expr> {n_o * N_block, 0}
+              : std::vector<expr> {n_o, 0, 0, 0});
+          std::vector<expr> cidx = concat_vec(idxs,
+            !out_tensors_[0].get_format().is_blocking()
+              ? std::vector<expr> {m_o * M_block, n_o * N_block}
+              : std::vector<expr> {m_o, n_o, 0, 0});
+          fidx1 = !out_tensors_[0].get_format().is_blocking()
+            ? concat_vec(batch_tensor_slice_ranges,
+              {{m_o * M_block, M_block}, {n_o * N_block, N_block}})
+            : concat_vec(batch_tensor_slice_ranges,
+              {{m_o, 1}, {n_o, 1}, {0, M_block}, {0, N_block}});
+          fidx2 = !out_tensors_[0].get_format().is_blocking()
+            ? concat_vec(batch_tensor_slice_ranges,
+              {{m_o * M_block, M_block}, {0, N_num_blocks * N_block}})
+            : concat_vec(batch_tensor_slice_ranges,
+              {{m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}});
 
           if (dtype_block > 1) bidx.emplace_back(0);
-          int stride_a = M_block * K_block,
+          int LDA = K_block, LDB = N_block, LDC = N_block,
+              stride_a = M_block * K_block,
               stride_b = (int)utils::divide_and_ceil(K_block, dtype_block)
             * dtype_block * N_block;
 
           get_brgemm_and_fusion_params(in_tensors_[0], in_tensors_[1],
-            out_tensors_[0], aidx, bidx, cidx, stride_a, stride_b, fidx1,
-            fidx2);
+            out_tensors_[0], M_block, K_block, N_block, aidx, bidx, cidx, LDA,
+            LDB, LDC, stride_a, stride_b, fidx1, fidx2, fidx3);
 
+          // todo: this is for s8s8 vnni compensation
           sc::builtin::brgemm_init_update_allow_fusion(tensor_ptr(A, aidx),
             tensor_ptr(B, bidx), tensor_ptr(C, cidx), K_num_blocks, M_block,
-            N_block, K_block, K_block, N_block, N_block, stride_a, stride_b,
-            A_dtype, B_dtype);
+            N_block, K_block, LDA, LDB, LDC, stride_a, stride_b, A_dtype,
+            B_dtype);
 
           // this is the gemm output
           if (fusion) {
@@ -453,39 +592,70 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
         }
       }
       if (fusion) {
-        fusion->create_output_fusion_anchor({tensor_slice(C,
-          concat_vec(batch_tensor_slice_ranges,
-            {{0, M_num_blocks}, {0, N_num_blocks}, {0, M_block},
-              {0, N_block}}))});
+        std::vector<tensor_slice> fusion_inputs
+          = {tensor_slice(C, std::vector<std::pair<expr, expr>>(fidx3))};
+        fusion->create_output_fusion_anchor(fusion_inputs);
       }
     }
   } else {
     _named_for_(lm_c, m_o, 0, M_num_blocks, 1, for_type::PARALLEL) {
       _named_for_(ln_c, n_o, 0, N_num_blocks) {
+        int LDA = K_block, LDB = N_block, LDC = N_block,
+            stride_a = M_block * K_block,
+            stride_b = (int)utils::divide_and_ceil(K_block, dtype_block)
+          * dtype_block * N_block;
+        if (!in_tensors_[0].get_format().is_blocking()) {
+          LDA = in_tensors_[0].get_plain_dims().back();
+          stride_a = K_block;
+        }
+        if (!in_tensors_[1].get_format().is_blocking()) {
+          // format = KN
+          COMPILE_ASSERT(in_tensors_[1].get_format().is_same_format_kind(
+                           sc_data_format_t(format_kinds::KN)),
+            "brgemm does not support K axis is the last axis for B.");
+          LDB = in_tensors_[1].get_plain_dims().back();
+          stride_b = LDB * K_block;
+        }
+        if (!out_tensors_[0].get_format().is_blocking()) {
+          LDC = in_tensors_[1].get_plain_dims().back();
+        }
         sc::builtin::brgemm_init_update_allow_fusion(
-          tensor_ptr(A, std::vector<expr> {m_o, 0, 0, 0}),
+          tensor_ptr(A,
+            !in_tensors_[0].get_format().is_blocking()
+              ? std::vector<expr> {m_o * M_block, 0}
+              : std::vector<expr> {m_o, 0, 0, 0}),
           tensor_ptr(B,
             dtype_block > 1 ? std::vector<expr> {n_o, 0, 0, 0, 0}
-                            : std::vector<expr> {n_o, 0, 0, 0}),
-          tensor_ptr(C, std::vector<expr> {m_o, n_o, 0, 0}), K_num_blocks,
-          M_block, N_block, K_block, K_block, N_block, N_block,
-          M_block * K_block,
-          (int)utils::divide_and_ceil(K_block, dtype_block) * dtype_block
-            * N_block,
-          A_dtype, B_dtype);
+                            : (!in_tensors_[1].get_format().is_blocking()
+                                ? std::vector<expr> {0, n_o * N_block}
+                                : std::vector<expr> {n_o, 0, 0, 0})),
+          tensor_ptr(C,
+            !out_tensors_[0].get_format().is_blocking()
+              ? std::vector<expr> {m_o * M_block, n_o * N_block}
+              : std::vector<expr> {m_o, n_o, 0, 0}),
+          K_num_blocks, M_block, N_block, K_block, LDA, LDB, LDC, stride_a,
+          stride_b, A_dtype, B_dtype);
 
         // this is the gemm output
         if (fusion) {
-          fusion->create_output_fusion_anchor({tensor_slice(
-            C, {{m_o, 1}, {n_o, 1}, {0, M_block}, {0, N_block}})});
+          fusion->create_output_fusion_anchor({tensor_slice(C,
+            !out_tensors_[0].get_format().is_blocking()
+              ? std::vector<std::pair<expr, expr>> {{m_o * M_block, M_block},
+                {n_o * N_block, N_block}}
+              : std::vector<std::pair<expr, expr>> {
+                {m_o, 1}, {n_o, 1}, {0, M_block}, {0, N_block}})});
         }
       }
       // this is the gemm output
       if (fusion
         && (bwise_fusion_
           || M_num_blocks >= runtime_config_t::get().threads_per_instance_)) {
-        fusion->create_output_fusion_anchor({tensor_slice(
-          C, {{m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}})});
+        fusion->create_output_fusion_anchor({tensor_slice(C,
+          !out_tensors_[0].get_format().is_blocking()
+            ? std::vector<std::pair<expr, expr>> {{m_o * M_block, M_block},
+              {0, N_num_blocks * N_block}}
+            : std::vector<std::pair<expr, expr>> {
+              {m_o, 1}, {0, N_num_blocks}, {0, M_block}, {0, N_block}})});
       }
     }
   }

@@ -44,6 +44,31 @@ sc_data_format_kind_t sc_data_format_kind_t::get_plain_by_dims(size_t ndims) {
     return sc_data_format_kind_t(res);
 }
 
+sc_data_format_kind_t sc_data_format_kind_t::get_2dblocking_by_dims(
+        size_t ndims, bool is_vnni_format) {
+    COMPILE_ASSERT(ndims <= sc_data_format_kind_t::MAX_DIMS,
+            "storage size should be less than MAX_DIMS");
+    uint64_t res = set_ith_int(
+            0xffffffffffffffff, sc_data_format_kind_t::MAX_DIMS, 0);
+    for (size_t i = 0; i < ndims; ++i) {
+        res = set_ith_int(res, i, i);
+    }
+    if (ndims == 1) {
+        res = set_ith_int(res, ndims, ndims - 1);
+    } else {
+        // the first blocking
+        res = set_ith_int(res, ndims, ndims - 2);
+        // the second blocking
+        res = set_ith_int(res, ndims + 1, ndims - 1);
+    }
+    if (is_vnni_format) {
+        assert(ndims >= 2);
+        // the third blocking
+        res = set_ith_int(res, ndims + 2, ndims - 2);
+    }
+    return sc_data_format_kind_t(res);
+}
+
 int sc_data_format_kind_t::ndims() const {
     for (int i = 0; i < MAX_DIMS; i++) {
         if (get(i) == UNDEF_DIM) { return i; }

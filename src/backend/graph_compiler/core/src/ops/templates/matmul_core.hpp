@@ -72,10 +72,13 @@ public:
     int &N_block, int &B_K_num_blocks, int &N_num_blocks);
 
   static void get_brgemm_and_fusion_params(const logical_tensor_t &ta,
-    const logical_tensor_t &tb, const logical_tensor_t &tc,
-    std::vector<expr> &aidx, std::vector<expr> &bidx, std::vector<expr> &cidx,
-    int &stride_a, int &stride_b, std::vector<std::pair<expr, expr>> &fidx1,
-    std::vector<std::pair<expr, expr>> &fidx2);
+    const logical_tensor_t &tb, const logical_tensor_t &tc, const int &M_block,
+    const int &K_block, const int &N_block, std::vector<expr> &aidx,
+    std::vector<expr> &bidx, std::vector<expr> &cidx, int &LDA, int &LDB,
+    int &LDC, int &stride_a, int &stride_b,
+    std::vector<std::pair<expr, expr>> &fidx1,
+    std::vector<std::pair<expr, expr>> &fidx2,
+    std::vector<std::pair<expr, expr>> &fidx3);
 
   sc_data_type_t get_A_dtype() const { return in_tensors_[0].dtype_; }
   sc_data_type_t get_B_dtype() const { return in_tensors_[1].dtype_; }
