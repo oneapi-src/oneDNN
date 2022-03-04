@@ -81,6 +81,7 @@ subset of the operation set.
    arithmetic/Rsqrt_1.rst
    activation/Sigmoid_1.rst
    activation/SigmoidBackprop_1.rst
+   arithmetic/Sign_1.rst
    activation/SoftMax_1.rst
    activation/SoftMaxBackprop_1.rst
    activation/SoftPlus_1.rst
