@@ -34,11 +34,11 @@ std::set<const dt_conf_t *> cfg_list;
 #define CFG(name) \
     struct conf_##name##_t : dt_conf_t { \
         using dt_conf_t::dt_conf_t; \
-        const entry_t &operator[](data_kind_t kind) const override; \
+        const entry_t &operator[](rnn_data_kind_t kind) const override; \
     } conf_##name(STRINGIFY(name)); \
     static auto __reg_##name = cfg_list.insert(&conf_##name); \
-    const dt_conf_t::entry_t &conf_##name##_t::operator[](data_kind_t kind) \
-            const
+    const dt_conf_t::entry_t &conf_##name##_t::operator[]( \
+            rnn_data_kind_t kind) const
 
 // f32
 #define MIN_F32 0.0f

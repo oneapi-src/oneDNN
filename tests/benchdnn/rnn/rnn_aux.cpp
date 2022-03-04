@@ -111,7 +111,7 @@ const char *direction2str(dnnl_rnn_direction_t direction) {
     return "unknown direction";
 }
 
-const char *data_kind2str(data_kind_t kind) {
+const char *rnn_data_kind2str(rnn_data_kind_t kind) {
 #define CASE(KIND) \
     if (kind == (KIND)) return STRINGIFY(KIND)
     CASE(SRC_LAYER);
@@ -471,8 +471,8 @@ float one_m_square(float x) {
 }
 
 namespace {
-void inv_tnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &t,
-        int64_t &n, int64_t &c) {
+void inv_tnc_off_f(const prb_t &prb, rnn_data_kind_t kind, size_t off,
+        int64_t &t, int64_t &n, int64_t &c) {
     auto C = prb.dlc(PRIMITIVE);
     if (kind == DST_LAYER && prb.with_projection) C = prb.dic;
     if (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) C = prb.slc;
@@ -486,8 +486,8 @@ void inv_tnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &t,
     assert(off == 0);
 }
 
-void inv_ldnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
-        int64_t &d, int64_t &n, int64_t &c) {
+void inv_ldnc_off_f(const prb_t &prb, rnn_data_kind_t kind, size_t off,
+        int64_t &l, int64_t &d, int64_t &n, int64_t &c) {
     auto C = prb.dhc;
     if (kind == DST_ITER && prb.with_projection) C = prb.dic;
     if (kind == SRC_ITER || kind == DIFF_SRC_ITER) C = prb.sic;
@@ -502,8 +502,8 @@ void inv_ldnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
     assert(off == 0);
 }
 
-void inv_ldigo_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
-        int64_t &d, int64_t &ic, int64_t &g, int64_t &oc) {
+void inv_ldigo_off_f(const prb_t &prb, rnn_data_kind_t kind, size_t off,
+        int64_t &l, int64_t &d, int64_t &ic, int64_t &g, int64_t &oc) {
     auto IC = (kind == WEIGHTS_LAYER || kind == DIFF_WEIGHTS_LAYER) ? prb.slc
                                                                     : prb.sic;
     oc = off % prb.dhc;
@@ -519,8 +519,8 @@ void inv_ldigo_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
     assert(off == 0);
 }
 
-void inv_ldio_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
-        int64_t &d, int64_t &ic, int64_t &oc) {
+void inv_ldio_off_f(const prb_t &prb, rnn_data_kind_t kind, size_t off,
+        int64_t &l, int64_t &d, int64_t &ic, int64_t &oc) {
     auto OC = (kind == WEIGHTS_PROJECTION || kind == DIFF_WEIGHTS_PROJECTION)
             ? prb.dic
             : prb.dhc;
@@ -538,10 +538,10 @@ void inv_ldio_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
     assert(off == 0);
 }
 
-void print_value(const prb_t &prb, data_kind_t kind, int64_t i, float fp,
+void print_value(const prb_t &prb, rnn_data_kind_t kind, int64_t i, float fp,
         float dt, float diff = 0, float rel_diff = 0,
         bool final_compare = true) {
-    const char *skind = data_kind2str(kind);
+    const char *skind = rnn_data_kind2str(kind);
 
     int64_t n = 0, t = 0, c = 0, l = 0, d = 0, ic = 0, oc = 0, g = 0;
     switch (kind) {
@@ -607,7 +607,7 @@ void print_value(const prb_t &prb, data_kind_t kind, int64_t i, float fp,
 
 } // namespace
 
-int compare_dat(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int compare_dat(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res, bool final_compare = false) {
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return res->state = PASSED, OK;
@@ -735,7 +735,7 @@ int compare_dat(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     }
 
     if (final_compare || errors) {
-        const char *skind = data_kind2str(kind);
+        const char *skind = rnn_data_kind2str(kind);
         const int vl = errors ? 0 : 2;
         BENCHDNN_PRINT(vl,
                 "@@@ [%s] %sdiff: l0(``%g``) "

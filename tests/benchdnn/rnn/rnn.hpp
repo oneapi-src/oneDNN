@@ -55,7 +55,7 @@ dnnl_alg_kind_t activation2kind(activation_t alg);
 dnnl_rnn_direction_t str2direction(const char *str);
 const char *direction2str(dnnl_rnn_direction_t direction);
 
-enum data_kind_t {
+enum rnn_data_kind_t {
     SRC_LAYER,
     SRC_ITER,
     SRC_ITER_C,
@@ -91,7 +91,7 @@ enum data_kind_t {
     AUGRU_ATTENTION,
     DIFF_AUGRU_ATTENTION,
 };
-const char *data_kind2str(data_kind_t kind);
+const char *rnn_data_kind2str(rnn_data_kind_t kind);
 
 // Gates indices
 enum {
@@ -203,7 +203,7 @@ struct dt_conf_t {
 
     dt_conf_t(const std::string &str) : str_(str) {}
 
-    virtual const entry_t &operator[](data_kind_t kind) const = 0;
+    virtual const entry_t &operator[](rnn_data_kind_t kind) const = 0;
 
     const std::string &str() const { return str_; }
     bool is_int8() const {

@@ -120,7 +120,7 @@ void create_dnnl_rnn_attr(const prb_t &prb, dnnl_primitive_attr_t *dnnl_attr) {
             *dnnl_attr, prb.attr.scratchpad_mode));
 }
 
-int check_ldoi_s8_reorder(const prb_t &prb, data_kind_t kind,
+int check_ldoi_s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
         const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp,
         const_dnnl_primitive_attr_t attr = nullptr) {
     // TODO: enable for all cpu_kind when supported
@@ -155,7 +155,7 @@ int check_ldoi_s8_reorder(const prb_t &prb, data_kind_t kind,
     return OK;
 }
 
-int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
+int check_s8s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
         const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp) {
     // TODO: enable for all cpu_kind when supported
     if (is_gpu()) return OK;
@@ -243,7 +243,7 @@ int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
     return OK;
 }
 
-int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_memory(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, dnnl_data_type_t dt, float mean, float stddev,
         float min, float max, const_dnnl_primitive_attr_t attr = nullptr,
         bool flip_sign = false) {
@@ -364,7 +364,7 @@ int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_memory(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr,
         bool flip_sign = false) {
     const dt_conf_t::entry_t &c = prb.cfg[kind];
@@ -372,7 +372,7 @@ int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
             c.f_min, c.f_max, attr, flip_sign);
 }
 
-int fill_activation(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_activation(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
     // In general, we mostly want to use positive values to avoid
     // cancellation from happening during computation.  The only case
@@ -461,7 +461,7 @@ int fill_src_iter_c(const prb_t &prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
             c.f_min * adjust_factor, c.f_max * adjust_factor, attr);
 }
 
-int fill_weights(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_weights(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
@@ -518,7 +518,7 @@ int fill_weights(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-int fill_bias(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_bias(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     // To reduce likelihood of cancellation happening in bwd by bias,
     // (especially for GRU), we want diff_bias to be sparse
