@@ -219,6 +219,7 @@ void create_fusible_output_anchor(std::vector<stmt> &parent,
                 continue;
             if (!range[j].second.isa<constant>()) return;
             if (get_expr_as_int(range[j].second) == 1) continue;
+            if (!range[j].first.isa<constant>()) return;
             range[j].first = loop_vars[j];
             range[j].second = ((static_cast<int>(j) == vx_info.axis)
                             ? expr(int(vx_info.lanes))

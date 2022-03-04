@@ -139,6 +139,11 @@ public:
 
     // makes an N-D plain format.
     static sc_data_format_kind_t get_plain_by_dims(size_t ndims);
+    // makes a format that 2d blocking are at the lowest 2 dimensions. e.g. if
+    // ndims=4, is_vnni_format=false, format is ABCDcd. if ndims=5,
+    // is_vnni_format=false, then the format is ABCDEde.
+    static sc_data_format_kind_t get_2dblocking_by_dims(
+            size_t ndims, bool is_vnni_format = false);
 };
 
 namespace format_kinds {
