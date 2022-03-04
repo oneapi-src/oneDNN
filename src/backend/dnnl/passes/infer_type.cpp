@@ -69,11 +69,18 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
         impl::status_t ret;
         ret = impl::topo_order_visit(sg->get_output_ops(), [&](impl::op_t *op) {
             if (op->get_kind() == op_kind::dnnl_mul_scales
-                    || op->get_kind() == op_kind::dnnl_constant) {
+                    || op->get_kind() == op_kind::dnnl_constant_scales) {
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
                 if (out_lt.data_type == impl::data_type::undef) {
                     op->get_output_value(0)->set_data_type(
                             impl::data_type::f32);
+                    changed = changed || true;
+                }
+            } else if (op->get_kind() == op_kind::dnnl_constant_zps) {
+                auto out_lt = op->get_output_value(0)->get_logical_tensor();
+                if (out_lt.data_type == impl::data_type::undef) {
+                    op->get_output_value(0)->set_data_type(
+                            impl::data_type::s32);
                     changed = changed || true;
                 }
             } else if (op->get_kind() == op_kind::permute
@@ -89,10 +96,12 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
                     || op->get_kind() == impl::op_kind::StaticTranspose) {
                 auto in_lt = op->get_input_value(0)->get_logical_tensor();
                 auto out_lt = op->get_output_value(0)->get_logical_tensor();
-                if (out_lt.data_type == impl::data_type::undef) {
+                if (out_lt.data_type == impl::data_type::undef
+                        && out_lt.data_type != in_lt.data_type) {
                     op->get_output_value(0)->set_data_type(in_lt.data_type);
                     changed = changed || true;
-                } else if (in_lt.data_type == impl::data_type::undef) {
+                } else if (in_lt.data_type == impl::data_type::undef
+                        && in_lt.data_type != out_lt.data_type) {
                     op->get_input_value(0)->set_data_type(out_lt.data_type);
                     changed = changed || true;
                 }

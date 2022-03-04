@@ -71,9 +71,10 @@ namespace op_kind {
     X(x8s8float_matmul_add, X8S8FLOAT_MatMul_add) \
     X(x8s8float_matmul_bias_add, X8S8FLOAT_MatMul_bias_add) \
     X(dnnl_mul_scales, Dnnl_mul_scales) \
-    X(dnnl_constant, Dnnl_constant) \
+    X(dnnl_constant_scales, Dnnl_constant_scales) \
     X(dnnl_add_zps, Dnnl_add_zps) \
     X(dnnl_sub_zps, Dnnl_sub_zps) \
+    X(dnnl_constant_zps, Dnnl_constant_zps) \
     X(permute, Permute) \
     X(to_group, To_group) \
     X(expand, Expand) \

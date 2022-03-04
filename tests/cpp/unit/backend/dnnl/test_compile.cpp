@@ -15004,16 +15004,21 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    const auto confs = std::vector<config_t> {
+    const std::vector<config_t> confs {
             config_t {impl::op_kind::AvgPool, "int8_avgpool_add_fusion", true},
             config_t {impl::op_kind::AvgPool, "int8_avgpool_add_fusion", false},
             config_t {impl::op_kind::MaxPool, "int8_maxpool_add_fusion", true},
             config_t {
                     impl::op_kind::MaxPool, "int8_maxpool_add_fusion", false}};
-    const auto swap_add_ins = std::vector<bool> {true, false};
+    const std::vector<std::string> qtypes {"symmetric", "asymmetric"};
+    const std::vector<bool> swap_add_ins {true, false};
 
     for_(const auto swap_add_in : swap_add_ins)
+    for_(const auto &qtype : qtypes)
     for (const auto &conf : confs) {
+        if (engine.kind() == impl::engine_kind::gpu && qtype == "asymmetric")
+            continue;
+
         impl::op_kind_t base_op;
         std::string fuse_name;
         bool per_channel_broadcast;
@@ -15043,15 +15048,15 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         const float scale_src = 5 / 127.f;
         const float scale_out = 10 / 127.f;
         const float scale_other = 2 / 127.f;
-        const int64_t zp_src = 0;
-        const int64_t zp_out = 0;
-        const int64_t zp_other = 0;
+        const int64_t zp_src = (qtype == "symmetric") ? 0 : -2;
+        const int64_t zp_out = (qtype == "symmetric") ? 0 : -2;
+        const int64_t zp_other = (qtype == "symmetric") ? 0 : 4;
 
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>("qtype", "per_tensor");
         dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
         dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<int64_t>("axis", 1);
 
         impl::op_t pool_op(1, base_op, "pool_op");
         size_t spatial_size = src_shape.size() - 2;
@@ -15070,13 +15075,13 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         qout_op.set_attr<std::string>("qtype", "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
         qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<int64_t>("axis", 1);
 
         impl::op_t dqother_op(3, impl::op_kind::Dequantize, "dqother_op");
         dqother_op.set_attr<std::string>("qtype", "per_tensor");
         dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
         dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_op.set_attr<int64_t>("axis", 0);
+        dqother_op.set_attr<int64_t>("axis", 1);
 
         impl::op_t add_op(4, impl::op_kind::Add, "add_op");
 

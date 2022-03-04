@@ -96,7 +96,8 @@ public:
             BACKEND_DNNL_ADD_PASS(
                     pipeline, replace_quant_dequant_with_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_eltwise);
-            BACKEND_DNNL_ADD_PASS(pipeline, replace_output_scales_with_binary);
+            BACKEND_DNNL_ADD_PASS(
+                    pipeline, replace_quant_data_with_binary_post_op);
             BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
             BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         }

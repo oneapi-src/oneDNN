@@ -81,8 +81,10 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                 || cur_op->get_kind() == op_kind::dnnl_reorder) {
             exec = std::make_shared<reorder_executable_t>(
                     cur_op, p_engine, prm_attr_mgr);
-        } else if (cur_op->get_kind() == op_kind::dnnl_constant) {
-            exec = std::make_shared<const_memory_filler_t>(cur_op);
+        } else if (cur_op->get_kind() == op_kind::dnnl_constant_scales) {
+            exec = std::make_shared<fvec_to_fvec_filler>(cur_op, "scales");
+        } else if (cur_op->get_kind() == op_kind::dnnl_constant_zps) {
+            exec = std::make_shared<i64vec_to_i32vec_filler>(cur_op, "zps");
         } else if (cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
                 || cur_op->get_kind() == op_kind::expand

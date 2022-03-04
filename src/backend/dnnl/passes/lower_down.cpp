@@ -440,11 +440,9 @@ impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t replace_output_scales_with_binary(
+// replace mul_scales and add_zps with binary_mul and binary_add respectively
+impl::status_t replace_quant_data_with_binary_post_op(
         std::shared_ptr<subgraph_t> &sg) {
-    // replace output scales with binary-multiply. It should be
-    // used for OPs which don't support output scales attribute,
-    // and do support only binary post-ops, e.g. Pooling and Eltwise.
     const auto get_next_op = [](const op_t *op) -> op_t * {
         const value_ptr out_val = op->get_output_value(0);
         if (!out_val->get_consumers().empty())
@@ -453,60 +451,85 @@ impl::status_t replace_output_scales_with_binary(
             return nullptr;
     };
 
+    const std::set<op_kind_t> accepted_kinds_in_chain = {op_kind::dnnl_binary,
+            op_kind::dnnl_mul_scales, op_kind::dnnl_add_zps};
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_inserted_ops;
     std::vector<const op_t *> to_be_removed_ops;
+    std::set<op_t *> visited;
     for (const auto &cur_op : subgraph) {
-        if (is_output_scales_supported(cur_op->get_kind())) continue;
-
-        // find output scales op
-        op_t *next_op = get_next_op(cur_op.get());
-        while (next_op && next_op->get_kind() == op_kind::dnnl_binary) {
-            next_op = get_next_op(next_op);
-        }
-        // at this stage next_op is a first op after last binary,
-        // we expect it to be a mul_scales
-        if (!next_op || next_op->get_kind() != op_kind::dnnl_mul_scales)
+        if (is_output_scales_supported(cur_op->get_kind())
+                || visited.count(cur_op.get()))
             continue;
 
-        // replace scales op with binary-multiply op
-        op_t *scales_op = next_op;
-        op_ptr bin_mul_op = std::make_shared<op_t>(op_kind::dnnl_binary);
-        bin_mul_op->set_attr<int64_t>(
-                "alg_kind", static_cast<int64_t>(dnnl::algorithm::binary_mul));
-        auto in_val = scales_op->get_input_value(0);
-        in_val->remove_consumer(*scales_op, 0);
-        in_val->add_consumer(*bin_mul_op, 0);
-        bin_mul_op->add_input(in_val);
-        auto out_val = scales_op->get_output_value(0);
-        bin_mul_op->add_output(out_val);
-        insert_empty_scratchpad(bin_mul_op);
+        visited.insert(cur_op.get());
+        op_t *next_op = get_next_op(cur_op.get());
+        while (next_op && accepted_kinds_in_chain.count(next_op->get_kind())) {
+            // TODO(xxx): handle the case where other binary input is a
+            // 'add_zps'. For patterns like 'int8 pool + binary-mul',
+            // 'mul_scales' which feeds 'binary-mul' will get removed.
+            // Standalone 'add_zps' is not supported right now, and here we can
+            // cover that by treating it as other 'add_zps' OPs in a chain.
+            if (next_op->get_kind() == op_kind::dnnl_binary
+                    || visited.count(next_op)) {
+                next_op = get_next_op(next_op);
+                continue;
+            }
 
-        // add constant scales op
-        const auto scales = scales_op->get_attr<std::vector<float>>("scales");
-        const auto qtype = scales_op->get_attr<std::string>("qtype");
-        const auto axis = scales_op->get_attr<int64_t>("axis");
-        const std::vector<int64_t> out_shape
-                = ltw(out_val->get_logical_tensor()).vdims();
-        std::vector<int64_t> new_shape(out_shape.size(), 1);
-        if (qtype == "per_tensor") new_shape[axis] = out_shape[axis];
-        op_ptr const_scales_op = std::make_shared<op_t>(op_kind::dnnl_constant);
-        const_scales_op->set_attr("scales", scales);
-        const_scales_op->set_attr("shape", new_shape);
-        impl::logical_tensor_t const_scales_dst_lt
-                = impl::empty_logical_tensor_with_default_id();
-        auto const_scales_dst_value = std::make_shared<value_t>(
-                *const_scales_op, 0, const_scales_dst_lt, true);
-        const_scales_dst_value->set_layout_type(impl::layout_type::strided);
-        const_scales_op->add_output(const_scales_dst_value);
+            // replace quant related op with binary
+            op_t *quant_data_op = next_op;
+            auto algo = (quant_data_op->get_kind() == op_kind::dnnl_mul_scales)
+                    ? dnnl::algorithm::binary_mul
+                    : dnnl::algorithm::binary_add;
+            op_ptr bin_op = std::make_shared<op_t>(op_kind::dnnl_binary);
+            bin_op->set_attr<int64_t>("alg_kind", static_cast<int64_t>(algo));
+            auto in_val = quant_data_op->get_input_value(0);
+            in_val->remove_consumer(*quant_data_op, 0);
+            in_val->add_consumer(*bin_op, 0);
+            bin_op->add_input(in_val);
+            auto out_val = quant_data_op->get_output_value(0);
+            bin_op->add_output(out_val);
+            insert_empty_scratchpad(bin_op);
 
-        // connect binary-multiply with constant scales
-        bin_mul_op->connect_input(1, const_scales_dst_value);
+            // add quant data as a constant input
+            const auto qtype = quant_data_op->get_attr<std::string>("qtype");
+            const auto axis = quant_data_op->get_attr<int64_t>("axis");
+            const std::vector<int64_t> out_shape
+                    = ltw(out_val->get_logical_tensor()).vdims();
+            std::vector<int64_t> new_shape(out_shape.size(), 1);
+            if (qtype == "per_tensor") new_shape[axis] = out_shape[axis];
+            op_ptr const_data_op;
+            if (quant_data_op->get_kind() == op_kind::dnnl_mul_scales) {
+                const auto scales
+                        = quant_data_op->get_attr<std::vector<float>>("scales");
+                const_data_op
+                        = std::make_shared<op_t>(op_kind::dnnl_constant_scales);
+                const_data_op->set_attr("scales", scales);
+            } else { // add_zps
+                const auto zps
+                        = quant_data_op->get_attr<std::vector<int64_t>>("zps");
+                const_data_op
+                        = std::make_shared<op_t>(op_kind::dnnl_constant_zps);
+                const_data_op->set_attr("zps", zps);
+            }
+            const_data_op->set_attr("shape", new_shape);
+            impl::logical_tensor_t const_data_dst_lt
+                    = impl::empty_logical_tensor_with_default_id();
+            auto const_data_dst_value = std::make_shared<value_t>(
+                    *const_data_op, 0, const_data_dst_lt, true);
+            const_data_dst_value->set_layout_type(impl::layout_type::strided);
+            const_data_op->add_output(const_data_dst_value);
 
-        to_be_inserted_ops.emplace_back(bin_mul_op);
-        to_be_inserted_ops.emplace_back(const_scales_op);
+            // connect binary and constant data
+            bin_op->connect_input(1, const_data_dst_value);
 
-        to_be_removed_ops.push_back(scales_op);
+            to_be_inserted_ops.emplace_back(bin_op);
+            to_be_inserted_ops.emplace_back(const_data_op);
+            to_be_removed_ops.push_back(quant_data_op);
+
+            visited.insert(next_op);
+            next_op = get_next_op(next_op);
+        }
     }
 
     for (const auto &op : to_be_inserted_ops) {
@@ -1022,126 +1045,83 @@ impl::status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+// Moves quant related OPs after pool op.
+// This function has effect only if post-ops are present.
+//
+//       |                   |
+//      zps0               pool
+//       |       |           |         |
+//    scales0   zps1       zps0       zps1
+//       |       |           |         |
+//     pool   scales1     scales0   scales1
+//       \      /              \      /
+//        binary      =>        binary
+//           |                     |
+//        scales2               scales2
+//           |                     |
+//          zps2                  zps2
+//           |                     |
+//
 impl::status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
-    std::vector<op_t *> fusion_ops;
-    for (const auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_pool) continue;
-        fusion_ops.emplace_back(cur_op.get());
-    }
-
-    if (fusion_ops.empty()) return impl::status::success;
-
-    for (auto &pool_op : fusion_ops) {
-        // mul_scales which feeds pooling will be always removed. If binary
-        // post-op will occur, src scales data will be combined with dst
-        // scales data.
-        op_t &src_scales_op = pool_op->get_input_value(0)->get_producer();
-        assertm(src_scales_op.get_kind() == op_kind::dnnl_mul_scales,
-                "the predecessor op of pool should be mul_scales.");
-        value_ptr in_value = src_scales_op.get_input_value(0);
-        in_value->remove_consumer(src_scales_op, 0);
-        pool_op->connect_input(0, in_value);
-
-        assertm(pool_op->get_output_value(0)->get_consumers().size() == 1,
-                "pooling's successor op should only have one consumer.");
-        op_t &pool_op_successor
-                = pool_op->get_output_value(0)->get_consumers()[0].get_op();
-
-        std::vector<const op_t *> deleted_ops {&src_scales_op};
-
-        if (pool_op_successor.get_kind() != op_kind::dnnl_binary) {
-            // standalone pool case: detach pooling from the dst mul_scales
-            op_t &dst_scales_op = pool_op_successor;
-            assertm(dst_scales_op.get_kind() == op_kind::dnnl_mul_scales,
-                    "the successor op of pool should be mul_scales or binary.");
-            value_ptr out_value = dst_scales_op.get_output_value(0);
-            pool_op->connect_output(0, out_value);
-            out_value->set_producer(*pool_op);
-            deleted_ops.push_back(&dst_scales_op);
-        } else {
-            // pool + binary case
-            op_t &binary_op = pool_op_successor;
-            assertm(binary_op.num_inputs() == 2,
-                    "binary op should have exactly two inputs");
-            // binary could be commutative, depending on algorithms,
-            // so we need to check here which input is which OP.
-            const size_t src1_scales_offset
-                    = (binary_op.get_input_value(0)->get_producer().get_kind()
-                              == op_kind::dnnl_mul_scales)
-                    ? 0
-                    : 1;
-            op_t &src1_scales_op
-                    = binary_op.get_input_value(src1_scales_offset)
-                              ->get_producer();
-            assertm(src1_scales_op.get_kind() == op_kind::dnnl_mul_scales,
-                    "the 2nd binary input producer should be mul_scales.");
-
-            assertm(binary_op.get_output_value(0)->get_consumers().size() == 1,
-                    "binary's successor op should only have one consumer.");
-            op_t &dst_scales_op = binary_op.get_output_value(0)
-                                          ->get_consumers()[0]
-                                          .get_op();
-            assertm(dst_scales_op.get_kind() == op_kind::dnnl_mul_scales,
-                    "the successor op of binary should be mul_scales.");
-
-            // <new_dst_scales_op, new_src1_scales_op (could be nullptr)>
-            std::pair<op_ptr, op_ptr> combined_scales = combine_scales(
-                    &src_scales_op, &src1_scales_op, &dst_scales_op,
-                    static_cast<dnnl::algorithm>(
-                            binary_op.get_attr<int64_t>("alg_kind")));
-
-            // make new connections
-            value_ptr src_bin_value
-                    = binary_op.get_input_value(1 - src1_scales_offset);
-            pool_op->connect_output(0, src_bin_value);
-
-            impl::logical_tensor_t new_dst_bin_lt
-                    = impl::empty_logical_tensor_with_default_id();
-            auto new_dst_bin_value = std::make_shared<value_t>(
-                    binary_op, 0, new_dst_bin_lt, true);
-            binary_op.connect_output(0, new_dst_bin_value);
-
-            op_ptr new_dst_scales_op = combined_scales.first;
-            value_ptr dst_scales_value = dst_scales_op.get_output_value(0);
-            new_dst_scales_op->connect_input(0, new_dst_bin_value);
-            new_dst_scales_op->add_output(dst_scales_value);
-
-            subgraph.emplace_back(new_dst_scales_op);
-
-            value_ptr src1_scales_value = src1_scales_op.get_input_value(0);
-            src1_scales_value->remove_consumer(src1_scales_op, 0);
-            if (combined_scales.second != nullptr) {
-                op_ptr new_src1_scales_op = combined_scales.second;
-                new_src1_scales_op->connect_input(0, src1_scales_value);
-
-                impl::logical_tensor_t new_src1_scales_lt
-                        = impl::empty_logical_tensor_with_default_id();
-                auto new_src1_scales_value = std::make_shared<value_t>(
-                        *new_src1_scales_op, 0, new_src1_scales_lt, true);
-                new_src1_scales_op->add_output(new_src1_scales_value);
-                binary_op.connect_input(
-                        src1_scales_offset, new_src1_scales_value);
-
-                subgraph.emplace_back(new_src1_scales_op);
-            } else {
-                // src1 mul_scales input will be connected directly to the
-                // binary op
-                binary_op.connect_input(src1_scales_offset, src1_scales_value);
-            }
-
-            deleted_ops.push_back(&src1_scales_op);
-            deleted_ops.push_back(&dst_scales_op);
-        }
-
-        for (const auto &del_op : deleted_ops) {
-            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
-                    [del_op](const op_ptr &f_op) {
-                        return f_op.get() == del_op;
-                    });
-            if (pos != subgraph.end()) subgraph.erase(pos);
+    std::vector<op_ptr> pool_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() == op_kind::dnnl_pool) {
+            pool_ops.emplace_back(cur_op);
         }
     }
+
+    if (pool_ops.empty()) return impl::status::success;
+
+    for (auto &pool_op : pool_ops) {
+        value_ptr pool_in_val = pool_op->get_input_value(0);
+        value_ptr pool_out_val = pool_op->get_output_value(0);
+        if (!pool_in_val->has_producer()
+                || pool_out_val->get_consumers().empty())
+            continue;
+
+        op_t &scales_op = pool_in_val->get_producer();
+        assertm(scales_op.get_kind() == op_kind::dnnl_mul_scales,
+                "the predecessor of a pooling op should be mul_scales.");
+
+        op_t &binary_op = pool_out_val->get_consumers()[0].get_op();
+        assertm(binary_op.get_kind() == op_kind::dnnl_binary,
+                "the successor of a pooling op should be binary.");
+        const bool pool_as_first_bin_in
+                = binary_op.get_input_value(0)->has_producer()
+                && binary_op.get_input_value(0)->get_producer().get_kind()
+                        == op_kind::dnnl_pool;
+        const size_t bin_idx_to_reconnect = (pool_as_first_bin_in) ? 0 : 1;
+
+        value_ptr scales_in_val = scales_op.get_input_value(0);
+        if (!scales_in_val->has_producer()) continue;
+
+        op_t &zps_op = scales_in_val->get_producer();
+        assertm(zps_op.get_kind() == op_kind::dnnl_add_zps,
+                "the predecessor of a mul_scales op should be add_zps.");
+
+        // connect pooling with a zps input
+        value_ptr zps_in_val = zps_op.get_input_value(0);
+        zps_in_val->remove_consumer(zps_op, 0);
+        pool_op->connect_input(0, zps_in_val);
+
+        // connect zps with a pooling using a fresh value
+        impl::logical_tensor_t pool_to_zps_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto pool_to_zps_val
+                = std::make_shared<value_t>(*pool_op, 0, pool_to_zps_lt, true);
+        pool_op->connect_output(0, pool_to_zps_val);
+        zps_op.connect_input(0, pool_to_zps_val);
+
+        // connect scales with a binary using a fresh value
+        impl::logical_tensor_t scales_to_bin_lt
+                = impl::empty_logical_tensor_with_default_id();
+        auto scales_to_bin_val = std::make_shared<value_t>(
+                scales_op, 0, scales_to_bin_lt, true);
+        scales_op.connect_output(0, scales_to_bin_val);
+        binary_op.connect_input(bin_idx_to_reconnect, scales_to_bin_val);
+    }
+
     return impl::status::success;
 }
 
@@ -3436,6 +3416,285 @@ impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
             "Failed to eliminate common reorders since the pass can't "
             "converge.");
     if (cnt > max_iter_num + 1) return impl::status::unsupported;
+
+    return impl::status::success;
+}
+
+impl::status_t remove_unnecessary_quant_dequant(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> pool_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() == op_kind::dnnl_pool) {
+            pool_ops.emplace_back(cur_op);
+        }
+    }
+
+    if (pool_ops.empty()) return impl::status::success;
+
+    for (auto &pool_op : pool_ops) {
+        value_ptr pool_in_val = pool_op->get_input_value(0);
+        value_ptr pool_out_val = pool_op->get_output_value(0);
+        if (!pool_in_val->has_producer()
+                || pool_out_val->get_consumers().empty())
+            continue;
+
+        op_t &quant_op = pool_out_val->get_consumers()[0].get_op();
+        const bool pool_with_post_ops
+                = quant_op.get_kind() != impl::op_kind::Quantize;
+        if (pool_with_post_ops) continue;
+
+        op_t &dequant_op = pool_in_val->get_producer();
+        assertm(dequant_op.get_kind() == impl::op_kind::Dequantize,
+                "the predecessor of a pooling op should be dequantize.");
+
+        value_ptr dequant_in_val = dequant_op.get_input_value(0);
+        value_ptr quant_out_val = quant_op.get_output_value(0);
+        dequant_in_val->remove_consumer(dequant_op, 0);
+        pool_op->connect_input(0, dequant_in_val);
+        pool_op->connect_output(0, quant_out_val);
+
+        std::vector<const op_t *> ops_to_delete {&dequant_op, &quant_op};
+        for (const auto &del_op : ops_to_delete) {
+            auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                    [del_op](const op_ptr &f_op) {
+                        return del_op == f_op.get();
+                    });
+            if (pos != subgraph.end()) subgraph.erase(pos);
+        }
+    }
+
+    return impl::status::success;
+}
+
+// combine scales around binary post op
+//
+//         |                     |        |
+//      base_op               base_op    zps1
+//         |         |           |        |
+//       zps0       zps1        zps0    new_scales1 (optionall)
+//         |         |            \      /
+//      scales0   scales1          binary
+//           \      /                 |
+//            binary      =>     new_scales2
+//               |                    |
+//            scales2                zps2
+//               |                    |
+//              zps2
+//               |
+//
+//    where base_op is one of [pool]
+//
+//    binary-add case:
+//    - new_scales1 = scales1 / scales0
+//    - new_scales2 = scales0 * scales2
+//    binary-mul case:
+//    - new_scales1 will be removed
+//    - new_scales2 = scales0 * scales1 * scales2
+impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
+    const auto fuse_scales
+            = [](const std::vector<float> &scales0,
+                      const std::vector<float> &scales1,
+                      const std::function<float(float, float)> &operation)
+            -> std::vector<float> {
+        std::vector<float> fused_scales(
+                std::max(scales0.size(), scales1.size()), 1.f);
+        if (scales0.size() >= scales1.size()) {
+            for (size_t i = 0; i < scales1.size(); ++i) {
+                fused_scales[i] = operation(scales0[i], scales1[0]);
+            }
+        } else {
+            for (size_t i = 0; i < scales1.size(); ++i) {
+                fused_scales[i] = operation(scales0[0], scales1[i]);
+            }
+        }
+        return fused_scales;
+    };
+    const auto fuse_scales_attributes = [](const std::vector<op_t *> &scale_ops)
+            -> std::pair<std::string, int64_t> {
+        for (size_t i = 0; i < scale_ops.size(); ++i) {
+            if (scale_ops[i]->get_attr<std::string>("qtype") == "per_channel") {
+                // assumption: at least one scales per channel will make
+                // combined scales per channel
+                return std::make_pair(
+                        "per_channel", scale_ops[i]->get_attr<int64_t>("axis"));
+            }
+        }
+        // scales per tensor, defaulting axis
+        return std::make_pair("per_tensor", static_cast<int64_t>(1));
+    };
+
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> bin_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() == op_kind::dnnl_binary) {
+            bin_ops.emplace_back(cur_op);
+        }
+    }
+
+    if (bin_ops.empty()) return impl::status::success;
+
+    for (auto &bin_op : bin_ops) {
+        value_ptr bin_in0_val = bin_op->get_input_value(0);
+        value_ptr bin_in1_val = bin_op->get_input_value(1);
+        value_ptr bin_out_val = bin_op->get_output_value(0);
+        if (!bin_in0_val->has_producer() || !bin_in1_val->has_producer()
+                || bin_out_val->get_consumers().empty())
+            continue;
+
+        op_t &scales_in0_op = bin_in0_val->get_producer();
+        assertm(scales_in0_op.get_kind() == op_kind::dnnl_mul_scales,
+                "the first predecessor of a binary op should be mul_scales.");
+        if (scales_in0_op.has_attr("with_runtime_scales")
+                && scales_in0_op.get_attr<bool>("with_runtime_scales"))
+            continue;
+
+        op_t &scales_in1_op = bin_in1_val->get_producer();
+        assertm(scales_in1_op.get_kind() == op_kind::dnnl_mul_scales,
+                "the second predecessor of a binary op should be mul_scales.");
+        if (scales_in1_op.has_attr("with_runtime_scales")
+                && scales_in1_op.get_attr<bool>("with_runtime_scales"))
+            continue;
+
+        op_t &scales_out_op = bin_out_val->get_consumers()[0].get_op();
+        assertm(scales_out_op.get_kind() == op_kind::dnnl_mul_scales,
+                "the successor of a binary op should be mul_scales.");
+        if (scales_out_op.has_attr("with_runtime_scales")
+                && scales_out_op.get_attr<bool>("with_runtime_scales"))
+            continue;
+
+        const size_t base_op_branch_idx = [&scales_in0_op]() {
+            op_t &zps_op = scales_in0_op.get_input_value(0)->get_producer();
+            if (zps_op.get_input_value(0)->has_producer()) {
+                const auto zps_predecessor_kind
+                        = zps_op.get_input_value(0)->get_producer().get_kind();
+                if (zps_predecessor_kind == op_kind::dnnl_eltwise
+                        || zps_predecessor_kind == op_kind::dnnl_pool) {
+                    return 0;
+                }
+            }
+            return 1;
+        }();
+        op_t &base_scales_op
+                = (base_op_branch_idx) ? scales_in1_op : scales_in0_op;
+        op_t &other_scales_op
+                = (base_op_branch_idx) ? scales_in0_op : scales_in1_op;
+
+        const auto in0_scales
+                = base_scales_op.get_attr<std::vector<float>>("scales");
+        const auto in1_scales
+                = other_scales_op.get_attr<std::vector<float>>("scales");
+        const auto inv_out_scales
+                = scales_out_op.get_attr<std::vector<float>>("scales");
+        const auto bin_kind = static_cast<dnnl::algorithm>(
+                bin_op->get_attr<int64_t>("alg_kind"));
+
+        std::vector<float> new_scales_in1;
+        std::vector<float> new_scales_out;
+        std::string new_qtype_in1;
+        std::string new_qtype_out;
+        int64_t new_axis_in1 = 0;
+        int64_t new_axis_out = 0;
+        bool drop_other_scales = false;
+        const auto multiplier = std::multiplies<float>();
+        const auto divider = std::divides<float>();
+        switch (bin_kind) {
+            case dnnl::algorithm::binary_add:
+                assertm(std::all_of(in0_scales.begin(), in0_scales.end(),
+                                [](float v) { return v != 0.f; }),
+                        "scales can't be zero");
+                new_scales_in1 = fuse_scales(in1_scales, in0_scales, divider);
+                new_scales_out
+                        = fuse_scales(in0_scales, inv_out_scales, multiplier);
+                std::tie(new_qtype_in1, new_axis_in1) = fuse_scales_attributes(
+                        {&scales_in0_op, &scales_in1_op});
+                std::tie(new_qtype_out, new_axis_out) = fuse_scales_attributes(
+                        {&scales_in0_op, &scales_out_op});
+                break;
+            case dnnl::algorithm::binary_mul:
+                drop_other_scales = true;
+                new_scales_out
+                        = fuse_scales(in0_scales, in1_scales, multiplier);
+                new_scales_out = fuse_scales(
+                        new_scales_out, inv_out_scales, multiplier);
+                std::tie(new_qtype_out, new_axis_out) = fuse_scales_attributes(
+                        {&scales_in0_op, &scales_in1_op, &scales_out_op});
+            default:
+                assertm(false, "unsupported binary post-op was provided.");
+                break;
+        }
+
+        // drop base op scales, and connect zps with binary
+        fuse_op_to_successor(&base_scales_op, subgraph);
+
+        // if possible, drop other scales, and connect zps with binary
+        // otherwise, update other scales data
+        if (drop_other_scales) {
+            fuse_op_to_successor(&other_scales_op, subgraph);
+        } else {
+            other_scales_op.set_attr("scales", new_scales_in1)
+                    .set_attr("qtype", new_qtype_in1)
+                    .set_attr("axis", new_axis_in1);
+        }
+
+        // update output scales data
+        scales_out_op.set_attr("scales", new_scales_out)
+                .set_attr("qtype", new_qtype_out)
+                .set_attr("axis", new_axis_out);
+    }
+
+    return impl::status::success;
+}
+
+impl::status_t remove_quant_data_with_no_effect(
+        std::shared_ptr<subgraph_t> &sg) {
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<op_ptr> to_be_removed_ops;
+    std::vector<op_ptr> quant_data_ops;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() == op_kind::dnnl_mul_scales
+                || cur_op->get_kind() == op_kind::dnnl_add_zps) {
+            quant_data_ops.emplace_back(cur_op);
+        }
+    }
+
+    if (quant_data_ops.empty()) return impl::status::success;
+
+    for (auto &quant_data_op : quant_data_ops) {
+        bool to_remove = false;
+        if (quant_data_op->get_kind() == op_kind::dnnl_mul_scales) {
+            const auto scales
+                    = quant_data_op->get_attr<std::vector<float>>("scales");
+            to_remove = std::all_of(scales.begin(), scales.end(), [](float s) {
+                float expected = 1.0f;
+                float eps = 0.000001f;
+                return std::abs(s - expected) <= eps;
+            });
+        } else {
+            const auto zps
+                    = quant_data_op->get_attr<std::vector<int64_t>>("zps");
+            to_remove = std::all_of(
+                    zps.begin(), zps.end(), [](int64_t z) { return z == 0; });
+        }
+
+        if (to_remove) {
+            value_ptr quant_data_out_val = quant_data_op->get_output_value(0);
+            if (quant_data_out_val->get_consumers().empty()) {
+                value_ptr quant_data_in_val = quant_data_op->get_input_value(0);
+                op_t &predecessor_op = quant_data_in_val->get_producer();
+                predecessor_op.connect_output(0, quant_data_out_val);
+                to_be_removed_ops.push_back(quant_data_op);
+            } else {
+                fuse_op_to_successor(quant_data_op.get(), subgraph);
+            }
+        }
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
 
     return impl::status::success;
 }

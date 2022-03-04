@@ -1360,7 +1360,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::dnnl_reduction) {
                 layout_propagation_for_reduction(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
-            } else if (cur_op->get_kind() != op_kind::dnnl_constant) {
+            } else if (cur_op->get_kind() != op_kind::dnnl_constant_scales
+                    && cur_op->get_kind() != op_kind::dnnl_constant_zps) {
                 assertm(false,
                         "none layout propagation function for current op");
             }

@@ -1323,7 +1323,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_binary) {
                     prepare_args_for_binary(op, p_engine, prm_attr_mgr);
-                } else if (op->get_kind() == op_kind::dnnl_constant) {
+                } else if (op->get_kind() == op_kind::dnnl_constant_scales
+                        || op->get_kind() == op_kind::dnnl_constant_zps) {
                     prepare_args_for_niso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_mul_scales
                         || op->get_kind() == op_kind::dnnl_reorder) {

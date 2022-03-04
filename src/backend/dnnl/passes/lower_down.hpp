@@ -58,7 +58,7 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg);
 
-impl::status_t replace_output_scales_with_binary(
+impl::status_t replace_quant_data_with_binary_post_op(
         std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg);
@@ -168,6 +168,25 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg);
 ///             |    |          /   \  ...
 ///            op3  op4        op3  op4
 impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg);
+
+// This pass currently can be used for int8 Pooling and int8 Eltwise only (as
+// they are not supporting quantization-related attributes). Quant/Dequant OPs
+// will be dropped in the following scenarios:
+// - no post-ops are present
+impl::status_t remove_unnecessary_quant_dequant(
+        std::shared_ptr<subgraph_t> &sg);
+
+// This pass currently can be used for int8 Pooling and int8 Eltwise only (as
+// they are not supporting quantization-related attributes). Scales will get
+// combined only if there is a single binary post-op.
+impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg);
+
+// This pass will remove OPs like mul_scales and add_zps in the following
+// scenarios:
+// - scales = [1] or [1, ..., 1]
+// - zero points = [0] or [0, ..., 0]
+impl::status_t remove_quant_data_with_no_effect(
+        std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace impl

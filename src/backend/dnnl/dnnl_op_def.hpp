@@ -1590,9 +1590,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_mul_scales, 1,
                         false, attribute_kind::b, false)
                 .set_shape_inference_function(infer_identity_output_shape))
 
-// TODO(xxx) Make this op more general for all kinds of constant like scales,
-// zps ...
-DNNL_GRAPH_OP_SCHEMA(dnnl_constant, 1,
+DNNL_GRAPH_OP_SCHEMA(dnnl_constant_scales, 1,
         op_schema_t()
                 .set_num_inputs(0)
                 .set_num_outputs(1)
@@ -1601,12 +1599,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant, 1,
                         attribute_kind::fs)
                 .set_attr("shape", "describing output shape", true,
                         attribute_kind::is)
-                // New added attributes
                 .set_attr("is_constant",
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
-                // Analysis rules
                 .set_shape_inference_function(infer_dnnl_constant_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_add_zps, 1,
@@ -1646,6 +1642,21 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_sub_zps, 1,
                         "indicate whether the op has runtime zps input", false,
                         attribute_kind::b, false)
                 .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_constant_zps, 1,
+        op_schema_t()
+                .set_num_inputs(0)
+                .set_num_outputs(1)
+                .set_output(0, "output", "output tensor")
+                .set_attr("zps", "zero points to store in constant storage",
+                        true, attribute_kind::is)
+                .set_attr("shape", "describing output shape", true,
+                        attribute_kind::is)
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
+                .set_shape_inference_function(infer_dnnl_constant_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(permute, 1,
         op_schema_t()

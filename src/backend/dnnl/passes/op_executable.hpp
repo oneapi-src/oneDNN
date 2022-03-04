@@ -21,10 +21,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <type_traits>
 #include <unordered_map>
 
 #include "dnnl.hpp"
-#include <unordered_map>
 
 #include <utils/utils.hpp>
 
@@ -1169,15 +1169,19 @@ struct memory_reparser_t : public op_executable_t {
     }
 };
 
+template <typename attr_dt, typename target_dt>
 struct const_memory_filler_t : public op_executable_t {
-    const_memory_filler_t(std::shared_ptr<impl::op_t> &op) {
-        scales_ = op->get_attr<std::vector<float>>("scales");
+    const_memory_filler_t(
+            std::shared_ptr<impl::op_t> &op, const std::string &attr_name) {
+        attr_data_
+                = get_attr_data(op->get_attr<std::vector<attr_dt>>(attr_name),
+                        std::is_same<attr_dt, target_dt>());
     }
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        void *data_handle
-                = static_cast<void *>(const_cast<float *>(scales_.data()));
+        void *data_handle = static_cast<void *>(
+                const_cast<target_dt *>(attr_data_.data()));
         const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
 
         auto is_cpu = dst_mem.get_engine().get_kind() == engine::kind::cpu;
@@ -1193,10 +1197,22 @@ struct const_memory_filler_t : public op_executable_t {
     }
 
 private:
+    std::vector<target_dt> get_attr_data(
+            const std::vector<attr_dt> &orig_data, std::true_type) {
+        return orig_data;
+    }
+    std::vector<target_dt> get_attr_data(
+            const std::vector<attr_dt> &orig_data, std::false_type) {
+        return std::vector<target_dt>(orig_data.begin(), orig_data.end());
+    }
+
     const engine::kind dflt_eng_kind = engine::kind::cpu;
     const size_t dflt_eng_idx = 0;
-    std::vector<float> scales_;
+    std::vector<target_dt> attr_data_;
 };
+
+using fvec_to_fvec_filler = const_memory_filler_t<float, float>;
+using i64vec_to_i32vec_filler = const_memory_filler_t<int64_t, int32_t>;
 
 struct conv_fwd_executable_t : public op_executable_t {
     conv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
