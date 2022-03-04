@@ -667,7 +667,7 @@ void reorder_op_t::pre_slice_ranges(
 
         infer_reorder_slice(known_ranges_list, output_format_, input_format_,
                 input_slice_list);
-        if (input_slice_list.empty()) {
+        if (input_slice_list.size() != 1) {
             stat_map.append_ops_by_status(this, infer_status_code::FAIL);
             return;
         }
