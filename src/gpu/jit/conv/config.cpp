@@ -562,6 +562,9 @@ void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
         if (dst_c_blk / 2 > oc) dst_c_blk = 1;
     }
 
+    if (is_fwd && vec_size < dst_c_blk) dst_c_blk = 1;
+    if (is_bwd_d && vec_size < src_c_blk) src_c_blk = 1;
+
     if (src_c_blk == 1) src_n_blk = 1;
     if (dst_c_blk == 1) dst_n_blk = 1;
 
