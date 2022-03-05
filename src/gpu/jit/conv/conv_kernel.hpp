@@ -4671,24 +4671,36 @@ private:
         auto &data_op = eltwise_t::arg_data(args);
         auto data_rd = data_op.reg_buf_data();
 
-        int grf_size = ngen::GRF::bytes(hw);
-        ir_assert(elems * sizeof(float) % grf_size == 0)
-                << "Partial GRF updates are not supported.";
-        ir_assert(data_rd.byte_offset() == 0)
-                << "Data must be aligned to GRF boundary.";
-
         jit_eltwise_injector_f32<hw> inj(
                 host_, func.alg_kind, func.alpha, func.beta, func.scale);
         auto scratch = scope.alloc_range(inj.preferred_scratch_regs());
         inj.set_scratch(scratch);
         inj.prepare();
 
-        int regs = elems * sizeof(float) / grf_size;
-        int step = 2;
-        for (int i = 0; i < regs; i += step) {
-            int cur_regs = std::min(step, regs - i);
-            auto cur_rd = data_rd.format(i * grf_size);
-            inj.compute(ngen::GRFRange(cur_rd.base(), cur_regs));
+        int grf_size = ngen::GRF::bytes(hw);
+        int f_size = sizeof(float);
+        int step = 2 * grf_size / f_size;
+        for (int i = 0; i < elems; i += step) {
+            ngen_register_scope_t i_scope(scope.register_allocator());
+            int cur_elems = std::min(step, elems - i);
+            auto rd = data_rd.format(i * f_size, ngen::DataType::f);
+            // Use temporary storage when needed to ensure:
+            // - Eltwise is applied to full register
+            // - Data is aligned to GRF boundary
+            if ((cur_elems * f_size) % grf_size != 0 || rd.byte_offset() != 0) {
+                int full_elems
+                        = utils::rnd_up(cur_elems * f_size, grf_size) / f_size;
+                auto tmp = i_scope.alloc_reg_data(type_t::f32(full_elems));
+                emit_reorder_1d_tile(
+                        hw, host_, i_scope, cur_elems, rd, 1, tmp, 1);
+                inj.compute(ngen::GRFRange(
+                        tmp.base(), full_elems * f_size / grf_size));
+                emit_reorder_1d_tile(
+                        hw, host_, i_scope, cur_elems, tmp, 1, rd, 1);
+            } else {
+                inj.compute(ngen::GRFRange(
+                        rd.base(), cur_elems * f_size / grf_size));
+            }
         }
     }
 
