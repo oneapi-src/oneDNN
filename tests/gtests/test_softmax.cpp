@@ -80,9 +80,7 @@ protected:
         // softmax specific types and values
         using op_desc_t = softmax_forward::desc;
         using pd_t = softmax_forward::primitive_desc;
-        const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
-        allows_attr_t aa {false};
-        if (!is_gpu) aa.oscale = true;
+        allows_attr_t aa {false}; // doesn't support anything
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);

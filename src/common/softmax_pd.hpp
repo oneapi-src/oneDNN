@@ -195,7 +195,9 @@ protected:
 
     bool attr_oscale_ok() const {
         const auto &oscale = attr()->output_scales_;
-        return oscale.mask_ == 0;
+        const bool ok = IMPLICATION(desc()->primitive_kind != base_pkind,
+                attr()->output_scales_.has_default_values());
+        return ok && oscale.mask_ == 0;
     }
 };
 
