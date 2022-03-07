@@ -11065,16 +11065,10 @@ TEST(Pass, FuseReduceAdd) {
           |
          add
     */
-    const std::vector<std::pair<op_kind_t, std::string>> configs {
-            {ReduceL1, "reducel1"}, {ReduceL2, "reducel2"},
-            {ReduceMax, "reducemax"}, {ReduceMean, "reducemean"},
-            {ReduceMin, "reducemin"}, {ReduceProd, "reduceprod"},
-            {ReduceSum, "reducesum"}};
+    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
+            ReduceMean, ReduceMin, ReduceProd, ReduceSum};
 
-    for (const auto &config : configs) {
-        const auto base_op = config.first;
-        const std::string base_op_str = config.second;
-
+    for (const auto &base_op : configs) {
         op_t reduce {0, base_op, "reduce"};
         reduce.set_attr<bool>("keep_dims", false);
         reduce.set_attr<std::vector<int64_t>>("axes", {0});
@@ -11098,15 +11092,13 @@ TEST(Pass, FuseReduceAdd) {
         ASSERT_EQ(agraph.add_op(&add), status::success);
         agraph.build_graph();
 
-        pass::pass_base_ptr apass = get_pass(base_op_str + "_add_fusion");
+        pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1);
 
         const auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-        ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::reduction_fusion);
-        ASSERT_TRUE(fused_op->has_attr("alg_kind"));
-        ASSERT_EQ(fused_op->get_attr<int64_t>("alg_kind"),
-                static_cast<int64_t>(base_op));
+        ASSERT_EQ(fused_op->get_kind(),
+                dnnl_impl::op_kind::reduction_post_ops_fusion);
     }
 }
 
@@ -11115,16 +11107,10 @@ TEST(Pass, FuseReduceRelu) {
           |
         relu
     */
-    const std::vector<std::pair<op_kind_t, std::string>> configs {
-            {ReduceL1, "reducel1"}, {ReduceL2, "reducel2"},
-            {ReduceMax, "reducemax"}, {ReduceMean, "reducemean"},
-            {ReduceMin, "reducemin"}, {ReduceProd, "reduceprod"},
-            {ReduceSum, "reducesum"}};
+    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
+            ReduceMean, ReduceMin, ReduceProd, ReduceSum};
 
-    for (const auto &config : configs) {
-        const auto base_op = config.first;
-        const std::string base_op_str = config.second;
-
+    for (const auto &base_op : configs) {
         op_t reduce {0, base_op, "reduce"};
         reduce.set_attr<bool>("keep_dims", false);
         reduce.set_attr<std::vector<int64_t>>("axes", {0});
@@ -11146,15 +11132,13 @@ TEST(Pass, FuseReduceRelu) {
         ASSERT_EQ(agraph.add_op(&relu), status::success);
         agraph.build_graph();
 
-        pass::pass_base_ptr apass = get_pass(base_op_str + "_relu_fusion");
+        pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1);
 
         const auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-        ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::reduction_fusion);
-        ASSERT_TRUE(fused_op->has_attr("alg_kind"));
-        ASSERT_EQ(fused_op->get_attr<int64_t>("alg_kind"),
-                static_cast<int64_t>(base_op));
+        ASSERT_EQ(fused_op->get_kind(),
+                dnnl_impl::op_kind::reduction_post_ops_fusion);
     }
 }
 

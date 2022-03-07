@@ -130,7 +130,7 @@ namespace op_kind {
     X(interpolate_post_ops_fusion, Interpolate_post_ops_fusion) \
     X(dnnl_sum, Dnnl_sum) \
     X(dnnl_reduction, Dnnl_reduction) \
-    X(reduction_fusion, Reduction_fusion) \
+    X(reduction_post_ops_fusion, Reduction_post_ops_fusion) \
     X(conv_simple_resblock, Conv_simple_resblock) \
     X(int8_MHA, INT8_MHA) \
     X(f32_MHA, F32_MHA) \
