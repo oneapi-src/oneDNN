@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #ifndef UTILS_COMPATIBLE_HPP
 #define UTILS_COMPATIBLE_HPP
 
-#if DNNL_GRAPH_SUPPORT_CXX17
+#ifdef DNNL_GRAPH_SUPPORT_CXX17
 #include <optional>
 #endif
 #include <memory>
@@ -192,7 +192,7 @@ std::unique_ptr<T> make_unique(Args &&... args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
-#if DNNL_GRAPH_SUPPORT_CXX17
+#ifdef DNNL_GRAPH_SUPPORT_CXX17
 template <typename T>
 using optional = std::optional<T>;
 #else
