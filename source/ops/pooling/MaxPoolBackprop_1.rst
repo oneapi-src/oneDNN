@@ -104,27 +104,28 @@ MaxPoolBackprop
 
 * **1**: ``input`` - input tensor of max pool. **Required.**
 
-  * **Type**: T
+  * **Type**: T1
 
-* **2**: ``output_forward_indices`` - indices of max values in output tensor of
-  max pool. **Optional.**
-
-  * **Type**: s32
-
-* **3**: ``output_delta`` - the gradient tensor with respect to output of max
+* **2**: ``output_delta`` - the gradient tensor with respect to output of max
   pool. **Required.**
 
-  * **Type**: T
+  * **Type**: T1
+
+* **3**: ``output_forward_indices`` - indices of max values in output tensor of
+  max pool. **Optional.**
+
+  * **Type**: T2
 
 **Outputs**
 
 * **1**: ``input_delta`` - the the gradient tensor with respect to the input of
   max pool.
 
-  * **Type**: T
+  * **Type**: T1
 
 **Types**:
 
-* **T**: f32, f16, bf16.
+* **T1**: f32, f16, bf16.
+* **T2**: u8, s32.
 * **Note**: Inputs and outputs have the same data type denoted by *T*. For
   example, if input is f32 tensor, then all other tensors have f32 data type.
