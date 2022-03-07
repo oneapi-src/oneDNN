@@ -48,7 +48,7 @@ bool check_attributes(op_t *op) {
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(interpolate_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_relu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_post_ops_fusion)
         .set_priority(8.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -56,51 +56,27 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_relu_fusion)
                             = pgraph->append_op(impl::op_kind::Interpolate);
                     interpolate->append_decision_function(check_attributes);
 
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, interpolate, 0)});
+                    pgraph->append_alternation(
+                            {impl::op_kind::Abs, impl::op_kind::Clamp,
+                                    impl::op_kind::Elu, impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh, impl::op_kind::Log,
+                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::SoftPlus, impl::op_kind::Pow,
+                                    impl::op_kind::ReLU, impl::op_kind::Round,
+                                    impl::op_kind::Sqrt, impl::op_kind::Square,
+                                    impl::op_kind::Tanh, impl::op_kind::Add,
+                                    impl::op_kind::Multiply,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Subtract},
+                            in_edges_t {in_edge(0, interpolate, 0)},
+                            "ppost_op");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::interpolate_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_multiply_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *interpolate
-                            = pgraph->append_op(impl::op_kind::Interpolate);
-                    interpolate->append_decision_function(check_attributes);
-
-                    pgraph->append_op(impl::op_kind::Multiply,
-                            in_edges_t {in_edge(0, interpolate, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::interpolate_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_sum_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *interpolate
-                            = pgraph->append_op(impl::op_kind::Interpolate);
-                    interpolate->append_decision_function(check_attributes);
-
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, interpolate, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::interpolate_fusion);
+                            op_kind::interpolate_post_ops_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });

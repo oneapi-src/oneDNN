@@ -1194,10 +1194,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
 // At the moment available are:
 // interpolate + binary add,
 // interpolate + sum,
-// interpolate + relu.
+// interpolate + eltwise.
 // Thanks to the unification of the op schema for these patterns,
 // we can reduce the size of the binary.
-DNNL_GRAPH_OP_SCHEMA(interpolate_fusion, 1,
+DNNL_GRAPH_OP_SCHEMA(interpolate_post_ops_fusion, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))

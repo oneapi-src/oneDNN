@@ -13309,7 +13309,7 @@ TEST(Execute, InterpolateAddForwardNearest) {
     g.add_op(&add_node);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("interpolate_sum_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];

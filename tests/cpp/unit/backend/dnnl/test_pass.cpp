@@ -10949,11 +10949,11 @@ TEST(Pass, FuseInterpolateRelu) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 2);
 
-    pass::pass_base_ptr apass = get_pass("interpolate_relu_fusion");
+    pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            impl::dnnl_impl::op_kind::interpolate_fusion);
+            impl::dnnl_impl::op_kind::interpolate_post_ops_fusion);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -10988,7 +10988,7 @@ TEST(Pass, FuseInterpolateSum) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 2);
 
-    pass::pass_base_ptr apass = get_pass("interpolate_sum_fusion");
+    pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -11026,7 +11026,7 @@ TEST(Pass, FuseInterpolateMul) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 2);
 
-    pass::pass_base_ptr apass = get_pass("interpolate_multiply_fusion");
+    pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
