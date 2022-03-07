@@ -129,7 +129,7 @@ int check_ldoi_s8_reorder(const prb_t &prb, data_kind_t kind,
 
     // we compare ldio_f32 -> ldio_s8 to ldio_f32 -> ldoi_f32 -> ldio_s8
     // fp is in ldio
-    dnn_mem_t mem_ldoi_f32(mem_fp.md_, dnnl_f32, "ldoi", get_test_engine());
+    dnn_mem_t mem_ldoi_f32(mem_fp.md_, dnnl_f32, "ldoi", get_cpu_engine());
     dnn_mem_t mem_s8_src(mem_dt.md_, dnnl_s8, get_test_engine());
 
     mem_ldoi_f32.reorder(mem_fp);
@@ -184,7 +184,7 @@ int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
     // alignment as packed buffer is aligned internally and the offset
     // is kept in the metadata.
     // Works fine with dnn_mem_t as it is align to 2MB large page boundary
-    dnn_mem_t mem_s8_src(mem_fp.md_, dnnl_s8, get_test_engine());
+    dnn_mem_t mem_s8_src(mem_fp.md_, dnnl_s8, get_cpu_engine());
     dnn_mem_t mem_s8_dst(mem_dt.md_, dnnl_s8, get_test_engine());
 
     /* 1. compute f32_plain --quant--> s8_plain_quantized */
@@ -482,7 +482,7 @@ int fill_weights(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
             = (kind == WEIGHTS_PROJECTION) ? 1.f : 1.f / prb.n_gates();
 
     const auto tag = tag::abx;
-    dnn_mem_t mem_pure_fp(mem_dt.md_, dnnl_f32, tag, get_test_engine());
+    dnn_mem_t mem_pure_fp(mem_dt.md_, dnnl_f32, tag, get_cpu_engine());
 
     for (int64_t i = 0; i < mem_fp.nelems(); i++) {
         mem_fp.set_elem(i, 0);
@@ -916,6 +916,7 @@ int doit(const prb_t &prb, res_t *res) {
     const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
     dnn_mem_t src_layer_dt(src_layer_md, test_engine);
     dnn_mem_t src_layer_attention_dt(src_layer_attention_md, test_engine);
@@ -933,23 +934,23 @@ int doit(const prb_t &prb, res_t *res) {
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     const auto fp = dnnl_f32;
-    dnn_mem_t src_layer_fp(src_layer_md, fp, tag::abx /*tnc*/, test_engine);
+    dnn_mem_t src_layer_fp(src_layer_md, fp, tag::abx /*tnc*/, ref_engine);
     dnn_mem_t src_layer_attention_fp(
-            src_layer_attention_md, fp, tag::abx /*tnc*/, test_engine);
-    dnn_mem_t src_iter_fp(src_iter_md, fp, tag::abx /*ldnc*/, test_engine);
-    dnn_mem_t src_iter_c_fp(src_iter_c_md, fp, tag::abx /*ldnc*/, test_engine);
+            src_layer_attention_md, fp, tag::abx /*tnc*/, ref_engine);
+    dnn_mem_t src_iter_fp(src_iter_md, fp, tag::abx /*ldnc*/, ref_engine);
+    dnn_mem_t src_iter_c_fp(src_iter_c_md, fp, tag::abx /*ldnc*/, ref_engine);
     dnn_mem_t weights_layer_fp(
-            weights_layer_md, fp, tag::abx /*ldigo*/, test_engine);
+            weights_layer_md, fp, tag::abx /*ldigo*/, ref_engine);
     dnn_mem_t weights_iter_fp(
-            weights_iter_md, fp, tag::abx /*ldigo*/, test_engine);
+            weights_iter_md, fp, tag::abx /*ldigo*/, ref_engine);
     dnn_mem_t weights_peephole_fp(
-            weights_peephole_md, fp, tag::abx /*ldgo*/, test_engine);
+            weights_peephole_md, fp, tag::abx /*ldgo*/, ref_engine);
     dnn_mem_t weights_projection_fp(
-            weights_projection_md, fp, tag::abx /*ldio*/, test_engine);
-    dnn_mem_t bias_fp(bias_md, fp, tag::abx /*ldgo*/, test_engine);
-    dnn_mem_t dst_layer_fp(dst_layer_md, fp, tag::abx /*tnc*/, test_engine);
-    dnn_mem_t dst_iter_fp(dst_iter_md, fp, tag::abx /*ldnc*/, test_engine);
-    dnn_mem_t dst_iter_c_fp(dst_iter_c_md, fp, tag::abx /*ldnc*/, test_engine);
+            weights_projection_md, fp, tag::abx /*ldio*/, ref_engine);
+    dnn_mem_t bias_fp(bias_md, fp, tag::abx /*ldgo*/, ref_engine);
+    dnn_mem_t dst_layer_fp(dst_layer_md, fp, tag::abx /*tnc*/, ref_engine);
+    dnn_mem_t dst_iter_fp(dst_iter_md, fp, tag::abx /*ldnc*/, ref_engine);
+    dnn_mem_t dst_iter_c_fp(dst_iter_c_md, fp, tag::abx /*ldnc*/, ref_engine);
 
     dnn_mem_t bwd_weights_layer_dt;
     dnn_mem_t bwd_weights_iter_dt;
@@ -1090,29 +1091,28 @@ int doit(const prb_t &prb, res_t *res) {
         scratchpad_dt = dnn_mem_t(bwd_scratchpad_md, test_engine);
 
         dnn_mem_t diff_src_layer_fp(
-                diff_src_layer_md, fp, tag::abx /*tnc*/, test_engine);
+                diff_src_layer_md, fp, tag::abx /*tnc*/, ref_engine);
         dnn_mem_t diff_src_layer_attention_fp(
-                diff_src_layer_attention_md, fp, tag::abx /*tnc*/, test_engine);
+                diff_src_layer_attention_md, fp, tag::abx /*tnc*/, ref_engine);
         dnn_mem_t diff_src_iter_fp(
-                diff_src_iter_md, fp, tag::abx /*ldnc*/, test_engine);
+                diff_src_iter_md, fp, tag::abx /*ldnc*/, ref_engine);
         dnn_mem_t diff_src_iter_c_fp(
-                diff_src_iter_c_md, fp, tag::abx /*ldnc*/, test_engine);
+                diff_src_iter_c_md, fp, tag::abx /*ldnc*/, ref_engine);
         dnn_mem_t diff_weights_layer_fp(
-                diff_weights_layer_md, fp, tag::abx /*ldigo*/, test_engine);
+                diff_weights_layer_md, fp, tag::abx /*ldigo*/, ref_engine);
         dnn_mem_t diff_weights_iter_fp(
-                diff_weights_iter_md, fp, tag::abx /*ldigo*/, test_engine);
+                diff_weights_iter_md, fp, tag::abx /*ldigo*/, ref_engine);
         dnn_mem_t diff_weights_peephole_fp(
-                diff_weights_peephole_md, fp, tag::abx /*ldgo*/, test_engine);
+                diff_weights_peephole_md, fp, tag::abx /*ldgo*/, ref_engine);
         dnn_mem_t diff_weights_projection_fp(
-                diff_weights_projection_md, fp, tag::abx /*ldio*/, test_engine);
-        dnn_mem_t diff_bias_fp(
-                diff_bias_md, fp, tag::abx /*ldgo*/, test_engine);
+                diff_weights_projection_md, fp, tag::abx /*ldio*/, ref_engine);
+        dnn_mem_t diff_bias_fp(diff_bias_md, fp, tag::abx /*ldgo*/, ref_engine);
         dnn_mem_t diff_dst_layer_fp(
-                diff_dst_layer_md, fp, tag::abx /*tnc*/, test_engine);
+                diff_dst_layer_md, fp, tag::abx /*tnc*/, ref_engine);
         dnn_mem_t diff_dst_iter_fp(
-                diff_dst_iter_md, fp, tag::abx /*ldnc*/, test_engine);
+                diff_dst_iter_md, fp, tag::abx /*ldnc*/, ref_engine);
         dnn_mem_t diff_dst_iter_c_fp(
-                diff_dst_iter_c_md, fp, tag::abx /*ldnc*/, test_engine);
+                diff_dst_iter_c_md, fp, tag::abx /*ldnc*/, ref_engine);
 
         SAFE(bwd_weights_iter_dt.reorder(weights_iter_dt), WARN);
         SAFE(bwd_weights_layer_dt.reorder(weights_layer_dt), WARN);

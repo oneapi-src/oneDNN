@@ -58,8 +58,7 @@ int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp,
-        const dnnl_engine_t &ref_engine, bool only_positive_values,
-        bool only_integer_values) {
+        bool only_positive_values, bool only_integer_values) {
     // TODO: currently run-time dimensions are not supported in binary post-op.
     // To add a support two ways are possible: 1) add query support to the
     // library and extract expected md from pd; 2) pass a vector of pre-defined
@@ -86,7 +85,7 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 
         // Following call can not be executed if po_md has runtime dimension due
         // to undefined size.
-        mem_fp.emplace_back(po_md, dnnl_f32, tag::abx, ref_engine);
+        mem_fp.emplace_back(po_md, dnnl_f32, tag::abx, get_cpu_engine());
         mem_dt.emplace_back(po_md, get_test_engine());
         args.push_back(po_idx);
         fill_mem(po_idx, mem_dt.back(), mem_fp.back(), only_positive_values,
@@ -224,16 +223,17 @@ int doit(const prb_t *prb, res_t *res) {
     const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src0_fp(src0_md, fp, tag, test_engine);
+    dnn_mem_t src0_fp(src0_md, fp, tag, ref_engine);
     dnn_mem_t src0_dt(src0_md, test_engine);
     SAFE(fill_mem(0, src0_dt, src0_fp), WARN);
 
-    dnn_mem_t src1_fp(src1_md, fp, tag, test_engine);
+    dnn_mem_t src1_fp(src1_md, fp, tag, ref_engine);
     dnn_mem_t src1_dt(src1_md, test_engine);
     SAFE(fill_mem(1, src1_dt, src1_fp), WARN);
 
-    dnn_mem_t dst_fp(dst_md, fp, tag, test_engine);
+    dnn_mem_t dst_fp(dst_md, fp, tag, ref_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     if (prb->attr.post_ops.find(alg_t::SUM) >= 0)
         SAFE(fill_mem(2, dst_dt, dst_fp), WARN);
