@@ -43,8 +43,7 @@ namespace op_kind {
     X(conv_bias_post_ops_fusion, conv_bias_post_ops_fusion) \
     X(convtranspose_fusion, ConvTranspose_fusion) \
     X(matmul_bias_swish, MatMul_bias_swish) \
-    X(avgpool_add, AvgPool_add) \
-    X(maxpool_add, MaxPool_add) \
+    X(pool_binary, Pool_binary) \
     X(int8_conv_post_ops_fusion, INT8_conv_post_ops_chain) \
     X(int8_matmul_post_ops_fusion, INT8_matmul_post_ops_fusion) \
     X(int8_matmul, INT8_MatMul) \

@@ -29,8 +29,8 @@ namespace utils {
 namespace pm {
 
 bool has_commutative_inputs(op_t *op) {
-    static const std::unordered_set<op_kind_t> commutative_kinds {
-            op_kind::Add, op_kind::Multiply};
+    static const std::unordered_set<op_kind_t> commutative_kinds {op_kind::Add,
+            op_kind::Multiply, op_kind::Maximum, op_kind::Minimum};
     return commutative_kinds.count(op->get_kind());
 }
 
