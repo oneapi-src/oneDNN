@@ -63,6 +63,18 @@ static void inline validate_cfg(
     cfg.K_block = utils::rnd_up(cfg.K_block, dtype_block);
   }
 }
+
+static inline int get_X_cfg(const int size, int thresh = 64) {
+  int chosen_cfg = 16;
+  for (int cfg = 16; cfg <= thresh; cfg += 16) {
+    if (size % 48 != 0 && cfg == 48) continue;
+    int num_blk = utils::divide_and_ceil(size, cfg);
+    int padded_size = num_blk * cfg;
+    if ((float)size / padded_size >= 0.8) { chosen_cfg = cfg; }
+  }
+  return chosen_cfg;
+}
+
 // default cfg for bmm bases on below priori knowledge(based on tests on MHA)
 // 1. if M % x == 0 (32 <= x <64), x as m_blk usually performs better than
 // 32/64, if there are multiple x to choose, even number is better than odd
@@ -84,10 +96,13 @@ std::shared_ptr<void> gen_matmul_core_t::get_default_config(
   const int max_block = 64;
   const int min_block = 32;
   matmul_core_config_t &cfg = *ret;
-  auto A_plain_dims = get_mma_plain_dims();
+  const auto A_plain_dims = get_mma_plain_dims();
+  const auto B_plain_dims = get_mmb_plain_dims();
   std::vector<int> possible_blks;
   cfg.K_block = 64;
-  if (in_tensors_[0].get_format().is_blocking()) {
+  bool is_cfg_set = false;
+  bool is_2d_gemm = A_plain_dims.size() == 2 ? true : false;
+  if (in_tensors_[0].get_format().is_blocking() && !is_2d_gemm) {
     cfg.M_block = in_tensors_[0].get_format().blocks_[0];
     cfg.K_block = in_tensors_[0].get_format().blocks_[1];
     if (!get_a_batch_dims().empty() || !get_b_batch_dims().empty()) {
@@ -97,13 +112,55 @@ std::shared_ptr<void> gen_matmul_core_t::get_default_config(
       return ret;
     }
   } else {
+    is_cfg_set = true;
     assert(A_plain_dims.size() == 2);
     int M = static_cast<int>(A_plain_dims[0]);
     int K = static_cast<int>(A_plain_dims[1]);
+    int N = static_cast<int>(B_plain_dims[1]);
     if (get_a_batch_dims().empty() && get_b_batch_dims().empty()) {
       // matmul2d default config
-      cfg.M_block = std::min(M, 64);
-      cfg.K_block = std::min(K, 64);
+      for (int m_blk = 64; m_blk >= 16; m_blk--) {
+        if (M % m_blk == 0) { possible_blks.emplace_back(m_blk); }
+      }
+      if (possible_blks.empty()) {
+        cfg.M_block = get_X_cfg(M);
+      } else {
+        cfg.M_block = possible_blks.front();
+      }
+      // N K size was calculate in the same way, thus have same cfg in the first
+      // place
+      cfg.K_block = get_X_cfg(K);
+      int thresh = 64;
+      if (K > 1500 || in_tensors_[0].dtype_ == datatypes::f32) thresh = 32;
+      cfg.N_block = get_X_cfg(N, thresh);
+      if (M < 16) cfg.M_block = M;
+      const int nthreads = runtime_config_t::get().threads_per_instance_;
+      // refine Blk info by thread info
+      if (nthreads == 1) {
+        cfg.M_block = std::min(64, M);
+        cfg.N_block = std::min(64, N);
+        cfg.K_block = std::min(64, K);
+      } else {
+        while (true) {
+          int M_num_block = utils::divide_and_ceil(M, cfg.M_block);
+          int N_num_block = utils::divide_and_ceil(N, cfg.N_block);
+          int K_num_block = utils::divide_and_ceil(K, cfg.K_block);
+          int total_jobs = M_num_block * N_num_block;
+          int min_job_per_thread = total_jobs / nthreads;
+          int max_job_per_thread = utils::divide_and_ceil(total_jobs, nthreads);
+          if ((float)min_job_per_thread / max_job_per_thread <= 0.7
+            && cfg.M_block * cfg.N_block * K > 32 * 32 * 32 * 8) {
+            if (!possible_blks.empty()) {
+              possible_blks.erase(possible_blks.begin());
+              cfg.M_block = possible_blks.front();
+              break;
+            } else if (cfg.M_block % 2 == 0) {
+              cfg.M_block /= 2;
+            }
+          }
+          break;
+        }
+      }
     } else {
       // bmm default config
       cfg.M_block = 0;
@@ -140,8 +197,7 @@ std::shared_ptr<void> gen_matmul_core_t::get_default_config(
       }
     }
   }
-  auto B_plain_dims = get_mmb_plain_dims();
-  if (in_tensors_[1].get_format().is_blocking()) {
+  if (in_tensors_[1].get_format().is_blocking() && !is_cfg_set) {
     assert(in_tensors_[1].get_format().blocks_[0] == cfg.K_block);
     cfg.N_block = in_tensors_[1].get_format().blocks_[1];
   } else {
@@ -150,9 +206,7 @@ std::shared_ptr<void> gen_matmul_core_t::get_default_config(
     int K = static_cast<int>(B_plain_dims[0]);
     if (get_a_batch_dims().empty() && get_b_batch_dims().empty()) {
       // matmul2d default config
-      assert(A_plain_dims[1] == B_plain_dims[0]);
-      cfg.N_block = std::min(N, 64);
-      cfg.K_block = std::min(K, 64);
+      // do nothing
     } else {
       // bmm default config
       assert(cfg.M_block > 0);
