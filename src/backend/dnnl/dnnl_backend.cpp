@@ -181,7 +181,8 @@ bool dnnl_backend::register_kernels() {
 
     //interpolate kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::Interpolate, float_resampling_fwd)
-    DNNL_REGISTER_KERNEL(op_kind::interpolate_fusion, float_resampling_fwd)
+    DNNL_REGISTER_KERNEL(
+            op_kind::interpolate_post_ops_fusion, float_resampling_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::InterpolateBackprop, resampling_bwd_t)
 
     // reorder kernel
