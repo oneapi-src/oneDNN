@@ -229,11 +229,12 @@ int doit(const prb_t *prb, res_t *res) {
     const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(src_md, fp, tag, test_engine);
+    dnn_mem_t src_fp(src_md, fp, tag, ref_engine);
     dnn_mem_t src_dt(src_md, test_engine);
 
-    dnn_mem_t dst_fp(dst_md, fp, tag, test_engine);
+    dnn_mem_t dst_fp(dst_md, fp, tag, ref_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
         SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
@@ -251,7 +252,7 @@ int doit(const prb_t *prb, res_t *res) {
     // between the expected value and the gotten value with this algorithm.
     const bool only_positive_values = prb->alg == linear;
     SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, test_engine, only_positive_values),
+                 binary_po_fp, only_positive_values),
             WARN);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);

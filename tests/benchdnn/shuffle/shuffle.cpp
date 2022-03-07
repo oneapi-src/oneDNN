@@ -151,11 +151,12 @@ int doit(const prb_t *prb, res_t *res) {
             = prb->dir & FLAG_FWD ? q(DNNL_ARG_SRC) : q(DNNL_ARG_DIFF_SRC);
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t src_dt(data_md, test_engine);
 
-    dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t dst_dt(data_md, test_engine);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);

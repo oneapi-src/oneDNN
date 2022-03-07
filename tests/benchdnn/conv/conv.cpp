@@ -147,8 +147,7 @@ int fill_src(
             = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
     if (check_reorder) {
-        extra_mem
-                = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_test_engine());
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_cpu_engine());
     }
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
@@ -221,8 +220,7 @@ int fill_wei(
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
-        extra_mem
-                = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_test_engine());
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_cpu_engine());
     }
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
@@ -254,7 +252,7 @@ int fill_wei(
     if ((wei_x8x8 || !is_def_zp) && is_cpu()) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
-        dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, get_test_engine());
+        dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, get_cpu_engine());
         dnn_mem_t mem_dt_s8(mem_dt.md_, dnnl_s8, get_test_engine());
         SAFE(mem_fp_s8.reorder(mem_fp), WARN);
         SAFE(mem_dt_s8.reorder(mem_fp_s8), WARN);
@@ -271,7 +269,7 @@ int fill_bia(
             = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
     if (check_reorder)
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::x, get_test_engine());
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::x, get_cpu_engine());
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
     const size_t nelems = mem_00.nelems();
@@ -308,8 +306,7 @@ int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
             = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
     dnn_mem_t extra_mem;
     if (check_reorder) {
-        extra_mem
-                = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_test_engine());
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_cpu_engine());
     }
 
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
@@ -772,7 +769,7 @@ int doit(const prb_t *prb, res_t *res) {
     };
 
     const auto &test_engine = get_test_engine();
-    const auto &ref_engine = prim_ref ? get_cpu_engine() : get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
     dnn_mem_t src_dt(src_md, test_engine);
     dnn_mem_t wei_dt(wei_md, test_engine);
@@ -784,13 +781,13 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_zero_points_m;
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
-    SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, ref_engine),
+    SAFE(binary::setup_binary_po(
+                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
             WARN);
     std::vector<dnn_mem_t> prelu_po_fp, prelu_po_dt;
     std::vector<int> prelu_po_args;
     SAFE(prelu::setup_prelu_po(
-                 const_pd, prelu_po_args, prelu_po_fp, prelu_po_dt, ref_engine),
+                 const_pd, prelu_po_args, prelu_po_fp, prelu_po_dt),
             WARN);
 
     dnn_mem_t src_fp(src_md, fp, src_tag, ref_engine);

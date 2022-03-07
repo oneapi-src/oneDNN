@@ -451,8 +451,9 @@ int doit(const prb_t *prb, res_t *res) {
     const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(data_md, fp, tag, test_engine);
+    dnn_mem_t src_fp(data_md, fp, tag, ref_engine);
     dnn_mem_t src_dt(data_md, test_engine);
 
     dnn_mem_t &dst_fp = src_fp; // in-place reference
@@ -464,20 +465,20 @@ int doit(const prb_t *prb, res_t *res) {
     // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
     const auto stat_ndims = prb->ndims - 1;
     const auto stat_tag = tag::abx;
-    dnn_mem_t mean_fp(stat_ndims, data_md.dims, fp, stat_tag, test_engine);
+    dnn_mem_t mean_fp(stat_ndims, data_md.dims, fp, stat_tag, ref_engine);
     dnn_mem_t mean_dt(mean_md, test_engine);
 
-    dnn_mem_t var_fp(stat_ndims, data_md.dims, fp, stat_tag, test_engine);
+    dnn_mem_t var_fp(stat_ndims, data_md.dims, fp, stat_tag, ref_engine);
     dnn_mem_t var_dt(var_md, test_engine);
 
-    dnn_mem_t ss_fp(ss_md, fp, tag::abx, test_engine);
+    dnn_mem_t ss_fp(ss_md, fp, tag::abx, ref_engine);
     dnn_mem_t ss_dt(ss_md, test_engine);
-    dnn_mem_t d_ss_fp(ss_md, fp, tag::abx, test_engine);
+    dnn_mem_t d_ss_fp(ss_md, fp, tag::abx, ref_engine);
     dnn_mem_t d_ss_dt(ss_md, test_engine);
 
-    dnn_mem_t sh_fp(ss_md, fp, use_sh ? tag::x : tag::abx, test_engine);
+    dnn_mem_t sh_fp(ss_md, fp, use_sh ? tag::x : tag::abx, ref_engine);
     dnn_mem_t sh_dt(ss_md, test_engine);
-    dnn_mem_t d_sh_fp(ss_md, fp, use_sh ? tag::x : tag::abx, test_engine);
+    dnn_mem_t d_sh_fp(ss_md, fp, use_sh ? tag::x : tag::abx, ref_engine);
     dnn_mem_t d_sh_dt(ss_md, test_engine);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
@@ -549,7 +550,7 @@ int doit(const prb_t *prb, res_t *res) {
     } else {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
 
-        dnn_mem_t d_dst_fp(d_data_md, fp, tag, test_engine);
+        dnn_mem_t d_dst_fp(d_data_md, fp, tag, ref_engine);
         d_dst_dt = dnn_mem_t(d_data_md, test_engine);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code

@@ -196,14 +196,15 @@ int doit(const prb_t *prb, res_t *res) {
     const auto abx_tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
     const auto &src_md = q(DNNL_ARG_SRC);
-    dnn_mem_t src_fp(src_md, fp_dt, abx_tag, test_engine);
+    dnn_mem_t src_fp(src_md, fp_dt, abx_tag, ref_engine);
     dnn_mem_t src_dt(src_md, test_engine);
     SAFE(fill_src(prb, src_dt, src_fp), WARN);
 
     const auto &dst_md = q(DNNL_ARG_DST);
-    dnn_mem_t dst_fp(dst_md, fp_dt, abx_tag, test_engine);
+    dnn_mem_t dst_fp(dst_md, fp_dt, abx_tag, ref_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
         SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
@@ -212,7 +213,7 @@ int doit(const prb_t *prb, res_t *res) {
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
     SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, test_engine, binary_po_only_positive_vals),
+                 binary_po_fp, binary_po_only_positive_vals),
             WARN);
 
     args_t args, ref_args;

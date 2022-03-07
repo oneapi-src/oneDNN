@@ -352,11 +352,12 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t src_dt(src_md, test_engine);
 
-    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t placeholder_dst_dt;
     if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(dst_md, test_engine); }
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
@@ -433,7 +434,7 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
         dnn_mem_t d_dst_fp
-                = dnn_mem_t(d_dst_md, dnnl_f32, tag::abx, test_engine);
+                = dnn_mem_t(d_dst_md, dnnl_f32, tag::abx, ref_engine);
         d_dst_dt = dnn_mem_t(d_dst_md, test_engine);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
