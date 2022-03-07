@@ -163,15 +163,16 @@ int doit(const prb_t *prb, res_t *res) {
     const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(data_md, fp, tag, test_engine);
+    dnn_mem_t src_fp(data_md, fp, tag, ref_engine);
     dnn_mem_t src_dt(data_md, test_engine);
 
-    dnn_mem_t dst_fp(data_md, fp, tag, test_engine);
+    dnn_mem_t dst_fp(data_md, fp, tag, ref_engine);
     dnn_mem_t dst_dt(data_md, test_engine);
 
     if (prb->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
-    dnn_mem_t ws_fp(ws_md, test_engine);
+    dnn_mem_t ws_fp(ws_md, ref_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
@@ -219,10 +220,10 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &d_data_md = q(const_bpd, DNNL_ARG_DIFF_DST);
         const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
-        dnn_mem_t d_dst_fp(d_data_md, fp, tag, test_engine);
+        dnn_mem_t d_dst_fp(d_data_md, fp, tag, ref_engine);
         d_dst_dt = dnn_mem_t(d_data_md, test_engine);
 
-        dnn_mem_t d_src_fp(d_data_md, fp, tag, test_engine);
+        dnn_mem_t d_src_fp(d_data_md, fp, tag, ref_engine);
         d_src_dt = dnn_mem_t(d_data_md, test_engine);
 
         scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);
