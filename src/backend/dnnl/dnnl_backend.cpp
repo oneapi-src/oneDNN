@@ -226,7 +226,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::f32_MHA, float_matmul);
 
     //eltwise+binary ops
-    DNNL_REGISTER_KERNEL(op_kind::relu_add, float_eltwise_fwd);
+    DNNL_REGISTER_KERNEL(op_kind::eltwise_binary, float_eltwise_fwd);
     DNNL_REGISTER_KERNEL(op_kind::chained_relu, float_eltwise_fwd);
 
     // quantized pooling

@@ -265,6 +265,7 @@ void merge_common_eltwise_attrs(
 inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
     static const std::map<op_kind_t, dnnl::algorithm> &eltwise_alg_map = {
             {impl::op_kind::Abs, dnnl::algorithm::eltwise_abs},
+            {impl::op_kind::Clamp, dnnl::algorithm::eltwise_clip_v2},
             {impl::op_kind::Elu, dnnl::algorithm::eltwise_elu},
             {impl::op_kind::Exp, dnnl::algorithm::eltwise_exp},
             {impl::op_kind::GELU, dnnl::algorithm::eltwise_gelu_erf},
@@ -323,10 +324,11 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_reduction_alg_map() {
 
 inline bool is_eltwise_kind(op_kind_t kind) {
     const std::set<op_kind_t> eltwise_kinds {impl::op_kind::Abs,
-            impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
-            impl::op_kind::HardTanh, impl::op_kind::HardSwish,
-            impl::op_kind::Log, impl::op_kind::ReLU, impl::op_kind::Round,
-            impl::op_kind::Sigmoid, impl::op_kind::Sqrt, impl::op_kind::Square,
+            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
+            impl::op_kind::GELU, impl::op_kind::HardTanh,
+            impl::op_kind::HardSwish, impl::op_kind::Log, impl::op_kind::ReLU,
+            impl::op_kind::Round, impl::op_kind::Sigmoid,
+            impl::op_kind::SoftPlus, impl::op_kind::Sqrt, impl::op_kind::Square,
             impl::op_kind::Tanh, impl::op_kind::Pow};
     return eltwise_kinds.find(kind) != eltwise_kinds.end();
 }

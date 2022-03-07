@@ -84,7 +84,7 @@ namespace op_kind {
     X(dnnl_convtranspose, Dnnl_convtranspose) \
     X(int8_maxpool, INT8_MaxPool) \
     X(int8_maxpool_add, INT8_MaxPool_add) \
-    X(relu_add, Relu_add) \
+    X(eltwise_binary, Eltwise_binary) \
     X(add_relu, Add_relu) \
     X(add_sigmoid, Add_sigmoid) \
     X(add_multiply, Add_multiply) \
