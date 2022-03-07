@@ -68,6 +68,5 @@
 --reset
 --sdt=f32 --ddt=f32 --stag=abcd:abcd --dtag=abcd --axis=3 32x8x8x1:32x8x8x1
 --reset
---sdt=f16 --ddt=f16 --stag=aBx16b:aBx16b --dtag=aBx16b 1x32x6x6:1x32x6x6
---reset
---stag=abx:abx 256x1x8x8x3x3:256x1x8x8x3x3
+--sdt=f16 --ddt=f16 --stag=aBcd16b:aBcd16b --dtag=aBcd16b 1x32x6x6:1x32x6x6
+--stag=abcdef:abcdef 256x1x8x8x3x3:256x1x8x8x3x3
