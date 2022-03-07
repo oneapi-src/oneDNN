@@ -14474,54 +14474,63 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
     }
 }
 
-struct dnnl_graph_test_relu_add_params {
-    std::vector<impl::dim_t> add_src_shape;
-    test::vector<float> add_src_data;
+struct dnnl_graph_test_eltwise_binary_params {
+    impl::op_kind_t eltwise_kind;
+    impl::op_kind_t binary_kind;
+    std::vector<impl::dim_t> binary_src_shape;
+    test::vector<float> binary_src_data;
     bool swap;
 };
 
-class ReluAdd
-    : public ::testing::TestWithParam<dnnl_graph_test_relu_add_params> {
+class EltwiseBinary
+    : public ::testing::TestWithParam<dnnl_graph_test_eltwise_binary_params> {
 public:
-    void TestReluAdd() {
+    void TestEltwiseBinary() {
         const auto params = ::testing::TestWithParam<
-                dnnl_graph_test_relu_add_params>::GetParam();
+                dnnl_graph_test_eltwise_binary_params>::GetParam();
         impl::engine_t &eng = get_engine();
 
         test::vector<float> src {-2.0, -1.5, 1.0, 0.5};
-        test::vector<float> add_src = params.add_src_data;
+        test::vector<float> binary_src = params.binary_src_data;
         test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
-        impl::op_t relu_op(0, impl::op_kind::ReLU, "relu");
-        impl::op_t add_op(1, impl::op_kind::Add, "add");
+        impl::op_t eltwise_op(0, params.eltwise_kind, "elt");
+        if (params.eltwise_kind == impl::op_kind::Elu) {
+            eltwise_op.set_attr<float>("alpha", 1.f);
+        } else if (params.eltwise_kind == impl::op_kind::HardTanh
+                || params.eltwise_kind == impl::op_kind::Clamp) {
+            eltwise_op.set_attr<float>("min", -1.f);
+            eltwise_op.set_attr<float>("max", 2.f);
+        }
+        impl::op_t binary_op(1, params.binary_kind, "binary");
 
-        impl::logical_tensor_t relu_src_lt = utils::logical_tensor_init(
+        impl::logical_tensor_t eltwise_src_lt = utils::logical_tensor_init(
                 0, {1, 1, 2, 2}, impl::data_type::f32);
-        impl::logical_tensor_t relu_dst_lt = utils::logical_tensor_init(
+        impl::logical_tensor_t eltwise_dst_lt = utils::logical_tensor_init(
                 1, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
-        impl::logical_tensor_t add_src_lt = utils::logical_tensor_init(
-                2, params.add_src_shape, impl::data_type::f32);
-        impl::logical_tensor_t add_dst_lt = utils::logical_tensor_init(
+        impl::logical_tensor_t binary_src_lt = utils::logical_tensor_init(
+                2, params.binary_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t binary_dst_lt = utils::logical_tensor_init(
                 3, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
 
-        relu_op.add_input(relu_src_lt);
-        relu_op.add_output(relu_dst_lt);
+        eltwise_op.add_input(eltwise_src_lt);
+        eltwise_op.add_output(eltwise_dst_lt);
         if (params.swap) {
-            add_op.add_input(add_src_lt);
-            add_op.add_input(relu_dst_lt);
+            binary_op.add_input(binary_src_lt);
+            binary_op.add_input(eltwise_dst_lt);
 
         } else {
-            add_op.add_input(relu_dst_lt);
-            add_op.add_input(add_src_lt);
+            binary_op.add_input(eltwise_dst_lt);
+            binary_op.add_input(binary_src_lt);
         }
-        add_op.add_output(add_dst_lt);
+        binary_op.add_output(binary_dst_lt);
 
         impl::graph_t g(eng.kind());
-        g.add_op(&relu_op);
-        g.add_op(&add_op);
+        g.add_op(&eltwise_op);
+        g.add_op(&binary_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("relu_add_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -14533,44 +14542,66 @@ public:
         impl::compiled_partition_t cp(p);
 
         std::vector<const impl::logical_tensor_t *> inputs {
-                &relu_src_lt, &add_src_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+                &eltwise_src_lt, &binary_src_lt};
+
+        std::vector<const impl::logical_tensor_t *> outputs {&binary_dst_lt};
 
         ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
         impl::logical_tensor_t lt;
-        cp.query_logical_tensor(add_dst_lt.id, &lt);
+        cp.query_logical_tensor(binary_dst_lt.id, &lt);
 
         ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
 
-        impl::tensor_t src_ts(relu_src_lt, &eng, src.data());
-        impl::tensor_t add_src_ts(add_src_lt, &eng, add_src.data());
-        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
+        impl::tensor_t src_ts(eltwise_src_lt, &eng, src.data());
+        impl::tensor_t binary_src_ts(binary_src_lt, &eng, binary_src.data());
+        impl::tensor_t binary_dst_ts(binary_dst_lt, &eng, dst.data());
 
         impl::stream_t &strm = get_stream();
 
-        ASSERT_EQ(cp.execute(&strm, {src_ts, add_src_ts}, {add_dst_ts}),
+        ASSERT_EQ(cp.execute(&strm, {src_ts, binary_src_ts}, {binary_dst_ts}),
                 impl::status::success);
         strm.wait();
     }
 };
 
-TEST_P(ReluAdd, TestReluAdd) {
-    TestReluAdd();
+TEST_P(EltwiseBinary, TestEltwiseBinary) {
+    TestEltwiseBinary();
 }
 
-INSTANTIATE_TEST_SUITE_P(Execute, ReluAdd,
+INSTANTIATE_TEST_SUITE_P(Execute, EltwiseBinary,
         ::testing::Values(
                 // with broadcast add and no swap inputs
-                dnnl_graph_test_relu_add_params {{1}, {2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
+                        impl::op_kind::Add, {1}, {2.0}, false},
                 // with broadcast add and swap inputs
-                dnnl_graph_test_relu_add_params {{1}, {2.0}, true},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
+                        impl::op_kind::Add, {1}, {2.0}, true},
                 // no broadcast add and no swap inputs
-                dnnl_graph_test_relu_add_params {
-                        {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
+                        impl::op_kind::Add, {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0},
+                        false},
                 // no broadcast add and swap inputs
-                dnnl_graph_test_relu_add_params {
-                        {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0}, true}));
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::ReLU,
+                        impl::op_kind::Add, {1, 1, 2, 2}, {2.0, 2.0, 2.0, 2.0},
+                        true},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Clamp,
+                        impl::op_kind::Multiply, {1}, {2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Round,
+                        impl::op_kind::Maximum, {1, 1, 2, 2},
+                        {2.0, 2.0, 2.0, 2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Sigmoid,
+                        impl::op_kind::Divide, {1}, {2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::SoftPlus,
+                        impl::op_kind::Minimum, {1, 1, 2, 2},
+                        {2.0, 2.0, 2.0, 2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Elu,
+                        impl::op_kind::Subtract, {1, 1, 2, 2},
+                        {2.0, 2.0, 2.0, 2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Sqrt,
+                        impl::op_kind::Minimum, {1}, {2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Tanh,
+                        impl::op_kind::Add, {1}, {2.0}, true}));
 
 TEST(Execute, AvgpoolAdd) {
     using dims = impl::dnnl_impl::dims;

@@ -45,22 +45,34 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(eltwise_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, relu_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
         .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    add->fill_and_connect_input(0, *relu, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *peltwise = pgraph->append_alternation(
+                            {impl::op_kind::Abs, impl::op_kind::Clamp,
+                                    impl::op_kind::Elu, impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh, impl::op_kind::Log,
+                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::SoftPlus, impl::op_kind::Pow,
+                                    impl::op_kind::ReLU, impl::op_kind::Round,
+                                    impl::op_kind::Sqrt, impl::op_kind::Square,
+                                    impl::op_kind::Tanh},
+                            "peltwise");
+                    pgraph->append_alternation(
+                            {impl::op_kind::Add, impl::op_kind::Multiply,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Subtract},
+                            {in_edge(0, peltwise, 0)}, "pbinary");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::relu_add);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::eltwise_binary);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)

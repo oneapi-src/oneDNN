@@ -418,7 +418,7 @@ DNNL_GRAPH_OP_SCHEMA(multiply_sigmoid, 1,
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(relu_add, 1,
+DNNL_GRAPH_OP_SCHEMA(eltwise_binary, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)

@@ -7824,7 +7824,7 @@ TEST(PassSystem, FuseToInt8MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(Pass, FuseReluAdd) {
+TEST(PassSystem, FuseReluAdd) {
     /*
          relu
            \  /
@@ -7856,7 +7856,7 @@ TEST(Pass, FuseReluAdd) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::relu_add);
+            dnnl_impl::op_kind::eltwise_binary);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -7872,7 +7872,7 @@ TEST(PassPriority, TestReluAdd) {
            \  /
            add
     */
-    pass::pass_base_ptr pass1 = get_pass("relu_add_fusion");
+    pass::pass_base_ptr pass1 = get_pass("eltwise_binary_fusion");
     pass::pass_base_ptr pass2 = get_pass("matmul_post_ops_chain_fusion");
     pass::pass_base_ptr pass3 = get_pass("conv_post_ops_fusion");
     pass::pass_base_ptr pass4 = get_pass("relu_pass");
