@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,11 @@ namespace resampling {
 
 resampling_graph_prb_t::spec_t::spec_t(
         const ::resampling::prb_t *prb) noexcept {
+    using graph_op = dnnl::graph::op;
+    is_fwd_pass = prb->dir & FLAG_FWD;
+    op_kind = is_fwd_pass ? graph_op::kind::Interpolate
+                          : graph_op::kind::InterpolateBackprop;
+
     switch (prb->ndims) {
         case 5:
             src_dims = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
@@ -60,24 +65,49 @@ fill_status_t resampling_graph_prb_t::handle_main_op_() {
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
+
+    // common for forward and backward pass
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string SIZES {TENSOR_ID + "_SIZES"};
+
+    // specific for forward pass
     const std::string DST {TENSOR_ID + "_DST"};
+
+    // specific for backward pass
+    const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
+    const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
 
     tensor_descs_.emplace(SRC, spec_.src_dt, spec_.src_dims, spec_.tag);
     if (spec_.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
         tensor_descs_.emplace(SIZES, dt::s32, {1}, spec_.tag);
     }
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, spec_.tag);
 
-    std::vector<dnnl::graph::logical_tensor> lt_inputs {tensor_descs_[SRC]};
-    std::vector<dnnl::graph::logical_tensor> lt_outputs {tensor_descs_[DST]};
-    if (spec_.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
-        lt_inputs.emplace_back(tensor_descs_[SIZES]);
+    if (spec_.is_fwd_pass) {
+        tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, spec_.tag);
+    } else {
+        tensor_descs_.emplace(
+                DIFF_DST, spec_.dst_dt, spec_.dst_dims, spec_.tag);
+        tensor_descs_.emplace(
+                DIFF_SRC, spec_.src_dt, spec_.src_dims, spec_.tag);
     }
 
-    op resampling(new_op_id, op::kind::Interpolate, lt_inputs, lt_outputs,
-            "interpolate");
+    std::vector<dnnl::graph::logical_tensor> inputs;
+    std::vector<dnnl::graph::logical_tensor> outputs;
+
+    inputs.push_back(tensor_descs_[SRC]);
+    if (spec_.is_fwd_pass) {
+        outputs.push_back(tensor_descs_[DST]);
+    } else {
+        inputs.push_back(tensor_descs_[DIFF_DST]);
+        outputs.push_back(tensor_descs_[DIFF_SRC]);
+    }
+    if (spec_.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
+        inputs.emplace_back(tensor_descs_[SIZES]);
+    }
+
+    const std::string op_name
+            = spec_.is_fwd_pass ? "Interpolate" : "InterpolateBackprop";
+    op resampling(new_op_id, spec_.op_kind, inputs, outputs, op_name);
     resampling.set_attr("mode", spec_.mode);
     resampling.set_attr("data_format", spec_.data_format);
     if (spec_.rand_testmode == test_mode_t::SIZES_ATTR) {
@@ -112,8 +142,7 @@ void check_known_skipped_case_graph(
         const ::resampling::prb_t *prb, res_t *res) noexcept {
     ::resampling::check_known_skipped_case(prb, res);
     //Skip if source and destination datatypes are different.
-    //Skip backward cases
-    if (prb->sdt != prb->ddt || !(prb->dir & FLAG_FWD)) {
+    if (prb->sdt != prb->ddt) {
         res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
         return;
     }
@@ -145,11 +174,11 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     const auto par = partitions[0];
     if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
     const auto ins = par.get_in_ports();
-    const auto outs_p = par.get_out_ports();
+    const auto outs = par.get_out_ports();
 
     auto cp = compile_partition(
-            ::resampling::init_pd, prb, res, par, ins, outs_p);
-    const auto cp_dst_lt = cp.query_logical_tensor(outs_p[0].get_id());
+            ::resampling::init_pd, prb, res, par, ins, outs);
+    const auto cp_dst_lt = cp.query_logical_tensor(outs[0].get_id());
 
     dnnl::graph::engine &eng = get_test_engine();
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
@@ -185,9 +214,9 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     if (operations_order_can_be_different)
         ::resampling::add_additional_check_to_compare(cmp);
 
-    //TODO: add for backward.
+    SAFE(::resampling::fill_src(prb, src_dt, src_fp, res), WARN);
+
     if (prb->dir & FLAG_FWD) {
-        SAFE(::resampling::fill_src(prb, src_dt, src_fp, res), WARN);
         dnnl::graph::tensor src_tensor(
                 ins[0], eng, static_cast<void *>(src_dt));
         dnnl::graph::tensor dst_tensor(
@@ -233,6 +262,55 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         SAFE(measure_perf(
                      res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
                 WARN);
+    } else {
+        auto d_dst_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
+        auto d_dst_dt = make_dnn_mem(ins[1], prb->tag);
+
+        dnnl::graph::tensor src_tensor(
+                ins[0], eng, static_cast<void *>(src_dt));
+
+        SAFE(::resampling::fill_dst(prb, d_dst_dt, d_dst_fp, res), WARN);
+        dnnl::graph::tensor d_dst_tensor(
+                ins[1], eng, static_cast<void *>(d_dst_dt));
+        dnnl::graph::tensor d_src_tensor(
+                outs[0], eng, static_cast<void *>(dst_dt));
+
+        std::vector<dnnl::graph::tensor> tensors_in {src_tensor};
+        dnnl::graph::tensor sizes_tensor;
+        std::vector<int64_t> sizes_v(spec.sizes);
+        if (spec.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
+            sizes_tensor = dnnl::graph::tensor(
+                    ins[2], eng, static_cast<void *>(sizes_v.data()));
+            tensors_in.emplace_back(sizes_tensor);
+        }
+        tensors_in.emplace_back(d_dst_tensor);
+
+        std::vector<dnnl::graph::tensor> tensors_out {d_src_tensor};
+
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+
+        if (is_bench_mode(CORR)) {
+            TIME_REF(::resampling::compute_ref_bwd(prb, dst_fp, d_dst_fp));
+            const float linear_trh = epsilon_dt(prb->ddt) > epsilon_dt(prb->sdt)
+                    ? epsilon_dt(prb->ddt)
+                    : 7 * epsilon_dt(prb->sdt);
+            float trh = prb->alg == ::resampling::nearest ? 0.f : linear_trh;
+
+            // cuDNN precision is different from ref one due to different
+            // computation algorithm used for resampling.
+            if (is_nvidia_gpu()) trh = 2e-5;
+
+            cmp.set_threshold(trh);
+            // No sense to test zero trust for upsampling since it produces
+            // valid zeros.
+            // TODO: validate this once again.
+            cmp.set_zero_trust_percent(100.f);
+            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+
+            SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in,
+                         tensors_out),
+                    WARN);
+        }
     }
     return OK;
 }
