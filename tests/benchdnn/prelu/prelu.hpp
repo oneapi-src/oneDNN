@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,13 +92,13 @@ private:
 };
 
 int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
-        std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem,
-        const dnnl_engine_t &ref_engine = get_test_engine());
+        std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem);
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &weights, dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &weights, dnn_mem_t &diff_src,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_weights);
+
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 

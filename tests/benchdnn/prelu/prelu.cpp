@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,8 +88,7 @@ int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 }
 
 int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
-        std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem,
-        const dnnl_engine_t &ref_engine) {
+        std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem) {
     const_dnnl_primitive_attr_t const_attr;
     DNN_SAFE(dnnl_primitive_desc_get_attr(pd, &const_attr), WARN);
 
@@ -120,7 +119,7 @@ int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 
         // Following call can not be executed if po_md has runtime dimension due
         // to undefined size.
-        ref_mem.emplace_back(ndims, dims, dnnl_f32, tag::abx, ref_engine);
+        ref_mem.emplace_back(ndims, dims, dnnl_f32, tag::abx, get_cpu_engine());
         prim_mem.emplace_back(
                 ndims, dims, dnnl_f32, tag::axb, get_test_engine());
         args.push_back(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS);
@@ -219,9 +218,10 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &weight_md = q(DNNL_ARG_WEIGHTS);
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, test_engine);
-    dnn_mem_t weights_fp(weight_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, ref_engine);
+    dnn_mem_t weights_fp(weight_md, dnnl_f32, tag::abx, ref_engine);
 
     dnn_mem_t src_dt(data_md, test_engine);
     dnn_mem_t weights_dt(weight_md, test_engine);
@@ -239,7 +239,7 @@ int doit(const prb_t *prb, res_t *res) {
             d_weights_dt;
 
     if (prb->dir & FLAG_FWD) {
-        dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, test_engine);
+        dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, ref_engine);
         dst_dt = dnn_mem_t(data_md, test_engine);
 
         args.set(DNNL_ARG_DST, dst_dt);
@@ -257,9 +257,9 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
         const auto &d_weights_md = q(DNNL_ARG_DIFF_WEIGHTS);
 
-        dnn_mem_t d_src_fp(d_data_md, dnnl_f32, tag::abx, test_engine);
-        dnn_mem_t d_weights_fp(d_weights_md, dnnl_f32, tag::abx, test_engine);
-        dnn_mem_t d_dst_fp(d_data_md, dnnl_f32, tag::abx, test_engine);
+        dnn_mem_t d_src_fp(d_data_md, dnnl_f32, tag::abx, ref_engine);
+        dnn_mem_t d_weights_fp(d_weights_md, dnnl_f32, tag::abx, ref_engine);
+        dnn_mem_t d_dst_fp(d_data_md, dnnl_f32, tag::abx, ref_engine);
 
         d_src_dt = dnn_mem_t(d_data_md, test_engine);
         d_weights_dt = dnn_mem_t(d_weights_md, test_engine);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -339,12 +339,13 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &data_md = !is_fwd && prb->use_dst() ? dst_md : src_md;
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t src_dt(data_md, test_engine);
 
     // we need src_fp for proper comparison, => no in-place reference
-    dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t placeholder_dst_dt;
     if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, test_engine); }
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
@@ -401,7 +402,7 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
 
         dnn_mem_t d_dst_fp
-                = dnn_mem_t(d_data_md, dnnl_f32, tag::abx, test_engine);
+                = dnn_mem_t(d_data_md, dnnl_f32, tag::abx, ref_engine);
         d_dst_dt = dnn_mem_t(d_data_md, test_engine);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference

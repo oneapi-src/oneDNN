@@ -265,6 +265,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
     dnn_mem_t src_dt, placeholder_dst_dt;
     dnn_mem_t &dst_dt = prb->inplace && (prb->dir & FLAG_FWD)
@@ -286,7 +287,7 @@ int doit(const prb_t *prb, res_t *res) {
             placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
         }
 
-        dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, test_engine);
+        dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
         dnn_mem_t &dst_fp = src_fp; // in-place reference
 
         SAFE(fill_data_fwd(prb, src_dt, src_fp), WARN);
@@ -336,8 +337,8 @@ int doit(const prb_t *prb, res_t *res) {
             placeholder_d_src_dt = dnn_mem_t(d_src_md, test_engine);
         }
 
-        dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, test_engine);
-        dnn_mem_t d_dst_fp(d_dst_md, dnnl_f32, tag::abx, test_engine);
+        dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
+        dnn_mem_t d_dst_fp(d_dst_md, dnnl_f32, tag::abx, ref_engine);
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
 
         const bool neg_sign = prb->alg == SOFTMAX ? true : false;

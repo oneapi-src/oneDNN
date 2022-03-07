@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -249,15 +249,16 @@ int doit(const prb_t *prb, res_t *res) {
     const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(src_md, fp, tag, test_engine);
+    dnn_mem_t src_fp(src_md, fp, tag, ref_engine);
     dnn_mem_t src_dt(src_md, test_engine);
 
-    dnn_mem_t dst_fp(dst_md, fp, tag, test_engine);
+    dnn_mem_t dst_fp(dst_md, fp, tag, ref_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
 
     if (prb->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
-    dnn_mem_t ws_fp(ws_md, test_engine);
+    dnn_mem_t ws_fp(ws_md, ref_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
@@ -323,10 +324,10 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &d_src_md = q(const_bpd, DNNL_ARG_DIFF_SRC);
         const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
-        dnn_mem_t d_dst_fp = dnn_mem_t(d_dst_md, fp, tag, test_engine);
+        dnn_mem_t d_dst_fp = dnn_mem_t(d_dst_md, fp, tag, ref_engine);
         d_dst_dt = dnn_mem_t(d_dst_md, prb->cfg[DST].dt, test_engine);
 
-        dnn_mem_t d_src_fp = dnn_mem_t(d_src_md, fp, tag, test_engine);
+        dnn_mem_t d_src_fp = dnn_mem_t(d_src_md, fp, tag, ref_engine);
         d_src_dt = dnn_mem_t(d_src_md, prb->cfg[SRC].dt, test_engine);
 
         scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);

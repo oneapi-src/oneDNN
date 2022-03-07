@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -306,6 +306,7 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
 
     dnn_mem_t src_dt(src_md, test_engine);
     dnn_mem_t wei_dt(wei_md, test_engine);
@@ -316,12 +317,12 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     const auto fp = dnnl_f32;
-    dnn_mem_t src_fp(src_md, fp, tag::abx, test_engine);
-    dnn_mem_t wei_fp(wei_md, fp, tag::abx, test_engine);
-    dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
-    dnn_mem_t dst_fp(dst_md, fp, tag::abx, test_engine);
-    dnn_mem_t fused_wei_fp(fused_wei_md, fp, tag::abx, test_engine);
-    dnn_mem_t fused_bia_fp(fused_bia_md, fp, tag::x, test_engine);
+    dnn_mem_t src_fp(src_md, fp, tag::abx, ref_engine);
+    dnn_mem_t wei_fp(wei_md, fp, tag::abx, ref_engine);
+    dnn_mem_t bia_fp(bia_md, fp, tag::x, ref_engine);
+    dnn_mem_t dst_fp(dst_md, fp, tag::abx, ref_engine);
+    dnn_mem_t fused_wei_fp(fused_wei_md, fp, tag::abx, ref_engine);
+    dnn_mem_t fused_bia_fp(fused_bia_md, fp, tag::x, ref_engine);
 
     std::vector<dnn_mem_t> binary_po_dt;
     std::vector<int> binary_po_args;
@@ -369,10 +370,10 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_dt0(dst_md0, test_engine);
     dnn_mem_t scratchpad_dt0(scratchpad_md0, test_engine);
 
-    dnn_mem_t src_fp0(src_md0, fp, tag::abx, test_engine);
-    dnn_mem_t wei_fp0(wei_md0, fp, tag::abx, test_engine);
-    dnn_mem_t bia_fp0(bia_md0, fp, tag::x, test_engine);
-    dnn_mem_t dst_fp0(dst_md0, fp, tag::abx, test_engine);
+    dnn_mem_t src_fp0(src_md0, fp, tag::abx, ref_engine);
+    dnn_mem_t wei_fp0(wei_md0, fp, tag::abx, ref_engine);
+    dnn_mem_t bia_fp0(bia_md0, fp, tag::x, ref_engine);
+    dnn_mem_t dst_fp0(dst_md0, fp, tag::abx, ref_engine);
 
     std::vector<dnn_mem_t> binary_po_fp0, binary_po_dt0;
     std::vector<int> binary_po_args0;
@@ -424,9 +425,9 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_dt1(dst_md1, test_engine);
     dnn_mem_t scratchpad_dt1(scratchpad_md1, test_engine);
 
-    dnn_mem_t wei_fp1(wei_md1, fp, tag::abx, test_engine);
-    dnn_mem_t bia_fp1(bia_md1, fp, tag::x, test_engine);
-    dnn_mem_t dst_fp1(dst_md1, fp, tag::abx, test_engine);
+    dnn_mem_t wei_fp1(wei_md1, fp, tag::abx, ref_engine);
+    dnn_mem_t bia_fp1(bia_md1, fp, tag::x, ref_engine);
+    dnn_mem_t dst_fp1(dst_md1, fp, tag::abx, ref_engine);
 
     std::vector<dnn_mem_t> binary_po_fp1, binary_po_dt1;
     std::vector<int> binary_po_args1;
