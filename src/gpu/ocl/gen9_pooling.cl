@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+// Temporary W/A for Compiler issue with using thogether bf16 cvt functions
+// and intel_sub_group_block_write()
+#undef cl_future_bf16_cvt
 
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
