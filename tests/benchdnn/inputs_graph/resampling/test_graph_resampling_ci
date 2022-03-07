@@ -3,7 +3,7 @@
 --mb=2
 --alg=nearest,linear
 --tag=abx,axb
---dir=FWD_D
+--dir=FWD_D,BWD_D
 
 --sdt=f32 --ddt=f32
 --batch=shapes_ci

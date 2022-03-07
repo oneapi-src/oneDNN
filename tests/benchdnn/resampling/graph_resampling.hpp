@@ -54,6 +54,8 @@ struct resampling_graph_prb_t : public graph_prb_t {
 private:
     struct spec_t {
         spec_t(const ::resampling::prb_t *prb) noexcept;
+        bool is_fwd_pass {true};
+        dnnl::graph::op::kind op_kind;
 
         dims_t src_dims;
         dims_t dst_dims;
@@ -78,7 +80,7 @@ private:
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::Interpolate;
+        return spec_.op_kind;
     }
 
 public:
