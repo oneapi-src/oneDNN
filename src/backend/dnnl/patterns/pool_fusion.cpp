@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 
+#include "utils/pm/pbuilder.hpp"
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -27,6 +27,11 @@ using pattern = impl::pass::pattern;
 using FCreatePattern = impl::pass::FCreatePattern;
 using FCreateOptPattern = impl::pass::FCreateOptPattern;
 
+namespace pm = impl::utils::pm;
+using in_edges_t = pm::in_edges_t;
+using pb_graph_t = pm::pb_graph_t;
+using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
+using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 /*!
  * \brief This provides pool fusion.
  *        The process includes follow steps:
@@ -36,48 +41,27 @@ using FCreateOptPattern = impl::pass::FCreateOptPattern;
  */
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(pool_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, avgpool_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_binary_fusion)
         .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *pool = apattern->create_op(impl::op_kind::AvgPool);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-
-                    // pattern will not be matched if the add operation need
-                    // broadcast
-                    add->set_attr<bool>("broadcast_check", true);
-                    add->fill_and_connect_input(0, *pool, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *ppool = pgraph->append_alternation(
+                            {impl::op_kind::AvgPool, impl::op_kind::MaxPool},
+                            "peltwise");
+                    pgraph->append_alternation(
+                            {impl::op_kind::Add, impl::op_kind::Multiply,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Subtract},
+                            {in_edge(0, ppool, 0)}, "pbinary");
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::avgpool_add);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::pool_binary);
                     fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, maxpool_add_fusion)
-        .set_priority(9.9f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *pool = apattern->create_op(impl::op_kind::MaxPool);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-
-                    // pattern will not be matched if the add operation need
-                    // broadcast
-                    add->set_attr<bool>("broadcast_check", true);
-                    add->fill_and_connect_input(0, *pool, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::maxpool_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_avgpool_fusion)

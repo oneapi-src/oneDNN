@@ -7394,7 +7394,7 @@ TEST(PassPriority, TestInt8MaxPoolAdd) {
     */
     pass::pass_base_ptr pass1 = get_pass("int8_maxpool_add_fusion");
     pass::pass_base_ptr pass2 = get_pass("int8_maxpool_fusion");
-    pass::pass_base_ptr pass3 = get_pass("maxpool_add_fusion");
+    pass::pass_base_ptr pass3 = get_pass("pool_binary_fusion");
     pass::pass_base_ptr pass4 = get_pass("quant_pass");
     pass::pass_base_ptr pass5 = get_pass("dequant_pass");
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());
@@ -7420,7 +7420,7 @@ TEST(PassPriority, TestInt8AvgPoolAdd) {
     */
     pass::pass_base_ptr pass1 = get_pass("int8_avgpool_add_fusion");
     pass::pass_base_ptr pass2 = get_pass("int8_avgpool_fusion");
-    pass::pass_base_ptr pass3 = get_pass("avgpool_add_fusion");
+    pass::pass_base_ptr pass3 = get_pass("pool_binary_fusion");
     pass::pass_base_ptr pass4 = get_pass("quant_pass");
     pass::pass_base_ptr pass5 = get_pass("dequant_pass");
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());

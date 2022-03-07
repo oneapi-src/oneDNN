@@ -14603,202 +14603,142 @@ INSTANTIATE_TEST_SUITE_P(Execute, EltwiseBinary,
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Tanh,
                         impl::op_kind::Add, {1}, {2.0}, true}));
 
-TEST(Execute, AvgpoolAdd) {
-    using dims = impl::dnnl_impl::dims;
+struct dnnl_graph_test_pool_binary_params {
+    impl::op_kind_t pool_kind;
+    impl::op_kind_t binary_kind;
+};
 
-    impl::engine_t &eng = get_engine();
+class PoolBinary
+    : public ::testing::TestWithParam<dnnl_graph_test_pool_binary_params> {
+public:
+    void TestPoolBinary() {
+        const auto params = ::testing::TestWithParam<
+                dnnl_graph_test_pool_binary_params>::GetParam();
+        using dims = impl::dnnl_impl::dims;
 
-    std::vector<std::string> data_formats {"NCX", "NXC"};
-    std::vector<bool> with_channel_broadcast_flags {true, false};
-    std::vector<impl::data_type_t> data_types {
-            impl::data_type::f32, impl::data_type::bf16};
+        impl::engine_t &eng = get_engine();
 
-    for_(const auto dt : data_types)
-    for_(const auto &data_format : data_formats)
-    for (const auto c_broadcast : with_channel_broadcast_flags) {
-        static auto isa = dnnl_get_effective_cpu_isa();
-        if (dt == impl::data_type::bf16 && isa < dnnl_cpu_isa_avx512_core
-                && eng.kind() == impl::engine_kind::cpu) {
-            continue;
+        std::vector<std::string> data_formats {"NCX", "NXC"};
+        std::vector<bool> with_channel_broadcast_flags {true, false};
+        std::vector<impl::data_type_t> data_types {
+                impl::data_type::f32, impl::data_type::bf16};
+
+        for_(const auto dt : data_types)
+        for_(const auto &data_format : data_formats)
+        for (const auto c_broadcast : with_channel_broadcast_flags) {
+            static auto isa = dnnl_get_effective_cpu_isa();
+            if (dt == impl::data_type::bf16 && isa < dnnl_cpu_isa_avx512_core
+                    && eng.kind() == impl::engine_kind::cpu) {
+                continue;
+            }
+
+            std::vector<int64_t> src_shape {3, 3, 4, 4, 4};
+            std::vector<int64_t> dst_shape {3, 3, 2, 2, 2};
+            const size_t spatial_size = src_shape.size() - 2;
+            std::vector<int64_t> post_src_shape {1, 1, 1, 1, 1};
+
+            if (c_broadcast) { post_src_shape[1] = src_shape[1]; }
+            if (data_format == "NXC") {
+                src_shape.emplace_back(src_shape[1]);
+                src_shape.erase(src_shape.begin() + 1);
+                dst_shape.emplace_back(dst_shape[1]);
+                dst_shape.erase(dst_shape.begin() + 1);
+                post_src_shape.emplace_back(post_src_shape[1]);
+                post_src_shape.erase(post_src_shape.begin() + 1);
+            }
+
+            test::vector<float> src(product(src_shape), 4.0);
+            test::vector<float> dst(product(dst_shape), 0.0);
+            test::vector<float> post_src(product(post_src_shape), 2.0);
+
+            impl::op_t pool_op(0, params.pool_kind, "pool");
+            pool_op.set_attr<dims>("strides", dims(spatial_size, 2));
+            pool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
+            pool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
+            pool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
+            pool_op.set_attr<std::string>("data_format", data_format);
+            if (params.pool_kind == impl::op_kind::AvgPool) {
+                pool_op.set_attr<bool>("exclude_pad", false);
+            } else {
+                pool_op.set_attr<dims>("dilations", dims(spatial_size, 1));
+            }
+
+            impl::op_t binary_op(1, params.binary_kind, "binary");
+
+            impl::logical_tensor_t src_lt
+                    = utils::logical_tensor_init(0, src_shape, dt);
+            impl::logical_tensor_t dst_lt
+                    = utils::logical_tensor_init(1, dst_shape, dt);
+            impl::logical_tensor_t post_src_lt
+                    = utils::logical_tensor_init(2, post_src_shape, dt);
+            impl::logical_tensor_t add_dst_lt
+                    = utils::logical_tensor_init(3, dst_shape, dt);
+
+            pool_op.add_input(src_lt);
+            pool_op.add_output(dst_lt);
+            binary_op.add_input(dst_lt);
+            binary_op.add_input(post_src_lt);
+            binary_op.add_output(add_dst_lt);
+
+            impl::graph_t g(eng.kind());
+            g.add_op(&pool_op);
+            g.add_op(&binary_op);
+            g.build_graph();
+
+            impl::pass::pass_base_ptr apass = get_pass("pool_binary_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1);
+            auto part = g.get_partitions()[0];
+
+            // compile
+            impl::partition_t p;
+            p.init(part);
+
+            impl::compiled_partition_t cp(p);
+
+            std::vector<const impl::logical_tensor_t *> inputs {
+                    &src_lt, &post_src_lt};
+            std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
+
+            ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng),
+                    impl::status::success);
+
+            impl::logical_tensor_t lt;
+            cp.query_logical_tensor(add_dst_lt.id, &lt);
+            ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+            impl::tensor_t src_ts(src_lt, &eng, src.data());
+            impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+            impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
+
+            impl::stream_t &strm = get_stream();
+            ASSERT_EQ(cp.execute(&strm, {src_ts, post_src_ts}, {add_dst_ts}),
+                    impl::status::success);
+            strm.wait();
         }
-
-        std::vector<int64_t> src_shape {3, 3, 4, 4, 4};
-        std::vector<int64_t> dst_shape {3, 3, 2, 2, 2};
-        const size_t spatial_size = src_shape.size() - 2;
-        std::vector<int64_t> post_src_shape {1, 1, 1, 1, 1};
-
-        if (c_broadcast) { post_src_shape[1] = src_shape[1]; }
-        if (data_format == "NXC") {
-            src_shape.emplace_back(src_shape[1]);
-            src_shape.erase(src_shape.begin() + 1);
-            dst_shape.emplace_back(dst_shape[1]);
-            dst_shape.erase(dst_shape.begin() + 1);
-            post_src_shape.emplace_back(post_src_shape[1]);
-            post_src_shape.erase(post_src_shape.begin() + 1);
-        }
-
-        test::vector<float> src(product(src_shape), 4.0);
-        test::vector<float> dst(product(dst_shape), 0.0);
-        test::vector<float> post_src(product(post_src_shape), 2.0);
-
-        impl::op_t avgpool_op(0, impl::op_kind::AvgPool, "avgpool");
-        avgpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
-        avgpool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
-        avgpool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
-        avgpool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
-        avgpool_op.set_attr<std::string>("data_format", data_format);
-        avgpool_op.set_attr<bool>("exclude_pad", false);
-        impl::op_t add_op(1, impl::op_kind::Add, "Add");
-
-        impl::logical_tensor_t src_lt
-                = utils::logical_tensor_init(0, src_shape, dt);
-        impl::logical_tensor_t dst_lt
-                = utils::logical_tensor_init(1, dst_shape, dt);
-        impl::logical_tensor_t post_src_lt
-                = utils::logical_tensor_init(2, post_src_shape, dt);
-        impl::logical_tensor_t add_dst_lt
-                = utils::logical_tensor_init(3, dst_shape, dt);
-
-        avgpool_op.add_input(src_lt);
-        avgpool_op.add_output(dst_lt);
-        add_op.add_input(dst_lt);
-        add_op.add_input(post_src_lt);
-        add_op.add_output(add_dst_lt);
-
-        impl::graph_t g(eng.kind());
-        g.add_op(&avgpool_op);
-        g.add_op(&add_op);
-        g.build_graph();
-
-        impl::pass::pass_base_ptr apass = get_pass("avgpool_add_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
-        auto part = g.get_partitions()[0];
-
-        // compile
-        impl::partition_t p;
-        p.init(part);
-
-        impl::compiled_partition_t cp(p);
-
-        std::vector<const impl::logical_tensor_t *> inputs {
-                &src_lt, &post_src_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
-
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
-
-        impl::logical_tensor_t lt;
-        cp.query_logical_tensor(add_dst_lt.id, &lt);
-        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
-
-        impl::tensor_t src_ts(src_lt, &eng, src.data());
-        impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
-
-        impl::stream_t &strm = get_stream();
-        ASSERT_EQ(cp.execute(&strm, {src_ts, post_src_ts}, {add_dst_ts}),
-                impl::status::success);
-        strm.wait();
     }
+};
+
+TEST_P(PoolBinary, TestPoolBinary) {
+    TestPoolBinary();
 }
 
-TEST(Execute, MaxpoolAdd) {
-    using dims = impl::dnnl_impl::dims;
-
-    impl::engine_t &eng = get_engine();
-
-    std::vector<std::string> data_formats {"NCX", "NXC"};
-    std::vector<bool> with_channel_broadcast_flags {true, false};
-    std::vector<impl::data_type_t> data_types {
-            impl::data_type::f32, impl::data_type::bf16};
-
-    for_(const auto dt : data_types)
-    for_(const auto &data_format : data_formats)
-    for (const auto c_broadcast : with_channel_broadcast_flags) {
-        static auto isa = dnnl_get_effective_cpu_isa();
-        if (dt == impl::data_type::bf16 && isa < dnnl_cpu_isa_avx512_core
-                && eng.kind() == impl::engine_kind::cpu) {
-            continue;
-        }
-
-        std::vector<int64_t> src_shape {3, 3, 4, 4, 4};
-        std::vector<int64_t> dst_shape {3, 3, 2, 2, 2};
-        const size_t spatial_size = src_shape.size() - 2;
-        std::vector<int64_t> post_src_shape {1, 1, 1, 1, 1};
-
-        if (c_broadcast) { post_src_shape[1] = src_shape[1]; }
-        if (data_format == "NXC") {
-            src_shape.emplace_back(src_shape[1]);
-            src_shape.erase(src_shape.begin() + 1);
-            dst_shape.emplace_back(dst_shape[1]);
-            dst_shape.erase(dst_shape.begin() + 1);
-            post_src_shape.emplace_back(post_src_shape[1]);
-            post_src_shape.erase(post_src_shape.begin() + 1);
-        }
-
-        test::vector<float> src(product(src_shape), 4.0);
-        test::vector<float> dst(product(dst_shape), 0.0);
-        test::vector<float> post_src(product(post_src_shape), 2.0);
-
-        impl::op_t maxpool_op(0, impl::op_kind::MaxPool, "maxpool");
-        maxpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
-        maxpool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
-        maxpool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
-        maxpool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
-        maxpool_op.set_attr<std::string>("data_format", data_format);
-        maxpool_op.set_attr<dims>("dilations", dims(spatial_size, 1));
-        impl::op_t add_op(1, impl::op_kind::Add, "Add");
-
-        impl::logical_tensor_t src_lt
-                = utils::logical_tensor_init(0, src_shape, dt);
-        impl::logical_tensor_t dst_lt
-                = utils::logical_tensor_init(1, dst_shape, dt);
-        impl::logical_tensor_t post_src_lt
-                = utils::logical_tensor_init(2, post_src_shape, dt);
-        impl::logical_tensor_t add_dst_lt
-                = utils::logical_tensor_init(3, dst_shape, dt);
-
-        maxpool_op.add_input(src_lt);
-        maxpool_op.add_output(dst_lt);
-        add_op.add_input(dst_lt);
-        add_op.add_input(post_src_lt);
-        add_op.add_output(add_dst_lt);
-
-        impl::graph_t g(eng.kind());
-        g.add_op(&maxpool_op);
-        g.add_op(&add_op);
-        g.build_graph();
-
-        impl::pass::pass_base_ptr apass = get_pass("maxpool_add_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
-        auto part = g.get_partitions()[0];
-
-        // compile
-        impl::partition_t p;
-        p.init(part);
-
-        impl::compiled_partition_t cp(p);
-
-        std::vector<const impl::logical_tensor_t *> inputs {
-                &src_lt, &post_src_lt};
-        std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
-
-        impl::logical_tensor_t lt;
-        cp.query_logical_tensor(add_dst_lt.id, &lt);
-        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
-
-        impl::tensor_t src_ts(src_lt, &eng, src.data());
-        impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
-        impl::tensor_t add_dst_ts(add_dst_lt, &eng, dst.data());
-
-        impl::stream_t &strm = get_stream();
-        ASSERT_EQ(cp.execute(&strm, {src_ts, post_src_ts}, {add_dst_ts}),
-                impl::status::success);
-        strm.wait();
-    }
-}
+INSTANTIATE_TEST_SUITE_P(Execute, PoolBinary,
+        ::testing::Values(
+                dnnl_graph_test_pool_binary_params {
+                        impl::op_kind::AvgPool, impl::op_kind::Add},
+                dnnl_graph_test_pool_binary_params {
+                        impl::op_kind::MaxPool, impl::op_kind::Add},
+                dnnl_graph_test_pool_binary_params {
+                        impl::op_kind::AvgPool, impl::op_kind::Divide},
+                dnnl_graph_test_pool_binary_params {
+                        impl::op_kind::AvgPool, impl::op_kind::Maximum},
+                dnnl_graph_test_pool_binary_params {
+                        impl::op_kind::MaxPool, impl::op_kind::Minimum},
+                dnnl_graph_test_pool_binary_params {
+                        impl::op_kind::AvgPool, impl::op_kind::Multiply},
+                dnnl_graph_test_pool_binary_params {
+                        impl::op_kind::MaxPool, impl::op_kind::Subtract}));
 
 TEST(ExecuteSubgraphInt8, Maxpool) {
     // compare results between:
