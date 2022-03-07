@@ -227,6 +227,9 @@ public:
         fused_op_->merge_attributes(other.fused_op_->get_attributes());
     }
 
+    dnnl_partition_impl_t &operator=(const dnnl_partition_impl_t &other)
+            = delete;
+
     ///// The following are used only in backend for constructing object
 
     void init(const impl::op_t *aop) {

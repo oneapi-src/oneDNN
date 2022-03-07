@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -283,7 +283,7 @@ std::vector<dnnl_graph_graph::op_ptr> dnnl_graph_graph::deep_copy(
     // Connect the new ops according to org ops
     std::unordered_map<value_ptr, value_ptr> value_map;
     for (const op_ptr &cur_op : ops) {
-        op_ptr copied_op = op_map[cur_op];
+        op_ptr copied_op = op_map.at(cur_op);
 
         for (size_t i = 0; i < cur_op->num_outputs(); i++) {
             auto value = cur_op->get_output_value(i);

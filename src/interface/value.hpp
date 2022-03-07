@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -103,6 +103,7 @@ public:
         consumer_t(op_t &op, size_t offset) : op_(&op), offset_(offset) {}
 
         consumer_t(const consumer_t &c) = default;
+        consumer_t &operator=(const consumer_t &c) = default;
 
         bool operator==(const consumer_t &c) const {
             return op_ == c.op_ && offset_ == c.offset_;

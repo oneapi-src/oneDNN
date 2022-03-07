@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,14 +21,16 @@
 #include <iostream>
 
 #include "logger.hpp"
+#include "utils/utils.hpp"
 
 using namespace dnnl::graph::impl;
 
 dnnl_graph_log_level_t logger_t::default_level_ {dnnl_graph_log_level_disabled};
 
 dnnl_graph_log_level_t logger_t::get_log_level_int() {
-    auto level_env = std::getenv("DNNL_GRAPH_VERBOSE");
-    if (level_env) {
+    const int len = 12;
+    char level_env[len]; // NOLINT
+    if (impl::utils::getenv("DNNL_GRAPH_VERBOSE", level_env, len) > 0) {
         int level = atoi(level_env);
         switch (level) {
             default:
@@ -44,8 +46,9 @@ dnnl_graph_log_level_t logger_t::get_log_level_int() {
 }
 
 logger_t::logger_t() : output_stream_(&std::cout) {
-    auto output_env = std::getenv("DNNL_GRAPH_VERBOSE_OUTPUT");
-    if (output_env) {
+    const int len = 12;
+    char output_env[len]; // NOLINT
+    if (impl::utils::getenv("DNNL_GRAPH_VERBOSE_OUTPUT", output_env, len) > 0) {
         if (strcmp(output_env, "stdout") == 0) {
             output_stream_ = &std::cout;
         } else if (strcmp(output_env, "stderr") == 0) {

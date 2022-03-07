@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -244,6 +244,8 @@ status_t infer_squeeze_output_shape(op_t *n,
             inferred_output_shape.push_back(in_dims[i]);
         }
     }
+    if (inferred_output_shape.empty()) return status::invalid_shape;
+
     set_shape_and_strides(*outputs[0], inferred_output_shape);
     return status::success;
 }
