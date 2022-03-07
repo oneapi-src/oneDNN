@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include <pthread.h>
 #endif
 
-#if DNNL_GRAPH_SUPPORT_CXX17
+#ifdef DNNL_GRAPH_SUPPORT_CXX17
 #include <shared_mutex>
 #endif
 
@@ -33,7 +33,7 @@ namespace graph {
 namespace impl {
 namespace utils {
 
-#if DNNL_GRAPH_SUPPORT_CXX17
+#ifdef DNNL_GRAPH_SUPPORT_CXX17
 
 struct rw_mutex_t::rw_mutex_impl_t {
     using rwlock_t = std::shared_mutex;
