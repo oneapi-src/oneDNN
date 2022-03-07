@@ -89,7 +89,7 @@ public:
                         multiply_sigmoid, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(dnnl_reduction, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
-                        reduction_fusion, 1)>());
+                        reduction_post_ops_fusion, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(maximum_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(minimum_add, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(multiply_add, 1)>());

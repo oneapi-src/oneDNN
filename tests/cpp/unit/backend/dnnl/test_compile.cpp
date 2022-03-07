@@ -10052,7 +10052,6 @@ INSTANTIATE_TEST_SUITE_P(TestReduceCompile, test_reduce_compile,
                         {-4.5f, -2.5f, 3.5f, 5.5f}, impl::op_kind::ReduceSum}));
 
 TEST(ExecuteSubgraphFp32, ReduceAdd) {
-    using op_info_t = std::pair<impl::op_kind_t, std::string>;
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -10070,21 +10069,15 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
 
     std::vector<bool> keep_dims_infos {true, false};
     std::vector<bool> with_sum_infos {true, false};
-    std::vector<op_info_t> op_infos {{impl::op_kind::ReduceL1, "reducel1"},
-            {impl::op_kind::ReduceL2, "reducel2"},
-            {impl::op_kind::ReduceMax, "reducemax"},
-            {impl::op_kind::ReduceMean, "reducemean"},
-            {impl::op_kind::ReduceMin, "reducemin"},
-            {impl::op_kind::ReduceProd, "reduceprod"},
-            {impl::op_kind::ReduceSum, "reducesum"}};
+
+    const std::vector<impl::op_kind_t> op_infos {impl::op_kind::ReduceL1,
+            impl::op_kind::ReduceL2, impl::op_kind::ReduceMax,
+            impl::op_kind::ReduceMean, impl::op_kind::ReduceMin,
+            impl::op_kind::ReduceProd, impl::op_kind::ReduceSum};
 
     for_(bool keep_dims : keep_dims_infos)
     for_(bool with_sum : with_sum_infos)
-    for (auto &op_info : op_infos) {
-        impl::op_kind_t akind {impl::op_kind::Wildcard};
-        std::string kind_str {"Wildcard"};
-        std::tie(akind, kind_str) = op_info;
-
+    for (auto &akind : op_infos) {
         std::vector<int64_t> reduce_dst_shape = base_reduce_dst_shape;
         std::vector<int64_t> add_src1_shape = base_add_src1_shape;
         if (with_sum) { add_src1_shape[2] *= 2; }
@@ -10139,7 +10132,7 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass(kind_str + "_add_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -10168,7 +10161,6 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
 }
 
 TEST(ExecuteSubgraphFp32, ReduceRelu) {
-    using op_info_t = std::pair<impl::op_kind_t, std::string>;
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
@@ -10184,20 +10176,13 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
             [&]() { return f32_distribution(generator); });
 
     std::vector<bool> keep_dims_infos {true, false};
-    std::vector<op_info_t> op_infos {{impl::op_kind::ReduceL1, "reducel1"},
-            {impl::op_kind::ReduceL2, "reducel2"},
-            {impl::op_kind::ReduceMax, "reducemax"},
-            {impl::op_kind::ReduceMean, "reducemean"},
-            {impl::op_kind::ReduceMin, "reducemin"},
-            {impl::op_kind::ReduceProd, "reduceprod"},
-            {impl::op_kind::ReduceSum, "reducesum"}};
+    const std::vector<impl::op_kind_t> op_infos {impl::op_kind::ReduceL1,
+            impl::op_kind::ReduceL2, impl::op_kind::ReduceMax,
+            impl::op_kind::ReduceMean, impl::op_kind::ReduceMin,
+            impl::op_kind::ReduceProd, impl::op_kind::ReduceSum};
 
     for_(bool keep_dims : keep_dims_infos)
-    for (auto &op_info : op_infos) {
-        impl::op_kind_t akind {impl::op_kind::Wildcard};
-        std::string kind_str {"Wildcard"};
-        std::tie(akind, kind_str) = op_info;
-
+    for (auto &akind : op_infos) {
         std::vector<int64_t> reduce_dst_shape = base_reduce_dst_shape;
         if (!keep_dims) {
             reduce_dst_shape.erase(reduce_dst_shape.begin());
@@ -10239,7 +10224,7 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass(kind_str + "_relu_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];

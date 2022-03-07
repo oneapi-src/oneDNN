@@ -203,7 +203,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::ReduceProd, float_reduction)
     DNNL_REGISTER_KERNEL(impl::op_kind::ReduceSum, float_reduction)
     DNNL_REGISTER_KERNEL(op_kind::dnnl_reduction, float_reduction)
-    DNNL_REGISTER_KERNEL(op_kind::reduction_fusion, float_reduction)
+    DNNL_REGISTER_KERNEL(op_kind::reduction_post_ops_fusion, float_reduction)
 
     // quantize and dequantize kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::Quantize, quantize_dequantize_t)

@@ -31,6 +31,15 @@ using pb_graph_t = pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
+namespace {
+bool check_attributes(op_t *graph_op) {
+    if (graph_op->has_attr("axes")
+            && graph_op->get_attr<std::vector<int64_t>>("axes").empty())
+        return false;
+    return true;
+}
+} // namespace
+
 /*!
  * \brief This provides reduction fusion.
  *        The process includes follow steps:
@@ -40,142 +49,43 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  */
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(reduction_fusion)
 
-#define ADD_POST_OP_PATTERN_FUNC(akind) \
-    [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
-        pm::pb_op *reduction = pgraph->append_op((akind)); \
-        reduction->append_decision_function([](op_t *graph_op) -> bool { \
-            if (graph_op->has_attr("axes") \
-                    && graph_op->get_attr<std::vector<int64_t>>("axes") \
-                               .empty()) \
-                return false; \
-            return true; \
-        }); \
-        pm::pb_op *add = pgraph->append_op( \
-                impl::op_kind::Add, in_edges_t {in_edge(0, reduction, 0)}); \
-        add->allow_internal_inputs({0, 1}); \
-    }
-
-#define RELU_POST_OP_PATTERN_FUNC(akind) \
-    [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
-        pm::pb_op *reduction = pgraph->append_op((akind)); \
-        reduction->append_decision_function([](op_t *graph_op) -> bool { \
-            if (graph_op->has_attr("axes") \
-                    && graph_op->get_attr<std::vector<int64_t>>("axes") \
-                               .empty()) \
-                return false; \
-            return true; \
-        }); \
-        pgraph->append_op( \
-                impl::op_kind::ReLU, in_edges_t {in_edge(0, reduction, 0)}); \
-    }
-
-#define FUSED_PATTERN_FUNC(akind) \
-    []() -> std::shared_ptr<op_t> { \
-        std::shared_ptr<op_t> fused_op \
-                = std::make_shared<op_t>(op_kind::reduction_fusion); \
-        fused_op->set_attr<int64_t>( \
-                "alg_kind", static_cast<int64_t>((akind))); \
-        fused_op->set_attr<std::string>("backend", "dnnl"); \
-        return fused_op; \
-    }
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducel1_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
         .set_priority(8.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                ADD_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceL1))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceL1));
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *interpolate = pgraph->append_alternation(
+                            {impl::op_kind::ReduceL1, impl::op_kind::ReduceL2,
+                                    impl::op_kind::ReduceMax,
+                                    impl::op_kind::ReduceMean,
+                                    impl::op_kind::ReduceMin,
+                                    impl::op_kind::ReduceProd,
+                                    impl::op_kind::ReduceSum});
+                    interpolate->append_decision_function(check_attributes);
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducel1_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                RELU_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceL1))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceL1));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducel2_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                ADD_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceL2))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceL2));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducel2_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                RELU_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceL2))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceL2));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducemax_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                ADD_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceMax))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceMax));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducemax_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                RELU_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceMax))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceMax));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducemean_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                ADD_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceMean))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceMean));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducemean_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                RELU_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceMean))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceMean));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducemin_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                ADD_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceMin))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceMin));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducemin_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                RELU_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceMin))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceMin));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduceprod_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                ADD_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceProd))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceProd));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduceprod_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                RELU_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceProd))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceProd));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducesum_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                ADD_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceSum))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceSum));
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reducesum_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                RELU_POST_OP_PATTERN_FUNC(impl::op_kind::ReduceSum))
-        .set_attr<FCreateV2FusedOp>("FCreateV2FusedOp",
-                FUSED_PATTERN_FUNC(impl::op_kind::ReduceSum));
+                    pgraph->append_alternation(
+                            {impl::op_kind::Abs, impl::op_kind::Clamp,
+                                    impl::op_kind::Elu, impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh, impl::op_kind::Log,
+                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::SoftPlus, impl::op_kind::Pow,
+                                    impl::op_kind::ReLU, impl::op_kind::Round,
+                                    impl::op_kind::Sqrt, impl::op_kind::Square,
+                                    impl::op_kind::Tanh, impl::op_kind::Add,
+                                    impl::op_kind::Multiply,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Subtract},
+                            in_edges_t {in_edge(0, interpolate, 0)},
+                            "ppost_op");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::reduction_post_ops_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 

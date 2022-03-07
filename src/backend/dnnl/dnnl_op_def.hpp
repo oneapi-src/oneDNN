@@ -1535,8 +1535,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax_bwd, 1,
 // Base-OP possibilites:
 // [ReduceL1|ReduceL2|ReduceMax|ReduceMean|ReduceMin|ReduceProd|ReduceSum]
 // Post-OP possibilites:
-// [Add|ReLU]
-DNNL_GRAPH_OP_SCHEMA(reduction_fusion, 1,
+// [Abs, Clamp, Elu, Exp, GELU, Hardswish, Log, Sigmoid, SoftPlus, Pow, ReLU,
+// Round, Sqrt, Square, Sigmoid+Multiply, Tanh, Add, Multiply, Maximum, Minimum,
+// Divide, Subtract]
+DNNL_GRAPH_OP_SCHEMA(reduction_post_ops_fusion, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2, 3}))
