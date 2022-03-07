@@ -337,6 +337,7 @@ Boost Software License, Version 1.0:
 MIT License:
 * [Intel Graphics Compute Runtime for oneAPI Level Zero and OpenCL Driver](https://github.com/intel/compute-runtime)
 * [Intel Graphics Compiler](https://github.com/intel/intel-graphics-compiler)
+* [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
 * [Doxyrest](https://github.com/vovkos/doxyrest)
 
 This third party software, even if included with the distribution of

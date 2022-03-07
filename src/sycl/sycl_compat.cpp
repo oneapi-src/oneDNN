@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,21 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <CL/sycl.hpp>
+#include <level_zero/ze_api.h>
 #include <type_traits>
 
 #include "oneapi/dnnl/dnnl_config.h"
-
-#include <CL/sycl.hpp>
-
 #include "sycl/sycl_utils.hpp"
 
-#ifdef DNNL_WITH_LEVEL_ZERO
-#include <level_zero/ze_api.h>
 #if DNNL_USE_SYCL121_API
 #include <CL/sycl/backend/level_zero.hpp>
 #else
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#endif
 #endif
 
 #include "common/utils.hpp"
@@ -46,10 +42,8 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-#ifdef DNNL_WITH_LEVEL_ZERO
 status_t func_zeKernelCreate(
         ze_module_handle_t, const ze_kernel_desc_t *, ze_kernel_handle_t *);
-#endif
 
 namespace compat {
 
@@ -80,7 +74,6 @@ status_t get_kernel_from_bundle(std::unique_ptr<::sycl::kernel> &sycl_kernel,
                 ::sycl::make_kernel<::sycl::backend::opencl>(
                         ocl_kernel, sycl_engine->context()));
     } else if (backend == backend_t::level0) {
-#ifdef DNNL_WITH_LEVEL_ZERO
         auto ze_modules
                 = ::sycl::get_native<::sycl::backend::ext_oneapi_level_zero>(
                         kernel_bundle);
@@ -98,10 +91,6 @@ status_t get_kernel_from_bundle(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         auto k = ::sycl::make_kernel<::sycl::backend::ext_oneapi_level_zero>(
                 {kernel_bundle, ze_kernel}, sycl_engine->context());
         sycl_kernel = utils::make_unique<::sycl::kernel>(k);
-#else // DNNL_WITH_LEVEL_ZERO
-        assert(!"unexpected");
-        return status::invalid_arguments;
-#endif
     } else {
         assert(!"unexpected");
         return status::invalid_arguments;
@@ -140,16 +129,11 @@ void *get_native_impl(backend_t backend, const sycl_object_t &sycl_object) {
         return ::sycl::get_native<::sycl::backend::opencl>(sycl_object);
 #endif
     } else if (backend == backend_t::level0) {
-#ifdef DNNL_WITH_LEVEL_ZERO
 #if DNNL_USE_SYCL121_API
         return sycl_object.template get_native<::sycl::backend::level_zero>();
 #else
         return ::sycl::get_native<::sycl::backend::ext_oneapi_level_zero>(
                 sycl_object);
-#endif
-#else
-        assert(!"unexpected");
-        return nullptr;
 #endif
     } else {
         assert(!"unexpected");
@@ -211,7 +195,6 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
 
 #endif
     } else if (backend == backend_t::level0) {
-#ifdef DNNL_WITH_LEVEL_ZERO
         ze_module_handle_t ze_module
                 = reinterpret_cast<ze_module_handle_t>(native_program_handle);
 #if DNNL_USE_SYCL121_API
@@ -237,10 +220,6 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         auto k = ::sycl::make_kernel<::sycl::backend::ext_oneapi_level_zero>(
                 {kernel_bundle, ze_kernel}, sycl_engine->context());
         sycl_kernel = utils::make_unique<::sycl::kernel>(k);
-#endif
-#else // DNNL_WITH_LEVEL_ZERO
-        assert(!"unexpected");
-        return status::invalid_arguments;
 #endif
     } else {
         assert(!"unexpected");

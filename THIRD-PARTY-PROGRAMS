@@ -502,6 +502,9 @@ Copyright (c) 2018 Intel Corporation
 Intel(R) Graphics Compiler (src/gpu/jit/ngen/npack/neo_structs.hpp)
 Copyright (c) 2019 Intel Corporation
 
+oneAPI Level Zero (src/sycl/level_zero)
+Copyright (C) 2019-2021 Intel Corporation
+
 Doxyrest toolkit (doc/doxyrest/*)
 Copyright (c) 2016, Tibbo Technology Inc
 Copyright (c) 2016, Vladimir Gladkov

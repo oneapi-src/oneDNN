@@ -17,8 +17,6 @@
 #include "sycl/level_zero_utils.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
 
-#if defined(DNNL_WITH_LEVEL_ZERO)
-
 #include <stdio.h>
 
 #if defined(__linux__)
@@ -214,28 +212,3 @@ bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs) {
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl
-
-#else
-
-namespace dnnl {
-namespace impl {
-namespace sycl {
-
-device_uuid_t get_device_uuid(const ::sycl::device &) {
-    return device_uuid_t(0, 0);
-}
-
-status_t sycl_create_kernel_with_level_zero(std::unique_ptr<::sycl::kernel> &,
-        const sycl_gpu_engine_t *, const gpu::compute::binary_t *) {
-    return status::unimplemented;
-}
-
-bool compare_ze_devices(const ::sycl::device &, const ::sycl::device &) {
-    return false;
-}
-
-} // namespace sycl
-} // namespace impl
-} // namespace dnnl
-
-#endif // DNNL_WITH_LEVEL_ZERO

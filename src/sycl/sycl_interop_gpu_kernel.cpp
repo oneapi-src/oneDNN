@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,13 +95,8 @@ status_t sycl_interop_gpu_kernel_t::realize(gpu::compute::kernel_t *kernel,
         CHECK(compat::make_kernel(sycl_kernel, kernel_name_, sycl_engine,
                 ocl_program.release(), binary_.get(), programs));
     } else if (sycl_engine->backend() == backend_t::level0) {
-#ifdef DNNL_WITH_LEVEL_ZERO
         CHECK(sycl_create_kernel_with_level_zero(sycl_kernel, kernel_name_,
                 sycl_engine, binary_.get(), programs));
-#else
-        assert(!"not expected");
-        return status::invalid_arguments;
-#endif
     } else {
         assert(!"not expected");
         return status::invalid_arguments;

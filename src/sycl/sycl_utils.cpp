@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,10 +49,6 @@ backend_t get_sycl_gpu_backend() {
         ::sycl::device dev {::sycl::gpu_selector {}};
         backend_t backend = get_sycl_backend(dev);
 
-#if !defined(DNNL_WITH_LEVEL_ZERO)
-        if (backend == backend_t::level0) backend = fallback;
-#endif
-
         return backend;
     }();
 
@@ -101,13 +97,9 @@ device_id_t sycl_device_id(const ::sycl::device &dev) {
             break;
         }
         case backend_t::level0: {
-#if defined(DNNL_WITH_LEVEL_ZERO)
             device_id = std::tuple_cat(
                     std::make_tuple(static_cast<int>(backend_t::level0)),
                     get_device_uuid(dev));
-#else
-            assert(!"unreachable");
-#endif
             break;
         }
         case backend_t::unknown: assert(!"unknown backend"); break;

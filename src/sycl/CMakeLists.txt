@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2021 Intel Corporation
+# Copyright 2019-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 #===============================================================================
 
 set(TARGET_NAME ${DNNL_LIBRARY_NAME}_sycl)
-
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
@@ -23,6 +22,9 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
+  
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")
     list(REMOVE_ITEM SOURCES
             "${CMAKE_CURRENT_SOURCE_DIR}/sycl_stream_cpu_thunk.cpp"
@@ -35,3 +37,4 @@ add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
+  

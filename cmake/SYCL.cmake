@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2021 Intel Corporation
+# Copyright 2019-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,12 +29,7 @@ endif()
 include(FindPackageHandleStandardArgs)
 include("cmake/dpcpp_driver_check.cmake")
 
-find_package(LevelZero)
-if(LevelZero_FOUND)
-    message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")
-else()
-    message(STATUS "DPC++ support is enabled (OpenCL)")
-endif()
+message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")
 
 # Explicitly link against sycl as Intel oneAPI DPC++ Compiler does not
 # always do it implicitly.
@@ -114,7 +109,3 @@ endif()
 add_definitions_with_host_compiler("-DCL_TARGET_OPENCL_VERSION=300")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
-if(LevelZero_FOUND)
-    set(DNNL_WITH_LEVEL_ZERO TRUE)
-    include_directories_with_host_compiler(${LevelZero_INCLUDE_DIRS})
-endif()
