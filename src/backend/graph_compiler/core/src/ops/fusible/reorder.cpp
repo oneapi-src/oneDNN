@@ -48,11 +48,17 @@ ir_module_ptr reorder_op_t::get_func(context_ptr ctx) {
 void reorder_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
+    // todo: currently reorder from the frontend is contiguous only, so we
+    // penetrate it here. For single internal reorder op test, please mark it as
+    // "internal".
+    in_formats.push_back(std::vector<sc_data_format_t> {
+            info_.inputs_[0]->details_.get_format()});
     if (!attrs_.get_or_else("internal", false)) {
-        in_formats.push_back(std::vector<sc_data_format_t> {
-                info_.inputs_[0]->details_.get_format()});
         out_formats.push_back(std::vector<sc_data_format_t> {
                 info_.inputs_[0]->details_.get_format()});
+    } else {
+        out_formats.push_back(std::vector<sc_data_format_t> {
+                info_.outputs_[0]->details_.get_format()});
     }
 }
 
