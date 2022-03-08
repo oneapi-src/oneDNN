@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -333,7 +333,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         tensors_in.emplace_back(sum_src1_tensor);
     }
 
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     dnnl_primitive_t c_ref = nullptr;
     dnn_mem_t bia_fp_scaled;
@@ -357,7 +357,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         } else {
             ref_args.set(DNNL_ARG_BIAS, bia_fp);
         }
-        ::matmul::compute_ref(prb, c_ref, ref_args);
+        ::matmul::compute_ref(prb, ref_args, c_ref);
 
         compare::compare_t cmp;
         cmp.set_threshold(prb->cfg[DST].eps);

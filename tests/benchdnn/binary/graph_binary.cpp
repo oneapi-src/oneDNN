@@ -173,12 +173,13 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     SAFE(::binary::fill_mem(2, dst_dt, dst_fp), WARN);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
     if (graph_prb.has_post_bin()) {
         binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), tag::abx));
-        const int idx = 0;
-        ::binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back());
+        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
+        ::binary::fill_mem(po_idx, binary_po_dt.back(), binary_po_fp.back());
+        binary_po_args.push_back(po_idx);
     }
 
     dnnl::graph::engine &eng = get_test_engine();
@@ -202,12 +203,18 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
         tensors_in.emplace_back(sum_src1_tensor);
     }
 
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        ::binary::compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp);
-        compare::compare_t cmp;
+        args_t ref_args;
+        ref_args.set(DNNL_ARG_SRC_0, src0_fp);
+        ref_args.set(DNNL_ARG_SRC_1, src1_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
 
+        TIME_REF(::binary::compute_ref(prb, ref_args));
+
+        compare::compare_t cmp;
         cmp.set_threshold(epsilon_dt(dst_dt.dt()));
         const auto binary_add_check =
                 [&](const compare::compare_t::driver_check_func_args_t &args) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * * Copyright 2019-2021 Intel Corporation
+ * * Copyright 2019-2022 Intel Corporation
  * *
  * * Licensed under the Apache License, Version 2.0 (the "License");
  * * you may not use this file except in compliance with the License.
@@ -199,17 +199,28 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     tensors_in.emplace_back(ins[3], eng, static_cast<void *>(mean_dt));
     tensors_in.emplace_back(ins[4], eng, static_cast<void *>(var_dt));
     tensors_out.emplace_back(outs[0], eng, static_cast<void *>(dst_dt));
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        static const engine_t cpu_engine(dnnl_cpu);
-        ::bnorm::compute_ref_fwd(prb, src_fp, mean_fp, var_fp, scale_fp,
-                shift_fp, ws_fp, dst_fp, src_hat_fp);
+        args_t ref_args;
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_MEAN, mean_fp);
+        ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+        ref_args.set(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT,
+                scale_fp);
+        ref_args.set(DNNL_ARG_SHIFT, shift_fp);
+        ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
+
+        TIME_REF(::bnorm::compute_ref(prb, ref_args));
+
         if (prb->dir & FLAG_FWD) {
             if (!(prb->flags & ::bnorm::GLOB_STATS) && !(prb->dir & FLAG_INF)) {
                 SAFE(::bnorm::compare(prb, MEAN, mean_fp, mean_dt, res), WARN);
                 SAFE(::bnorm::compare(prb, VAR, var_fp, var_dt, res), WARN);
             }
+            static const engine_t cpu_engine(dnnl_cpu);
             dnn_mem_t dst(dst_dt, dnnl_f32, tag::abx, cpu_engine);
             SAFE(::bnorm::compare(
                          prb, DATA, dst_fp, dst, res, &scale_fp, &shift_fp),

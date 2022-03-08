@@ -190,6 +190,7 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
     // When post-ops occur, the relative difference can change
     // between the output from reference and the kernel. The compare
     // function usually uses to compare a relative difference.
@@ -203,9 +204,10 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     if (graph_prb.has_post_bin()) {
         binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), prb->tag));
-        const int idx = 0;
-        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back(), only_positive_values);
+        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
+        ::binary::fill_mem(po_idx, binary_po_dt.back(), binary_po_fp.back(),
+                only_positive_values);
+        binary_po_args.push_back(po_idx);
     }
 
     compare::compare_t cmp;
@@ -243,10 +245,16 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         }
         std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
-        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            compute_ref_fwd(prb, src_fp, dst_fp, binary_po_fp);
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(binary_po_args, binary_po_fp);
+
+            TIME_REF(::resampling::compute_ref(prb, ref_args));
+
             const float linear_trh = epsilon_dt(prb->sdt) > epsilon_dt(prb->ddt)
                     ? epsilon_dt(prb->sdt) // conversion error sdt->ddt
                     : 7 * epsilon_dt(prb->ddt); // algorithm calculation error
@@ -287,10 +295,14 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
 
         std::vector<dnnl::graph::tensor> tensors_out {d_src_tensor};
 
-        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(::resampling::compute_ref_bwd(prb, dst_fp, d_dst_fp));
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, dst_fp);
+
+            TIME_REF(::resampling::compute_ref(prb, ref_args));
             const float linear_trh = epsilon_dt(prb->ddt) > epsilon_dt(prb->sdt)
                     ? epsilon_dt(prb->ddt)
                     : 7 * epsilon_dt(prb->sdt);

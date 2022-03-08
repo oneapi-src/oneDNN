@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -226,9 +226,9 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     auto cp = compile_partition(::reorder::init_pd, prb, res, par, ins, outs);
 
-    auto src_fp = make_dnn_mem(ins[0], spec.src_dt, "abx");
+    auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     // we need src_fp for proper comparison, => no in-place reference
-    auto dst_fp = make_dnn_mem(outs[0], spec.dst_dt, "abx");
+    auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
 
     auto src_dt = make_dnn_mem(ins[0], (prb->stag).c_str());
     auto dst_dt = make_dnn_mem(outs[0], (prb->dtag).c_str());
@@ -254,7 +254,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         tensors_in.emplace_back(sum_src1_tensor);
     }
 
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
         compare::compare_t cmp;
@@ -297,8 +297,13 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         assign_comp_mem(dst_s8_comp_ref, ::reorder::FLAG_S8S8_COMP);
         assign_comp_mem(dst_zp_comp_ref, ::reorder::FLAG_ZP_COMP);
 
-        SAFE(ref_reorder(prb, src_fp, dst_fp, dst_s8_comp_ref, dst_zp_comp_ref),
-                WARN);
+        args_t ref_args;
+        ref_args.set(DNNL_ARG_FROM, src_fp);
+        ref_args.set(DNNL_ARG_TO, dst_fp);
+        ref_args.set(DNNL_ARG_SRC_1, dst_s8_comp_ref); // Additional input
+        ref_args.set(DNNL_ARG_SRC_2, dst_zp_comp_ref); // Additional input
+
+        TIME_REF(::reorder::compute_ref(prb, ref_args));
 
         // Validate main reorder part.
         // Remove extra desc so that reorders with compensation could have

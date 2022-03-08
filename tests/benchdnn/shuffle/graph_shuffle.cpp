@@ -182,10 +182,15 @@ int doit(const ::shuffle::prb_t *prb, res_t *res) {
     std::vector<dnnl::graph::tensor> tensors_in {src_tensor};
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        ::shuffle::compute_ref(prb, src_fp, dst_fp);
+        args_t ref_args;
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+
+        TIME_REF(::shuffle::compute_ref(prb, ref_args));
+
         compare::compare_t cmp;
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }

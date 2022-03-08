@@ -270,7 +270,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     dnnl_dim_t dims_sh[] = {prb->c};
     // We use ss mem descriptor for both gamma and beta, so below sh is not used
     // and its declaration is needed only to pass it to native benchdnn
-    // function, which computes reference.
+    // function, which fills the data.
     dnn_mem_t sh_fp(1, dims_sh, dnnl_f32, tag::abx, cpu_engine);
 
     std::vector<dnnl::graph::tensor> tensors_in;
@@ -319,11 +319,17 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
                     outs[2], eng, static_cast<void *>(var_dt)));
         }
 
-        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            ::lnorm::compute_ref_fwd(
-                    prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp, dst_fp);
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_MEAN, mean_fp);
+            ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+            ref_args.set(DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+
+            TIME_REF(::lnorm::compute_ref(prb, ref_args));
 
             compare::compare_t cmp;
             const int digits_f32 = 24;
@@ -354,11 +360,6 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     } else {
         dnn_mem_t d_ss_fp(ndims_ss, dims_ss, dnnl_f32, tag::abx, cpu_engine);
         dnn_mem_t d_ss_dt(ndims_ss, dims_ss, dnnl_f32, tag::abx, cpu_engine);
-
-        // We use d_ss mem descriptor for both gamma and beta, so below d_sh
-        // is not used and its declaration is needed only to pass it to native
-        // benchdnn function, which computes reference.
-        dnn_mem_t d_sh_fp(1, dims_sh, dnnl_f32, tag::abx, cpu_engine);
 
         dnn_mem_t placeholder_d_src_dt;
         // backward pass
@@ -431,7 +432,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             tensors_out.push_back(d_beta_tensor);
         }
 
-        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (spec.use_affine) {
             for (int64_t i = 0; i < prb->c; i++) {
@@ -441,8 +442,16 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         }
 
         if (is_bench_mode(CORR)) {
-            TIME_REF(compute_ref_bwd(prb, src_fp, mean_fp, var_fp, d_dst_fp,
-                    ss_fp, d_src_fp, d_ss_fp, d_sh_fp));
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_MEAN, mean_fp);
+            ref_args.set(DNNL_ARG_VARIANCE, var_fp);
+            ref_args.set(DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+            ref_args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_fp);
+
+            TIME_REF(::lnorm::compute_ref(prb, ref_args));
 
             compare::compare_t cmp_data;
             const int digits_f32 = 24;

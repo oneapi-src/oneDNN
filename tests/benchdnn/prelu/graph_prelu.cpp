@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -116,9 +116,15 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
     tensors_out.emplace_back(
             dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
 
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
     if (is_bench_mode(CORR)) {
-        TIME_REF(::prelu::compute_ref_fwd(prb, src_fp, slope_fp, dst_fp));
+        args_t ref_args;
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_WEIGHTS, slope_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+
+        TIME_REF(::prelu::compute_ref(prb, ref_args));
+
         compare::compare_t cmp;
         cmp.set_threshold(2 * epsilon_dt(prb->sdt[0]));
         cmp.set_zero_trust_percent(50.f); // Due to filling

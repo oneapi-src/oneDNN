@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -221,7 +221,7 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
 
     std::vector<graph::tensor> output_ts0 {dst_tensor0};
 
-    SAFE(execute_and_wait(cp0, input_ts0, output_ts0), WARN);
+    SAFE(execute_and_wait(cp0, input_ts0, output_ts0, res), WARN);
     SAFE(src_dt1.reorder(dst_dt0), WARN);
 
     // Execute depthwise convolution
@@ -237,7 +237,7 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
 
     std::vector<graph::tensor> output_ts1 {dst_tensor1};
 
-    SAFE(execute_and_wait(cp1, input_ts1, output_ts1), WARN);
+    SAFE(execute_and_wait(cp1, input_ts1, output_ts1, res), WARN);
 
     // Original problem with fusion attributes
     graph::tensor src_tensor(ins[0], eng, static_cast<void *>(src_dt));
@@ -260,7 +260,7 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
 
     std::vector<graph::tensor> output_ts {dst_tensor};
 
-    SAFE(execute_and_wait(cp, input_ts, output_ts), WARN);
+    SAFE(execute_and_wait(cp, input_ts, output_ts, res), WARN);
 
     if (is_bench_mode(CORR)) {
         const auto fp = dnnl_f32;

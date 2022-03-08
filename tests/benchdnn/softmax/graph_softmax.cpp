@@ -140,10 +140,14 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
         tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(dst_dt));
 
-        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            ::softmax::compute_ref_fwd(prb, src_fp, dst_fp);
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+
+            TIME_REF(::softmax::compute_ref(prb, ref_args));
 
             compare::compare_t cmp;
             const float trh_coeff_log
@@ -177,10 +181,15 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
         tensors_in.emplace_back(ins[1], eng, static_cast<void *>(src_dt));
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(d_src_dt));
 
-        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            ::softmax::compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp);
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+
+            TIME_REF(::softmax::compute_ref(prb, ref_args));
 
             compare::compare_t cmp;
             const float trh_coeff_f32 = prb->sdt == dnnl_f32 ? 10.f : 1.f;

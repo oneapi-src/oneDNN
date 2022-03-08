@@ -214,6 +214,7 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
 
     dnnl::graph::engine &eng = get_test_engine();
 
+    args_t ref_args;
     for (auto i = 0; i < prb->n_inputs(); ++i) {
         src_fp.emplace_back(
                 make_dnn_mem(ins[i], spec.src_dims[i], dt::f32, tag::abx));
@@ -224,15 +225,21 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
 
         tensors_in.emplace_back(dnnl::graph::tensor(
                 ins[i], eng, static_cast<void *>(src_dt[i])));
+
+        if (is_bench_mode(CORR)) {
+            ref_args.set(DNNL_ARG_MULTIPLE_SRC + i, src_fp[i]);
+        }
     }
 
     dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));
     std::vector<dnnl::graph::tensor> tensors_out = {dst_tensor};
 
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        ::concat::compute_ref(prb, src_fp, dst_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        TIME_REF(::concat::compute_ref(prb, ref_args));
+
         compare::compare_t cmp;
         SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }

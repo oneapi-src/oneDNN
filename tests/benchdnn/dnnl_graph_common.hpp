@@ -294,7 +294,7 @@ int execute_and_wait(perf_function_t &exec_func,
 
 int execute_and_wait(dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,
-        const std::vector<dnnl::graph::tensor> &outputs);
+        const std::vector<dnnl::graph::tensor> &outputs, res_t *res);
 
 int measure_perf(timer::timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,13 +165,14 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
     // eltwise operator supports only relu-add (single binary post-op)
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
     if (graph_prb.has_post_bin()) {
         binary_po_fp.emplace_back(
                 make_dnn_mem(ins.back(), dt::f32, (prb->tag).c_str()));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), (prb->tag).c_str()));
-        const int idx = 0;
-        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back());
+        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
+        ::binary::fill_mem(po_idx, binary_po_dt.back(), binary_po_fp.back());
+        binary_po_args.push_back(po_idx);
     }
 
     SAFE(::eltwise::fill_data(prb, SRC, src_dt, src_fp), WARN);
@@ -217,10 +218,15 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     }
 
     if (prb->dir & FLAG_FWD) {
-        SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+        SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            ::eltwise::compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp);
+            args_t ref_args;
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(binary_po_args, binary_po_fp);
+
+            TIME_REF(::eltwise::compute_ref(prb, ref_args));
             SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     }

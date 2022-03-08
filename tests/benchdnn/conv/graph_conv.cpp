@@ -435,7 +435,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     else
         tensors_out.emplace_back(dst_tensor);
 
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     args_t ref_args;
 
@@ -462,21 +462,23 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             }
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
 
-            ::conv::compute_ref_fwd(prb, c_ref, ref_args);
+            TIME_REF(::conv::compute_ref(prb, ref_args, c_ref));
             SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
         } else if (prb->dir == BWD_D) {
             dnnl_primitive_t c_ref = nullptr;
             ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
-            ::conv::compute_ref_bwd_d(prb, c_ref, ref_args);
+
+            TIME_REF(::conv::compute_ref(prb, ref_args, c_ref));
             SAFE(compare_data(prb, SRC, src_dt, src_fp, res), WARN);
         } else if (prb->dir == BWD_W) {
             dnnl_primitive_t c_ref = nullptr;
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_fp);
-            ::conv::compute_ref_bwd_w(prb, c_ref, ref_args);
+
+            TIME_REF(::conv::compute_ref(prb, ref_args, c_ref));
             SAFE(compare_data(prb, WEI, wei_dt, wei_fp, res), WARN);
         } else {
             SAFE(FAIL, CRIT);

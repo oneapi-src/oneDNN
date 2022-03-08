@@ -403,13 +403,16 @@ int execute_and_wait(perf_function_t &exec_func, dnnl::graph::engine &engine,
 
 int execute_and_wait(dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,
-        const std::vector<dnnl::graph::tensor> &outputs) {
+        const std::vector<dnnl::graph::tensor> &outputs, res_t *res) {
     perf_function_t perf_func
             = std::bind(&compiled_partition_executor, cp, std::placeholders::_1,
                     std::placeholders::_2, std::placeholders::_3);
     dnnl::graph::engine &engine = get_test_engine();
 
-    return execute_and_wait(perf_func, engine, inputs, outputs);
+    int status = execute_and_wait(perf_func, engine, inputs, outputs);
+    if (res) res->state = EXECUTED;
+
+    return status;
 };
 
 inline int measure_perf_individual(timer::timer_t &t,

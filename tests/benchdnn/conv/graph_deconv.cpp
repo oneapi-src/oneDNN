@@ -340,7 +340,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         tensors_in.emplace_back(sum_src1_tensor);
     }
 
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
     args_t ref_args;
 
     if (is_bench_mode(CORR)) {
@@ -374,7 +374,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(binary_po_args, binary_po_fp);
-            ::deconv::compute_ref_fwd(&prb_tr, c_ref, ref_args);
+            TIME_REF(::deconv::compute_ref(&prb_tr, ref_args, c_ref));
         }
 
         SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
