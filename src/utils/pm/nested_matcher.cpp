@@ -147,6 +147,8 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
         std::shared_ptr<value_t> op_out_value
                 = op->get_output_value(node_output_offset);
         std::unordered_set<size_t> matched_node_offsets;
+        std::unordered_map<op_t *, pb_op *> op_map_for_current_node_output
+                = copied_op_map;
         // match the consumers one by one
         for (size_t j = 0; j < op_out_value->get_consumers().size(); j++) {
             auto op_consumer = op_out_value->get_consumers()[j];
@@ -161,7 +163,8 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
                 binding_t out_bind(BIND_IN, out_op,
                         int64_t(op_consumer.get_offset()), out_node,
                         node_consumer->second);
-                if (!match_graph_helper(out_bind, ctx, copied_op_map)) {
+                if (!match_graph_helper(
+                            out_bind, ctx, op_map_for_current_node_output)) {
                     continue;
                 } else {
                     consumer_matched = true;
@@ -178,28 +181,52 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
                             = p_op->get_allowed_external_outputs();
                     if (!external_outputs.empty()
                             && external_outputs.find(node_output_offset)
-                                    != external_outputs.end())
+                                    != external_outputs.end()) {
                         continue;
+                    } else {
+                        // the current node_output_offset match failed, clear
+                        // the matched_node_offsets, clear current node output's
+                        // matched_op_map;
+                        matched_node_offsets.clear();
+                        op_map_for_current_node_output = copied_op_map;
+                        break;
+                    }
                 }
-                return false;
             }
         }
 
         // check if there are unmatched node outputs
         for (size_t k = 0; k < node_output.second.size(); k++) {
             if (!matched_node_offsets.count(k)) {
-                auto node_consumer = node_output.second[k];
-                pb_node *out_node = node_consumer->first;
                 // in this case, only optional can survive
-                if (out_node->get_node_kind()
-                        != pb_node_kind::PB_NODE_KIND_REPETITION)
-                    return false;
-                repetition_t *rep_node = dynamic_cast<repetition_t *>(out_node);
-                if (rep_node->get_min_rep() != 0) return false;
+                pb_node *out_node = node_output.second[k]->first;
+                bool is_optional = check_is_optional(out_node);
+                if (!is_optional) return false;
+            }
+        }
+        copied_op_map = op_map_for_current_node_output;
+    }
+    matched_op_map = copied_op_map;
+    return true;
+}
+
+bool check_is_optional(pb_node *n) {
+    if (n->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
+        return false;
+    repetition_t *rep_node = dynamic_cast<repetition_t *>(n);
+    if (rep_node->get_min_rep() != 0) return false;
+
+    std::vector<std::pair<oport_t, consumers_t>> node_outputs
+            = n->get_outputs();
+    if (!node_outputs.empty()) {
+        for (auto &node_output : node_outputs) {
+            for (size_t i = 0; i < node_output.second.size(); i++) {
+                bool is_optional
+                        = check_is_optional(node_output.second[i]->first);
+                if (!is_optional) return false;
             }
         }
     }
-    matched_op_map = copied_op_map;
     return true;
 }
 

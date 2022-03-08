@@ -156,6 +156,9 @@ protected:
 bool has_commutative_inputs(op_t *op);
 
 bool has_variadic_inputs(op_t *op);
+
+// check if a pb_node is optional and its all consumers are optional
+bool check_is_optional(pb_node *n);
 //
 // match a pattern node by checking paired graph op's attributes
 // and pair pattern node neighboring nodes with graph op's neighboring
