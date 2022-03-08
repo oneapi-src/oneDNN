@@ -156,11 +156,12 @@ struct dnn_mem_t {
 
     // Increases memory size to catch potential buffer overreads and
     // overwrites. The padded area is filled with a canary value.
-    static size_t pad_memory_size(size_t sz, bool *was_padded = nullptr);
+    static size_t pad_memory_size(size_t sz, dnnl_engine_kind_t engine_kind,
+            bool *was_padded = nullptr);
     // Increases memory descriptor size to catch potential buffer overreads and
     // overwrites. The padded area is filled with a canary value.
-    static dnnl_memory_desc_t pad_memory_desc(
-            const dnnl_memory_desc_t &md, bool *was_padded = nullptr);
+    static dnnl_memory_desc_t pad_memory_desc(const dnnl_memory_desc_t &md,
+            dnnl_engine_kind_t engine_kind, bool *was_padded = nullptr);
     // Initializes memory descriptor from sporadic tag or strides.
     static dnnl_memory_desc_t init_md(int ndims, const dnnl_dims_t dims,
             dnnl_data_type_t data_type, const std::string &tag,
