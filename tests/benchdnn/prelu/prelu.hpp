@@ -17,7 +17,7 @@
 #ifndef PRELU_HPP
 #define PRELU_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common.hpp"
 #include "dnn_types.hpp"

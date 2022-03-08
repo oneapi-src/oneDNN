@@ -84,7 +84,7 @@ struct dnn_mem_t {
     int reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr);
     int reorder(const dnn_mem_t &rhs) { return reorder(rhs, nullptr); }
 
-    size_t size() const { return dnnl_memory_desc_get_size(&md_); }
+    size_t size() const;
 
     int64_t nelems(bool with_padded_dims = false) const {
         auto dims = with_padded_dims ? md_.padded_dims : md_.dims;
@@ -98,7 +98,7 @@ struct dnn_mem_t {
 
     int ndims() const { return md_.ndims; }
     dnnl_data_type_t dt() const { return md_.data_type; }
-    size_t sizeof_dt() const { return dnnl_data_type_size(md_.data_type); }
+    size_t sizeof_dt() const;
 
     void set_dt(dnnl_data_type_t dt) { md_.data_type = dt; }
 
