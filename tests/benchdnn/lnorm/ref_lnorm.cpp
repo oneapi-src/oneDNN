@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "lnorm/lnorm.hpp"
 
@@ -35,7 +35,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    dnnl::impl::parallel_nd(prb->n, [&](int64_t n) {
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         float smean = mean.get_elem(n);
         float svar = var.get_elem(n);
         float sqrt_var = sqrtf(svar + prb->eps);
@@ -72,7 +72,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const bool use_sh = prb->use_sh();
 
     if ((use_ss || use_sc || use_sh) && (prb->dir & FLAG_WEI)) {
-        dnnl::impl::parallel_nd(prb->c, [&](int64_t c) {
+        benchdnn_parallel_nd(prb->c, [&](int64_t c) {
             float d_gamma = 0;
             float d_beta = 0;
 
@@ -96,7 +96,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
         });
     }
 
-    dnnl::impl::parallel_nd(prb->n, [&](int64_t n) {
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         float smean = mean.get_elem(n);
         float svar = var.get_elem(n);
         float rcp_denom = 1.f / sqrtf(svar + prb->eps);

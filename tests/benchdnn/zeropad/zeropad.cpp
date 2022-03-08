@@ -21,7 +21,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "zeropad/zeropad.hpp"
 
@@ -57,7 +57,7 @@ static int compare(const dnn_mem_t &test_mem, res_t *res) {
                   idx = md_off_v(test_mem.md_, pos);
               };
 
-    dnnl::impl::parallel_nd(dims[0], [&](dnnl_dim_t dim0) {
+    benchdnn_parallel_nd(dims[0], [&](dnnl_dim_t dim0) {
         dnnl_dims_t pos = {0};
         pos[0] = dim0;
         dnnl_dim_t idx = md_off_v(test_mem.md_, pos);

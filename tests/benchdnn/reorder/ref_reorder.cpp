@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "reorder/reorder.hpp"
 
@@ -50,7 +50,7 @@ void compute_ref(
     // `adjust_scale` participates only with s8s8 compensation.
     const float s8_scale_factor = need_s8_comp ? reorder_rescale_factor() : 1.f;
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t idx) {
+    benchdnn_parallel_nd(nelems, [&](int64_t idx) {
         float s = src.get_elem(idx) - src_zero_point;
         float d = 0;
         if (beta_idx >= 0) d = dst.get_elem(idx) - dst_zero_point;
@@ -101,7 +101,7 @@ void compute_ref(
     }
 
     const auto nelems_reduce = nelems / nelems_comp;
-    dnnl::impl::parallel_nd(nelems_comp, [&](int64_t f) {
+    benchdnn_parallel_nd(nelems_comp, [&](int64_t f) {
         dims_t idle_pos = off2dims_idx(comp_dims, f);
         const int64_t src_idle_off = md_off_v(src.md_, idle_pos.data());
         int comp_val = 0;

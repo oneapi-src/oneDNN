@@ -36,7 +36,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine)
     : dnn_mem_t(md, engine, handle_info_t::allocate()) {}
@@ -649,7 +649,7 @@ static int check_zero_padding_impl(
         auto dim_l = product(pdims, pdims + dim_m_idx);
         auto dim_r = product(pdims + dim_m_idx + 1, pdims + ndims);
 
-        dnnl::impl::parallel_nd(dim_l, dim_r, [&](dnnl_dim_t l, dnnl_dim_t r) {
+        benchdnn_parallel_nd(dim_l, dim_r, [&](dnnl_dim_t l, dnnl_dim_t r) {
             for (dnnl_dim_t m = dims[dim_m_idx]; m < pdims[dim_m_idx]; ++m) {
                 auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
                 auto idx = md_off_l(nullptr, mem.md_, l_idx, true);

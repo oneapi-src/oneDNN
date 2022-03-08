@@ -20,7 +20,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"

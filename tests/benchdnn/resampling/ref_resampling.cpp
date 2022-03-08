@@ -15,7 +15,7 @@
 *******************************************************************************/
 #include <math.h>
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "resampling/resampling.hpp"
 
@@ -88,7 +88,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     };
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
-    dnnl::impl::parallel_nd(MB, IC, OD, OH, OW,
+    benchdnn_parallel_nd(MB, IC, OD, OH, OW,
             [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
                 float result = 0.f;
                 if (prb->alg == nearest) {
@@ -151,12 +151,12 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     };
 
     // zeroing d_src for correct result
-    dnnl::impl::parallel_nd(MB, IC, ID, IH, IW,
+    benchdnn_parallel_nd(MB, IC, ID, IH, IW,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
                 d_src_ptr[src_off_f(prb, mb, ic, id, ih, iw)] = 0;
             });
 
-    dnnl::impl::parallel_nd(MB, IC, [&](int64_t mb, int64_t ic) {
+    benchdnn_parallel_nd(MB, IC, [&](int64_t mb, int64_t ic) {
         for_(int64_t od = 0; od < OD; ++od)
         for_(int64_t oh = 0; oh < OH; ++oh)
         for (int64_t ow = 0; ow < OW; ++ow)

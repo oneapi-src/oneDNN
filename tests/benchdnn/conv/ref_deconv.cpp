@@ -16,7 +16,7 @@
 
 #include <utility>
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "conv/deconv.hpp"
 
@@ -128,7 +128,7 @@ void compute_ref_bwd_w(
         const int64_t OH = prb->ih; // prb.oh = p_tr.ih
         const int64_t OW = prb->iw; // prb.ow = p_tr.iw
 
-        dnnl::impl::parallel_nd(G, OCG, [&](int64_t g, int64_t oc) {
+        benchdnn_parallel_nd(G, OCG, [&](int64_t g, int64_t oc) {
             size_t bia_off = g * OCG + oc;
             double sum = 0;
 

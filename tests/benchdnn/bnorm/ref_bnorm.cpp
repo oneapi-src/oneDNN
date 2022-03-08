@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "bnorm/bnorm.hpp"
 
@@ -47,7 +47,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const bool need_ws = prb->need_ws();
     const auto &attr = prb->attr;
 
-    dnnl::impl::parallel_nd(C, [&](int64_t c) {
+    benchdnn_parallel_nd(C, [&](int64_t c) {
         float smean = mean.get_elem(c);
         float svar = var.get_elem(c);
         float sqrt_var = sqrtf(svar + prb->eps);
@@ -100,7 +100,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
 
     const float MB_SP = MB * D * H * W;
 
-    dnnl::impl::parallel_nd(C, [&](int64_t c) {
+    benchdnn_parallel_nd(C, [&](int64_t c) {
         float rcp_denom = 1.f / sqrtf(var.get_elem(c) + prb->eps);
         float gamma = (use_ss || use_sc) ? ss.get_elem(c) : 1.f;
 

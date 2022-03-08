@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "conv/conv_common.hpp"
 #include "conv/deconv.hpp"
@@ -69,7 +69,7 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
     };
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
-    dnnl::impl::parallel_nd(G, MB, OCG, OD, OH, OW,
+    benchdnn_parallel_nd(G, MB, OCG, OD, OH, OW,
             [&](int64_t g, int64_t mb, int64_t oc, int64_t od, int64_t oh,
                     int64_t ow) {
                 const size_t dst_off = dst_off_f(prb, mb, g, oc, od, oh, ow);
@@ -213,7 +213,7 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
     };
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
-    dnnl::impl::parallel_nd(G, MB, ICG, ID, IH, IW,
+    benchdnn_parallel_nd(G, MB, ICG, ID, IH, IW,
             [&](int64_t g, int64_t mb, int64_t ic, int64_t id, int64_t ih,
                     int64_t iw) {
                 size_t src_off = src_off_f(prb, mb, g, ic, id, ih, iw);
@@ -295,7 +295,7 @@ void compute_ref_bwd_weights(const prb_t *prb, const args_t &args) {
         }
     };
 
-    dnnl::impl::parallel_nd(G, OCG, ICG, KD, KH, KW,
+    benchdnn_parallel_nd(G, OCG, ICG, KD, KH, KW,
             [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
                     int64_t kw) {
                 size_t wei_off = wei_off_f(prb, g, oc, ic, kd, kh, kw);
@@ -313,7 +313,7 @@ void compute_ref_bwd_bias(const prb_t *prb, const args_t &args) {
     const int64_t OCG = OC / G;
     const int64_t OD = prb->od, OH = prb->oh, OW = prb->ow;
 
-    dnnl::impl::parallel_nd(G, OCG, [&](int64_t g, int64_t oc) {
+    benchdnn_parallel_nd(G, OCG, [&](int64_t g, int64_t oc) {
         size_t bia_off = bia_off_f(prb, g, oc);
         double sum = 0;
 

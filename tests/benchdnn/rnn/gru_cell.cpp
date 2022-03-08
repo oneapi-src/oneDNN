@@ -16,7 +16,7 @@
 
 #include <stdlib.h>
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"

@@ -23,7 +23,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -119,7 +119,7 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(outer_size, n_chunks);
 
-    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, outer_size);
         std::minstd_rand msr(idx_start + 1);
@@ -190,7 +190,7 @@ int fill_data_bwd(
     // logsoftmax := d_dst - exp(dst) * SUM (d_dst); keep -d_dst and +dst.
     // seed decides about the sign.
     const float sign = seed % 2 == 0 ? 1.f : -1.f;
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
+    benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((11 * i) + 37 + 19 * seed) % range;
         const float value = sign * gen / range;
         mem_fp.set_elem(i, value);

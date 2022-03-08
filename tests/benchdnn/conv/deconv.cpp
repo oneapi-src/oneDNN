@@ -23,7 +23,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -37,7 +37,7 @@ namespace deconv {
 
 int transpose_data_wei(
         const prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr) {
-    dnnl::impl::parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
+    benchdnn_parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
             prb->kh, prb->kw,
             [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
                     int64_t kw) {

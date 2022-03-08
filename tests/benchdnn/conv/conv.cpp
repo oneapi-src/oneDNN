@@ -31,7 +31,7 @@
 #include "tests/test_isa_common.hpp"
 #endif
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -136,7 +136,7 @@ int fill_src(
     const int range = c.f_max - c.f_min + 1;
     const float sparsity = src_nelems < 100 ? 1.f : c.f_sparsity;
 
-    dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
+    benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
                 const int64_t gen
                         = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
@@ -202,7 +202,7 @@ int fill_wei(
     const auto &c = prb->cfg[WEI];
     const int range = c.f_max - c.f_min + 1;
 
-    dnnl::impl::parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
+    benchdnn_parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
             prb->kh, prb->kw,
             [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
                     int64_t kw) {
@@ -287,7 +287,7 @@ int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
     const int range = max - min + 1;
 
-    dnnl::impl::parallel_nd(prb->mb, prb->oc, prb->od, prb->oh, prb->ow,
+    benchdnn_parallel_nd(prb->mb, prb->oc, prb->od, prb->oh, prb->ow,
             [&](int64_t mb, int64_t oc, int64_t od, int64_t oh, int64_t ow) {
                 const int64_t gen
                         = 157 * od + 163 * oh + 167 * ow + 173 * mb + 179 * oc;

@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "concat/concat.hpp"
 
@@ -39,23 +39,21 @@ void compute_ref(
     int64_t outer_size {0}, inner_size {0}, axis_size {0};
     get_sizes(prb, outer_size, inner_size, axis_size);
 
-    dnnl::impl::parallel_nd(
-            outer_size, inner_size, [&](int64_t ou, int64_t in) {
-                int64_t off_dst = ou * axis_size * inner_size;
-                for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
-                    const dnn_mem_t &src_i
-                            = args.find(DNNL_ARG_MULTIPLE_SRC + i_input);
-                    int64_t i_axis_size = prb->vdims[i_input][prb->axis];
-                    int64_t off_src = ou * i_axis_size * inner_size;
+    benchdnn_parallel_nd(outer_size, inner_size, [&](int64_t ou, int64_t in) {
+        int64_t off_dst = ou * axis_size * inner_size;
+        for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
+            const dnn_mem_t &src_i = args.find(DNNL_ARG_MULTIPLE_SRC + i_input);
+            int64_t i_axis_size = prb->vdims[i_input][prb->axis];
+            int64_t off_src = ou * i_axis_size * inner_size;
 
-                    for (int64_t as = 0; as < i_axis_size; ++as) {
-                        int64_t idx = as * inner_size + in;
-                        dst_ptr[off_dst + idx] = src_i.get_elem(off_src + idx);
-                    }
-                    // the next input start point
-                    off_dst += i_axis_size * inner_size;
-                }
-            });
+            for (int64_t as = 0; as < i_axis_size; ++as) {
+                int64_t idx = as * inner_size + in;
+                dst_ptr[off_dst + idx] = src_i.get_elem(off_src + idx);
+            }
+            // the next input start point
+            off_dst += i_axis_size * inner_size;
+        }
+    });
 }
 
 } // namespace concat

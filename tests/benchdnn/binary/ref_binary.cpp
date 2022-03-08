@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "binary/binary.hpp"
 
@@ -38,7 +38,7 @@ void compute_ref(
     const auto broadcast_mask_B = prb->get_broadcast_mask(1);
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
+    benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const auto idx_A = dst.get_scale_idx(i, broadcast_mask_A);
         const auto idx_B = dst.get_scale_idx(i, broadcast_mask_B);
         float res = compute_binary(
