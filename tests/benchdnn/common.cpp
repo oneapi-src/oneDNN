@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common.hpp"
 #include "utils/parser.hpp"

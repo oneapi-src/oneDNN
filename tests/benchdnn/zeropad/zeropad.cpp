@@ -14,7 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.h"
+#include <atomic>
+
+#include "oneapi/dnnl/dnnl.h"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -25,7 +27,7 @@
 
 extern "C" {
 dnnl_status_t dnnl_impl_zero_pad(
-        const dnnl::impl::memory_t *memory, dnnl::impl::stream_t *stream);
+        const dnnl_memory *memory, dnnl_stream *stream);
 }
 
 namespace zeropad {

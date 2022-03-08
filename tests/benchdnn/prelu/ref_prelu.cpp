@@ -14,11 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
+
 #include <assert.h>
 
-#include <algorithm>
-#include "prelu/prelu.hpp"
 #include "tests/test_thread.hpp"
+
+#include "prelu/prelu.hpp"
 
 namespace prelu {
 

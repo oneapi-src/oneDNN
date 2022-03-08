@@ -143,6 +143,14 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
     return execute_reorder(rhs, *this, attr);
 }
 
+size_t dnn_mem_t::size() const {
+    return dnnl_memory_desc_get_size(&md_);
+}
+
+size_t dnn_mem_t::sizeof_dt() const {
+    return dnnl_data_type_size(md_.data_type);
+}
+
 float dnn_mem_t::get_elem(int64_t idx) const {
     void *data = (void *)*this;
     float elem = 0.0;
