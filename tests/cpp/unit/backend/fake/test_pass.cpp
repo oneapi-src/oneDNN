@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ TEST(Pass, FakeSingleOpReplacement) {
                     /* no dnnl primitive support = */ BiasAdd, BiasAddBackprop,
                     Clamp, ClampBackprop, Erf, HardTanhBackprop, PowBackprop,
                     ReduceSum, SoftPlus, SoftPlusBackprop, Wildcard, End, Index,
-                    PowBackpropExponent};
+                    PowBackpropExponent, Sign, Negative, Reciprocal};
     for (auto akind : single_op_set_unsupported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);

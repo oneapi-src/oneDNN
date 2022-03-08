@@ -107,7 +107,10 @@ TEST(api_op, create_all_ops) {
             op::kind::DynamicReshape,
             op::kind::DynamicTranspose,
             op::kind::DynamicQuantize,
-            op::kind::DynamicDequantize
+            op::kind::DynamicDequantize,
+            op::kind::Sign,
+            op::kind::Negative,
+            op::kind::Reciprocal
     };
     // clang-format on
 
