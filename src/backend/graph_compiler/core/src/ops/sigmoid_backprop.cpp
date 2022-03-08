@@ -48,17 +48,13 @@ std::shared_ptr<sc_graph_t> sigmoid_backprop_op::get_graph() {
 
     graph_tensor_ptr inputs0 = inputs[0];
     graph_tensor_ptr inputs1 = inputs[1];
-    if (is_bf16) {
-        auto cast0 = graph->make(
-                "cast", {inputs[0]}, {}, {{"dtype", datatypes::f32}});
-        inputs0 = cast0->get_outputs()[0];
-    }
+
     // sigmoid_grad = sigmoid(x) - sigmoid(x)*sigmoid(x)
     // if "use_dst" is true, inputs0 is the result of forward, which is
     // sigmoid(x). otherwise, inputs0 is the src of forward, we need to
     // calculate sigmoid(x) by ourselves
     sc_op_ptr mul0, sub, mul1;
-    if (attrs_.get_or_else("use_dst", false)) {
+    if (attrs_.get_or_else("use_dst", true)) {
         mul0 = graph->make("mul", {inputs0, inputs0}, {}, {});
         sub = graph->make("sub", {inputs0, mul0->get_outputs()[0]}, {}, {});
     } else {
@@ -69,10 +65,6 @@ std::shared_ptr<sc_graph_t> sigmoid_backprop_op::get_graph() {
                 {sigmoid->get_outputs()[0], mul0->get_outputs()[0]}, {}, {});
     }
 
-    if (is_bf16) {
-        sub = graph->make(
-                "cast", sub->get_outputs(), {}, {{"dtype", datatypes::bf16}});
-    }
     mul1 = graph->make("mul", {sub->get_outputs()[0], inputs1}, {}, {});
     // output
     graph->make_output(mul1->get_outputs());

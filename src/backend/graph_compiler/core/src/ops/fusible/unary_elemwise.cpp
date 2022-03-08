@@ -156,6 +156,11 @@ expr sigmoid_op_t::compute_element(expr in, int mask_count, float mask_value) {
     auto bld = builder::get_current_builder();
     // constants
     auto lanes = in->dtype_.lanes_;
+    bool is_bf16 = in->dtype_.is_etype(sc_data_etype::BF16);
+    if (is_bf16) {
+        sc_data_type_t fp32ty = sc_data_type_t::f32(lanes);
+        in = builder::make_cast(fp32ty, in);
+    }
     expr f_one = make_expr<constant_node>(1.0f, sc_data_type_t::f32(lanes));
     expr sign_mask = make_expr<constant_node>(
             0x80000000UL, sc_data_type_t::u32(lanes));
@@ -179,7 +184,13 @@ expr sigmoid_op_t::compute_element(expr in, int mask_count, float mask_value) {
     // out = 1 / ( 1 + exp(-x) )
     bld->push_assign(f_exp_neg_x, builder::make_exp(f_neg_x));
 
-    return builder::make_div(f_one, f_one + f_exp_neg_x);
+    if (is_bf16) {
+        sc_data_type_t bf16ty = sc_data_type_t::bf16(lanes);
+        return builder::make_cast(
+                bf16ty, builder::make_div(f_one, f_one + f_exp_neg_x));
+    } else {
+        return builder::make_div(f_one, f_one + f_exp_neg_x);
+    }
 }
 
 expr exp_op_t::compute_element(expr in, int mask_count, float mask_value) {
