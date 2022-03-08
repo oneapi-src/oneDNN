@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -100,17 +100,17 @@ bool zero_points_valid(
         const primitive_attr_t *attr, bool per_oc_bcast_accepted) noexcept {
 
     int mask_src = -1, mask_dst = -1;
-    static constexpr int c_mask = 0x1,
-                         g_mask = 0x3; // mask for i/o-channel and ngroups
+    static constexpr int common_mask = 0x0,
+                         per_oc_mask = 0x2; // mask for common and per_oc_bcast
 
     attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
     attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
 
     const bool src_mask_valid = per_oc_bcast_accepted
-            ? utils::one_of(mask_src, 0, c_mask, g_mask)
+            ? utils::one_of(mask_src, common_mask, per_oc_mask)
             : mask_src == 0;
     const bool dst_mask_valid = per_oc_bcast_accepted
-            ? utils::one_of(mask_dst, 0, c_mask, g_mask)
+            ? utils::one_of(mask_dst, common_mask, per_oc_mask)
             : mask_dst == 0;
 
     return attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
