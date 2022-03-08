@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,17 @@ static inline size_t extract_workload_from_stmt(const stmt &v) {
     if (v->attr().has_key(op_traits::workload_computable_t::workload_number)) {
         return v->attr().get<size_t>(
                 op_traits::workload_computable_t::workload_number);
+    } else if (v.isa<evaluate>()) {
+        // Disable workload dispatch on brgemm
+        // TODO(zhennan): give brgemm a resonable workload
+        const auto &eval = v.as<evaluate>();
+        if (eval->value_.isa<intrin_call>()) {
+            const auto &intrin = eval->value_.as<intrin_call>();
+            if (intrin->type_ == intrin_type::brgemm
+                    || intrin->type_ == intrin_type::list_brgemm) {
+                return memory_access_threshold_per_thread;
+            }
+        }
     }
     return 0UL;
 }
