@@ -93,6 +93,7 @@ TEST(pd_next_impl, TestEltwiseImpl) {
 
 TEST(pd_next_impl, TestFreeOpdesc) {
     SKIP_IF_CUDA(true, "Unsupported memory format for CUDA");
+
     auto eng = get_test_engine();
     memory::desc data_md(
             {8, 32, 4, 4}, memory::data_type::f32, memory::format_tag::any);
@@ -103,15 +104,14 @@ TEST(pd_next_impl, TestFreeOpdesc) {
             algorithm::convolution_auto, data_md, weights_md, data_md, {1, 1},
             {0, 0}, {0, 0});
     convolution_forward::primitive_desc cpd(*cd, eng);
-    std::cout << sizeof(dnnl_convolution_desc_t) << std::endl;
-    std::cout << sizeof(dnnl_rnn_desc_t) << std::endl;
-
     delete cd;
 
     // checks that we can get next_impl without segfaulting
-    ASSERT_EXIT((cpd.next_impl(), exit(0)), ::testing::ExitedWithCode(0), ".*");
-    ASSERT_EXIT((cpd.next_impl(), exit(0)), ::testing::ExitedWithCode(0), ".*");
-    ASSERT_EXIT((cpd.next_impl(), exit(0)), ::testing::ExitedWithCode(0), ".*");
+    bool st = true;
+    st = cpd.next_impl();
+    st = cpd.next_impl();
+    st = cpd.next_impl();
+    UNUSED(st);
 }
 
 } // namespace dnnl
