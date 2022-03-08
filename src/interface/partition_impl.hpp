@@ -62,12 +62,7 @@ public:
     partition_impl_t(impl::engine_kind_t engine_kind)
         : engine_kind_(engine_kind) {};
 
-    partition_impl_t(const partition_impl_t &other);
-
     virtual ~partition_impl_t() = default;
-
-    /// disable assign
-    partition_impl_t &operator=(const partition_impl_t &other) = delete;
 
     /// The getter for engine_kind_, which is used in C API
     impl::engine_kind_t get_engine_kind() const { return engine_kind_; }
@@ -88,7 +83,9 @@ public:
     virtual bool is_initialized() const = 0;
 
     /// Deep copy a partition, and return the copied partition's smart pointer
-    virtual std::shared_ptr<impl::partition_impl_t> clone() = 0;
+    /// Derived class must clone the members in base class when implementing
+    /// this method.
+    virtual std::shared_ptr<impl::partition_impl_t> clone() const = 0;
 
     /// Return the assigned backend of this partition
     virtual const impl::backend *get_assigned_backend() const = 0;
@@ -215,6 +212,9 @@ protected:
 
     /// Partition_impl id
     size_t id_ = std::numeric_limits<size_t>::max();
+
+private:
+    DNNL_GRAPH_DISALLOW_COPY_AND_ASSIGN(partition_impl_t);
 };
 
 class compiled_partition_impl_t {

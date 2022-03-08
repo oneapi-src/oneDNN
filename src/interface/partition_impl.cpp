@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,14 +22,6 @@
 namespace dnnl {
 namespace graph {
 namespace impl {
-partition_impl_t::partition_impl_t(const partition_impl_t &other)
-    : std::enable_shared_from_this<partition_impl_t>(other)
-    , engine_kind_(other.engine_kind_)
-    , ops_(impl::graph_t::deep_copy(other.ops_))
-    , inputs_(other.inputs_)
-    , outputs_(other.outputs_)
-    , id_(other.id_) {}
-
 status_t compiled_partition_impl_t::query_logical_tensor(
         size_t tid, logical_tensor_t *lt) const {
     auto pos_in = std::find_if(inputs_.begin(), inputs_.end(),

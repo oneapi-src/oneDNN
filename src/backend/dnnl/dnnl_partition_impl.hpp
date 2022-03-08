@@ -104,15 +104,6 @@ public:
 
     ~dnnl_partition_impl_t() override = default;
 
-    // deep copy
-    dnnl_partition_impl_t(const dnnl_partition_impl_t &other)
-        : impl::partition_impl_t(other)
-        , fused_op_(std::make_shared<impl::op_t>(other.fused_op_->get_kind()))
-        , inputs_map_(other.inputs_map_)
-        , outputs_map_(other.outputs_map_) {
-        fused_op_->merge_attributes(other.fused_op_->get_attributes());
-    }
-
     ///// The following are used only in backend for constructing object
 
     void init(const impl::op_t *aop) {
@@ -174,8 +165,17 @@ public:
 
     bool is_initialized() const override { return fused_op_ != nullptr; }
 
-    std::shared_ptr<impl::partition_impl_t> clone() override {
-        return std::make_shared<dnnl_partition_impl_t>(*this);
+    std::shared_ptr<impl::partition_impl_t> clone() const override {
+        auto ret = std::make_shared<dnnl_partition_impl_t>(get_engine_kind());
+        ret->ops_ = impl::graph_t::deep_copy(ops_);
+        ret->inputs_ = inputs_;
+        ret->outputs_ = outputs_;
+        ret->id_ = id_;
+        ret->fused_op_ = std::make_shared<impl::op_t>(fused_op_->get_kind());
+        ret->fused_op_->merge_attributes(fused_op_->get_attributes());
+        ret->inputs_map_ = inputs_map_;
+        ret->outputs_map_ = outputs_map_;
+        return ret;
     }
 
     const impl::backend *get_assigned_backend() const override {
@@ -188,7 +188,8 @@ public:
             const impl::engine_t *g_engine) const override {
         // compile will transform the subgraph in partition, so we make
         // a copy
-        auto part = std::make_shared<dnnl_partition_impl_t>(*this);
+        auto part = std::dynamic_pointer_cast<dnnl_partition_impl_t>(
+                this->clone());
 
         std::shared_ptr<impl::op_t> fused_op = part->get_fused_op();
         if (!fused_op) return status::compile_fail;
