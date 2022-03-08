@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "pool/pool.hpp"
 
@@ -80,7 +80,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
         dst_ptr[dst_off] = res;
     };
 
-    dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->od, prb->oh, prb->ow,
+    benchdnn_parallel_nd(prb->mb, prb->ic, prb->od, prb->oh, prb->ow,
             [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
                 ker(mb, ic, od, oh, ow);
             });
@@ -132,7 +132,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
         }
     };
 
-    dnnl::impl::parallel_nd(prb->mb, prb->ic, [&](int64_t mb, int64_t ic) {
+    benchdnn_parallel_nd(prb->mb, prb->ic, [&](int64_t mb, int64_t ic) {
         zero_d_src(mb, ic);
         for_(int64_t od = 0; od < prb->od; ++od)
         for_(int64_t oh = 0; oh < prb->oh; ++oh)

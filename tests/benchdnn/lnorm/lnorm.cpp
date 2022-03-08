@@ -24,7 +24,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -84,7 +84,7 @@ static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
     BENCHDNN_PRINT(6, "check_alg: %s, density = %g, flex_bits = " IFMT "\n",
             check_alg2str(alg), density, flex_bits);
 
-    dnnl::impl::parallel_nd(prb->n, [&](int64_t n) {
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         const float m = alg == ALG_0 ? 0.f : 0.25f * (1 << (n % 7));
         float v = 0; /* current variance */
 
@@ -113,7 +113,7 @@ static int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    dnnl::impl::parallel_nd(prb->c, [&](int64_t c) {
+    benchdnn_parallel_nd(prb->c, [&](int64_t c) {
         float sc_value = 1.f / 8 * (1 << (c % 7));
         float sh_value = (c % 3 + 1) * sc_value / 64;
         if (use_sc || use_sh) {

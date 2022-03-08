@@ -21,7 +21,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -41,7 +41,7 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     const int64_t ker_size {prb->kd * prb->kh * prb->kw};
     const auto &c = prb->cfg[kind];
 
-    dnnl::impl::parallel_nd(MB, IC, D, H, W,
+    benchdnn_parallel_nd(MB, IC, D, H, W,
             [&](int64_t mb, int64_t ic, int64_t d, int64_t h, int64_t w) {
                 const int64_t factor = prb->alg == max ? 1 : ker_size;
                 // keep values for avg_exclude_pad positive to prevent cancellation err
@@ -77,7 +77,7 @@ int fill_dst(
 // anything else) in case of a bug in the library
 int fill_ws(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    dnnl::impl::parallel_nd(mem_fp.nelems(),
+    benchdnn_parallel_nd(mem_fp.nelems(),
             [&](int64_t i) { mem_fp.set_elem(i, (1 << 24) - 1); });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);

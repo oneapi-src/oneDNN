@@ -30,7 +30,7 @@
 #include "common.hpp"
 #include "utils/parser.hpp"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 // BENCHDNN_MEMORY_CHECK macro enables guarding mechanism for memory allocation:
 // memory block is allocated on a page boundary and the page after the block is
@@ -515,7 +515,7 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
         return b[j * ldb + i];
     };
 
-    dnnl::impl::parallel_nd(m, n, [&](int64_t i, int64_t j) {
+    benchdnn_parallel_nd(m, n, [&](int64_t i, int64_t j) {
         float ab = 0.0f;
         for (int64_t _k = 0; _k < k; ++_k)
             ab += a_accessor(i, _k) * b_accessor(_k, j);

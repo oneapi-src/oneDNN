@@ -23,7 +23,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -85,7 +85,7 @@ int fill_src(
     const int range = 16;
     const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
+    benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) - 17 * input_idx + 101) % range;
         const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
                 ? (f_min + gen) / range

@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "shuffle/shuffle.hpp"
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 namespace shuffle {
 
@@ -53,7 +53,7 @@ void compute_ref(
         inner_size *= (size_t)prb->dims[i];
     const size_t dim = axis_size * inner_size;
 
-    dnnl::impl::parallel_nd(outer_size, axis_size, inner_size,
+    benchdnn_parallel_nd(outer_size, axis_size, inner_size,
             [&](int64_t ou, int64_t a, int64_t in) {
                 auto src_off = ou * dim + a * inner_size + in;
                 auto dst_off = ou * dim + transpose(a) * inner_size + in;

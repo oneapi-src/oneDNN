@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "sum/sum.hpp"
 
@@ -28,7 +28,7 @@ void compute_ref(
 
     const auto nelems = dst.nelems();
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t k) {
+    benchdnn_parallel_nd(nelems, [&](int64_t k) {
         dst_ptr[k] = 0;
         for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
             const dnn_mem_t &src_i = args.find(DNNL_ARG_MULTIPLE_SRC + i_input);

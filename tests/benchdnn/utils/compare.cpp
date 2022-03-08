@@ -19,7 +19,7 @@
 #include <sstream>
 #include <string>
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "common.hpp"
 #include "utils/compare.hpp"
@@ -195,7 +195,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     };
 
     // parallel comparison to speed up the process
-    dnnl::impl::parallel_nd(nelems, compare_point_values);
+    benchdnn_parallel_nd(nelems, compare_point_values);
 
     // serial comparison with enabled dumping when needed for nicer output.
     if (!all_ok || need_dump) {

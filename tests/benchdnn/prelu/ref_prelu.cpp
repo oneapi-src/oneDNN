@@ -18,9 +18,8 @@
 
 #include <assert.h>
 
-#include "tests/test_thread.hpp"
-
 #include "prelu/prelu.hpp"
+#include "utils/parallel.hpp"
 
 namespace prelu {
 
@@ -34,7 +33,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const auto nelems = src.nelems();
     const auto weights_broadcast_mask = prb->get_broadcast_mask();
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
+    benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const auto wei_idx = src.get_scale_idx(i, weights_broadcast_mask);
         const float s = src.get_elem(i);
         float res = s * (s > 0 ? 1.f : wei.get_elem(wei_idx));
@@ -66,14 +65,14 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
         d_wei_buf[d_wei_idx] += MIN2(0.f, s) * dd;
     };
 
-    dnnl::impl::parallel_nd(wei_nelems, [&](int64_t i) { d_wei_ptr[i] = 0; });
+    benchdnn_parallel_nd(wei_nelems, [&](int64_t i) { d_wei_ptr[i] = 0; });
 
     if (wei_nelems == 1) {
         const int reduce_dim = 0;
         const int64_t N = d_src.md_.dims[reduce_dim];
         const int64_t nelems_per_thr = src_nelems / N;
         d_wei_buf = new float[N];
-        dnnl::impl::parallel_nd(N, [&](int64_t n) {
+        benchdnn_parallel_nd(N, [&](int64_t n) {
             d_wei_buf[n] = 0;
 
             for (int64_t ithr_i = 0; ithr_i < nelems_per_thr; ++ithr_i) {
@@ -87,7 +86,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
         delete[] d_wei_buf;
 
     } else if (src_nelems == wei_nelems) {
-        dnnl::impl::parallel_nd(src_nelems, [&](int64_t i) { ker(i, i, i); });
+        benchdnn_parallel_nd(src_nelems, [&](int64_t i) { ker(i, i, i); });
     } else {
         const int64_t reduce_size = src_nelems / wei_nelems;
 
@@ -99,7 +98,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
         for (int d = 0; d < prb->ndims; ++d)
             if (src_dims[d] != wei_dims[d]) reduce_dims[d] = src_dims[d];
 
-        dnnl::impl::parallel_nd(wei_nelems, [&](int64_t f) {
+        benchdnn_parallel_nd(wei_nelems, [&](int64_t f) {
             dims_t wei_pos = off2dims_idx(wei_dims, f);
             const int64_t wei_off = md_off_v(wei.md_, wei_pos.data());
             const int64_t src_wei_off = md_off_v(src.md_, wei_pos.data());

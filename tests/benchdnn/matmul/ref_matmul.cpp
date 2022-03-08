@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "matmul/matmul.hpp"
 
@@ -38,7 +38,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const auto src_broadcast_mask = prb->src_broadcast_mask();
     const auto wei_broadcast_mask = prb->weights_broadcast_mask();
 
-    dnnl::impl::parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
+    benchdnn_parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
         auto src = (const float *)src_m;
         auto wei = (const float *)wei_m;
 
@@ -57,7 +57,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
     const auto bias_broadcast_mask = prb->bias_broadcast_mask();
-    dnnl::impl::parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
+    benchdnn_parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
         size_t dst_off = dst_off_f(prb, mb, m, n);
         float &dst = ((float *)dst_m)[dst_off];
 

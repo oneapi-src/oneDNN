@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "lrn/lrn.hpp"
 
@@ -67,7 +67,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
 
     float *dst_ptr = (float *)dst;
 
-    dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
+    benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
                 const auto off = data_off(prb, mb, c, d, h, w);
                 const float omega = get_omega(prb, src, mb, c, d, h, w);
@@ -87,7 +87,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const int half_size = (size - 1) / 2;
     const int summands = compute_n_summands(prb);
 
-    dnnl::impl::parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
+    benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
                 float A = 0, B = 0;
                 if (prb->alg == ACROSS) {

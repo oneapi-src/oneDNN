@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "common.hpp"
 #include "conv/conv_common.hpp"
@@ -311,7 +311,7 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
     const int64_t hp_max = prb->ih + t_pad;
     const int64_t p_dim = prb->mb * sp.h_tiles * sp.w_tiles;
 
-    dnnl::impl::parallel_nd(prb->mb, prb->ic, sp.h_tiles, sp.w_tiles,
+    benchdnn_parallel_nd(prb->mb, prb->ic, sp.h_tiles, sp.w_tiles,
             [&](int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
                 float I[6][6] = {};
                 float _v[6][6] = {};
@@ -339,7 +339,7 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
                 }
             });
 
-    dnnl::impl::parallel_nd(prb->oc, prb->ic, [&](int64_t oc, int64_t ic) {
+    benchdnn_parallel_nd(prb->oc, prb->ic, [&](int64_t oc, int64_t ic) {
         float F[3][3] = {};
         float _u[6][6] = {};
         /* wei_transform u <- G * g * G_t */
@@ -357,7 +357,7 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
         }
     });
 
-    dnnl::impl::parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
+    benchdnn_parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
         /* M = U * V */
         gemm("C", "N", "N", prb->oc, p_dim, prb->ic, 1.0,
                 (float *)&(U(j, k, 0, 0)), prb->ic,
@@ -366,7 +366,7 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
     });
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
-    dnnl::impl::parallel_nd(prb->oc, prb->mb, sp.h_tiles, sp.w_tiles,
+    benchdnn_parallel_nd(prb->oc, prb->mb, sp.h_tiles, sp.w_tiles,
             [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
                 float O[4][4] = {};
                 float _m[6][6] = {};
@@ -432,7 +432,7 @@ void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args) {
 
     bool with_bias = prb->dir & FLAG_BIA;
 
-    dnnl::impl::parallel_nd(prb->mb, prb->oc, sp.h_tiles, sp.w_tiles,
+    benchdnn_parallel_nd(prb->mb, prb->oc, sp.h_tiles, sp.w_tiles,
             [&](int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
                 float I[6][6] = {};
                 float _v[6][6] = {};
@@ -459,7 +459,7 @@ void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args) {
                 }
             });
 
-    dnnl::impl::parallel_nd(prb->ic, prb->oc, [&](int64_t ic, int64_t oc) {
+    benchdnn_parallel_nd(prb->ic, prb->oc, [&](int64_t ic, int64_t oc) {
         float F[3][3] = {};
         float _u[6][6] = {};
         /* wei_transform u <- G * g * G_t */
@@ -478,7 +478,7 @@ void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args) {
         }
     });
 
-    dnnl::impl::parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
+    benchdnn_parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
         /* M = U * V */
         gemm("C", "N", "N", prb->ic, p_dim, prb->oc, 1.0,
                 (float *)&(U(j, k, 0, 0)), prb->oc,
@@ -486,7 +486,7 @@ void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args) {
                 (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
     });
 
-    dnnl::impl::parallel_nd(prb->ic, prb->mb, sp.h_tiles, sp.w_tiles,
+    benchdnn_parallel_nd(prb->ic, prb->mb, sp.h_tiles, sp.w_tiles,
             [&](int64_t c, int64_t img, int64_t hfm, int64_t wfm) {
                 float O[4][4] = {};
                 float _m[6][6] = {};
@@ -540,7 +540,7 @@ void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args) {
     const int64_t hp_max = prb->ih + t_pad;
     const int64_t p_dim = prb->mb * sp.h_tiles * sp.w_tiles;
 
-    dnnl::impl::parallel_nd(prb->mb, sp.h_tiles, sp.w_tiles, prb->ic,
+    benchdnn_parallel_nd(prb->mb, sp.h_tiles, sp.w_tiles, prb->ic,
             [&](int64_t img, int64_t hfm, int64_t wfm, int64_t ic) {
                 float I[6][6] = {};
                 float _v[6][6] = {};
@@ -567,7 +567,7 @@ void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args) {
                 }
             });
 
-    dnnl::impl::parallel_nd(prb->oc, prb->mb, sp.h_tiles, sp.w_tiles,
+    benchdnn_parallel_nd(prb->oc, prb->mb, sp.h_tiles, sp.w_tiles,
             [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
                 float O[6][6] = {};
                 float _m[6][6] = {};
@@ -593,7 +593,7 @@ void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args) {
                 }
             });
 
-    dnnl::impl::parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
+    benchdnn_parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
         /* GeMM U = M * V */
         gemm("C", "N", "N", prb->oc, prb->ic, p_dim, 1.0,
                 (float *)&(M(j, k, 0, 0, 0, 0)), p_dim,
@@ -601,7 +601,7 @@ void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args) {
                 (float *)&(U(j, k, 0, 0)), prb->ic);
     });
 
-    dnnl::impl::parallel_nd(prb->oc, prb->ic, [&](int64_t oc, int64_t ic) {
+    benchdnn_parallel_nd(prb->oc, prb->ic, [&](int64_t oc, int64_t ic) {
         float F[6][6] = {};
         float _u[3][3] = {};
         for_(int64_t j = 0; j < sp.alpha; j++)

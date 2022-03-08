@@ -17,7 +17,7 @@
 #include <limits>
 #include <math.h>
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "common.hpp"
 #include "dnnl_memory.hpp"
@@ -104,7 +104,7 @@ void compute_ref(
     if (reduce_size == 1) return;
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
-    dnnl::impl::parallel_nd(idle_size, [&](int64_t f) {
+    benchdnn_parallel_nd(idle_size, [&](int64_t f) {
         dims_t idle_pos = off2dims_idx(dst_dims, f);
         const int64_t dst_off = md_off_v(dst.md_, idle_pos.data());
         const int64_t src_idle_off = md_off_v(src.md_, idle_pos.data());

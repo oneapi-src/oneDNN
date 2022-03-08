@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "eltwise/eltwise.hpp"
 
@@ -29,7 +29,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const auto nelems = src.nelems();
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
+    benchdnn_parallel_nd(nelems, [&](int64_t i) {
         float res = compute_eltwise_fwd(
                 prb->alg, src.get_elem(i), 1.0, prb->alpha, prb->beta);
 
@@ -56,7 +56,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     float *d_src_ptr = (float *)d_src;
     const auto nelems = src.nelems();
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
+    benchdnn_parallel_nd(nelems, [&](int64_t i) {
         d_src_ptr[i] = compute_eltwise_bwd(prb->alg, d_dst.get_elem(i),
                 source.get_elem(i), prb->alpha, prb->beta);
     });

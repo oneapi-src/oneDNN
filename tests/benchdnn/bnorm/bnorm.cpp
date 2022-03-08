@@ -25,7 +25,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -40,7 +40,7 @@ static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    dnnl::impl::parallel_nd(prb->ic, [&](int64_t c) {
+    benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
         mean.set_elem(c, 4 * ((c % 5) - 2));
         var.set_elem(c, ((c % 7) << 1));
 
@@ -55,7 +55,7 @@ static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
         }
     });
 
-    dnnl::impl::parallel_nd(prb->ic, prb->mb, prb->id, prb->ih, prb->iw,
+    benchdnn_parallel_nd(prb->ic, prb->mb, prb->id, prb->ih, prb->iw,
             [&](int64_t c, int64_t mb, int64_t d, int64_t h, int64_t w) {
                 int64_t l_base = mb * prb->id * prb->ih * prb->iw + c * 239 * 2;
                 float *s = (float *)src + data_off(prb, mb, c, 0, 0, 0);
@@ -121,7 +121,7 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    dnnl::impl::parallel_nd(prb->ic, [&](int64_t c) {
+    benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
         const float m = ((float *)mean)[c]
                 = alg == ALG_0 ? 0.f : 0.25f * (1 << (c % 7));
         float v = 0; /* current variance */
@@ -191,7 +191,7 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
 
-    dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
 

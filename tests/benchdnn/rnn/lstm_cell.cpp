@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 #include <stdlib.h>
 
-#include "tests/test_thread.hpp"
+#include "utils/parallel.hpp"
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
@@ -37,7 +37,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &prb,
     AOC<float> dst_iter_c(dst_iter_c_, prb.mb, prb.wc);
 
     // run the eltwise
-    dnnl::impl::parallel_nd(prb.mb, [&](int64_t ib) {
+    benchdnn_parallel_nd(prb.mb, [&](int64_t ib) {
         for (int64_t ih = 0; ih < prb.dhc; ih++) {
             float peephole_extra_i = 0, peephole_extra_f = 0;
             if (prb.is_lstm_peephole()) {
@@ -125,7 +125,7 @@ void lstm_fwd(const prb_t &prb, float *dst_layer_, float *dst_iter_,
 
         if (prb.cfg.is_int8()) {
             // Here we simulate int8 usage by dequantizing and requantizing the buffer
-            dnnl::impl::parallel_nd(prb.mb, [&](int64_t i) {
+            benchdnn_parallel_nd(prb.mb, [&](int64_t i) {
                 for (int j = 0; j < prb.dic; j++) {
                     int64_t addr = i * prb.wc + j;
                     float d_tmp = maybe_deq_proj(prb, dst_layer_[addr],
