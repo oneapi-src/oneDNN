@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,15 +92,12 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
 
     protected:
         bool zero_points_ok() const {
-            using namespace data_type;
+            // Only common zero points are supported -> mask should only be 0
             int mask_src = 0, mask_dst = 0;
-            const int c_mask = 0x1,
-                      g_mask = 0x3; // mask for i/o-channel and ngroups
             attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
             attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
             return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                    && utils::one_of(mask_src, 0, c_mask, g_mask)
-                    && utils::one_of(mask_dst, 0, c_mask, g_mask);
+                    && mask_src == 0 && mask_dst == 0;
         }
     };
 

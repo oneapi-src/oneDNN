@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,7 +80,6 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
         }
 
         bool zero_points_ok() const {
-            using namespace data_type;
             int mask_src = 0, mask_dst = 0;
             attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
             attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);

@@ -141,13 +141,12 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         }
 
         bool zero_points_ok() const {
-            using namespace data_type;
+            // Only common zero points are supported -> mask should only be 0
             int mask_src = 0, mask_dst = 0;
             attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
             attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
             return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                    && utils::one_of(mask_src, 0, 0x1, 0x3)
-                    && utils::one_of(mask_dst, 0, 0x1, 0x3);
+                    && mask_src == 0 && mask_dst == 0;
         }
 
         status_t copy(const pd_t &other) {
