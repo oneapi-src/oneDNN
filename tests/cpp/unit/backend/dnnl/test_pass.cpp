@@ -247,7 +247,13 @@ TEST(Pass, FailToFuseConvBnWithConvSecondOutput) {
 
     pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
 }
 
 TEST(Pass, FuseConvRelu) {
@@ -886,7 +892,14 @@ TEST(Pass, FailToFuseConvBiasSwish) {
 
     pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
 TEST(Pass, FuseConvBiasHardtanh) {
@@ -4965,6 +4978,73 @@ TEST(Pass, FuseToInt8Conv) {
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
+}
+
+TEST(Pass, FuseToInt8Fp32Conv) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+            conv
+            /  \
+        relu   relu
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t conv {2, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t relu {3, ReLU, "relu"};
+    op_t relu2 {4, ReLU, "relu"};
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_conv_out = logical_tensor_init(4, data_type::f32);
+    conv.add_input(fp32_data);
+    conv.add_input(fp32_weight);
+    conv.add_output(fp32_conv_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(5, data_type::f32);
+    relu.add_input(fp32_conv_out);
+    relu.add_output(fp32_relu_out);
+
+    logical_tensor_t fp32_relu2_out = logical_tensor_init(6, data_type::f32);
+    relu2.add_input(fp32_conv_out);
+    relu2.add_output(fp32_relu2_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&relu2), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_conv_post_ops_fusion);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
 TEST(PassPriority, TestInt8) {
