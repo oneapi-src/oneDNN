@@ -3632,3 +3632,17 @@ TEST(OpSchema, FailToAddLn) {
 
     EXPECT_FALSE(schema->verify(&ln));
 }
+
+TEST(OpSchema, EltwiseWoAttr) {
+    const std::vector<op_kind_t> op_kind
+            = {op_kind::Sign, op_kind::Negative, op_kind::Reciprocal};
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    // clang3 requires user-provided default constructor
+    const std::map<std::string, bool> attrs_data = {};
+    for (const op_kind_t op_kind_ : op_kind) {
+        verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+}

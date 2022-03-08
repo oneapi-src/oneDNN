@@ -104,7 +104,10 @@
     _(DynamicReshape) \
     _(DynamicTranspose) \
     _(DynamicQuantize) \
-    _(DynamicDequantize)
+    _(DynamicDequantize) \
+    _(Sign) \
+    _(Negative) \
+    _(Reciprocal)
 
 #endif
 
