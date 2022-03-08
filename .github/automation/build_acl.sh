@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # *******************************************************************************
-# Copyright 2020-2021 Arm Limited and affiliates.
+# Copyright 2020-2022 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 # *******************************************************************************
 
 # Compute Library build defaults
-ACL_VERSION="v21.11"
+ACL_VERSION="v22.02"
 ACL_DIR="${PWD}/ComputeLibrary"
 ACL_ARCH="arm64-v8a"
 
@@ -47,11 +47,10 @@ done
 readonly ACL_REPO="https://github.com/ARM-software/ComputeLibrary.git"
 MAKE_NP="-j$(grep -c processor /proc/cpuinfo)"
 
-git clone $ACL_REPO $ACL_DIR
+git clone --branch $ACL_VERSION --depth 1 $ACL_REPO $ACL_DIR
 cd $ACL_DIR
-git checkout $ACL_VERSION
 
-scons $MAKE_NP Werror=0 debug=0 neon=1 gles_compute=0 embed_kernels=0 \
+scons --silent $MAKE_NP Werror=0 debug=0 neon=1 opencl=0 embed_kernels=0 \
   os=linux arch=$ACL_ARCH build=native
 
 exit $?
