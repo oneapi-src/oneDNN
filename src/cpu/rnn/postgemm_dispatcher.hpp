@@ -292,10 +292,7 @@ private:
                 && utils::one_of(src_type, data_type::f32, data_type::u8,
                         data_type::s8, data_type::bf16);
         const bool jit_bwd = !pd_->is_fwd()
-                && utils::one_of(src_type, data_type::f32, data_type::bf16)
-                // TODO: Remove me once bwd kernel is implemented for AUGRU
-                && !utils::one_of(pd_->cell_kind(), alg_kind::lbr_augru,
-                        alg_kind::vanilla_augru);
+                && utils::one_of(src_type, data_type::f32, data_type::bf16);
 
 #define CREATE_WITH_DIR(k, ker_t) \
     do { \

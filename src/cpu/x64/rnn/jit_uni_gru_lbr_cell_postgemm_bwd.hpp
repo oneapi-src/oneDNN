@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,6 +53,8 @@ protected:
     void generate() override {
         using namespace Xbyak;
 
+        const bool is_augru = pd_->cell_kind() == alg_kind::lbr_augru;
+
         // Labels declaration
         Label vector_loop_start_label, vector_loop_inc_regs,
                 vector_loop_end_label;
@@ -67,7 +69,7 @@ protected:
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
         const int dG0_idx = 1, dG1_idx = 2, dG2_idx = 3, G0_idx = 4, G1_idx = 5,
                   G2_idx = 6, h_idx = 7, dHt_idx = 8, one_idx = 9,
-                  tmp1_idx = 10, tmp2_idx = 11;
+                  tmp1_idx = 10, tmp2_idx = 11, dattn_acc_idx = 12, attn_idx = 13;
         const Vmm one_vmm(one_idx);
         const Xmm one_xmm(one_idx);
 
@@ -82,6 +84,8 @@ protected:
         const auto addr_scratch_gates_reg = abi_param2;
         const auto addr_diff_states_t_lp1_reg = abi_param3;
         const auto addr_diff_states_tp1_l_reg = abi_param4;
+        const auto addr_attn_reg = r14;
+        const auto addr_diff_attn_reg = r15;
 #ifdef _WIN32
         const auto addr_diff_states_t_l_reg = r10;
         const auto addr_states_tm1_l_reg = r11;
@@ -92,6 +96,8 @@ protected:
         mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
         mov(addr_scratch_cell_reg, ptr[base_args + 16]);
         mov(addr_ws_grid_reg, ptr[base_args + 24]);
+        if (is_augru) mov(addr_attn_reg, ptr[base_args + 48]);
+        if (is_augru) mov(addr_diff_attn_reg, ptr[base_args + 56]);
 #else
         const auto addr_diff_states_t_l_reg = abi_param5;
         const auto addr_states_tm1_l_reg = abi_param6;
@@ -100,6 +106,8 @@ protected:
         const auto base_args = get_stack_params_address();
         mov(addr_scratch_cell_reg, ptr[base_args]);
         mov(addr_ws_grid_reg, ptr[base_args + 8]);
+        if (is_augru) mov(addr_attn_reg, ptr[base_args + 32]);
+        if (is_augru) mov(addr_diff_attn_reg, ptr[base_args + 40]);
 #endif
 
         // helper lambda to address the gates and biases
@@ -118,15 +126,29 @@ protected:
         init_regs(vlen);
         uni_vmovups(one_vmm, one_addr);
 
+        if (is_augru) {
+            uni_vpxor(
+                    Vmm(dattn_acc_idx), Vmm(dattn_acc_idx), Vmm(dattn_acc_idx));
+            const Xmm attn1s(attn_idx);
+            to_float(attn1s, ptr[addr_attn_reg], src_data_t, hstate_dt_size);
+        }
+
         mov(loop_cnt, rnn_.dhc * scratch_dt_size);
         cmp(loop_cnt, vlen_scratch);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
+
+        if (is_augru) {
+            const Xmm attn1s(attn_idx);
+            const Vmm attn(attn_idx);
+            uni_vbroadcastss(attn, attn1s);
+        }
 
         L(vector_loop_start_label);
         {
             const Vmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), G0(G0_idx),
                     G1(G1_idx), G2(G2_idx), dHt(dHt_idx), tmp1(tmp1_idx),
-                    tmp2(tmp2_idx), h(h_idx);
+                    tmp2(tmp2_idx), h(h_idx), diff_attn_acc(dattn_acc_idx),
+                    attn(attn_idx);
 
             to_float(G0, wg_addr(0), src_data_t, vlen);
             to_float(G1, wg_addr(1), src_data_t, vlen);
@@ -147,6 +169,15 @@ protected:
             uni_vmulps(dG0, dG0, h);
             uni_vmulps(dG0, dG0, dHt); // (h - G2) * (G0 - G0^2) * dHt
 
+            if (is_augru) {
+                // Compute diff_attention
+                // 1. compute tmp2 = dG0 * G
+                uni_vmulps(tmp2, dG0, G0);
+                // 2. Accumulate dAttention
+                uni_vaddps(diff_attn_acc, diff_attn_acc, tmp2);
+                // 3. Compute dG0 *= Attention
+                uni_vmulps(dG0, dG0, attn);
+            }
             // compute dG2
             uni_vmovups(tmp1, one_vmm);
             uni_vsubps(tmp1, tmp1, G0); // (1 - G0)
@@ -200,15 +231,34 @@ protected:
         }
         L(vector_loop_end_label);
 
+        // Reduce diff attention into XMM size. Otherwise accumulation
+        // using XMM will zero high part of YMM/ZMM.
+        if (vlen >= cpu_isa_traits<avx512_core>::vlen) {
+            Zmm diff_attn_acc(dattn_acc_idx);
+            Ymm diff_attn_acc_high(tmp1_idx);
+            Ymm diff_attn_acc_low(dattn_acc_idx);
+            vextractf32x8(diff_attn_acc_high, diff_attn_acc, 1);
+            vaddps(diff_attn_acc_low, diff_attn_acc_low, diff_attn_acc_high);
+        }
+        if (vlen >= cpu_isa_traits<avx2>::vlen) {
+            Ymm diff_attn_acc(dattn_acc_idx);
+            Xmm diff_attn_acc_high(tmp1_idx);
+            Xmm diff_attn_acc_low(dattn_acc_idx);
+            vextractf128(diff_attn_acc_high, diff_attn_acc, 1);
+            vaddps(diff_attn_acc_low, diff_attn_acc_low, diff_attn_acc_high);
+        }
+
         cmp(loop_cnt, 0);
         je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
+
         // Same code as above, we just use movuss for accessing inputs
         // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
         L(rem_loop_start_label);
         {
             const Xmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), G0(G0_idx),
                     G1(G1_idx), G2(G2_idx), dHt(dHt_idx), tmp1(tmp1_idx),
-                    tmp2(tmp2_idx), h(h_idx);
+                    tmp2(tmp2_idx), h(h_idx), diff_attn_acc(dattn_acc_idx),
+                    attn(attn_idx);
 
             to_float(G0, wg_addr(0), src_data_t, hstate_dt_size);
             to_float(G1, wg_addr(1), src_data_t, hstate_dt_size);
@@ -229,9 +279,20 @@ protected:
             uni_vmulss(dG0, dG0, h);
             uni_vmulss(dG0, dG0, dHt); // (h - G2) * (G0 - G0^2) * dHt
 
+            if (is_augru) {
+                // compute diff_attention
+                // 1. compute tmp2 = dG0 * G
+                uni_vmulss(tmp2, dG0, G0);
+                // 2. Store dAttention
+                uni_vaddss(diff_attn_acc, diff_attn_acc, tmp2);
+                // 4. Compute dG0 *= attention
+                uni_vmulss(dG0, dG0, attn);
+            }
+
             // compute dG2
             uni_vmovss(tmp1, one_xmm);
             uni_vsubss(tmp1, tmp1, G0); // (1 - G0)
+
             uni_vmovss(dG2, one_xmm);
             uni_vmovss(tmp2, G2);
             uni_vfnmadd231ps(dG2, tmp2, tmp2); // (1 - G2^2)
@@ -281,6 +342,14 @@ protected:
             jg(rem_loop_start_label);
         }
         L(rem_loop_end_label);
+
+        if (is_augru) {
+            // Complete diff attention reduction
+            Xmm diff_attn_acc(dattn_acc_idx);
+            vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
+            vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
+            uni_vmovss(ptr[addr_diff_attn_reg], diff_attn_acc);
+        }
 
         postamble();
 

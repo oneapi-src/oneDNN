@@ -184,7 +184,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         void *param7_, *param8_;
         void *param9_ = (void *)weights_scales_;
         const size_t param10_ = block_step;
-        const void *param11_;
+        const void *param11_ = nullptr;
 
         switch (pd_->cell_kind()) {
             case alg_kind::vanilla_lstm:
@@ -245,6 +245,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 rnn, diff_src_iter_);
         const rnn_utils::ws_diff_states_iter_c_aoc<gemm_acc_t> diff_src_iter_c(
                 rnn, diff_src_iter_c_);
+        const rnn_utils::augru_attention_aoc<gemm_acc_t> diff_augru_attention(
+                rnn, diff_augru_attention_);
         const rnn_utils::ws_diff_states_layer_aoc<gemm_acc_t> diff_dst_layer(
                 rnn, diff_dst_layer_);
         const rnn_utils::ws_diff_states_iter_aoc<gemm_acc_t> diff_dst_iter(
@@ -257,6 +259,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         const auto src_iter_c = rnn_utils::make_raw_aoc(src_iter_c_,
                 types::data_type_size(rnn.src_iter_c_dt),
                 rnn.ws_states_iter_c_nld, src_iter_c_ld);
+        const rnn_utils::augru_attention_aoc<const dst_layer_t> augru_attention(
+                rnn, augru_attention_);
         const ws_states_iter_aoc<const src_iter_t> src_iter(
                 rnn, src_iter_, src_iter_ld);
         const ws_gates_aoc<scratch_t> scratch_cell(rnn, scratch_cell_);
@@ -274,6 +278,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     *param9_;
             const void *param3_, *param6_;
             static constexpr size_t param10_ = 0;
+            const void *param11_ = nullptr;
+            void *param12_ = nullptr;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
                     param1_ = SAFE_PTR(ws_gates, i, 0, 0);
@@ -309,6 +315,33 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param8_ = SAFE_PTR(ws_grid, i, 0); // non part1
                     param9_ = SAFE_PTR(diff_src_layer, i, 0); // non part1
                     break;
+                case alg_kind::lbr_augru:
+                    param1_ = SAFE_PTR(ws_gates, i, 0, 0);
+                    param2_ = SAFE_PTR(scratch_gates, i, 0, 0);
+                    param3_ = SAFE_PTR(diff_dst_layer, i, 0);
+                    param4_ = SAFE_PTR(diff_dst_iter, i, 0);
+                    param5_ = SAFE_PTR(diff_src_iter, i, 0);
+                    param6_ = SAFE_PTR(src_iter, i, 0);
+                    param7_ = SAFE_PTR(scratch_cell, i, 0, 0);
+                    param8_ = SAFE_PTR(ws_grid, i, 0);
+                    param9_ = nullptr;
+                    param11_ = SAFE_PTR(augru_attention, i);
+                    param12_ = SAFE_PTR(diff_augru_attention, i);
+                    break;
+                case alg_kind::vanilla_augru:
+                    // TODO: split part 1 and part2 APIs/ABIs
+                    param1_ = SAFE_PTR(ws_gates, i, 0, 0);
+                    param2_ = SAFE_PTR(scratch_gates, i, 0, 0); //RNN, LSTM, GRU
+                    param3_ = SAFE_PTR(diff_dst_layer, i, 0); // non part2
+                    param4_ = SAFE_PTR(diff_dst_iter, i, 0); // non part2
+                    param5_ = SAFE_PTR(diff_src_iter, i, 0);
+                    param6_ = SAFE_PTR(src_iter, i, 0);
+                    param7_ = scratch_cell_ ? &hG1(i, 0) : nullptr; // non part1
+                    param8_ = SAFE_PTR(ws_grid, i, 0); // non part1
+                    param9_ = SAFE_PTR(diff_src_layer, i, 0); // non part1
+                    param11_ = SAFE_PTR(augru_attention, i);
+                    param12_ = SAFE_PTR(diff_augru_attention, i);
+                    break;
                 case alg_kind::vanilla_rnn:
                     param1_ = SAFE_PTR(ws_gates, i, 0, 0);
                     param2_ = SAFE_PTR(scratch_gates, i, 0, 0);
@@ -334,7 +367,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     break;
             }
             this->operator()(param1_, param2_, param3_, param4_, param5_,
-                    param6_, param7_, param8_, param9_, param10_);
+                    param6_, param7_, param8_, param9_, param10_, param11_,
+                    param12_);
         });
 #undef SAFE_PTR
     }
