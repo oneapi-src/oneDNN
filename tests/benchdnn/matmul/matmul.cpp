@@ -291,14 +291,18 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                 assert(!"unknown post-op type");
         }
 
-        const bool oscale_ok = prb->attr.oscale.policy == policy_t::COMMON;
+        const bool oscale_ok = (prb->attr.oscale.policy == policy_t::COMMON)
+                && !prb->attr.oscale.runtime;
         const bool zp_ok = prb->attr.zero_points.is_def();
         const bool dims_ok = prb->ndims <= 3;
         const bool batch_bcast_ok = IMPLICATION(
                 prb->ndims == 3, prb->src_dims()[0] == prb->weights_dims()[0]);
+        const bool dtag_ok = (prb->dtag != "ba") ? true : false;
+        const bool dst_bias_mismatch_ok = !((prb->cfg[DST].dt == dnnl_s8)
+                && (prb->bia_dt == dnnl_data_type_undef));
 
-        if (!post_ops_ok || !oscale_ok || !zp_ok || !dims_ok
-                || !batch_bcast_ok) {
+        if (!post_ops_ok || !oscale_ok || !zp_ok || !dims_ok || !batch_bcast_ok
+                || !dtag_ok || !dst_bias_mismatch_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
