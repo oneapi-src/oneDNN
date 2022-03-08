@@ -1,5 +1,5 @@
 # ******************************************************************************
-# Copyright 2020-2021 Arm Limited and affiliates.
+# Copyright 2020-2022 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ endif()
 
 find_package(ACL REQUIRED)
 
-set(ACL_MINIMUM_VERSION "21.11")
+set(ACL_MINIMUM_VERSION "22.02")
 
 if(ACL_FOUND)
     file(GLOB_RECURSE ACL_VERSION_FILE $ENV{ACL_ROOT_DIR}/*/arm_compute_version.embed)
