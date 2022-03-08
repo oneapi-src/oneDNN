@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "utils/parser.hpp"
 
 #include "mha/mha.hpp"
+#include "mlp/mlp.hpp"
 
 int verbose {0};
 bool canonical {false};
@@ -61,6 +62,8 @@ int main(int argc, char **argv) {
 
     if (!strcmp("--mha", argv[0])) {
         mha::bench(--argc, ++argv);
+    } else if (!strcmp("--mlp", argv[0])) {
+        mlp::bench(--argc, ++argv);
     } else {
         fprintf(stderr, "err: unknown driver\n");
     }
