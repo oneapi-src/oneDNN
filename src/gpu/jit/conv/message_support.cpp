@@ -166,6 +166,8 @@ public:
         remaining_size_ = full_size_;
     }
 
+    const mask_tensor_t &mask_tensor() const { return mask_tensor_; }
+
     bool has_next() const { return cur_off_ < full_size_; }
 
     int remaining_size() const { return remaining_size_; }
@@ -504,9 +506,17 @@ std::vector<layout_t> access_builder_t::candidate_payload_layouts() const {
     // XeHPC). In this case we can pad the block to full register and apply GRF
     // reorder later - this may be more efficient than using scattered
     // messages.
+    auto is_sub_grf_blocked = [&]() {
+        int grf_elems = grf_size / type_size;
+        auto vlayout = mem_view_.create_pseudo_vlayout();
+        return vlayout.split_into_max_tile(grf_elems, true).elems() < grf_elems;
+    };
     if (send_address_ != send_address_t::slm && !vblocks.empty()
             && !tblocks.empty()
-            && mem_view_.tlayout().innermost_block_layout().size() < grf_size) {
+            && (is_sub_grf_blocked()
+                    || mem_walker_->mask_tensor()
+                               .reinterpret(type_t::u(8, grf_size))
+                               .is_empty())) {
         auto &v0 = vblocks[0];
         auto &t0 = tblocks[0];
         int v0_size = type_size * v0.block;
