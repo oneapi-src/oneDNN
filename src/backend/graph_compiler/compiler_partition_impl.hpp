@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,12 +44,10 @@ public:
     compiler_partition_impl_t(impl::engine_kind_t engine_kind)
         : impl::partition_impl_t(engine_kind), is_init_(true) {}
 
-    compiler_partition_impl_t(const compiler_partition_impl_t &other);
-
     virtual ~compiler_partition_impl_t() = default;
 
     bool is_initialized() const override;
-    std::shared_ptr<impl::partition_impl_t> clone() override;
+    std::shared_ptr<impl::partition_impl_t> clone() const override;
     impl::status_t infer_shape(
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<impl::logical_tensor_t *> &outputs) const override;

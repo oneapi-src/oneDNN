@@ -237,14 +237,15 @@ impl::status_t compiler_partition_impl_t::compile(
     } catch (...) { return impl::status::compile_fail; }
 }
 
-std::shared_ptr<impl::partition_impl_t> compiler_partition_impl_t::clone() {
-    return std::make_shared<compiler_partition_impl_t>(*this);
-}
-
-compiler_partition_impl_t::compiler_partition_impl_t(
-        const compiler_partition_impl_t &other)
-    : impl::partition_impl_t(other) {
-    is_init_ = other.is_init_;
+std::shared_ptr<impl::partition_impl_t>
+compiler_partition_impl_t::clone() const {
+    auto ret = std::make_shared<compiler_partition_impl_t>(get_engine_kind());
+    ret->ops_ = impl::graph_t::deep_copy(ops_);
+    ret->inputs_ = inputs_;
+    ret->outputs_ = outputs_;
+    ret->id_ = id_;
+    ret->is_init_ = is_init_;
+    return ret;
 }
 
 bool compiler_partition_impl_t::is_initialized() const {

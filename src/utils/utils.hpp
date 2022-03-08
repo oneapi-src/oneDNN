@@ -252,6 +252,10 @@ inline std::string thread_id_to_str(std::thread::id id) {
     return ss.str();
 }
 
+#define DNNL_GRAPH_DISALLOW_COPY_AND_ASSIGN(T) \
+    T(const T &) = delete; \
+    T &operator=(const T &) = delete; // NOLINT
+
 } // namespace utils
 } // namespace impl
 } // namespace graph

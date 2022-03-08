@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,16 +43,6 @@ public:
         : impl::partition_impl_t(engine_kind) {}
 
     ~fake_partition_impl_t() override = default;
-
-    // deep copy
-    fake_partition_impl_t(const fake_partition_impl_t &other)
-        : impl::partition_impl_t(other)
-        , fused_op_(impl::utils::make_unique<impl::op_t>(
-                  other.fused_op_->get_kind()))
-        , inputs_map_(other.inputs_map_)
-        , outputs_map_(other.outputs_map_) {
-        fused_op_->merge_attributes(other.fused_op_->get_attributes());
-    }
 
     ///// The following are used only in backend for constructing object
 
@@ -115,8 +105,17 @@ public:
 
     bool is_initialized() const override { return fused_op_ != nullptr; }
 
-    std::shared_ptr<impl::partition_impl_t> clone() override {
-        return std::make_shared<fake_partition_impl_t>(*this);
+    std::shared_ptr<impl::partition_impl_t> clone() const override {
+        auto ret = std::make_shared<fake_partition_impl_t>(get_engine_kind());
+        ret->ops_ = impl::graph_t::deep_copy(ops_);
+        ret->inputs_ = inputs_;
+        ret->outputs_ = outputs_;
+        ret->id_ = id_;
+        ret->fused_op_ = std::make_shared<impl::op_t>(fused_op_->get_kind());
+        ret->fused_op_->merge_attributes(fused_op_->get_attributes());
+        ret->inputs_map_ = inputs_map_;
+        ret->outputs_map_ = outputs_map_;
+        return ret;
     }
 
     const impl::backend *get_assigned_backend() const override {
@@ -208,7 +207,7 @@ public:
 
 private:
     // // Fused op. Currently, only one op here
-    std::unique_ptr<impl::op_t> fused_op_ {nullptr};
+    std::shared_ptr<impl::op_t> fused_op_ {nullptr};
 
     // Map from (op id, op input offset) -> partition input index
     std::unordered_map<std::pair<size_t, size_t>, size_t> inputs_map_;

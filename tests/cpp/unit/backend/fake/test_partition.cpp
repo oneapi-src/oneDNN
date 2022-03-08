@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,12 +33,6 @@ TEST(Partition, Unsupported) {
     ASSERT_TRUE(p.is_initialized());
     ASSERT_TRUE(p.get_assigned_backend()->get_name() == "fake_backend");
     ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Wildcard);
-
-    // copy the partition
-    fake_impl::fake_partition_impl_t p_copy(p);
-    ASSERT_TRUE(p_copy.is_initialized());
-    ASSERT_TRUE(p_copy.get_assigned_backend()->get_name() == "fake_backend");
-    ASSERT_EQ(p_copy.get_fused_op()->get_kind(), op_kind::Wildcard);
 
     // clone
     std::shared_ptr<partition_impl_t> p_share = p.clone();
