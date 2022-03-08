@@ -29,9 +29,10 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_biadt : s.bia_dt)
     for_(const auto &i_scale : s.scales)
     for_(const auto &i_zps : s.zero_points)
+    for_(const auto &i_training : s.is_training)
     for (const auto &i_cfg : s.cfg) {
         const mlp_graph_spec_t spec(s.prb_dims, i_wtag, i_dtag, i_biadt, i_cfg,
-                s.actfunc, i_scale, i_zps);
+                s.actfunc, i_scale, i_zps, i_training);
         std::stringstream ss;
         ss << spec;
         const std::string cpp_pstr = ss.str();
@@ -41,12 +42,12 @@ void check_correctness(const settings_t &s) {
         const int status = doit(&spec, &res);
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);
-
+        //Due to multiple partition below perf_report needs update
+        want_perf_report = false;
         if (want_perf_report && is_bench_mode(PERF)) {
             perf_report_t pr(&spec, s.perf_template);
             pr.report(&res, pstr);
         }
-
         benchdnn_stat.tests++;
     }
 }
@@ -63,6 +64,8 @@ int bench(int argc, char **argv) {
         std::vector<attr_t::post_ops_t> post_ops {};
         const bool parsed_options = parse_batch(bench, argv[0])
                 || parse_cfg(s.cfg, def.cfg, str2cfg, argv[0])
+                || parse_inplace(
+                        s.is_training, def.is_training, argv[0], "training")
                 || parse_dt(s.bia_dt, def.bia_dt, argv[0], "bia_dt")
                 || parse_tag(s.dtag, def.dtag, argv[0], "datatag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")

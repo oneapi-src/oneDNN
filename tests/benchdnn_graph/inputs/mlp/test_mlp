@@ -4,6 +4,7 @@
 --actfunc=relu
 --attr-oscale=common:2.25
 --attr-zero-points=dst:common:3+src:common:2
+--training=true,false
 1x512x256
 256x1024x2
 
@@ -14,6 +15,7 @@
 --actfunc=relu+relu
 --attr-oscale=common:2.25
 --attr-zero-points=dst:common:3+src:common:2
+--training=true,false
 8x384x1024x2
 8x384x4096x1024
 8x384x1024x1024
