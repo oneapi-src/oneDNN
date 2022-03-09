@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +40,15 @@
 #include "utils/utils.hpp"
 
 namespace impl = dnnl::graph::impl;
+
+namespace dnnl {
+namespace graph {
+namespace impl {
+void rewrite(impl::graph_t &agraph,
+        const std::vector<std::vector<impl::op_t *>> &fusion_ops);
+}
+} // namespace graph
+} // namespace dnnl
 
 struct dnnl_graph_graph : public impl::utils::id_t {
     using op_t = impl::op_t;
