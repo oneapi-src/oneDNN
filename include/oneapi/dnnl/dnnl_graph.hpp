@@ -813,6 +813,8 @@ public:
         GELUBackprop = kGELUBackprop,
         HardTanh = kHardTanh,
         HardTanhBackprop = kHardTanhBackprop,
+        HardSwish = kHardSwish,
+        HardSwishBackprop = kHardSwishBackprop,
         Index = kIndex,
         Interpolate = kInterpolate,
         InterpolateBackprop = kInterpolateBackprop,
