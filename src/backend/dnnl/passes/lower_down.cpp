@@ -1994,6 +1994,17 @@ impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             insert_op_before(in1_perm_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(in1_perm_op);
 
+            // src permute
+            if (cur_op->get_attr<std::string>("kind") == "maxpool") {
+                op_ptr src_perm_op
+                        = std::make_shared<impl::op_t>(op_kind::permute);
+                src_perm_op->set_attr<std::string>("permute_kind", "permute");
+                src_perm_op->set_attr<std::string>("from_format", "NXC");
+                src_perm_op->set_attr<std::string>("to_format", "NCX");
+                insert_op_before(src_perm_op, cur_op, 2);
+                to_be_inserted_ops.emplace_back(src_perm_op);
+            }
+
             // diff_src permute
             op_ptr out_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
             out_perm_op->set_attr<std::string>("permute_kind", "permute");
