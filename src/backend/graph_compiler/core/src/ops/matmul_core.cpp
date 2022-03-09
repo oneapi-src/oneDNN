@@ -137,7 +137,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                            "constant", const_kind::not_const)
                     || parent_node->isa<constant_op_t>());
         }
-        constant_A = constant_A_parents;
+        constant_A = constant_A_parents
+                && !info_.inputs_[0]->producer_owner_->get_inputs().empty();
     }
 
     if (info_.inputs_[1]->producer_owner_->isa<constant_op_t>()
@@ -153,7 +154,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                            "constant", const_kind::not_const)
                     || parent_node->isa<constant_op_t>());
         }
-        constant_B = constant_B_parents;
+        constant_B = constant_B_parents
+                && !info_.inputs_[1]->producer_owner_->get_inputs().empty();
     }
 
     if (A_dims.size() == 2) {

@@ -152,7 +152,7 @@ static graph_tensor_ptr get_linked_output_tsr(const graph_tensor_ptr &ltensor) {
     if (!ltensor->uses_.empty()) {
         for (size_t i = 0; i < ltensor->uses_.size(); i++) {
             if (ltensor->uses_[i].second->isa<tensor_view_op_t>()) {
-                auto reshape = ltensor->uses_[0].second;
+                auto reshape = ltensor->uses_[i].second;
                 for (auto &cld : reshape->get_outputs()[0]->uses_) {
                     if (cld.second->isa<output_op>()) {
                         return cld.second->get_inputs()[cld.first];
@@ -212,12 +212,12 @@ struct lowering_visitor_state_t {
                 ths->input_op_itr = vis->to_visit_.end();
                 --ths->input_op_itr;
             }
-            if (ths->input_op_itr != queue_iterator_t()) {
+            if (ths->input_op_itr != vis->to_visit_.end()) {
                 // if there is input ops, return and advance the input_op_itr
                 auto ret = *ths->input_op_itr;
                 auto to_remove = ths->input_op_itr;
                 if (ths->input_op_itr == vis->to_visit_.begin()) {
-                    ths->input_op_itr = queue_iterator_t();
+                    ths->input_op_itr = vis->to_visit_.end();
                 } else {
                     --ths->input_op_itr;
                 }
@@ -307,6 +307,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     lowering_visitor_state_t visiter_state(graph);
     op_visitor_t vis {
             visiter_state.get_selector(), visiter_state.get_updater()};
+    visiter_state.input_op_itr = vis.to_visit_.end();
     std::vector<expr> params;
     stmts func_body = make_stmt<stmts_node_t>(std::vector<stmt>());
     stmts init_body = make_stmt<stmts_node_t>(std::vector<stmt>());
