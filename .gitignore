@@ -35,6 +35,9 @@ __pycache__
 # Visual Studio Code
 .vscode
 
+# Visual Studio
+.vs
+
 # Mac OS X
 .DS_Store
 
