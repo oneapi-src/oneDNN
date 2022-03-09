@@ -7328,6 +7328,31 @@ TEST(Execute, GeluBackward) {
             impl::op_kind::GELUBackprop, "gelu_bw");
 }
 
+TEST(Execute, HardSwish) {
+    test::vector<float> src {7, -4, 0.0723652095, -0.0364869386, 60, -20,
+            0.188521415, -0.729738772, 88.3709564};
+    test::vector<float> ref_dst {7, 0, 0.0370553955, -0.0180215873, 60, 0,
+            0.100184090, -0.276116282, 88.3709564};
+    dnnl::graph::impl::dims dims {1, 3, 3};
+
+    test_eltwise_common(
+            src, ref_dst, dims, impl::op_kind::HardSwish, "hardswish");
+}
+
+TEST(Execute, HardSwishBackward) {
+    test::vector<float> src {7, -4, 0.0723652095, -0.0364869386, 60, -20,
+            0.188521415, -0.729738772, 88.3709564};
+    test::vector<float> diff_dst {9, -10, 0.0194608141, -0.0559477545, 70, -20,
+            0.754085660, -0.218955040, 88.5838242};
+    test::vector<float> ref_diff_src {9, 0, 0.0101998346, -0.0272934232, 70, 0,
+            0.424429923, -0.0562175252, 88.5838242};
+
+    dnnl::graph::impl::dims dims {1, 3, 3};
+
+    test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
+            impl::op_kind::HardSwishBackprop, "hardswish_bw");
+}
+
 TEST(Execute, Hardtanh) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};

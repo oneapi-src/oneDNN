@@ -1392,6 +1392,40 @@ TEST(OpSchema, InferHardTanhBackpropOutputShape) {
     verify_single_in_identity_shape_infer(op_kind_);
 }
 
+TEST(OpSchema, HardSwish) {
+    const op_kind_t op_kind_ = op_kind::HardSwish;
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<std::string, bool> attrs_data = {};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferHardSwishOutputShape) {
+    const op_kind_t op_kind_ = op_kind::HardSwish;
+
+    verify_single_in_identity_shape_infer(op_kind_);
+}
+
+TEST(OpSchema, HardSwishBackprop) {
+    const op_kind_t op_kind_ = op_kind::HardSwishBackprop;
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<std::string, bool> attrs_data = {};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferHardSwishBackpropOutputShape) {
+    const op_kind_t op_kind_ = op_kind::HardSwishBackprop;
+
+    verify_single_in_identity_shape_infer(op_kind_);
+}
+
 TEST(OpSchema, Index) {
     const op_kind_t op_kind_ = op_kind::Index;
     const size_t expected_in_size = 2;

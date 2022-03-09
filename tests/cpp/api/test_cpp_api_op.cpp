@@ -52,6 +52,8 @@ TEST(api_op, create_all_ops) {
             op::kind::Exp,
             op::kind::GELU,
             op::kind::GELUBackprop,
+            op::kind::HardSwish,
+            op::kind::HardSwishBackprop,
             op::kind::HardTanh,
             op::kind::HardTanhBackprop,
             op::kind::LayerNorm,
