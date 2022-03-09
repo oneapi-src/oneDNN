@@ -69,37 +69,47 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     dnnl::impl::parallel_nd(wei_nelems, [&](int64_t i) { d_wei_ptr[i] = 0; });
 
     if (wei_nelems == 1) {
-        const auto num_thr = MIN2(
-                static_cast<int64_t>(dnnl_get_max_threads()), src_nelems);
-        d_wei_buf = new float[num_thr];
-        dnnl::impl::parallel(num_thr, [&](const int ithr, const int nthr) {
-            int64_t start {0}, end {0};
-            dnnl::impl::balance211(src_nelems, nthr, ithr, start, end);
-            d_wei_buf[ithr] = 0;
+        const int reduce_dim = 0;
+        const int64_t N = d_src.md_.dims[reduce_dim];
+        const int64_t nelems_per_thr = src_nelems / N;
+        d_wei_buf = new float[N];
+        dnnl::impl::parallel_nd(N, [&](int64_t n) {
+            d_wei_buf[n] = 0;
 
-            for (int64_t i = start; i < end; ++i)
-                ker(i, 0, ithr);
+            for (int64_t ithr_i = 0; ithr_i < nelems_per_thr; ++ithr_i) {
+                int64_t idx = nelems_per_thr * n + ithr_i;
+                ker(idx, 0, n);
+            }
         });
 
-        for (int64_t i = 0; i < num_thr; i++)
+        for (int64_t i = 0; i < N; i++)
             d_wei_ptr[0] += d_wei_buf[i];
         delete[] d_wei_buf;
 
     } else if (src_nelems == wei_nelems) {
         dnnl::impl::parallel_nd(src_nelems, [&](int64_t i) { ker(i, i, i); });
     } else {
-        const auto weights_broadcast_mask = prb->get_broadcast_mask();
+        const int64_t reduce_size = src_nelems / wei_nelems;
 
-        dnnl::impl::parallel(0, [&](const int ithr, const int nthr) {
-            int64_t start {0}, end {0};
-            dnnl::impl::balance211(wei_nelems, nthr, ithr, start, end);
-            if (start == end) return;
+        // Re-used from ref_reduction.cpp
+        // TODO: make a common reduction kernel to avoid duplication.
+        const auto &src_dims = prb->vdims[0];
+        const auto &wei_dims = prb->vdims[1];
+        dims_t reduce_dims(prb->ndims, 1);
+        for (int d = 0; d < prb->ndims; ++d)
+            if (src_dims[d] != wei_dims[d]) reduce_dims[d] = src_dims[d];
 
-            for (int64_t i = 0; i < src_nelems; ++i) {
-                const auto wei_idx
-                        = d_src.get_scale_idx(i, weights_broadcast_mask);
-                if (wei_idx < start || wei_idx >= end) continue;
-                ker(i, wei_idx, wei_idx);
+        dnnl::impl::parallel_nd(wei_nelems, [&](int64_t f) {
+            dims_t wei_pos = off2dims_idx(wei_dims, f);
+            const int64_t wei_off = md_off_v(wei.md_, wei_pos.data());
+            const int64_t src_wei_off = md_off_v(src.md_, wei_pos.data());
+
+            for (int64_t r = 0; r < reduce_size; ++r) {
+                dims_t reduce_pos = off2dims_idx(reduce_dims, r);
+                const int64_t src_reduce_off
+                        = md_off_v(src.md_, reduce_pos.data());
+                const int64_t src_off = src_wei_off + src_reduce_off;
+                ker(src_off, wei_off, wei_off);
             }
         });
     }
