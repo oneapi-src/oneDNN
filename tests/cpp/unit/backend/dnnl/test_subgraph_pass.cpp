@@ -280,11 +280,11 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_bias_relu_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_bias_relu);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 
@@ -733,11 +733,11 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_bias_relu_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_bias_relu);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
 
@@ -1291,7 +1291,7 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul_div_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
 

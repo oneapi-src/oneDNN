@@ -6442,11 +6442,11 @@ TEST(Pass, FuseToInt8Matmul) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            impl::dnnl_impl::op_kind::int8_matmul);
+            impl::dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -6455,7 +6455,7 @@ TEST(Pass, FuseToInt8Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(PassPriority, TestInt8Matmul) {
+TEST(PassSystem, TestInt8Matmul) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6465,15 +6465,59 @@ TEST(PassPriority, TestInt8Matmul) {
            quant
              | (u8/s8)
     */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8x8f32_matmul_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_pass");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t matmul {2, MatMul, "matmul"};
+    op_t quant {3, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(4, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(5, data_type::u8);
+    quant.add_input(fp32_matmul_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    // run all the pass to check if the priority is correct
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            impl::dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
 TEST(Pass, FuseToInt8MatmulBias) {
@@ -6528,15 +6572,11 @@ TEST(Pass, FuseToInt8MatmulBias) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    pass::pass_base_ptr apass2 = get_pass("int8_matmul_bias_fusion");
-    apass2->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            impl::dnnl_impl::op_kind::int8_matmul_bias);
+            impl::dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -6546,25 +6586,72 @@ TEST(Pass, FuseToInt8MatmulBias) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(PassPriority, Int8MatmulBias) {
+TEST(PassSystem, TestInt8MatmulBias) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
-    (f32) \     / (f32)   / (f32)
-           matmul (w/ bias)
+    (f32) \     / (f32)
+        matmul (w/ bias)
              | (f32)
            quant
              | (u8/s8)
     */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_bias_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t matmul {2, MatMul, "matmul"};
+    op_t quant {3, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_bias = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(5, data_type::f32);
+
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_input(fp32_bias);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(6, data_type::u8);
+    quant.add_input(fp32_matmul_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            impl::dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 4);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
 TEST(Pass, FuseToInt8MatmulRelu) {
@@ -6625,11 +6712,12 @@ TEST(Pass, FuseToInt8MatmulRelu) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_relu_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_relu);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 5);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -6638,7 +6726,7 @@ TEST(Pass, FuseToInt8MatmulRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(PassPriority, TestInt8MatmulRelu) {
+TEST(PassSystem, FuseToInt8MatmulRelu) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -6650,15 +6738,65 @@ TEST(PassPriority, TestInt8MatmulRelu) {
            quant
              | (u8/s8)
     */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_relu_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_relu_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t matmul {2, MatMul, "conv"};
+    op_t relu {3, ReLU, "relu"};
+    op_t quant {4, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(4, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(5, data_type::f32);
+    relu.add_input(fp32_matmul_out);
+    relu.add_output(fp32_relu_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(6, data_type::u8);
+    quant.add_input(fp32_relu_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 5);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
 TEST(Pass, FuseToInt8MatmulBiasRelu) {
@@ -6722,15 +6860,11 @@ TEST(Pass, FuseToInt8MatmulBiasRelu) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_relu_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    pass::pass_base_ptr apass2 = get_pass("int8_matmul_bias_relu_fusion");
-    apass2->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_bias_relu);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -6738,29 +6872,6 @@ TEST(Pass, FuseToInt8MatmulBiasRelu) {
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
-}
-
-TEST(PassPriority, TestInt8MatmulBiasRelu) {
-    /*
-        | (u8/s8)  | (s8)
-     dequant    dequant
-    (f32) \     / (f32)
-        matmul (w/ bias)
-             | (f32)
-            relu
-             | (f32)
-           quant
-             | (u8/s8)
-    */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_relu_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_relu_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_bias_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
 TEST(Pass, FuseToX8s8f32Matmul) {
@@ -6803,11 +6914,11 @@ TEST(Pass, FuseToX8s8f32Matmul) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("x8x8f32_matmul_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -6859,15 +6970,11 @@ TEST(Pass, FuseToX8s8f32MatmulBias) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("x8x8f32_matmul_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    pass::pass_base_ptr apass2 = get_pass("x8s8f32_matmul_bias_fusion");
-    apass2->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_bias);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -6890,9 +6997,9 @@ TEST(Pass, FuseToX8s8f32MatmulEltwise) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
-            {ReLU, dnnl_impl::op_kind::x8s8f32_matmul_relu},
-            {Sigmoid, dnnl_impl::op_kind::x8s8f32_matmul_sigmoid},
-            {GELU, dnnl_impl::op_kind::x8s8f32_matmul_gelu}};
+            {ReLU, dnnl_impl::op_kind::int8_matmul_post_ops_fusion},
+            {Sigmoid, dnnl_impl::op_kind::int8_matmul_post_ops_fusion},
+            {GELU, dnnl_impl::op_kind::int8_matmul_post_ops_fusion}};
     for (auto &p : opkind_pair) {
         graph_t agraph;
         std::vector<int64_t> zps = {0};
@@ -6948,52 +7055,6 @@ TEST(Pass, FuseToX8s8f32MatmulEltwise) {
     }
 }
 
-TEST(PassPriority, TestInt8MatmulSigmoid) {
-    /*
-        | (u8/s8)  | (s8)
-     dequant    dequant
-    (f32) \     / (f32)
-           matmul
-             | (f32)
-           sigmoid
-             | (f32)
-           quant
-             | (u8/s8)
-    */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_sigmoid_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_sigmoid_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
-}
-
-TEST(PassPriority, TestInt8MatmulGelu) {
-    /*
-        | (u8/s8)  | (s8)
-     dequant    dequant
-    (f32) \     / (f32)
-           matmul
-             | (f32)
-           gelu
-             | (f32)
-           quant
-             | (u8/s8)
-    */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_gelu_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_gelu_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
-}
-
 TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
     /*
         | (u8/s8)  | (s8)
@@ -7007,9 +7068,9 @@ TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
-            {ReLU, dnnl_impl::op_kind::x8s8f32_matmul_bias_relu},
-            {Sigmoid, dnnl_impl::op_kind::x8s8f32_matmul_bias_sigmoid},
-            {GELU, dnnl_impl::op_kind::x8s8f32_matmul_bias_gelu}};
+            {ReLU, dnnl_impl::op_kind::int8_matmul_post_ops_fusion},
+            {Sigmoid, dnnl_impl::op_kind::int8_matmul_post_ops_fusion},
+            {GELU, dnnl_impl::op_kind::int8_matmul_post_ops_fusion}};
     for (auto &p : opkind_pair) {
         graph_t agraph;
         std::vector<int64_t> zps = {0};
@@ -7067,52 +7128,6 @@ TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
     }
-}
-
-TEST(PassPriority, TestInt8MatmulBiasSigmoid) {
-    /*
-        | (u8/s8)  | (s8)
-     dequant    dequant
-    (f32) \     / (f32)
-           matmul
-             | (f32)
-           sigmoid
-             | (f32)
-           quant
-             | (u8/s8)
-    */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_sigmoid_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_sigmoid_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_bias_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
-}
-
-TEST(PassPriority, TestInt8MatmulBiasGelu) {
-    /*
-        | (u8/s8)  | (s8)
-     dequant    dequant
-    (f32) \     / (f32)
-           matmul
-             | (f32)
-           gelu
-             | (f32)
-           quant
-             | (u8/s8)
-    */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_gelu_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_gelu_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_bias_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
 }
 
 TEST(Pass, FuseToInt8Maxpool) {
@@ -7534,6 +7549,94 @@ TEST(Pass, FuseToInt8ReluAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
+TEST(Pass, FuseToInt8MatmulAdd) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+            matmul
+             | (f32)
+             |     | (s8)
+             |   dequant
+             |  / (f32)
+            add
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps {0, 1};
+    std::vector<float> scales {3.1f, 3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t dequant3 {2, Dequantize, "dequant"};
+    dequant3.set_attr("scales", scales);
+    dequant3.set_attr("zps", zps);
+    op_t matmul {3, MatMul, "matmul"};
+    matmul.set_attr<bool>("transpose_a", false);
+    matmul.set_attr<bool>("transpose_b", false);
+    op_t add {4, Add, "add"};
+    op_t quant {5, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
+    logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
+    dequant3.add_input(int8_other);
+    dequant3.add_output(fp32_other);
+
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(7, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_add_out = logical_tensor_init(8, data_type::f32);
+    add.add_input(fp32_matmul_out);
+    add.add_input(fp32_other);
+    add.add_output(fp32_add_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(9, data_type::u8);
+    quant.add_input(fp32_add_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 4);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
+}
+
 TEST(Pass, FuseToInt8MatmulBiasAdd) {
     /*
         | (u8/s8)  | (s8)
@@ -7609,16 +7712,12 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_add_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    pass::pass_base_ptr apass2 = get_pass("int8_matmul_bias_add_fusion");
-    apass2->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_bias_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -7629,7 +7728,7 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(PassPriority, TestInt8MatmulBiasAdd) {
+TEST(PassSystem, FuseToInt8MatmulBiasAdd) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -7644,41 +7743,85 @@ TEST(PassPriority, TestInt8MatmulBiasAdd) {
            quant
              | (u8/s8)
     */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_add_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_add_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_bias_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
-}
+    graph_t agraph;
+    std::vector<int64_t> zps {0, 1};
+    std::vector<float> scales {3.1f, 3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t dequant3 {2, Dequantize, "dequant"};
+    dequant3.set_attr("scales", scales);
+    dequant3.set_attr("zps", zps);
+    op_t matmul {3, MatMul, "matmul"};
+    matmul.set_attr<bool>("transpose_a", false);
+    matmul.set_attr<bool>("transpose_b", false);
+    op_t add {4, Add, "add"};
+    op_t quant {5, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
 
-TEST(PassPriority, TestInt8MatmulAdd) {
-    /*
-        | (u8/s8)  | (s8)
-     dequant    dequant
-    (f32) \     / (f32)
-            matmul
-             | (f32)
-             |     | (s8)
-             |   dequant
-             |  / (f32)
-            add
-             | (f32)
-           quant
-             | (u8/s8)
-    */
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_add_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_add_fusion");
-    pass::pass_base_ptr pass3 = get_pass("matmul_post_ops_chain_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
-    ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
+    logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
+    dequant3.add_input(int8_other);
+    dequant3.add_output(fp32_other);
+
+    logical_tensor_t fp32_bias = logical_tensor_init(6, data_type::f32);
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(7, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_input(fp32_bias);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_add_out = logical_tensor_init(8, data_type::f32);
+    add.add_input(fp32_matmul_out);
+    add.add_input(fp32_other);
+    add.add_output(fp32_add_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(9, data_type::u8);
+    quant.add_input(fp32_add_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    auto &backend_ptr
+            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::graph::impl::pass::pass_manager_t(
+            backend_ptr.get_pass_registry());
+
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 6);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
 TEST(Pass, FuseReluAdd) {
@@ -7805,16 +7948,12 @@ TEST(Pass, FuseToX8s8f32MatmulBiasAdd) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("x8s8f32_matmul_add_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
-
-    pass::pass_base_ptr apass2 = get_pass("x8s8f32_matmul_bias_add_fusion");
-    apass2->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_bias_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -7825,7 +7964,84 @@ TEST(Pass, FuseToX8s8f32MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
 }
 
-TEST(Pass, FailToFuseToX8s8f32MatmulBiasAddWithWrongDtype) {
+TEST(Pass, FuseToX8x8f32MatmulAdd) {
+    /*
+        | (u8/s8)  | (u8)
+     dequant    dequant
+    (f32) \     / (f32)
+            matmul
+             | (f32)
+             |     | (s8)
+             |   dequant
+             |  / (f32)
+            add
+             | (f32)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps {0, 0};
+    std::vector<float> scales {3.1f, 3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t dequant3 {2, Dequantize, "dequant"};
+    dequant3.set_attr("scales", scales);
+    dequant3.set_attr("zps", zps);
+    op_t matmul {3, MatMul, "matmul"};
+    matmul.set_attr<bool>("transpose_a", false);
+    matmul.set_attr<bool>("transpose_b", false);
+    op_t add {4, Add, "add"};
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t u8_weight = logical_tensor_init(2, data_type::u8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(u8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
+    logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
+    dequant3.add_input(int8_other);
+    dequant3.add_output(fp32_other);
+
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(7, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_add_out = logical_tensor_init(8, data_type::f32);
+    add.add_input(fp32_matmul_out);
+    add.add_input(fp32_other);
+    add.add_output(fp32_add_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 4);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
+}
+
+TEST(Pass, FuseToX8x8f32MatmulBiasAdd) {
     /*
         | (u8/s8)  | (u8)
      dequant    dequant
@@ -7890,9 +8106,19 @@ TEST(Pass, FailToFuseToX8s8f32MatmulBiasAddWithWrongDtype) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("x8s8f32_matmul_bias_add_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 0);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
 }
 
 TEST(Pass, FuseToX8x8f32MatmulDivAdd) {
@@ -7959,7 +8185,7 @@ TEST(Pass, FuseToX8x8f32MatmulDivAdd) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul_div_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
@@ -8035,7 +8261,7 @@ TEST(PassSystem, FuseToX8x8f32MatmulDivAdd) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul_div_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
 }
 
 TEST(Pass, FuseToX8s8bf16Matmul) {
@@ -8096,7 +8322,7 @@ TEST(Pass, FuseToX8s8bf16Matmul) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
@@ -8164,7 +8390,7 @@ TEST(PassSystem, FuseToX8s8bf16Matmul) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
 }
 
 TEST(Pass, FuseToX8s8bf16MatmulDiv) {
@@ -8235,7 +8461,7 @@ TEST(Pass, FuseToX8s8bf16MatmulDiv) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul_div);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
@@ -8314,7 +8540,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDiv) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul_div);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
 }
 
 TEST(Pass, FailToAddMatmul) {
@@ -8414,7 +8640,7 @@ TEST(Pass, FuseToX8s8bf16MatmulDivAdd) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul_div_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
@@ -8504,7 +8730,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDivAdd) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8x8float_matmul_div_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
 }
 
 TEST(Pass, FuseToX8s8bf16MatmulBias) {
@@ -8567,7 +8793,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBias) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_bias);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
@@ -8638,7 +8864,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBias) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_bias);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
 }
 
 TEST(Pass, FuseSingleTypecast) {
@@ -8756,7 +8982,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_bias_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
@@ -8860,7 +9086,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_bias_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
 }
 
 TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
@@ -8939,7 +9165,7 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_bias_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
@@ -9026,7 +9252,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAddBF16) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_bias_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
 }
 
 TEST(PassSystem, FuseToX8s8bf16MatmulAdd) {
@@ -9120,7 +9346,7 @@ TEST(PassSystem, FuseToX8s8bf16MatmulAdd) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::x8s8float_matmul_add);
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
@@ -9493,6 +9719,7 @@ TEST(PassSystem, MixInt8AndBf16MatmulGelu) {
     pm.run_passes(agraph, "no_config");
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 8);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -9841,6 +10068,7 @@ TEST(PassSystem, MixInt8AndBf16Matmul) {
     pm.run_passes(agraph, "no_config");
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 7);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -10089,94 +10317,206 @@ TEST(PassSystem, FuseTypecaseQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
 }
 
-// deq->matmul->q should have higher priority than deq->matmul
-// deq->typecast->matmul->typecast->q should have higher priority than
-// deq->typecast->matmul
-// quant(weight)->dequant(data & weight)->matmul->q
-// should have higher priority than deq->matmul->q
-TEST(PassPriority, TestInt8Bf16Matmul) {
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_fusion");
-    pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_bias_fusion");
-    pass::pass_base_ptr pass4 = get_pass("int8_quant_wei_matmul_bias_fusion");
-    pass::pass_base_ptr pass5 = get_pass("int8_matmul_fusion");
-    pass::pass_base_ptr pass6 = get_pass("int8_quant_wei_matmul_fusion");
-    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass1->get_priority(), pass3->get_priority());
-    ASSERT_GT(pass4->get_priority(), pass1->get_priority());
-    ASSERT_GT(pass6->get_priority(), pass5->get_priority());
+TEST(PassSystem, MixInt8AndBf16MatmulAdd) {
+    /*
+        | (u8/s8)  | (u8/s8)
+     dequant    dequant
+        | (f32)    | (f32)  / (u8/s8)
+     typecast  typecast   dequant
+    (bf16) \     / (bf16) / (fp32)
+           matmul  typecast
+         (bf16)\   / (bf16)
+                add
+                 | (bf16)
+              typecast
+                 | (f32)
+               quant
+                 | (u8/s8)
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t typecast1 {2, TypeCast, "typecast"};
+    op_t typecast2 {3, TypeCast, "typecast"};
+    op_t matmul {4, MatMul, "matmul"};
+    op_t add {5, Add, "add"};
+    op_t dequant3 {6, Dequantize, "dequant"};
+    dequant3.set_attr("scales", scales);
+    dequant3.set_attr("zps", zps);
+    op_t typecast3 {7, TypeCast, "typecast"};
+    op_t typecast4 {8, TypeCast, "typecast"};
+    op_t quant {9, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
+    typecast1.add_input(fp32_data);
+    typecast1.add_output(bf16_data);
+
+    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
+    dequant2.add_input(int8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
+    typecast2.add_input(fp32_weight);
+    typecast2.add_output(bf16_weight);
+
+    logical_tensor_t bf16_bias = logical_tensor_init(7, data_type::bf16);
+    logical_tensor_t bf16_matmul_out = logical_tensor_init(8, data_type::bf16);
+    matmul.add_input(bf16_data);
+    matmul.add_input(bf16_weight);
+    matmul.add_input(bf16_bias);
+    matmul.add_output(bf16_matmul_out);
+
+    logical_tensor_t int8_add_in = logical_tensor_init(9, data_type::u8);
+    logical_tensor_t fp32_add_in = logical_tensor_init(10, data_type::f32);
+    dequant3.add_input(int8_add_in);
+    dequant3.add_output(fp32_add_in);
+
+    logical_tensor_t bf16_add_in = logical_tensor_init(11, data_type::bf16);
+    typecast3.add_input(fp32_add_in);
+    typecast3.add_output(bf16_add_in);
+
+    logical_tensor_t bf16_add_out = logical_tensor_init(12, data_type::bf16);
+    add.add_input(bf16_matmul_out);
+    add.add_input(bf16_add_in);
+    add.add_output(bf16_add_out);
+
+    logical_tensor_t fp32_add_out = logical_tensor_init(13, data_type::f32);
+    typecast4.add_input(bf16_add_out);
+    typecast4.add_output(fp32_add_out);
+
+    logical_tensor_t int8_dst = logical_tensor_init(14, data_type::u8);
+    quant.add_input(fp32_add_out);
+    quant.add_output(int8_dst);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast1), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast3), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast4), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(),
+            op_kind::Quantize);
 }
 
-// deq->matmul->gelu->q should have higher priority than deq->matmul->gelu
-// deq->typecast->matmul->gelu->typecast->q should have higher priority than
-// deq->typecast->matmul
-// quant(weight)->dequant(data & weight)->matmul->gelu->q
-// should have higher priority than deq->matmul->gelu->q
-TEST(PassPriority, TestInt8Bf16MatmulGelu) {
-    pass::pass_base_ptr pass1 = get_pass("int8_matmul_bias_gelu_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8f32_matmul_bias_gelu_fusion");
-    pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_bias_fusion");
-    pass::pass_base_ptr pass4
-            = get_pass("int8_quant_wei_matmul_bias_gelu_fusion");
-    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass1->get_priority(), pass3->get_priority());
-    ASSERT_GT(pass4->get_priority(), pass1->get_priority());
-}
+TEST(PassSystem, MixInt8AndBf16MatmulDiv) {
+    /*
+        | (u8/s8)  | (u8/s8)
+     dequant    dequant
+        | (f32)    | (f32)
+     typecast  typecast
+    (bf16) \     / (bf16)
+           matmul
+         (bf16)\   /(bf16)
+                div
+                 | (bf16)
+              typecast
+                 | (f32)
+               quant
+                 | (u8/s8)
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t typecast1 {2, TypeCast, "typecast"};
+    op_t typecast2 {3, TypeCast, "typecast"};
+    op_t matmul {4, MatMul, "matmul"};
+    op_t div {5, Divide, "divide"};
+    op_t typecast3 {6, TypeCast, "typecast"};
+    op_t quant {7, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
 
-// deq->typecast->matmul->add should have higher priority than
-// deq->typecast->matmul
-// deq->typecast->matmul->add should have higher priority than
-// deq->typecast->matmul->add(bf16)
-// deq->typecast->matmul->add(bf16) should have higher priority than
-// deq->typecast->matmul
-TEST(PassPriority, TestX8s8bf16MatmulBiasAdd) {
-    pass::pass_base_ptr pass1 = get_pass("x8s8bf16_matmul_bias_add_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8s8bf16_matmul_bias_fusion");
-    pass::pass_base_ptr pass3
-            = get_pass("x8s8bf16_matmul_bias_add_bf16_fusion");
-    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass1->get_priority(), pass3->get_priority());
-    ASSERT_GT(pass3->get_priority(), pass2->get_priority());
-}
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
 
-// deq->typecast->matmul->div->add should have higher priority than
-// deq->typecast->matmul->div
-// deq->typecast->matmul->div should have higher priority than
-// deq->typecast->matmul
-// deq->typecast->matmul->add should have higher priority than
-// deq->typecast->matmul
-// deq->typecast->matmul->gelu->typecast->q should have higher priority than
-// deq->typecast->matmul
-TEST(PassPriority, TestX8s8bf16MatmulDiv) {
-    pass::pass_base_ptr pass1 = get_pass("x8x8bf16_matmul_div_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8x8bf16_matmul_fusion");
-    pass::pass_base_ptr pass3 = get_pass("x8s8bf16_matmul_add_fusion");
-    pass::pass_base_ptr pass4 = get_pass("int8_matmul_gelu_fusion");
-    pass::pass_base_ptr pass5 = get_pass("x8x8bf16_matmul_div_add_fusion");
-    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass3->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass4->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass5->get_priority(), pass1->get_priority());
-}
+    logical_tensor_t bf16_data = logical_tensor_init(2, data_type::bf16);
+    typecast1.add_input(fp32_data);
+    typecast1.add_output(bf16_data);
 
-// deq->matmul->div->add should have higher priority than
-// deq->matmul->div
-// deq->matmul->div should have higher priority than
-// deq->matmul
-// deq->matmul->add should have higher priority than
-// deq->matmul
-// deq->matmul->gelu->q should have higher priority than
-// deq->matmul
-TEST(PassPriority, TestX8s8f32Matmul) {
-    pass::pass_base_ptr pass1 = get_pass("x8x8f32_matmul_div_fusion");
-    pass::pass_base_ptr pass2 = get_pass("x8x8f32_matmul_fusion");
-    pass::pass_base_ptr pass3 = get_pass("x8s8f32_matmul_add_fusion");
-    pass::pass_base_ptr pass4 = get_pass("int8_matmul_gelu_fusion");
-    pass::pass_base_ptr pass5 = get_pass("x8x8f32_matmul_div_add_fusion");
-    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass3->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass4->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass5->get_priority(), pass1->get_priority());
+    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
+    dequant2.add_input(int8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t bf16_weight = logical_tensor_init(5, data_type::bf16);
+    typecast2.add_input(fp32_weight);
+    typecast2.add_output(bf16_weight);
+
+    logical_tensor_t bf16_matmul_out = logical_tensor_init(6, data_type::bf16);
+    matmul.add_input(bf16_data);
+    matmul.add_input(bf16_weight);
+    matmul.add_output(bf16_matmul_out);
+
+    logical_tensor_t bf16_div_in = logical_tensor_init(7, data_type::bf16);
+    logical_tensor_t bf16_div_out = logical_tensor_init(8, data_type::bf16);
+    div.add_input(bf16_matmul_out);
+    div.add_input(bf16_div_in);
+    div.add_output(bf16_div_out);
+
+    logical_tensor_t fp32_div_out = logical_tensor_init(9, data_type::f32);
+    typecast3.add_input(bf16_div_out);
+    typecast3.add_output(fp32_div_out);
+
+    logical_tensor_t int8_dst = logical_tensor_init(10, data_type::u8);
+    quant.add_input(fp32_div_out);
+    quant.add_output(int8_dst);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast1), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast3), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(),
+            op_kind::Quantize);
 }
 
 TEST(Pass, FuseBnReLUWithSharedInputs) {
