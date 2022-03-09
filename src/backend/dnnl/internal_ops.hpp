@@ -46,6 +46,7 @@ namespace op_kind {
     X(avgpool_add, AvgPool_add) \
     X(maxpool_add, MaxPool_add) \
     X(int8_conv_post_ops_fusion, INT8_conv_post_ops_chain) \
+    X(int8_matmul_post_ops_fusion, INT8_matmul_post_ops_fusion) \
     X(int8_matmul, INT8_MatMul) \
     X(int8_quant_wei_matmul, INT8_Quant_wei_MatMul) \
     X(int8_matmul_bias, INT8_MatMul_bias) \

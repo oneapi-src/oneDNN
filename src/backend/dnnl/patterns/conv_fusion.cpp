@@ -40,35 +40,6 @@ bool check_grouped(op_t *op) {
     }
 }
 
-template <size_t N>
-bool check_producer_input_num(op_t *op) {
-    op_t *producer = op->get_input_op(0);
-    return producer->num_inputs() == N;
-}
-
-bool check_post_ops_only_one_add(op_t *op) {
-    size_t num_add = 0;
-    op_t *current_op = op;
-    while (current_op->get_kind() != impl::op_kind::Convolution) {
-        if (current_op->get_kind() == impl::op_kind::Add) {
-            num_add += 1;
-            if (current_op->get_input_op(0)->get_kind()
-                            != impl::op_kind::Dequantize
-                    && current_op->get_input_op(1)->get_kind()
-                            != impl::op_kind::Dequantize)
-                return false;
-            if (current_op->get_input_op(0)->get_kind()
-                    == impl::op_kind::Dequantize)
-                current_op = current_op->get_input_op(1);
-            else
-                current_op = current_op->get_input_op(0);
-        } else {
-            current_op = current_op->get_input_op(0);
-        }
-    }
-    return num_add == 1;
-}
-
 // Block creators used to construct large patterns
 pm::pb_op *conv_bias(const std::shared_ptr<pb_graph_t> &pgraph,
         pm::pb_op *input, bool grouped = false, bool use_biasadd = false) {
@@ -444,7 +415,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
                             impl::op_kind::Dequantize, "dequant_add");
                     pm::pb_op *padd = padd_graph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(1, pdequant_add, 0)}, "padd");
-                    padd->append_decision_function(check_post_ops_only_one_add);
+                    padd->append_decision_function(check_post_ops_only_one_add<
+                            impl::op_kind::Convolution>);
                     padd_graph->create_input_port(0, padd, 0);
                     padd_graph->create_input_port(1, pdequant_add, 1);
                     padd_graph->create_output_port(0, padd, 0);

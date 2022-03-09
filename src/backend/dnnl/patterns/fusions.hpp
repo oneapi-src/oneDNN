@@ -51,6 +51,39 @@ bool check_output_dtype(op_t *op) {
     return true;
 }
 
+template <size_t N>
+bool check_producer_input_num(op_t *op) {
+    op_t *producer = op->get_input_op(0);
+    return producer->num_inputs() == N;
+}
+
+template <impl::op_kind_t OPKIND>
+bool check_post_ops_only_one_add(op_t *op) {
+    size_t num_add = 0;
+    op_t *current_op = op;
+    while (current_op->get_kind() != OPKIND) {
+        if (current_op->get_kind() == impl::op_kind::Add) {
+            num_add += 1;
+            if (!current_op->get_input_value(0)->has_producer()
+                    || !current_op->get_input_value(1)->has_producer())
+                return false;
+            if (current_op->get_input_op(0)->get_kind()
+                            != impl::op_kind::Dequantize
+                    && current_op->get_input_op(1)->get_kind()
+                            != impl::op_kind::Dequantize)
+                return false;
+            if (current_op->get_input_op(0)->get_kind()
+                    == impl::op_kind::Dequantize)
+                current_op = current_op->get_input_op(1);
+            else
+                current_op = current_op->get_input_op(0);
+        } else {
+            current_op = current_op->get_input_op(0);
+        }
+    }
+    return num_add == 1;
+}
+
 DNNL_BACKEND_REGISTER_PASSES_DECLARE(conv_fusion)
 DNNL_BACKEND_REGISTER_PASSES_DECLARE(matmul_fusion)
 DNNL_BACKEND_REGISTER_PASSES_DECLARE(binary_fusion)

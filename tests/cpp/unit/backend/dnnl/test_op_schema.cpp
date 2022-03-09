@@ -27,35 +27,6 @@
 using namespace dnnl::graph::impl;
 using namespace dnnl::graph::tests::unit::utils;
 
-TEST(OpSchema, Int8Matmul) {
-    std::set<op_kind_t> matmul_kinds = {impl::dnnl_impl::op_kind::int8_matmul,
-            impl::dnnl_impl::op_kind::int8_matmul_relu,
-            impl::dnnl_impl::op_kind::int8_matmul_sigmoid,
-            impl::dnnl_impl::op_kind::int8_matmul_gelu};
-    const size_t expected_in_size = 2;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 6;
-    const std::map<std::string, bool> attrs_data
-            = {{"transpose_a", false}, {"transpose_b", false}, {"qtype", false},
-                    {"axis", false}, {"scales", true}, {"zps", true}};
-
-    for (auto k : matmul_kinds) {
-        verify_op_schema(k, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-
-    std::set<op_kind_t> matmul_bias_kinds
-            = {impl::dnnl_impl::op_kind::int8_matmul_bias,
-                    impl::dnnl_impl::op_kind::int8_matmul_bias_relu,
-                    impl::dnnl_impl::op_kind::int8_matmul_bias_sigmoid,
-                    impl::dnnl_impl::op_kind::int8_matmul_bias_gelu};
-    const size_t expected_in_size2 = 3;
-    for (auto k : matmul_bias_kinds) {
-        verify_op_schema(k, expected_in_size2, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
-}
-
 TEST(OpSchema, InferConvBiasOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion);

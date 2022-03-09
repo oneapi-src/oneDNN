@@ -218,63 +218,8 @@ bool dnnl_backend::register_kernels() {
             op_kind::quantized_convtranspose_fusion, quantized_convtranspose)
 
     // quantized matmul
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_matmul_bias_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8float_matmul_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8float_matmul_bias_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8x8float_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8float_matmul_bias, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_sigmoid, quantized_matmul);
     DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_matmul_bias_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_matmul_bias_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul_bias, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::int8_quant_wei_matmul_bias_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::int8_quant_wei_matmul_bias_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::int8_quant_wei_matmul_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::int8_quant_wei_matmul_bias_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_quant_wei_matmul_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::int8_quant_wei_matmul_bias_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_bias_add, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8s8f32_quant_wei_matmul, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_bias, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_bias_relu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_bias_sigmoid, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(
-            op_kind::x8s8f32_quant_wei_matmul_bias_gelu, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8x8float_matmul_div, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::x8x8float_matmul_div_add, quantized_matmul);
+            op_kind::int8_matmul_post_ops_fusion, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::int8_MHA, quantized_matmul);
     DNNL_REGISTER_KERNEL(op_kind::f32_MHA, float_matmul);
 
