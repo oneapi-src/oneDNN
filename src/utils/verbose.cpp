@@ -49,8 +49,6 @@
 #define DNNL_GRAPH_VERSION_HASH "N/A"
 #endif
 
-#define DFMT "%" PRId64
-
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -101,157 +99,67 @@ void partition_info_t::init(
 #else
 
 namespace {
-#define DNNL_GRAPH_VERBOSE_DAT_LEN 1024
-#define DNNL_GRAPH_VERBOSE_FMT_LEN 64
 
-#define DECL_DAT_STRS() \
-    int dat_written = 0; \
-    char dat_str[DNNL_GRAPH_VERBOSE_DAT_LEN] = {'\0'}; \
-    int fmt_written = 0; \
-    char fmt_str[DNNL_GRAPH_VERBOSE_FMT_LEN] = {'\0'}
-
-// The following code is derived from oneDNN/src/common/verbose.cpp
-void clear_buf(char *buf, int &written) {
-    /* TODO: do it better */
-    buf[0] = '#';
-    buf[1] = '\0';
-    written = 1;
-}
-
-#define CHECK_WRITTEN(buf, buf_len, written_now, written_total) \
-    do { \
-        if ((written_now) < 0 \
-                || (written_total) + (written_now) > (buf_len)) { \
-            clear_buf(buf, written_total); \
-        } else { \
-            (written_total) += (written_now); \
-        } \
-    } while (0)
-
-#define PUTS(...) \
-    do { \
-        int l = snprintf(str + written_len, str_len, __VA_ARGS__); \
-        if (l < 0) return l; \
-        if ((size_t)l >= str_len) return -1; \
-        written_len += l; \
-        str_len -= (size_t)l; \
-    } while (0);
-
-#define DPRINT(buf, buf_len, written, ...) \
-    do { \
-        int l = snprintf((buf) + (written), (size_t)((buf_len) - (written)), \
-                __VA_ARGS__); \
-        CHECK_WRITTEN(buf, buf_len, l, written); \
-    } while (0)
-
-#define LOGICAL_TENSOR2STR(buf, buf_len, written, logical_tensor) \
-    do { \
-        int l = logical_tensor2str((buf) + (written), \
-                (size_t)((buf_len) - (written)), logical_tensor); \
-        CHECK_WRITTEN(buf, buf_len, l, written); \
-    } while (0)
-
-#define DIM2STR(buf, buf_len, written, logical_tensor) \
-    do { \
-        int l = logical_tensor2dim_str((buf) + (written), \
-                (size_t)((buf_len) - (written)), logical_tensor); \
-        CHECK_WRITTEN(buf, buf_len, l, written); \
-    } while (0);
-
-#define LAYOUT2STR(buf, buf_len, written, logical_tensor) \
-    do { \
-        int l = logical_tensor2layout_str((buf) + (written), \
-                (size_t)((buf_len) - (written)), logical_tensor); \
-        CHECK_WRITTEN(buf, buf_len, l, written); \
-    } while (0);
-
-#define FMT2STR(buf, buf_len, written, partition) \
-    do { \
-        int l = partition2fmt_str((buf) + (written), \
-                (size_t)((buf_len) - (written)), partition); \
-        CHECK_WRITTEN(buf, buf_len, l, written); \
-    } while (0);
-
-void verbose_templ_no_engine_kind(char *buffer, size_t parition_id,
-        const char *op_name_str, const char *fmt_str, const char *data_str,
-        const char *backend_str, int written = 0) {
-    DPRINT(buffer, DNNL_GRAPH_VERBOSE_BUF_LEN, written, DFMT ",%s,%s,%s,%s",
-            static_cast<int64_t>(parition_id), op_name_str, fmt_str, data_str,
-            backend_str);
-}
-
-int logical_tensor2dim_str(char *str, size_t str_len,
+std::string logical_tensor2dim_str(
         const impl::logical_tensor_t &logical_tenosr) {
-    if (str == nullptr || str_len <= 1u) return -1;
-
-    int written_len = 0;
+    std::string s;
 
     auto lt = impl::logical_tensor_wrapper_t(logical_tenosr);
-    const int32_t ndim = lt.ndims();
-    const auto dims = lt.dims();
 
-    PUTS(":");
-    for (int i = 0; i < ndim - 1; ++i) {
-        PUTS(DFMT "x", dims[i]);
-    }
-    PUTS(DFMT, dims[ndim - 1]);
+    s += ":";
+    s += std::to_string(lt.dims()[0]);
+    for (int d = 1; d < lt.ndims(); ++d)
+        s += ("x" + std::to_string(lt.dims()[d]));
 
-    return written_len;
+    return s;
 }
 
-int logical_tensor2layout_str(char *str, size_t str_len,
+std::string logical_tensor2layout_str(
         const impl::logical_tensor_t &logical_tensor) {
-    if (str == nullptr || str_len <= 1u) return -1;
-
-    int written_len = 0;
+    std::string s;
 
     auto lt = impl::logical_tensor_wrapper_t(logical_tensor);
-    const int32_t ndim = lt.ndims();
 
-    PUTS(":");
+    s += ":";
     if (lt.layout_type() == impl::layout_type::strided) {
         const auto strides = lt.strides();
-        for (int i = 0; i < ndim - 1; ++i) {
-            PUTS(DFMT "s", strides[i]);
+        for (int i = 0; i < lt.ndims() - 1; ++i) {
+            s += std::to_string(strides[i]);
+            s += "s";
         }
-        PUTS(DFMT, strides[ndim - 1]);
+        s += std::to_string(strides[lt.ndims() - 1]);
     } else if (lt.layout_type() == impl::layout_type::opaque) {
-        PUTS(DFMT, static_cast<int64_t>(lt.layout_id()));
+        s += std::to_string(lt.layout_id());
     } else if (lt.layout_type() == impl::layout_type::any) {
-        PUTS("%s", "any");
+        s += "any";
     } else {
         assert(!"layout type must be any, strided or opaque.");
     }
 
-    return written_len;
+    return s;
 }
 
-int logical_tensor2str(char *str, size_t str_len,
-        const impl::logical_tensor_t &logical_tensor) {
-    if (str == nullptr || str_len <= 1u) return -1;
+std::string logical_tensor2str(const impl::logical_tensor_t &logical_tensor) {
+    std::string s;
 
-    int written = 0;
-    DPRINT(str, DNNL_GRAPH_VERBOSE_DAT_LEN, written,
-            "%s:" DFMT
-            ":%s"
-            ":%s",
-            data_type2str(logical_tensor.data_type),
-            static_cast<int64_t>(logical_tensor.id),
-            layout_type2str(logical_tensor.layout_type),
-            property_type2str(logical_tensor.property));
+    s += std::string(data_type2str(logical_tensor.data_type));
+    s += ":";
+    s += std::to_string(logical_tensor.id);
+    s += ":";
+    s += std::string(layout_type2str(logical_tensor.layout_type));
+    s += ":";
+    s += std::string(property_type2str(logical_tensor.property));
 
-    return written;
+    return s;
 }
 
-int partition2fmt_str(
-        char *str, size_t str_len, const impl::partition_t &partition) {
-    if (str == nullptr || str_len <= 1u) return -1;
+std::string partition2fmt_str(const impl::partition_t &partition) {
+    std::string s;
 
-    int written_len = 0;
     const std::vector<std::shared_ptr<graph::impl::op_t>> &operators
             = partition.get_ops();
     const size_t num_operator = operators.size();
-    if (num_operator == 0) return written_len;
+    if (num_operator == 0) return s;
 
     bool data_filled = false;
     bool filter_filled = false;
@@ -261,29 +169,29 @@ int partition2fmt_str(
             // If the first i ops have no data_format, empty string with suffix
             // `;` should be printed out for each of them.
             if (!data_filled) {
-                PUTS("data:");
+                s += "data:";
                 for (size_t ii = 0; ii < i; ++ii)
-                    PUTS(";");
+                    s += ";";
                 // Indicates that at least one op in the list have data format
                 // spec.
                 data_filled = true;
             }
             const auto data_format = op->get_attr<std::string>("data_format");
             if (i == num_operator - 1) {
-                DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len, "%s ",
-                        data_format.c_str());
+                s += data_format;
+                s += " ";
             } else {
-                DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len, "%s;",
-                        data_format.c_str());
+                s += data_format;
+                s += ";";
             }
         } else if (data_filled) {
             // If at least one op have data format, op without format spec
             // should give `;` except the last one of data which should give
             // ` `.
             if (i == num_operator - 1) {
-                PUTS(" ");
+                s += " ";
             } else {
-                PUTS(";");
+                s += ";";
             }
         }
     }
@@ -291,59 +199,53 @@ int partition2fmt_str(
         const std::shared_ptr<graph::impl::op_t> op = operators[i];
         if (op->has_attr("filter_format")) {
             if (!filter_filled) {
-                PUTS("filter:");
+                s += "filter:";
                 for (size_t ii = 0; ii < i; ++ii)
-                    PUTS(";");
+                    s += ";";
                 filter_filled = true;
             }
             const auto filter_format
                     = op->get_attr<std::string>("filter_format");
             if (i == num_operator - 1) {
-                DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len, "%s",
-                        filter_format.c_str());
+                s += filter_format;
+                s += " ";
             } else {
-                DPRINT(str, DNNL_GRAPH_VERBOSE_FMT_LEN, written_len, "%s;",
-                        filter_format.c_str());
+                s += filter_format;
+                s += ";";
             }
         } else if (filter_filled) {
-            PUTS(";");
+            s += ";";
         }
     }
 
-    return written_len;
+    return s;
 }
 
-void verbose_templ(char *buffer, const impl::engine_t *engine,
-        size_t partition_id, const char *op_name_str, const char *fmt_str,
-        const char *data_str, const char *backend_str) {
-    int written = 0;
-    DPRINT(buffer, DNNL_GRAPH_VERBOSE_BUF_LEN, written, "%s,",
-            engine_kind2str(engine->kind()));
-    verbose_templ_no_engine_kind(buffer, partition_id, op_name_str, fmt_str,
-            data_str, backend_str, written);
-}
-
-void init_info_partition(const impl::engine_t *engine,
-        const impl::compiled_partition_t *compiled_partition, char *buffer) {
-    DECL_DAT_STRS();
+std::string init_info_partition(const impl::engine_t *engine,
+        const impl::compiled_partition_t *compiled_partition) {
+    std::stringstream ss;
 
     const auto &partition = compiled_partition->src_partition();
-    FMT2STR(fmt_str, DNNL_GRAPH_VERBOSE_FMT_LEN, fmt_written, partition);
+
+    ss << std::string(engine_kind2str(engine->kind())) << "," << partition.id()
+       << ",";
+
+    const std::vector<std::shared_ptr<graph::impl::op_t>> &operators
+            = partition.get_ops();
+    const size_t num_operators = operators.size();
+    for (size_t i = 0; i < num_operators; ++i) {
+        ss << operators[i]->get_name()
+           << ((i == num_operators - 1) ? "," : ";");
+    }
+
+    ss << partition2fmt_str(partition) << ",";
     {
         const auto &inputs = compiled_partition->get_inputs();
         const size_t inputs_size = inputs.size();
         for (size_t i = 0; i < inputs_size; ++i) {
-            DPRINT(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written, "%s",
-                    "in");
-            DPRINT(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written, "%d_",
-                    (int)i);
-            LOGICAL_TENSOR2STR(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written,
-                    inputs[i]);
-            DIM2STR(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written,
-                    inputs[i]);
-            LAYOUT2STR(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written,
-                    inputs[i]);
-            DPRINT(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written, " ");
+            ss << "in" << i << "_" << logical_tensor2str(inputs[i])
+               << logical_tensor2dim_str(inputs[i])
+               << logical_tensor2layout_str(inputs[i]) << " ";
         }
     }
 
@@ -351,32 +253,16 @@ void init_info_partition(const impl::engine_t *engine,
         const auto &outputs = compiled_partition->get_outputs();
         const size_t outputs_size = outputs.size();
         for (size_t i = 0; i < outputs_size; ++i) {
-            DPRINT(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written, "%s",
-                    "out");
-            DPRINT(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written, "%c_",
-                    '0' + static_cast<char>(i));
-            LOGICAL_TENSOR2STR(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written,
-                    outputs[i]);
-            DIM2STR(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written,
-                    outputs[i]);
-            LAYOUT2STR(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written,
-                    outputs[i]);
-            if (i < outputs_size - 1)
-                DPRINT(dat_str, DNNL_GRAPH_VERBOSE_DAT_LEN, dat_written, " ");
+            ss << "out" << i << "_" << logical_tensor2str(outputs[i])
+               << logical_tensor2dim_str(outputs[i])
+               << logical_tensor2layout_str(outputs[i]);
+            if (i < outputs_size - 1) ss << " ";
         }
     }
 
-    const std::vector<std::shared_ptr<graph::impl::op_t>> &operators
-            = partition.get_ops();
-    std::ostringstream operator_names;
-    const size_t num_operators = operators.size();
-    for (size_t i = 0; i < num_operators; ++i) {
-        operator_names << operators[i]->get_name()
-                       << ((i == num_operators - 1) ? "" : ";");
-    }
-    verbose_templ(buffer, engine, partition.id(),
-            operators.empty() ? "N/A" : operator_names.str().c_str(), fmt_str,
-            dat_str, partition.get_assigned_backend()->get_name().c_str());
+    ss << "," << partition.get_assigned_backend()->get_name();
+
+    return ss.str();
 }
 
 } // namespace
@@ -386,8 +272,7 @@ void partition_info_t::init(const engine_t *engine,
     if (is_initialized_) return;
 
     std::call_once(initialization_flag_, [&] {
-        str_.resize(DNNL_GRAPH_VERBOSE_BUF_LEN, '\0');
-        init_info_partition(engine, compiled_partition, &str_[0]);
+        str_ = init_info_partition(engine, compiled_partition);
         is_initialized_ = true;
     });
 }

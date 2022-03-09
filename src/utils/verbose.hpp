@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,12 +52,6 @@ public:
 struct verbose_t {
     int level;
 };
-
-#if !defined(DNNL_GRAPH_DISABLE_VERBOSE)
-#define DNNL_GRAPH_VERBOSE_BUF_LEN 1024
-#else
-#define DNNL_GRAPH_VERBOSE_BUF_LEN 1
-#endif
 
 struct partition_info_t {
     partition_info_t() = default;
