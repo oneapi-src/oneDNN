@@ -62,9 +62,12 @@ bool logical_tensor_sanity_check(
 }
 } // namespace
 
+namespace dnnl {
+namespace graph {
+namespace impl {
 // function to do graph rewriting
-static void rewrite(dnnl::graph::impl::graph_t &agraph,
-        std::vector<std::vector<op_t *>> &fusion_ops) {
+void rewrite(impl::graph_t &agraph,
+        const std::vector<std::vector<op_t *>> &fusion_ops) {
     std::unordered_set<op_t *> visited;
     std::unordered_set<op_t *> fusion_ops_set;
 
@@ -78,6 +81,11 @@ static void rewrite(dnnl::graph::impl::graph_t &agraph,
 
         op_t *fused_op = agraph.create_op(op_kind::Wildcard);
         fused_op->set_partition(ops[0]->get_partition());
+
+        // the values that will be connected to fused op
+        std::vector<std::pair<std::shared_ptr<value_t>, value_t::consumer_t>>
+                fused_inputs;
+        std::vector<std::shared_ptr<value_t>> fused_outputs;
 
         for (size_t i = 0; i < ops.size(); ++i) {
             op_t *cur_op = ops[i];
@@ -94,9 +102,8 @@ static void rewrite(dnnl::graph::impl::graph_t &agraph,
                 //set it as a input op of fused_op
                 if (!in_value->has_producer()
                         || !visited.count(&in_value->get_producer())) {
-                    in_value->remove_consumer(*cur_op, j);
-                    in_value->add_consumer(*fused_op, fused_op->num_inputs());
-                    fused_op->add_input(in_value);
+                    fused_inputs.emplace_back(
+                            in_value, value_t::consumer_t(*cur_op, j));
                 }
             }
 
@@ -115,10 +122,23 @@ static void rewrite(dnnl::graph::impl::graph_t &agraph,
                 if (out_cons.empty() || !cons_all_in_pattern) {
                     // it's a end op of pattern, need to update
                     // op connection of it's output ops
-                    out_value->set_producer(*fused_op);
-                    fused_op->add_output(out_value);
+                    fused_outputs.emplace_back(out_value);
                 }
             }
+        }
+
+        // connect inputs to fused op
+        for (const auto &fused_ins : fused_inputs) {
+            fused_ins.first->remove_consumer(
+                    fused_ins.second.get_op(), fused_ins.second.get_offset());
+            fused_ins.first->add_consumer(*fused_op, fused_op->num_inputs());
+            fused_op->add_input(fused_ins.first);
+        }
+
+        // connect outputs to fused op
+        for (const auto &fused_outs : fused_outputs) {
+            fused_outs->set_producer(*fused_op);
+            fused_op->add_output(fused_outs);
         }
 
         for (size_t i = 0; i < ops.size(); ++i) {
@@ -126,6 +146,9 @@ static void rewrite(dnnl::graph::impl::graph_t &agraph,
         }
     }
 }
+} // namespace impl
+} // namespace graph
+} // namespace dnnl
 
 void dnnl_graph_graph::get_ordered_partitions(
         std::vector<partition_t *> &partitions) {
@@ -150,7 +173,7 @@ void dnnl_graph_graph::get_ordered_partitions(
     });
 
     // Fuse ops that belong to same partition
-    rewrite(copied_graph, fusion_ops);
+    impl::rewrite(copied_graph, fusion_ops);
 
     // Get partitions out according to the order of fused op
     // TODO(qun) Here is a workaround. Dfs order of unfused ops

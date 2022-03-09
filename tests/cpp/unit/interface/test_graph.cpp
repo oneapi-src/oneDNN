@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -368,4 +368,83 @@ TEST(Graph, InferShape) {
     ASSERT_EQ(out_lt.dims[1], 96);
     ASSERT_EQ(out_lt.dims[2], 55);
     ASSERT_EQ(out_lt.dims[3], 55);
+}
+
+TEST(Graph, Rewrite) {
+    /*
+          mm
+          |
+         relu
+          |  \
+          mm  mm
+          |
+         relu
+    */
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
+
+    impl::op_t mm0(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t relu1(1, impl::op_kind::ReLU, "relu_op");
+    impl::op_t mm2(2, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t relu3(3, impl::op_kind::ReLU, "relu_op");
+    impl::op_t mm4(4, impl::op_kind::MatMul, "matmul_op");
+
+    // prepare logical tensor
+    impl::logical_tensor_t mm0_src
+            = logical_tensor_init(0, {1, 2}, impl::data_type::f32);
+    impl::logical_tensor_t mm0_weight
+            = logical_tensor_init(1, {2, 1}, impl::data_type::f32);
+    impl::logical_tensor_t mm0_dst
+            = logical_tensor_init(2, {1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t relu1_dst
+            = logical_tensor_init(3, {1, 1}, impl::data_type::f32);
+
+    impl::logical_tensor_t mm2_weight
+            = logical_tensor_init(4, {2, 1}, impl::data_type::f32);
+    impl::logical_tensor_t mm2_dst
+            = logical_tensor_init(5, {1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t relu3_dst
+            = logical_tensor_init(6, {1, 1}, impl::data_type::f32);
+
+    impl::logical_tensor_t mm4_weight
+            = logical_tensor_init(7, {2, 1}, impl::data_type::f32);
+    impl::logical_tensor_t mm4_dst
+            = logical_tensor_init(8, {1, 1}, impl::data_type::f32);
+
+    mm0.add_input(mm0_src);
+    mm0.add_input(mm0_weight);
+    mm0.add_output(mm0_dst);
+    relu1.add_input(mm0_dst);
+    relu1.add_output(relu1_dst);
+    mm2.add_input(relu1_dst);
+    mm2.add_input(mm2_weight);
+    mm2.add_output(mm2_dst);
+    relu3.add_input(mm2_dst);
+    relu3.add_output(relu3_dst);
+    mm4.add_input(relu1_dst);
+    mm4.add_input(mm4_weight);
+    mm4.add_output(mm4_dst);
+
+    impl::graph_t g(impl::engine_kind::cpu);
+    ASSERT_EQ(g.add_op(&mm0), impl::status::success);
+    ASSERT_EQ(g.add_op(&relu1), impl::status::success);
+    ASSERT_EQ(g.add_op(&mm2), impl::status::success);
+    ASSERT_EQ(g.add_op(&relu3), impl::status::success);
+    ASSERT_EQ(g.add_op(&mm4), impl::status::success);
+
+    g.build_graph();
+    auto all_ops = g.get_ops();
+
+    std::vector<impl::op_t *> fusion_ops = {all_ops[0].get(), all_ops[1].get(),
+            all_ops[2].get(), all_ops[3].get()};
+
+    impl::rewrite(g, {fusion_ops});
+    ASSERT_EQ(g.num_ops(), 2);
+
+    auto fused_op = g.get_ops()[1];
+    // The inputs are mm0_src, mm0_weight, mm2_weight
+    ASSERT_EQ(fused_op->num_inputs(), 3);
+    // The outputs are mm0_dst, mm2_dst
+    ASSERT_EQ(fused_op->num_outputs(), 2);
 }
