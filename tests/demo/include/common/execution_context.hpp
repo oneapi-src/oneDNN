@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,21 +31,23 @@
 #include <CL/sycl.hpp>
 #endif
 
-struct deletor {
-#ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::context ctx_;
-    deletor() = delete;
-    deletor(const cl::sycl::context &ctx) : ctx_(ctx) {}
-    void operator()(void *ptr) {
-        if (ptr) cl::sycl::free(ptr, ctx_);
-    }
-#else
-    deletor() = default;
+struct cpu_deletor {
+    cpu_deletor() = default;
     void operator()(void *ptr) {
         if (ptr) free(ptr);
     }
-#endif
 };
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+struct sycl_deletor {
+    cl::sycl::context ctx_;
+    sycl_deletor() = delete;
+    sycl_deletor(const cl::sycl::context &ctx) : ctx_(ctx) {}
+    void operator()(void *ptr) {
+        if (ptr) cl::sycl::free(ptr, ctx_);
+    }
+};
+#endif
 
 /// A mapping from id to tensor is used to manage the lifecycle of all created
 /// tensors since these tensors need to be held until all compiled partitions'
@@ -128,25 +130,44 @@ public:
                 // logical tensor queried from compiled partition
                 dnnl::graph::logical_tensor new_lt
                         = c_partition.query_logical_tensor(id);
-                // allocate and initialize memory buffer
-#ifdef DNNL_GRAPH_WITH_SYCL
-                void *mem_ptr = cl::sycl::malloc_shared(new_lt.get_mem_size(),
-                        q_.get_device(), q_.get_context());
-                buffer_map_[new_lt.get_id()].reset(
-                        mem_ptr, deletor {q_.get_context()});
-                EXAMPLE_SWITCH_TYPE(new_lt.get_data_type(), dtype, {
-                    fill_buffer<dtype>(q_, mem_ptr,
-                            static_cast<size_t>(
-                                    new_lt.get_mem_size() / sizeof(dtype)),
-                            value);
-                });
+                // memory buffer allocation and initialization
+                void *mem_ptr = nullptr;
+                if (eng.get_kind() == dnnl::graph::engine::kind::cpu) {
+                    // cpu
+#ifdef DNNL_GRAPH_CPU_SYCL
+                    mem_ptr = cl::sycl::malloc_shared(new_lt.get_mem_size(),
+                            q_.get_device(), q_.get_context());
+                    buffer_map_[new_lt.get_id()].reset(
+                            mem_ptr, sycl_deletor {q_.get_context()});
+                    EXAMPLE_SWITCH_TYPE(new_lt.get_data_type(), dtype, {
+                        fill_buffer<dtype>(q_, mem_ptr,
+                                static_cast<size_t>(
+                                        new_lt.get_mem_size() / sizeof(dtype)),
+                                value);
+                    });
 #else
-                void *mem_ptr = malloc(new_lt.get_mem_size());
-                buffer_map_[new_lt.get_id()].reset(mem_ptr, deletor {});
-                EXAMPLE_SWITCH_TYPE(new_lt.get_data_type(), dtype, {
-                    fill_buffer<dtype>(mem_ptr, new_lt.get_mem_size(), value);
-                });
+                    mem_ptr = malloc(new_lt.get_mem_size());
+                    buffer_map_[new_lt.get_id()].reset(mem_ptr, cpu_deletor {});
+                    EXAMPLE_SWITCH_TYPE(new_lt.get_data_type(), dtype, {
+                        fill_buffer<dtype>(
+                                mem_ptr, new_lt.get_mem_size(), value);
+                    });
 #endif
+                } else {
+                    // gpu
+#ifdef DNNL_GRAPH_GPU_SYCL
+                    mem_ptr = cl::sycl::malloc_shared(new_lt.get_mem_size(),
+                            q_.get_device(), q_.get_context());
+                    buffer_map_[new_lt.get_id()].reset(
+                            mem_ptr, sycl_deletor {q_.get_context()});
+                    EXAMPLE_SWITCH_TYPE(new_lt.get_data_type(), dtype, {
+                        fill_buffer<dtype>(q_, mem_ptr,
+                                static_cast<size_t>(
+                                        new_lt.get_mem_size() / sizeof(dtype)),
+                                value);
+                    });
+#endif
+                }
                 ret.emplace_back(dnnl::graph::tensor {new_lt, eng, mem_ptr});
                 this->insert_or_replace(new_lt.get_id(), ret.back());
             }
@@ -181,17 +202,24 @@ public:
                 lid, ori_dtype, ori_dims, layout_type::strided};
 
         if (!queried_lt.has_same_layout(lts[idx])) {
-#ifdef DNNL_GRAPH_WITH_SYCL
-            std::unique_ptr<char, deletor> buffer {
-                    nullptr, deletor {q_.get_context()}};
-            buffer.reset(static_cast<char *>(
-                    cl::sycl::malloc_shared(queried_lt.get_mem_size(),
-                            q_.get_device(), q_.get_context())));
+            std::shared_ptr<void> buffer;
+            if (eng.get_kind() == dnnl::graph::engine::kind::cpu) {
+                // cpu
+#ifdef DNNL_GRAPH_CPU_SYCL
+                buffer.reset(cl::sycl::malloc_shared(queried_lt.get_mem_size(),
+                                     q_.get_device(), q_.get_context()),
+                        sycl_deletor {q_.get_context()});
 #else
-            std::unique_ptr<char, deletor> buffer {nullptr, deletor {}};
-            buffer.reset(
-                    static_cast<char *>(malloc(queried_lt.get_mem_size())));
+                buffer.reset(malloc(queried_lt.get_mem_size()), cpu_deletor {});
 #endif
+            } else {
+                // gpu
+#ifdef DNNL_GRAPH_GPU_SYCL
+                buffer.reset(cl::sycl::malloc_shared(queried_lt.get_mem_size(),
+                                     q_.get_device(), q_.get_context()),
+                        sycl_deletor {q_.get_context()});
+#endif
+            }
             // create a conversion partition
             dnnl::graph::op reorder_op {0, dnnl::graph::op::kind::Reorder,
                     {ori_lt}, {queried_lt}, "reorder"};
@@ -206,12 +234,7 @@ public:
             // replace the original tensor with the new one
             ts[idx] = tensor_r;
             this->insert_or_replace(lid, tensor_r);
-#ifdef DNNL_GRAPH_WITH_SYCL
-            buffer_map_[lid].reset(
-                    buffer.release(), deletor {q_.get_context()});
-#else
-            buffer_map_[lid].reset(buffer.release(), deletor {});
-#endif
+            buffer_map_[lid] = buffer;
         }
     }
 
