@@ -49,6 +49,8 @@
     _(Exp) \
     _(GELU) \
     _(GELUBackprop) \
+    _(HardSwish) \
+    _(HardSwishBackprop) \
     _(HardTanh) \
     _(HardTanhBackprop) \
     _(LayerNorm) \
