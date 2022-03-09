@@ -1026,7 +1026,7 @@ private:
     reg_allocator_t ra_;
     ngen::GRF signal_header_;
 
-    EmulationStrategy emu_strategy = EmulationStrategy(hw);
+    EmulationStrategy emu_strategy;
     EmulationState emu_state;
 };
 
@@ -4748,14 +4748,15 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         bool force_large_grf)
     : cfg_(cfg)
     , regs_(!force_large_grf ? cfg.regs() : 256)
-    , ra_(hw, "conv_kernel_t", reg_allocator_t::warn_all) {
+    , ra_(hw, "conv_kernel_t", reg_allocator_t::warn_all)
+    , emu_strategy(hw, cfg.hw_cfg.stepping_id()) {
 
     ra_.setRegisterCount(regs_);
 
     // XXX: BWD_W does 32x32 multiplication in the inner loop which may cause
     // hangs when using with split barrier. Switch to emulation to work around
     // the issue.
-    if (cfg_.is_bwd_w) emu_strategy.emulate64 = true;
+    if (cfg_.is_bwd_w && hw < ngen::HW::XeHPC) emu_strategy.emulate64 = true;
 
     // Build IR for the kernel.
     kernel_builder_t builder(cfg, pd, kernel_info);
