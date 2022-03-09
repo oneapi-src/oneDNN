@@ -2763,13 +2763,15 @@ public:
 // buffers.
 class sbid_manager_t {
 public:
-    sbid_manager_t() : tuple_func_(builtin_t::make("tuple")) {}
+    sbid_manager_t(ngen::HW hw = ngen::HW::Unknown)
+        : sbid_count_(hw >= ngen::HW::XeHPC ? 32 : 16)
+        , tuple_func_(builtin_t::make("tuple")) {}
 
     ngen_proxy::SBID get_sbid(const expr_t &buf, int index = 0) {
         auto key = tuple_func_.call({buf, expr_t(index)});
 
         int free_idx = -1;
-        for (int i = 0; i < sbid_count; i++) {
+        for (int i = 0; i < sbid_count_; i++) {
             auto &e = entries_[i];
             if (key.is_equal(e.key)) {
                 e.time = cur_time_++;
@@ -2787,7 +2789,7 @@ public:
         // Find the oldest SBID and use it.
         int old_idx = 0;
         int old_time = entries_[0].time;
-        for (int i = 1; i < sbid_count; i++) {
+        for (int i = 1; i < sbid_count_; i++) {
             if (entries_[i].time < old_time) {
                 old_idx = i;
                 old_time = entries_[i].time;
@@ -2804,9 +2806,10 @@ private:
         int time;
     };
 
-    static const int sbid_count = 16;
-    std::array<entry_t, sbid_count> entries_;
+    static const int max_sbid_count = 32;
+    std::array<entry_t, max_sbid_count> entries_;
 
+    int sbid_count_ = 0;
     func_t tuple_func_;
     int cur_time_ = 0;
 };
@@ -2814,7 +2817,7 @@ private:
 // Helper to assign SBIDs to IR function calls.
 class sbid_assigner_t {
 public:
-    sbid_assigner_t() = default;
+    sbid_assigner_t(ngen::HW hw) : local_sbid_mgr_(hw) {}
 
     sbid_assigner_t(sbid_manager_t &external_sbid_mgr)
         : external_sbid_mgr_(&external_sbid_mgr) {}
@@ -3150,7 +3153,7 @@ public:
                 loop = loop.append(funcs::signal());
         }
 
-        if (cfg_.assign_sbids) loop = sbid_assigner_t().assign(loop);
+        if (cfg_.assign_sbids) loop = sbid_assigner_t(hw_).assign(loop);
 
         const auto grf_size = ngen::GRF::bytes(hw_);
         loop = alloc_t::make(slm_idx_buf, grf_size, alloc_kind_t::grf, loop);
@@ -3253,7 +3256,7 @@ public:
         compute_iterator_t it(params_, loop_nest_);
         stmt_t body;
 
-        sbid_manager_t sbid_mgr;
+        sbid_manager_t sbid_mgr(cfg_.hw());
 
         auto &outer_loop_info = loop_nest_.outer_loop_info();
 
