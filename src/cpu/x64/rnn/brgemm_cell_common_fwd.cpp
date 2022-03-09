@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     const char *pallete_buff_layer_k_tail = nullptr;
 
     dim_t nb_i = 0, mb = 0;
-    nd_iterator_init(start, nb_i, n_blocking_, mb, m_blocking_);
+    nd_iterator_init(start, mb, m_blocking_, nb_i, n_blocking_);
 
     amx_tile_configuration_loader_t load_cfg_if_needed;
 
@@ -252,7 +252,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
         }
 
         ++start;
-        nd_iterator_step(nb_i, n_blocking_, mb, m_blocking_);
+        nd_iterator_step(mb, m_blocking_, nb_i, n_blocking_);
     }
 }
 
@@ -279,7 +279,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
     const char *pallete_buff_k_tail = nullptr;
 
     dim_t nb_i = 0, mb = 0;
-    nd_iterator_init(start, nb_i, n_blocking_, mb, m_blocking_);
+    nd_iterator_init(start, mb, m_blocking_, nb_i, n_blocking_);
 
     amx_tile_configuration_loader_t load_cfg_if_needed;
     const auto LDA = LDAl_;
@@ -382,7 +382,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
         }
 
         ++start;
-        nd_iterator_step(nb_i, n_blocking_, mb, m_blocking_);
+        nd_iterator_step(mb, m_blocking_, nb_i, n_blocking_);
     }
 }
 
@@ -444,7 +444,7 @@ void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::kernel(
     if (is_amx) load_cfg_if_needed(rnn_brgemm_.pallete_buff_proj_);
 
     int nb = 0, mb = 0;
-    nd_iterator_init(start, nb, rnn_.Nproj_blocks, mb, rnn_.M_blocks);
+    nd_iterator_init(start, mb, rnn_.M_blocks, nb, rnn_.Nproj_blocks);
     while (start < end) {
         const int n = nb * rnn_.n_block;
         const int m = mb * rnn_.m_block;
@@ -502,7 +502,7 @@ void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::kernel(
         }
 
         ++start;
-        nd_iterator_step(nb, rnn_.Nproj_blocks, mb, rnn_.M_blocks);
+        nd_iterator_step(mb, rnn_.M_blocks, nb, rnn_.Nproj_blocks);
     }
 }
 
