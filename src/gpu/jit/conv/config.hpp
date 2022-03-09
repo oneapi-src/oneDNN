@@ -770,6 +770,9 @@ private:
             if (vec_dim <= 8) vec_size = std::min(8, vec_size);
         }
         hw_cfg.set_simd_size(simd_size);
+#ifdef GEN_CONV_DEBUG
+        vec_size = getenv_int("vec_size", vec_size);
+#endif
         hw_cfg.set_vec_size(vec_size);
     }
 
