@@ -336,9 +336,11 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    // use diff_src's shape and dtype to simulate a fake src
-    dnnl::memory::desc src(diff_src.dims(), diff_src.data_type(),
-            get_default_format(diff_src.dims()));
+    auto src = op->get_attr<std::string>("kind") == "maxpool"
+            ? make_dnnl_memory_desc(
+                    op->get_input_value(2)->get_logical_tensor())
+            : dnnl::memory::desc(diff_src.dims(), diff_src.data_type(),
+                    get_default_format(diff_src.dims()));
 
     // infer dnnl explicit pad
     dims new_pads_end(pads_end);
@@ -376,7 +378,9 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
                 "Currently only MaxPoolBackprop/AvgPoolBackprop is supported.");
     }
 
-    diff_dst = to_format_any(diff_dst);
+    if (op->get_attr<std::string>("kind") == "maxpool") {
+        diff_dst = to_format_any(diff_dst);
+    }
 
     dnnl::pooling_v2_forward::primitive_desc forward_hints
             = dnnl::pooling_v2_forward::primitive_desc(

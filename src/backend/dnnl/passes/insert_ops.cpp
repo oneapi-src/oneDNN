@@ -735,50 +735,33 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
             return impl::status::invalid_shape;
         }
 
+        op_ptr maxpool_bwd = std::make_shared<op_t>(op_kind::dnnl_pool_bwd);
+        maxpool_bwd->merge_attributes(cur_op->get_attributes());
+        maxpool_bwd->set_attr<std::string>("kind", "maxpool");
+        maxpool_bwd->set_attr<std::vector<int64_t>>(
+                "input_shape", src_ltw.vdims());
+
+        // connect diff_dst
+        auto diff_dst_value = cur_op->get_input_value(1);
+        diff_dst_value->remove_consumer(*cur_op, 1);
+        diff_dst_value->add_consumer(*maxpool_bwd, 0);
+        maxpool_bwd->add_input(diff_dst_value);
+
         if (cur_op->num_inputs() > 2) {
-            // has src, diff_dst and indices. we can ignore the src and use the
-            // indices directly
-            op_ptr maxpool_bwd = std::make_shared<op_t>(op_kind::dnnl_pool_bwd);
-            maxpool_bwd->merge_attributes(cur_op->get_attributes());
-            maxpool_bwd->set_attr<std::string>("kind", "maxpool");
-            maxpool_bwd->set_attr<std::vector<int64_t>>(
-                    "input_shape", src_ltw.vdims());
-
-            // connect diff_dst
-            auto diff_dst_value = cur_op->get_input_value(1);
-            diff_dst_value->remove_consumer(*cur_op, 1);
-            diff_dst_value->add_consumer(*maxpool_bwd, 0);
-            maxpool_bwd->add_input(diff_dst_value);
-
-            // connect ws value
+            // with indices. we can use the indices directly instead of
+            // re-computing it
             auto indices_value = cur_op->get_input_value(2);
             indices_value->remove_consumer(*cur_op, 2);
             indices_value->add_consumer(*maxpool_bwd, 1);
             maxpool_bwd->add_input(indices_value);
-
-            // connect diff_src
-            auto diff_src_value = cur_op->get_output_value(0);
-            maxpool_bwd->add_output(diff_src_value);
-
-            // connect scratchpad
-            insert_empty_scratchpad(maxpool_bwd);
-
-            to_be_inserted_ops.emplace_back(maxpool_bwd);
-            to_be_removed_ops.emplace_back(cur_op);
         } else {
-            // only src, diff_dst, no indices. we need to insert a maxpool fwd
-            // to compute the indices from src
+            // no indices. we need to insert a maxpool fwd to re-compute the
+            // indices from src
             op_ptr maxpool_fwd = std::make_shared<op_t>(op_kind::dnnl_pool);
             maxpool_fwd->merge_attributes(cur_op->get_attributes());
             maxpool_fwd->set_attr<std::string>("kind", "maxpool");
 
-            op_ptr maxpool_bwd = std::make_shared<op_t>(op_kind::dnnl_pool_bwd);
-            maxpool_bwd->merge_attributes(cur_op->get_attributes());
-            maxpool_bwd->set_attr<std::string>("kind", "maxpool");
-            maxpool_bwd->set_attr<std::vector<int64_t>>(
-                    "input_shape", src_ltw.vdims());
-
-            // connect src value
+            // connect src value to fwd op
             auto src_value = cur_op->get_input_value(0);
             src_value->remove_consumer(*cur_op, 0);
             src_value->add_consumer(*maxpool_fwd, 0);
@@ -795,13 +778,7 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
             maxpool_fwd->add_output(maxpool_fwd_dst_value);
 
             // create scratchpad value for fwd op
-            logical_tensor_t maxpool_fwd_pad
-                    = impl::empty_logical_tensor_with_default_id();
-            value_ptr scratchpad_val = std::make_shared<value_t>(
-                    *maxpool_fwd, 1, maxpool_fwd_pad);
-            maxpool_fwd->add_output(scratchpad_val);
-            scratchpad_val->set_data_type(impl::data_type::u8);
-            scratchpad_val->set_dims(impl::dims {0});
+            insert_empty_scratchpad(maxpool_fwd);
 
             // create ws value for fwd op
             logical_tensor_t maxpool_fwd_ws
@@ -810,25 +787,30 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
                     *maxpool_fwd, 2, maxpool_fwd_ws);
             maxpool_fwd->add_output(maxpool_fwd_ws_value);
 
-            // connect diff_dst and diff_src
-            auto diff_dst_value = cur_op->get_input_value(1);
-            diff_dst_value->remove_consumer(*cur_op, 1);
-            diff_dst_value->add_consumer(*maxpool_bwd, 0);
-            maxpool_bwd->add_input(diff_dst_value);
-            auto diff_src_value = cur_op->get_output_value(0);
-            maxpool_bwd->add_output(diff_src_value);
-
-            // connect scratchpad
-            insert_empty_scratchpad(maxpool_bwd);
-
-            // connect ws value
+            // connect forward op's ws value to bwd op
             maxpool_fwd_ws_value->add_consumer(*maxpool_bwd, 1);
             maxpool_bwd->add_input(maxpool_fwd_ws_value);
 
             to_be_inserted_ops.emplace_back(maxpool_fwd);
-            to_be_inserted_ops.emplace_back(maxpool_bwd);
-            to_be_removed_ops.emplace_back(cur_op);
         }
+
+        // connect the forward src as the dnnl_pool_bwd op's 3rd input (used
+        // to store the logical tensor which will be converted to a md to
+        // create the forward hint)
+        auto src_value = cur_op->get_input_value(0);
+        src_value->remove_consumer(*cur_op, 0);
+        src_value->add_consumer(*maxpool_bwd, 2);
+        maxpool_bwd->add_input(src_value);
+
+        // connect diff_src
+        auto diff_src_value = cur_op->get_output_value(0);
+        maxpool_bwd->add_output(diff_src_value);
+
+        // connect scratchpad
+        insert_empty_scratchpad(maxpool_bwd);
+
+        to_be_inserted_ops.emplace_back(maxpool_bwd);
+        to_be_removed_ops.emplace_back(cur_op);
     }
 
     for (const auto &op : to_be_inserted_ops)

@@ -1846,12 +1846,14 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
 DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_num_inputs(std::set<size_t>({1, 3}))
                 .set_num_outputs(2)
                 .set_input(0, "output_delta",
                         "the gradient tensor with respect to output")
                 .set_input(1, "output_forward_indices",
                         "(optional) indices of max values in output tensor")
+                .set_input(2, "forward_src",
+                        "(optional) source of forward operator")
                 .set_output(0, "input_delta",
                         "the gradient tensor with respect to input")
                 .set_output(1, "scratchpad",
