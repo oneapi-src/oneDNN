@@ -360,6 +360,10 @@ void block_helper_t::init_bmnk_blocks() {
     bool is_ge_hpc = (hw_cfg_.hw() >= ngen::HW::XeHPC);
     bool reduce_m_block = (m_dim().base_iter_block() == 1
             || k_dim().base_iter_block() == 1);
+    int eu_thr_mul = (!is_ge_hpc && reduce_m_block) ? 2 : 4;
+#ifdef GEN_CONV_DEBUG
+    eu_thr_mul = getenv_int("eu_thr_mul", eu_thr_mul);
+#endif
     auto &bn_dim = (vectorize_by_b() ? b_dim() : n_dim());
     switch (fma_kind_) {
         case fma_kind_t::mad: {
@@ -375,7 +379,8 @@ void block_helper_t::init_bmnk_blocks() {
                     int est_bmn_threads = 1;
                     est_bmn_threads *= utils::div_up(m_dim().size(), m_blk);
                     est_bmn_threads *= utils::div_up(bn_dim.size(), bn_blk);
-                    if (est_bmn_threads >= 4 * hw_cfg_.eu_count()) break;
+                    if (est_bmn_threads >= eu_thr_mul * hw_cfg_.eu_count())
+                        break;
                     m_blk /= 2;
                     m_inst_blk = std::min(m_inst_blk, m_blk);
                 } while (m_blk > 1);
