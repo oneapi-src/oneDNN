@@ -398,7 +398,7 @@ TEST(GCPatternTests, FP32MLPTraining1) {
     auto partitions = agraph.get_partitions();
     ASSERT_EQ(partitions.size(), 2);
     ASSERT_EQ(partitions[0]->get_ops().size(), 6);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 12);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 18);
 }
 
 TEST(GCPatternTests, FP32MLPTraining2) {
@@ -424,7 +424,7 @@ TEST(GCPatternTests, FP32MLPTraining2) {
     auto partitions = agraph.get_partitions();
     ASSERT_EQ(partitions.size(), 2);
     ASSERT_EQ(partitions[0]->get_ops().size(), 8);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 16);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 24);
 }
 
 TEST(GCPatternTests, FP32MLPTraining3) {
@@ -451,5 +451,5 @@ TEST(GCPatternTests, FP32MLPTraining3) {
     auto partitions = agraph.get_partitions();
     ASSERT_EQ(partitions.size(), 2);
     ASSERT_EQ(partitions[0]->get_ops().size(), 10);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 20);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 30);
 }

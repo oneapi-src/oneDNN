@@ -153,10 +153,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 /*
 repetition unit:
   (f32)[gradient_x_next]     [gradient](f32)
-                      \       /
-                       \     /
-            [x](f32)   Backprop    [weight](f32)
-                \     /   |    \     /
+        [x](f32)      \       /     [weight](f32)
+            |          \     /           |
+     StaticTranspose   Backprop    StaticTranspose
+(optional)     \     /    |   \     /     (optional)
                 Matmul Reduce  Matmul
                    | (optional)  |
        [gradient_w](f32)  |  [gradient_x](f32)
@@ -178,11 +178,33 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     activation_bwd->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
 
+                    auto transpose_subgraph1 = std::make_shared<pb_graph_t>(
+                            "transpose_subgraph1");
+                    auto transpose_x = transpose_subgraph1->append_op(
+                            impl::op_kind::StaticTranspose, "transpose_x");
+                    transpose_subgraph1->create_input_port(0, transpose_x, 0);
+                    transpose_subgraph1->create_output_port(0, transpose_x, 0);
+                    auto optional_transpose_x = bwd_mlp_layer->append_optional(
+                            transpose_subgraph1, "optional_transpose_x");
+
+                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>(
+                            "transpose_subgraph2");
+                    auto transpose_w = transpose_subgraph2->append_op(
+                            impl::op_kind::StaticTranspose, "transpose_w");
+                    transpose_subgraph2->create_input_port(0, transpose_w, 0);
+                    transpose_subgraph2->create_output_port(0, transpose_w, 0);
+                    auto optional_transpose_w = bwd_mlp_layer->append_optional(
+                            transpose_subgraph2, "optional_transpose_w");
+
                     bwd_mlp_layer->append_op(impl::op_kind::MatMul,
-                            {in_edge(1, activation_bwd, 0)}, "matmul_weight");
+                            {in_edge(0, optional_transpose_x, 0),
+                                    in_edge(1, activation_bwd, 0)},
+                            "matmul_weight");
                     auto matmul_layer = bwd_mlp_layer->append_op(
                             impl::op_kind::MatMul,
-                            {in_edge(0, activation_bwd, 0)}, "matmul_layer");
+                            {in_edge(0, activation_bwd, 0),
+                                    in_edge(1, optional_transpose_w, 0)},
+                            "matmul_layer");
 
                     auto optional_reduce_subgraph
                             = std::make_shared<pb_graph_t>(
@@ -194,7 +216,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             0, reduce_bias, 0);
                     optional_reduce_subgraph->create_output_port(
                             0, reduce_bias, 0);
-
                     bwd_mlp_layer->append_optional(optional_reduce_subgraph,
                             {in_edge(0, activation_bwd, 0)}, "optional_reduce");
 
@@ -358,10 +379,10 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 /*
 repetition unit:
  (bf16)[gradient_x_next]     [gradient](bf16)
-                      \       /
-                       \     /
-          [x](bf16)    Backprop   [weight](bf16)
-                \     /   |    \     /
+       [x](bf16)      \       /     [weight](bf16)
+            |          \     /           |
+     StaticTranspose  Backprop    StaticTranspose
+(optional)     \     /    |   \     /     (optional)
                 Matmul Reduce  Matmul
                    | (optional)  |
       [gradient_w](bf16)  |  [gradient_x](bf16)
@@ -383,11 +404,33 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     activation_bwd->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
 
+                    auto transpose_subgraph1 = std::make_shared<pb_graph_t>(
+                            "transpose_subgraph1");
+                    auto transpose_x = transpose_subgraph1->append_op(
+                            impl::op_kind::StaticTranspose, "transpose_x");
+                    transpose_subgraph1->create_input_port(0, transpose_x, 0);
+                    transpose_subgraph1->create_output_port(0, transpose_x, 0);
+                    auto optional_transpose_x = bwd_mlp_layer->append_optional(
+                            transpose_subgraph1, "optional_transpose_x");
+
+                    auto transpose_subgraph2 = std::make_shared<pb_graph_t>(
+                            "transpose_subgraph2");
+                    auto transpose_w = transpose_subgraph2->append_op(
+                            impl::op_kind::StaticTranspose, "transpose_w");
+                    transpose_subgraph2->create_input_port(0, transpose_w, 0);
+                    transpose_subgraph2->create_output_port(0, transpose_w, 0);
+                    auto optional_transpose_w = bwd_mlp_layer->append_optional(
+                            transpose_subgraph2, "optional_transpose_w");
+
                     bwd_mlp_layer->append_op(impl::op_kind::MatMul,
-                            {in_edge(1, activation_bwd, 0)}, "matmul_weight");
+                            {in_edge(0, optional_transpose_x, 0),
+                                    in_edge(1, activation_bwd, 0)},
+                            "matmul_weight");
                     auto matmul_layer = bwd_mlp_layer->append_op(
                             impl::op_kind::MatMul,
-                            {in_edge(0, activation_bwd, 0)}, "matmul_layer");
+                            {in_edge(0, activation_bwd, 0),
+                                    in_edge(1, optional_transpose_w, 0)},
+                            "matmul_layer");
 
                     auto optional_reduce_subgraph
                             = std::make_shared<pb_graph_t>(
