@@ -218,8 +218,7 @@ public:
 
         if (computation_data_type == CUDNN_DATA_FLOAT) {
 
-            dnnl_fpmath_mode_t dnnl_fpmath_mode;
-            dnnl_get_default_fpmath_mode(&dnnl_fpmath_mode);
+            dnnl_fpmath_mode_t dnnl_fpmath_mode = pd->attr()->fpmath_mode_;
 
             switch (dnnl_fpmath_mode) {
                 case dnnl_fpmath_mode_strict:
@@ -603,8 +602,7 @@ public:
                 descs[x], weights_desc, conv_desc, descs[y],
                 requested_algo_count, &returned_algo_count, perf.data()));
 
-        dnnl_fpmath_mode_t dnnl_fpmath_mode;
-        dnnl_get_default_fpmath_mode(&dnnl_fpmath_mode);
+        dnnl_fpmath_mode_t dnnl_fpmath_mode = pd->attr()->fpmath_mode_;
 
         auto submit_status = CUDNN_STATUS_NOT_SUPPORTED;
         for (size_t i = 0; i < returned_algo_count; i++) {
@@ -739,8 +737,7 @@ protected:
                 handle, weights_desc, descs[y], conv_desc, descs[x],
                 requested_algo_count, &returned_algo_count, perf.data()));
 
-        dnnl_fpmath_mode_t dnnl_fpmath_mode;
-        dnnl_get_default_fpmath_mode(&dnnl_fpmath_mode);
+        dnnl_fpmath_mode_t dnnl_fpmath_mode = pd->attr()->fpmath_mode_;
 
         for (size_t i = 0; i < returned_algo_count; i++) {
             if (perf[i].status == CUDNN_STATUS_SUCCESS) {
@@ -889,8 +886,7 @@ public:
                 handle, descs[x], descs[y], conv_desc, weights_desc,
                 requested_algo_count, &returned_algo_count, perf.data()));
 
-        dnnl_fpmath_mode_t dnnl_fpmath_mode;
-        dnnl_get_default_fpmath_mode(&dnnl_fpmath_mode);
+        dnnl_fpmath_mode_t dnnl_fpmath_mode = pd->attr()->fpmath_mode_;
 
         for (size_t i = 0; i < returned_algo_count; i++) {
             if (perf[i].status == CUDNN_STATUS_SUCCESS) {
