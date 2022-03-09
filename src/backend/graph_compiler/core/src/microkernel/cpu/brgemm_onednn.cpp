@@ -639,7 +639,7 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
     } else { \
         for (int i = 0; i < M; ++i) { \
             for (int j = 0; j < N; ++j) { \
-                ((dtype *)C)[i + LDC + j] = (dtype)value; \
+                ((dtype *)C)[i * LDC + j] = (dtype)value; \
             } \
         } \
     }

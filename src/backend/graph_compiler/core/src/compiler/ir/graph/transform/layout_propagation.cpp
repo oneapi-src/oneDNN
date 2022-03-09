@@ -91,7 +91,7 @@ SC_INTERNAL_API void layout_propagation(
     std::vector<sc_op_ptr> sorted_ops;
     sorted_ops.reserve(graph.ops_.size());
     std::vector<size_t> num_choices;
-    num_choices.reserve(graph.ops_.size());
+    num_choices.resize(graph.ops_.size());
     size_t total_choices = 1;
     std::vector<size_t> cur_choice;
     cur_choice.resize(graph.ops_.size());
