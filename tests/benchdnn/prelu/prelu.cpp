@@ -158,8 +158,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     res->impl_name = query_impl_info(ppd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
 
-    SAFE(check_pd_w_and_wo_attr(res, prb->attr, pd), WARN);
-
     return OK;
 }
 

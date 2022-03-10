@@ -344,24 +344,11 @@ inline const engine_t &get_cpu_engine() {
 }
 
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
-int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr);
+int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
         const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd, res_t *res);
-
-template <typename op_desc_t>
 int check_pd_w_and_wo_attr(
-        res_t *res, const attr_t &attr, const op_desc_t &op_desc) {
-    if (attr_same_pd_check && !attr.is_def()) {
-        dnnl_primitive_desc_t pd_no_attr {};
-        dnnl_primitive_attr_t dnnl_empty_attrs {};
-        DNN_SAFE(dnnl_primitive_desc_create(&pd_no_attr, &op_desc,
-                         dnnl_empty_attrs, get_test_engine(), nullptr),
-                WARN);
-        auto pd_no_attr_wrapper = make_benchdnn_dnnl_wrapper(pd_no_attr);
-        SAFE(check_same_pd(res, pd_no_attr_wrapper), WARN);
-    }
-    return OK;
-}
+        const_dnnl_primitive_desc_t pd, const attr_t &attr, res_t *res);
 
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
@@ -414,7 +401,11 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     pd.reset(pd_);
     prim.reset(prim_);
 
+    // Check that adding attributes doesn't cause a fall back to lower impl.
+    SAFE(check_pd_w_and_wo_attr(pd, prb->attr, res), WARN);
+    // Check primitive descriptor is picked up from the cache, if applicable.
     SAFE(check_pd_cache(pd), WARN);
+    // Check primitive is picked up from the cache, if applicable.
     SAFE(check_primitive_cache(prim), WARN);
     // Collect memory footprint for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);

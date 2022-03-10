@@ -22,6 +22,12 @@ dnnl_prop_kind_t query_prop_kind(const_dnnl_primitive_desc_t pd) {
     return prop_kind;
 }
 
+dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd) {
+    dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive;
+    dnnl_primitive_desc_query(pd, dnnl_query_primitive_kind, 0, &prim_kind);
+    return prim_kind;
+}
+
 const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
     const char *str = nullptr;
     dnnl_primitive_desc_query(pd, dnnl_query_impl_info_str, 0, &str);
@@ -80,6 +86,12 @@ const_dnnl_primitive_desc_t query_pd(dnnl_primitive_t prim) {
     const_dnnl_primitive_desc_t pd {};
     dnnl_primitive_get_primitive_desc(prim, &pd);
     return pd;
+}
+
+const_dnnl_op_desc_t query_op_desc(const_dnnl_primitive_desc_t pd) {
+    const_dnnl_op_desc_t op_desc {};
+    dnnl_primitive_desc_query(pd, dnnl_query_op_d, 0, &op_desc);
+    return op_desc;
 }
 
 dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine) {
