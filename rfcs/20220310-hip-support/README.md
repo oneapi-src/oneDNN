@@ -136,14 +136,12 @@ LIMITATIONS :
 
 1. Supported Data Types:  fp16, fp32, bf16, miopenInt8. Doesn’t support  U8 datatype.
 2. Some of the features of cuDNN backend implementation are not supported in hipDNN Backend because of the missing below 
-        * hipdnnConvolutionBiasActivationForward 
-	* hipdnnTransformTensor    
-	* hipdnnGetConvolutionForwardAlgorithmMaxCount
-        * hipdnnConvolutionFwdAlgoWinograd_NONFUSED.
-	* hipdnnGetConvolutionBackwardDataAlgorithmMaxCount 
-        * hipdnnGetConvolutionBackwardFilterAlgorithmMaxCount.
-
-
+* hipdnnConvolutionBiasActivationForward
+* hipdnnTransformTensor
+* hipdnnGetConvolutionForwardAlgorithmMaxCount
+* hipdnnConvolutionFwdAlgoWinograd_NONFUSED
+* hipdnnGetConvolutionBackwardDataAlgorithmMaxCount
+* hipdnnGetConvolutionBackwardFilterAlgorithmMaxCount
 
 ## DECONVOLUTION :
 
