@@ -217,12 +217,6 @@ static void reschedule_bypass(std::vector<sc_op_ptr> bypass_ops) {
                                 new_fmt);
                     }
                 }
-
-                if (last_reorder->get_output_format().is_blocking()
-                        && !last_reorder->check_padding()) {
-                    last_reorder->attrs_.set(op_attr_key::break_pre_fuse, true);
-                    break;
-                }
             }
             // break post fuse
             cur_op->attrs_.set(op_attr_key::break_post_fuse, true);

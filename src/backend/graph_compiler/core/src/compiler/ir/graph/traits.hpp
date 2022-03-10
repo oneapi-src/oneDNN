@@ -170,7 +170,7 @@ struct batchwise_shrinkable_t : public virtual op_base_trait_t {
 
     // this function must ensure all graph tensor of this op is able to be
     // shrinked by shrinkable dims.
-    virtual sc_dims get_bwise_fuse_shrink_dims() const = 0;
+    virtual sc_dims get_bwise_fuse_shrink_dims() = 0;
 
     virtual sc_op_ptr bw_shrinked_copy(
             gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph);

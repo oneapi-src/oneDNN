@@ -53,7 +53,7 @@ public:
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
 
-    sc_dims get_bwise_fuse_shrink_dims() const override;
+    sc_dims get_bwise_fuse_shrink_dims() override;
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
     void collect_shrinked_axes_map(
             int bw_size, gt2axes_map &bw_axes_map) override;

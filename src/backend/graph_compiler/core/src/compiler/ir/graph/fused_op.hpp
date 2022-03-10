@@ -101,7 +101,7 @@ public:
             const std::vector<graph_tensor_ptr> &outs,
             sc_graph_t &mgr) override;
 
-    sc_dims get_bwise_fuse_shrink_dims() const override;
+    sc_dims get_bwise_fuse_shrink_dims() override;
     sc_op_ptr bw_shrinked_copy(
             gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) override;
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;

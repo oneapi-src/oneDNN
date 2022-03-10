@@ -459,7 +459,7 @@ std::vector<int> reduce_op_t::get_rd_axis() const {
     return transform_axis_plain2blocking(info_.inputs_[0], plain_rd_axis_);
 }
 
-sc_dims reduce_op_t::get_bwise_fuse_shrink_dims() const {
+sc_dims reduce_op_t::get_bwise_fuse_shrink_dims() {
     if (!keep_dims_) return {};
     auto real_rd_axis = get_rd_axis();
     auto input_dims = info_.outputs_[0]->details_.get_blocking_dims();
