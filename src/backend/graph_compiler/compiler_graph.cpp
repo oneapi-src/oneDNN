@@ -28,13 +28,13 @@ namespace impl {
 namespace compiler_impl {
 
 static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
-        compiler_backend_op {{op_kind::Add, "add"}, {op_kind::MatMul, "matmul"},
-                {op_kind::Quantize, "quantize"},
+        compiler_backend_op {{op_kind::Add, "add"}, {op_kind::Subtract, "sub"},
+                {op_kind::Multiply, "mul"}, {op_kind::Divide, "div"},
+                {op_kind::MatMul, "matmul"}, {op_kind::Quantize, "quantize"},
                 {op_kind::Dequantize, "dequantize"},
                 {op_kind::StaticReshape, "static_reshape"},
                 {op_kind::StaticTranspose, "transpose"},
-                {op_kind::SoftMax, "softmax"}, {op_kind::Divide, "div"},
-                {op_kind::Reorder, "reorder"}, {op_kind::Multiply, "mul"},
+                {op_kind::SoftMax, "softmax"}, {op_kind::Reorder, "reorder"},
                 {op_kind::TypeCast, "cast"}, {op_kind::ReLU, "relu"},
                 {op_kind::Sigmoid, "sigmoid"}, {op_kind::GELU, "gelu"},
                 {op_kind::ReLUBackprop, "relu_backprop"},

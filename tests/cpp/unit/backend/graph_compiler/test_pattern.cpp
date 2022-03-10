@@ -453,3 +453,54 @@ TEST(GCPatternTests, FP32MLPTraining3) {
     ASSERT_EQ(partitions[0]->get_ops().size(), 10);
     ASSERT_EQ(partitions[1]->get_ops().size(), 30);
 }
+
+TEST(GCPatternTests, FP32MHATrainingPattern) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_MHA_training_subgraph(&agraph, false);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+
+    pass::pass_base_ptr fwd_apass
+            = get_pass(compiler_backend_ptr, "fp32_mha_forward_pattern");
+    pass::pass_base_ptr bwd_apass
+            = get_pass(compiler_backend_ptr, "fp32_mha_backward_pattern");
+    fwd_apass->run(agraph);
+    bwd_apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 8);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 6);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 3);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 12);
+    ASSERT_EQ(partitions[1]->get_inputs().size(), 8);
+    ASSERT_EQ(partitions[1]->get_outputs().size(), 3);
+}
+
+TEST(GCPatternTests, BF16MHATrainingPattern) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    add_MHA_training_subgraph(&agraph, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr fwd_apass
+            = get_pass(compiler_backend_ptr, "bf16_mha_forward_pattern");
+    pass::pass_base_ptr bwd_apass
+            = get_pass(compiler_backend_ptr, "bf16_mha_backward_pattern");
+    fwd_apass->run(agraph);
+    bwd_apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 8);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 6);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 3);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 12);
+    ASSERT_EQ(partitions[1]->get_inputs().size(), 8);
+    ASSERT_EQ(partitions[1]->get_outputs().size(), 3);
+}

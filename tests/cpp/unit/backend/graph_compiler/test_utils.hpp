@@ -1307,6 +1307,278 @@ inline void get_int8_MHA_subgraph_varients(impl::graph_t *agraph,
     agraph->add_op(&reshape_output);
 }
 
+inline void add_MHA_training_subgraph(impl::graph_t *agraph,
+        bool use_bf16 = false, int batch_size = 128, int seq_len = 384,
+        int num_head = 16, int head_dim = 1024) {
+    auto dtype = use_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+    size_t logical_tensor_idx = 0;
+    size_t op_idx = 0;
+    int size_per_head = head_dim / num_head;
+
+    std::vector<impl::dim_t> EXTENDED_ATTENTION_MASK_SHAPE {
+            batch_size, 1, 1, seq_len};
+    std::vector<impl::dim_t> QKV_RESHAPED_SHAPE {
+            batch_size, seq_len, num_head, size_per_head};
+    std::vector<impl::dim_t> QKV_TRANSPOSED_SHAPE {
+            batch_size, num_head, seq_len, size_per_head};
+    std::vector<impl::dim_t> KEY_TRANSPOSED_SHAPE {
+            batch_size, num_head, size_per_head, seq_len};
+    std::vector<impl::dim_t> MATMUL_QK_OUTPUT_SHAPE {
+            batch_size, num_head, seq_len, seq_len};
+    std::vector<impl::dim_t> MATMUL_V_OUTPUT_SHAPE {
+            batch_size, num_head, seq_len, size_per_head};
+    std::vector<impl::dim_t> SOFTMAX_SUM_SHAPE {
+            batch_size, num_head, seq_len, 1};
+    std::vector<impl::dim_t> CONST_SHAPE {1};
+    std::vector<impl::dim_t> OUTPUT_SHAPE {batch_size, seq_len, head_dim};
+
+    // start constructing forward graph
+    impl::logical_tensor_t attention_mask_flt;
+    attention_mask_flt = utils::logical_tensor_init(
+            logical_tensor_idx++, EXTENDED_ATTENTION_MASK_SHAPE, dtype);
+
+    impl::logical_tensor_t query_transpose_out;
+    query_transpose_out = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    impl::logical_tensor_t key_transpose_out;
+    key_transpose_out = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    impl::logical_tensor_t matmul_qk_out;
+    matmul_qk_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t fscore_scale, fscore_div_out;
+    fscore_scale = utils::logical_tensor_init(
+            logical_tensor_idx++, CONST_SHAPE, impl::data_type::f32);
+    fscore_div_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t fscore_add_out, softmax_out, dropout, dropout_out;
+    fscore_add_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+    softmax_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+    dropout = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+    dropout_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t value_transpose_out;
+    value_transpose_out = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    impl::logical_tensor_t matmul_v_out;
+    matmul_v_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_V_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t context_transpose_out, context_reshape_out;
+    context_transpose_out = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_RESHAPED_SHAPE, dtype);
+    context_reshape_out = utils::logical_tensor_init(
+            logical_tensor_idx++, OUTPUT_SHAPE, dtype);
+
+    impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
+    matmul_qk.set_attr("transpose_b", true);
+    matmul_qk.add_input(query_transpose_out);
+    matmul_qk.add_input(key_transpose_out);
+    matmul_qk.add_output(matmul_qk_out);
+
+    impl::op_t fscore_div {op_idx++, impl::op_kind::Divide, "fscore_div"};
+    fscore_div.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_div.add_input(matmul_qk_out);
+    fscore_div.add_input(fscore_scale);
+    fscore_div.add_output(fscore_div_out);
+
+    impl::op_t fscore_add {op_idx++, impl::op_kind::Add, "fscore_add"};
+    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_add.add_input(fscore_div_out);
+    fscore_add.add_input(attention_mask_flt);
+    fscore_add.add_output(fscore_add_out);
+
+    impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
+    softmax.set_attr("axis", (int64_t)3);
+    softmax.add_input(fscore_add_out);
+    softmax.add_output(softmax_out);
+
+    impl::op_t mul_dropout {op_idx++, impl::op_kind::Multiply, "mul_dropout"};
+    mul_dropout.add_input(softmax_out);
+    mul_dropout.add_input(dropout);
+    mul_dropout.add_output(dropout_out);
+
+    impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
+    matmul_v.add_input(dropout_out);
+    matmul_v.add_input(value_transpose_out);
+    matmul_v.add_output(matmul_v_out);
+
+    // transpose + reshape before output
+    impl::op_t transpose_output {
+            op_idx++, impl::op_kind::StaticTranspose, "transpose_output"};
+    transpose_output.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose_output.add_input(matmul_v_out);
+    transpose_output.add_output(context_transpose_out);
+
+    impl::op_t reshape_output {
+            op_idx++, impl::op_kind::StaticReshape, "reshape_output"};
+    reshape_output.set_attr("special_zero", false);
+    reshape_output.set_attr(
+            "shape", std::vector<int64_t> {batch_size, seq_len, head_dim});
+    reshape_output.add_input(context_transpose_out);
+    reshape_output.add_output(context_reshape_out);
+
+    // adding ops
+    agraph->add_op(&matmul_qk);
+    agraph->add_op(&fscore_div);
+    agraph->add_op(&fscore_add);
+    agraph->add_op(&softmax);
+    agraph->add_op(&mul_dropout);
+    agraph->add_op(&matmul_v);
+    agraph->add_op(&transpose_output);
+    agraph->add_op(&reshape_output);
+
+    // start constructing backward graph
+    impl::logical_tensor_t backward_in;
+    backward_in = utils::logical_tensor_init(
+            logical_tensor_idx++, OUTPUT_SHAPE, dtype);
+    impl::logical_tensor_t in_reshape;
+    in_reshape = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_RESHAPED_SHAPE, dtype);
+    impl::logical_tensor_t in_transpose;
+    in_transpose = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    impl::logical_tensor_t bmm_v_grad_weight;
+    bmm_v_grad_weight = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    impl::logical_tensor_t value_transpose;
+    value_transpose = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    impl::logical_tensor_t bmm_v_grad_data;
+    bmm_v_grad_data = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t dropout_grad;
+    dropout_grad = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t softmax_mul;
+    softmax_mul = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t softmax_sum;
+    softmax_sum = utils::logical_tensor_init(
+            logical_tensor_idx++, SOFTMAX_SUM_SHAPE, dtype);
+
+    impl::logical_tensor_t softmax_sub;
+    softmax_sub = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t softmax_sub_mul;
+    softmax_sub_mul = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t fscore_grad;
+    fscore_grad = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t bmm_q_grad_weight;
+    bmm_q_grad_weight = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_RESHAPED_SHAPE, dtype);
+
+    impl::logical_tensor_t bmm_k_grad_weight;
+    bmm_k_grad_weight = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_RESHAPED_SHAPE, dtype);
+
+    impl::op_t reshape_bwd {
+            op_idx++, impl::op_kind::StaticReshape, "reshape_bwd"};
+    reshape_bwd.set_attr("shape", QKV_RESHAPED_SHAPE);
+    reshape_bwd.set_attr("special_zero", false);
+    reshape_bwd.add_input(backward_in);
+    reshape_bwd.add_output(in_reshape);
+
+    impl::op_t transpose_bwd {
+            op_idx++, impl::op_kind::StaticTranspose, "transpose_bwd"};
+    transpose_bwd.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose_bwd.add_input(in_reshape);
+    transpose_bwd.add_output(in_transpose);
+
+    impl::op_t grad_v {op_idx++, impl::op_kind::MatMul, "grad_v"};
+    grad_v.set_attr("transpose_a", true);
+    grad_v.add_input(dropout_out);
+    grad_v.add_input(in_transpose);
+    grad_v.add_output(bmm_v_grad_weight);
+
+    impl::op_t grad_dropout {op_idx++, impl::op_kind::MatMul, "grad_dropout"};
+    grad_dropout.set_attr("transpose_b", true);
+    grad_dropout.add_input(in_transpose);
+    grad_dropout.add_input(value_transpose);
+    grad_dropout.add_output(bmm_v_grad_data);
+
+    impl::op_t mul {op_idx++, impl::op_kind::Multiply, "mul"};
+    mul.set_attr("auto_broadcast", std::string("numpy"));
+    mul.add_input(bmm_v_grad_data);
+    mul.add_input(dropout);
+    mul.add_output(dropout_grad);
+
+    impl::op_t mul_2 {op_idx++, impl::op_kind::Multiply, "mul_2"};
+    mul_2.set_attr("auto_broadcast", std::string("numpy"));
+    mul_2.add_input(dropout_grad);
+    mul_2.add_input(softmax_out);
+    mul_2.add_output(softmax_mul);
+
+    impl::op_t reduce_sum {op_idx++, impl::op_kind::ReduceSum, "reduce_sum"};
+    reduce_sum.set_attr("keep_dims", true);
+    reduce_sum.set_attr("axes", std::vector<int64_t> {-1});
+    reduce_sum.add_input(softmax_mul);
+    reduce_sum.add_output(softmax_sum);
+
+    impl::op_t sub {op_idx++, impl::op_kind::Subtract, "sub"};
+    sub.set_attr("auto_broadcast", std::string("numpy"));
+    sub.add_input(dropout_grad);
+    sub.add_input(softmax_sum);
+    sub.add_output(softmax_sub);
+
+    impl::op_t mul_3 {op_idx++, impl::op_kind::Multiply, "mul_3"};
+    mul_3.set_attr("auto_broadcast", std::string("numpy"));
+    mul_3.add_input(softmax_sub);
+    mul_3.add_input(softmax_out);
+    mul_3.add_output(softmax_sub_mul);
+
+    impl::op_t div {op_idx++, impl::op_kind::Divide, "div"};
+    div.set_attr("auto_broadcast", std::string("numpy"));
+    div.add_input(softmax_sub_mul);
+    div.add_input(fscore_scale);
+    div.add_output(fscore_grad);
+
+    impl::op_t grad_q {op_idx++, impl::op_kind::MatMul, "grad_q"};
+    grad_q.add_input(fscore_grad);
+    grad_q.add_input(key_transpose_out);
+    grad_q.add_output(bmm_q_grad_weight);
+
+    impl::op_t grad_k {op_idx++, impl::op_kind::MatMul, "grad_k"};
+    grad_k.set_attr("transpose_a", true);
+    grad_k.add_input(fscore_grad);
+    grad_k.add_input(query_transpose_out);
+    grad_k.add_output(bmm_k_grad_weight);
+
+    // adding ops
+    agraph->add_op(&reshape_bwd);
+    agraph->add_op(&transpose_bwd);
+    agraph->add_op(&grad_v);
+    agraph->add_op(&grad_dropout);
+    agraph->add_op(&mul);
+    agraph->add_op(&mul_2);
+    agraph->add_op(&reduce_sum);
+    agraph->add_op(&sub);
+    agraph->add_op(&mul_3);
+    agraph->add_op(&div);
+    agraph->add_op(&grad_q);
+    agraph->add_op(&grad_k);
+}
+
 inline void add_mlp_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
         int batch_size = 1, int layer = 1,
         std::vector<int> hidden_size = {13, 512},
