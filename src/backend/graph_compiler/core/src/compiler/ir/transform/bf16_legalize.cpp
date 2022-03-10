@@ -20,6 +20,20 @@
 
 namespace sc {
 
+static bool check_ref_more_than_one(
+        std::unordered_map<expr_c, int> &m, const expr &a) {
+    auto var_it = m.find(a);
+    // if the var is only used for once, e.g. assignment in reorder, we do not
+    // promote it.
+    return (var_it != m.end() && var_it->second > 1);
+}
+
+static bool define_can_promote(const context_ptr &ctx, const define_c &v) {
+    return v->var_.isa<var>() && v->var_->dtype_.is_etype(sc_data_etype::BF16)
+            && v->var_->dtype_.lanes_
+            <= ctx->get_max_vector_lanes(sc_data_etype::F32);
+}
+
 std::tuple<expr_c, expr_c> bf16_promote_impl_t::docast(
         const expr &orig_a, const expr &orig_b, bool *is_bfloat16) {
     auto a = dispatch(orig_a);
@@ -163,6 +177,30 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
     }
 }
 
+void bf16_elimination_analyzer_t::view(var_c v) {
+    auto var_it = var_use_cnt_.find(v);
+    // if the var is used in non-assignment statement, increase its valid count
+    // by 1.
+    if (var_it != var_use_cnt_.end()) { var_it->second++; }
+}
+void bf16_elimination_analyzer_t::view(assign_c v) {
+    auto var_it = var_use_cnt_.find(v->var_);
+    auto val_it = var_use_cnt_.find(v->value_);
+    if (var_it != var_use_cnt_.end()) { var_it->second++; }
+    // If value is not the bf16 var, dispatch it.
+    // If it is, hold its valid usage count.
+    if (val_it == var_use_cnt_.end()) { dispatch(v->value_); }
+}
+void bf16_elimination_analyzer_t::view(define_c v) {
+    if (define_can_promote(ctx_, v)) {
+        // initial count is 0
+        int count = 0;
+        // if the var has initial value, increase the count by 1
+        if (v->init_.defined()) { count = 1; }
+        var_use_cnt_[v->var_] = count;
+    }
+}
+
 expr_c bf16_cast_elimination_impl_t::visit(cast_c v) {
     auto in = dispatch(v->in_);
     if (v->dtype_.is_etype(sc_data_etype::F32)) {
@@ -196,9 +234,10 @@ expr_c bf16_cast_elimination_impl_t::visit(var_c v) {
 }
 
 stmt_c bf16_cast_elimination_impl_t::visit(define_c v) {
-    if (v->var_.isa<var>() && v->var_->dtype_.is_etype(sc_data_etype::BF16)
-            && v->var_->dtype_.lanes_
-                    <= ctx_->get_max_vector_lanes(sc_data_etype::F32)) {
+    // if the var is only used for once, e.g. assignment in reorder, we do not
+    // promote it.
+    if (define_can_promote(ctx_, v)
+            && check_ref_more_than_one(var_use_cnt_, v->var_)) {
         expr_c newv = v->var_;
         expr_c init = v->init_;
         bool changed = false;
@@ -295,19 +334,25 @@ expr_c bf16_legalizer_t::operator()(expr_c f) {
 }
 
 func_c bf16_eliminator_t::operator()(func_c f) {
-    bf16_cast_elimination_impl_t pass(ctx_);
+    bf16_elimination_analyzer_t analyzer(ctx_);
+    analyzer.dispatch(f);
+    bf16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
     f = pass.dispatch(f);
     return f;
 }
 
 stmt_c bf16_eliminator_t::operator()(stmt_c f) {
-    bf16_cast_elimination_impl_t pass(ctx_);
+    bf16_elimination_analyzer_t analyzer(ctx_);
+    analyzer.dispatch(f);
+    bf16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
     f = pass.dispatch(f);
     return f;
 }
 
 expr_c bf16_eliminator_t::operator()(expr_c f) {
-    bf16_cast_elimination_impl_t pass(ctx_);
+    bf16_elimination_analyzer_t analyzer(ctx_);
+    analyzer.dispatch(f);
+    bf16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);
     f = pass.dispatch(f);
     return f;
 }

@@ -21,6 +21,7 @@
 #include <utility>
 #include "../function_pass.hpp"
 #include "../sc_function.hpp"
+#include "../viewer.hpp"
 #include "../visitor.hpp"
 #include <compiler/config/context.hpp>
 #include <unordered_map>
@@ -38,6 +39,20 @@ public:
     expr_c visit(intrin_call_c v) final;
 };
 
+// An analyzer viewer runs before elimination to count the valid usage number of
+// bf16 vars, to decide whether they need to be promoted to f32.
+class bf16_elimination_analyzer_t : public ir_viewer_t {
+public:
+    using ir_viewer_t::dispatch;
+    using ir_viewer_t::view;
+    context_ptr ctx_;
+    std::unordered_map<expr_c, int> var_use_cnt_;
+    bf16_elimination_analyzer_t(context_ptr ctx) : ctx_(std::move(ctx)) {}
+    void view(var_c v) override;
+    void view(assign_c v) override;
+    void view(define_c v) override;
+};
+
 class bf16_cast_elimination_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
@@ -45,12 +60,16 @@ public:
     context_ptr ctx_;
     // need to convert bf16 var to f32
     std::unordered_map<expr_c, expr_c> cvt_map_;
+    // inherit from analyzer
+    std::unordered_map<expr_c, int> &var_use_cnt_;
     expr_c visit(cast_c v) final;
     expr_c visit(var_c v) final;
     stmt_c visit(define_c v) final;
     stmt_c visit(assign_c v) final;
     stmt_c visit(returns_c v) final;
-    bf16_cast_elimination_impl_t(context_ptr ctx) : ctx_(ctx) {}
+    bf16_cast_elimination_impl_t(
+            context_ptr ctx, std::unordered_map<expr_c, int> &var_use_cnt)
+        : ctx_(ctx), var_use_cnt_(var_use_cnt) {}
 };
 
 /**
@@ -85,8 +104,7 @@ private:
  */
 class bf16_eliminator_t : public function_pass_t {
 public:
-    bf16_eliminator_t(context_ptr ctx = get_default_context())
-        : ctx_(std::move(ctx)) {}
+    bf16_eliminator_t(context_ptr ctx) : ctx_(std::move(ctx)) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f);
     expr_c operator()(expr_c f);
