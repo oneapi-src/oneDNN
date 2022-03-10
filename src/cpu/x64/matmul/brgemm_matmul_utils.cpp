@@ -872,7 +872,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // - nthr_K
     CHECK(compute_blocking_heuristic(bgmmc, bm_conf_utils));
 
-    if (bgmmc.wei_n_blk > bgmmc.N_blk && bgmmc.N >= bgmmc.wei_n_blk) {
+    if (bgmmc.wei_n_blk > bgmmc.N_blk
+            && IMPLICATION(
+                    bgmmc.N == bgmmc.N_blk, bgmmc.N >= bgmmc.wei_n_blk)) {
         bgmmc.wei_n_blk = bgmmc.N_blk;
         CHECK(bm_conf_utils.update_and_check_B_tag(
                 weights_md, bgmmc.wei_n_blk));
