@@ -22,6 +22,7 @@
 #include "oneapi/dnnl/dnnl.h"
 
 dnnl_prop_kind_t query_prop_kind(const_dnnl_primitive_desc_t pd);
+dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd);
 
 const char *query_impl_info(const_dnnl_primitive_desc_t pd);
 
@@ -44,6 +45,7 @@ const_dnnl_post_ops_t query_post_ops(const_dnnl_primitive_attr_t attr);
 const_dnnl_post_ops_t query_post_ops(const_dnnl_primitive_desc_t pd);
 const_dnnl_primitive_attr_t query_attr(const_dnnl_primitive_desc_t pd);
 const_dnnl_primitive_desc_t query_pd(dnnl_primitive_t prim);
+const_dnnl_op_desc_t query_op_desc(const_dnnl_primitive_desc_t pd);
 
 dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine);
 

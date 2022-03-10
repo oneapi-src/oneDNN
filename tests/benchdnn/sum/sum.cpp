@@ -62,18 +62,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     res->impl_name = query_impl_info(spd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
 
-    if (attr_same_pd_check && !prb->attr.is_def()) {
-        dnnl_primitive_desc_t pd_no_attr {};
-        dnnl_primitive_attr_t dnnl_empty_attrs {};
-        DNN_SAFE(dnnl_sum_primitive_desc_create(&pd_no_attr,
-                         prb->dtag != tag::undef ? &dst_d : nullptr,
-                         prb->n_inputs(), prb->scales.data(), src_d.data(),
-                         dnnl_empty_attrs, engine),
-                WARN);
-        auto pd_no_attr_wrapper = make_benchdnn_dnnl_wrapper(pd_no_attr);
-        SAFE(check_same_pd(res, pd_no_attr_wrapper), WARN);
-    }
-
     return OK;
 }
 
