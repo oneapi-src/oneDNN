@@ -2,7 +2,6 @@
 
 ## Introduction
 The idea for this RFC is to expose the AMD backend for oneDNN.
-- oneDNN already has the NVIDIA backend as an experimental feature, this RFC advances to implement the support to AMD platform.
 - This branch introduces HIP backend support for the primitives that are currently supported for CUDA backend.
 - Testing and Performance analysis are yet to be done.
 - Build process and compilation is successfully validated.
