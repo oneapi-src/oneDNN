@@ -36,6 +36,9 @@ namespace compiler_impl {
 static std::unordered_map<
         std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>, int>
         partition_count_map;
+static std::unordered_map<const impl::engine_t *,
+        std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>>
+        engine_map;
 
 impl::status_t compiler_partition_impl_t::infer_shape(
         std::vector<const impl::logical_tensor_t *> &inputs,
@@ -198,8 +201,16 @@ impl::status_t compiler_partition_impl_t::compile(
                 "Graph compiler backend only supports cpu engine");
         sc::context_ptr ctx;
         ctx = sc::get_default_context();
-        auto graph_engine = std::make_shared<compiler_graph_engine_t>(
-                &graph_engine_vtable, aengine->get_allocator());
+        std::shared_ptr<compiler_graph_engine_t> graph_engine;
+        auto iter = engine_map.find(aengine);
+        if (iter != engine_map.end()) {
+            graph_engine = iter->second;
+        } else {
+            graph_engine = std::make_shared<compiler_graph_engine_t>(
+                    &graph_engine_vtable, aengine->get_allocator());
+            engine_map[aengine] = graph_engine;
+        }
+
         ctx->engine_ = static_cast<sc::runtime::engine_t *>(graph_engine.get());
 
         sc::graph_driver(backend_graph_obj, 28, 10, ctx);
@@ -325,6 +336,13 @@ compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
         itr->second--;
         if (itr->second == 0) {
             sc::release_runtime_memory(graph_engine_.get());
+            for (auto iter = engine_map.begin(); iter != engine_map.end();) {
+                if (iter->second == graph_engine_) {
+                    iter = engine_map.erase(iter);
+                } else {
+                    ++iter;
+                }
+            }
         }
     }
     jit_func_ = nullptr;
