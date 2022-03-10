@@ -499,7 +499,7 @@ void tensor_view_op_t::pre_slice_ranges(
     }
 }
 
-sc_dims tensor_view_op_t::get_bwise_fuse_shrink_dims() const {
+sc_dims tensor_view_op_t::get_bwise_fuse_shrink_dims() {
     auto old_dims = info_.inputs_[0]->details_.get_blocking_dims();
     auto new_dims = get_shapes();
     sc_dims bw_dims;

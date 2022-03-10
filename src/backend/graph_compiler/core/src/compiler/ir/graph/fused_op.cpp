@@ -277,7 +277,7 @@ static sc_dims get_common_dims(const sc_dims &A, const sc_dims &B) {
     return ret;
 }
 
-sc_dims fused_op_t::get_bwise_fuse_shrink_dims() const {
+sc_dims fused_op_t::get_bwise_fuse_shrink_dims() {
     sc_dims bw_dims;
     if (main_op_.ops_.empty()) {
         // outer_loop_generator

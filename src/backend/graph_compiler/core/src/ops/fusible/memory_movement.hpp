@@ -69,7 +69,7 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     sc_dims get_shapes() const;
     bool try_penetrate(sc_data_format_t &new_output_format) const;
-    sc_dims get_bwise_fuse_shrink_dims() const override;
+    sc_dims get_bwise_fuse_shrink_dims() override;
     sc_op_ptr bw_shrinked_copy(
             gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) override;
 
@@ -142,7 +142,7 @@ public:
             const std::vector<shape_dtype_pair> &) override;
     bool check_padding() const;
     bool use_output_loop() const;
-    sc_dims get_bwise_fuse_shrink_dims() const override;
+    sc_dims get_bwise_fuse_shrink_dims() override;
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
 
 private:

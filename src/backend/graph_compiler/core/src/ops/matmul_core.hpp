@@ -45,7 +45,7 @@ public:
             sc_graph_t &mgr, bool s8s8_compensation);
     sc_op_ptr get_constant_compensation(sc_graph_t &mgr);
 
-    sc_dims get_bwise_fuse_shrink_dims() const override;
+    sc_dims get_bwise_fuse_shrink_dims() override;
 
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
 

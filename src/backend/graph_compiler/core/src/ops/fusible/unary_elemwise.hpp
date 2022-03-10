@@ -50,7 +50,7 @@ public:
 
     virtual expr compute_element(expr in) = 0;
 
-    sc_dims get_bwise_fuse_shrink_dims() const override;
+    sc_dims get_bwise_fuse_shrink_dims() override;
 
 private:
     vectorized_info_t vx_info_;

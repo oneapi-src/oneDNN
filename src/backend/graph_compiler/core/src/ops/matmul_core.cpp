@@ -622,36 +622,29 @@ sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
     return constant_node;
 }
 
-sc_dims matmul_core_op_t::get_bwise_fuse_shrink_dims() const {
-    // Skip plain matmul temporarily
-    if (get_outputs()[0]->details_.get_format().is_plain()) return {};
-
+sc_dims matmul_core_op_t::get_bwise_fuse_shrink_dims() {
     // Currently fordbid N-axis fuse, skip check weight
-    int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
-            info_.outputs_[0]);
-
     auto out_fmt = info_.outputs_[0]->details_.get_format(),
          inp_fmt = info_.inputs_[0]->details_.get_format();
+    auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
+    int bs_size = get_batch_dims().size();
+    if (out_fmt.format_code_.is_batch_format())
+        return {output_dims.begin(), output_dims.begin() + bs_size};
+
     auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping(),
          inp_p2b_map = inp_fmt.format_code_.collect_p2b_mapping();
 
     COMPILE_ASSERT(out_p2b_map.size() >= 2,
             "Matmul core output should at least have MN dimension")
-    int N_first_idx = out_p2b_map.back().front();
-    int M_last_idx = out_p2b_map.at(out_p2b_map.size() - 2).back();
-    COMPILE_ASSERT(N_first_idx > 0 && M_last_idx > 0,
-            "Unexpected matmul core blocking format found: " << out_fmt)
-    offset = std::min(offset, std::min(M_last_idx, N_first_idx));
     // validate input according shrinked output graph tensor
     int cnt = 0;
-    int bs_size = get_batch_dims().size();
-    for (; cnt < (offset - bs_size); cnt++) {
+    for (; cnt < bs_size; cnt++) {
         auto plain_pos = out_fmt.format_code_.get(cnt);
-        if (inp_p2b_map[plain_pos].front() != cnt) break;
+        if (out_p2b_map[plain_pos].front() != cnt
+                || inp_p2b_map[plain_pos].front() != cnt)
+            break;
     }
-    auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
-    offset = bs_size + cnt;
-    return {output_dims.begin(), output_dims.begin() + offset};
+    return {output_dims.begin(), output_dims.begin() + cnt};
 }
 
 void matmul_core_op_t::collect_shrinked_lt_map(

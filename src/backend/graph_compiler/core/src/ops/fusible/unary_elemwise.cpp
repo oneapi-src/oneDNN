@@ -126,7 +126,7 @@ bool unary_elementwise_op_impl_t::register_brgemm_fusion(const context_ptr &ctx,
             shared_from_this(), outputs[0]->get_tensor_ptr());
 }
 
-sc_dims unary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() const {
+sc_dims unary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() {
     auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
     int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
             info_.outputs_[0]);

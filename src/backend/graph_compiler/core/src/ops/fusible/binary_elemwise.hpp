@@ -62,7 +62,7 @@ public:
     std::vector<int> get_bc_axis() const;
     vectorized_info_t &get_vx_info() { return vx_info_; }
 
-    sc_dims get_bwise_fuse_shrink_dims() const override;
+    sc_dims get_bwise_fuse_shrink_dims() override;
 
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
 

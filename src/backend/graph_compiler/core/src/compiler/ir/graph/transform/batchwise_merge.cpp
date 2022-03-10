@@ -30,8 +30,8 @@ namespace sc {
 
 SC_MODULE(graph.batchwise_merge);
 
-static constexpr const char *attr_key_partition = "bw_fuse_op.partition";
-static constexpr const char *attr_key_orig_op = "bw_fuse_op.original_op";
+static constexpr const char *bw_attr_key_partition = "bw_fuse_op.partition";
+static constexpr const char *bw_attr_key_orig_op = "bw_fuse_op.original_op";
 
 static sc_dims extract_batchwise_dims(const sc_op_ptr &op) {
     sc_dims bw_dims;
@@ -125,7 +125,7 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
 
     visitor.visit_graph(g, [&](const sc_op_ptr &op) {
         if (op->isa<input_op>() || op->isa<output_op>()
-                || op->attrs_.get_or_else("temp.no_bw_fused", false)
+                || op->attrs_.get_or_else(op_attr_key::bwise_no_fuse, false)
                 || op_mask[op->logical_op_id_])
             return;
 
@@ -164,20 +164,26 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
         if (!parti || parti->ops.empty() || parti->ops.size() < 2) return;
         for (auto &op : parti->ops) {
             if (op->isa<tensor_view_op_t>()) {
-                for (auto &user : op->get_outputs()[0]->uses_) {
-                    if (parti->ops.find(user.second.get_shared())
-                            == parti->ops.end()) {
-                        op->attrs_["temp.no_bw_fused"] = true;
-                        failed_ops.insert(op);
-                        break;
+                op->attrs_[op_attr_key::bwise_no_fuse] = true;
+                failed_ops.insert(op);
+            } else if (auto reo = op->dyn_cast<reorder_op_t>()) {
+                if (reo->attrs_.get_or_else(
+                            op_attr_key::bwise_strided, false)) {
+                    for (auto &user : op->get_outputs()[0]->uses_) {
+                        if (parti->ops.find(user.second.get_shared())
+                                != parti->ops.end()) {
+                            op->attrs_[op_attr_key::bwise_no_fuse] = true;
+                            failed_ops.insert(op);
+                            break;
+                        }
                     }
-                }
-                if (parti->ops.find(
-                            op->get_inputs()[0]
-                                    ->producer_owner_->shared_from_this())
-                        == parti->ops.end()) {
-                    op->attrs_["temp.no_bw_fused"] = true;
-                    failed_ops.insert(op);
+                    if (parti->ops.find(
+                                op->get_inputs()[0]
+                                        ->producer_owner_->shared_from_this())
+                            != parti->ops.end()) {
+                        op->attrs_[op_attr_key::bwise_no_fuse] = true;
+                        failed_ops.insert(op);
+                    }
                 }
             }
         }
@@ -267,7 +273,7 @@ static std::vector<graph_tensor_ptr> copy_partition_to_graph(sc_graph_t &g,
         auto copyable = op->dyn_cast<op_traits::copyable_t>();
         assert(copyable);
         auto copied = copyable->copy(new_graph_in, new_graph_ou, bw_graph);
-        copied->attrs_[attr_key_orig_op] = op;
+        copied->attrs_[bw_attr_key_orig_op] = op;
 
         // build the  fused op name
         if (!op_name.empty()) op_name += '_';
@@ -331,8 +337,10 @@ static void do_batchwise_merge(
     }
     // remove unused attr
     for (auto &op : graph.ops_) {
-        if (op->attrs_.has_key("temp.no_bw_fused"))
-            op->attrs_.remove("temp.no_bw_fused");
+        if (op->attrs_.has_key(op_attr_key::bwise_no_fuse))
+            op->attrs_.remove(op_attr_key::bwise_no_fuse);
+        if (op->attrs_.has_key(op_attr_key::bwise_strided))
+            op->attrs_.remove(op_attr_key::bwise_strided);
     }
     std::vector<sc_op_ptr> fused_ops;
     for (auto &parti : op_2_partition) {
@@ -356,18 +364,18 @@ static void do_batchwise_merge(
                 /*outs*/
                 fused_op_out, any_map_t {});
         // print_graph(bw_graph, std::cout, 1);
-        fused_op->attrs_[attr_key_partition]
+        fused_op->attrs_[bw_attr_key_partition]
                 = std::weak_ptr<bw_fusion_partition_t>(parti);
         fused_ops.emplace_back(fused_op);
     }
 
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> tsr_replace_map;
     for (auto &fused_op : fused_ops) {
-        auto partition = fused_op->attrs_[attr_key_partition]
+        auto partition = fused_op->attrs_[bw_attr_key_partition]
                                  .get<std::weak_ptr<bw_fusion_partition_t>>()
                                  .lock();
         assert(partition);
-        fused_op->attrs_.remove(attr_key_partition);
+        fused_op->attrs_.remove(bw_attr_key_partition);
         for (auto &old_new : partition->output_replace_map) {
             auto &old = old_new.first;
             auto &newv = old_new.second;
@@ -384,8 +392,8 @@ static void do_batchwise_merge(
         // remove the original op mapping tag
         auto fused_op_ptr = fused_op->dyn_cast<::sc::batchwise_fused_op_t>();
         for (auto &op : fused_op_ptr->bw_graph_.ops_) {
-            if (op->attrs_.has_key(attr_key_orig_op)) {
-                op->attrs_.remove(attr_key_orig_op);
+            if (op->attrs_.has_key(bw_attr_key_orig_op)) {
+                op->attrs_.remove(bw_attr_key_orig_op);
             }
         }
         for (auto &op : partition->ops) {

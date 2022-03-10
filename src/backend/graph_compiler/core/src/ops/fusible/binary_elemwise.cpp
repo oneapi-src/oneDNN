@@ -252,6 +252,7 @@ static sc_data_format_t infer_broadcast_format(
     sc_data_format_kind_t bc_lt_format_code = bc_lt.get_format().format_code_;
     // start infer the blocks
     sc_dims bc_plain_dim = bc_lt.get_plain_dims();
+    sc_dims target_plain_dim = target_lt.get_plain_dims();
     int block_dim = target_lt_format_code.ndims()
             - target_lt_format_code.norig_dims();
     int target_batch_dim = target_lt.get_plain_dims().size()
@@ -259,9 +260,9 @@ static sc_data_format_t infer_broadcast_format(
     for (int i = target_lt_format_code.norig_dims();
             i < target_lt_format_code.ndims(); ++i) {
         int blocking_axis = target_lt_format_code.get(i);
-        // if the axis's corresponding plain dim is 1
-        // blocks should also be 1
-        if (bc_plain_dim[target_batch_dim + blocking_axis] == 1) {
+        if (bc_plain_dim[target_batch_dim + blocking_axis] == 1
+                && target_plain_dim[target_batch_dim + blocking_axis] != 1) {
+            // if bc_plain_dim is 1 and this axis is with broadcast semantics
             blocks[i - target_lt_format_code.norig_dims()] = 1;
         }
     }
@@ -504,7 +505,7 @@ bool binary_elementwise_op_impl_t::register_brgemm_fusion(
             inputs[1]->get_shape());
 }
 
-sc_dims binary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() const {
+sc_dims binary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() {
     auto &in0_detail = info_.inputs_[0]->details_;
     auto &in1_detail = info_.inputs_[1]->details_;
     if (in0_detail.get_format().format_code_.is_batch_format()
