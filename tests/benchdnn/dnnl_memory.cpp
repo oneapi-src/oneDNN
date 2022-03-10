@@ -93,9 +93,8 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
 #if ((DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL) \
         || (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL)) \
         && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    std::string driver = std::string(driver_name);
-    bool is_reorder_related_driver = (driver == std::string("reorder")
-            || driver == std::string("sum") || driver == std::string("concat"));
+    bool is_reorder_related_driver = (driver_name == "reorder"
+            || driver_name == "sum" || driver_name == "concat");
     const auto &cpu_engine = get_cpu_engine();
     if (!is_reorder_related_driver
             && (src.engine_kind() == dnnl_gpu

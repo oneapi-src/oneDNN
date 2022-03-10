@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ bool mem_check {true};
 std::string skip_impl;
 bench_mode_t bench_mode {CORR};
 stat_t benchdnn_stat {0};
-const char *driver_name = "";
+std::string driver_name;
 
 double max_ms_per_prb {3e3};
 int min_times_per_prb {5};

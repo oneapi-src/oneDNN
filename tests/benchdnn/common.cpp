@@ -380,15 +380,14 @@ std::string locate_batch_file(const std::string &fname) {
     fdir.resize(PATH_MAX);
     int length = readlink("/proc/self/exe", &fdir[0], PATH_MAX);
     if (length) {
-        std::string s_fdir = std::string(dirname(&fdir[0]));
+        std::string s_fdir = dirname(&fdir[0]);
         for (int i_try = 0; i_try < 2; ++i_try) {
-            fdir = s_fdir + std::string("/inputs/") + std::string(driver_name);
-            if (i_try == 1) { // Windows has different folder structure
-                fdir = s_fdir + std::string("/../inputs/")
-                        + std::string(driver_name);
-            }
-            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
-            std::string fullname = fdir + "/" + fname;
+            fdir = s_fdir;
+            fdir.append(i_try == 1 ? "/../inputs/" : "/inputs/");
+            fdir.append(driver_name);
+
+            std::string fullname = fdir + "/";
+            fullname += fname;
             ifs.open(fullname);
             if (ifs.is_open()) {
                 search_paths[n_paths++] = std::move(fdir);
