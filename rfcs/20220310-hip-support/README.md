@@ -153,14 +153,21 @@ doesn’t support U8 datatype.
 
 
 
-## Build command 
+## Build command
 export CC=/path/to/hip/install/bin/clang    --> hip supported SYCL C compiler
+
 export CXX=/path/to/hip/install/bin/clang++ -->  hip supported SYCL CPP compiler
+
 mkdir build
+
 cd build
+
 cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=SYCL -DDNNL_GPU_VENDOR=AMD ..
 
+
 ## Open Questions
-The implementation is subject to change as we go through the review and the testing phases.
-Currently the HIP support for DPCPP(SYCL) compiler is in experimental stage, and the backend is not completely supported on AMD devices.
-Hence this effort will also explore any alternatives for running HIP backend on AMD platforms.
+The implementation is subject to change as we go through the review and the testing phases
+
+Currently the HIP support for DPCPP(SYCL) compiler is in experimental stage, and the backend is not completely supported on AMD devices
+
+Hence this effort will also explore any alternatives for running HIP backend on AMD platforms
