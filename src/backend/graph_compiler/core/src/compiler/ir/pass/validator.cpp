@@ -175,16 +175,19 @@ void validate_impl_t::view(select_c v) {
     dispatch(v->cond_);
     dispatch(v->l_);
     dispatch(v->r_);
-    COMPILE_ASSERT(v->cond_->dtype_.is_etype(sc_data_etype::BOOLEAN),
-            "The dtype of select node should be boolean, got: "
-                    << v->cond_->dtype_);
     COMPILE_ASSERT(v->l_->dtype_ == v->r_->dtype_,
             "The two candidates in select should have same dtype, got: "
                     << v->l_->dtype_ << " v.s. " << v->r_->dtype_);
-    COMPILE_ASSERT(v->cond_->dtype_.lanes_ == v->l_->dtype_.lanes_,
-            "The condition and candidates should have same length, got: "
-                    << v->cond_->dtype_.lanes_ << " and "
-                    << v->l_->dtype_.lanes_);
+    auto &cond_dtype = v->cond_->dtype_;
+    if (cond_dtype.lanes_ == 1
+            && !cond_dtype.is_etype(sc_data_etype::BOOLEAN)) {
+        uint64_t candidate_lanes = static_cast<uint64_t>(v->l_->dtype_.lanes_);
+        uint64_t cond_bits = utils::get_sizeof_type(cond_dtype) * 8;
+        COMPILE_ASSERT(candidate_lanes == cond_bits,
+                "When condition is bit mask, its number of bit should equal to "
+                "number of left/right hand vector, got: "
+                        << candidate_lanes << " v.s. " << cond_bits);
+    }
 }
 
 static void check_indexing(const std::vector<expr> &idxvec, const expr_c &v,

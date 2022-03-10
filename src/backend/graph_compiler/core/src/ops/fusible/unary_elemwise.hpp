@@ -22,8 +22,7 @@
 #include <vector>
 #include <compiler/ir/graph/fusible_op.hpp>
 
-#define DECLARE_COMPUTE_ELEMENT() \
-    expr compute_element(expr in, int mask_count, float mask_value) override;
+#define DECLARE_COMPUTE_ELEMENT() expr compute_element(expr in) override;
 
 namespace sc {
 
@@ -49,7 +48,7 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     vectorized_info_t &get_vx_info() { return vx_info_; }
 
-    virtual expr compute_element(expr in, int mask_count, float mask_value) = 0;
+    virtual expr compute_element(expr in) = 0;
 
     sc_dims get_bwise_fuse_shrink_dims() const override;
 

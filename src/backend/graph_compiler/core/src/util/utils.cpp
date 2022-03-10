@@ -118,8 +118,10 @@ uint32_t get_sizeof_etype(sc_data_etype etype) {
         case sc_data_etype::S8:
         case sc_data_etype::U8:
         case sc_data_etype::BOOLEAN: return 1;
+        case sc_data_etype::U16:
         case sc_data_etype::F16:
         case sc_data_etype::BF16: return 2;
+        case sc_data_etype::U32:
         case sc_data_etype::F32:
         case sc_data_etype::S32: return 4;
         case sc_data_etype::GENERIC:

@@ -19,6 +19,7 @@
 #include <unordered_map>
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <utility>
 #include "fusible_op.hpp"
@@ -103,23 +104,69 @@ sc_dims get_expr_to_dims(const std::vector<expr> &dim) {
     return dim_int;
 }
 
-// todo use uint64_t instead of mask count
-expr make_select_by_mask(expr lhs_vec, int mask_count, uint32_t vector_lanes) {
-    if (mask_count == -1) { return lhs_vec; }
-    expr rhs_vec = make_expr<constant_node>(
-            std::vector<union_val>(vector_lanes, UINT64_C(0)),
-            sc_data_type_t(lhs_vec->dtype_.type_code_, vector_lanes));
-    if (mask_count == 0) { return rhs_vec; }
-    std::vector<union_val> mask_const(vector_lanes, 1.f);
-    for (uint32_t i = mask_count; i < vector_lanes; i++) {
-        mask_const[i] = 0.f;
+stmt mask_compute_func_t::operator()(const std::vector<expr> &in,
+        std::vector<expr::lvalue_proxy_t> &out, const expr &cur_idx,
+        const expr &upper_bound, uint32_t lanes) const {
+    auto ret = impl_(in, out);
+    if (cur_idx.defined() && upper_bound.defined()) {
+        auto bld = builder::get_current_builder();
+        bld->emit(ret);
+        return builder::make_assign_unattached(out[0],
+                make_select_by_mask(out[0], cur_idx, upper_bound, lanes));
     }
-    expr mask_vec = make_expr<constant_node>(
-            mask_const, sc_data_type_t::f32(vector_lanes));
-    expr zero_vec = make_expr<constant_node>(
-            std::vector<union_val>(vector_lanes, 0.f),
-            sc_data_type_t::f32(vector_lanes));
-    return builder::make_select(mask_vec > zero_vec, lhs_vec, rhs_vec);
+    return ret;
+}
+
+expr make_select_by_mask(const expr &lhs_vec, const expr &cur_index,
+        const expr &upper_bound, uint32_t lanes) {
+    auto bld = builder::get_current_builder();
+    auto offset = builder::make_cast(datatypes::s32, upper_bound)
+            - builder::make_cast(datatypes::s32, cur_index);
+    offset = static_cast<int>(lanes)
+            - builder::make_max(
+                    0, builder::make_min(static_cast<int>(lanes), offset));
+    sc_data_type_t var_dtype;
+    uint64_t init_value;
+    switch (lanes) {
+        case 4: {
+            var_dtype = datatypes::u8;
+            init_value = std::numeric_limits<uint8_t>::max();
+            break;
+        }
+        case 8: {
+            var_dtype = datatypes::u8;
+            init_value = std::numeric_limits<uint8_t>::max();
+            break;
+        }
+        case 16: {
+            var_dtype = datatypes::u16;
+            init_value = std::numeric_limits<uint16_t>::max();
+            break;
+        }
+        case 32: {
+            var_dtype = datatypes::s32;
+            init_value = std::numeric_limits<uint32_t>::max();
+            break;
+        }
+        case 64: {
+            var_dtype = datatypes::index;
+            init_value = std::numeric_limits<uint64_t>::max();
+            break;
+        }
+        default: COMPILE_ASSERT(false, "invalid lanes: " << lanes);
+    }
+    auto mask = builder::make_var(
+            var_dtype, "__mask_" + std::to_string(var_idx++));
+    auto def = builder::make_var_tensor_def_unattached(mask, linkage::local,
+            builder::make_constant({init_value}, var_dtype));
+    auto assign = builder::make_assign_unattached(
+            mask, mask >> builder::make_cast(var_dtype, offset));
+    bld->emit(def);
+    bld->emit(assign);
+    expr rhs_vec = make_expr<constant_node>(
+            std::vector<union_val>(lanes, UINT64_C(0)),
+            sc_data_type_t(lhs_vec->dtype_.type_code_, lanes));
+    return builder::make_select(mask, lhs_vec, rhs_vec);
 }
 
 /** Determine whether masks are needed during elementwise computation and
@@ -129,13 +176,12 @@ expr make_select_by_mask(expr lhs_vec, int mask_count, uint32_t vector_lanes) {
  * @param format input format
  * @param iter_vars input loop vars
  * @param lanes simd lanes
- * @param condition key is related iter var, value is two conditions:first means
- * in the condition, all elements should be all computed,second means only
- * `mask_count` elements will be computed
+ * @param condition key is related iter var, value is two exprs: first is
+ * current accumulated index, second is its plain shape upperbound.
  * @param last_axis_mask mask count, how many elements should be computed in
  * this time. -1 means all.
  * */
-static void compute_mask_and_generate_condition(
+void compute_mask_and_generate_condition(
         const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,
         sc_data_format_t format, const std::vector<expr> &iter_vars, int lanes,
         std::unordered_map<expr, std::pair<expr, expr>> &conditions,
@@ -162,8 +208,6 @@ static void compute_mask_and_generate_condition(
         auto blocks = format_code.collect_blocking_index(orig_dim);
         int padding_count = 0;
         conditions[iter_vars[block_dim]].first
-                = lanes + (iter_vars[block_dim] + offset[block_dim]);
-        conditions[iter_vars[block_dim]].second
                 = iter_vars[block_dim] + offset[block_dim];
         for (int b = static_cast<int>(blocks.size()) - 1; b >= 0; b--) {
             if (b > 0 && blocks[b - 1] % blocks[b] != 0) { padding_count++; }
@@ -171,17 +215,9 @@ static void compute_mask_and_generate_condition(
                     = conditions[iter_vars[block_dim]].first
                     + (iter_vars[plain2block[i][b]] + offset[plain2block[i][b]])
                             * format.blocks_[blocks[b]];
-            conditions[iter_vars[block_dim]].second
-                    = conditions[iter_vars[block_dim]].second
-                    + (iter_vars[plain2block[i][b]] + offset[plain2block[i][b]])
-                            * format.blocks_[blocks[b]];
         }
-        conditions[iter_vars[block_dim]].first
-                = conditions[iter_vars[block_dim]].first
-                < dim2unsigned(plain_dims[orig_dim]);
         conditions[iter_vars[block_dim]].second
-                = conditions[iter_vars[block_dim]].second
-                < dim2unsigned(plain_dims[orig_dim]);
+                = dim2unsigned(plain_dims[orig_dim]);
         COMPILE_ASSERT(padding_count < 2,
                 "Currently we don't support multi-level padding mask.");
         if (block_dim == format_code.ndims() - 1) {
@@ -329,22 +365,12 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                 && i == vx_info.axis) {
             if (floor) {
                 bld->push_scope();
-                if (conditions.find(iter_vars[i]) != conditions.end()) {
+                auto cond_it = conditions.find(iter_vars[i]);
+                if (cond_it != conditions.end()) {
                     assert(last_axis_mask != -1);
-                    stmt no_mask = builder::make_stmts_unattached(
-                            {compute_lanes(indexed_input_floor, target_floor)});
-                    stmt semi_mask = builder::make_stmts_unattached(
-                            {compute_lanes(indexed_input_floor, target_floor,
-                                    last_axis_mask)});
-                    stmt all_mask
-                            = builder::make_stmts_unattached({compute_lanes(
-                                    indexed_input_floor, target_floor, 0)});
-                    cur = builder::make_if_else_unattached(
-                            conditions[iter_vars[i]].first, no_mask,
-                            builder::make_stmts_unattached(
-                                    {builder::make_if_else_unattached(
-                                            conditions[iter_vars[i]].second,
-                                            semi_mask, all_mask)}));
+                    cur = compute_lanes(indexed_input_floor, target_floor,
+                            cond_it->second.first, cond_it->second.second,
+                            vx_info.lanes);
                 } else {
                     cur = compute_lanes(indexed_input_floor, target_floor);
                 }

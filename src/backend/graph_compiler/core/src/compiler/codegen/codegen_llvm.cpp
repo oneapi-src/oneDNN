@@ -538,6 +538,18 @@ public:
         auto l = generate_expr(v->l_);
         auto r = generate_expr(v->r_);
         auto cond = generate_expr(v->cond_);
+        auto &dtype = v->cond_->dtype_;
+        if (dtype.lanes_ == 1 && !dtype.is_etype(sc_data_etype::BOOLEAN)) {
+            auto ty_int1 = builder_.getInt1Ty();
+            auto bit_len = utils::get_sizeof_type(v->cond_->dtype_) * 8;
+            auto mask_ty =
+#if SC_LLVM_BACKEND > 10
+                    VectorType::get(ty_int1, bit_len, false);
+#else
+                    VectorType::get(ty_int1, bit_len);
+#endif
+            cond = builder_.CreateBitCast(cond, mask_ty);
+        }
         current_val_ = builder_.CreateSelect(cond, l, r);
     }
     void view(indexing_c v) override {

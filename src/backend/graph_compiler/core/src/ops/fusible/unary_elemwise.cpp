@@ -71,10 +71,8 @@ void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
     auto func = [&](const std::vector<expr> &in,
-                        std::vector<expr::lvalue_proxy_t> &out, int mask_count,
-                        float mask_value) -> stmt {
-        return builder::make_assign_unattached(
-                out[0], compute_element(in[0], mask_count, mask_value));
+                        std::vector<expr::lvalue_proxy_t> &out) -> stmt {
+        return builder::make_assign_unattached(out[0], compute_element(in[0]));
     };
     // Currenly only support for exp
     bool use_mask = op_name_ == "exp";
@@ -135,24 +133,23 @@ sc_dims unary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() const {
     return {output_dims.begin(), output_dims.begin() + offset};
 }
 
-expr relu_op_t::compute_element(expr in, int mask_count, float mask_value) {
+expr relu_op_t::compute_element(expr in) {
     return builder::make_max(
             in, make_expr<constant_node>((int64_t)0, in->dtype_));
 }
 
-expr select_one_op_t::compute_element(
-        expr in, int mask_count, float mask_value) {
+expr select_one_op_t::compute_element(expr in) {
     return builder::make_select(
             in > make_expr<constant_node>((float)0.0f, in->dtype_),
             make_expr<constant_node>((float)1.0f, in->dtype_),
             make_expr<constant_node>((float)0.0f, in->dtype_));
 }
 
-expr round_op_t::compute_element(expr in, int mask_count, float mask_value) {
+expr round_op_t::compute_element(expr in) {
     return builder::make_round(in);
 }
 
-expr sigmoid_op_t::compute_element(expr in, int mask_count, float mask_value) {
+expr sigmoid_op_t::compute_element(expr in) {
     auto bld = builder::get_current_builder();
     // constants
     auto lanes = in->dtype_.lanes_;
@@ -193,11 +190,11 @@ expr sigmoid_op_t::compute_element(expr in, int mask_count, float mask_value) {
     }
 }
 
-expr exp_op_t::compute_element(expr in, int mask_count, float mask_value) {
-    return builder::make_exp(in, mask_count);
+expr exp_op_t::compute_element(expr in) {
+    return builder::make_exp(in);
 }
 
-expr tanh_op_t::compute_element(expr in, int mask_count, float mask_value) {
+expr tanh_op_t::compute_element(expr in) {
     auto lanes = in->dtype_.lanes_;
 #define DECL_VEC_CONSTANT(name, dtype, value) \
     expr name = make_expr<constant_node>(value, sc_data_type_t::dtype(lanes));
@@ -259,7 +256,7 @@ expr tanh_op_t::compute_element(expr in, int mask_count, float mask_value) {
 #undef DECL_VAR
 }
 
-expr erf_op_t::compute_element(expr in, int mask_count, float mask_value) {
+expr erf_op_t::compute_element(expr in) {
     auto lanes = in->dtype_.lanes_;
 
     auto bld = builder::get_current_builder();
@@ -320,8 +317,7 @@ expr erf_op_t::compute_element(expr in, int mask_count, float mask_value) {
             sc_data_type_t::f32(lanes));
 }
 
-expr squared_root_op_t::compute_element(
-        expr in, int mask_count, float mask_value) {
+expr squared_root_op_t::compute_element(expr in) {
     if (reciprocal_) { return builder::make_rsqrt(in); }
     return builder::make_sqrt(in);
 }
@@ -345,14 +341,14 @@ cast_op_t::cast_op_t(
     info_.tensor_share_info_.clear();
 }
 
-expr cast_op_t::compute_element(expr in, int mask_count, float mask_value) {
+expr cast_op_t::compute_element(expr in) {
     sc_data_type_t vectorize_out_dtype = dtype_;
     vectorize_out_dtype.lanes_ = in->dtype_.lanes_;
     return saturated_ ? builder::make_saturated_cast(in, vectorize_out_dtype)
                       : builder::make_cast(vectorize_out_dtype, in);
 }
 
-expr clamp_op_t::compute_element(expr in, int mask_count, float mask_value) {
+expr clamp_op_t::compute_element(expr in) {
     auto dtype = in->dtype_;
     COMPILE_ASSERT(dtype.type_code_ == sc_data_etype::F32,
             "clamp_op_t currently only supports fp32");
