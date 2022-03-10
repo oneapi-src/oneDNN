@@ -45,6 +45,13 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+extern "C" dnnl_status_t dnnl_impl_gpu_set_profiling(int flag);
+extern "C" dnnl_status_t dnnl_impl_gpu_reset_profiling();
+extern "C" dnnl_status_t dnnl_impl_gpu_get_profiling_time(uint64_t *time);
+#endif
+
 int check_pd_cache(dnnl_primitive_desc_t pd) {
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     int capacity = 0;
@@ -315,6 +322,32 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args, res_t *res) {
     return execute_and_wait(exec_func, engine, args, res);
 }
 
+void maybe_enable_profiling() {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (!is_bench_mode(PROF)) return;
+    DNN_SAFE_V(dnnl_impl_gpu_set_profiling(1));
+#endif
+}
+
+void maybe_disable_profiling() {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (!is_bench_mode(PROF)) return;
+    DNN_SAFE_V(dnnl_impl_gpu_reset_profiling());
+    DNN_SAFE_V(dnnl_impl_gpu_set_profiling(0));
+#endif
+}
+
+void maybe_reset_profiling(uint64_t *nsec) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (!is_bench_mode(PROF)) return;
+    if (nsec) DNN_SAFE_V(dnnl_impl_gpu_get_profiling_time(nsec));
+    DNN_SAFE_V(dnnl_impl_gpu_reset_profiling());
+#endif
+}
+
 inline bool should_stop(const timer::timer_t &t) {
     const bool stop = false
             || (fix_times_per_prb && t.times() >= fix_times_per_prb)
@@ -347,6 +380,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
+    maybe_reset_profiling();
 
     bool is_first_loop = true;
     while (true) {
@@ -354,7 +388,10 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             DNN_SAFE(perf_func(stream, dnnl_args), WARN);
         }
         DNN_SAFE(dnnl_stream_wait(stream), WARN);
-        t.stamp(cur_batch_times);
+
+        uint64_t ticks = 0;
+        maybe_reset_profiling(&ticks);
+        t.stamp(cur_batch_times, (unsigned long long)ticks);
 
         if (should_stop(t)) break;
 
@@ -879,6 +916,7 @@ static void maybe_print_cpu_engine_error_message() {
 }
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
+    maybe_enable_profiling();
     size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
     dnnl_status_t status = dnnl_engine_create(&engine_, engine_kind, idx);
     if (engine_kind == dnnl_cpu && status != dnnl_success)

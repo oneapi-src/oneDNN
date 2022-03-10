@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,8 +20,11 @@
 
 #include "gpu/ocl/ocl_stream.hpp"
 
+#include "common/verbose.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/profile.hpp"
+#include "gpu/profile.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -47,11 +50,15 @@ status_t ocl_stream_t::init() {
     if (!queue) {
         cl_int err;
 #ifdef CL_VERSION_2_0
-        queue = clCreateCommandQueueWithProperties(
-                ocl_engine->context(), ocl_engine->device(), nullptr, &err);
+        cl_queue_properties profiling_props[]
+                = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
+        queue = clCreateCommandQueueWithProperties(ocl_engine->context(),
+                ocl_engine->device(),
+                is_profiling_enabled() ? profiling_props : nullptr, &err);
 #else
-        queue = clCreateCommandQueue(
-                ocl_engine->context(), ocl_engine->device(), 0, &err);
+        queue = clCreateCommandQueue(ocl_engine->context(),
+                ocl_engine->device(),
+                is_profiling_enabled() ? CL_QUEUE_PROFILING_ENABLE : 0, &err);
 #endif
         OCL_CHECK(err);
     } else {
@@ -70,6 +77,24 @@ status_t ocl_stream_t::init() {
         OCL_CHECK(clRetainCommandQueue(queue));
     }
     queue_ = queue;
+
+    if (gpu::is_profiling_enabled()) {
+        cl_command_queue_properties props;
+        OCL_CHECK(clGetCommandQueueInfo(
+                queue_, CL_QUEUE_PROPERTIES, sizeof(props), &props, nullptr));
+        bool is_out_of_order
+                = (props & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0;
+        if (is_out_of_order) {
+            if (get_verbose()) {
+                printf("onednn_verbose,gpu,error,OpenCL kernel profiling is "
+                       "not "
+                       "supported with out-of-order queues\n");
+                fflush(0);
+            }
+            return status::invalid_arguments;
+        }
+    }
+
     return status::success;
 }
 

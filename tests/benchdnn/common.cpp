@@ -51,6 +51,8 @@ bench_mode_t RUN {0x1}; // Run mode.
 bench_mode_t CORR {0x2}; // Correctness mode. The default one.
 bench_mode_t PERF {0x4}; // Performance mode. May be combined with CORR.
 bench_mode_t LIST {0x8}; // Listing mode. Standalone mode to only create prb.
+bench_mode_t PROF {
+        0x10}; // Profiling-based performance mode (may be only combined with performance mode).
 
 bool is_bench_mode(bench_mode_t user_mode) {
     return !(bench_mode & user_mode).none();

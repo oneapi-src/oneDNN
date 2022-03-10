@@ -55,6 +55,7 @@ The following common options are supported:
   `MODE` values can be:
     - `C` or `c` for correctness testing (the default),
     - `P` or `p` for performance testing,
+    - `PO` or `po` for profiling-based performance testing (GPU only),
     - `CP` or `cp` for both correctness and performance testing,
     - `R` or `r` for run mode.
     - `L` or `l` for listing mode.

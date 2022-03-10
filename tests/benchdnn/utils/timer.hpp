@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,9 +41,13 @@ struct timer_t {
     void reset(); /** fully reset the measurements */
 
     void start(); /** restart timer */
-    void stop(int add_times = 1); /** stop timer & update statistics */
+    void stop(int add_times = 1,
+            unsigned long long add_ticks
+            = 0); /** stop timer & update statistics */
 
-    void stamp(int add_times = 1) { stop(add_times); }
+    void stamp(int add_times = 1, unsigned long long add_ticks = 0) {
+        stop(add_times, add_ticks);
+    }
 
     int times() const { return times_; }
 

@@ -242,6 +242,20 @@ private:
 
 // Engine used to run oneDNN primitives for testing.
 inline const engine_t &get_test_engine() {
+    if (is_bench_mode(PROF)) {
+        bool is_profiling_supported = false;
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        is_profiling_supported = (engine_tgt_kind == dnnl_gpu);
+#endif
+
+        if (!is_profiling_supported) {
+            fprintf(stderr,
+                    "Profiling-based performance mode is supported for OpenCL "
+                    "and DPC++ only.\n");
+            exit(2);
+        }
+    }
     static const engine_t instance(engine_tgt_kind);
     return instance;
 }
@@ -610,6 +624,7 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
 int execute_and_wait(
         dnnl_primitive_t prim, const args_t &args, res_t *res = nullptr);
 
+void maybe_reset_profiling(uint64_t *nsec = nullptr);
 int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args);
 int measure_perf(res_t *res, dnnl_primitive_t prim, args_t &args);
 
