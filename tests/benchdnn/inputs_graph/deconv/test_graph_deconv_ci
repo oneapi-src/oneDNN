@@ -1,20 +1,20 @@
 # no groups
 --reset
---dir=FWD_D
+--dir=FWD_D,BWD_D,BWD_W
 --stag=abc
 --wtag=abcd
 --dtag=abc
 --batch=shapes_1d
 
 --reset
---dir=FWD_D
+--dir=FWD_D,BWD_D,BWD_W
 --stag=abcd
 --wtag=abcde
 --dtag=abcd
 --batch=shapes_2d
 
 --reset
---dir=FWD_D
+--dir=FWD_D,BWD_D,BWD_W
 --stag=abcde
 --wtag=abcdef
 --dtag=abcde
@@ -22,21 +22,21 @@
 
 # with groups
 --reset
---dir=FWD_D
+--dir=FWD_D,BWD_D #,BWD_W, BWD_W with groups > 1 is currently not supported
 --stag=abc
 --wtag=acbd
 --dtag=abc
 --batch=shapes_1d_groups
 
 --reset
---dir=FWD_D
+--dir=FWD_D,BWD_D #,BWD_W
 --stag=abcd
 --wtag=acbde
 --dtag=abcd
 --batch=shapes_2d_groups
 
 --reset
---dir=FWD_D
+--dir=FWD_D,BWD_D #,BWD_W
 --stag=abcde
 --wtag=acbdef
 --dtag=abcde
