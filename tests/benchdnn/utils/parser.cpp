@@ -520,7 +520,7 @@ static bool parse_fast_ref_gpu(
         fprintf(stderr,
                 "%s driver: WARNING: option `fast_ref_gpu` is not supported "
                 "for GPU only configurations.\n",
-                driver_name);
+                driver_name.c_str());
     }
 #endif
     return parsed;
@@ -697,7 +697,7 @@ bool parse_bench_settings(const char *str) {
 
     // Last condition makes this help message to be triggered once driver_name
     // is already known.
-    if (!parsed && !end_msg && !std::string(driver_name).empty()) {
+    if (!parsed && !end_msg && !driver_name.empty()) {
         help_ss << "===================\n";
         help_ss << "= Driver options: =\n";
         help_ss << "===================\n";
@@ -717,7 +717,7 @@ void catch_unknown_options(const char *str) {
     const std::string pattern = "--";
     if (pattern.find(str, 0, pattern.size()) != eol) {
         fprintf(stderr, "%s driver: ERROR: unknown option: `%s`, exiting...\n",
-                driver_name, str);
+                driver_name.c_str(), str);
         exit(2);
     }
 }
@@ -726,7 +726,7 @@ int parse_last_argument() {
     if (!last_parsed_is_problem)
         fprintf(stderr,
                 "%s driver: WARNING: No problem found for a given option!\n",
-                driver_name);
+                driver_name.c_str());
     return OK;
 }
 

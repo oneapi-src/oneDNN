@@ -93,6 +93,7 @@ extern bool canonical;
 extern bool mem_check;
 extern bool attr_same_pd_check;
 extern std::string skip_impl; /* empty or "" means skip nothing */
+extern std::string driver_name;
 
 #define BENCHDNN_PRINT(v, fmt, ...) \
     do { \
@@ -110,7 +111,6 @@ extern std::string skip_impl; /* empty or "" means skip nothing */
 using bench_mode_t = std::bitset<4>;
 extern bench_mode_t RUN, CORR, PERF, LIST; // pre-defined modes
 extern bench_mode_t bench_mode; // user mode
-extern const char *driver_name;
 
 bool is_bench_mode(bench_mode_t user_mode);
 
