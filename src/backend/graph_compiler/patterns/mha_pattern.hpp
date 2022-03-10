@@ -165,6 +165,154 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, transpose_output, 0)},
                             "reorder_output");
                 });
+
+// fp32 MHA training forward pattern
+/*
+    (f32)[QueryTrans]   [KeyTrans](f32)
+                  \      /
+                   MatMul  [FscoreScale](f32)
+                     \    /
+(f32)[AttentionMask] Div|Mul
+                  \   /
+                    Add
+                     |
+                  Softmax [Dropout](f32)
+                       \  /
+                        Mul  [ValueTrans](f32)
+                            \     /
+                             MatMul
+                                |
+                            Transpose
+                                |
+                             Reshape
+                                |
+                            [output](f32)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, fp32_mha_forward_pattern)
+        .set_priority(5.0f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_qk = pgraph->append_op(
+                            impl::op_kind::MatMul, "matmul_qk");
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto fscore_scale = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
+                    fscore_scale->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto fscore_add = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                    fscore_add->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            {in_edge(0, fscore_add, 0)}, "softmax");
+                    softmax->allow_external_output(0);
+                    auto dropout = pgraph->append_op(impl::op_kind::Multiply,
+                            {in_edge(0, softmax, 0)}, "dropout");
+                    dropout->allow_external_output(0);
+                    auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
+                            {in_edge(0, dropout, 0)}, "matmul_v");
+                    matmul_v->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto reshape
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)}, "reshape");
+                    pgraph->append_op(impl::op_kind::StaticReshape,
+                            {in_edge(0, reshape, 0)}, "transpose_output");
+                });
+
+// fp32 MHA training backward pattern
+/*
+                [BackwardIn](f32)
+                        |
+                     Reshape
+                        |
+(f32)[DrouputOut]   Transpose   [ValueTrans](f32)
+          \       /         \    /
+            MatMul           MatMul  [Dropout](f32)
+              |                  \  /
+        [output](f32)            Mul [SoftmaxOut](f32)
+                                /  \    /
+                               /     Mul
+                               |      |
+                               |  ReduceSum
+                                \   /
+                                 Sub  [SoftmaxOut](f32)
+                                  \   /
+                                   Mul  [Fscore](f32)
+                                    \  /
+                                   Div|Mul  [QueryTrans](f32)
+                 ___________________/    \   /
+                 \   [KeyTrans](f32)     MatMul
+                  \      /                 |
+                   MatMul             [output](f32)
+                     |
+                 [output](f32)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, fp32_mha_backward_pattern)
+        .set_priority(5.0f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto in_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "in_reshape");
+                    in_reshape->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto in_transpose = pgraph->append_op(
+                            impl::op_kind::StaticTranspose,
+                            {in_edge(0, in_reshape, 0)}, "in_transpose");
+                    auto bmm_v_grad_weight = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(1, in_transpose, 0)}, "bmm_v_grad_weight");
+                    bmm_v_grad_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto bmm_v_grad_data = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, in_transpose, 0)}, "bmm_v_grad_data");
+                    bmm_v_grad_data->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto dropout_grad = pgraph->append_op(
+                            impl::op_kind::Multiply,
+                            {in_edge(0, bmm_v_grad_data, 0)}, "dropout_grad");
+                    dropout_grad->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto softmax_mul = pgraph->append_op(
+                            impl::op_kind::Multiply,
+                            {in_edge(0, dropout_grad, 0)}, "softmax_mul");
+                    softmax_mul->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto softmax_sum = pgraph->append_op(
+                            impl::op_kind::ReduceSum,
+                            {in_edge(0, softmax_mul, 0)}, "softmax_sum");
+                    softmax_sum->append_decision_function(check_reduce_attrs);
+                    auto softmax_sub
+                            = pgraph->append_op(impl::op_kind::Subtract,
+                                    {in_edge(0, dropout_grad, 0),
+                                            in_edge(1, softmax_sum, 0)},
+                                    "softmax_sub");
+                    auto softmax_sub_mul = pgraph->append_op(
+                            impl::op_kind::Multiply,
+                            {in_edge(0, softmax_sub, 0)}, "softmax_sub_mul");
+                    softmax_sub_mul->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto fscore_grad = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
+                            {in_edge(0, softmax_sub_mul, 0)}, "fscore_grad");
+                    fscore_grad->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto bmm_q_grad_weight = pgraph->append_op(
+                            impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
+                            "bmm_q_grad_weight");
+                    bmm_q_grad_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto bmm_k_grad_weight = pgraph->append_op(
+                            impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
+                            "bmm_k_grad_weight");
+                    bmm_k_grad_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_mha_pattern)
@@ -302,6 +450,152 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pgraph->append_op(impl::op_kind::Reorder,
                             {in_edge(0, transpose_output, 0)},
                             "reorder_output");
+                });
+
+// bf16 MHA training forward pattern
+/*
+   (bf16)[QueryTrans]   [KeyTrans](bf16)
+                  \      /
+                   MatMul  [FscoreScale](f32/bf16)
+                     \    /
+(bf16)[AttentionMask] Div|Mul
+                  \   /
+                    Add
+                     |
+                  Softmax [Dropout](bf16)
+                       \  /
+                        Mul  [ValueTrans](bf16)
+                            \     /
+                             MatMul
+                                |
+                            Transpose
+                                |
+                             Reshape
+                                |
+                            [output](bf16)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, bf16_mha_forward_pattern)
+        .set_priority(5.0f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_qk = pgraph->append_op(
+                            impl::op_kind::MatMul, "matmul_qk");
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto fscore_scale = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
+                    fscore_scale->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto fscore_add = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                    fscore_add->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            {in_edge(0, fscore_add, 0)}, "softmax");
+                    auto dropout = pgraph->append_op(impl::op_kind::Multiply,
+                            {in_edge(0, softmax, 0)}, "dropout");
+                    auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
+                            {in_edge(0, dropout, 0)}, "matmul_v");
+                    matmul_v->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto reshape
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)}, "reshape");
+                    pgraph->append_op(impl::op_kind::StaticReshape,
+                            {in_edge(0, reshape, 0)}, "transpose_output");
+                });
+
+// bf16 MHA training backward pattern
+/*
+                [BackwardIn](bf16)
+                        |
+                     Reshape
+                        |
+(bf16)[DrouputOut]  Transpose   [ValueTrans](bf16)
+          \       /         \    /
+            MatMul           MatMul  [Dropout](bf16)
+              |                  \  /
+        [output](bf16)           Mul [SoftmaxOut](bf16)
+                                /  \    /
+                               /     Mul
+                               |      |
+                               |  ReduceSum
+                                \   /
+                                 Sub  [SoftmaxOut](bf16)
+                                  \   /
+                                   Mul  [Fscore](f32/bf16)
+                                    \  /
+                                   Div|Mul  [QueryTrans](bf16)
+                 ___________________/    \   /
+                 \   [KeyTrans](bf16)    MatMul
+                  \      /                 |
+                   MatMul             [output](bf16)
+                     |
+                 [output](bf16)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, bf16_mha_backward_pattern)
+        .set_priority(5.0f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto in_reshape = pgraph->append_op(
+                            impl::op_kind::StaticReshape, "in_reshape");
+                    in_reshape->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto in_transpose = pgraph->append_op(
+                            impl::op_kind::StaticTranspose,
+                            {in_edge(0, in_reshape, 0)}, "in_transpose");
+                    auto bmm_v_grad_weight = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(1, in_transpose, 0)}, "bmm_v_grad_weight");
+                    bmm_v_grad_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto bmm_v_grad_data = pgraph->append_op(
+                            impl::op_kind::MatMul,
+                            {in_edge(0, in_transpose, 0)}, "bmm_v_grad_data");
+                    bmm_v_grad_data->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto dropout_grad = pgraph->append_op(
+                            impl::op_kind::Multiply,
+                            {in_edge(0, bmm_v_grad_data, 0)}, "dropout_grad");
+                    dropout_grad->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto softmax_mul = pgraph->append_op(
+                            impl::op_kind::Multiply,
+                            {in_edge(0, dropout_grad, 0)}, "softmax_mul");
+                    softmax_mul->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto softmax_sum = pgraph->append_op(
+                            impl::op_kind::ReduceSum,
+                            {in_edge(0, softmax_mul, 0)}, "softmax_sum");
+                    softmax_sum->append_decision_function(check_reduce_attrs);
+                    auto softmax_sub
+                            = pgraph->append_op(impl::op_kind::Subtract,
+                                    {in_edge(0, dropout_grad, 0),
+                                            in_edge(1, softmax_sum, 0)},
+                                    "softmax_sub");
+                    auto softmax_sub_mul = pgraph->append_op(
+                            impl::op_kind::Multiply,
+                            {in_edge(0, softmax_sub, 0)}, "softmax_sub_mul");
+                    softmax_sub_mul->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto fscore_grad = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
+                            {in_edge(0, softmax_sub_mul, 0)}, "fscore_grad");
+                    fscore_grad->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto bmm_q_grad_weight = pgraph->append_op(
+                            impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
+                            "bmm_q_grad_weight");
+                    bmm_q_grad_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto bmm_k_grad_weight = pgraph->append_op(
+                            impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
+                            "bmm_k_grad_weight");
+                    bmm_k_grad_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 

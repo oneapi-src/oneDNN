@@ -979,3 +979,123 @@ TEST(GCGraphTest, BF16MLPTrainingGraphCompileExecution) {
         strm.wait();
     }
 }
+
+TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_MHA_training_subgraph(&agraph, false);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = impl::compiler_impl::compiler_backend_t::get_singleton();
+    compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2);
+
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        impl::partition_t p;
+        p.init(partitions[i]);
+        auto partition_inputs = p.get_inputs();
+        auto partition_outputs = p.get_outputs();
+
+        std::vector<const impl::logical_tensor_t *> inputs;
+        std::vector<const impl::logical_tensor_t *> outputs;
+        for (auto &lt : partition_inputs) {
+            inputs.push_back(&lt);
+        }
+        for (auto &lt : partition_outputs) {
+            outputs.push_back(&lt);
+        }
+        impl::compiled_partition_t cp(p);
+        impl::engine_t &eng = get_engine();
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+        std::vector<impl::tensor_t> execution_inputs;
+        std::vector<impl::tensor_t> execution_outputs;
+        size_t size = 0;
+        for (auto &lt : partition_inputs) {
+            size += compiler_backend_ptr.get_mem_size(lt);
+        }
+        for (auto &lt : partition_outputs) {
+            size += compiler_backend_ptr.get_mem_size(lt);
+        }
+        test::vector<char> data(size);
+
+        size = 0;
+        for (auto &lt : partition_inputs) {
+            impl::tensor_t placeholder(lt, &eng, data.data() + size);
+            execution_inputs.push_back(placeholder);
+            size += compiler_backend_ptr.get_mem_size(lt);
+        }
+        for (auto &lt : partition_outputs) {
+            impl::tensor_t placeholder(lt, &eng, data.data() + size);
+            execution_outputs.push_back(placeholder);
+            size += compiler_backend_ptr.get_mem_size(lt);
+        }
+
+        impl::stream_t &strm = get_stream();
+        ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
+                impl::status::success);
+        strm.wait();
+    }
+}
+
+TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    add_MHA_training_subgraph(&agraph, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = impl::compiler_impl::compiler_backend_t::get_singleton();
+    compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2);
+
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        impl::partition_t p;
+        p.init(partitions[i]);
+        auto partition_inputs = p.get_inputs();
+        auto partition_outputs = p.get_outputs();
+
+        std::vector<const impl::logical_tensor_t *> inputs;
+        std::vector<const impl::logical_tensor_t *> outputs;
+        for (auto &lt : partition_inputs) {
+            inputs.push_back(&lt);
+        }
+        for (auto &lt : partition_outputs) {
+            outputs.push_back(&lt);
+        }
+        impl::compiled_partition_t cp(p);
+        impl::engine_t &eng = get_engine();
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+        std::vector<impl::tensor_t> execution_inputs;
+        std::vector<impl::tensor_t> execution_outputs;
+        size_t size = 0;
+        for (auto &lt : partition_inputs) {
+            size += compiler_backend_ptr.get_mem_size(lt);
+        }
+        for (auto &lt : partition_outputs) {
+            size += compiler_backend_ptr.get_mem_size(lt);
+        }
+        test::vector<char> data(size);
+
+        size = 0;
+        for (auto &lt : partition_inputs) {
+            impl::tensor_t placeholder(lt, &eng, data.data() + size);
+            execution_inputs.push_back(placeholder);
+            size += compiler_backend_ptr.get_mem_size(lt);
+        }
+        for (auto &lt : partition_outputs) {
+            impl::tensor_t placeholder(lt, &eng, data.data() + size);
+            execution_outputs.push_back(placeholder);
+            size += compiler_backend_ptr.get_mem_size(lt);
+        }
+
+        impl::stream_t &strm = get_stream();
+        ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
+                impl::status::success);
+        strm.wait();
+    }
+}
