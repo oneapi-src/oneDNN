@@ -25,6 +25,7 @@
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
+#include <unordered_map>
 #include <util/utils.hpp>
 
 namespace sc {
@@ -578,10 +579,11 @@ void binary_elementwise_op_impl_t::collect_shrinked_axes_map(
 }
 
 void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, int bc_input_idx,
+        const tensor_slice &dst, sc_op_info_t &info, int bc_input_idx,
         const std::vector<int> &bc_axis, const vectorized_info_t &vx_info,
-        const std::function<expr(expr, expr)> &compute,
-        sc_data_type_t dtype = datatypes::f32, size_t wkld = 0UL) {
+        const mask_compute_func_t &compute,
+        sc_data_type_t dtype = datatypes::f32, size_t wkld = 0UL,
+        bool use_mask = false) {
     // nested loop vars
     std::vector<expr> iter_vars;
     // the indices for multiple inputs. First dim: the input, Second dim: the
@@ -644,11 +646,25 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
             dst.get_shape().at(vx_info.axis).static_as<constant>());
     int floor = slice_len / vx_info.lanes * vx_info.lanes;
     int tail = slice_len % vx_info.lanes;
+    int last_axis_mask = -1;
+    std::unordered_map<expr, std::pair<expr, expr>> conditions;
+    if (use_mask) {
+        compute_mask_and_generate_condition(src,
+                info.inputs_[0]->details_.get_plain_dims(),
+                info.inputs_[0]->details_.get_format(), iter_vars,
+                vx_info.lanes, conditions, last_axis_mask);
+    }
+    if (last_axis_mask != -1 && floor > 0) {
+        COMPILE_ASSERT(tail == 0,
+                "Currently we only support mask in vectorize compute not "
+                "tail.");
+    }
     std::vector<stmt> tcur;
     stmt cur;
     bool bc_input_cast
             = !in_bc_tsl->tptr_->dtype_.get_pointer_element().is_etype(
                     out_etype);
+
     // recover schedule loop
     for (int i = static_cast<int>(dst.get_shape().size() - 1); i >= 0; i--) {
         stmt body;
@@ -675,10 +691,20 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                             indexed_bc_input);
                 }
                 bld->push_scope();
-                cur = make_stmt<assign_node_t>(indexed_target,
-                        bc_input_idx == 1
-                                ? compute(indexed_input, indexed_bc_input)
-                                : compute(indexed_bc_input, indexed_input));
+                std::vector<expr::lvalue_proxy_t> target_vec {
+                        expr::lvalue_proxy_t(indexed_target, false)};
+                auto cond_it = conditions.find(iter_vars[i]);
+                if (cond_it != conditions.end()) {
+                    assert(last_axis_mask != -1);
+                    cur = compute(
+                            std::vector<expr> {indexed_input, indexed_bc_input},
+                            target_vec, cond_it->second.first,
+                            cond_it->second.second, vx_info.lanes);
+                } else {
+                    cur = compute(
+                            std::vector<expr> {indexed_input, indexed_bc_input},
+                            target_vec);
+                }
                 cur->attr()[op_traits::workload_computable_t::workload_number]
                         = wkld;
                 bld->emit(cur);
@@ -703,12 +729,12 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                                     indexed_bc_input_tail->dtype_.lanes_),
                             indexed_bc_input_tail);
                 }
+                std::vector<expr::lvalue_proxy_t> target_vec_tail {
+                        expr::lvalue_proxy_t(indexed_target_tail, false)};
                 bld->push_scope();
-                cur = make_stmt<assign_node_t>(indexed_target_tail,
-                        bc_input_idx == 1 ? compute(
-                                indexed_input_tail, indexed_bc_input_tail)
-                                          : compute(indexed_bc_input_tail,
-                                                  indexed_input_tail));
+                cur = compute(std::vector<expr> {indexed_input_tail,
+                                      indexed_bc_input_tail},
+                        target_vec_tail);
                 cur->attr()[op_traits::workload_computable_t::workload_number]
                         = wkld;
                 bld->emit(cur);
@@ -747,11 +773,12 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
                                     out_etype, indexed_bc_input->dtype_.lanes_),
                             indexed_bc_input);
                 }
+                std::vector<expr::lvalue_proxy_t> target_vec {
+                        expr::lvalue_proxy_t(indexed_target, false)};
                 bld->push_scope();
-                cur = make_stmt<assign_node_t>(indexed_target,
-                        bc_input_idx == 1
-                                ? compute(indexed_input, indexed_bc_input)
-                                : compute(indexed_bc_input, indexed_input));
+                cur = compute(
+                        std::vector<expr> {indexed_input, indexed_bc_input},
+                        target_vec);
                 cur->attr()[op_traits::workload_computable_t::workload_number]
                         = wkld;
                 bld->emit(cur);
@@ -791,36 +818,48 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
     }
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
-
+    // todo: currently we only support mask for div.
+    bool use_mask = elt_op_ == elt_operator::DIV;
     // use broad-cast
     int bc_input_idx = get_broadcast_input();
     if (bc_input_idx != -1) {
+        auto func = [&](const std::vector<expr> &ins,
+                            std::vector<expr::lvalue_proxy_t> &outs) -> stmt {
+            auto in_0 = ins[1 - bc_input_idx], in_1 = ins[bc_input_idx];
+            switch (elt_op_) {
+                case elt_operator::ADD:
+                    return builder::make_assign_unattached(
+                            outs[0], in_0 + in_1);
+                case elt_operator::SUB:
+                    return builder::make_assign_unattached(
+                            outs[0], in_0 - in_1);
+                case elt_operator::MUL:
+                    return builder::make_assign_unattached(
+                            outs[0], in_0 * in_1);
+                case elt_operator::DIV:
+                    return builder::make_assign_unattached(
+                            outs[0], in_0 / in_1);
+                case elt_operator::MIN:
+                    return builder::make_assign_unattached(
+                            outs[0], builder::make_min(in_0, in_1));
+                case elt_operator::MAX:
+                    return builder::make_assign_unattached(
+                            outs[0], builder::make_max(in_0, in_1));
+                case elt_operator::SQD_DIFF:
+                    return builder::make_assign_unattached(
+                            outs[0], (in_0 - in_1) * (in_0 - in_1));
+                default:
+                    COMPILE_ASSERT(false, "Unsupport elementwise op found.\n");
+                    return stmt();
+            }
+        };
         // reuse broadcast op
-        compute_block_broadcast(
-                inputs, *dst[0], bc_input_idx, get_bc_axis(), vx_info_,
-                [&](const expr &in_0, const expr &in_1) -> expr {
-                    switch (elt_op_) {
-                        case elt_operator::ADD: return (in_0 + in_1);
-                        case elt_operator::SUB: return (in_0 - in_1);
-                        case elt_operator::MUL: return (in_0 * in_1);
-                        case elt_operator::DIV: return (in_0 / in_1);
-                        case elt_operator::MIN:
-                            return builder::make_min(in_0, in_1);
-                        case elt_operator::MAX:
-                            return builder::make_max(in_0, in_1);
-                        case elt_operator::SQD_DIFF:
-                            return (in_0 - in_1) * (in_0 - in_1);
-                        default:
-                            COMPILE_ASSERT(
-                                    false, "Unsupport elementwise op found.\n");
-                            return expr();
-                    }
-                },
-                info_.outputs_[0]->details_.dtype_, wkld);
+        compute_block_broadcast(inputs, *dst[0], info_, bc_input_idx,
+                get_bc_axis(), vx_info_, mask_compute_func_t(func),
+                info_.outputs_[0]->details_.dtype_, wkld, use_mask);
     } else {
         auto func = [&](const std::vector<expr> &in,
-                            std::vector<expr::lvalue_proxy_t> &out,
-                            int mask_count, float mask_value) -> stmt {
+                            std::vector<expr::lvalue_proxy_t> &out) -> stmt {
             auto out_dtype = out[0]->dtype_;
             expr in0 = in[0], in1 = in[1];
             if (in[0]->dtype_ != out_dtype) {
@@ -837,9 +876,7 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
                 case elt_operator::MUL:
                     return builder::make_assign_unattached(out[0], in0 * in1);
                 case elt_operator::DIV:
-                    return builder::make_assign_unattached(out[0],
-                            make_select_by_mask(
-                                    in0 / in1, mask_count, vx_info_.lanes));
+                    return builder::make_assign_unattached(out[0], in0 / in1);
                 case elt_operator::MIN:
                     return builder::make_assign_unattached(
                             out[0], builder::make_min(in0, in1));
@@ -856,8 +893,7 @@ void binary_elementwise_op_impl_t::compute_block(context_ptr ctx,
                     return stmt();
             }
         };
-        // todo: currently we only support mask for div.
-        bool use_mask = elt_op_ == elt_operator::DIV;
+
         compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
                 mask_compute_func_t(func), mask_compute_func_t(func), attrs_,
                 wkld, use_mask);

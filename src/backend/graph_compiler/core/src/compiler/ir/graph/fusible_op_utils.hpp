@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 #include "fusible_op.hpp"
 #include "fusion_data.hpp"
@@ -47,15 +48,14 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
 
 struct mask_compute_func_t {
     mask_compute_func_t(const std::function<stmt(const std::vector<expr> &,
-                    std::vector<expr::lvalue_proxy_t> &, int, float)> &func)
+                    std::vector<expr::lvalue_proxy_t> &)> &func)
         : impl_(func) {}
     stmt operator()(const std::vector<expr> &in,
-            std::vector<expr::lvalue_proxy_t> &out, int mask_count = -1,
-            float mask_value = 0.f) const {
-        return impl_(in, out, mask_count, mask_value);
-    }
-    std::function<stmt(const std::vector<expr> &,
-            std::vector<expr::lvalue_proxy_t> &, int, float)>
+            std::vector<expr::lvalue_proxy_t> &out,
+            const expr &cur_idx = expr(), const expr &upper_bound = expr(),
+            uint32_t lanes = 16) const;
+    std::function<stmt(
+            const std::vector<expr> &, std::vector<expr::lvalue_proxy_t> &)>
             impl_;
 };
 
@@ -68,8 +68,12 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
         const mask_compute_func_t &compute_lanes,
         const mask_compute_func_t &compute_scalar, any_map_t &attrs,
         size_t wkld = 0UL, bool use_mask = false);
-expr make_select_by_mask(expr lhs_vec, int mask_count, uint32_t vector_lanes);
-
+expr make_select_by_mask(const expr &, const expr &, const expr &, uint32_t);
+void compute_mask_and_generate_condition(
+        const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,
+        sc_data_format_t format, const std::vector<expr> &iter_vars, int lanes,
+        std::unordered_map<expr, std::pair<expr, expr>> &conditions,
+        int &last_axis_mask);
 void compute_block_elemwise(const std::vector<const tensor_slice *> &src,
         const tensor_slice &dst, sc_op_info_t &info,
         fusion_compute_func_t compute);
