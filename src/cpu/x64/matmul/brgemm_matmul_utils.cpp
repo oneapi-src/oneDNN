@@ -587,7 +587,10 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
         if (low_spatial_work || bwd_w_low_spatial_work) {
 
             // Reduce n_blk size to increase parallel space
-            if (!bm_conf_utils.check_n_blk_fixed())
+            // note: over reduction of n_blk size on 2d shapes when n_chunks == 1
+            // showed significant performance degradation
+            if (!bm_conf_utils.check_n_blk_fixed()
+                    && IMPLICATION(n_chunks == 1, bgmmc.batch_ndims > 0))
                 n_blk = nstl::min(matmul.N, 32);
 
             // force to plain B (wei) in small spatial size for FWD:
