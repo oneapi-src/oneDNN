@@ -48,7 +48,7 @@ void compute_ref_mlp(
                 rt_dims_masks, attr);
         matmul_prb.scales = scales;
 
-        ::matmul::compute_ref(&matmul_prb, NULL, args[i]);
+        ::matmul::compute_ref(&matmul_prb, args[i], NULL);
 
         const dnn_mem_t &dst_m = args[i].find(DNNL_ARG_DST);
         assert(dst_m.nelems() != 0);

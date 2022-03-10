@@ -333,7 +333,7 @@ int doit(const mha_graph_spec_t *spec, res_t *res) {
             ins[4], engine, static_cast<void *>(attention_mask_filter.data())));
     tensors_out.emplace_back(dnnl::graph::tensor(
             outs[0], engine, static_cast<void *>(mha_out_dt)));
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);

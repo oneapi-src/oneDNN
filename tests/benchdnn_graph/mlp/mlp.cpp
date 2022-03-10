@@ -254,7 +254,8 @@ int doit(const mlp_graph_spec_t *spec, res_t *res) {
     tensors_out.emplace_back(tensor_out);
 
     for (int i = 0; i < partitions.size(); i++) {
-        SAFE(execute_and_wait(cp_vec[i], tensors_in[i], tensors_out[i]), WARN);
+        SAFE(execute_and_wait(cp_vec[i], tensors_in[i], tensors_out[i], res),
+                WARN);
     }
 
     std::vector<args_t> ref_args_vec;
