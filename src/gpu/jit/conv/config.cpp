@@ -178,7 +178,8 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         bh->reorder({osp_name, "mb"});
     } else {
         bh->reorder({"mb", osp_name});
-        if (mb >= 128 && (fuse_spatial ? osp : ow) % 4 != 0)
+        auto spatial_dim = fuse_spatial ? osp : ow;
+        if (mb >= 128 && (spatial_dim % 4 != 0 || spatial_dim < 64))
             bh->allow_split({"mb"});
     }
     bh->reorder({"ic", "kw"});
@@ -279,7 +280,8 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
         bh->reorder({"iw", "mb"});
     } else {
         bh->reorder({"mb", "iw"});
-        if (mb >= 128 && iw % 4 != 0) bh->allow_split({"mb"});
+        bh->set_base_iter_block("mb", 8);
+        if (mb >= 128 && (iw % 4 != 0 || iw < 64)) bh->allow_split({"mb"});
     }
 
     bh->compute();

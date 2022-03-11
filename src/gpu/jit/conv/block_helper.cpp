@@ -371,7 +371,12 @@ void block_helper_t::init_bmnk_blocks() {
             m_inst_blk = std::min(8, utils::rnd_down_pow2(max_m_iter_dim));
             bn_inst_blk = hw_cfg_.vec_size();
             k_inst_blk = 1;
-            m_blk = (is_x8x8s32() ? 8 : 16);
+            bool use_small_m_block = hw_cfg_.hw() <= ngen::HW::XeHP
+                    && m_dim().base_iter_block() == 1;
+            m_blk = (is_x8x8s32() || use_small_m_block ? 8 : 16);
+            bool small_m_tg = m_dim().base_iter_block() == 1
+                    && hw_cfg_.hw() == ngen::HW::XeHPG;
+            m_dim().set_max_dim(tile_level_t::tg, small_m_tg ? 1 : 4);
             bn_blk = hw_cfg_.vec_size();
             k_blk = compute_mad_k_block();
             if (!allow_k_grid_slicing_ && !allow_k_tg_slicing_) {
