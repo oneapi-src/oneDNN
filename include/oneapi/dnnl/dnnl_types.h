@@ -2908,8 +2908,7 @@ typedef struct {
 ///
 /// Query kind                      | Type of query result
 /// --------------------------------|-----------------------------
-/// #dnnl_query_engine              | #dnnl_engine_t *
-/// #dnnl_query_scratchpad_engine   | #dnnl_engine_t *
+/// dnnl_query_*_engine             | #dnnl_engine_t *
 /// #dnnl_query_primitive_kind      | #dnnl_primitive_kind_t *
 /// dnnl_query_*_s32                | int *
 /// dnnl_query_*_s64                | #dnnl_dim_t * (same as int64_t *)
