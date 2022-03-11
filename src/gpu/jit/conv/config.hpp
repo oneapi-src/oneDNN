@@ -924,7 +924,8 @@ private:
 
         if (use_a_slm || use_b_slm) {
             bool is_small_tg = (tg_grid_dim[0] * tg_grid_dim[1] <= 8);
-            int pref_slm_bufs = (is_small_tg || is_f32_conv() ? 2 : 3);
+            int pref_slm_bufs
+                    = ((is_small_tg || is_f32_conv()) && mb > 1 ? 2 : 3);
             if (do_pipeline_unroll) {
                 slm_bufs = pref_slm_bufs;
                 gmem_bufs = (is_dp_fma() ? 2 : 1);
