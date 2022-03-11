@@ -32,10 +32,12 @@
 #include "src/gpu/ocl/ocl_usm_utils.hpp"
 #endif
 
+#include "tests/test_thread.hpp"
+
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-
+#include "utils/dnnl_query.hpp"
 #include "utils/parallel.hpp"
 
 dnn_mem_t::dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine)
@@ -119,12 +121,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
                 CRIT);
     }
     auto r_pd = make_benchdnn_dnnl_wrapper(r_pd_);
-
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                r_pd, dnnl_query_exec_arg_md, index);
-    };
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &scratchpad_md = query_md(r_pd, DNNL_ARG_SCRATCHPAD);
     dnn_mem_t scratchpad(scratchpad_md, src.engine());
 
     DNN_SAFE(dnnl_primitive_create(&prim_, r_pd), CRIT);
@@ -514,7 +511,7 @@ int dnn_mem_t::initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
         md_ = dnn_mem_t::init_md(md.ndims, md.dims, dt, tag);
     }
     engine_ = engine;
-    DNN_SAFE(dnnl_engine_get_kind(engine_, &engine_kind_), CRIT);
+    engine_kind_ = query_engine_kind(engine_);
 
     SAFE(initialize_memory_create(handle_info), CRIT);
 

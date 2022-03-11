@@ -120,22 +120,16 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
-
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
-    const auto &dst_md = q(DNNL_ARG_DST);
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
     dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
@@ -150,7 +144,8 @@ int doit(const prb_t *prb, res_t *res) {
     src_dt.reserve(prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
-        const auto &src_md = q(DNNL_ARG_MULTIPLE_SRC + i_input);
+        const auto &src_md
+                = query_md(const_pd, DNNL_ARG_MULTIPLE_SRC + i_input);
         src_fp.emplace_back(src_md, dnnl_f32, tag::abx, ref_engine);
         src_dt.emplace_back(src_md, test_engine);
         SAFE(fill_src(prb, i_input, src_dt[i_input], src_fp[i_input]), WARN);

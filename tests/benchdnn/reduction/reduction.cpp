@@ -187,17 +187,11 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
-
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
 
     const auto fp_dt = dnnl_f32;
     const auto abx_tag = tag::abx;
@@ -205,12 +199,12 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
 
-    const auto &src_md = q(DNNL_ARG_SRC);
+    const auto &src_md = query_md(const_pd, DNNL_ARG_SRC);
     dnn_mem_t src_fp(src_md, fp_dt, abx_tag, ref_engine);
     dnn_mem_t src_dt(src_md, test_engine);
     SAFE(fill_src(prb, src_dt, src_fp), WARN);
 
-    const auto &dst_md = q(DNNL_ARG_DST);
+    const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
     dnn_mem_t dst_fp(dst_md, fp_dt, abx_tag, ref_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)

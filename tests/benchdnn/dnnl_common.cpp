@@ -38,11 +38,12 @@
 #include "src/common/primitive_cache.hpp"
 #endif
 
-#include "dnnl_common.hpp"
-#include "dnnl_memory.hpp"
+#include "cpu/platform.hpp"
+
 #include "tests/test_thread.hpp"
 
-#include "cpu/platform.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 int check_pd_cache(dnnl_primitive_desc_t pd) {
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
@@ -308,15 +309,8 @@ dnnl_status_t primitive_executor(dnnl_primitive_t prim,
 int execute_and_wait(dnnl_primitive_t prim, const args_t &args, res_t *res) {
     perf_function_t exec_func = std::bind(&primitive_executor, prim,
             std::placeholders::_1, std::placeholders::_2);
-
-    const_dnnl_primitive_desc_t pd;
-    dnnl_engine_t engine;
-
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &pd), CRIT);
-
-    DNN_SAFE(
-            dnnl_primitive_desc_query(pd, dnnl_query_engine, 0, &engine), CRIT);
-
+    auto pd = query_pd(prim);
+    auto engine = query_engine(pd);
     return execute_and_wait(exec_func, engine, args, res);
 }
 
@@ -326,12 +320,6 @@ inline bool should_stop(const timer::timer_t &t) {
             || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
                     && t.times() >= min_times_per_prb);
     return stop;
-}
-
-dnnl_engine_kind_t get_engine_kind(const dnnl_engine_t &engine) {
-    dnnl_engine_kind_t engine_kind = dnnl_any_engine;
-    DNN_SAFE_V(dnnl_engine_get_kind(engine, &engine_kind));
-    return engine_kind;
 }
 
 inline int measure_perf_individual(timer::timer_t &t, dnnl_stream_t stream,
@@ -594,11 +582,11 @@ int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr) {
 }
 
 bool is_cpu(const dnnl_engine_t &engine) {
-    return get_engine_kind(engine) == dnnl_cpu;
+    return query_engine_kind(engine) == dnnl_cpu;
 }
 
 bool is_gpu(const dnnl_engine_t &engine) {
-    return get_engine_kind(engine) == dnnl_gpu;
+    return query_engine_kind(engine) == dnnl_gpu;
 }
 
 bool is_sycl_engine(const dnnl_engine_t &engine) {
@@ -760,13 +748,9 @@ static size_t get_md_size(const dnnl_memory_desc_t *md,
 
 static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
         bool want_input, bool add_ref_size = false) {
-    const int n_idx = dnnl_primitive_desc_query_s32(const_pd,
-            want_input ? dnnl_query_num_of_inputs_s32
-                       : dnnl_query_num_of_outputs_s32,
-            0);
-
-    dnnl_prop_kind_t prop_kind = dnnl_prop_kind_undef;
-    dnnl_primitive_desc_query(const_pd, dnnl_query_prop_kind, 0, &prop_kind);
+    const int n_idx
+            = want_input ? query_n_inputs(const_pd) : query_n_outputs(const_pd);
+    const auto prop_kind = query_prop_kind(const_pd);
     const bool is_fwd = prop_kind == dnnl_forward_training
             || prop_kind == dnnl_forward_inference
             || prop_kind == dnnl_prop_kind_undef;
@@ -788,15 +772,15 @@ static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
     if (want_input) {
         for_(const auto query : query_in_mds)
         for (int idx = 0; idx < n_idx; ++idx) {
-            const auto md = dnnl_primitive_desc_query_md(const_pd, query, idx);
-            total_mem_size += get_md_size(md, add_ref_size);
+            const auto &md = query_md(const_pd, query, idx);
+            total_mem_size += get_md_size(&md, add_ref_size);
         }
     } else {
         const bool add_ref_out_size = true;
         for_(const auto query : query_out_mds)
         for (int idx = 0; idx < n_idx; ++idx) {
-            const auto md = dnnl_primitive_desc_query_md(const_pd, query, idx);
-            total_mem_size += get_md_size(md, add_ref_size, add_ref_out_size);
+            const auto &md = query_md(const_pd, query, idx);
+            total_mem_size += get_md_size(&md, add_ref_size, add_ref_out_size);
         }
     }
 
@@ -820,14 +804,9 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     size_t total_mem_size = get_memory_bytes(const_pd, inputs, add_ref_size)
             + get_memory_bytes(const_pd, outputs, add_ref_size);
 
-    const auto scratchpad = dnnl_primitive_desc_query_md(
-            const_pd, dnnl_query_scratchpad_md, 0);
-    total_mem_size += get_md_size(scratchpad, add_ref_size);
-
-    int64_t library_internal_mem_size = 0;
-    dnnl_primitive_desc_query(const_pd, dnnl_query_memory_consumption_s64, 0,
-            &library_internal_mem_size);
-    total_mem_size += library_internal_mem_size;
+    const auto &scratchpad = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
+    total_mem_size += get_md_size(&scratchpad, add_ref_size);
+    total_mem_size += query_mem_consumption(const_pd);
 
     return validate_mem_size(total_mem_size);
 }
@@ -837,20 +816,13 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     res->obytes = get_memory_bytes(const_pd, /* want_input = */ false);
 
     // Update read bytes with dst bytes in case of sum post-op.
-    const_dnnl_primitive_attr_t const_attr;
-    DNN_SAFE(dnnl_primitive_desc_get_attr(const_pd, &const_attr), WARN);
-
-    const_dnnl_post_ops_t const_attr_po;
-    DNN_SAFE(
-            dnnl_primitive_attr_get_post_ops(const_attr, &const_attr_po), WARN);
-
+    auto const_attr_po = query_post_ops(const_pd);
     auto po_len = dnnl_post_ops_len(const_attr_po);
     for (int idx = 0; idx < po_len; ++idx) {
         const auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
         if (kind == dnnl_sum) {
-            const auto dst_md = dnnl_primitive_desc_query_md(
-                    const_pd, dnnl_query_dst_md, 0);
-            res->ibytes += get_md_size(dst_md);
+            const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+            res->ibytes += get_md_size(&dst_md);
         }
     }
     return OK;

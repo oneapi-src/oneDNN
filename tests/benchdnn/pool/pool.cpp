@@ -239,22 +239,16 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_fpd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_fpd), CRIT);
+    auto const_fpd = query_pd(prim);
 
     if (check_mem_size(const_fpd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [](const_dnnl_primitive_desc_t pd,
-                           int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
-    };
-
-    const auto &src_md = q(const_fpd, DNNL_ARG_SRC);
-    const auto &dst_md = q(const_fpd, DNNL_ARG_DST);
-    const auto &ws_md = q(const_fpd, DNNL_ARG_WORKSPACE);
-    const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
+    const auto &src_md = query_md(const_fpd, DNNL_ARG_SRC);
+    const auto &dst_md = query_md(const_fpd, DNNL_ARG_DST);
+    const auto &ws_md = query_md(const_fpd, DNNL_ARG_WORKSPACE);
+    const auto &scratchpad_md = query_md(const_fpd, DNNL_ARG_SCRATCHPAD);
 
     SAFE(!check_md_consistency_with_tag(dst_md, prb->tag), WARN);
 
@@ -312,16 +306,15 @@ int doit(const prb_t *prb, res_t *res) {
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
         prim.reset(tmp_prim.release());
 
-        const_dnnl_primitive_desc_t const_bpd;
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_bpd), CRIT);
+        auto const_bpd = query_pd(prim);
 
         if (check_mem_size(const_bpd) != OK) {
             return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
         }
 
-        const auto &d_dst_md = q(const_bpd, DNNL_ARG_DIFF_DST);
-        const auto &d_src_md = q(const_bpd, DNNL_ARG_DIFF_SRC);
-        const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
+        const auto &d_dst_md = query_md(const_bpd, DNNL_ARG_DIFF_DST);
+        const auto &d_src_md = query_md(const_bpd, DNNL_ARG_DIFF_SRC);
+        const auto &d_scratchpad_md = query_md(const_bpd, DNNL_ARG_SCRATCHPAD);
 
         dnn_mem_t d_dst_fp = dnn_mem_t(d_dst_md, fp, tag, ref_engine);
         d_dst_dt = dnn_mem_t(d_dst_md, prb->cfg[DST].dt, test_engine);

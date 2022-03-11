@@ -65,24 +65,14 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
     // library and extract expected md from pd; 2) pass a vector of pre-defined
     // (no run-time values) of `po_md`s and create memories from them in case
     // the library will lack of query mechanism.
-    const_dnnl_primitive_attr_t const_attr;
-    DNN_SAFE(dnnl_primitive_desc_get_attr(pd, &const_attr), WARN);
-
-    const_dnnl_post_ops_t const_attr_po;
-    DNN_SAFE(
-            dnnl_primitive_attr_get_post_ops(const_attr, &const_attr_po), WARN);
-
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
-    };
-
+    auto const_attr_po = query_post_ops(pd);
     auto po_len = dnnl_post_ops_len(const_attr_po);
     for (int idx = 0; idx < po_len; ++idx) {
         auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
         if (kind != dnnl_binary) continue;
 
         int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
-        const auto &po_md = q(po_idx);
+        const auto &po_md = query_md(pd, po_idx);
 
         // Following call can not be executed if po_md has runtime dimension due
         // to undefined size.
@@ -226,22 +216,16 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
-
-    const auto &src0_md = q(DNNL_ARG_SRC_0);
-    const auto &src1_md = q(DNNL_ARG_SRC_1);
-    const auto &dst_md = q(DNNL_ARG_DST);
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &src0_md = query_md(const_pd, DNNL_ARG_SRC_0);
+    const auto &src1_md = query_md(const_pd, DNNL_ARG_SRC_1);
+    const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
     const auto tag = tag::abx;
