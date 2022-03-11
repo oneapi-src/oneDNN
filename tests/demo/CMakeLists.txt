@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ function(register_demo name srcs)
     add_executable(${name} ${srcs})
     target_include_directories(${name}
         PRIVATE
+        ${PROJECT_SOURCE_DIR}/examples/cpp/include
         ${PROJECT_SOURCE_DIR}/tests/demo/include
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_BINARY_DIR}/third_party/oneDNN/include

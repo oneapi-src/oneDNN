@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,11 @@
 /// * how to compile a partition
 /// * how to execute a compiled partition
 ///
+/// Some assumptions in this example:
+///
+/// * Only workflow is demonstrated without checking correctness
+/// * Unsupported partitions should be handled by users themselves
+///
 
 /// @page sycl_get_started_cpp
 /// @section sycl_get_started_cpp_headers Public headers
@@ -47,12 +52,23 @@ using namespace dnnl::graph;
 using namespace cl::sycl;
 //[Headers and namespace]
 
-#include "example_utils.hpp"
+#include <iostream>
+#include <memory>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
+
+#include "common/example_utils.hpp"
+#include "common/helpers_any_layout.hpp"
+
+using data_type = logical_tensor::data_type;
+using layout_type = logical_tensor::layout_type;
 
 /// @page sycl_get_started_cpp
 /// @section sycl_get_started_cpp_tutorial sycl_get_started_tutorial() function
 ///
 void sycl_get_started_tutorial(engine::kind ekind) {
+    // clang-format off
     std::vector<int64_t> conv0_input_dims {8, 3, 227, 227};
     std::vector<int64_t> conv0_weight_dims {96, 3, 11, 11};
     std::vector<int64_t> conv0_bias_dims {96};
@@ -77,15 +93,19 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     /// In oneDNN graph, #dnnl::graph::logical_tensor is used to express such relationship.
     /// So, next step is to create logical tensors for these ops including inputs and outputs.
     ///
+    /// @note It's not necessary to provide concrete shape/layout information
+    /// at graph partitioning stage. Users can provide these information till
+    /// compilation stage.
+    ///
     /// Create input/output #dnnl::graph::logical_tensor for first `Convolution` op.
     /// @snippet sycl_get_started.cpp Create conv's logical tensor
     //[Create conv's logical tensor]
-    logical_tensor conv0_src_desc {0, logical_tensor::data_type::f32,
-            conv0_input_dims, logical_tensor::layout_type::strided};
-    logical_tensor conv0_weight_desc {1, logical_tensor::data_type::f32,
-            conv0_weight_dims, logical_tensor::layout_type::strided};
-    logical_tensor conv0_dst_desc {2, logical_tensor::data_type::f32, 4,
-            logical_tensor::layout_type::strided};
+    logical_tensor conv0_src_desc {0, data_type::f32,
+            conv0_input_dims, layout_type::undef};
+    logical_tensor conv0_weight_desc {1, data_type::f32,
+            conv0_weight_dims, layout_type::undef};
+    logical_tensor conv0_dst_desc {2, data_type::f32, 4,
+            layout_type::undef};
     //[Create conv's logical tensor]
 
     /// Create first `Convolution` op (#dnnl::graph::op) and attaches attributes to it,
@@ -106,10 +126,10 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     /// Create input/output logical tensors for first `BiasAdd` op.
     /// @snippet sycl_get_started.cpp Create biasadd's logical tensor
     //[Create biasadd's logical tensor]
-    logical_tensor conv0_bias_desc {4, logical_tensor::data_type::f32,
-            conv0_bias_dims, logical_tensor::layout_type::strided};
-    logical_tensor conv0_bias_add_dst_desc {5, logical_tensor::data_type::f32,
-            4, logical_tensor::layout_type::strided};
+    logical_tensor conv0_bias_desc {4, data_type::f32,
+            conv0_bias_dims, layout_type::undef};
+    logical_tensor conv0_bias_add_dst_desc {5, data_type::f32,
+            4, layout_type::undef};
     //[Create biasadd's logical tensor]
 
     /// Create first `BiasAdd` op.
@@ -122,8 +142,8 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     /// Create output logical tensors for first `Relu` op.
     /// @snippet sycl_get_started.cpp Create relu's logical tensor
     //[Create relu's logical tensor]
-    logical_tensor relu0_dst_desc {7, logical_tensor::data_type::f32, 4,
-            logical_tensor::layout_type::strided};
+    logical_tensor relu0_dst_desc {7, data_type::f32, 4,
+            layout_type::undef};
     //[Create relu's logical tensor]
 
     /// Create first `Relu` op.
@@ -136,10 +156,10 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     /// Create input/output logical tensors for second `Convolution` op.
     /// @snippet sycl_get_started.cpp Create conv's second logical tensor
     //[Create conv's second logical tensor]
-    logical_tensor conv1_weight_desc {9, logical_tensor::data_type::f32,
-            conv1_weight_dims, logical_tensor::layout_type::strided};
-    logical_tensor conv1_dst_desc {10, logical_tensor::data_type::f32, 4,
-            logical_tensor::layout_type::strided};
+    logical_tensor conv1_weight_desc {9, data_type::f32,
+            conv1_weight_dims, layout_type::undef};
+    logical_tensor conv1_dst_desc {10, data_type::f32, 4,
+            layout_type::undef};
     //[Create conv's second logical tensor]
 
     /// Create second `Convolution` op and also attaches required attributes to it.
@@ -159,10 +179,10 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     /// Create input/output logical tensors for second `BiasAdd` op.
     /// @snippet sycl_get_started.cpp Create biasadd's second logical tensor
     //[Create biasadd's second logical tensor]
-    logical_tensor conv1_bias_desc {12, logical_tensor::data_type::f32,
-            conv1_bias_dims, logical_tensor::layout_type::strided};
-    logical_tensor conv1_bias_add_dst_desc {13, logical_tensor::data_type::f32,
-            4, logical_tensor::layout_type::strided};
+    logical_tensor conv1_bias_desc {12, data_type::f32,
+            conv1_bias_dims, layout_type::undef};
+    logical_tensor conv1_bias_add_dst_desc {13, data_type::f32,
+            4, layout_type::undef};
     //[Create biasadd's second logical tensor]
 
     /// Create second `BiasAdd` op.
@@ -175,8 +195,8 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     /// Create output logical tensors for second `Relu` op.
     /// @snippet sycl_get_started.cpp Create relu's second logical tensor
     //[Create relu's second logical tensor]
-    logical_tensor relu1_dst_desc {15, logical_tensor::data_type::f32, 4,
-            logical_tensor::layout_type::strided};
+    logical_tensor relu1_dst_desc {15, data_type::f32, 4,
+            layout_type::undef};
     //[Create relu's second logical tensor]
 
     /// Create second `Relu` op.
@@ -188,6 +208,9 @@ void sycl_get_started_tutorial(engine::kind ekind) {
 
     /// Finally, those created ops will be added into the graph. The graph
     /// internally will maintain a list to store all of these ops.
+    ///
+    /// @note The order of adding op doesn't matter.
+    ///
     /// @snippet sycl_get_started.cpp Add op
     //[Add op]
     g.add_op(conv0);
@@ -211,10 +234,18 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     auto partitions = g.get_partitions();
     //[Get partition]
 
-    if (partitions.size() != 2) {
-        throw std::runtime_error(
-                "sycl_get_started: incorrect partition number");
-    }
+    /// Contains the ids of logical tensors which will be set with any layout
+    std::unordered_set<size_t> ids_with_any_layout;
+    /// This is a helper function which helps decide which logical tensor is
+    /// needed to be set with `dnnl::graph::logical_tensor::layout_type::any`
+    /// layout. Typically, users need implement the similar logic in their code
+    /// for best performance.
+    set_any_layout(partitions, ids_with_any_layout);
+
+    /// Below codes are to create runtime objects like allocator, engine and stream.
+    /// Unlike CPU example, users need provide sycl device, sycl context, and sycl queue.
+    /// oneDNN Graph provides different interoperability APIs which are defined
+    /// at `dnnl_graph_sycl.hpp`.
 
     /// @page sycl_get_started_cpp
     /// @subsection sycl_get_started_cpp_compile Compile partition
@@ -227,8 +258,7 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     /// and #dnnl_graph_sycl_deallocate_f call-back functions.
     /// @snippet sycl_get_started.cpp Create allocator
     //[Create allocator]
-    allocator alloc = sycl_interop::make_allocator(
-            sycl_malloc_wrapper, sycl_free_wrapper);
+    allocator alloc = sycl_interop::make_allocator(sycl_malloc_wrapper, sycl_free_wrapper);
     //[Create allocator]
 
     /// Define SYCL queue (code outside of oneDNN graph)
@@ -248,110 +278,115 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     eng.set_allocator(alloc);
     //[Create engine]
 
-    /// Compile the partition 0 to generate compiled partition with the
-    /// input and output logical tensors.
-    /// @snippet sycl_get_started.cpp Compile partition 0
-    //[Compile partition 0]
-    auto cp0 = partitions[0].compile(
-            {conv0_src_desc, conv0_weight_desc, conv0_bias_desc},
-            {relu0_dst_desc}, eng);
-    //[Compile partition 0]
-
-    /// Get the output logical tensor from compiled partition 0. The logical
-    /// tensor should contain the correct output shape and layout information.
-    /// @snippet sycl_get_started.cpp Get output logical tensor of cp0
-    //[Get output logical tensor of cp0]
-    logical_tensor relu0_dst_desc_q
-            = cp0.query_logical_tensor(relu0_dst_desc.get_id());
-    //[Get output logical tensor of cp0]
-
-    /// Compile the partition 1 to generate compiled partition with the
-    /// input and output logical tensors.
-    /// @snippet sycl_get_started.cpp Compile partition 1
-    //[Compile partition 1]
-    auto cp1 = partitions[1].compile(
-            {relu0_dst_desc_q, conv1_weight_desc, conv1_bias_desc},
-            {relu1_dst_desc}, eng);
-    //[Compile partition 1]
-
-    /// Get the output logical tensor from compiled partition 1. The logical
-    /// tensor should contain the correct output shape and layout information.
-    /// @snippet sycl_get_started.cpp Get output logical tensor of cp1
-    //[Get output logical tensor of cp1]
-    logical_tensor relu1_dst_desc_q
-            = cp1.query_logical_tensor(relu1_dst_desc.get_id());
-    //[Get output logical tensor of cp1]
-
-    /// @page sycl_get_started_cpp
-    /// @subsection sycl_get_started_cpp_execute Execute compiled partition
+    /// Create a #dnnl::graph::stream on the given engine
     ///
-
-    /// Create a stream on the engine associated with a sycl queue.
     /// @snippet sycl_get_started.cpp Create stream
     //[Create stream]
-    auto strm = sycl_interop::make_stream(eng, q);
+    dnnl::graph::stream strm = sycl_interop::make_stream(eng, q);
     //[Create stream]
 
-    /// Prepare SYCL USM buffer (code outside of oneDNN graph)
-    /// @snippet sycl_get_started.cpp Prepare USM
-    //[Prepare USM]
-    auto conv0_src_data = (float *)malloc_shared(
-            conv0_src_desc.get_mem_size(), q.get_device(), q.get_context());
-    auto conv0_weight_data = (float *)malloc_shared(
-            conv0_weight_desc.get_mem_size(), q.get_device(), q.get_context());
-    auto conv0_bias_data = (float *)malloc_shared(
-            conv0_bias_desc.get_mem_size(), q.get_device(), q.get_context());
-    auto relu0_dst_data = (float *)malloc_shared(
-            relu0_dst_desc_q.get_mem_size(), q.get_device(), q.get_context());
-    auto conv1_weight_data = (float *)malloc_shared(
-            conv1_weight_desc.get_mem_size(), q.get_device(), q.get_context());
-    auto conv1_bias_data = (float *)malloc_shared(
-            conv1_bias_desc.get_mem_size(), q.get_device(), q.get_context());
-    auto relu1_dst_data = (float *)malloc_shared(
-            relu1_dst_desc_q.get_mem_size(), q.get_device(), q.get_context());
-    //[Prepare USM]
+    // mapping from logical tensor id to output tensors
+    // used to the connection relationship between partitions (e.g partition 0's
+    // output tensor is fed into partition 1)
+    std::unordered_map<size_t, tensor> global_outputs_ts_map;
+    // manage the lifetime of memory buffers binded to those input/output tensors
+    std::vector<std::shared_ptr<void>> data_buffers;
 
-    /// Prepare the input/output tensors with the data buffer for the partition 0.
-    /// @snippet sycl_get_started.cpp Prepare tensors for cp0
-    //[Prepare tensors for cp0]
-    tensor conv0_src_ts {conv0_src_desc, eng, conv0_src_data};
-    tensor conv0_weight_ts {conv0_weight_desc, eng, conv0_weight_data};
-    tensor conv0_bias_ts {conv0_bias_desc, eng, conv0_bias_data};
-    tensor relu0_dst_ts {relu0_dst_desc_q, eng, relu0_dst_data};
-    //[Prepare tensors for cp0]
+    // mapping from id to queried logical tensor from compiled partition
+    // used to record the logical tensors that are previously enabled with ANY layout
+    std::unordered_map<size_t, logical_tensor> id_to_queried_logical_tensors;
 
-    /// Execute the compiled partition 0 on the specified stream.
-    /// @snippet sycl_get_started.cpp Execute compiled partition 0
-    //[Execute compiled partition 0]
-    std::vector<tensor> cp0_outputs = {relu0_dst_ts};
-    sycl_interop::execute(cp0, strm,
-            {conv0_src_ts, conv0_weight_ts, conv0_bias_ts}, cp0_outputs);
-    //[Execute compiled partition 0]
+    for (const auto &partition : partitions) {
+        if (partition.is_supported()) {
+            std::vector<logical_tensor> inputs = partition.get_in_ports();
+            std::vector<logical_tensor> outputs = partition.get_out_ports();
 
-    /// Prepare the input/output tensors with the data buffer for the partition 1.
-    /// @snippet sycl_get_started.cpp Prepare tensors for cp1
-    //[Prepare tensors for cp1]
-    tensor conv1_weight_ts {conv1_weight_desc, eng, conv1_weight_data};
-    tensor conv1_bias_ts {conv1_bias_desc, eng, conv1_bias_data};
-    tensor relu1_dst_ts {relu1_dst_desc_q, eng, relu1_dst_data};
-    //[Prepare tensors for cp1]
+            // update input logical tensors with concrete layout
+            for (size_t idx = 0; idx < inputs.size(); ++idx) {
+                size_t id = inputs[idx].get_id();
+                // the tensor is an output of another partition
+                if (id_to_queried_logical_tensors.find(id)
+                        != id_to_queried_logical_tensors.end())
+                    inputs[idx] = id_to_queried_logical_tensors[id];
+                else {
+                    auto ori_lt = inputs[idx];
+                    // create logical tensor with strided layout
+                    inputs[idx] = logical_tensor {ori_lt.get_id(),
+                            ori_lt.get_data_type(), ori_lt.get_dims(),
+                            layout_type::strided};
+                }
+            }
 
-    /// Execute the compiled partition 1 on the specified stream.
-    /// @snippet sycl_get_started.cpp Execute compiled partition 1
-    //[Execute compiled partition 1]
-    std::vector<tensor> cp1_outputs = {relu1_dst_ts};
-    sycl_interop::execute(cp1, strm,
-            {relu0_dst_ts, conv1_weight_ts, conv1_bias_ts}, cp1_outputs);
+            // update output logical tensors with concrete layout
+            for (size_t idx = 0; idx < outputs.size(); ++idx) {
+                size_t id = outputs[idx].get_id();
+                layout_type ltype = layout_type::strided;
+                if (ids_with_any_layout.count(id)) ltype = layout_type::any;
+                auto ori_lt = outputs[idx];
+                // create logical tensor with strided/any layout
+                outputs[idx] = logical_tensor {ori_lt.get_id(),
+                        ori_lt.get_data_type(), ori_lt.get_dims(), ltype};
+            }
+
+            /// Compile the partition 0 to generate compiled partition with the
+            /// input and output logical tensors.
+            /// @snippet cpu_get_started.cpp Compile partition
+            //[Compile partition]
+            compiled_partition cp = partition.compile(inputs, outputs, eng);
+            //[Compile partition]
+
+            // update output logical tensors with queried one
+            for (size_t idx = 0; idx < outputs.size(); ++idx) {
+                size_t id = outputs[idx].get_id();
+                outputs[idx] = cp.query_logical_tensor(id);
+                id_to_queried_logical_tensors[id] = outputs[idx];
+            }
+
+            // Binding data buffers with input and output logical tensors
+            std::vector<tensor> inputs_ts, outputs_ts;
+            inputs_ts.reserve(inputs.size());
+            outputs_ts.reserve(outputs.size());
+            for (const auto &in : inputs) {
+                size_t id = in.get_id();
+                size_t mem_size = in.get_mem_size();
+                // check if the input is an output of another partition
+                auto pos = global_outputs_ts_map.find(id);
+                if (pos != global_outputs_ts_map.end()) {
+                    inputs_ts.push_back(pos->second);
+                    continue;
+                }
+                // memory allocation
+                data_buffers.push_back({});
+                data_buffers.back().reset(
+                        cl::sycl::malloc_shared(mem_size, q.get_device(), q.get_context()), sycl_deletor {q.get_context()});
+                inputs_ts.push_back(
+                        tensor {in, eng, data_buffers.back().get()});
+            }
+
+            for (const auto &out : outputs) {
+                size_t mem_size = out.get_mem_size();
+                // memory allocation
+                data_buffers.push_back({});
+                data_buffers.back().reset(
+                        cl::sycl::malloc_device(
+                                mem_size, q.get_device(), q.get_context()), sycl_deletor {q.get_context()});
+                outputs_ts.push_back(tensor {out, eng, data_buffers.back().get()});
+                global_outputs_ts_map[out.get_id()] = outputs_ts.back();
+            }
+
+            /// Execute the compiled partition 1 on the specified stream.
+            /// @snippet cpu_get_started.cpp Execute compiled partition 1
+            //[Execute compiled partition]
+            sycl_interop::execute(cp, strm, inputs_ts, outputs_ts);
+            //[Execute compiled partition]
+        } else {
+            std::cout << "sycl_get_started: got unsupported partition, users need "
+                "handle the operators by themselves." << std::endl;
+        }
+    }
+    // wait for all compiled partition's execution finished
     strm.wait();
-    //[Execute compiled partition 1]
-
-    free(conv0_src_data, q.get_context());
-    free(conv0_weight_data, q.get_context());
-    free(conv0_bias_data, q.get_context());
-    free(relu0_dst_data, q.get_context());
-    free(conv1_weight_data, q.get_context());
-    free(conv1_bias_data, q.get_context());
-    free(relu1_dst_data, q.get_context());
+    // clang-format on
 
     /// @page sycl_get_started_cpp Getting started on GPU with SYCL extensions API
 }

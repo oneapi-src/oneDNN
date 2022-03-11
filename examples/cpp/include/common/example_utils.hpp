@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,12 +19,58 @@
 
 #include <iostream>
 #include <numeric>
+#include <unordered_set>
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
+
+#define EXAMPLE_SWITCH_TYPE(type_enum, type_key, ...) \
+    switch (type_enum) { \
+        case dnnl::graph::logical_tensor::data_type::f32: { \
+            using type_key = float; \
+            __VA_ARGS__ \
+        } break; \
+        case dnnl::graph::logical_tensor::data_type::f16: { \
+            using type_key = int16_t; \
+            __VA_ARGS__ \
+        } break; \
+        case dnnl::graph::logical_tensor::data_type::bf16: { \
+            using type_key = uint16_t; \
+            __VA_ARGS__ \
+        } break; \
+        case dnnl::graph::logical_tensor::data_type::u8: { \
+            using type_key = uint8_t; \
+            __VA_ARGS__ \
+        } break; \
+        case dnnl::graph::logical_tensor::data_type::s8: { \
+            using type_key = int8_t; \
+            __VA_ARGS__ \
+        } break; \
+        default: \
+            throw std::runtime_error( \
+                    "Not supported data type in current example."); \
+    }
+
+struct cpu_deletor {
+    cpu_deletor() = default;
+    void operator()(void *ptr) {
+        if (ptr) free(ptr);
+    }
+};
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+struct sycl_deletor {
+    sycl_deletor() = delete;
+    cl::sycl::context ctx_;
+    sycl_deletor(const cl::sycl::context &ctx) : ctx_(ctx) {}
+    void operator()(void *ptr) {
+        if (ptr) cl::sycl::free(ptr, ctx_);
+    }
+};
+#endif
 
 inline int64_t product(const std::vector<int64_t> &dims) {
     return dims.empty() ? 0
@@ -53,6 +99,19 @@ dnnl::graph::engine::kind parse_engine_kind(int argc, char **argv) {
               << "Please run the example like: " << argv[0] << " [cpu|gpu]"
               << "." << std::endl;
     exit(1);
+}
+
+// fill the memory according to the given value
+//  src -> target memory buffer
+//  total_size -> total number of bytes of this buffer
+//  val -> fixed value for initialization
+template <typename T>
+void fill_buffer(void *src, size_t total_size, int val) {
+    size_t num_elem = static_cast<size_t>(total_size / sizeof(T));
+    T *src_casted = static_cast<T *>(src);
+    // can be implemented through OpenMP
+    for (size_t i = 0; i < num_elem; ++i)
+        *(src_casted + i) = static_cast<T>(val);
 }
 
 #ifdef DNNL_GRAPH_WITH_SYCL

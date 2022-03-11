@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
-/// Set ANY layout according to the connection relationship of partitions
+/// Set any layout according to the connection relationship of partitions
 ///
 /// @param partitions a list of partitions
 /// @param id_to_set_any_layout a set of ids of logical tensors with any layout
@@ -33,7 +33,7 @@
 void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
         std::unordered_set<size_t> &id_to_set_any_layout) {
     // mapping from output tensor id to the all supported flags of
-    // partitions, we may only need outputs' supported flags
+    // supported partitions, we may only need outputs' supported flags
     std::unordered_map<size_t, std::vector<bool>> output_to_flag_map;
     for (const auto &p : partitions) {
         for (const auto &out : p.get_out_ports()) {
@@ -50,23 +50,22 @@ void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
             auto iter = output_to_flag_map.find(id);
             if (iter != output_to_flag_map.end()) {
                 // collect all of supported flags of this tensor's uses
-                // (including end partition)
                 // Considering we have such a graph:
                 //
-                //      A             B
+                //   partition_A  partition_B
                 //        \           |
                 //      tensor1    tensor2
-                //           \     /   |
-                //              C     End
+                //           \     /     |
+                //         partition_C  unsuppported partition
                 //              |
                 //           tensor3
                 //              |
-                //             End
+                //          framework op
                 //
-                // so the mapping of partition A's output will be { true }
-                // the mapping of partition B's output will be { true, false }
-                // The mapping of partition C's output will be { false }
-                // Only when all supported flags are true, user can set ANY
+                // so the mapping of partition_A's output will be { true }
+                // the mapping of partition_B's output will be { true, false }
+                // The mapping of partition_C's output will be { false }
+                // Only when all supported flags are true, users can set any
                 // layout.
                 iter->second.push_back(p.is_supported());
             }
