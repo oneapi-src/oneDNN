@@ -326,6 +326,21 @@ void sc_graph_t::reset_op_ids() {
     }
 }
 
+void sc_graph_t::resort_op_ids(
+        const std::unordered_map<sc_op_ptr, int> &op_id_map) {
+    std::sort(ops_.begin(), ops_.end(),
+            [&op_id_map](const sc_op_ptr &A, const sc_op_ptr &B) {
+                auto A_iter = op_id_map.find(A), B_iter = op_id_map.find(B);
+                COMPILE_ASSERT(
+                        A_iter != op_id_map.end() && B_iter != op_id_map.end(),
+                        "op id map is not enough, could not do sorting")
+                return A_iter->second < B_iter->second;
+            });
+    for (size_t i = 0; i < ops_.size(); ++i) {
+        ops_[i]->logical_op_id_ = i;
+    }
+}
+
 float sc_graph_t::get_gflop() const {
     float gflop = 0.f;
     for (auto &op : ops_) {

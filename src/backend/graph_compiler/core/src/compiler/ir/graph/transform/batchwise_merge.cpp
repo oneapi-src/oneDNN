@@ -164,8 +164,21 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
         if (!parti || parti->ops.empty() || parti->ops.size() < 2) return;
         for (auto &op : parti->ops) {
             if (op->isa<tensor_view_op_t>()) {
-                op->attrs_[op_attr_key::bwise_no_fuse] = true;
-                failed_ops.insert(op);
+                for (auto &user : op->get_outputs()[0]->uses_) {
+                    if (parti->ops.find(user.second.get_shared())
+                            == parti->ops.end()) {
+                        op->attrs_[op_attr_key::bwise_no_fuse] = true;
+                        failed_ops.insert(op);
+                        break;
+                    }
+                }
+                if (parti->ops.find(
+                            op->get_inputs()[0]
+                                    ->producer_owner_->shared_from_this())
+                        == parti->ops.end()) {
+                    op->attrs_[op_attr_key::bwise_no_fuse] = true;
+                    failed_ops.insert(op);
+                }
             } else if (auto reo = op->dyn_cast<reorder_op_t>()) {
                 if (reo->attrs_.get_or_else(
                             op_attr_key::bwise_strided, false)) {
