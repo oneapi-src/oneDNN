@@ -457,7 +457,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
             scale_t ori_scales;
             int ori_mask;
             prm_attr.get_output_scales(ori_mask, ori_scales);
-            ori_mask = 2; // the second axis
+            ori_mask = !ori_mask ? 0 : 2; // per tensor mask or the second axis
             prm_attr.set_output_scales(ori_mask, ori_scales);
         }
     }
