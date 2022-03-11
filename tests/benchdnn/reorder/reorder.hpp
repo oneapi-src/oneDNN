@@ -103,6 +103,7 @@ struct prb_t : public prb_dims_t {
         if (dst_zp) zfree(dst_zp);
     }
 
+    dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     std::string stag, dtag;
     dt_conf_t conf_in;
     dt_conf_t conf_out;

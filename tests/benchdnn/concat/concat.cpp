@@ -59,9 +59,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     else
         SAFE(init_status, WARN);
 
-    res->impl_name = query_impl_info(cpd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-
     return OK;
 }
 
@@ -103,7 +100,7 @@ int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->sdt, prb->ddt}, FWD_D, res);
+    check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
     check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return;
 

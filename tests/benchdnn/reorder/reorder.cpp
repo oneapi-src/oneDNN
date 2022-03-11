@@ -192,16 +192,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         return res->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
 
-    res->impl_name = query_impl_info(rpd);
-    if (maybe_skip(res->impl_name)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
-                res->impl_name.c_str());
-        return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
-    } else {
-        BENCHDNN_PRINT(
-                5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-    }
-
     return OK;
 }
 
@@ -215,7 +205,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     const auto sdt = prb->conf_in->dt;
     const auto ddt = prb->conf_out->dt;
-    check_known_skipped_case_common({sdt, ddt}, FWD_D, res);
+    check_known_skipped_case_common({sdt, ddt}, prb->dir, res);
     if (res->state == SKIPPED) return;
 
     // zero points for dst do not support sum by design

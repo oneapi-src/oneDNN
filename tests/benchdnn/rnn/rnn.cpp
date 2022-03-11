@@ -763,12 +763,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
         return res->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
 
-    // Return if pd is not the one being tested
-    if ((dir & FLAG_FWD) && (prb.prop == dnnl_backward)) return OK;
-
-    res->impl_name = query_impl_info(rpd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-
     return OK;
 }
 

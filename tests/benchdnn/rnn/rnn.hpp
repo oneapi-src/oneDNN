@@ -264,6 +264,7 @@ struct prb_t : public desc_t {
         : desc_t(desc)
         , cfg(cfg)
         , prop(prop2prop_kind(prop))
+        , dir(prop)
         , alg(alg)
         , with_peephole(with_peephole)
         , with_projection(with_projection)
@@ -389,6 +390,7 @@ struct prb_t : public desc_t {
 
     const dt_conf_t &cfg;
     dnnl_prop_kind_t prop;
+    dir_t dir; // Same as `prop`, for compatibility. TODO: remove me;
     alg_t alg;
     bool with_peephole, with_projection;
     dnnl_rnn_direction_t direction;

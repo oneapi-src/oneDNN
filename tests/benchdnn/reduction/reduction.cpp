@@ -55,16 +55,6 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
     else
         SAFE(init_status, WARN);
 
-    res->impl_name = query_impl_info(rpd);
-    if (maybe_skip(res->impl_name)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
-                res->impl_name.c_str());
-        return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
-    } else {
-        BENCHDNN_PRINT(
-                5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-    }
-
     return OK;
 }
 
@@ -149,7 +139,7 @@ int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->sdt, prb->ddt}, FWD_D, res);
+    check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
     if (res->state == SKIPPED) return;
 
     const bool is_invalid = is_norm_alg(prb->alg)

@@ -115,6 +115,7 @@ struct prb_t : public prb_vdims_t {
     }
 
     int m, n, k;
+    dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     const dt_conf_t *cfg;
     std::string stag, wtag, dtag;
     vdims_t strides;

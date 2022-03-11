@@ -155,9 +155,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         return res->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
 
-    res->impl_name = query_impl_info(ppd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-
     return OK;
 }
 
