@@ -150,18 +150,16 @@ sc_graph_t shrink_graph(const sc_graph_t &graph, gt2gt_map &lt_map) {
     sc_graph_t shrinked_graph;
     op_visitor_t vis(op_visitor_t::dequeue_selector,
             op_visitor_t::create_DAG_updater(graph.ops_.size()));
-
+    std::unordered_map<sc_op_ptr, int> op_id_map;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         sc_op_ptr new_node;
         if (node->dyn_cast<input_op>()) {
             new_node = shrinked_graph.make_input(
                     {lt_map.get(node->get_outputs()[0])});
-            // "unique_id" for integration
             new_node->attrs_ = node->attrs_;
         } else if (node->dyn_cast<output_op>()) {
             new_node = new_node = shrinked_graph.make_output(
                     {lt_map.get(node->get_inputs()[0])});
-            // "unique_id" for integration
             new_node->attrs_ = node->attrs_;
         } else if (node->dyn_cast<constant_op_t>()) {
             new_node = node->dyn_cast<op_traits::copyable_t>()->copy(
@@ -169,11 +167,11 @@ sc_graph_t shrink_graph(const sc_graph_t &graph, gt2gt_map &lt_map) {
         } else if (auto bw_node
                 = node->dyn_cast<op_traits::batchwise_shrinkable_t>()) {
             new_node = bw_node->bw_shrinked_copy(lt_map, shrinked_graph);
-            // "unique_id" for integration
-            new_node->attrs_ = node->attrs_;
         }
+        op_id_map[new_node] = node->logical_op_id_;
     });
     shrinked_graph.attrs_ = graph.attrs_;
+    shrinked_graph.resort_op_ids(op_id_map);
     return shrinked_graph;
 }
 
@@ -187,12 +185,10 @@ fusion_mgr_ptr shrink_fmgr(const fusion_mgr_ptr &fmgr, gt2gt_map &lt_map) {
         if (node->dyn_cast<input_op>()) {
             new_node = new_fmgr->make_input(
                     {lt_map.get(node->get_outputs()[0])});
-            // "unique_id" for integration
             new_node->attrs_ = node->attrs_;
         } else if (node->dyn_cast<output_op>()) {
             const auto &outtsr = lt_map.get(node->get_inputs()[0]);
             new_node = new_node = new_fmgr->make<output_op>(outtsr);
-            // "unique_id" for integration
             new_node->attrs_ = node->attrs_;
         } else if (node->dyn_cast<constant_op_t>()) {
             new_node = node->dyn_cast<op_traits::copyable_t>()->copy({},
@@ -201,8 +197,6 @@ fusion_mgr_ptr shrink_fmgr(const fusion_mgr_ptr &fmgr, gt2gt_map &lt_map) {
         } else if (auto bw_node
                 = node->dyn_cast<op_traits::batchwise_shrinkable_t>()) {
             new_node = bw_node->bw_shrinked_copy(lt_map, new_fmgr->get_graph());
-            // "unique_id" for integration
-            new_node->attrs_ = node->attrs_;
         }
     });
     new_fmgr->get_graph().attrs_ = graph.attrs_;

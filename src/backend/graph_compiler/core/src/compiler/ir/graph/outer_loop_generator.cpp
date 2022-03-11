@@ -147,7 +147,10 @@ static std::vector<int> move_reduce_axis_to_inner(
              * applied to achieve best performance*/
 
             // need check parallel_num
-            if (!axis_can_be_sort(graph, parallel_num < run_threads)) {
+            if (!axis_can_be_sort(graph,
+                        (parallel_num < run_threads)
+                                && !node->attrs_.get_or_else(
+                                        op_attr_key::bwise_fuse, false))) {
                 can_move = false;
                 return;
             }

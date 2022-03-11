@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
     op_visitor_t vis(op_visitor_t::dequeue_selector,
             op_visitor_t::create_DAG_updater(graph.ops_.size()));
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> old_new_lt_map;
+    std::unordered_map<sc_op_ptr, int> op_id_map;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         sc_op_ptr new_node;
         if (node->dyn_cast<input_op>()) {
@@ -58,8 +59,10 @@ SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
         for (size_t i = 0; i < new_node->get_outputs().size(); ++i) {
             old_new_lt_map[node->get_outputs()[i]] = new_node->get_outputs()[i];
         }
+        op_id_map[new_node] = node->logical_op_id_;
     });
     copied_graph.attrs_ = graph.attrs_;
+    copied_graph.resort_op_ids(op_id_map);
     return copied_graph;
 }
 } // namespace sc

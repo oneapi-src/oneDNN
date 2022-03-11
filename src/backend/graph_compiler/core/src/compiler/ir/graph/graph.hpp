@@ -344,6 +344,9 @@ public:
     // the ops_ array by removing the holes of removed ops. It finally resets
     // all ids of each ops, to keep the continuity of ids.
     void reset_op_ids();
+    // This function is aimed to re-sort the ops in the graph's `ops_` array
+    // using the op-ids in the op_id_map
+    void resort_op_ids(const std::unordered_map<sc_op_ptr, int> &op_id_map);
     // Get the total gflop from all tunable ops contained in the graph.
     float get_gflop() const;
     std::vector<sc_op_ptr> get_output_ops();

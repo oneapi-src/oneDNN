@@ -53,6 +53,7 @@ fusion_mgr_ptr fusion_manager::copy() const {
     op_visitor_t vis(op_visitor_t::dequeue_selector,
             op_visitor_t::create_DAG_updater(graph.ops_.size()));
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> old_new_lt_map;
+    std::unordered_map<sc_op_ptr, int> op_id_map;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         sc_op_ptr new_node;
         if (node->dyn_cast<input_op>()) {
@@ -82,8 +83,10 @@ fusion_mgr_ptr fusion_manager::copy() const {
         for (size_t i = 0; i < new_node->get_outputs().size(); ++i) {
             old_new_lt_map[node->get_outputs()[i]] = new_node->get_outputs()[i];
         }
+        op_id_map[new_node] = node->logical_op_id_;
     });
     new_fmgr->get_graph().attrs_ = graph.attrs_;
+    new_fmgr->get_graph().resort_op_ids(op_id_map);
     return new_fmgr;
 }
 
