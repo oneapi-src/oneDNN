@@ -1215,7 +1215,8 @@ void compute_reorder_block2block(const context_ptr &ctx,
                 in_indexes, input_format, plain_dims, condition);
         std::vector<expr> out_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
-        auto cur = builder::make_stmts_unattached(
+
+        auto assign = builder::make_stmts_unattached(
                 {builder::make_assign_unattached(
                         builder::make_indexing(output, out_indexes, step),
                         // here, use src.tptr instead of input is aimed to
@@ -1223,7 +1224,11 @@ void compute_reorder_block2block(const context_ptr &ctx,
                         // throw illegal exception in index_flatten
                         builder::make_indexing(
                                 src.tptr_, loop_indexes, step))});
-        cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        assign->attr()[op_traits::workload_computable_t::workload_number]
+                = wkld;
+        auto cur = no_padding
+                ? assign
+                : builder::make_if_else_unattached(condition, assign, stmt());
         stmt body;
         for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
                 i--) {
@@ -1260,7 +1265,7 @@ void compute_reorder_block2block(const context_ptr &ctx,
                 = wkld;
         auto padding = builder::make_stmts_unattached(
                 {builder::make_assign_unattached(
-                        builder::make_indexing(output, out_indexes),
+                        builder::make_indexing(output, out_indexes, step),
                         builder::make_constant({0UL},
                                 sc_data_type_t(dtype.type_code_, step)))});
         auto cur = no_padding
@@ -1642,7 +1647,7 @@ bool reorder_op_t::use_output_loop() const {
             // same?
             return (get_dims_product(
                             get_inputs()[0]->details_.get_blocking_dims())
-                    != get_dims_product(
+                    < get_dims_product(
                             get_outputs()[0]->details_.get_blocking_dims()));
         }
         return true;
