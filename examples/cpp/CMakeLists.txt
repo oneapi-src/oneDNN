@@ -49,7 +49,7 @@ function(register_example name srcs)
     add_executable(${name} ${srcs})
     target_include_directories(${name}
         PRIVATE
-        ${PROJECT_SOURCE_DIR}/examples/cpp/
+        ${PROJECT_SOURCE_DIR}/examples/cpp/include
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
         ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
