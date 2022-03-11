@@ -84,16 +84,6 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
     else
         SAFE(init_status, WARN);
 
-    res->impl_name = query_impl_info(spd);
-    if (maybe_skip(res->impl_name)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
-                res->impl_name.c_str());
-        return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
-    } else {
-        BENCHDNN_PRINT(
-                5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-    }
-
     return OK;
 }
 

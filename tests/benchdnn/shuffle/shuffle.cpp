@@ -104,9 +104,6 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
     if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
     SAFE(status, WARN);
 
-    res->impl_name = query_impl_info(spd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-
     return OK;
 }
 

@@ -101,16 +101,6 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
     else
         SAFE(init_status, WARN);
 
-    res->impl_name = query_impl_info(mpd);
-    if (maybe_skip(res->impl_name)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
-                res->impl_name.c_str());
-        return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
-    } else {
-        BENCHDNN_PRINT(
-                5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-    }
-
     return OK;
 }
 
@@ -132,7 +122,7 @@ int init_prim_ref(
             cpu_attr};
 
     dnnl_primitive_desc_t pd_ref_ {};
-    SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, FLAG_FWD,
+    SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, prb->dir,
                  nullptr),
             WARN);
     auto pd_ref = make_benchdnn_dnnl_wrapper(pd_ref_);
@@ -215,7 +205,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->bia_dt, prb->cfg[DST].dt},
-            FWD_D, res);
+            prb->dir, res);
     if (res->state == SKIPPED) return;
 
     check_sum_post_ops(prb->attr, res, prb->cfg[DST].dt);
@@ -274,7 +264,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             if (e.is_sum_kind())
                 continue;
             else if (e.is_eltwise_kind())
-                post_ops_ok = post_ops_ok && is_nvidia_eltwise_ok(FLAG_FWD, e);
+                post_ops_ok = post_ops_ok && is_nvidia_eltwise_ok(prb->dir, e);
             else if (e.is_binary_kind() || e.is_convolution_kind())
                 post_ops_ok = false;
             else

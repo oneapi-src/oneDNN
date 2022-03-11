@@ -340,25 +340,6 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &lpd,
     if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
     SAFE(status, WARN);
 
-    res->impl_name = query_impl_info(lpd);
-    if (maybe_skip(res->impl_name)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
-                res->impl_name.c_str());
-        return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
-    } else {
-        BENCHDNN_PRINT(
-                5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-        if (!strstr(res->impl_name.c_str(), "jit")) {
-            BENCHDNN_PRINT(2, "WARNING: %s",
-                    "accuracy of the implementation being tested "
-                    "depends on the compiler and might give "
-                    "false-positives.\n");
-            BENCHDNN_PRINT(2, "         %s",
-                    "please consider recompiling the sources with"
-                    " `-prec-div -fp-model precise` for a reliable testing.\n");
-        }
-    }
-
     return OK;
 }
 

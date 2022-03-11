@@ -117,16 +117,13 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
     else
         SAFE(init_status, WARN);
 
-    res->impl_name = query_impl_info(bpd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-
     return OK;
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     std::vector<dnnl_data_type_t> dts = prb->sdt;
     dts.push_back(prb->ddt);
-    check_known_skipped_case_common(dts, FWD_D, res);
+    check_known_skipped_case_common(dts, prb->dir, res);
     check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return;
 

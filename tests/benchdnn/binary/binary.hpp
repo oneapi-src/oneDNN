@@ -70,6 +70,7 @@ struct prb_t : public prb_vdims_t {
         , attr(attr) {}
     ~prb_t() {}
 
+    dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     std::vector<dnnl_data_type_t> sdt;
     dnnl_data_type_t ddt;
     std::vector<std::string> stag;

@@ -343,6 +343,7 @@ inline const engine_t &get_cpu_engine() {
     return instance;
 }
 
+bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
@@ -448,16 +449,35 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
     SAFE(init_pd_func(get_test_engine(), prb, pd_, res, dir, hint), WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    pd.reset(pd_);
+    if (res->state == UNIMPLEMENTED) return OK;
+
+    // Query impl name, stash it in `res` and apply skip-impl unless this is
+    // fwd-for-bwd or cpu-for-gpu primitive.
+    // Note: fused conv sub-primitives shouldn't be tested as well, but there's
+    // no reliable mechanism to know if they are sub-primitives.
+    const bool fwd_for_bwd_prim
+            = is_fwd_prop_kind(query_prop_kind(pd)) && (prb->dir & FLAG_BWD);
+    const bool cpu_for_gpu_prim = res == nullptr;
+    if (!fwd_for_bwd_prim && !cpu_for_gpu_prim) {
+        res->impl_name = query_impl_info(pd);
+        if (maybe_skip(res->impl_name)) {
+            BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                    res->impl_name.c_str());
+            return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
+        } else {
+            BENCHDNN_PRINT(
+                    5, "oneDNN implementation: %s\n", res->impl_name.c_str());
+        }
+
+        // Check that adding attributes doesn't cause a fall back to lower impl.
+        SAFE(check_pd_w_and_wo_attr(pd, prb->attr, res), WARN);
+    }
 
     // This primitive is expected to come from the cache.
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
-
-    pd.reset(pd_);
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
     prim.reset(prim_);
 
-    // Check that adding attributes doesn't cause a fall back to lower impl.
-    SAFE(check_pd_w_and_wo_attr(pd, prb->attr, res), WARN);
     // Check primitive descriptor is picked up from the cache, if applicable.
     SAFE(check_pd_cache(pd), WARN);
     // Check primitive is picked up from the cache, if applicable.

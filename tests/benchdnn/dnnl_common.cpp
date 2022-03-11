@@ -590,6 +590,10 @@ int check_pd_w_and_wo_attr(
         const_dnnl_primitive_desc_t pd, const attr_t &attr, res_t *res) {
     if (!attr_same_pd_check || attr.is_def()) return OK;
 
+    // Depthwise fusion cannot be properly validated on same pd since it has
+    // completely different implementation chain and mechanism.
+    if (attr.post_ops.convolution_index() != -1) return OK;
+
     dnnl_primitive_desc_t pd_no_attr {};
     dnnl_primitive_attr_t dnnl_empty_attrs {};
 
@@ -811,14 +815,18 @@ static size_t get_md_size(const dnnl_memory_desc_t *md,
     return (1 + mapped_mem_factor + ref_mem_factor) * mem_size;
 }
 
+bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind) {
+    return prop_kind == dnnl_forward_training
+            || prop_kind == dnnl_forward_inference
+            || prop_kind == dnnl_prop_kind_undef;
+}
+
 static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
         bool want_input, bool add_ref_size = false) {
     const int n_idx
             = want_input ? query_n_inputs(const_pd) : query_n_outputs(const_pd);
     const auto prop_kind = query_prop_kind(const_pd);
-    const bool is_fwd = prop_kind == dnnl_forward_training
-            || prop_kind == dnnl_forward_inference
-            || prop_kind == dnnl_prop_kind_undef;
+    const bool is_fwd = is_fwd_prop_kind(prop_kind);
 
 #define MD(name) dnnl_query_##name##_md
     std::vector<dnnl_query_t> query_fwd_in_mds {MD(src), MD(weights)};

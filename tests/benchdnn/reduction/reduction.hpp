@@ -92,6 +92,7 @@ struct prb_t : public prb_vdims_t {
         , eps(eps)
         , attr(attr) {}
 
+    dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     dnnl_data_type_t sdt, ddt;
     std::string stag, dtag;
     alg_t alg;
