@@ -16,6 +16,8 @@
 
 #include "backend/dnnl/patterns/fusions.hpp"
 
+#include "utils/pm/pbuilder.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {
@@ -25,6 +27,11 @@ namespace pass {
 using pattern = impl::pass::pattern;
 using FCreatePattern = impl::pass::FCreatePattern;
 using FCreateOptPattern = impl::pass::FCreateOptPattern;
+namespace pm = impl::utils::pm;
+using in_edges_t = pm::in_edges_t;
+using pb_graph_t = pm::pb_graph_t;
+using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
+using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 /*!
  * \brief This provides binary-related fusion, i.e.
@@ -240,6 +247,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_min_sigmoid_fusion)
                     op_t *fused_op = optimized_pattern->create_op(
                             op_kind::minimum_sigmoid);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reciprocal_multiply_fusion)
+        .set_priority(8.2f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto reciprocal = pgraph->append_op(
+                            impl::op_kind::Reciprocal, "reciprocal");
+                    pgraph->append_op(impl::op_kind::Multiply,
+                            in_edges_t {in_edge(0, reciprocal, 0)}, "multiply");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(impl::op_kind::Divide);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END

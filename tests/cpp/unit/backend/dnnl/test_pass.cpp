@@ -1764,6 +1764,46 @@ TEST(Pass, FuseBinaryEltwise) {
     }
 }
 
+TEST(Pass, ReciprocalMultiply2Divide) {
+    /* convert the following pattern to division
+                1
+                /
+        0    reciprocal
+        \     /
+        multiply
+    */
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+
+    graph_t agraph;
+    op_t reciprocal {0, Reciprocal, "reciprocal"};
+    op_t multiply {1, Multiply, "multiply"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    reciprocal.add_input(lt_vec[0]);
+    reciprocal.add_output(lt_vec[1]);
+    multiply.add_input(lt_vec[1]);
+    multiply.add_input(lt_vec[2]);
+    multiply.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&reciprocal), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    agraph.build_graph();
+
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), Divide);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+}
+
 TEST(PassPriority, TestBinaryEltwise) {
     /* binary here represents Add, Multiply, Minimum, Maximum
        eltwise here represents Sigmoid, ReLU
