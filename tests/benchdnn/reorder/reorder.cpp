@@ -322,17 +322,11 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
-
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
 
     dnnl_memory_desc_t src_md {}, dst_md {};
     if (prb->runtime_dim_mask != 0) {
@@ -342,18 +336,15 @@ int doit(const prb_t *prb, res_t *res) {
         dst_md = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->conf_out->dt, prb->dtag);
     } else {
-        src_md = q(DNNL_ARG_SRC);
-        dst_md = q(DNNL_ARG_DST);
+        src_md = query_md(const_pd, DNNL_ARG_SRC);
+        dst_md = query_md(const_pd, DNNL_ARG_DST);
     }
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
-    dnnl_engine_t src_engine, dst_engine;
-    DNN_SAFE(dnnl_primitive_desc_query(
-                     const_pd, dnnl_query_reorder_src_engine, 0, &src_engine),
-            WARN);
-    DNN_SAFE(dnnl_primitive_desc_query(
-                     const_pd, dnnl_query_reorder_dst_engine, 0, &dst_engine),
-            WARN);
+    dnnl_engine_t src_engine
+            = query_engine(const_pd, dnnl_query_reorder_src_engine);
+    dnnl_engine_t dst_engine
+            = query_engine(const_pd, dnnl_query_reorder_dst_engine);
 
     dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, src_engine);
     dnn_mem_t src_dt(src_md, src_engine);

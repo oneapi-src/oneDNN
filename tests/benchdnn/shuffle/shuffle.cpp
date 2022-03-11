@@ -136,21 +136,16 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
-
-    const auto &data_md
-            = prb->dir & FLAG_FWD ? q(DNNL_ARG_SRC) : q(DNNL_ARG_DIFF_SRC);
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &data_md = prb->dir & FLAG_FWD
+            ? query_md(const_pd, DNNL_ARG_SRC)
+            : query_md(const_pd, DNNL_ARG_DIFF_SRC);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
 

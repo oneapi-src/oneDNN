@@ -370,25 +370,22 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
-
     dnnl_memory_desc_t src_md {}, wei_md {}, dst_md {}, bia_md {}, def_md {};
     // query md if it was defined at pd creation time
-    if (prb->src_runtime_dim_mask().none()) src_md = q(DNNL_ARG_SRC);
-    if (prb->weights_runtime_dim_mask().none()) wei_md = q(DNNL_ARG_WEIGHTS);
+    if (prb->src_runtime_dim_mask().none())
+        src_md = query_md(const_pd, DNNL_ARG_SRC);
+    if (prb->weights_runtime_dim_mask().none())
+        wei_md = query_md(const_pd, DNNL_ARG_WEIGHTS);
     if (prb->dst_runtime_dim_mask().none()) {
-        dst_md = q(DNNL_ARG_DST);
-        if (prb->bia_dt != dnnl_data_type_undef) bia_md = q(DNNL_ARG_BIAS);
+        dst_md = query_md(const_pd, DNNL_ARG_DST);
+        if (prb->bia_dt != dnnl_data_type_undef)
+            bia_md = query_md(const_pd, DNNL_ARG_BIAS);
     }
 
     // if md is same as default, it means we need to re-create it
@@ -419,20 +416,11 @@ int doit(const prb_t *prb, res_t *res) {
                 prb->ndims, bia_dims.data(), prb->bia_dt, tag::abx);
     }
 
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
     // Use CPU prim as the reference in GPU testing to reduce testing time.
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
     SAFE(init_prim_ref(prim_ref, prb), WARN);
-
-    const_dnnl_primitive_desc_t const_pd_ref;
-    if (prim_ref)
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim_ref, &const_pd_ref),
-                CRIT);
-    const auto q_ref = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd_ref, dnnl_query_exec_arg_md, index);
-    };
 
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
@@ -454,7 +442,8 @@ int doit(const prb_t *prb, res_t *res) {
         bia_fp = dnn_mem_t(bia_md, fp, tag::abx, ref_engine);
     dnn_mem_t scratchpad_fp;
     if (prim_ref)
-        scratchpad_fp = dnn_mem_t(q_ref(DNNL_ARG_SCRATCHPAD), ref_engine);
+        scratchpad_fp = dnn_mem_t(
+                query_md(query_pd(prim_ref), DNNL_ARG_SCRATCHPAD), ref_engine);
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);

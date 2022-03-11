@@ -267,19 +267,13 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
-
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
 
@@ -295,8 +289,8 @@ int doit(const prb_t *prb, res_t *res) {
     args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {
-        const auto &src_md = q(DNNL_ARG_SRC);
-        const auto &dst_md = q(DNNL_ARG_DST);
+        const auto &src_md = query_md(const_pd, DNNL_ARG_SRC);
+        const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
 
         src_dt = dnn_mem_t(src_md, test_engine);
         if (!prb->inplace) {
@@ -321,9 +315,9 @@ int doit(const prb_t *prb, res_t *res) {
             check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
         }
     } else {
-        const auto &dst_md = q(DNNL_ARG_DST);
-        const auto &d_dst_md = q(DNNL_ARG_DIFF_DST);
-        const auto &d_src_md = q(DNNL_ARG_DIFF_SRC);
+        const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
+        const auto &d_dst_md = query_md(const_pd, DNNL_ARG_DIFF_DST);
+        const auto &d_src_md = query_md(const_pd, DNNL_ARG_DIFF_SRC);
 
         placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
         d_dst_dt = dnn_mem_t(d_dst_md, test_engine);

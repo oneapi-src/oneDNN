@@ -37,6 +37,7 @@ int check_primitive_cache(dnnl_primitive_t p);
 #include "dnnl_memory.hpp"
 #include "utils/compare.hpp"
 #include "utils/dims.hpp"
+#include "utils/dnnl_query.hpp"
 
 #define for_ for
 
@@ -213,12 +214,6 @@ const memory_kind_ext_t default_memory_kind = memory_kind_ext_t::usm;
 extern memory_kind_ext_t memory_kind;
 
 void init_isa_settings();
-
-inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
-    const char *str;
-    dnnl_primitive_desc_query(pd, dnnl_query_impl_info_str, 0, &str);
-    return str;
-}
 
 struct args_t {
     args_t &set(int arg, const dnn_mem_t &mem);

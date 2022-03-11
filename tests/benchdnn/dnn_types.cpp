@@ -1017,9 +1017,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
             }
         }
         DNN_SAFE_V(dnnl_primitive_attr_set_post_ops(dnnl_attr, ops));
-
-        const_dnnl_post_ops_t c_ops;
-        DNN_SAFE_V(dnnl_primitive_attr_get_post_ops(dnnl_attr, &c_ops));
+        auto c_ops = query_post_ops(dnnl_attr);
         SAFE_V(dnnl_post_ops_len(c_ops) == po.len() ? OK : FAIL);
 
         DNN_SAFE_V(dnnl_post_ops_destroy(ops));

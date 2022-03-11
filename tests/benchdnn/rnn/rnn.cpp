@@ -955,33 +955,29 @@ int doit(const prb_t &prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, &prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_fpd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_fpd), CRIT);
+    auto const_fpd = query_pd(prim);
 
     if (check_mem_size(const_fpd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [](const_dnnl_primitive_desc_t pd,
-                           int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
-    };
-
-    const auto &src_layer_md = q(const_fpd, DNNL_ARG_SRC_LAYER);
-    const auto &src_layer_attention_md = q(const_fpd, DNNL_ARG_AUGRU_ATTENTION);
-    const auto &src_iter_md = q(const_fpd, DNNL_ARG_SRC_ITER);
-    const auto &src_iter_c_md = q(const_fpd, DNNL_ARG_SRC_ITER_C);
-    const auto &weights_layer_md = q(const_fpd, DNNL_ARG_WEIGHTS_LAYER);
-    const auto &weights_iter_md = q(const_fpd, DNNL_ARG_WEIGHTS_ITER);
-    const auto &weights_peephole_md = q(const_fpd, DNNL_ARG_WEIGHTS_PEEPHOLE);
+    const auto &src_layer_md = query_md(const_fpd, DNNL_ARG_SRC_LAYER);
+    const auto &src_layer_attention_md
+            = query_md(const_fpd, DNNL_ARG_AUGRU_ATTENTION);
+    const auto &src_iter_md = query_md(const_fpd, DNNL_ARG_SRC_ITER);
+    const auto &src_iter_c_md = query_md(const_fpd, DNNL_ARG_SRC_ITER_C);
+    const auto &weights_layer_md = query_md(const_fpd, DNNL_ARG_WEIGHTS_LAYER);
+    const auto &weights_iter_md = query_md(const_fpd, DNNL_ARG_WEIGHTS_ITER);
+    const auto &weights_peephole_md
+            = query_md(const_fpd, DNNL_ARG_WEIGHTS_PEEPHOLE);
     const auto &weights_projection_md
-            = q(const_fpd, DNNL_ARG_WEIGHTS_PROJECTION);
-    const auto &bias_md = q(const_fpd, DNNL_ARG_BIAS);
-    const auto &dst_layer_md = q(const_fpd, DNNL_ARG_DST_LAYER);
-    const auto &dst_iter_md = q(const_fpd, DNNL_ARG_DST_ITER);
-    const auto &dst_iter_c_md = q(const_fpd, DNNL_ARG_DST_ITER_C);
-    const auto &workspace_md = q(const_fpd, DNNL_ARG_WORKSPACE);
-    const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
+            = query_md(const_fpd, DNNL_ARG_WEIGHTS_PROJECTION);
+    const auto &bias_md = query_md(const_fpd, DNNL_ARG_BIAS);
+    const auto &dst_layer_md = query_md(const_fpd, DNNL_ARG_DST_LAYER);
+    const auto &dst_iter_md = query_md(const_fpd, DNNL_ARG_DST_ITER);
+    const auto &dst_iter_c_md = query_md(const_fpd, DNNL_ARG_DST_ITER_C);
+    const auto &workspace_md = query_md(const_fpd, DNNL_ARG_WORKSPACE);
+    const auto &scratchpad_md = query_md(const_fpd, DNNL_ARG_SCRATCHPAD);
 
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
@@ -1040,9 +1036,7 @@ int doit(const prb_t &prb, res_t *res) {
     dnn_mem_t diff_dst_iter_c_dt;
 
     // for int8 RNN we need pass attributes for data q10n
-    const_dnnl_primitive_attr_t rnn_attr;
-    DNN_SAFE(dnnl_primitive_desc_get_attr(const_fpd, &rnn_attr), WARN);
-
+    auto rnn_attr = query_attr(const_fpd);
     SAFE(fill_activation(prb, SRC_LAYER, src_layer_dt, src_layer_fp, rnn_attr),
             WARN);
     if (prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU)
@@ -1121,35 +1115,43 @@ int doit(const prb_t &prb, res_t *res) {
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
         prim.reset(tmp_prim.release());
 
-        const_dnnl_primitive_desc_t const_bpd;
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_bpd), CRIT);
+        auto const_bpd = query_pd(prim);
 
         if (check_mem_size(const_bpd) != OK) {
             return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
         }
 
-        const auto &bwd_weights_layer_md = q(const_bpd, DNNL_ARG_WEIGHTS_LAYER);
-        const auto &bwd_weights_iter_md = q(const_bpd, DNNL_ARG_WEIGHTS_ITER);
+        const auto &bwd_weights_layer_md
+                = query_md(const_bpd, DNNL_ARG_WEIGHTS_LAYER);
+        const auto &bwd_weights_iter_md
+                = query_md(const_bpd, DNNL_ARG_WEIGHTS_ITER);
         const auto &bwd_weights_projection_md
-                = q(const_bpd, DNNL_ARG_WEIGHTS_PROJECTION);
-        const auto &diff_src_layer_md = q(const_bpd, DNNL_ARG_DIFF_SRC_LAYER);
+                = query_md(const_bpd, DNNL_ARG_WEIGHTS_PROJECTION);
+        const auto &diff_src_layer_md
+                = query_md(const_bpd, DNNL_ARG_DIFF_SRC_LAYER);
         const auto &diff_src_layer_attention_md
-                = q(const_bpd, DNNL_ARG_DIFF_AUGRU_ATTENTION);
-        const auto &diff_src_iter_md = q(const_bpd, DNNL_ARG_DIFF_SRC_ITER);
-        const auto &diff_src_iter_c_md = q(const_bpd, DNNL_ARG_DIFF_SRC_ITER_C);
+                = query_md(const_bpd, DNNL_ARG_DIFF_AUGRU_ATTENTION);
+        const auto &diff_src_iter_md
+                = query_md(const_bpd, DNNL_ARG_DIFF_SRC_ITER);
+        const auto &diff_src_iter_c_md
+                = query_md(const_bpd, DNNL_ARG_DIFF_SRC_ITER_C);
         const auto &diff_weights_layer_md
-                = q(const_bpd, DNNL_ARG_DIFF_WEIGHTS_LAYER);
+                = query_md(const_bpd, DNNL_ARG_DIFF_WEIGHTS_LAYER);
         const auto &diff_weights_iter_md
-                = q(const_bpd, DNNL_ARG_DIFF_WEIGHTS_ITER);
+                = query_md(const_bpd, DNNL_ARG_DIFF_WEIGHTS_ITER);
         const auto &diff_weights_peephole_md
-                = q(const_bpd, DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
+                = query_md(const_bpd, DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
         const auto &diff_weights_projection_md
-                = q(const_bpd, DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
-        const auto &diff_bias_md = q(const_bpd, DNNL_ARG_DIFF_BIAS);
-        const auto &diff_dst_layer_md = q(const_bpd, DNNL_ARG_DIFF_DST_LAYER);
-        const auto &diff_dst_iter_md = q(const_bpd, DNNL_ARG_DIFF_DST_ITER);
-        const auto &diff_dst_iter_c_md = q(const_bpd, DNNL_ARG_DIFF_DST_ITER_C);
-        const auto &bwd_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
+                = query_md(const_bpd, DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
+        const auto &diff_bias_md = query_md(const_bpd, DNNL_ARG_DIFF_BIAS);
+        const auto &diff_dst_layer_md
+                = query_md(const_bpd, DNNL_ARG_DIFF_DST_LAYER);
+        const auto &diff_dst_iter_md
+                = query_md(const_bpd, DNNL_ARG_DIFF_DST_ITER);
+        const auto &diff_dst_iter_c_md
+                = query_md(const_bpd, DNNL_ARG_DIFF_DST_ITER_C);
+        const auto &bwd_scratchpad_md
+                = query_md(const_bpd, DNNL_ARG_SCRATCHPAD);
 
         bwd_weights_layer_dt = dnn_mem_t(bwd_weights_layer_md, test_engine);
         bwd_weights_iter_dt = dnn_mem_t(bwd_weights_iter_md, test_engine);

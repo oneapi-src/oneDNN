@@ -315,27 +315,25 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
-
-    const auto &src_md
-            = prb->dir == BWD_D ? q(DNNL_ARG_DIFF_SRC) : q(DNNL_ARG_SRC);
-    const auto &wei_md = prb->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_WEIGHTS)
-                                             : q(DNNL_ARG_WEIGHTS);
-    const auto &bia_md
-            = prb->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_BIAS) : q(DNNL_ARG_BIAS);
-    const auto &dst_md
-            = prb->dir & FLAG_BWD ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &src_md = prb->dir == BWD_D
+            ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
+            : query_md(const_pd, DNNL_ARG_SRC);
+    const auto &wei_md = prb->dir & FLAG_WEI
+            ? query_md(const_pd, DNNL_ARG_DIFF_WEIGHTS)
+            : query_md(const_pd, DNNL_ARG_WEIGHTS);
+    const auto &bia_md = prb->dir & FLAG_WEI
+            ? query_md(const_pd, DNNL_ARG_DIFF_BIAS)
+            : query_md(const_pd, DNNL_ARG_BIAS);
+    const auto &dst_md = prb->dir & FLAG_BWD
+            ? query_md(const_pd, DNNL_ARG_DIFF_DST)
+            : query_md(const_pd, DNNL_ARG_DST);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
     const auto src_tag = tag::abx;
@@ -374,18 +372,9 @@ int doit(const prb_t *prb, res_t *res) {
     if (need_dst_init(prb)) SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
 
     dnn_mem_t scratchpad_fp;
-    const_dnnl_primitive_desc_t const_pd_ref;
-    if (prim_ref) {
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(prim_ref, &const_pd_ref),
-                CRIT);
-    }
-    const auto q_ref = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd_ref, dnnl_query_exec_arg_md, index);
-    };
-    if (prim_ref) {
-        scratchpad_fp = dnn_mem_t(q_ref(DNNL_ARG_SCRATCHPAD), ref_engine);
-    }
+    if (prim_ref)
+        scratchpad_fp = dnn_mem_t(
+                query_md(query_pd(prim_ref), DNNL_ARG_SCRATCHPAD), ref_engine);
 
     args_t args, ref_args;
 

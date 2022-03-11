@@ -441,27 +441,21 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
-
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    const auto &data_md = q(DNNL_ARG_SRC);
-    const auto &mean_md = q(DNNL_ARG_MEAN);
-    const auto &var_md = q(DNNL_ARG_VARIANCE);
-    const auto &ss_md = q(DNNL_ARG_SCALE_SHIFT);
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &data_md = query_md(const_pd, DNNL_ARG_SRC);
+    const auto &mean_md = query_md(const_pd, DNNL_ARG_MEAN);
+    const auto &var_md = query_md(const_pd, DNNL_ARG_VARIANCE);
+    const auto &ss_md = query_md(const_pd, DNNL_ARG_SCALE_SHIFT);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
     const auto tag = tag::abx;
@@ -544,7 +538,7 @@ int doit(const prb_t *prb, res_t *res) {
             check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
         }
     } else {
-        const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
+        const auto &d_data_md = query_md(const_pd, DNNL_ARG_DIFF_DST);
 
         dnn_mem_t d_dst_fp(d_data_md, fp, tag, ref_engine);
         d_dst_dt = dnn_mem_t(d_data_md, test_engine);

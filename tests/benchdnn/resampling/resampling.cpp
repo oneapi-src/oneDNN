@@ -217,23 +217,19 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
-
-    const auto &src_md
-            = prb->dir == BWD_D ? q(DNNL_ARG_DIFF_SRC) : q(DNNL_ARG_SRC);
-    const auto &dst_md
-            = prb->dir == BWD_D ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    const auto &src_md = prb->dir == BWD_D
+            ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
+            : query_md(const_pd, DNNL_ARG_SRC);
+    const auto &dst_md = prb->dir == BWD_D
+            ? query_md(const_pd, DNNL_ARG_DIFF_DST)
+            : query_md(const_pd, DNNL_ARG_DST);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
     const auto tag = tag::abx;

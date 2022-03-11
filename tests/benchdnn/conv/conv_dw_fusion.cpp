@@ -251,19 +251,13 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim, &const_pd), CRIT);
+    auto const_pd = query_pd(prim);
 
     // Check memory requirements only for original problem though it's broken
     // due to quering not by arg md.
     if (check_mem_size(const_pd) != OK) {
         return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
-
-    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd, dnnl_query_exec_arg_md, index);
-    };
 
     const auto adjust_alg = [](const_dnnl_primitive_desc_t pd, alg_t &alg) {
         if (alg == alg_t::AUTO) {
@@ -283,21 +277,26 @@ int doit(const prb_t *prb, res_t *res) {
             alg, prb->attr, prb->mb);
     prb = &p_new;
 
-    const auto &src_md
-            = prb->dir == BWD_D ? q(DNNL_ARG_DIFF_SRC) : q(DNNL_ARG_SRC);
-    const auto &wei_md = prb->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_WEIGHTS)
-                                             : q(DNNL_ARG_WEIGHTS);
-    const auto &bia_md
-            = prb->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_BIAS) : q(DNNL_ARG_BIAS);
-    const auto &dst_md
-            = prb->dir & FLAG_BWD ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
+    const auto &src_md = prb->dir == BWD_D
+            ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
+            : query_md(const_pd, DNNL_ARG_SRC);
+    const auto &wei_md = prb->dir & FLAG_WEI
+            ? query_md(const_pd, DNNL_ARG_DIFF_WEIGHTS)
+            : query_md(const_pd, DNNL_ARG_WEIGHTS);
+    const auto &bia_md = prb->dir & FLAG_WEI
+            ? query_md(const_pd, DNNL_ARG_DIFF_BIAS)
+            : query_md(const_pd, DNNL_ARG_BIAS);
+    const auto &dst_md = prb->dir & FLAG_BWD
+            ? query_md(const_pd, DNNL_ARG_DIFF_DST)
+            : query_md(const_pd, DNNL_ARG_DST);
     const auto &fused_wei_md = prb->dir & FLAG_WEI
-            ? q(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DIFF_WEIGHTS)
-            : q(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+            ? query_md(
+                    const_pd, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DIFF_WEIGHTS)
+            : query_md(const_pd, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
     const auto &fused_bia_md = prb->dir & FLAG_WEI
-            ? q(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DIFF_BIAS)
-            : q(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
-    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+            ? query_md(const_pd, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DIFF_BIAS)
+            : query_md(const_pd, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
@@ -334,13 +333,7 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim0, init_pd, p0.get(), res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd0;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim0, &const_pd0), CRIT);
-
-    const auto q0 = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd0, dnnl_query_exec_arg_md, index);
-    };
+    auto const_pd0 = query_pd(prim0);
 
     alg = p0->alg;
     adjust_alg(const_pd0, alg);
@@ -348,15 +341,19 @@ int doit(const prb_t *prb, res_t *res) {
     p0.reset(new prb_t((desc_t)*p0, p0->dir, cfg, p0->stag, p0->wtag, p0->dtag,
             alg, p0->attr, p0->mb));
 
-    const auto &src_md0
-            = p0->dir == BWD_D ? q0(DNNL_ARG_DIFF_SRC) : q0(DNNL_ARG_SRC);
-    const auto &wei_md0 = p0->dir & FLAG_WEI ? q0(DNNL_ARG_DIFF_WEIGHTS)
-                                             : q0(DNNL_ARG_WEIGHTS);
-    const auto &bia_md0
-            = p0->dir & FLAG_WEI ? q0(DNNL_ARG_DIFF_BIAS) : q0(DNNL_ARG_BIAS);
-    const auto &dst_md0
-            = p0->dir & FLAG_BWD ? q0(DNNL_ARG_DIFF_DST) : q0(DNNL_ARG_DST);
-    const auto &scratchpad_md0 = q0(DNNL_ARG_SCRATCHPAD);
+    const auto &src_md0 = p0->dir == BWD_D
+            ? query_md(const_pd0, DNNL_ARG_DIFF_SRC)
+            : query_md(const_pd0, DNNL_ARG_SRC);
+    const auto &wei_md0 = p0->dir & FLAG_WEI
+            ? query_md(const_pd0, DNNL_ARG_DIFF_WEIGHTS)
+            : query_md(const_pd0, DNNL_ARG_WEIGHTS);
+    const auto &bia_md0 = p0->dir & FLAG_WEI
+            ? query_md(const_pd0, DNNL_ARG_DIFF_BIAS)
+            : query_md(const_pd0, DNNL_ARG_BIAS);
+    const auto &dst_md0 = p0->dir & FLAG_BWD
+            ? query_md(const_pd0, DNNL_ARG_DIFF_DST)
+            : query_md(const_pd0, DNNL_ARG_DST);
+    const auto &scratchpad_md0 = query_md(const_pd0, DNNL_ARG_SCRATCHPAD);
 
     dnn_mem_t src_dt0(src_md0, test_engine);
     dnn_mem_t wei_dt0(wei_md0, test_engine);
@@ -388,13 +385,7 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prim1, init_pd, p1.get(), res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const_dnnl_primitive_desc_t const_pd1;
-    DNN_SAFE(dnnl_primitive_get_primitive_desc(prim1, &const_pd1), CRIT);
-
-    const auto q1 = [&](int index = 0) -> const dnnl_memory_desc_t & {
-        return *dnnl_primitive_desc_query_md(
-                const_pd1, dnnl_query_exec_arg_md, index);
-    };
+    auto const_pd1 = query_pd(prim1);
 
     alg = p1->alg;
     adjust_alg(const_pd1, alg);
@@ -402,16 +393,20 @@ int doit(const prb_t *prb, res_t *res) {
     p1.reset(new prb_t((desc_t)*p1, p1->dir, cfg, p1->stag, p1->wtag, p1->dtag,
             alg, p1->attr, p1->mb));
 
-    const auto &src_md1
-            = prb->dir == BWD_D ? q1(DNNL_ARG_DIFF_SRC) : q1(DNNL_ARG_SRC);
-    const auto &wei_md1 = prb->dir & FLAG_WEI ? q1(DNNL_ARG_DIFF_WEIGHTS)
-                                              : q1(DNNL_ARG_WEIGHTS);
+    const auto &src_md1 = prb->dir == BWD_D
+            ? query_md(const_pd1, DNNL_ARG_DIFF_SRC)
+            : query_md(const_pd1, DNNL_ARG_SRC);
+    const auto &wei_md1 = prb->dir & FLAG_WEI
+            ? query_md(const_pd1, DNNL_ARG_DIFF_WEIGHTS)
+            : query_md(const_pd1, DNNL_ARG_WEIGHTS);
 
-    const auto &bia_md1
-            = prb->dir & FLAG_WEI ? q1(DNNL_ARG_DIFF_BIAS) : q1(DNNL_ARG_BIAS);
-    const auto &dst_md1
-            = prb->dir & FLAG_BWD ? q1(DNNL_ARG_DIFF_DST) : q1(DNNL_ARG_DST);
-    const auto &scratchpad_md1 = q(DNNL_ARG_SCRATCHPAD);
+    const auto &bia_md1 = prb->dir & FLAG_WEI
+            ? query_md(const_pd1, DNNL_ARG_DIFF_BIAS)
+            : query_md(const_pd1, DNNL_ARG_BIAS);
+    const auto &dst_md1 = prb->dir & FLAG_BWD
+            ? query_md(const_pd1, DNNL_ARG_DIFF_DST)
+            : query_md(const_pd1, DNNL_ARG_DST);
+    const auto &scratchpad_md1 = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
     dnn_mem_t src_dt1(src_md1, test_engine);
     dnn_mem_t wei_dt1(wei_md1, test_engine);
