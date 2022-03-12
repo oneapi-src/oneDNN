@@ -106,6 +106,7 @@ static void make_dump_tensor_call(const std::vector<expr> &outs,
     for (size_t i = 0; i < outs.size(); i++) {
         auto &out = outs[i];
         auto &graph_tsr = node->get_outputs()[i];
+        if (!out.isa<tensor>()) continue;
         auto tsr = out.checked_as<tensor>();
         std::stringstream tensor_name;
         tensor_name << callee->name_ << '.' << tsr->name_ << '.'
