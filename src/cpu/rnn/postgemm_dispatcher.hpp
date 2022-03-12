@@ -185,23 +185,6 @@ struct rnn_postgemm_dispatcher {
                     block_step);
             return;
         }
-        if (this->postgemm_func) {
-            (this->*postgemm_func)(rnn, cell_position, ws_gates_,
-                    scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
-                    src_iter_, src_iter_c_, diff_src_layer_,
-                    diff_augru_attention_, diff_src_iter_, diff_src_iter_c_,
-                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
-                    dst_iter_, weights_scales_, block_step);
-            unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
-                    augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
-                    src_iter_c_, diff_src_layer_, diff_augru_attention_,
-                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
-                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
-                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
-                    block_step);
-            return;
-        }
 #endif
         (this->*postgemm_func)(rnn, cell_position, ws_gates_, scratch_gates_,
                 augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
@@ -221,23 +204,6 @@ struct rnn_postgemm_dispatcher {
 #if DNNL_X64
         if (rnn_postgemm_part2_) {
             rnn_postgemm_part2_->execute(rnn, cell_position, ws_gates_,
-                    scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
-                    src_iter_, src_iter_c_, diff_src_layer_,
-                    diff_augru_attention_, diff_src_iter_, diff_src_iter_c_,
-                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
-                    dst_iter_, weights_scales_, block_step);
-            unpoison(rnn, cell_position, ws_gates_, scratch_gates_,
-                    augru_attention_, dst_layer_, dst_iter_c_, src_iter_,
-                    src_iter_c_, diff_src_layer_, diff_augru_attention_,
-                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
-                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
-                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
-                    block_step);
-            return;
-        }
-        if (this->postgemm_part2_func) {
-            (this->*postgemm_part2_func)(rnn, cell_position, ws_gates_,
                     scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,
                     src_iter_, src_iter_c_, diff_src_layer_,
                     diff_augru_attention_, diff_src_iter_, diff_src_iter_c_,
