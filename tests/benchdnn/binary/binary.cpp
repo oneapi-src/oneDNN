@@ -85,8 +85,9 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
     return OK;
 }
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &bpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_binary_desc_t bd;
     std::vector<dnnl_memory_desc_t> src_d(prb->n_inputs());
 
@@ -101,23 +102,15 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
-    DNN_SAFE(dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d),
-            WARN);
+    DNN_SAFE_STATUS(
+            dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d));
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, nullptr);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, nullptr);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {

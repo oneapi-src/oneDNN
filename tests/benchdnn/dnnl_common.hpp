@@ -68,6 +68,12 @@ int check_primitive_cache(dnnl_primitive_t p);
         } \
     } while (0)
 
+#define DNN_SAFE_STATUS(f) \
+    do { \
+        dnnl_status_t status__ = f; \
+        if (status__ != dnnl_success) { return status__; } \
+    } while (0)
+
 /* aux */
 using bfloat16_t = dnnl::impl::bfloat16_t;
 using float16_t = dnnl::impl::float16_t;
@@ -405,10 +411,22 @@ int measure_prim_create(timer::timer_t &ct,
     return OK;
 }
 
+inline int check_dnnl_status(dnnl_status_t status, res_t *res) {
+    if (!res || status == dnnl_success) return OK;
+
+    switch (status) {
+        case dnnl_invalid_arguments: res->state = INVALID_ARGUMENTS; break;
+        case dnnl_unimplemented: res->state = UNIMPLEMENTED; break;
+        default: assert(!"unexpected");
+    }
+    return FAIL;
+}
+
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, prb_t *prb, res_t *res,
         dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
+    dnnl_status_t status = dnnl_success;
     dnnl_primitive_desc_t pd_ {};
     dnnl_primitive_t prim_ {};
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
@@ -439,18 +457,19 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     engine_t engine(engine_tgt_kind);
 #endif
 
-    SAFE(init_pd_func(engine, prb, pd_, res, dir, hint), WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
+    status = init_pd_func(engine, prb, pd_, res, dir, hint);
     pd.reset(pd_);
+    SAFE(check_dnnl_status(status, res), WARN);
+
+    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
     prim.reset(prim_);
 
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
-    SAFE(init_pd_func(get_test_engine(), prb, pd_, res, dir, hint), WARN);
+    status = init_pd_func(get_test_engine(), prb, pd_, res, dir, hint);
     pd.reset(pd_);
-    if (res->state == UNIMPLEMENTED) return OK;
+    SAFE(check_dnnl_status(status, res), WARN);
 
     // Query impl name, stash it in `res` and apply skip-impl unless this is
     // fwd-for-bwd or cpu-for-gpu primitive.

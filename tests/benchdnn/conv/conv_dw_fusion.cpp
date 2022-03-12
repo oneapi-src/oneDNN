@@ -31,8 +31,9 @@
 
 namespace conv_dw_fusion {
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_convolution_desc_t cd;
 
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
@@ -94,33 +95,29 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
         case FWD_D:
         case FWD_B:
         case FWD_I:
-            DNN_SAFE(dnnl_dilated_convolution_forward_desc_init(&cd,
-                             prb->dir == FWD_I ? dnnl_forward_inference
-                                               : dnnl_forward_training,
-                             alg, &src_d, &wei_d,
-                             prb->dir == FWD_B ? &bia_d : nullptr, &dst_d,
-                             strides, dilates, padding, padding_r),
-                    WARN);
+            DNN_SAFE_STATUS(dnnl_dilated_convolution_forward_desc_init(&cd,
+                    prb->dir == FWD_I ? dnnl_forward_inference
+                                      : dnnl_forward_training,
+                    alg, &src_d, &wei_d, prb->dir == FWD_B ? &bia_d : nullptr,
+                    &dst_d, strides, dilates, padding, padding_r));
             break;
         case BWD_D:
-            DNN_SAFE(dnnl_dilated_convolution_backward_data_desc_init(&cd, alg,
-                             &src_d, &wei_d, &dst_d, strides, dilates, padding,
-                             padding_r),
-                    WARN);
+            DNN_SAFE_STATUS(dnnl_dilated_convolution_backward_data_desc_init(
+                    &cd, alg, &src_d, &wei_d, &dst_d, strides, dilates, padding,
+                    padding_r));
             break;
         case BWD_W:
         case BWD_WB:
-            DNN_SAFE(dnnl_dilated_convolution_backward_weights_desc_init(&cd,
-                             alg, &src_d, &wei_d,
-                             prb->dir == BWD_W ? nullptr : &bia_d, &dst_d,
-                             strides, dilates, padding, padding_r),
-                    WARN);
+            DNN_SAFE_STATUS(dnnl_dilated_convolution_backward_weights_desc_init(
+                    &cd, alg, &src_d, &wei_d,
+                    prb->dir == BWD_W ? nullptr : &bia_d, &dst_d, strides,
+                    dilates, padding, padding_r));
             break;
-        default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
+        default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
     }
 
-    DNN_SAFE(cd.accum_data_type == acc_dt ? dnnl_success : dnnl_unimplemented,
-            CRIT);
+    DNN_SAFE_STATUS(
+            cd.accum_data_type == acc_dt ? dnnl_success : dnnl_unimplemented);
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
@@ -132,16 +129,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
-
-    if (init_status == dnnl_unimplemented) {
-        if (res) res->state = UNIMPLEMENTED;
-        return OK;
-    }
-    SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
 }
 
 std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {

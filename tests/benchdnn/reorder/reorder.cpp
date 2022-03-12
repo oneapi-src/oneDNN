@@ -153,8 +153,9 @@ int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
     return res->state == FAILED ? FAIL : OK;
 }
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     auto dims = prb->dims;
     for (int d = 0; d < prb->ndims; ++d)
         if (prb->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
@@ -184,14 +185,8 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status = dnnl_reorder_primitive_desc_create(
+    return dnnl_reorder_primitive_desc_create(
             &rpd, &src_d, src_engine, &dst_d, dst_engine, dnnl_attr);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    SAFE(init_status, WARN);
-
-    return OK;
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {

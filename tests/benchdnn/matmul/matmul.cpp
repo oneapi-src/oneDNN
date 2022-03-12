@@ -48,8 +48,9 @@ dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
     return runtime_dims;
 }
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &mpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     const auto &src_rt_dims
             = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
     const auto &weights_rt_dims = get_runtime_dims(
@@ -74,11 +75,11 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
     }
 
     dnnl_matmul_desc_t op_d;
-    DNN_SAFE(
-            dnnl_matmul_desc_init(&op_d, &src_d, &wei_d, &bia_d, &dst_d), WARN);
-    DNN_SAFE(op_d.accum_data_type == prb->cfg[ACC].dt ? dnnl_success
-                                                      : dnnl_unimplemented,
-            CRIT);
+    DNN_SAFE_STATUS(
+            dnnl_matmul_desc_init(&op_d, &src_d, &wei_d, &bia_d, &dst_d));
+    DNN_SAFE_STATUS(op_d.accum_data_type == prb->cfg[ACC].dt
+                    ? dnnl_success
+                    : dnnl_unimplemented);
 
     // Overload PER_OC mask definition for batched case
     int mask = 0;
@@ -91,17 +92,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &mpd,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status = dnnl_primitive_desc_create(
-            &mpd, &op_d, dnnl_attr, engine, nullptr);
-
-    if (!res) return OK;
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&mpd, &op_d, dnnl_attr, engine, nullptr);
 }
 
 int init_prim_ref(
@@ -122,9 +113,7 @@ int init_prim_ref(
             cpu_attr};
 
     dnnl_primitive_desc_t pd_ref_ {};
-    SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, prb->dir,
-                 nullptr),
-            WARN);
+    init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, prb->dir, nullptr);
     auto pd_ref = make_benchdnn_dnnl_wrapper(pd_ref_);
 
     dnnl_primitive_t prim_ref_ {};

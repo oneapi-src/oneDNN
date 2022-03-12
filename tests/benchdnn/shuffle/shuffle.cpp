@@ -55,8 +55,9 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_shuffle_desc_t sd;
 
     auto data_d = dnn_mem_t::init_md(
@@ -66,45 +67,19 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &spd,
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
                                              : dnnl_forward_training;
 
-        DNN_SAFE(dnnl_shuffle_forward_desc_init(
-                         &sd, prop_kind, &data_d, prb->axis, prb->group),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_shuffle_forward_desc_init(
+                &sd, prop_kind, &data_d, prb->axis, prb->group));
     } else {
-        dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
-                         prb->dims.data(), prb->dt, dnnl_format_tag_any),
-                WARN);
-
-        DNN_SAFE(dnnl_shuffle_backward_desc_init(
-                         &sd, &diff_data_d, prb->axis, prb->group),
-                WARN);
+        auto diff_data_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, tag::any);
+        DNN_SAFE_STATUS(dnnl_shuffle_backward_desc_init(
+                &sd, &diff_data_d, prb->axis, prb->group));
     }
-
-    dnnl_primitive_desc_t hint_fwd_pd_ {};
-    dnnl_status_t status = dnnl_success;
-    if (prb->dir & FLAG_BWD) {
-        dnnl_shuffle_desc_t sd_fwd;
-        DNN_SAFE(dnnl_shuffle_forward_desc_init(&sd_fwd, dnnl_forward_training,
-                         &data_d, prb->axis, prb->group),
-                WARN);
-
-        status = dnnl_primitive_desc_create(
-                &hint_fwd_pd_, &sd_fwd, nullptr, engine, nullptr);
-        if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
-    }
-    auto hint_fwd_pd = make_benchdnn_dnnl_wrapper(hint_fwd_pd_);
-    SAFE(status, WARN);
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    status = dnnl_primitive_desc_create(
-            &spd, &sd, dnnl_attr, engine, hint_fwd_pd);
-
-    if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
-    SAFE(status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&spd, &sd, dnnl_attr, engine, hint);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {

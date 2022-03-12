@@ -29,8 +29,9 @@
 
 namespace reduction {
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_reduction_desc_t rd;
 
     auto src_desc = dnn_mem_t::init_md(
@@ -38,24 +39,15 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &rpd,
     auto dst_desc = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[1].data(), prb->ddt, prb->dtag);
 
-    DNN_SAFE(dnnl_reduction_desc_init(&rd, alg2alg_kind(prb->alg), &src_desc,
-                     &dst_desc, prb->p, prb->eps),
-            WARN);
+    DNN_SAFE_STATUS(dnnl_reduction_desc_init(&rd, alg2alg_kind(prb->alg),
+            &src_desc, &dst_desc, prb->p, prb->eps));
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->vdims[1].data());
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
 }
 
 bool is_norm_alg(const alg_t alg) {
