@@ -557,10 +557,10 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
     // improvement.
     jcp.is_fast_depthwise
             = !is_bf16 && is_data_layout_nxc && one_of(isa, avx512_core, avx2);
-    constexpr int max_registers = isa == avx512_core ? 32 : 16;
+    constexpr int max_reg_idx = isa == avx512_core ? 31 : 15;
     // Note: anything larger than 4 didn't show significant speedup
     const int max_isa_unroll = jcp.is_fast_depthwise ? 4 : 1;
-    int max_ch_unroll = nstl::min(max_isa_unroll, max_registers / (2 * jcp.kw));
+    int max_ch_unroll = nstl::min(max_isa_unroll, max_reg_idx / (2 * jcp.kw));
     jcp.nb_ch_blocking = nstl::min(jcp.nb_ch, max_ch_unroll);
 
     /* kernel applicability check wrt boundaries
