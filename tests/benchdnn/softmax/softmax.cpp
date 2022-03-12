@@ -32,7 +32,7 @@
 
 namespace softmax {
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_softmax_v2_desc_t sd;
@@ -50,9 +50,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
 
-        DNN_SAFE(dnnl_softmax_v2_forward_desc_init(
-                         &sd, prop, alg_kind, &src_d, &dst_d, prb->axis),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_softmax_v2_forward_desc_init(
+                &sd, prop, alg_kind, &src_d, &dst_d, prb->axis));
     } else {
         // Re-create dst_md with source tag if dst was not specified, immitating
         // default value.
@@ -66,9 +65,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         auto diff_dst_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->ddt, tag::any);
 
-        DNN_SAFE(dnnl_softmax_v2_backward_desc_init(&sd, alg_kind, &diff_src_d,
-                         &diff_dst_d, &dst_d, prb->axis),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_softmax_v2_backward_desc_init(
+                &sd, alg_kind, &diff_src_d, &diff_dst_d, &dst_d, prb->axis));
     }
 
     attr_args_t attr_args;
@@ -76,15 +74,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&spd, &sd, dnnl_attr, engine, nullptr);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&spd, &sd, dnnl_attr, engine, nullptr);
 }
 
 int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {

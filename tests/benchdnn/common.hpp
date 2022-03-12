@@ -131,6 +131,7 @@ struct stat_t {
     int skipped;
     int mistrusted;
     int unimplemented;
+    int invalid_arguments;
     int listed;
     double ms[timer::timer_t::mode_t::n_modes];
 };
@@ -143,6 +144,7 @@ enum res_state_t {
     SKIPPED,
     MISTRUSTED,
     UNIMPLEMENTED,
+    INVALID_ARGUMENTS,
     FAILED,
     LISTED,
     EXECUTED,

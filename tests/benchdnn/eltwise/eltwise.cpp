@@ -31,7 +31,7 @@
 
 namespace eltwise {
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &epd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_eltwise_desc_t ed;
@@ -45,16 +45,14 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
 
-        DNN_SAFE(dnnl_eltwise_forward_desc_init(
-                         &ed, prop, alg, &data_d, prb->alpha, prb->beta),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_eltwise_forward_desc_init(
+                &ed, prop, alg, &data_d, prb->alpha, prb->beta));
     } else {
         auto diff_data_d = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt, tag::any);
 
-        DNN_SAFE(dnnl_eltwise_backward_desc_init(&ed, alg, &diff_data_d,
-                         &data_d, prb->alpha, prb->beta),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_eltwise_backward_desc_init(
+                &ed, alg, &diff_data_d, &data_d, prb->alpha, prb->beta));
     }
 
     attr_args_t attr_args;
@@ -62,15 +60,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&epd, &ed, dnnl_attr, engine, nullptr);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&epd, &ed, dnnl_attr, engine, nullptr);
 }
 
 static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {

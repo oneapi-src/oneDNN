@@ -282,7 +282,7 @@ static int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
     return OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &lpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_layer_normalization_desc_t ld;
@@ -303,45 +303,20 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (prb->dir & FLAG_FWD) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
-        DNN_SAFE(dnnl_layer_normalization_forward_desc_init(
-                         &ld, prop, &data_d, stat_d_ptr, prb->eps, flags),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_layer_normalization_forward_desc_init(
+                &ld, prop, &data_d, stat_d_ptr, prb->eps, flags));
     } else {
-        dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
-                         data_dims, prb->dt, dnnl_format_tag_any),
-                WARN);
+        auto diff_data_d
+                = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
-        DNN_SAFE(dnnl_layer_normalization_backward_desc_init(&ld, prop,
-                         &diff_data_d, &data_d, stat_d_ptr, prb->eps, flags),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_layer_normalization_backward_desc_init(
+                &ld, prop, &diff_data_d, &data_d, stat_d_ptr, prb->eps, flags));
     }
-
-    dnnl_primitive_desc_t hint_fwd_pd_ {};
-    dnnl_status_t status = dnnl_success;
-    if (prb->dir & FLAG_BWD) {
-        dnnl_layer_normalization_desc_t ld_fwd;
-        DNN_SAFE(dnnl_layer_normalization_forward_desc_init(&ld_fwd,
-                         dnnl_forward_training, &data_d, stat_d_ptr, prb->eps,
-                         flags),
-                WARN);
-        status = dnnl_primitive_desc_create(
-                &hint_fwd_pd_, &ld_fwd, nullptr, engine, nullptr);
-        if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
-    }
-    auto hint_fwd_pd = make_benchdnn_dnnl_wrapper(hint_fwd_pd_);
-    SAFE(status, WARN);
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    status = dnnl_primitive_desc_create(
-            &lpd, &ld, dnnl_attr, engine, hint_fwd_pd);
-
-    if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
-    SAFE(status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&lpd, &ld, dnnl_attr, engine, hint);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {

@@ -116,7 +116,7 @@ int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
     return OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &ppd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_prelu_desc_t pd;
@@ -132,30 +132,22 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (prb->dir & FLAG_FWD) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
-        DNN_SAFE(dnnl_prelu_forward_desc_init(&pd, prop, &data_d, &weights_d),
-                WARN);
+        DNN_SAFE_STATUS(
+                dnnl_prelu_forward_desc_init(&pd, prop, &data_d, &weights_d));
     } else {
         auto diff_data_d = dnn_mem_t::init_md(
                 prb->ndims, src_dims.data(), prb->sdt[0], prb->stag[0]);
         auto diff_weights_d = dnn_mem_t::init_md(
                 prb->ndims, weight_dims.data(), prb->sdt[1], prb->stag[1]);
 
-        DNN_SAFE(dnnl_prelu_backward_desc_init(&pd, &data_d, &weights_d,
-                         &diff_data_d, &diff_weights_d),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_prelu_backward_desc_init(
+                &pd, &data_d, &weights_d, &diff_data_d, &diff_weights_d));
     }
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, nullptr);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, nullptr);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {

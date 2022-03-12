@@ -56,7 +56,7 @@ int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return fill_dat(prb, DST, mem_dt, mem_fp);
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &lpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_lrn_desc_t ld;
@@ -77,31 +77,19 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (dir & FLAG_FWD) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
-        DNN_SAFE(dnnl_lrn_forward_desc_init(&ld, prop, alg, &data_d, prb->ls,
-                         prb->alpha, prb->beta, prb->k),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_lrn_forward_desc_init(&ld, prop, alg, &data_d,
+                prb->ls, prb->alpha, prb->beta, prb->k));
     } else {
-        dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
-                         data_dims, prb->dt, dnnl_format_tag_any),
-                WARN);
-        DNN_SAFE(dnnl_lrn_backward_desc_init(&ld, alg, &diff_data_d, &data_d,
-                         prb->ls, prb->alpha, prb->beta, prb->k),
-                WARN);
+        auto diff_data_d
+                = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
+        DNN_SAFE_STATUS(dnnl_lrn_backward_desc_init(&ld, alg, &diff_data_d,
+                &data_d, prb->ls, prb->alpha, prb->beta, prb->k));
     }
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&lpd, &ld, dnnl_attr, engine, hint);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&lpd, &ld, dnnl_attr, engine, hint);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {

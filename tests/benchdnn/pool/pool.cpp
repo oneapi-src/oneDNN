@@ -85,7 +85,7 @@ int fill_ws(
     return OK;
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &ppd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
@@ -127,14 +127,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (dir & FLAG_FWD) {
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
                                              : dnnl_forward_training;
-        DNN_SAFE(dnnl_pooling_v2_forward_desc_init(&pd, prop_kind, alg, &src_d,
-                         &dst_d, strides, kernel, dilation, padding_l,
-                         padding_r),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_pooling_v2_forward_desc_init(&pd, prop_kind, alg,
+                &src_d, &dst_d, strides, kernel, dilation, padding_l,
+                padding_r));
     } else {
-        DNN_SAFE(dnnl_pooling_v2_backward_desc_init(&pd, alg, &src_d, &dst_d,
-                         strides, kernel, dilation, padding_l, padding_r),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_pooling_v2_backward_desc_init(&pd, alg, &src_d,
+                &dst_d, strides, kernel, dilation, padding_l, padding_r));
     }
 
     attr_args_t attr_args;
@@ -142,17 +140,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status;
-
-    init_status
-            = dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, hint);
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, hint);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {

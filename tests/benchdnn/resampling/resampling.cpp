@@ -62,7 +62,7 @@ int fill_dst(
     return fill_dat(prb, DST, mem_dt, mem_fp, res);
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
@@ -91,48 +91,19 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     if (prb->dir & FLAG_FWD) {
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
                                              : dnnl_forward_training;
-        DNN_SAFE(dnnl_resampling_forward_desc_init(
-                         &rd, prop_kind, alg, nullptr, &src_d, &dst_d),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_resampling_forward_desc_init(
+                &rd, prop_kind, alg, nullptr, &src_d, &dst_d));
     } else {
-        DNN_SAFE(dnnl_resampling_backward_desc_init(
-                         &rd, alg, nullptr, &src_d, &dst_d),
-                WARN);
+        DNN_SAFE_STATUS(dnnl_resampling_backward_desc_init(
+                &rd, alg, nullptr, &src_d, &dst_d));
     }
-
-    dnnl_primitive_desc_t hint_fwd_pd_ {};
-    dnnl_status_t status = dnnl_success;
-    if (prb->dir & FLAG_BWD) {
-        auto fwd_src_d
-                = dnn_mem_t::init_md(prb->ndims, src_dims, prb->sdt, prb->tag);
-        auto fwd_dst_d
-                = dnn_mem_t::init_md(prb->ndims, dst_dims, prb->ddt, tag::any);
-
-        dnnl_resampling_desc_t rd_fwd;
-        DNN_SAFE(dnnl_resampling_forward_desc_init(&rd_fwd,
-                         dnnl_forward_training, alg, nullptr, &fwd_src_d,
-                         &fwd_dst_d),
-                WARN);
-
-        status = dnnl_primitive_desc_create(
-                &hint_fwd_pd_, &rd_fwd, nullptr, engine, nullptr);
-        if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
-    }
-    auto hint_fwd_pd = make_benchdnn_dnnl_wrapper(hint_fwd_pd_);
-    SAFE(status, WARN);
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    status = dnnl_primitive_desc_create(
-            &rpd, &rd, dnnl_attr, engine, hint_fwd_pd);
-
-    if (status == dnnl_unimplemented) return res->state = UNIMPLEMENTED, OK;
-    SAFE(status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, hint);
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {

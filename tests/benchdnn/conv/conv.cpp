@@ -340,8 +340,9 @@ int fill_dst(
     return OK;
 }
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint) {
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_convolution_desc_t cd;
 
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
@@ -398,34 +399,30 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
         case FWD_D:
         case FWD_B:
         case FWD_I:
-            DNN_SAFE(dnnl_dilated_convolution_forward_desc_init(&cd,
-                             prb->dir == FWD_I ? dnnl_forward_inference
-                                               : dnnl_forward_training,
-                             alg, &src_d, &wei_d,
-                             prb->dir == FWD_B ? &bia_d : nullptr, &dst_d,
-                             strides, dilates, padding, padding_r),
-                    WARN);
+            DNN_SAFE_STATUS(dnnl_dilated_convolution_forward_desc_init(&cd,
+                    prb->dir == FWD_I ? dnnl_forward_inference
+                                      : dnnl_forward_training,
+                    alg, &src_d, &wei_d, prb->dir == FWD_B ? &bia_d : nullptr,
+                    &dst_d, strides, dilates, padding, padding_r));
             break;
         case BWD_D:
-            DNN_SAFE(dnnl_dilated_convolution_backward_data_desc_init(&cd, alg,
-                             &src_d, &wei_d, &dst_d, strides, dilates, padding,
-                             padding_r),
-                    WARN);
+            DNN_SAFE_STATUS(dnnl_dilated_convolution_backward_data_desc_init(
+                    &cd, alg, &src_d, &wei_d, &dst_d, strides, dilates, padding,
+                    padding_r));
             break;
         case BWD_W:
         case BWD_WB:
-            DNN_SAFE(dnnl_dilated_convolution_backward_weights_desc_init(&cd,
-                             alg, &src_d, &wei_d,
-                             prb->dir == BWD_W ? nullptr : &bia_d, &dst_d,
-                             strides, dilates, padding, padding_r),
-                    WARN);
+            DNN_SAFE_STATUS(dnnl_dilated_convolution_backward_weights_desc_init(
+                    &cd, alg, &src_d, &wei_d,
+                    prb->dir == BWD_W ? nullptr : &bia_d, &dst_d, strides,
+                    dilates, padding, padding_r));
             break;
-        default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
+        default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
     }
 
-    DNN_SAFE(cd.accum_data_type == prb->cfg[ACC].dt ? dnnl_success
-                                                    : dnnl_unimplemented,
-            CRIT);
+    DNN_SAFE_STATUS(cd.accum_data_type == prb->cfg[ACC].dt
+                    ? dnnl_success
+                    : dnnl_unimplemented);
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
@@ -433,16 +430,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
-
-    if (!res) return OK;
-
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
 }
 
 int init_prim_ref(
@@ -458,9 +446,7 @@ int init_prim_ref(
     prb_t prb_cpu {*prb, prb->dir, conf_f32, tag::abx, tag::abx, tag::abx,
             DIRECT, cpu_attr, prb->mb, prb->is_deconv};
     dnnl_primitive_desc_t pd_ref_ {};
-    SAFE(init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, prb->dir,
-                 nullptr),
-            WARN);
+    init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, prb->dir, nullptr);
     auto pd_ref = make_benchdnn_dnnl_wrapper(pd_ref_);
 
     dnnl_primitive_t prim_ref_ {};

@@ -549,7 +549,7 @@ void compute_ref(
         compute_ref_bwd(prb_, args);
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
         dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     const auto &prb = *p_ptr;
@@ -561,7 +561,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
         // If we are testing backward, we have to run forward training first
         // in order to generate a valid workspace.
         case dnnl_backward: fwd_prop = dnnl_forward_training; break;
-        default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
+        default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
     }
 
     const bool is_gru_lbr = prb.alg == LBR_GRU || prb.alg == LBR_AUGRU;
@@ -654,12 +654,10 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
     // When inference, we use forward_inference
     // When training, we use forward_training
     if (dir & FLAG_FWD) {
-        DNN_SAFE(init_rnn_fwd_desc(&rd, prb, fwd_prop, &src_layer_d,
-                         &src_iter_d, &src_iter_c_d, &attention_d,
-                         &weights_layer_d, &weights_iter_d, &weights_peephole_d,
-                         &weights_projection_d, &bias_d, &dst_layer_d,
-                         &dst_iter_d, &dst_iter_c_d),
-                WARN);
+        DNN_SAFE_STATUS(init_rnn_fwd_desc(&rd, prb, fwd_prop, &src_layer_d,
+                &src_iter_d, &src_iter_c_d, &attention_d, &weights_layer_d,
+                &weights_iter_d, &weights_peephole_d, &weights_projection_d,
+                &bias_d, &dst_layer_d, &dst_iter_d, &dst_iter_c_d));
     } else {
         // TODO: add stride support for diff_* tensors
         auto diff_src_layer_d = dnn_mem_t::init_md(
@@ -699,28 +697,19 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
         auto diff_dst_iter_c_d = dnn_mem_t::init_md(
                 4, dst_iter_c_dims, prb.cfg[DIFF_DST_ITER_C].dt, tag::any);
 
-        DNN_SAFE(
-                init_rnn_bwd_desc(&rd, prb, prb.prop, &src_layer_d, &src_iter_d,
-                        &src_iter_c_d, &attention_d, &weights_layer_d,
-                        &weights_iter_d, &weights_peephole_d,
-                        &weights_projection_d, &bias_d, &dst_layer_d,
-                        &dst_iter_d, &dst_iter_c_d, &diff_src_layer_d,
-                        &diff_src_iter_d, &diff_src_iter_c_d, &diff_attention_d,
-                        &diff_weights_layer_d, &diff_weights_iter_d,
-                        &diff_weights_peephole_d, &diff_weights_projection_d,
-                        &diff_bias_d, &diff_dst_layer_d, &diff_dst_iter_d,
-                        &diff_dst_iter_c_d),
-                WARN);
+        DNN_SAFE_STATUS(init_rnn_bwd_desc(&rd, prb, prb.prop, &src_layer_d,
+                &src_iter_d, &src_iter_c_d, &attention_d, &weights_layer_d,
+                &weights_iter_d, &weights_peephole_d, &weights_projection_d,
+                &bias_d, &dst_layer_d, &dst_iter_d, &dst_iter_c_d,
+                &diff_src_layer_d, &diff_src_iter_d, &diff_src_iter_c_d,
+                &diff_attention_d, &diff_weights_layer_d, &diff_weights_iter_d,
+                &diff_weights_peephole_d, &diff_weights_projection_d,
+                &diff_bias_d, &diff_dst_layer_d, &diff_dst_iter_d,
+                &diff_dst_iter_c_d));
     }
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(create_dnnl_rnn_attr(prb));
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
-    if (init_status == dnnl_unimplemented)
-        return res->state = UNIMPLEMENTED, OK;
-    SAFE(init_status, WARN);
-
-    return OK;
+    return dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
 }
 
 void check_known_skipped_case(const prb_t &prb, res_t *res) {

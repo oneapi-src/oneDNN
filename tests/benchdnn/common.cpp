@@ -66,6 +66,7 @@ const char *state2str(res_state_t state) {
     CASE(SKIPPED);
     CASE(MISTRUSTED);
     CASE(UNIMPLEMENTED);
+    CASE(INVALID_ARGUMENTS);
     CASE(FAILED);
     CASE(LISTED);
     CASE(EXECUTED);
@@ -116,6 +117,11 @@ void parse_result(res_t &res, const char *pstr) {
         case UNIMPLEMENTED:
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.unimplemented++;
+            bs.failed++;
+            break;
+        case INVALID_ARGUMENTS:
+            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            bs.invalid_arguments++;
             bs.failed++;
             break;
         case MISTRUSTED:
