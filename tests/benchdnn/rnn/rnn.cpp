@@ -88,27 +88,30 @@ private:
 
 namespace rnn {
 
-void create_dnnl_rnn_attr(const prb_t &prb, dnnl_primitive_attr_t *dnnl_attr) {
-    DNN_SAFE_V(dnnl_primitive_attr_create(dnnl_attr));
+dnnl_primitive_attr_t create_dnnl_rnn_attr(const prb_t &prb) {
+    dnnl_primitive_attr_t dnnl_attr = nullptr;
+    DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (prb.skip_nonlinear)
-        DNN_SAFE_V(dnnl_primitive_attr_set_rnn_tparams(*dnnl_attr, true,
+        DNN_SAFE_V(dnnl_primitive_attr_set_rnn_tparams(dnnl_attr, true,
                 prb.n_gates(), prb.linear_scales, prb.linear_cscale));
 
     DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
-            *dnnl_attr, prb.wei_nscales, prb.wei_scales_mask, prb.wei_scales));
+            dnnl_attr, prb.wei_nscales, prb.wei_scales_mask, prb.wei_scales));
 
     if (prb.is_lstm_projection() && prb.is_int8())
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_projection_qparams(
-                *dnnl_attr, prb.wei_proj_nscales, prb.wei_proj_scales_mask,
+                dnnl_attr, prb.wei_proj_nscales, prb.wei_proj_scales_mask,
                 prb.wei_proj_scales));
 
     if (prb.data_scale != 1.0 || prb.data_shift != 0.0)
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_data_qparams(
-                *dnnl_attr, prb.data_scale, prb.data_shift));
+                dnnl_attr, prb.data_scale, prb.data_shift));
 
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
-            *dnnl_attr, prb.attr.scratchpad_mode));
+            dnnl_attr, prb.attr.scratchpad_mode));
+
+    return dnnl_attr;
 }
 
 int check_ldoi_s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
@@ -754,11 +757,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
                 WARN);
     }
 
-    dnnl_primitive_attr_t dnnl_attr;
-    create_dnnl_rnn_attr(prb, &dnnl_attr);
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(create_dnnl_rnn_attr(prb));
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
-    dnnl_primitive_attr_destroy(dnnl_attr);
     if (init_status == dnnl_unimplemented)
         return res->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
