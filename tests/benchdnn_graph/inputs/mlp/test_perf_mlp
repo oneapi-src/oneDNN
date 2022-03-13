@@ -4,6 +4,7 @@
 --actfunc=relu+relu+relu
 --attr-oscale=common:2.25
 --attr-zero-points=dst:common:3+src:common:2
+--training=true,false
 1x13x512x256x128
 256x13x512x256x128
 
@@ -13,6 +14,7 @@
 --actfunc=relu+relu+relu+relu+logistic
 --attr-oscale=common:2.25
 --attr-zero-points=dst:common:3+src:common:2
+--training=true,false
 1x479x1024x1024x512x256x1
 2x479x1024x1024x512x256x1
 256x479x1024x1024x512x256x1

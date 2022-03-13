@@ -38,9 +38,20 @@ enum tensor_desc {
     WEI_INT8_,
     WEI_,
     BIA_,
-    MATMUL_
+    MATMUL_,
+    ACTFUNC_GRAD_, //used for backprop - one per layer
+    DATA_TGRAD_, //used for backprop - one per layer
+    WEI_TGRAD_, //used for backprop - one per layer
+    DATA_GRAD_, //used for backprop - one per layer + 1 input
+    WEI_GRAD_, //used for backprop - one per layer
+    BIA_GRAD_, //used for backprop - one per layer
 };
-
+struct lt_info {
+    dnnl::graph::logical_tensor lt;
+    int data_fill_idx;
+    int dt_mem_idx;
+    int fp_mem_idx;
+};
 struct settings_t {
     settings_t() = default;
 
@@ -49,6 +60,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
     prb_dims_t prb_dims;
+    std::vector<bool> is_training {false};
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<std::string> stag {tag::abx}, wtag {tag::abx}, dtag {tag::abx};
@@ -70,13 +82,14 @@ struct mlp_graph_spec_t {
     mlp_graph_spec_t(const prb_dims_t &a_dims, const std::string &wtag,
             const std::string &dtag, const dnnl_data_type_t &bia_dt,
             const dt_conf_t *cfg, std::vector<attr_t::post_ops_t> actfunc,
-            attr_t::scale_t scales, attr_t::zero_points_t zps)
+            attr_t::scale_t scales, attr_t::zero_points_t zps, bool is_training)
         : prb_dims(a_dims)
         , cfg(cfg)
         , actfunc(actfunc)
         , raw_data_tag(dtag)
         , raw_wei_tag(wtag)
-        , batch_sz(a_dims.dims[0]) {
+        , batch_sz(a_dims.dims[0])
+        , is_training(is_training) {
         assert(actfunc[0].entry.size() == prb_dims.ndims - 2);
         ;
         num_hidden_layers = prb_dims.ndims - 2;
@@ -102,6 +115,7 @@ struct mlp_graph_spec_t {
             attr.insert(scales);
             attr.insert(zps);
         }
+        use_dst = (rand() % 2 == 1) ? true : false;
     }
     ~mlp_graph_spec_t() {}
     prb_dims_t prb_dims;
@@ -111,9 +125,12 @@ struct mlp_graph_spec_t {
     attr_t attr;
     std::string raw_data_tag;
     std::string raw_wei_tag;
-
     int batch_sz;
+    bool is_training {false};
+    bool use_static_transpose {false};
+
     bool has_bias {false};
+    bool use_dst {false};
     std::vector<dnnl::graph::logical_tensor::dims_t> layer_dims, weight_dims,
             bias_dims;
     graph_dt mlp_src_dt, mlp_wei_dt, mlp_bias_dt, mlp_dst_dt, mlp_layer_dt;
@@ -147,17 +164,31 @@ struct mlp_graph_prb_t : public ::benchdnnext::graph_prb_t {
     fill_status_t ctor_status;
 
     ~mlp_graph_prb_t() {}
-    void build_tensor_desc(const mlp_graph_spec_t &spec);
     fill_status_t build_mlp_subgraph(const mlp_graph_spec_t &spec);
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::MatMul;
+    }
+    std::map<int, struct lt_info> ltid_desc_lut;
+    std::map<std::string, int> desc_ltid_lut;
+
+    int get_fp_mem_idx(std::string tensor_name) {
+        auto id = desc_ltid_lut[tensor_name];
+        return ltid_desc_lut[id].fp_mem_idx;
     }
 
 private:
     void addQuanDequanOp(const mlp_graph_spec_t &spec, const std::string src,
             const std::string dst, std::vector<float> scales,
             std::vector<int64_t> zps, bool isQuanOp);
-    void addMatmulActFuncOp(const mlp_graph_spec_t &spec, int layer_num);
+    void addMatmulOp(
+            const mlp_graph_spec_t &spec, int layer_num, bool is_fwd_pass);
+    void addActFuncOp(
+            const mlp_graph_spec_t &spec, int layer_num, bool is_fwd_pass);
+    void addStaticTransposeOp(const mlp_graph_spec_t &spec, int layer_num);
+    void addReduceSumOp(const mlp_graph_spec_t &spec, int layer_num);
+
+    void build_tensor_desc_fwd(const mlp_graph_spec_t &spec);
+    void build_tensor_desc_bwd(const mlp_graph_spec_t &spec);
 };
 
 void compute_ref_mlp(
