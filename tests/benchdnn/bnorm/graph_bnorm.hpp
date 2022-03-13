@@ -52,6 +52,7 @@ private:
         dims_t s_dims;
         dt bnorm_dt;
         std::string tag;
+        dir_t dir;
     };
 
     spec_t spec_;

@@ -195,6 +195,7 @@ void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src_hat,
         dnn_mem_t &d_ss, dnn_mem_t &d_sh);
 int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
+int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
 int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *res, const dnn_mem_t *ss = nullptr,
         const dnn_mem_t *sh = nullptr);
