@@ -51,9 +51,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *peltwise = pgraph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh, impl::op_kind::Log,
-                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::Elu, impl::op_kind::Exp,
+                                    impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh,
+                                    impl::op_kind::HardSwish,
+                                    impl::op_kind::Log, impl::op_kind::Sigmoid,
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,
                                     impl::op_kind::Sqrt, impl::op_kind::Square,

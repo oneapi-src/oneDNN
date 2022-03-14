@@ -2749,22 +2749,15 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
     const std::vector<impl::op_kind_t> two_inputs_ops {impl::op_kind::Multiply,
             impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
             impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
-    const std::vector<impl::op_kind_t> supported_ops {
-            impl::op_kind::Abs,
-            impl::op_kind::Clamp,
-            impl::op_kind::Elu,
-            impl::op_kind::GELU,
-            impl::op_kind::HardTanh,
-            impl::op_kind::Log,
-            impl::op_kind::Sigmoid,
-            impl::op_kind::SoftPlus,
-            impl::op_kind::Pow,
-            impl::op_kind::ReLU,
-            impl::op_kind::Round,
-            impl::op_kind::Sqrt,
-            impl::op_kind::Square,
-            impl::op_kind::Tanh,
-    };
+    const std::vector<impl::op_kind_t> supported_ops {impl::op_kind::Abs,
+            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
+            impl::op_kind::GELU, impl::op_kind::HardTanh,
+            impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Multiply,
+            impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
+            impl::op_kind::Divide, impl::op_kind::Subtract};
 
     for (size_t k = 0; k < supported_ops.size(); ++k) {
         for (size_t num_chain_ops = 0; num_chain_ops <= max_num_post_ops;
@@ -2847,6 +2840,8 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
             apass->run(agraph);
             dnnl_graph_graph_visualize(&agraph, 0);
             ASSERT_EQ(agraph.get_num_partitions(), 1);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(),
+                    num_chain_ops + 1);
             ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
                     dnnl_impl::op_kind::conv_bias_post_ops_fusion);
 
@@ -2864,22 +2859,15 @@ TEST(Pass, FuseConvPostOpsChain) {
     const std::vector<impl::op_kind_t> two_inputs_ops {impl::op_kind::Multiply,
             impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
             impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
-    const std::vector<impl::op_kind_t> supported_ops {
-            impl::op_kind::Abs,
-            impl::op_kind::Clamp,
-            impl::op_kind::Elu,
-            impl::op_kind::GELU,
-            impl::op_kind::HardTanh,
-            impl::op_kind::Log,
-            impl::op_kind::Sigmoid,
-            impl::op_kind::SoftPlus,
-            impl::op_kind::Pow,
-            impl::op_kind::ReLU,
-            impl::op_kind::Round,
-            impl::op_kind::Sqrt,
-            impl::op_kind::Square,
-            impl::op_kind::Tanh,
-    };
+    const std::vector<impl::op_kind_t> supported_ops {impl::op_kind::Abs,
+            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
+            impl::op_kind::GELU, impl::op_kind::HardTanh,
+            impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Multiply,
+            impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
+            impl::op_kind::Divide, impl::op_kind::Subtract};
 
     for (size_t k = 0; k < supported_ops.size(); ++k) {
         for (size_t num_chain_ops = 0; num_chain_ops <= max_num_post_ops;
