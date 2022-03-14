@@ -13,7 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
+#include <set>
 #include "mha/mha.hpp"
 
 namespace mha {
@@ -36,6 +36,7 @@ std::ostream &operator<<(std::ostream &s, const mha_graph_spec_t &spec) {
     s << "--head=" << spec.head << " ";
     s << "--dt=" << convert_dt(spec.mha_inout_dt) << " ";
     s << "--tag=" << spec.tag << " ";
+    s << " --training=" << bool2str(spec.is_training) << " ";
     if (!spec.quan_attr.oscale.is_def())
         s << "--attr-quan-oscale=" << spec.quan_attr.oscale << " ";
     if (!spec.quan_attr.zero_points.is_def())
@@ -133,7 +134,7 @@ inline int fill_data(
     return OK;
 }
 
-fill_status_t mha_graph_prb_t::build_mha_subgraph(
+fill_status_t mha_graph_prb_t::build_mha_subgraph_fwd(
         const mha_graph_spec_t &spec) {
     using op = dnnl::graph::op;
 
@@ -148,7 +149,7 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph(
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
 
-    build_tensor_desc(spec);
+    build_tensor_desc_fwd(spec);
 
     if (spec.mha_pattern == "v1") {
         addDequanOp(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QSRC));
@@ -180,30 +181,20 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph(
     }
 
     //matmul Q.KT
-    ops_.emplace_back(op(ops_.size(), op::kind::MatMul,
-            {tensor_descs_[STRINGIFY(QDST)], tensor_descs_[STRINGIFY(KDST)]},
-            {tensor_descs_[STRINGIFY(QKMATMULDST)]}, "QK_matmul"));
+    addMatmulOp(false, spec.is_training, STRINGIFY(QDST), STRINGIFY(KDST),
+            STRINGIFY(QKMATMULDST));
     //score
-    new_op_id = ops_.size();
-    ops_.emplace_back(op(new_op_id, op::kind::Divide,
-            {tensor_descs_[STRINGIFY(QKMATMULDST)],
-                    tensor_descs_[STRINGIFY(QKDIVSCALE)]},
-            {tensor_descs_[STRINGIFY(QKDIVDST)]}, "SCORE_divide"));
-    ops_[new_op_id].set_attr("auto_broadcast", std::string("numpy"));
+    addArithOp(true, op::kind::Divide, true, STRINGIFY(QKMATMULDST),
+            STRINGIFY(QKDIVSCALE), STRINGIFY(QKDIVDST));
     //add
-    new_op_id = ops_.size();
-    ops_.emplace_back(op(new_op_id, op::kind::Add,
-            {tensor_descs_[STRINGIFY(QKDIVDST)],
-                    tensor_descs_[STRINGIFY(QKATTN)]},
-            {tensor_descs_[STRINGIFY(QKADD)]}, "SCORE_add"));
-    ops_[new_op_id].set_attr("auto_broadcast", std::string("numpy"));
+    addArithOp(true, op::kind::Add, true, STRINGIFY(QKDIVDST),
+            STRINGIFY(QKATTN), STRINGIFY(QKADD));
     //softmax
     new_op_id = ops_.size();
     ops_.emplace_back(
             op(new_op_id, op::kind::SoftMax, {tensor_descs_[STRINGIFY(QKADD)]},
                     {tensor_descs_[STRINGIFY(QKSOFTMAX)]}, "SCORE_softmax"));
     ops_[new_op_id].set_attr("axis", static_cast<int64_t>(3));
-
     //For INT8 quantize and dequantize the softmax output.
     //For int8-bf16 there are typecast before and after quantize ops
     std::string quan_tensor = STRINGIFY(QKSOFTMAX);
@@ -213,22 +204,25 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph(
     }
     addQuanOp(spec, quan_tensor, STRINGIFY(QKSOFTMAXQUAN));
     addDequanOp(spec, STRINGIFY(QKSOFTMAXQUAN), STRINGIFY(QKSOFTMAXDEQUAN));
-    std::string matmul_qkvtensor = (spec.MHA_int8) ? STRINGIFY(QKSOFTMAXDEQUAN)
-                                                   : STRINGIFY(QKSOFTMAX);
+    //dropout for training
+    addArithOp(spec.is_training, op::kind::Multiply, false, quan_tensor,
+            STRINGIFY(QKDROPOUT), STRINGIFY(QKSOFTMAXDEQUAN));
+    std::string matmul_qkvtensor = (spec.MHA_int8 || spec.is_training)
+            ? STRINGIFY(QKSOFTMAXDEQUAN)
+            : STRINGIFY(QKSOFTMAX);
     if (spec.mha_pattern == "v3") {
         addTypecastOp(matmul_qkvtensor, STRINGIFY(QKSOFTMAXDEQUANCAST));
         matmul_qkvtensor = STRINGIFY(QKSOFTMAXDEQUANCAST);
     }
 
     //QKV matmul
-    ops_.emplace_back(op(ops_.size(), op::kind::MatMul,
-            {tensor_descs_[matmul_qkvtensor], tensor_descs_[STRINGIFY(VDST)]},
-            {tensor_descs_[STRINGIFY(QKVMATMUL)]}, "QKV_matmul"));
+    addMatmulOp(false, false, matmul_qkvtensor, STRINGIFY(VDST),
+            STRINGIFY(QKVMATMUL));
     //QKV transpose
     addStaticTransposeOp(
             spec, STRINGIFY(QKVMATMUL), STRINGIFY(QKVTDST), qkv_transpose_axis);
 
-    if (spec.mha_pattern == "v1") {
+    if (spec.mha_pattern == "v1" || spec.is_training) {
         addStaticReshapeOp(
                 spec, STRINGIFY(QKVTDST), STRINGIFY(QKVDST), spec.dims);
     } else if (spec.mha_pattern == "v2") {
@@ -245,16 +239,61 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph(
     return fill_status::DONE;
 }
 
+fill_status_t mha_graph_prb_t::build_mha_subgraph_bwd(
+        const mha_graph_spec_t &spec) {
+    if (!spec.is_training) return fill_status::DONE;
+    BENCHDNN_PRINT(0, "ready for training %d\n", 0);
+    dims_t qkv_shape = {
+            spec.dims[0], spec.dims[1], spec.head, (spec.dims[2] / spec.head)};
+    //attributes
+    dims_t qkv_transpose_axis = {0, 2, 1, 3};
+    build_tensor_desc_bwd(spec);
+    addStaticReshapeOp(spec, STRINGIFY(GRADIN), STRINGIFY(GRADTIN), qkv_shape);
+    addStaticTransposeOp(
+            spec, STRINGIFY(GRADTIN), STRINGIFY(GRADTOUT), qkv_transpose_axis);
+    addMatmulOp(true, false, STRINGIFY(QKSOFTMAXDEQUAN), STRINGIFY(GRADTOUT),
+            STRINGIFY(GRADVWEI));
+    addMatmulOp(false, true, STRINGIFY(GRADTOUT), STRINGIFY(VDST),
+            STRINGIFY(GRADVDATA));
+    addArithOp(spec.is_training, dnnl::graph::op::kind::Multiply, true,
+            STRINGIFY(GRADVDATA), STRINGIFY(QKDROPOUT),
+            STRINGIFY(GRADMUL1DATA));
+    addArithOp(spec.is_training, dnnl::graph::op::kind::Multiply, true,
+            STRINGIFY(QKSOFTMAX), STRINGIFY(GRADMUL1DATA),
+            STRINGIFY(GRADMUL2DATA));
+    addReduceSumOp(spec, STRINGIFY(GRADMUL2DATA), STRINGIFY(GRADSOFTMAXSUM));
+    addArithOp(spec.is_training, dnnl::graph::op::kind::Subtract, true,
+            STRINGIFY(GRADMUL1DATA), STRINGIFY(GRADSOFTMAXSUM),
+            STRINGIFY(GRADSOFTMAXSUB));
+    addArithOp(spec.is_training, dnnl::graph::op::kind::Multiply, true,
+            STRINGIFY(QKSOFTMAX), STRINGIFY(GRADSOFTMAXSUB),
+            STRINGIFY(GRADMUL3DATA));
+    addArithOp(spec.is_training, dnnl::graph::op::kind::Divide, true,
+            STRINGIFY(GRADMUL3DATA), STRINGIFY(QKDIVSCALE),
+            STRINGIFY(GRADDIVDATA));
+    addMatmulOp(false, false, STRINGIFY(GRADDIVDATA), STRINGIFY(KDST),
+            STRINGIFY(GRADQWEI));
+    addMatmulOp(true, false, STRINGIFY(GRADDIVDATA), STRINGIFY(QDST),
+            STRINGIFY(GRADKWEI));
+    return fill_status::DONE;
+}
+
 void check_known_skipped_case(const mha_graph_spec_t *spec, res_t *res) {
-    if ((spec->mha_pattern == "")
-            || (spec->mha_pattern != "v1" && spec->mha_pattern != "v2"
-                    && spec->mha_pattern != "v3")) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+    if (is_bench_mode(CORR)) {
+        BENCHDNN_PRINT(0, "Please run for performance %d\n", 0);
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
     }
-    if ((spec->mha_pattern == "v3")
-            && (spec->mha_inout_dt == graph_dt::f32
-                    || spec->mha_inout_dt == graph_dt::bf16)) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+    if (!spec->is_training) {
+        if ((spec->mha_pattern == "")
+                || (spec->mha_pattern != "v1" && spec->mha_pattern != "v2"
+                        && spec->mha_pattern != "v3")) {
+            res->state = SKIPPED, res->reason = INVALID_CASE;
+        }
+        if ((spec->mha_pattern == "v3")
+                && (spec->mha_inout_dt == graph_dt::f32
+                        || spec->mha_inout_dt == graph_dt::bf16)) {
+            res->state = SKIPPED, res->reason = INVALID_CASE;
+        }
     }
 
     if (spec->head > spec->dims[2]) {
@@ -268,6 +307,7 @@ void check_known_skipped_case(const mha_graph_spec_t *spec, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
     }
 }
+
 int doit(const mha_graph_spec_t *spec, res_t *res) {
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
@@ -281,63 +321,111 @@ int doit(const mha_graph_spec_t *spec, res_t *res) {
     }
     auto graph_h = graph_prb.to_graph();
     const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
-        return res->state = FAILED, FAIL;
 
-    const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (partitions.empty()) return res->state = FAILED, FAIL;
 
-    auto ins = par.get_in_ports();
-    auto outs = par.get_out_ports();
     dnnl::graph::engine &engine = benchdnnext::get_test_engine();
-    //sort the in_port based on id
-    std::sort(ins.begin(), ins.end(),
-            [](const dnnl::graph::logical_tensor &a,
-                    const dnnl::graph::logical_tensor &b) {
-                return a.get_id() < b.get_id();
-            });
-    //Compile Partitions.
-    auto cp = par.compile(ins, outs, engine);
+    std::vector<std::vector<dnnl::graph::logical_tensor>> ins_vec, outs_vec;
+    std::vector<dnnl::graph::compiled_partition> cp_vec;
+    for (int i = 0; i < partitions.size(); i++) {
+        const auto par = partitions[i];
+        if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
 
-    auto q_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
-    auto k_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
-    auto v_fp = make_dnn_mem(ins[2], dt::f32, tag::abx);
-
-    auto q_dt = make_dnn_mem(ins[0], spec->tag);
-    auto k_dt = make_dnn_mem(ins[1], spec->tag);
-    auto v_dt = make_dnn_mem(ins[2], spec->tag);
-
-    // TODO: use for correctness check
-    //auto mha_out_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
-    auto mha_out_dt = make_dnn_mem(outs[0], spec->tag);
-    fill_data(spec->mha_dt, q_dt, q_fp, res);
-    fill_data(spec->mha_dt, k_dt, k_fp, res);
-    fill_data(spec->mha_dt, v_dt, v_fp, res);
+        ins_vec.push_back(par.get_in_ports());
+        outs_vec.push_back(par.get_out_ports());
+        //sort the in_port based on id
+        std::sort(ins_vec[i].begin(), ins_vec[i].end(),
+                [](const dnnl::graph::logical_tensor &a,
+                        const dnnl::graph::logical_tensor &b) {
+                    return a.get_id() < b.get_id();
+                });
+        //sort the out_port based on id
+        std::sort(outs_vec[i].begin(), outs_vec[i].end(),
+                [](const dnnl::graph::logical_tensor &a,
+                        const dnnl::graph::logical_tensor &b) {
+                    return a.get_id() < b.get_id();
+                });
+        //Compile Partitions.
+        cp_vec.push_back(par.compile(ins_vec[i], outs_vec[i], engine));
+    }
+    // prepare memory and physical tensors for each partition
+    std::vector<dnn_mem_t> mem_dt, mem_fp;
+    std::vector<std::vector<dnnl ::graph::tensor>> tensors_in, tensors_out;
 
     float scale = sqrt(spec->dims[2] / spec->head);
     //number of elements = bs * seq_len
     std::vector<int> attention_mask_filter(spec->dims[0] * spec->dims[1], 1);
 
-    std::vector<dnnl::graph::tensor> tensors_in;
-    std::vector<dnnl::graph::tensor> tensors_out;
-    //Execute Partitions.
-    tensors_in.emplace_back(
-            dnnl::graph::tensor(ins[0], engine, static_cast<void *>(q_dt)));
-    tensors_in.emplace_back(
-            dnnl::graph::tensor(ins[1], engine, static_cast<void *>(k_dt)));
-    tensors_in.emplace_back(
-            dnnl::graph::tensor(ins[2], engine, static_cast<void *>(v_dt)));
-    tensors_in.emplace_back(
-            dnnl::graph::tensor(ins[3], engine, static_cast<void *>(&scale)));
-    tensors_in.emplace_back(dnnl::graph::tensor(
-            ins[4], engine, static_cast<void *>(attention_mask_filter.data())));
-    tensors_out.emplace_back(dnnl::graph::tensor(
-            outs[0], engine, static_cast<void *>(mha_out_dt)));
-    SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
+    for (auto lt_vec : ins_vec) {
+        std::vector<dnnl ::graph::tensor> tensor_in;
+        for (auto lt : lt_vec) {
+            auto &lut_info = graph_prb.ltid_desc_lut[lt.get_id()];
+            std::set<std::string> skipfillmem = {"QKDIVSCALE", "QKATTN"};
+            if (lut_info.dt_mem_idx == -1
+                    && skipfillmem.find(lut_info.name) == skipfillmem.end()) {
+                int mem_idx = mem_dt.size();
+                mem_dt.push_back(make_dnn_mem(lut_info.lt, tag::abx));
+                mem_fp.push_back(make_dnn_mem(lut_info.lt, dt::f32, tag::abx));
+                SAFE(fill_data(spec->mha_dt, mem_dt.back(), mem_fp.back(), res),
+                        WARN);
+                lut_info.fp_mem_idx = mem_idx;
+                lut_info.dt_mem_idx = mem_idx;
+            }
+            if (lut_info.name == "QKDIVSCALE") {
+                tensor_in.emplace_back(dnnl::graph::tensor(
+                        lut_info.lt, engine, static_cast<void *>(&scale)));
+            } else if (lut_info.name == "QKATTN") {
+                tensor_in.emplace_back(dnnl::graph::tensor(lut_info.lt, engine,
+                        static_cast<void *>(attention_mask_filter.data())));
+            } else {
+                tensor_in.emplace_back(dnnl::graph::tensor(lut_info.lt, engine,
+                        static_cast<void *>(mem_dt.back())));
+            }
+        }
+        tensors_in.emplace_back(tensor_in);
+    }
+    for (auto lt_vec : outs_vec) {
+        std::vector<dnnl ::graph::tensor> tensor_out;
+        for (auto lt : lt_vec) {
+            auto &lut_info = graph_prb.ltid_desc_lut[lt.get_id()];
+            if (lut_info.dt_mem_idx == -1) {
+                int mem_idx = mem_dt.size();
+                mem_dt.push_back(make_dnn_mem(lut_info.lt, tag::abx));
+                mem_fp.push_back(make_dnn_mem(lut_info.lt, dt::f32, tag::abx));
+                lut_info.fp_mem_idx = mem_idx;
+                lut_info.dt_mem_idx = mem_idx;
+            }
+            tensor_out.emplace_back(dnnl::graph::tensor(lut_info.lt, engine,
+                    static_cast<void *>(mem_dt[lut_info.dt_mem_idx])));
+        }
+        tensors_out.emplace_back(tensor_out);
+    }
+    double totms = 0;
+    for (int i = 0; i < partitions.size(); i++) {
+        if (is_bench_mode(PERF)) {
+            for (int i = 0; i < partitions.size(); i++) {
+                timer::timer_t perf_timer;
+                SAFE(measure_perf(perf_timer, cp_vec[i], tensors_in[i],
+                             tensors_out[i]),
+                        WARN);
+                res->timer_map.perf_timer().times_ = perf_timer.times_;
+                for (int tidx = 0; tidx < timer::timer_t::mode_t::n_modes;
+                        tidx++) {
+                    res->timer_map.perf_timer().ms_[tidx]
+                            += perf_timer.ms_[tidx];
+                    res->timer_map.perf_timer().ticks_[tidx]
+                            += perf_timer.ticks_[tidx];
+                }
+                BENCHDNN_PRINT(1, "partition : %d min: %f avg: %f\n", i,
+                        perf_timer.ms(timer::timer_t::min),
+                        perf_timer.ms(timer::timer_t::avg));
+                totms += perf_timer.ms(timer::timer_t::avg);
+            }
+        }
+    }
+    BENCHDNN_PRINT(0, "Total timetaken for %ld partitions: %f\n",
+            partitions.size(), totms);
 
-    SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
-            WARN);
-    //TODO: when correctnes check enabled.
     res->state = PASSED;
     return OK;
 }

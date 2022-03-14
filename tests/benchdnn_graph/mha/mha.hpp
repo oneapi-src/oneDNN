@@ -52,11 +52,11 @@ typedef struct dt_conf_t {
     double eps; /* acceptable error */
 } _dt_conf_t[CFG_DT_MAX];
 
-enum tensor_desc {
+enum tensor_desc_fwd {
     QINT8_SRC = 0, //v1,v2,v3 - INT8 input
     QSRC, //v1,v2,v3 - input
     QTSRC, //v1 - transpose input
-    QDST, //v1, v2, v3 - input to QK matmul
+    QDST, //v1, v2, v3, training - input to QK matmul
     KINT8_SRC, //v1,v2,v3 - INT8 input
     KSRC, //v1,v2,v3 - input
     KTSRC, //v1 - transpose input
@@ -64,24 +64,46 @@ enum tensor_desc {
     VINT8_SRC, //v1,v2,v3 - INT8 input
     VSRC, //v1,v2,v3 - input
     VTSRC, //v1 - transpose input
-    VDST, //v1, v2, v3 - input to QKV matmul
-    KDST, //v1, v2, v3 - input to QK matmul
-    QKMATMULDST, //v1, v2, v3 - output QK matmul
-    QKDIVSCALE, //v1, v2, v3 - score scale
+    VDST, //v1, v2, v3, training - input to QKV matmul
+    KDST, //v1, v2, v3 , training- input to QK matmul
+    QKMATMULDST, //v1, v2, v3, training - output QK matmul
+    QKDIVSCALE, //v1, v2, v3, training - score scale
     QKDIVDST, //v1, v2, v3 - score output
     QKATTN,
     QKADD,
     QKSOFTMAX, //v1,v2,v3 - softmax output
+    QKDROPOUT, //training - dropout input
     QKSOFTMAXQUANCAST, //v3 - softmax cast
     QKSOFTMAXQUAN, //v1 (int8), v2(int8), v3
-    QKSOFTMAXDEQUAN, //v1 (int8), v2(int8), v3
+    QKSOFTMAXDEQUAN, //v1 (int8), v2(int8), v3, training dropout o/p
     QKSOFTMAXDEQUANCAST, //v3 -  cast
     QKVMATMUL, //v1,v2,v3 - QKVmatmul ouput
     QKVTDST, //v1,v2,v3 - QKVmatmul transpose
     QKVDST, //v1,v2,v3 - QKVmatmul output
     QKVCASTDST, //v3 - QKVmatmul cast output
     QKVINT8DST, //v1 (int8), v2(int8), v3- final ouput
-    TENSOR_DESC_TYPES_TOTAL,
+    TENSOR_DESC_FWD_TYPES_TOTAL,
+    GRADIN, // training - GRAD input
+    GRADTIN, // training - GRAD transpose input/reshape output
+    GRADTOUT, // training - GRAD transpose output
+    GRADVWEI, // training - V weight gradient
+    GRADVDATA, // training - V data gradient
+    GRADMUL1DATA, // training - V data gradient mul1
+    GRADMUL2DATA, // training - V data gradient mul2
+    GRADSOFTMAXSUM, // training - V data gradient softmax reduce sum
+    GRADSOFTMAXSUB, // training - V data gradient softmax sub
+    GRADMUL3DATA, // training - V data gradient mul3
+    GRADDIVDATA, // training - V data gradient div
+    GRADKWEI, // training - K weight gradient
+    GRADQWEI, // training - Q weight gradient
+    TENSOR_DESC_BWD_TYPES_TOTAL,
+
+};
+struct lt_info {
+    std::string name;
+    dnnl::graph::logical_tensor lt;
+    int dt_mem_idx;
+    int fp_mem_idx;
 };
 
 typedef struct tensor_desc_info {
@@ -89,7 +111,7 @@ typedef struct tensor_desc_info {
     std::string tensor_desc_name;
     graph_dt dt;
     dims_t dims;
-} _tensor_desc_info[TENSOR_DESC_TYPES_TOTAL];
+} _tensor_desc_info[TENSOR_DESC_BWD_TYPES_TOTAL];
 
 const int int_max_exact = 1 << 24;
 const _dt_conf_t cfg = {
@@ -113,6 +135,7 @@ struct settings_t {
 
     const char *pattern = nullptr;
     prb_dims_t prb_dims;
+    std::vector<bool> is_training {false};
     std::vector<int> heads {16};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
@@ -139,14 +162,15 @@ struct mha_graph_spec_t {
     mha_graph_spec_t(std::string pattern, const dims_t &dims, const int ndims,
             const int &head, const dnnl_data_type_t &dt,
             const attr_t &quan_attr, const attr_t &dequan_attr,
-            float quan_scale, float dequan_scale)
+            float quan_scale, float dequan_scale, bool is_training)
         : mha_pattern(pattern)
         , dims(dims)
         , ndims(ndims)
         , head(head)
         , mha_inout_dt(benchdnnext::convert_dt(dt))
         , quan_attr(quan_attr)
-        , dequan_attr(dequan_attr) {
+        , dequan_attr(dequan_attr)
+        , is_training(is_training) {
         tag = tag::abx; //TODO: pass from command line
         this->quan_attr.oscale.scale = quan_scale;
         this->dequan_attr.oscale.scale = dequan_scale;
@@ -171,6 +195,7 @@ struct mha_graph_spec_t {
     std::string tag;
     bool MHA_int8 {false};
     attr_t quan_attr, dequan_attr;
+    bool is_training {false};
     std::string quan_qtype, dequan_qtype;
     //TODO: zps needs to be modified depending on qtype/policy
     std::vector<int64_t> quan_zps, dequan_zps;
@@ -197,7 +222,9 @@ struct mha_graph_prb_t : public ::benchdnnext::graph_prb_t {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-        ctor_status = build_mha_subgraph(spec);
+        ctor_status = build_mha_subgraph_fwd(spec);
+        if (stop_work(ctor_status)) return;
+        ctor_status = build_mha_subgraph_bwd(spec);
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;
@@ -205,8 +232,10 @@ struct mha_graph_prb_t : public ::benchdnnext::graph_prb_t {
     fill_status_t ctor_status;
 
     ~mha_graph_prb_t() {}
-    void build_tensor_desc(const mha_graph_spec_t &spec);
-    fill_status_t build_mha_subgraph(const mha_graph_spec_t &spec);
+    void build_tensor_desc_fwd(const mha_graph_spec_t &spec);
+    fill_status_t build_mha_subgraph_fwd(const mha_graph_spec_t &spec);
+    void build_tensor_desc_bwd(const mha_graph_spec_t &spec);
+    fill_status_t build_mha_subgraph_bwd(const mha_graph_spec_t &spec);
 
 private:
     void addDequanOp(const mha_graph_spec_t &spec, const std::string src,
@@ -219,11 +248,20 @@ private:
             const std::string dst);
     void addTypecastOp(const std::string src, const std::string dst);
     void addReorderOp(const std::string src, const std::string dst);
+    void addArithOp(bool addOp, dnnl::graph::op::kind op_kind,
+            bool set_broadcast, const std::string src1, const std::string src2,
+            const std::string dst);
+    void addMatmulOp(bool is_transpose_a, bool is_transpose_b,
+            const std::string src1, const std::string src2,
+            const std::string dst);
+    void addReduceSumOp(const mha_graph_spec_t &spec, const std::string src,
+            const std::string dst);
 
 public:
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::MatMul;
     }
+    std::map<int, struct lt_info> ltid_desc_lut;
 };
 
 int doit(const mha_graph_spec_t *spec, res_t *res);
