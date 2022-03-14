@@ -104,6 +104,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     padd_graph->create_input_port(1, pdequant_add, 1);
                     padd_graph->create_output_port(0, padd, 0);
 
+                    // special post op handle: swish is composed
+                    // by sigmoid and multiply
+                    auto swish_graph
+                            = std::make_shared<pb_graph_t>("swish_graph");
+                    auto psigmoid = swish_graph->append_op(
+                            impl::op_kind::Sigmoid, "psigmoid");
+                    auto pmultiply
+                            = swish_graph->append_op(impl::op_kind::Multiply,
+                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
+                    swish_graph->create_input_port(0, psigmoid, 0);
+                    swish_graph->create_input_port(0, pmultiply, 1);
+                    swish_graph->create_output_port(0, pmultiply, 0);
+
                     auto peltwise_graph
                             = std::make_shared<pb_graph_t>("peltwise_graph");
                     pm::pb_op *pop = peltwise_graph->append_alternation(
@@ -125,7 +138,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto prep_graph
                             = std::make_shared<pb_graph_t>("prep_graph");
                     auto palt = prep_graph->append_alternation(
-                            {padd_graph, peltwise_graph}, "palternation");
+                            {padd_graph, swish_graph, peltwise_graph},
+                            "palternation");
                     prep_graph->create_input_port(0, palt, 0);
                     prep_graph->create_input_port(1, palt, 1);
                     prep_graph->create_output_port(0, palt, 0);
@@ -153,7 +167,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-// TODO(zitian): add Sigmoid+Multiply support
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_post_ops_fusion)
         .set_priority(10.4f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -175,6 +188,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_post_ops_fusion)
                             = pgraph->append_optional(biasadd_subgraph,
                                     {in_edge(0, convtranspose, 0)}, "biasadd");
 
+                    // special post op handle: swish is composed
+                    // by sigmoid and multiply
+                    auto swish_graph
+                            = std::make_shared<pb_graph_t>("swish_graph");
+                    auto psigmoid = swish_graph->append_op(
+                            impl::op_kind::Sigmoid, "psigmoid");
+                    auto pmultiply
+                            = swish_graph->append_op(impl::op_kind::Multiply,
+                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
+                    swish_graph->create_input_port(0, psigmoid, 0);
+                    swish_graph->create_input_port(0, pmultiply, 1);
+                    swish_graph->create_output_port(0, pmultiply, 0);
+
                     auto post_ops = std::make_shared<pb_graph_t>("post_ops");
                     auto alternation = post_ops->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Add,
@@ -194,7 +220,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_post_ops_fusion)
                             "alternation");
                     post_ops->create_input_port(0, alternation, 0);
                     post_ops->create_output_port(0, alternation, 0);
-                    auto optional_post_ops = pgraph->append_optional(post_ops,
+
+                    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+                    auto palt = alt_graph->append_alternation(
+                            {swish_graph, post_ops}, "palt");
+                    alt_graph->create_input_port(0, palt, 0);
+                    alt_graph->create_output_port(0, palt, 0);
+
+                    auto optional_post_ops = pgraph->append_optional(alt_graph,
                             in_edges_t {in_edge(0, optional_biasadd, 0)},
                             "optional_post_ops");
                     pgraph->create_input_port(0, convtranspose, 0);

@@ -7049,6 +7049,99 @@ TEST(operator_kernel, convtranspose_relu) {
     }
 }
 
+TEST(operator_kernel, convtranspose_swish) {
+    using dims = impl::dnnl_impl::dims;
+
+    std::vector<bool> with_biases = {false, true};
+
+    for (auto with_bias : with_biases) {
+        impl::engine_t &eng = get_engine();
+        test::vector<float> src_data {-1.0, 2.5, 5.0, 1.5};
+        test::vector<float> weight_data {
+                1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+        test::vector<float> bias_data = {2.0};
+        test::vector<float> dst_data(16, 0.0);
+
+        impl::op_t convtranspose_op(
+                0, impl::op_kind::ConvTranspose, "ConvTranspose");
+        convtranspose_op.set_attr<dims>("strides", dims {1, 1});
+        convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
+        convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
+        convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
+        convtranspose_op.set_attr<int64_t>("groups", 1);
+        convtranspose_op.set_attr<std::string>("data_format", "NXC");
+        convtranspose_op.set_attr<std::string>("filter_format", "XIO");
+        impl::op_t sigmoid_op(1, impl::op_kind::Sigmoid, "Sigmoid");
+        impl::op_t multiply_op(2, impl::op_kind::Multiply, "Multiply");
+
+        // prepare logical tensor
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 2, 2, 1}, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, {3, 3, 1, 1}, impl::data_type::f32);
+        impl::logical_tensor_t bias_lt
+                = utils::logical_tensor_init(2, {1}, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                3, {1, 4, 4, 1}, impl::data_type::f32, impl::layout_type::any);
+        impl::logical_tensor_t sigmoid_dst_lt = utils::logical_tensor_init(
+                4, {1, 4, 4, 1}, impl::data_type::f32);
+        impl::logical_tensor_t multiply_dst_lt = utils::logical_tensor_init(
+                5, {1, 4, 4, 1}, impl::data_type::f32);
+
+        convtranspose_op.add_input(src_lt);
+        convtranspose_op.add_input(weight_lt);
+        if (with_bias) { convtranspose_op.add_input(bias_lt); }
+        convtranspose_op.add_output(dst_lt);
+
+        sigmoid_op.add_input(dst_lt);
+        sigmoid_op.add_output(sigmoid_dst_lt);
+        multiply_op.add_input(dst_lt);
+        multiply_op.add_input(sigmoid_dst_lt);
+        multiply_op.add_output(multiply_dst_lt);
+
+        impl::graph_t g(eng.kind());
+        g.add_op(&convtranspose_op);
+        g.add_op(&sigmoid_op);
+        g.add_op(&multiply_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass
+                = get_pass("convtranspose_post_ops_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &weight_lt};
+        if (with_bias) { inputs.push_back(&bias_lt); }
+        std::vector<const impl::logical_tensor_t *> outputs {&multiply_dst_lt};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(multiply_dst_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t src_ts(src_lt, &eng, src_data.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight_data.data());
+        impl::tensor_t bias_ts;
+        if (with_bias)
+            bias_ts = impl::tensor_t(bias_lt, &eng, bias_data.data());
+        impl::tensor_t multiply_dst_ts(multiply_dst_lt, &eng, dst_data.data());
+
+        impl::stream_t &strm = get_stream();
+        if (with_bias)
+            cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {multiply_dst_ts});
+        else
+            cp.execute(&strm, {src_ts, weight_ts}, {multiply_dst_ts});
+        strm.wait();
+    }
+}
+
 test::vector<float> sigmoid_func(const test::vector<float> &ref_dst) {
     test::vector<float> out;
     for (auto &rdst : ref_dst) {
@@ -10304,6 +10397,198 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
     }
 }
 
+TEST(ExecuteSubgraphFp32, ReduceSwish) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> reduce_src_shape {2, 2, 2, 2};
+    std::vector<int64_t> base_reduce_dst_shape {1, 2, 2, 1};
+    std::vector<int64_t> axes {0, 3};
+
+    test::vector<float> src_data(product(reduce_src_shape));
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return f32_distribution(generator); });
+
+    std::vector<bool> keep_dims_infos {true, false};
+    const std::vector<impl::op_kind_t> op_infos {impl::op_kind::ReduceL1,
+            impl::op_kind::ReduceL2, impl::op_kind::ReduceMax,
+            impl::op_kind::ReduceMean, impl::op_kind::ReduceMin,
+            impl::op_kind::ReduceProd, impl::op_kind::ReduceSum};
+
+    for_(bool keep_dims : keep_dims_infos)
+    for (auto &akind : op_infos) {
+        std::vector<int64_t> reduce_dst_shape = base_reduce_dst_shape;
+        if (!keep_dims) {
+            reduce_dst_shape.erase(reduce_dst_shape.begin());
+            reduce_dst_shape.erase(reduce_dst_shape.end() - 1);
+        }
+
+        impl::op_t reduce {0, akind, "reduce"};
+        reduce.set_attr("keep_dims", keep_dims);
+        reduce.set_attr("axes", axes);
+
+        impl::op_t sigmoid {1, impl::op_kind::Sigmoid, "sigmoid"};
+        impl::op_t multiply {2, impl::op_kind::Multiply, "multiply"};
+
+        impl::logical_tensor_t reduce_src = utils::logical_tensor_init(
+                0, reduce_src_shape, impl::data_type::f32);
+        impl::logical_tensor_t reduce_dst = utils::logical_tensor_init(
+                1, reduce_dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t sigmoid_dst = utils::logical_tensor_init(
+                2, reduce_dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t mul_dst = utils::logical_tensor_init(
+                3, reduce_dst_shape, impl::data_type::f32);
+
+        reduce.add_input(reduce_src);
+        reduce.add_output(reduce_dst);
+        sigmoid.add_input(reduce_dst);
+        sigmoid.add_output(sigmoid_dst);
+        multiply.add_input(reduce_dst);
+        multiply.add_input(sigmoid_dst);
+        multiply.add_output(mul_dst);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&reduce);
+        g.add_op(&sigmoid);
+        g.add_op(&multiply);
+        g.build_graph();
+
+        impl::tensor_t reduce_src_ts(reduce_src, &engine, src_data.data());
+
+        // -------------------------case 1----------------------------------
+        test::vector<float> case1_out_data(product(reduce_dst_shape));
+        impl::tensor_t mul_dst_ts(mul_dst, &engine, case1_out_data.data());
+
+        ASSERT_EQ(run_graph(g, {reduce_src_ts}, {mul_dst_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins {&reduce_src};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&mul_dst};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        test::vector<float> case2_out_data(product(reduce_dst_shape));
+        impl::tensor_t mul_dst_ts2(mul_dst, &engine, case2_out_data.data());
+
+        cp.execute(&strm, {reduce_src_ts}, {mul_dst_ts2});
+        strm.wait();
+
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
+        }
+    }
+}
+
+TEST(ExecuteSubgraphFp32, BinarySwish) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> binary_src_shape {2, 2, 2, 2};
+    std::vector<int64_t> binary_dst_shape {2, 2, 2, 2};
+
+    test::vector<float> src0_data(product(binary_src_shape));
+    test::vector<float> src1_data(product(binary_src_shape));
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src0_data.begin(), src0_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(src1_data.begin(), src1_data.end(),
+            [&]() { return f32_distribution(generator); });
+
+    const std::vector<impl::op_kind_t> op_infos {impl::op_kind::Add,
+            impl::op_kind::Divide, impl::op_kind::Maximum,
+            impl::op_kind::Minimum, impl::op_kind::Multiply,
+            impl::op_kind::Subtract};
+
+    for (auto &akind : op_infos) {
+        impl::op_t binary {0, akind, "binary"};
+
+        impl::op_t sigmoid {1, impl::op_kind::Sigmoid, "sigmoid"};
+        impl::op_t multiply {2, impl::op_kind::Multiply, "multiply"};
+
+        impl::logical_tensor_t binary_src0 = utils::logical_tensor_init(
+                0, binary_src_shape, impl::data_type::f32);
+
+        impl::logical_tensor_t binary_src1 = utils::logical_tensor_init(
+                1, binary_src_shape, impl::data_type::f32);
+
+        impl::logical_tensor_t binary_dst = utils::logical_tensor_init(
+                2, binary_dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t sigmoid_dst = utils::logical_tensor_init(
+                3, binary_dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t mul_dst = utils::logical_tensor_init(
+                4, binary_dst_shape, impl::data_type::f32);
+
+        binary.add_input(binary_src0);
+        binary.add_input(binary_src1);
+        binary.add_output(binary_dst);
+        sigmoid.add_input(binary_dst);
+        sigmoid.add_output(sigmoid_dst);
+        multiply.add_input(binary_dst);
+        multiply.add_input(sigmoid_dst);
+        multiply.add_output(mul_dst);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&binary);
+        g.add_op(&sigmoid);
+        g.add_op(&multiply);
+        g.build_graph();
+
+        impl::tensor_t binary_src0_ts(binary_src0, &engine, src0_data.data());
+        impl::tensor_t binary_src1_ts(binary_src1, &engine, src1_data.data());
+
+        // -------------------------case 1----------------------------------
+        test::vector<float> case1_out_data(product(binary_dst_shape));
+        impl::tensor_t mul_dst_ts(mul_dst, &engine, case1_out_data.data());
+
+        ASSERT_EQ(run_graph(g, {binary_src0_ts, binary_src1_ts}, {mul_dst_ts},
+                          engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins {
+                &binary_src0, &binary_src1};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&mul_dst};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        test::vector<float> case2_out_data(product(binary_dst_shape));
+        impl::tensor_t mul_dst_ts2(mul_dst, &engine, case2_out_data.data());
+
+        cp.execute(&strm, {binary_src0_ts, binary_src1_ts}, {mul_dst_ts2});
+        strm.wait();
+
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
+        }
+    }
+}
+
 TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
     using dims = impl::dnnl_impl::dims;
 
@@ -11043,6 +11328,152 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
                     {dst_f32_case2_ts});
         else
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
+        strm.wait();
+
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
+    }
+}
+
+TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
+    std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
+
+    if (engine.kind() == impl::engine_kind::gpu) return;
+    static auto isa = dnnl_get_effective_cpu_isa();
+
+    for_(const auto &src_qtype : src_qtypes)
+    for (const auto &wei_qtype : weight_qtypes) {
+        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+            continue;
+
+        // prepare data
+        int64_t in_channel = 8, out_channel = 8;
+        int64_t kernel_size = 3, g = 1;
+        std::vector<int64_t> src_shape
+                = std::vector<int64_t> {1, in_channel, 12, 12};
+        std::vector<int64_t> weight_shape = std::vector<int64_t> {
+                out_channel, in_channel, kernel_size, kernel_size};
+        std::vector<int64_t> bias_shape {out_channel};
+        std::vector<int64_t> dst_shape
+                = std::vector<int64_t> {1, out_channel, 14, 14};
+
+        test::vector<uint8_t> src_u8_data(product(src_shape));
+        test::vector<int8_t> weight_s8_data(product(weight_shape));
+        test::vector<float> case1_out_data(product(dst_shape));
+        test::vector<float> case2_out_data(product(dst_shape));
+
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> u8_distribution(1.0f, 25.0f);
+        std::uniform_real_distribution<float> s8_distribution(-1.0f, 25.0f);
+        std::uniform_real_distribution<float> f32_distribution(1.0f, 25.0f);
+        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+        std::generate(weight_s8_data.begin(), weight_s8_data.end(), [&]() {
+            return static_cast<int8_t>(s8_distribution(generator));
+        });
+
+        float scale_src = 1 / 255.f; // map to 0~255
+        int64_t zp_src = src_qtype == "symmetric" ? 0 : -4;
+
+        size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
+        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<int64_t> zp_wei(scale_size, 0);
+
+        impl::op_t dqdata_node(0, impl::op_kind::Dequantize, "dqdata_node");
+        SET_Q_DQ_DATA_ATTR(dqdata_node)
+
+        impl::op_t dqweight_node(1, impl::op_kind::Dequantize, "dqweight_node");
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+
+        impl::op_t convtranspose_node(
+                2, impl::op_kind::ConvTranspose, "convtranspose_node");
+        SET_CONV_ATTR(convtranspose_node, 2)
+
+        impl::op_t sigmoid_node(3, impl::op_kind::Sigmoid, "sigmoid_node");
+        impl::op_t multiply_node {4, impl::op_kind::Multiply, "multiply_node"};
+
+        impl::logical_tensor_t src_u8
+                = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
+        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, impl::data_type::f32);
+        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                2, weight_shape, impl::data_type::s8);
+        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                3, weight_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                5, dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_sigmoid_f32 = utils::logical_tensor_init(
+                6, dst_shape, impl::data_type::f32);
+        impl::logical_tensor_t dst_multiply_f32 = utils::logical_tensor_init(
+                7, dst_shape, impl::data_type::f32);
+
+        dqdata_node.add_input(src_u8);
+        dqdata_node.add_output(src_f32_dq);
+
+        dqweight_node.add_input(weight_s8);
+        dqweight_node.add_output(weight_f32_dq);
+
+        convtranspose_node.add_input(src_f32_dq);
+        convtranspose_node.add_input(weight_f32_dq);
+        convtranspose_node.add_output(dst_f32);
+
+        sigmoid_node.add_input(dst_f32);
+        sigmoid_node.add_output(dst_sigmoid_f32);
+        multiply_node.add_input(dst_sigmoid_f32);
+        multiply_node.add_input(dst_f32);
+        multiply_node.add_output(dst_multiply_f32);
+
+        impl::graph_t graph(engine.kind());
+        graph.add_op(&dqdata_node);
+        graph.add_op(&dqweight_node);
+        graph.add_op(&convtranspose_node);
+        graph.add_op(&sigmoid_node);
+        graph.add_op(&multiply_node);
+        graph.build_graph();
+
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
+        impl::tensor_t dst_f32_ts(
+                dst_multiply_f32, &engine, case1_out_data.data());
+        impl::tensor_t dst_f32_case2_ts(
+                dst_multiply_f32, &engine, case2_out_data.data());
+
+        // -------------------------case 1----------------------------------
+        ASSERT_EQ(run_graph(graph, {src_u8_ts, weight_s8_ts}, {dst_f32_ts},
+                          engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass
+                = get_pass("int8_convtranspose_post_ops_fusion");
+        ASSERT_TRUE(apass != nullptr);
+        apass->run(graph);
+        ASSERT_EQ(graph.get_num_partitions(), 1);
+        auto part = graph.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins
+                = {&src_u8, &weight_s8};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_multiply_f32};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+        cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm.wait();
 
         if (isa < dnnl_cpu_isa_avx512_core_vnni)
@@ -13558,6 +13989,175 @@ TEST(Execute, InterpolateAddForwardNearest) {
 
     for (size_t i = 0; i < dst_add.size(); ++i) {
         ASSERT_FLOAT_EQ(dst_add[i], ref_dst[i]);
+    }
+}
+
+TEST(Execute, InterpolateSwish) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
+    test::vector<float> dst_mul {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+
+    impl::op_t interpolate_node(0, impl::op_kind::Interpolate, "interpolate");
+    interpolate_node.set_attr<std::string>("mode", "nearest");
+    interpolate_node.set_attr("sizes", std::vector<int64_t> {3, 3});
+    interpolate_node.set_attr<std::string>(
+            "coordinate_transformation_mode", "half_pixel");
+    interpolate_node.set_attr<std::string>("data_format", "NCX");
+
+    impl::op_t sigmoid_node(1, impl::op_kind::Sigmoid, "sigmoid_node");
+    impl::op_t mul_node(2, impl::op_kind::Multiply, "multiply_node");
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, impl::data_type::f32, impl::layout_type::strided);
+
+    impl::logical_tensor_t dst_sigmoid_lt = utils::logical_tensor_init(
+            2, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t dst_mul_lt = utils::logical_tensor_init(
+            3, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+
+    interpolate_node.add_input(src_lt);
+    interpolate_node.add_output(dst_lt);
+    sigmoid_node.add_input(dst_lt);
+    sigmoid_node.add_output(dst_sigmoid_lt);
+    mul_node.add_input(dst_sigmoid_lt);
+    mul_node.add_input(dst_lt);
+    mul_node.add_output(dst_mul_lt);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&interpolate_node), impl::status::success);
+    ASSERT_EQ(g.add_op(&sigmoid_node), impl::status::success);
+    ASSERT_EQ(g.add_op(&mul_node), impl::status::success);
+    ASSERT_EQ(g.build_graph(), impl::status::success);
+    ASSERT_EQ(g.num_ops(), 3);
+
+    impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    ASSERT_TRUE(part != nullptr);
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> lt_ins {&src_lt};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_mul_lt};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t dst_mul_ts(*lt_outs[0], &engine, dst_mul.data());
+    cp.execute(&strm, {src_ts}, {dst_mul_ts});
+    strm.wait();
+}
+
+TEST(Execute, InterpolatePostOps) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    const std::vector<impl::op_kind_t> supported_post_ops = {impl::op_kind::Abs,
+            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::GELU,
+            impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::Sigmoid,
+            impl::op_kind::SoftPlus, impl::op_kind::Pow, impl::op_kind::ReLU,
+            impl::op_kind::Round, impl::op_kind::Sqrt, impl::op_kind::Square,
+            impl::op_kind::Tanh, impl::op_kind::Add, impl::op_kind::Multiply,
+            impl::op_kind::Maximum, impl::op_kind::Minimum,
+            impl::op_kind::Divide, impl::op_kind::Subtract};
+    const std::vector<impl::op_kind_t> two_inputs_ops {impl::op_kind::Multiply,
+            impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
+            impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
+
+    for (const auto &post_op_kind : supported_post_ops) {
+        test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
+        test::vector<float> src1 {
+                0.f, 0.5f, 1.f, 1.5f, 2.0f, 2.5f, 3.0f, 3.5f, 4.f};
+        test::vector<float> dst_add {
+                0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+
+        impl::op_t interpolate_node(
+                0, impl::op_kind::Interpolate, "interpolate");
+        interpolate_node.set_attr<std::string>("mode", "nearest");
+        interpolate_node.set_attr("sizes", std::vector<int64_t> {3, 3});
+        interpolate_node.set_attr<std::string>(
+                "coordinate_transformation_mode", "half_pixel");
+        interpolate_node.set_attr<std::string>("data_format", "NCX");
+
+        impl::op_t post_node(1, post_op_kind, "post_op_node");
+        if (post_op_kind == impl::op_kind::Elu) {
+            post_node.set_attr<float>("alpha", 1.0f);
+        } else if (post_op_kind == impl::op_kind::Clamp) {
+            post_node.set_attr<float>("min", 1.0f);
+            post_node.set_attr<float>("max", 3.0f);
+        } else if (post_op_kind == impl::op_kind::HardTanh) {
+            post_node.set_attr<float>("min", 1.0f);
+            post_node.set_attr<float>("max", 3.0f);
+        }
+
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, {1, 1, 2, 2}, impl::data_type::f32);
+        impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+                1, impl::data_type::f32, impl::layout_type::strided);
+
+        impl::logical_tensor_t src1_lt = utils::logical_tensor_init(2,
+                {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+        impl::logical_tensor_t dst_post_lt = utils::logical_tensor_init(3,
+                {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+
+        interpolate_node.add_input(src_lt);
+        interpolate_node.add_output(dst_lt);
+
+        post_node.add_input(dst_lt);
+        if (std::find(
+                    two_inputs_ops.begin(), two_inputs_ops.end(), post_op_kind)
+                != two_inputs_ops.end()) {
+            post_node.add_input(src1_lt);
+        }
+        post_node.add_output(dst_post_lt);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&interpolate_node);
+        g.add_op(&post_node);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass
+                = get_pass("interpolate_post_ops_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+        ASSERT_TRUE(part != nullptr);
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+        std::vector<const impl::logical_tensor_t *> lt_ins {&src_lt};
+        if (std::find(
+                    two_inputs_ops.begin(), two_inputs_ops.end(), post_op_kind)
+                != two_inputs_ops.end()) {
+            lt_ins.emplace_back(&src1_lt);
+        }
+        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_post_lt};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        impl::tensor_t src_ts(src_lt, &engine, src.data());
+        impl::tensor_t src1_ts(src1_lt, &engine, src1.data());
+        impl::tensor_t dst_add_ts(*lt_outs[0], &engine, dst_add.data());
+        if (std::find(
+                    two_inputs_ops.begin(), two_inputs_ops.end(), post_op_kind)
+                != two_inputs_ops.end()) {
+            cp.execute(&strm, {src_ts, src1_ts}, {dst_add_ts});
+        } else {
+            cp.execute(&strm, {src_ts}, {dst_add_ts});
+        }
+
+        strm.wait();
     }
 }
 

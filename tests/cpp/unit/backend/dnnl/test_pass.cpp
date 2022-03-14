@@ -841,11 +841,11 @@ TEST(Pass, FuseConvBiasSwish) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 3);
 
-    pass::pass_base_ptr apass = get_pass("conv_bias_swish_fusion");
+    pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::conv_bias_swish);
+            dnnl_impl::op_kind::conv_bias_post_ops_fusion);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -856,11 +856,9 @@ TEST(Pass, FuseConvBiasSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(Pass, FailToFuseConvBiasSwish) {
+TEST(Pass, FuseConvSwish) {
     // swish: f(x) = x * sigmoid(x)
     /*   conv
-          |
-         bias
         /    |
     sigmoid  |
         \    |
@@ -873,16 +871,15 @@ TEST(Pass, FailToFuseConvBiasSwish) {
     op_t sigmoid {1, Sigmoid, "sigmoid"};
     op_t multiply {2, Multiply, "multiply"};
 
-    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     conv.add_input(lt_vec[0]);
     conv.add_input(lt_vec[1]);
-    conv.add_input(lt_vec[2]); // conv with bias
-    conv.add_output(lt_vec[3]);
-    sigmoid.add_input(lt_vec[3]);
-    sigmoid.add_output(lt_vec[4]);
-    multiply.add_input(lt_vec[4]);
+    conv.add_output(lt_vec[2]);
+    sigmoid.add_input(lt_vec[2]);
+    sigmoid.add_output(lt_vec[3]);
+    multiply.add_input(lt_vec[2]);
     multiply.add_input(lt_vec[3]);
-    multiply.add_output(lt_vec[5]);
+    multiply.add_output(lt_vec[4]);
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
@@ -890,16 +887,63 @@ TEST(Pass, FailToFuseConvBiasSwish) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 3);
 
-    pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 2);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
+}
+
+TEST(Pass, FuseConvSwishSigmoid) {
+    // swish: f(x) = x * sigmoid(x)
+    /*   conv
+        /    |
+    sigmoid  |
+        \    |
+        multiply
+           |
+        sigmoid
+
+    */
+    graph_t agraph;
+    op_t conv {0, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t sigmoid {1, Sigmoid, "sigmoid"};
+    op_t multiply {2, Multiply, "multiply"};
+    op_t sigmoid2 {3, Sigmoid, "sigmoid"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    conv.add_input(lt_vec[0]);
+    conv.add_input(lt_vec[1]);
+    conv.add_output(lt_vec[2]);
+    sigmoid.add_input(lt_vec[2]);
+    sigmoid.add_output(lt_vec[3]);
+    multiply.add_input(lt_vec[2]);
+    multiply.add_input(lt_vec[3]);
+    multiply.add_output(lt_vec[4]);
+    sigmoid2.add_input(lt_vec[4]);
+    sigmoid2.add_output(lt_vec[5]);
+
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid2), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
+
+    pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
 TEST(Pass, FuseConvBiasHardtanh) {
@@ -4198,13 +4242,15 @@ TEST(Pass, FuseMatmulBiasaddSwish) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 4);
 
-    pass::pass_base_ptr apass = get_pass("matmul_bias_swish_fusion");
+    pass::pass_base_ptr apass = get_pass("matmul_bias_post_ops_chain_fusion");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::matmul_bias_swish);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4);
+    ASSERT_EQ(fused_op->get_kind(),
+            dnnl_impl::op_kind::matmul_bias_post_ops_chain_fusion);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -4215,7 +4261,7 @@ TEST(Pass, FuseMatmulBiasaddSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
-TEST(PassPriority, TestMatmulBiasaddSwish) {
+TEST(PassSystem, FuseMatmulBiasaddSwish) {
     /*       matmul
                |
               bias
@@ -4225,11 +4271,48 @@ TEST(PassPriority, TestMatmulBiasaddSwish) {
             multiply
                 |
     */
-    pass::pass_base_ptr pass1 = get_pass("matmul_bias_swish_fusion");
-    pass::pass_base_ptr pass2 = get_pass("matmul_bias_post_ops_chain_fusion");
-    pass::pass_base_ptr pass3 = get_pass("mul_pass");
-    ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
-    ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t bias {1, BiasAdd, "bias"};
+    op_t sigmoid {2, Sigmoid, "sigmoid"};
+    op_t mul {3, Multiply, "mul"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    bias.add_input(lt_vec[2]);
+    bias.add_input(lt_vec[3]);
+    bias.add_output(lt_vec[4]);
+    sigmoid.add_input(lt_vec[4]);
+    sigmoid.add_output(lt_vec[5]);
+    mul.add_input(lt_vec[5]);
+    mul.add_input(lt_vec[4]);
+    mul.add_output(lt_vec[6]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&mul), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
+
+    // run all the pass to check if the priority is correct
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(),
+            dnnl_impl::op_kind::matmul_bias_post_ops_chain_fusion);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 3);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
 }
 
 TEST(Pass, FuseMatmulBiasaddRelu6) {
@@ -5328,6 +5411,88 @@ TEST(Pass, FuseToInt8ConvRelu) {
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
+}
+
+TEST(Pass, FuseToInt8ConvSwish) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+            conv
+      (f32) / |
+     sigmoid  |
+           \  |
+          multiply       
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t conv {2, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t sigmoid {3, Sigmoid, "sigmoid"};
+    op_t multiply {4, Multiply, "mul"};
+    op_t quant {5, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_conv_out = logical_tensor_init(4, data_type::f32);
+    conv.add_input(fp32_data);
+    conv.add_input(fp32_weight);
+    conv.add_output(fp32_conv_out);
+
+    logical_tensor_t fp32_sigmoid_out = logical_tensor_init(5, data_type::f32);
+    sigmoid.add_input(fp32_conv_out);
+    sigmoid.add_output(fp32_sigmoid_out);
+
+    logical_tensor_t fp32_mul_out = logical_tensor_init(6, data_type::f32);
+    multiply.add_input(fp32_conv_out);
+    multiply.add_input(fp32_sigmoid_out);
+    multiply.add_output(fp32_mul_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(7, data_type::u8);
+    quant.add_input(fp32_mul_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_conv_post_ops_fusion);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
 TEST(PassPriority, TestInt8ConvRelu) {
@@ -6561,6 +6726,98 @@ TEST(PassSystem, TestInt8Matmul) {
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
+}
+
+TEST(PassSystem, FuseToInt8MatMulSwishReLU) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+            matmul
+      (f32) / |
+     sigmoid  |
+           \  |
+          multiply     
+             |
+            relu  
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t matmul {2, MatMul, "matmul"};
+    op_t sigmoid {3, Sigmoid, "sigmoid"};
+    op_t multiply {4, Multiply, "mul"};
+    op_t relu {5, ReLU, "relu"};
+    op_t quant {6, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(4, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_sigmoid_out = logical_tensor_init(5, data_type::f32);
+    sigmoid.add_input(fp32_matmul_out);
+    sigmoid.add_output(fp32_sigmoid_out);
+
+    logical_tensor_t fp32_mul_out = logical_tensor_init(6, data_type::f32);
+    multiply.add_input(fp32_matmul_out);
+    multiply.add_input(fp32_sigmoid_out);
+    multiply.add_output(fp32_mul_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(7, data_type::f32);
+    relu.add_input(fp32_mul_out);
+    relu.add_output(fp32_relu_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(8, data_type::u8);
+    quant.add_input(fp32_relu_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    // run all the pass to check if the priority is correct
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 7);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
 }
 
 TEST(Pass, FuseToInt8MatmulBias) {
@@ -11005,6 +11262,107 @@ TEST(Pass, FuseInterpolateRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2);
 }
 
+TEST(Pass, FuseInterpolateSwish) {
+    /*    interpolate
+            /    |
+      sigmoid    |
+           \     /
+           multiply
+              |
+            relu
+    */
+    graph_t agraph;
+    op_t interpolate {0, Interpolate, "interpolate"};
+    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(
+            "coordinate_transformation_mode", std::string("half_pixel"));
+    op_t sigmoid {1, Sigmoid, "sigmoid"};
+    op_t multiply {2, Multiply, "mul"};
+    op_t relu {3, ReLU, "relu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    interpolate.add_input(lt_vec[0]);
+    interpolate.add_output(lt_vec[1]);
+    sigmoid.add_input(lt_vec[1]);
+    sigmoid.add_output(lt_vec[2]);
+    multiply.add_input(lt_vec[1]);
+    multiply.add_input(lt_vec[2]);
+    multiply.add_output(lt_vec[3]);
+    relu.add_input(lt_vec[3]);
+    relu.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&interpolate), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
+
+    pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            impl::dnnl_impl::op_kind::interpolate_post_ops_fusion);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+}
+
+TEST(PassSystem, FuseInterpolateSwish) {
+    /*    interpolate
+            /    |
+      sigmoid    |
+           \     /
+           multiply
+              |
+            relu
+    */
+    graph_t agraph;
+    op_t interpolate {0, Interpolate, "interpolate"};
+    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(
+            "coordinate_transformation_mode", std::string("half_pixel"));
+    op_t sigmoid {1, Sigmoid, "sigmoid"};
+    op_t multiply {2, Multiply, "mul"};
+    op_t relu {3, ReLU, "relu"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    interpolate.add_input(lt_vec[0]);
+    interpolate.add_output(lt_vec[1]);
+    sigmoid.add_input(lt_vec[1]);
+    sigmoid.add_output(lt_vec[2]);
+    multiply.add_input(lt_vec[1]);
+    multiply.add_input(lt_vec[2]);
+    multiply.add_output(lt_vec[3]);
+    relu.add_input(lt_vec[3]);
+    relu.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&interpolate), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            impl::dnnl_impl::op_kind::interpolate_post_ops_fusion);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(),
+            impl::op_kind::ReLU);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+}
+
 TEST(Pass, FuseInterpolateSum) {
     /*   interpolate
              \           /
@@ -11182,6 +11540,60 @@ TEST(Pass, FuseReduceRelu) {
         const auto fused_op = get_fused_op(agraph.get_partitions()[0]);
         ASSERT_EQ(fused_op->get_kind(),
                 dnnl_impl::op_kind::reduction_post_ops_fusion);
+    }
+}
+
+TEST(PassSystem, FuseReduceSwish) {
+    /*       reduce
+            /    |
+        sigmoid  |
+            \    |
+            multiply
+    */
+    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
+            ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+
+    for (const auto &base_op : configs) {
+        op_t reduce {0, base_op, "reduce"};
+        reduce.set_attr<bool>("keep_dims", false);
+        reduce.set_attr<std::vector<int64_t>>("axes", {0});
+        op_t sigmoid {1, Sigmoid, "sigmoid"};
+        op_t multiply {2, Multiply, "mul"};
+
+        logical_tensor_t reduce_src = logical_tensor_init(0, data_type::f32);
+        logical_tensor_t reduce_dst = logical_tensor_init(1, data_type::f32);
+        logical_tensor_t sigmoid_dst = logical_tensor_init(2, data_type::f32);
+        logical_tensor_t mul_dst = logical_tensor_init(3, data_type::f32);
+
+        reduce.add_input(reduce_src);
+        reduce.add_output(reduce_dst);
+
+        sigmoid.add_input(reduce_dst);
+        sigmoid.add_output(sigmoid_dst);
+
+        multiply.add_input(sigmoid_dst);
+        multiply.add_input(reduce_dst);
+        multiply.add_output(mul_dst);
+
+        graph_t agraph;
+        ASSERT_EQ(agraph.add_op(&reduce), status::success);
+        ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+        ASSERT_EQ(agraph.add_op(&multiply), status::success);
+        agraph.build_graph();
+
+        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+        pm.run_passes(agraph, "no_config");
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        const auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+        ASSERT_EQ(fused_op->get_kind(),
+                dnnl_impl::op_kind::reduction_post_ops_fusion);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
     }
 }
 
@@ -11935,7 +12347,6 @@ TEST(Pass, FuseConvBwdBiasaddBwd) {
 
 // TODO(zitian): wait for the implementation of comparison ops:
 //      Gt, Ge, Le, Lt, Eq, Ne
-// TODO(zitian): add test case for Sigmoid+Multiply as Swish
 TEST(Pass, BinaryPostops) {
     /*
         0       1
@@ -11947,75 +12358,126 @@ TEST(Pass, BinaryPostops) {
 
     std::vector<op_kind_t> supported_binary_ops {
             Add, Divide, Maximum, Minimum, Multiply, Subtract};
-    std::vector<bool> with_post_op = {true, false};
     std::vector<op_kind_t> supported_post_ops {Abs, Add, Clamp, Divide, Elu,
             Exp, GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU,
             Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
     std::vector<op_kind_t> supported_binary_post_ops {
             Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
-    for (auto bop : supported_binary_ops)
-        for (auto post_op_on : with_post_op)
-            for (auto pop : supported_post_ops) {
-                auto is_post_op_binary
-                        = (std::find(supported_binary_post_ops.begin(),
-                                   supported_binary_post_ops.end(), pop)
-                                != supported_binary_post_ops.end());
-                graph_t agraph;
-                op_t binary_op {0, bop, "binary op"};
-                op_t post_op {1, pop, "post op"};
+    for_(auto bop : supported_binary_ops)
+    for (auto pop : supported_post_ops) {
+        auto is_post_op_binary = (std::find(supported_binary_post_ops.begin(),
+                                          supported_binary_post_ops.end(), pop)
+                != supported_binary_post_ops.end());
+        graph_t agraph;
+        op_t binary_op {0, bop, "binary op"};
+        op_t post_op {1, pop, "post op"};
 
-                // set additional parameters for specific ops
-                if (pop == Elu) {
-                    post_op.set_attr<float>("alpha", 1.0f);
-                } else if (pop == Clamp) {
-                    post_op.set_attr<float>("min", 1.0f);
-                    post_op.set_attr<float>("max", 3.0f);
-                } else if (pop == HardTanh) {
-                    post_op.set_attr<float>("min", 1.0f);
-                    post_op.set_attr<float>("max", 3.0f);
-                }
+        // set additional parameters for specific ops
+        if (pop == Elu) {
+            post_op.set_attr<float>("alpha", 1.0f);
+        } else if (pop == Clamp) {
+            post_op.set_attr<float>("min", 1.0f);
+            post_op.set_attr<float>("max", 3.0f);
+        } else if (pop == HardTanh) {
+            post_op.set_attr<float>("min", 1.0f);
+            post_op.set_attr<float>("max", 3.0f);
+        }
 
-                std::vector<logical_tensor_t> lt_vec
-                        = create_logical_tensors(5);
-                size_t lt_idx = -1;
-                std::vector<size_t> input_lts = {};
-                std::vector<size_t> output_lts = {};
-                binary_op.add_input(lt_vec[++lt_idx]);
-                input_lts.push_back(lt_idx);
-                binary_op.add_input(lt_vec[++lt_idx]);
-                input_lts.push_back(lt_idx);
-                binary_op.add_output(lt_vec[++lt_idx]);
-                if (post_op_on) {
-                    post_op.add_input(lt_vec[lt_idx]);
-                    if (is_post_op_binary) {
-                        post_op.add_input(lt_vec[++lt_idx]);
-                        input_lts.push_back(lt_idx);
-                    }
-                    post_op.add_output(lt_vec[++lt_idx]);
-                }
-                output_lts.push_back(lt_idx);
+        std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+        size_t lt_idx = -1;
+        std::vector<size_t> input_lts = {};
+        std::vector<size_t> output_lts = {};
+        binary_op.add_input(lt_vec[++lt_idx]);
+        input_lts.push_back(lt_idx);
+        binary_op.add_input(lt_vec[++lt_idx]);
+        input_lts.push_back(lt_idx);
+        binary_op.add_output(lt_vec[++lt_idx]);
 
-                ASSERT_EQ(agraph.add_op(&binary_op), status::success);
-                if (post_op_on) {
-                    ASSERT_EQ(agraph.add_op(&post_op), status::success);
-                }
-                agraph.build_graph();
+        post_op.add_input(lt_vec[lt_idx]);
+        if (is_post_op_binary) {
+            post_op.add_input(lt_vec[++lt_idx]);
+            input_lts.push_back(lt_idx);
+        }
+        post_op.add_output(lt_vec[++lt_idx]);
 
-                pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
-                apass->run(agraph);
-                ASSERT_EQ(agraph.get_num_partitions(), 1);
+        output_lts.push_back(lt_idx);
 
-                auto partition = agraph.get_partitions()[0];
-                ASSERT_EQ(get_fused_op(partition)->get_kind(),
-                        dnnl_impl::op_kind::binary_post_ops_fusion);
+        ASSERT_EQ(agraph.add_op(&binary_op), status::success);
 
-                ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
-                for (size_t k = 0; k < input_lts.size(); ++k)
-                    ASSERT_EQ(partition->get_inputs()[k].id, input_lts[k]);
-                ASSERT_EQ(partition->get_outputs().size(), output_lts.size());
-                for (size_t k = 0; k < output_lts.size(); ++k)
-                    ASSERT_EQ(partition->get_outputs()[k].id, output_lts[k]);
-            }
+        ASSERT_EQ(agraph.add_op(&post_op), status::success);
+
+        agraph.build_graph();
+
+        pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        auto partition = agraph.get_partitions()[0];
+        ASSERT_EQ(get_fused_op(partition)->get_kind(),
+                dnnl_impl::op_kind::binary_post_ops_fusion);
+
+        ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
+        for (size_t k = 0; k < input_lts.size(); ++k)
+            ASSERT_EQ(partition->get_inputs()[k].id, input_lts[k]);
+        ASSERT_EQ(partition->get_outputs().size(), output_lts.size());
+        for (size_t k = 0; k < output_lts.size(); ++k)
+            ASSERT_EQ(partition->get_outputs()[k].id, output_lts[k]);
+    }
+}
+
+TEST(PassSystem, FuseBinarySwish) {
+    /*       binary
+            /    |
+        sigmoid  |
+            \    |
+            multiply
+    */
+    const std::vector<op_kind_t> configs {
+            Add, Divide, Maximum, Minimum, Multiply, Subtract};
+
+    for (const auto &base_op : configs) {
+        op_t binary {0, base_op, "binary"};
+        op_t sigmoid {1, Sigmoid, "sigmoid"};
+        op_t multiply {2, Multiply, "mul"};
+
+        logical_tensor_t binary_src0 = logical_tensor_init(0, data_type::f32);
+        logical_tensor_t binary_src1 = logical_tensor_init(1, data_type::f32);
+        logical_tensor_t binary_dst = logical_tensor_init(2, data_type::f32);
+        logical_tensor_t sigmoid_dst = logical_tensor_init(3, data_type::f32);
+        logical_tensor_t mul_dst = logical_tensor_init(4, data_type::f32);
+
+        binary.add_input(binary_src0);
+        binary.add_input(binary_src1);
+        binary.add_output(binary_dst);
+
+        sigmoid.add_input(binary_dst);
+        sigmoid.add_output(sigmoid_dst);
+
+        multiply.add_input(sigmoid_dst);
+        multiply.add_input(binary_dst);
+        multiply.add_output(mul_dst);
+
+        graph_t agraph;
+        ASSERT_EQ(agraph.add_op(&binary), status::success);
+        ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+        ASSERT_EQ(agraph.add_op(&multiply), status::success);
+        agraph.build_graph();
+
+        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+        pm.run_passes(agraph, "no_config");
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        const auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+        ASSERT_EQ(fused_op->get_kind(),
+                dnnl_impl::op_kind::binary_post_ops_fusion);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
+    }
 }
 
 // TODO(zitian): add test case for Sigmoid+Multiply in a elegant way
@@ -12130,4 +12592,142 @@ TEST(Pass, ConvtransposePostops) {
                         ASSERT_EQ(
                                 partition->get_outputs()[k].id, output_lts[k]);
                 }
+}
+
+TEST(PassSystem, FuseConvTransposeSwish) {
+    // swish: f(x) = x * sigmoid(x)
+    /*convtranspose
+        /    |
+    sigmoid  |
+        \    |
+        multiply
+
+    */
+    graph_t agraph;
+    op_t convtranspose {0, ConvTranspose, "convtranspose"};
+    set_convtranspose_common_attr(convtranspose);
+    op_t sigmoid {1, Sigmoid, "sigmoid"};
+    op_t multiply {2, Multiply, "multiply"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    convtranspose.add_input(lt_vec[0]);
+    convtranspose.add_input(lt_vec[1]);
+    convtranspose.add_output(lt_vec[2]);
+    sigmoid.add_input(lt_vec[2]);
+    sigmoid.add_output(lt_vec[3]);
+    multiply.add_input(lt_vec[2]);
+    multiply.add_input(lt_vec[3]);
+    multiply.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 3);
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::convtranspose_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
+}
+
+TEST(PassSystem, FuseToInt8ConvTransposeSwishReLU) {
+    /*
+        | (u8/s8)  | (s8)
+     dequant    dequant
+    (f32) \     / (f32)
+         convtranspose
+      (f32) / |
+     sigmoid  |
+           \  |
+          multiply     
+             |
+            relu  
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t convtranspose {2, ConvTranspose, "convtranspose"};
+    set_convtranspose_common_attr(convtranspose);
+    op_t sigmoid {3, Sigmoid, "sigmoid"};
+    op_t multiply {4, Multiply, "mul"};
+    op_t relu {5, ReLU, "relu"};
+    op_t quant {6, Quantize, "quant"};
+    quant.set_attr("scales", scales);
+    quant.set_attr("zps", zps);
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
+
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(4, data_type::f32);
+    convtranspose.add_input(fp32_data);
+    convtranspose.add_input(fp32_weight);
+    convtranspose.add_output(fp32_matmul_out);
+
+    logical_tensor_t fp32_sigmoid_out = logical_tensor_init(5, data_type::f32);
+    sigmoid.add_input(fp32_matmul_out);
+    sigmoid.add_output(fp32_sigmoid_out);
+
+    logical_tensor_t fp32_mul_out = logical_tensor_init(6, data_type::f32);
+    multiply.add_input(fp32_matmul_out);
+    multiply.add_input(fp32_sigmoid_out);
+    multiply.add_output(fp32_mul_out);
+
+    logical_tensor_t fp32_relu_out = logical_tensor_init(7, data_type::f32);
+    relu.add_input(fp32_mul_out);
+    relu.add_output(fp32_relu_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(8, data_type::u8);
+    quant.add_input(fp32_relu_out);
+    quant.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.build_graph();
+
+    // run all the pass to check if the priority is correct
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 7);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            dnnl_impl::op_kind::quantized_convtranspose_fusion);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
 }

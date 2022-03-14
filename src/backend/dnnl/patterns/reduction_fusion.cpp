@@ -50,19 +50,34 @@ bool check_attributes(op_t *graph_op) {
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(reduction_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
-        .set_priority(8.2f)
+        .set_priority(8.3f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *interpolate = pgraph->append_alternation(
+                    pm::pb_op *reduction = pgraph->append_alternation(
                             {impl::op_kind::ReduceL1, impl::op_kind::ReduceL2,
                                     impl::op_kind::ReduceMax,
                                     impl::op_kind::ReduceMean,
                                     impl::op_kind::ReduceMin,
                                     impl::op_kind::ReduceProd,
                                     impl::op_kind::ReduceSum});
-                    interpolate->append_decision_function(check_attributes);
+                    reduction->append_decision_function(check_attributes);
 
-                    pgraph->append_alternation(
+                    // special post op handle: swish is composed
+                    // by sigmoid and multiply
+                    auto swish_graph
+                            = std::make_shared<pb_graph_t>("swish_graph");
+                    auto psigmoid = swish_graph->append_op(
+                            impl::op_kind::Sigmoid, "psigmoid");
+                    auto pmultiply
+                            = swish_graph->append_op(impl::op_kind::Multiply,
+                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
+                    swish_graph->create_input_port(0, psigmoid, 0);
+                    swish_graph->create_input_port(0, pmultiply, 1);
+                    swish_graph->create_output_port(0, pmultiply, 0);
+
+                    auto other_postop_graph = std::make_shared<pb_graph_t>(
+                            "pother_postop_graph");
+                    pm::pb_op *pop = other_postop_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::GELU,
                                     impl::op_kind::HardTanh, impl::op_kind::Log,
@@ -76,8 +91,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
                                     impl::op_kind::Minimum,
                                     impl::op_kind::Divide,
                                     impl::op_kind::Subtract},
-                            in_edges_t {in_edge(0, interpolate, 0)},
-                            "ppost_op");
+                            "pother_post_op");
+                    other_postop_graph->create_input_port(0, pop, 0);
+                    other_postop_graph->create_output_port(0, pop, 0);
+
+                    pgraph->append_alternation(
+                            {swish_graph, other_postop_graph},
+                            in_edges_t {in_edge(0, reduction, 0)}, "ppost_op");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

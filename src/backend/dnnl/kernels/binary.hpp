@@ -106,6 +106,7 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_reciprocal_mul_to_div);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
 
         // Because we use binary post-ops for broadcast add and sum post-ops for
         // non-broadcast add. So we have to know concret shape before fuse
