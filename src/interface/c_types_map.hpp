@@ -113,6 +113,7 @@ const op_kind_t Multiply = kMultiply;
 const op_kind_t Pow = kPow;
 const op_kind_t PowBackprop = kPowBackprop;
 const op_kind_t PReLU = kPReLU;
+const op_kind_t PReLUBackprop = kPReLUBackprop;
 const op_kind_t ReduceL1 = kReduceL1;
 const op_kind_t ReduceL2 = kReduceL2;
 const op_kind_t ReduceMax = kReduceMax;

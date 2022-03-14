@@ -1308,6 +1308,16 @@ status_t infer_interpolate_output_shape(op_t *n,
     set_shape_and_strides(*outputs[0], in_dims);
     return status::success;
 }
+
+status_t infer_prelu_bwd_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    std::vector<std::pair<uint32_t, uint32_t>> identity_shapes_pos
+            = {{0, 0}, {1, 1}};
+    return identity_output_shape_on_pos(
+            n, inputs, outputs, identity_shapes_pos);
+}
+
 } // namespace impl
 } // namespace graph
 } // namespace dnnl

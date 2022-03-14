@@ -67,6 +67,7 @@
     _(Pow) \
     _(PowBackprop) \
     _(PReLU) \
+    _(PReLUBackprop) \
     _(ReduceL1) \
     _(ReduceL2) \
     _(ReduceMax) \
