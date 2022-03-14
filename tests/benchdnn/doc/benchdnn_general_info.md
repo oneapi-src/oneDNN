@@ -81,10 +81,13 @@ problem):
 * `SKIPPED`. Same as `LISTED` but the execution was stopped intentionally for
   the reason given in the short description, e.g. `CASE_NOT_SUPPORTED` or
   `SKIP_IMPL_HIT`.
+  Note: Nvidia backend is treated specially. See a note below.
 * `INVALID_ARGUMENTS`. It means that the library API returned an error due to
   incorrect argument values. It is treated as a failure.
 * `UNIMPLEMENTED`. It means that the library does not have an implementation for
   a requested problem. It is treated as a failure.
+  Note: All Nvidia backend `unimplemented` status errors are always treated as
+  `SKIPPED (CASE_NOT_SUPPORTED)` to simplify validation.
 * `EXECUTED`. It means that a problem was run, and the library execution call
   was successful, but the correctness was not validated.
 * `PASSED`. It means that a problem passed the correctness validation, and the

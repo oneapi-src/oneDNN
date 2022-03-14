@@ -207,6 +207,53 @@ extern dnnl_engine_kind_t engine_tgt_kind;
 extern size_t engine_index;
 extern isa_hints_t hints;
 
+struct engine_t {
+    engine_t(dnnl_engine_kind_t engine_kind);
+    engine_t(dnnl_engine_t engine);
+    engine_t(const engine_t &other);
+    ~engine_t();
+    operator dnnl_engine_t() const { return engine_; }
+
+private:
+    engine_t &operator=(engine_t &other) = delete;
+    dnnl_engine_t engine_;
+    bool is_owner_;
+};
+
+struct stream_t {
+    stream_t(dnnl_engine_t engine);
+    ~stream_t();
+    operator dnnl_stream_t() const { return stream_; }
+
+private:
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
+    dnnl_stream_t stream_;
+};
+
+// Engine used to run oneDNN primitives for testing.
+inline const engine_t &get_test_engine() {
+    static const engine_t instance(engine_tgt_kind);
+    return instance;
+}
+
+// Engine used to run reference implementations (fast-ref-gpu option).
+inline const engine_t &get_cpu_engine() {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    fprintf(stderr,
+            "CPU engine is not available for GPU only configurations\n");
+    SAFE_V(FAIL);
+    assert(!"unexpected");
+#endif
+    static const engine_t instance(dnnl_cpu);
+    return instance;
+}
+
+bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
+bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
+bool is_sycl_engine(const dnnl_engine_t &engine = get_test_engine());
+bool is_opencl_engine(const dnnl_engine_t &engine = get_test_engine());
+bool is_nvidia_gpu(const dnnl_engine_t &engine = get_test_engine());
+
 // Extended version of dnnl_sycl_interop_memory_kind_t enumeration.
 enum class memory_kind_ext_t {
     usm, // Same as dnnl_sycl_interop_usm
@@ -308,47 +355,6 @@ benchdnn_dnnl_wrapper_t<T> make_benchdnn_dnnl_wrapper(T t) {
     return benchdnn_dnnl_wrapper_t<T>(t);
 }
 
-struct engine_t {
-    engine_t(dnnl_engine_kind_t engine_kind);
-    engine_t(dnnl_engine_t engine);
-    engine_t(const engine_t &other);
-    ~engine_t();
-    operator dnnl_engine_t() const { return engine_; }
-
-private:
-    engine_t &operator=(engine_t &other) = delete;
-    dnnl_engine_t engine_;
-    bool is_owner_;
-};
-
-struct stream_t {
-    stream_t(dnnl_engine_t engine);
-    ~stream_t();
-    operator dnnl_stream_t() const { return stream_; }
-
-private:
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
-    dnnl_stream_t stream_;
-};
-
-// Engine used to run oneDNN primitives for testing.
-inline const engine_t &get_test_engine() {
-    static const engine_t instance(engine_tgt_kind);
-    return instance;
-}
-
-// Engine used to run reference implementations (fast-ref-gpu option).
-inline const engine_t &get_cpu_engine() {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-    fprintf(stderr,
-            "CPU engine is not available for GPU only configurations\n");
-    SAFE_V(FAIL);
-    assert(!"unexpected");
-#endif
-    static const engine_t instance(dnnl_cpu);
-    return instance;
-}
-
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
@@ -416,7 +422,16 @@ inline int check_dnnl_status(dnnl_status_t status, res_t *res) {
 
     switch (status) {
         case dnnl_invalid_arguments: res->state = INVALID_ARGUMENTS; break;
-        case dnnl_unimplemented: res->state = UNIMPLEMENTED; break;
+        case dnnl_unimplemented: {
+            // Unconditionally set all Nvidia backend unimplemented cases as
+            // not supported.
+            if (is_nvidia_gpu()) {
+                res->state = SKIPPED;
+                res->reason = CASE_NOT_SUPPORTED;
+                return OK;
+            }
+            res->state = UNIMPLEMENTED;
+        } break;
         default: assert(!"unexpected");
     }
     return FAIL;
@@ -461,7 +476,8 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     pd.reset(pd_);
     SAFE(check_dnnl_status(status, res), WARN);
 
-    DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
+    // Skip prim creation for empty `pd_` to keep logic in a single place below.
+    if (pd_) DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
     prim.reset(prim_);
 
 #endif
@@ -478,12 +494,13 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     const bool fwd_for_bwd_prim
             = is_fwd_prop_kind(query_prop_kind(pd)) && (prb->dir & FLAG_BWD);
     const bool cpu_for_gpu_prim = res == nullptr;
-    if (!fwd_for_bwd_prim && !cpu_for_gpu_prim) {
+    if (pd && !fwd_for_bwd_prim && !cpu_for_gpu_prim) {
         res->impl_name = query_impl_info(pd);
         if (maybe_skip(res->impl_name)) {
             BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                     res->impl_name.c_str());
-            return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
+            res->state = SKIPPED;
+            res->reason = SKIP_IMPL_HIT;
         } else {
             BENCHDNN_PRINT(
                     5, "oneDNN implementation: %s\n", res->impl_name.c_str());
@@ -492,6 +509,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         // Check that adding attributes doesn't cause a fall back to lower impl.
         SAFE(check_pd_w_and_wo_attr(pd, prb->attr, res), WARN);
     }
+    if (res->state == SKIPPED) return OK;
 
     // This primitive is expected to come from the cache.
     DNN_SAFE(dnnl_primitive_create(&prim_, pd), WARN);
@@ -633,18 +651,6 @@ void check_sum_post_ops(const attr_t &attr, res_t *res,
         dnnl_data_type_t dst_dt = dnnl_data_type_undef);
 void check_inplace(res_t *res, dnnl_data_type_t sdt, dnnl_data_type_t ddt,
         const std::string &stag, const std::string &dtag);
-
-bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
-bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
-bool is_sycl_engine(const dnnl_engine_t &engine = get_test_engine());
-bool is_opencl_engine(const dnnl_engine_t &engine = get_test_engine());
-bool is_nvidia_gpu(const dnnl_engine_t &engine = get_test_engine());
-bool is_nvidia_eltwise_ok(
-        dir_t dir, attr_t::post_ops_t::kind_t alg, float alpha);
-inline bool is_nvidia_eltwise_ok(
-        dir_t dir, const attr_t::post_ops_t::entry_t &e) {
-    return is_nvidia_eltwise_ok(dir, e.kind, e.eltwise.alpha);
-}
 
 int check_mem_size(const dnnl_memory_desc_t &md);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd);

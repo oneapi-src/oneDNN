@@ -324,20 +324,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     if (prb->use_ss() && (prb->use_sc() || prb->use_sh()))
         res->state = SKIPPED, res->reason = INVALID_CASE;
-
-    if (is_nvidia_gpu()) {
-        const bool bwd_ok
-                = !((prb->dir & FLAG_BWD) && (prb->flags & GLOB_STATS));
-        const bool inference_ok
-                = IMPLICATION(prb->dt == dnnl_s8 || prb->dt == dnnl_f16,
-                        (prb->dir & FLAG_INF) && (prb->flags & GLOB_STATS));
-        const bool flags_ok = !prb->use_sc() && !prb->use_sh();
-
-        if (!bwd_ok || !inference_ok || !flags_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,

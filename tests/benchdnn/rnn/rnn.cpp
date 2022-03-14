@@ -787,11 +787,6 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
         return;
     }
 
-    if (is_nvidia_gpu()) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-
     // GPU limitations for RNN
     if (is_gpu()) {
         if (is_AUGRU) {

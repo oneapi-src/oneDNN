@@ -164,23 +164,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-
-    if (is_nvidia_gpu()) {
-        const int64_t PD = prb->pd, PH = prb->ph, PW = prb->pw;
-        const int64_t PD_R = prb->pd_r, PH_R = prb->ph_r, PW_R = prb->pw_r;
-        const bool pad_ok
-                = !(prb->alg == avg_p && (PD < PD_R || PH < PH_R || PW < PW_R));
-
-        const int64_t DD = prb->dd, DH = prb->dh, DW = prb->dw;
-        const bool dilation_ok = DD == 0 && DH == 0 && DW == 0;
-
-        const bool post_ops_ok = prb->attr.post_ops.is_def();
-
-        if (!pad_ok || !dilation_ok || !post_ops_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
