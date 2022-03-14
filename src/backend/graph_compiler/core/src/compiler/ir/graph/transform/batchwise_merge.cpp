@@ -97,7 +97,7 @@ struct bw_fusion_partition_t : fusion_partition_t {
         if (prod == 1) return false;
         const int run_threads = runtime_config_t::get().threads_per_instance_;
         bool parallelism = (prod / run_threads > 8
-                || (prod % run_threads == 0 && (prod / run_threads) >= 1));
+                || (prod % run_threads == 0 && prod >= run_threads));
         if (!parallelism)
             SC_MODULE_INFO << "Considering parallelism, do not batchwised "
                               "merge op(or pattern): "
@@ -130,22 +130,26 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
             return;
 
         bw_fusion_partition_t::ptr parent_partition;
-        // merge the partitons of all inputs
-        for (auto &in : op->get_inputs()) {
-            auto &cur_in_partition
-                    = op_2_partition[in->producer_owner_->logical_op_id_];
-            // if an input is fusible and is not "break_post_fuse"
-            if (cur_in_partition
-                    && cur_in_partition->is_ok_to_add(
-                            op.get(), dep, bw_map, least_shrink_ndim)
-                    && in->producer_owner_->attrs_.get_or_else(
-                               "constant", const_kind::not_const)
-                            == const_kind::not_const) {
-                if (parent_partition) {
-                    parent_partition->merge(cur_in_partition);
+        if (!op->attrs_.get_or_else(op_attr_key::bwise_break_pre_fuse, false)) {
+            // merge the partitons of all inputs
+            for (auto &in : op->get_inputs()) {
+                auto &cur_in_partition
+                        = op_2_partition[in->producer_owner_->logical_op_id_];
+                // if an input is fusible and is not "break_post_fuse"
+                if (cur_in_partition
+                        && !in->producer_owner_->attrs_.get_or_else(
+                                op_attr_key::bwise_break_post_fuse, false)
+                        && cur_in_partition->is_ok_to_add(
+                                op.get(), dep, bw_map, least_shrink_ndim)
+                        && in->producer_owner_->attrs_.get_or_else(
+                                   "constant", const_kind::not_const)
+                                == const_kind::not_const) {
+                    if (parent_partition) {
+                        parent_partition->merge(cur_in_partition);
 
-                } else {
-                    parent_partition = cur_in_partition;
+                    } else {
+                        parent_partition = cur_in_partition;
+                    }
                 }
             }
         }
@@ -159,10 +163,23 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
         op_2_partition[op->logical_op_id_] = parent_partition;
     });
 
-    auto check_partition = [](bw_fusion_partition_t::ptr &parti,
+    auto check_partition = [&bw_map](bw_fusion_partition_t::ptr &parti,
                                    std::unordered_set<sc_op_ptr> &failed_ops) {
         if (!parti || parti->ops.empty() || parti->ops.size() < 2) return;
         for (auto &op : parti->ops) {
+            COMPILE_ASSERT(bw_map.find(op) != bw_map.end(),
+                    op->op_name_ << "is not initlized, please check it")
+            COMPILE_ASSERT(
+                    !op->attrs_.has_key(op_attr_key::bwise_no_strided_dims)
+                            || (op->attrs_.get_or_else(
+                                        op_attr_key::bwise_break_pre_fuse,
+                                        false)
+                                    || op->attrs_.get_or_else(
+                                            op_attr_key::bwise_break_post_fuse,
+                                            false)),
+                    "If the op has been set batch-wise no stride dims, it "
+                    "means it "
+                    "may cause bwise break fusion");
             if (op->isa<tensor_view_op_t>()) {
                 for (auto &user : op->get_outputs()[0]->uses_) {
                     if (parti->ops.find(user.second.get_shared())
@@ -179,24 +196,35 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
                     op->attrs_[op_attr_key::bwise_no_fuse] = true;
                     failed_ops.insert(op);
                 }
-            } else if (auto reo = op->dyn_cast<reorder_op_t>()) {
-                if (reo->attrs_.get_or_else(
-                            op_attr_key::bwise_strided, false)) {
-                    for (auto &user : op->get_outputs()[0]->uses_) {
-                        if (parti->ops.find(user.second.get_shared())
-                                != parti->ops.end()) {
-                            op->attrs_[op_attr_key::bwise_no_fuse] = true;
-                            failed_ops.insert(op);
-                            break;
-                        }
-                    }
-                    if (parti->ops.find(
-                                op->get_inputs()[0]
-                                        ->producer_owner_->shared_from_this())
-                            != parti->ops.end()) {
-                        op->attrs_[op_attr_key::bwise_no_fuse] = true;
-                        failed_ops.insert(op);
-                    }
+            } else if (op->isa<reorder_op_t>()
+                    && op->attrs_.has_key(op_attr_key::bwise_no_strided_dims)) {
+                auto no_strided_dims = op->attrs_.get<sc_dims>(
+                        op_attr_key::bwise_no_strided_dims);
+                if (parti->bw_dims_.size() <= no_strided_dims.size()) {
+                    // use no strided dims insteadly
+                    bw_map[op] = no_strided_dims;
+                    if (op->attrs_.has_key(op_attr_key::bwise_break_pre_fuse))
+                        op->attrs_.remove(op_attr_key::bwise_break_pre_fuse);
+                    if (op->attrs_.has_key(op_attr_key::bwise_break_post_fuse))
+                        op->attrs_.remove(op_attr_key::bwise_break_post_fuse);
+                    op->attrs_.remove(op_attr_key::bwise_no_strided_dims);
+                } else {
+                    op->attrs_[op_attr_key::bwise_no_fuse] = true;
+                }
+                failed_ops.insert(op);
+            } else if (op->isa<fused_op_t>()
+                    && op->attrs_.has_key(op_attr_key::bwise_no_strided_dims)) {
+                auto no_strided_dims = op->attrs_.get<sc_dims>(
+                        op_attr_key::bwise_no_strided_dims);
+                if (parti->bw_dims_.size() <= no_strided_dims.size()) {
+                    // use no strided dims insteadly
+                    bw_map[op] = no_strided_dims;
+                    if (op->attrs_.has_key(op_attr_key::bwise_break_pre_fuse))
+                        op->attrs_.remove(op_attr_key::bwise_break_pre_fuse);
+                    if (op->attrs_.has_key(op_attr_key::bwise_break_post_fuse))
+                        op->attrs_.remove(op_attr_key::bwise_break_post_fuse);
+                    op->attrs_.remove(op_attr_key::bwise_no_strided_dims);
+                    failed_ops.insert(op);
                 }
             }
         }
@@ -352,8 +380,12 @@ static void do_batchwise_merge(
     for (auto &op : graph.ops_) {
         if (op->attrs_.has_key(op_attr_key::bwise_no_fuse))
             op->attrs_.remove(op_attr_key::bwise_no_fuse);
-        if (op->attrs_.has_key(op_attr_key::bwise_strided))
-            op->attrs_.remove(op_attr_key::bwise_strided);
+        if (op->attrs_.has_key(op_attr_key::bwise_break_pre_fuse))
+            op->attrs_.remove(op_attr_key::bwise_break_pre_fuse);
+        if (op->attrs_.has_key(op_attr_key::bwise_break_post_fuse))
+            op->attrs_.remove(op_attr_key::bwise_break_post_fuse);
+        if (op->attrs_.has_key(op_attr_key::bwise_no_strided_dims))
+            op->attrs_.remove(op_attr_key::bwise_no_strided_dims);
     }
     std::vector<sc_op_ptr> fused_ops;
     for (auto &parti : op_2_partition) {

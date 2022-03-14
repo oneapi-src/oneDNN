@@ -115,7 +115,7 @@ sc_dims reorder_op_t::get_bwise_fuse_shrink_dims() {
     auto another_fmt = another_gt->details_.get_format();
     auto another_gt_blocks = another_fmt.get_blocked_axis();
     auto p2b_map = another_fmt.format_code_.collect_p2b_mapping();
-    int cnt = 0;
+    int cnt = 0, no_stride_cnt = 0;
     bool bwise_strided = false;
     for (; cnt < offset_wo_bs; cnt++) {
         auto plain_pos = fmt.format_code_.get(cnt);
@@ -131,23 +131,35 @@ sc_dims reorder_op_t::get_bwise_fuse_shrink_dims() {
                     || gt_remaining_dims_prod % another_gt_blocks_prod != 0)
                 break;
         }
-        if (p2b_map[plain_pos].front() != cnt) break;
         // check strided
-        if (bs_size + cnt > 0) {
-            if (!gt_blocks[plain_pos].empty()
-                    && another_gt_blocks[plain_pos].empty()) {
+        if (!bwise_strided) {
+            if (p2b_map[plain_pos].front() != cnt)
                 bwise_strided = true;
-            } else if (!gt_blocks[plain_pos].empty()
-                    && !another_gt_blocks[plain_pos].empty()) {
-                auto gt_remaining_dims_prod = gt_blocks[plain_pos].front();
-                auto another_gt_blocks_prod
-                        = another_gt_blocks[plain_pos].front();
-                if (gt_remaining_dims_prod != another_gt_blocks_prod)
+            else if (bs_size + cnt > 0) {
+                if (!gt_blocks[plain_pos].empty()
+                        && another_gt_blocks[plain_pos].empty()) {
                     bwise_strided = true;
+                } else if (!gt_blocks[plain_pos].empty()
+                        && !another_gt_blocks[plain_pos].empty()) {
+                    auto gt_remaining_dims_prod = gt_blocks[plain_pos].front();
+                    auto another_gt_blocks_prod
+                            = another_gt_blocks[plain_pos].front();
+                    if (gt_remaining_dims_prod != another_gt_blocks_prod)
+                        bwise_strided = true;
+                }
             }
+            if (bwise_strided) no_stride_cnt = cnt;
         }
     }
-    if (bwise_strided) attrs_.set(op_attr_key::bwise_strided, true);
+    if (bwise_strided) {
+        attrs_.set(use_out_loop ? op_attr_key::bwise_break_pre_fuse
+                                : op_attr_key::bwise_break_post_fuse,
+                true);
+        attrs_.set(op_attr_key::bwise_no_strided_dims,
+                sc_dims {gt->details_.get_blocking_dims().begin(),
+                        gt->details_.get_blocking_dims().begin() + bs_size
+                                + no_stride_cnt});
+    }
     return {gt->details_.get_blocking_dims().begin(),
             gt->details_.get_blocking_dims().begin() + bs_size + cnt};
 };
@@ -163,6 +175,28 @@ void reorder_op_t::collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) {
     // set the another one
     op_traits::batchwise_shrinkable_t::record_shrinked_gt(
             bw_lt_map, use_out_loop ? ins : out, plain_dims);
+}
+
+void reorder_op_t::collect_shrinked_axes_map(
+        int bw_size, gt2axes_map &bw_axes_map) {
+    bool use_out_loop = use_output_loop();
+    // depends on loop mode
+    auto gt = use_out_loop ? get_outputs()[0] : get_inputs()[0];
+    record_shrinked_axes(bw_axes_map, gt, bw_size);
+    auto another_gt = use_out_loop ? get_inputs()[0] : get_outputs()[0];
+    auto fmt = gt->details_.get_format();
+    int bs_size = gt->details_.get_blocking_dims().size()
+            - fmt.format_code_.ndims();
+    auto p2b_map = another_gt->details_.get_format()
+                           .format_code_.collect_p2b_mapping();
+    std::vector<int> bw_axis;
+    for (int i = 0; i < bw_size; i++) {
+        if (i < bs_size)
+            bw_axis.emplace_back(i);
+        else
+            bw_axis.emplace_back(p2b_map[fmt.format_code_.get(i)].front());
+    }
+    record_shrinked_axes(bw_axes_map, another_gt, bw_axis);
 }
 
 // This function will try to merge multi slice range

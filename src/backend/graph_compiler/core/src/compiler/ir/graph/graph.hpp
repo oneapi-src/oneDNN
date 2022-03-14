@@ -166,7 +166,9 @@ constexpr const char *inner_anchor = "inner_anchor";
 // Batchwise fused
 constexpr const char *bwise_fuse = "bwise_fuse";
 constexpr const char *bwise_no_fuse = "bwise_no_fuse";
-constexpr const char *bwise_strided = "bwise_strided";
+constexpr const char *bwise_break_pre_fuse = "bwise_break_pre_fuse";
+constexpr const char *bwise_break_post_fuse = "bwise_break_post_fuse";
+constexpr const char *bwise_no_strided_dims = "bwise_no_strided_dims";
 }; // namespace op_attr_key
 
 class SC_INTERNAL_API sc_op : public virtual op_base_trait_t,
