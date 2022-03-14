@@ -67,7 +67,8 @@ dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept;
 dnnl_data_type_t convert_dt(
         const dnnl::graph::logical_tensor::data_type dt) noexcept;
-dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept;
+dnnl::graph::op::kind convert_alg_kind(
+        const dnnl_alg_kind_t kind, bool is_fwd = true) noexcept;
 std::string convert_tag(
         const std::string &tag, bool activation_tag = true) noexcept;
 std::string convert_attr_policy(const attr_t::policy_t policy) noexcept;

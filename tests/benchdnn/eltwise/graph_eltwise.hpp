@@ -67,6 +67,9 @@ private:
         dnnl::graph::op::kind op_kind;
         std::string data_format;
         std::string raw_data_format;
+        int64_t softplus_beta {0};
+        bool is_fwd_pass {true};
+        bool use_dst {true};
     };
 
     spec_t spec_;

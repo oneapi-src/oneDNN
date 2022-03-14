@@ -1,25 +1,25 @@
 # main op - no alpha, no beta
 --reset
 --inplace=true,false
---dir=FWD_I
+--dir=FWD_D
 --dt=bf16
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,log,relu,sqrt,square,tanh,logistic
+--alg=abs,exp,gelu_erf,hardswish,log,relu,soft_relu,sqrt,square,tanh,logistic,logsigmoid
 64x512x28x28
 
 # main op - hardtanh, alpha andbeta
 --reset
 --inplace=true,false
---dir=FWD_I
+--dir=FWD_D
 --dt=bf16
---alg=clip
+--alg=clip_v2
 --alpha=-1 --beta=1
 64x512x28x28
 
 # main op - elu, only alpha
 --reset
 --inplace=true,false
---dir=FWD_I
+--dir=FWD_D,BWD_D
 --dt=bf16
 --alg=elu
 --alpha= --beta=0
@@ -28,9 +28,19 @@
 # post binary-add
 --reset
 --inplace=true,false
---dir=FWD_I
+--dir=FWD_D
 --dt=bf16
 --alg=relu
 --alpha=0 --beta=0
 --attr-post-ops=add:bf16:common,add:bf16:per_oc
+64x512x28x28
+
+# other supported algs bwd
+--reset
+--inplace=true,false
+--dir=BWD_D
+--dt=bf16
+--tag=abx,axb
+--alpha= --beta=0
+--alg=clip_v2,clip_v2_dst,elu_dst,hardswish,relu,relu_dst,soft_relu,sqrt_dst,tanh_dst,logistic_dst
 64x512x28x28
