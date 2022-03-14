@@ -999,6 +999,49 @@ inline std::pair<dnnl::prelu_forward::primitive_desc, bool> create_prelu_pd(
     return {pd, true};
 }
 
+inline std::pair<dnnl::prelu_backward::primitive_desc, bool>
+create_prelu_bwd_pd(std::shared_ptr<impl::op_t> &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache) {
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        return {static_cast<dnnl::prelu_backward::primitive_desc &>(
+                        pd_cache.at(op.get())),
+                false};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(key);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto forward_data = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto wei = make_dnnl_memory_desc(
+            op->get_input_value(1)->get_logical_tensor());
+    wei = to_format_any(wei);
+
+    auto diff_data = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    auto diff_wei = make_dnnl_memory_desc(
+            op->get_output_value(1)->get_logical_tensor());
+    diff_wei = to_format_any(diff_wei);
+
+    auto hint_fwd_pd = dnnl::prelu_forward::primitive_desc(
+            {prop_kind::forward, forward_data, wei}, prm_attr, p_engine);
+
+    dnnl::prelu_backward::primitive_desc pd(
+            {forward_data, wei, diff_data, diff_wei}, prm_attr, p_engine,
+            hint_fwd_pd);
+
+    pd_cache.insert({op.get(), pd});
+
+    return {pd, true};
+}
+
 inline std::pair<dnnl::softmax_v2_forward::primitive_desc, bool>
 create_softmax_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache,
@@ -1502,6 +1545,26 @@ struct prelu_executable_t : public op_executable_t {
 private:
     dnnl::prelu_forward::primitive_desc pd_;
     dnnl::prelu_forward prim_;
+};
+
+struct prelu_bwd_executable_t : public op_executable_t {
+    prelu_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
+            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            pd_cache_t &pd_cache) {
+        pd_ = create_prelu_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        prim_ = dnnl::prelu_backward(pd_);
+    }
+
+    memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+private:
+    dnnl::prelu_backward::primitive_desc pd_;
+    dnnl::prelu_backward prim_;
 };
 
 struct reorder_executable_t : public op_executable_t {

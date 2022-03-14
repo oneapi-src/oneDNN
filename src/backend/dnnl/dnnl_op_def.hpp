@@ -831,6 +831,40 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_prelu_bwd, 1,
+        op_schema_t()
+                .set_num_inputs(3)
+                .set_num_outputs(3)
+                .set_input(0, "input_forward", "input of forward")
+                .set_input(1, "slope", "slope tensor")
+                .set_input(2, "output_delta",
+                        "the gradient tensor with respect to the output of "
+                        "prelu")
+                .set_output(0, "input_delta",
+                        "the gradient tensor with respect to the input of "
+                        "prelu")
+                .set_output(1, "slope_delta",
+                        "the gradient tensor with respect to the slope")
+                .set_output(2, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
+                // Attributes inherited from PReLUBackprop
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                // New added attributes
+                .set_attr("canonicalized",
+                        "additional flag to indicate whether the op can be "
+                        "directly mapped to DNNL primitive",
+                        false, attribute_kind::b, false)
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
+                // Analysis rules
+                .set_shape_inference_function(infer_prelu_bwd_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)

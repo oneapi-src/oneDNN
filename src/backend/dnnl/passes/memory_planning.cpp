@@ -394,6 +394,37 @@ void memory_planner_t::prepare_args_for_prelu(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
+void memory_planner_t::prepare_args_for_prelu_bwd(op_t *op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    UNUSED(prm_attr_mgr);
+    exec_args args;
+
+    memory mem;
+
+    // add input args
+    exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
+    args.insert({DNNL_ARG_SRC, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
+    args.insert({DNNL_ARG_WEIGHTS, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_input_value(2).get(), mem);
+    args.insert({DNNL_ARG_DIFF_DST, mem});
+
+    // add output args
+    exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
+    args.insert({DNNL_ARG_DIFF_SRC, mem});
+
+    exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
+    args.insert({DNNL_ARG_DIFF_WEIGHTS, mem});
+
+    // scratchpad is always present
+    exec_args_set_.find_value_mem_map(op->get_output_value(2).get(), mem);
+    args.insert({DNNL_ARG_SCRATCHPAD, mem});
+
+    exec_args_set_.add_exec_args(args);
+}
+
 // for single-input-single-output op
 void memory_planner_t::prepare_args_for_siso_op(op_t *op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
@@ -1304,6 +1335,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_siso_op(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_prelu) {
                     prepare_args_for_prelu(op, p_engine, prm_attr_mgr);
+                } else if (op->get_kind() == op_kind::dnnl_prelu_bwd) {
+                    prepare_args_for_prelu_bwd(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
                     bind_memory_for_bn_folding(op, p_engine);
                 } else if (op->get_kind() == op_kind::dnnl_conv_bwd_data) {

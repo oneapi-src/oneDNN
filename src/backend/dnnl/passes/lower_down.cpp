@@ -3363,6 +3363,8 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
                 new_op->set_attr<bool>("is_training", true);
         } else if (cur_op->get_kind() == impl::op_kind::PReLU) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_prelu);
+        } else if (cur_op->get_kind() == impl::op_kind::PReLUBackprop) {
+            new_op = std::make_shared<op_t>(op_kind::dnnl_prelu_bwd);
         } else if (is_reduction_kind(cur_op->get_kind())) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_reduction);
             new_op->set_attr<int64_t>(
