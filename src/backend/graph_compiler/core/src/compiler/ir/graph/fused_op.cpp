@@ -32,6 +32,7 @@
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
+#include <ops/fusible/memory_movement.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -294,6 +295,9 @@ sc_dims fused_op_t::get_bwise_fuse_shrink_dims() {
     }
     // double check fused graph
     sc_dims common_bw_dims = bw_dims;
+    sc_dims common_no_strided_dims_pre, common_no_strided_dims_post,
+            common_no_strided_dims;
+    bool no_strided_dims_pre_init = false, no_strided_dims_post_init = false;
     for (auto &op : mgr_->get_graph().ops_) {
         if (common_bw_dims.empty()) break;
         if (op->isa<input_op>() || op->isa<output_op>()
@@ -302,10 +306,98 @@ sc_dims fused_op_t::get_bwise_fuse_shrink_dims() {
         else if (auto bw_op
                 = op->dyn_cast<op_traits::batchwise_shrinkable_t>()) {
             auto cur_bw_dims = bw_op->get_bwise_fuse_shrink_dims();
+            COMPILE_ASSERT(
+                    !op->attrs_.has_key(op_attr_key::bwise_no_strided_dims)
+                            || (op->attrs_.get_or_else(
+                                        op_attr_key::bwise_break_pre_fuse,
+                                        false)
+                                    || op->attrs_.get_or_else(
+                                            op_attr_key::bwise_break_post_fuse,
+                                            false)),
+                    "If the op has been set batch-wise no stride dims, it "
+                    "means it "
+                    "may cause bwise break fusion");
+            if (op->isa<reorder_op_t>()
+                    && op->attrs_.has_key(op_attr_key::bwise_no_strided_dims)) {
+                sc_dims no_strided_dims = op->attrs_.get<sc_dims>(
+                        op_attr_key::bwise_no_strided_dims);
+                if (op->attrs_.get_or_else(
+                            op_attr_key::bwise_break_post_fuse, false)) {
+                    if (op->is_single_output_single_use()
+                            && op->get_outputs()[0]
+                                       ->uses_[0]
+                                       .second->isa<output_op>()) {
+                        attrs_.set(op_attr_key::bwise_break_post_fuse, true);
+                    } else {
+                        cur_bw_dims = no_strided_dims;
+                    }
+                    // cache common no strided dims for fall-back
+                    if (!no_strided_dims_post_init) {
+                        common_no_strided_dims_post = no_strided_dims;
+                        no_strided_dims_post_init = true;
+                    } else {
+                        common_no_strided_dims_post = get_common_dims(
+                                common_no_strided_dims_post, no_strided_dims);
+                    }
+                }
+                if (op->attrs_.get_or_else(
+                            op_attr_key::bwise_break_pre_fuse, false)) {
+                    if (op->get_inputs()[0]->producer_owner_->isa<input_op>()) {
+                        attrs_.set(op_attr_key::bwise_break_pre_fuse, true);
+                    } else {
+                        cur_bw_dims = no_strided_dims;
+                    }
+                    // cache common no strided dims for fall-back
+                    if (!no_strided_dims_pre_init) {
+                        common_no_strided_dims_pre = no_strided_dims;
+                        no_strided_dims_pre_init = true;
+                    } else {
+                        common_no_strided_dims_pre = get_common_dims(
+                                common_no_strided_dims_pre, no_strided_dims);
+                    }
+                }
+                op->attrs_.remove(op_attr_key::bwise_no_strided_dims);
+                if (op->attrs_.has_key(op_attr_key::bwise_break_pre_fuse))
+                    op->attrs_.remove(op_attr_key::bwise_break_pre_fuse);
+                if (op->attrs_.has_key(op_attr_key::bwise_break_post_fuse))
+                    op->attrs_.remove(op_attr_key::bwise_break_post_fuse);
+            }
             common_bw_dims = get_common_dims(common_bw_dims, cur_bw_dims);
         } else {
             common_bw_dims = {};
         }
+    }
+    // double-check bwise break fuse attr
+    if (attrs_.get_or_else(op_attr_key::bwise_break_pre_fuse, false)
+            && common_bw_dims.size() <= common_no_strided_dims_pre.size()) {
+        if (attrs_.has_key(op_attr_key::bwise_break_pre_fuse)) {
+            attrs_.remove(op_attr_key::bwise_break_pre_fuse);
+        }
+    }
+    if (attrs_.get_or_else(op_attr_key::bwise_break_post_fuse, false)
+            && common_bw_dims.size() <= common_no_strided_dims_post.size()) {
+        if (attrs_.has_key(op_attr_key::bwise_break_post_fuse)) {
+            attrs_.remove(op_attr_key::bwise_break_post_fuse);
+        }
+    }
+    // set bwise_no_strided_dims if necessary
+    if (attrs_.get_or_else(op_attr_key::bwise_break_pre_fuse, false)
+            || attrs_.get_or_else(op_attr_key::bwise_break_post_fuse, false)) {
+        COMPILE_ASSERT(no_strided_dims_pre_init || no_strided_dims_post_init,
+                "pre/post no strided dims should be set")
+        if (no_strided_dims_pre_init && no_strided_dims_post_init) {
+            common_no_strided_dims = get_common_dims(
+                    common_no_strided_dims_pre, common_no_strided_dims_post);
+            common_no_strided_dims
+                    = get_common_dims(common_bw_dims, common_no_strided_dims);
+        } else if (no_strided_dims_pre_init) {
+            common_no_strided_dims = get_common_dims(
+                    common_bw_dims, common_no_strided_dims_pre);
+        } else {
+            common_no_strided_dims = get_common_dims(
+                    common_bw_dims, common_no_strided_dims_post);
+        }
+        attrs_.set(op_attr_key::bwise_no_strided_dims, common_no_strided_dims);
     }
     return common_bw_dims;
 }
@@ -835,7 +927,9 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
                 offset[bw_axes[i]]
                         = dim2unsigned(shrink_dims[bw_axes[i]]) * loop_vars[i];
             }
-            if (i > 0 && shrink_dims[bw_axes[i]] != 1) strided = true;
+            if ((i > 0 && shrink_dims[bw_axes[i]] != 1)
+                    || bw_axes[i] != static_cast<int>(i))
+                strided = true;
         }
         if (strided) {
             auto &tsr_map
@@ -846,6 +940,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
                             + std::to_string(tsr_map.size()),
                     dims_to_expr(shrink_dims),
                     tsr.checked_as<tensor>()->elem_dtype_);
+            shrinked_tsr->attr().set("temp.bw_axes", bw_axes);
             tsr_map[tsr] = shrinked_tsr;
             return shrinked_tsr;
         } else {
@@ -882,33 +977,40 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
             auto orig_tsr = m.first.checked_as<tensor>(),
                  shrinked_tsr = m.second.checked_as<tensor>();
             std::vector<expr> loop_idx, shrinked_idx, orig_idx;
+            auto orig_dims = get_expr_to_dims(orig_tsr->dims_);
             auto shriked_dims = get_expr_to_dims(shrinked_tsr->dims_);
-            int step = static_cast<int>(
-                    vectorize_step(ctx, shrinked_tsr->elem_dtype_.type_code_));
+            COMPILE_ASSERT(shrinked_tsr->attr().has_key("temp.bw_axes"),
+                    "bw axes could not be found");
+            auto bw_axes = shrinked_tsr->attr().get<std::vector<int>>(
+                    "temp.bw_axes");
+            shrinked_tsr->attr().remove("temp.bw_axes");
+            int step = static_cast<int>(ctx->get_max_vector_lanes(
+                    shrinked_tsr->elem_dtype_.type_code_));
             bool vectorized = ((shriked_dims.back() % step == 0)
-                    && (shriked_dims.back() / step >= 1));
+                                      && (shriked_dims.back() >= step))
+                    && ((orig_dims.back() % step == 0)
+                            && (orig_dims.back() >= step));
             for (size_t i = 0; i < shriked_dims.size(); i++) {
                 loop_idx.emplace_back(builder::make_var(datatypes::index,
                         std::string("_strided_cpy_iter") + std::to_string(i)));
                 shrinked_idx.emplace_back(loop_idx.back());
-                if (i < lpvars.size())
-                    orig_idx.emplace_back(
-                            lpvars[i] * dim2unsigned(shriked_dims[i])
+                auto iter = std::find(
+                        bw_axes.begin(), bw_axes.end(), static_cast<int>(i));
+                if (iter != bw_axes.end())
+                    orig_idx.emplace_back(lpvars[iter - bw_axes.begin()]
+                                    * dim2unsigned(shriked_dims[i])
                             + loop_idx.back());
                 else
                     orig_idx.emplace_back(loop_idx.back());
             }
+            auto shrink_indexing = builder::make_indexing(
+                    shrinked_tsr, shrinked_idx, vectorized ? step : 1);
+            auto orig_indexing = builder::make_indexing(
+                    orig_tsr, orig_idx, vectorized ? step : 1);
             auto cur = builder::make_stmts_unattached(
-                    {builder::make_assign_unattached(orig2shrink
-                                    ? builder::make_indexing(shrinked_tsr,
-                                            shrinked_idx, vectorized ? step : 1)
-                                    : builder::make_indexing(orig_tsr, orig_idx,
-                                            vectorized ? step : 1),
-                            orig2shrink ? builder::make_indexing(
-                                    orig_tsr, orig_idx, vectorized ? step : 1)
-                                        : builder::make_indexing(shrinked_tsr,
-                                                shrinked_idx,
-                                                vectorized ? step : 1))});
+                    {builder::make_assign_unattached(
+                            orig2shrink ? shrink_indexing : orig_indexing,
+                            orig2shrink ? orig_indexing : shrink_indexing)});
             for (int i = shriked_dims.size() - 1; i >= 0; i--) {
                 cur = builder::make_for_loop_unattached(loop_idx[i], 0,
                         dim2unsigned(shriked_dims[i]),
