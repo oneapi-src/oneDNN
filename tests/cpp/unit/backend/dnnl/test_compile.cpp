@@ -2016,7 +2016,7 @@ TEST(Execute, AddMul) {
     g.add_op(&mul_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("binary_add_multiply_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -2084,7 +2084,7 @@ TEST(Execute, AddMulPostSrcAsNxc) {
     g.add_op(&mul_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("binary_add_multiply_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -2146,7 +2146,7 @@ TEST(Execute, AddRelu) {
     g.add_op(&relu_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("binary_add_relu_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -2211,7 +2211,7 @@ TEST(Execute, AddSigmoid) {
     g.add_op(&sigmoid_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("binary_add_sigmoid_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -2317,8 +2317,6 @@ TEST(Execute, MulEltwise) {
 
     std::vector<impl::op_kind_t> eltwise_ops
             = {impl::op_kind::ReLU, impl::op_kind::Sigmoid};
-    std::vector<std::string> pass_names
-            = {"binary_multiply_relu_fusion", "binary_mul_sigmoid_fusion"};
 
     for (size_t i = 0; i < eltwise_ops.size(); i++) {
         impl::op_t mul_op(0, impl::op_kind::Multiply, "mul");
@@ -2335,7 +2333,7 @@ TEST(Execute, MulEltwise) {
         g.add_op(&eltwise_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -2380,8 +2378,6 @@ TEST(Execute, BinaryOpAddFusion) {
 
     std::vector<impl::op_kind_t> bin_ops = {impl::op_kind::Multiply,
             impl::op_kind::Maximum, impl::op_kind::Minimum};
-    std::vector<std::string> pass_names = {"binary_multiply_add_fusion",
-            "binary_maximum_add_fusion", "binary_minimum_add_fusion"};
 
     for (size_t i = 0; i < bin_ops.size(); i++) {
         impl::op_t bin_op(0, bin_ops[i], "bin");
@@ -2399,7 +2395,7 @@ TEST(Execute, BinaryOpAddFusion) {
         g.add_op(&add_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -2442,8 +2438,6 @@ TEST(Execute, MinEltwise) {
 
     std::vector<impl::op_kind_t> eltwise_ops
             = {impl::op_kind::ReLU, impl::op_kind::Sigmoid};
-    std::vector<std::string> pass_names
-            = {"binary_minimum_relu_fusion", "binary_min_sigmoid_fusion"};
 
     for (size_t i = 0; i < eltwise_ops.size(); i++) {
         impl::op_t min_op(0, impl::op_kind::Minimum, "min");
@@ -2460,7 +2454,7 @@ TEST(Execute, MinEltwise) {
         g.add_op(&eltwise_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -2503,8 +2497,6 @@ TEST(Execute, MaxEltwise) {
 
     std::vector<impl::op_kind_t> eltwise_ops
             = {impl::op_kind::ReLU, impl::op_kind::Sigmoid};
-    std::vector<std::string> pass_names
-            = {"binary_maximum_relu_fusion", "binary_max_sigmoid_fusion"};
 
     for (size_t i = 0; i < eltwise_ops.size(); i++) {
         impl::op_t max_op(0, impl::op_kind::Maximum, "max");
@@ -2521,7 +2513,7 @@ TEST(Execute, MaxEltwise) {
         g.add_op(&eltwise_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
+        impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -16483,7 +16475,7 @@ TEST(Execute, MulAddPerTensorBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("binary_multiply_add_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -16547,7 +16539,7 @@ TEST(Execute, MulAddPerHwBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("binary_multiply_add_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -16611,7 +16603,7 @@ TEST(Execute, MulAddPerChannelBroadcast) {
     g.add_op(&add_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("binary_multiply_add_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];

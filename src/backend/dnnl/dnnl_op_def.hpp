@@ -33,7 +33,7 @@ namespace dnnl_impl {
 template <typename T>
 op_schema_t get_op_schema();
 
-DNNL_GRAPH_OP_SCHEMA(add_relu, 1,
+DNNL_GRAPH_OP_SCHEMA(binary_post_ops_fusion, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
@@ -43,78 +43,6 @@ DNNL_GRAPH_OP_SCHEMA(add_relu, 1,
                 .set_attr("auto_broadcast",
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(add_sigmoid, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(add_multiply, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_input(2, "other", "the second input tensor of multiply")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(maximum_add, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_input(2, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(maximum_relu, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(maximum_sigmoid, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
                         false, attribute_kind::s, "numpy")
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
@@ -306,92 +234,6 @@ DNNL_GRAPH_OP_SCHEMA(int8_avgpool_add, 1,
                 .set_attr("zps", "offset value that maps to float zero", true,
                         attribute_kind::is)
                 .set_shape_inference_function(infer_pool_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(minimum_add, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_input(2, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(minimum_relu, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(minimum_sigmoid, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(multiply_add, 1,
-        op_schema_t()
-                .set_num_inputs(3)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_input(2, "other", "the second input tensor of add")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting "
-                        "of input tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(multiply_relu, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(multiply_sigmoid, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "lhs", "first input tensor")
-                .set_input(1, "rhs", "second input tensor")
-                .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
-                        "specifies rules used for auto-broadcasting of input "
-                        "tensors",
-                        false, attribute_kind::s, "numpy")
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(eltwise_binary, 1,
         op_schema_t()

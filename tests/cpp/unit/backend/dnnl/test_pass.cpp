@@ -1275,7 +1275,7 @@ TEST(PassPriority, TestConvRelated) {
     */
     pass::pass_base_ptr pass1 = get_pass("conv_bias_post_ops_fusion");
     pass::pass_base_ptr pass2 = get_pass("conv_post_ops_fusion");
-    pass::pass_base_ptr pass3 = get_pass("binary_add_relu_fusion");
+    pass::pass_base_ptr pass3 = get_pass("binary_post_ops_fusion");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
 }
@@ -1465,9 +1465,9 @@ TEST(Pass, FuseBinarySum) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
-            {Multiply, dnnl_impl::op_kind::multiply_add},
-            {Maximum, dnnl_impl::op_kind::maximum_add},
-            {Minimum, dnnl_impl::op_kind::minimum_add}};
+            {Multiply, dnnl_impl::op_kind::binary_post_ops_fusion},
+            {Maximum, dnnl_impl::op_kind::binary_post_ops_fusion},
+            {Minimum, dnnl_impl::op_kind::binary_post_ops_fusion}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1517,20 +1517,20 @@ TEST(PassPriority, TestConvSumAndBinary) {
             add        should be fused to conv-add + binary
     */
     pass::pass_base_ptr pass1 = get_pass("conv_post_ops_fusion");
-    pass::pass_base_ptr pass2 = get_pass("binary_multiply_add_fusion");
+    pass::pass_base_ptr pass2 = get_pass("binary_post_ops_fusion");
     pass::pass_base_ptr pass3 = get_pass("sum_pass");
     pass::pass_base_ptr pass4 = get_pass("mul_pass");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
     ASSERT_TRUE(pass2->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass2->get_priority() > pass4->get_priority());
 
-    pass::pass_base_ptr pass5 = get_pass("binary_maximum_add_fusion");
+    pass::pass_base_ptr pass5 = get_pass("binary_post_ops_fusion");
     pass::pass_base_ptr pass6 = get_pass("max_pass");
     ASSERT_TRUE(pass1->get_priority() > pass5->get_priority());
     ASSERT_TRUE(pass5->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass5->get_priority() > pass6->get_priority());
 
-    pass::pass_base_ptr pass7 = get_pass("binary_minimum_add_fusion");
+    pass::pass_base_ptr pass7 = get_pass("binary_post_ops_fusion");
     pass::pass_base_ptr pass8 = get_pass("min_pass");
     ASSERT_TRUE(pass1->get_priority() > pass7->get_priority());
     ASSERT_TRUE(pass7->get_priority() > pass3->get_priority());
@@ -1541,9 +1541,9 @@ TEST(Pass, FuseBinarySumWithSupportBroadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
-            {Multiply, dnnl_impl::op_kind::multiply_add},
-            {Maximum, dnnl_impl::op_kind::maximum_add},
-            {Minimum, dnnl_impl::op_kind::minimum_add}};
+            {Multiply, dnnl_impl::op_kind::binary_post_ops_fusion},
+            {Maximum, dnnl_impl::op_kind::binary_post_ops_fusion},
+            {Minimum, dnnl_impl::op_kind::binary_post_ops_fusion}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1583,9 +1583,9 @@ TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
-            {Multiply, dnnl_impl::op_kind::multiply_add},
-            {Maximum, dnnl_impl::op_kind::maximum_add},
-            {Minimum, dnnl_impl::op_kind::minimum_add}};
+            {Multiply, dnnl_impl::op_kind::binary_post_ops_fusion},
+            {Maximum, dnnl_impl::op_kind::binary_post_ops_fusion},
+            {Minimum, dnnl_impl::op_kind::binary_post_ops_fusion}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1626,8 +1626,8 @@ TEST(Pass, FailToFuseBinarySumWithUnsupportBroadcast) {
 
         pm.run_passes(agraph, "no_config");
 
-        // should not be fused
-        ASSERT_EQ(agraph.get_num_partitions(), 2);
+        // could fuse now
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
     }
 }
 
@@ -1635,9 +1635,9 @@ TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, op_kind_t>> opkind_pair {
-            {Multiply, dnnl_impl::op_kind::multiply_add},
-            {Maximum, dnnl_impl::op_kind::maximum_add},
-            {Minimum, dnnl_impl::op_kind::minimum_add}};
+            {Multiply, dnnl_impl::op_kind::binary_post_ops_fusion},
+            {Maximum, dnnl_impl::op_kind::binary_post_ops_fusion},
+            {Minimum, dnnl_impl::op_kind::binary_post_ops_fusion}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1665,8 +1665,8 @@ TEST(Pass, FailToFuseBinarySumWithUnknownShape) {
 
         pm.run_passes(agraph, "no_config");
 
-        // should not be fused
-        ASSERT_EQ(agraph.get_num_partitions(), 2);
+        // could fuse now
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
     }
 }
 
@@ -1706,7 +1706,7 @@ TEST(Pass, FuseBinaryAddMul) {
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
     auto fused_op = get_fused_op(agraph.get_partitions()[0]);
-    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::add_multiply);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::binary_post_ops_fusion);
 }
 
 TEST(Pass, FuseBinaryEltwise) {
@@ -1721,14 +1721,21 @@ TEST(Pass, FuseBinaryEltwise) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<std::pair<op_kind_t, op_kind_t>, op_kind_t>>
-            opkind_pair {{{Add, Sigmoid}, dnnl_impl::op_kind::add_sigmoid},
-                    {{Add, ReLU}, dnnl_impl::op_kind::add_relu},
-                    {{Multiply, Sigmoid}, dnnl_impl::op_kind::multiply_sigmoid},
-                    {{Multiply, ReLU}, dnnl_impl::op_kind::multiply_relu},
-                    {{Maximum, Sigmoid}, dnnl_impl::op_kind::maximum_sigmoid},
-                    {{Maximum, ReLU}, dnnl_impl::op_kind::maximum_relu},
-                    {{Minimum, Sigmoid}, dnnl_impl::op_kind::minimum_sigmoid},
-                    {{Minimum, ReLU}, dnnl_impl::op_kind::minimum_relu}};
+            opkind_pair {{{Add, Sigmoid},
+                                 dnnl_impl::op_kind::binary_post_ops_fusion},
+                    {{Add, ReLU}, dnnl_impl::op_kind::binary_post_ops_fusion},
+                    {{Multiply, Sigmoid},
+                            dnnl_impl::op_kind::binary_post_ops_fusion},
+                    {{Multiply, ReLU},
+                            dnnl_impl::op_kind::binary_post_ops_fusion},
+                    {{Maximum, Sigmoid},
+                            dnnl_impl::op_kind::binary_post_ops_fusion},
+                    {{Maximum, ReLU},
+                            dnnl_impl::op_kind::binary_post_ops_fusion},
+                    {{Minimum, Sigmoid},
+                            dnnl_impl::op_kind::binary_post_ops_fusion},
+                    {{Minimum, ReLU},
+                            dnnl_impl::op_kind::binary_post_ops_fusion}};
 
     for (auto &p : opkind_pair) {
         graph_t agraph;
@@ -1813,7 +1820,7 @@ TEST(PassPriority, TestBinaryEltwise) {
            |
         eltwise
     */
-    pass::pass_base_ptr pass1 = get_pass("binary_add_relu_fusion");
+    pass::pass_base_ptr pass1 = get_pass("binary_post_ops_fusion");
     pass::pass_base_ptr pass2 = get_pass("conv_post_ops_fusion");
     pass::pass_base_ptr pass3 = get_pass("sum_pass");
     pass::pass_base_ptr pass4 = get_pass("relu_pass");
@@ -1821,23 +1828,23 @@ TEST(PassPriority, TestBinaryEltwise) {
     ASSERT_TRUE(pass1->get_priority() > pass3->get_priority());
     ASSERT_TRUE(pass1->get_priority() > pass4->get_priority());
 
-    pass::pass_base_ptr pass5 = get_pass("binary_add_sigmoid_fusion");
+    pass::pass_base_ptr pass5 = get_pass("binary_post_ops_fusion");
     ASSERT_TRUE(pass5->get_priority() > pass3->get_priority());
 
-    pass::pass_base_ptr pass6 = get_pass("binary_multiply_relu_fusion");
+    pass::pass_base_ptr pass6 = get_pass("binary_post_ops_fusion");
     pass::pass_base_ptr pass7 = get_pass("mul_pass");
     ASSERT_TRUE(pass6->get_priority() > pass7->get_priority());
     ASSERT_TRUE(pass6->get_priority() > pass4->get_priority());
 
-    pass::pass_base_ptr pass8 = get_pass("binary_mul_sigmoid_fusion");
+    pass::pass_base_ptr pass8 = get_pass("binary_post_ops_fusion");
     ASSERT_TRUE(pass8->get_priority() > pass7->get_priority());
 
-    pass::pass_base_ptr pass9 = get_pass("binary_maximum_relu_fusion");
+    pass::pass_base_ptr pass9 = get_pass("binary_post_ops_fusion");
     pass::pass_base_ptr pass10 = get_pass("max_pass");
     ASSERT_TRUE(pass9->get_priority() > pass4->get_priority());
     ASSERT_TRUE(pass9->get_priority() > pass10->get_priority());
 
-    pass::pass_base_ptr pass11 = get_pass("binary_max_sigmoid_fusion");
+    pass::pass_base_ptr pass11 = get_pass("binary_post_ops_fusion");
     ASSERT_TRUE(pass11->get_priority() > pass10->get_priority());
 }
 
@@ -4156,7 +4163,7 @@ TEST(PassPriority, TestMatmulBiasSumRelu) {
             relu
     */
     pass::pass_base_ptr pass1 = get_pass("matmul_bias_post_ops_chain_fusion");
-    pass::pass_base_ptr pass2 = get_pass("binary_add_relu_fusion");
+    pass::pass_base_ptr pass2 = get_pass("binary_post_ops_fusion");
     ASSERT_TRUE(pass1->get_priority() > pass2->get_priority());
 }
 
@@ -11804,4 +11811,89 @@ TEST(Pass, FuseConvBwdBiasaddBwd) {
     output_ids.insert(agraph.get_partitions()[0]->get_outputs()[1].id);
     ASSERT_TRUE(output_ids.find(4) != output_ids.end());
     ASSERT_TRUE(output_ids.find(5) != output_ids.end());
+}
+
+// TODO(zitian): wait for the implementation of comparison ops:
+//      Gt, Ge, Le, Lt, Eq, Ne
+// TODO(zitian): add test case for Sigmoid+Multiply as Swish
+TEST(Pass, BinaryPostops) {
+    /*
+        0       1
+        \       /
+        [Add, Multiply, Maximum, Minimum, Divide, Subtract]
+            |
+        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 1]
+    */
+
+    std::vector<op_kind_t> supported_binary_ops {
+            Add, Divide, Maximum, Minimum, Multiply, Subtract};
+    std::vector<bool> with_post_op = {true, false};
+    std::vector<op_kind_t> supported_post_ops {Abs, Add, Clamp, Divide, Elu,
+            Exp, GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU,
+            Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+    std::vector<op_kind_t> supported_binary_post_ops {
+            Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
+    for (auto bop : supported_binary_ops)
+        for (auto post_op_on : with_post_op)
+            for (auto pop : supported_post_ops) {
+                auto is_post_op_binary
+                        = (std::find(supported_binary_post_ops.begin(),
+                                   supported_binary_post_ops.end(), pop)
+                                != supported_binary_post_ops.end());
+                graph_t agraph;
+                op_t binary_op {0, bop, "binary op"};
+                op_t post_op {1, pop, "post op"};
+
+                // set additional parameters for specific ops
+                if (pop == Elu) {
+                    post_op.set_attr<float>("alpha", 1.0f);
+                } else if (pop == Clamp) {
+                    post_op.set_attr<float>("min", 1.0f);
+                    post_op.set_attr<float>("max", 3.0f);
+                } else if (pop == HardTanh) {
+                    post_op.set_attr<float>("min", 1.0f);
+                    post_op.set_attr<float>("max", 3.0f);
+                }
+
+                std::vector<logical_tensor_t> lt_vec
+                        = create_logical_tensors(5);
+                size_t lt_idx = -1;
+                std::vector<size_t> input_lts = {};
+                std::vector<size_t> output_lts = {};
+                binary_op.add_input(lt_vec[++lt_idx]);
+                input_lts.push_back(lt_idx);
+                binary_op.add_input(lt_vec[++lt_idx]);
+                input_lts.push_back(lt_idx);
+                binary_op.add_output(lt_vec[++lt_idx]);
+                if (post_op_on) {
+                    post_op.add_input(lt_vec[lt_idx]);
+                    if (is_post_op_binary) {
+                        post_op.add_input(lt_vec[++lt_idx]);
+                        input_lts.push_back(lt_idx);
+                    }
+                    post_op.add_output(lt_vec[++lt_idx]);
+                }
+                output_lts.push_back(lt_idx);
+
+                ASSERT_EQ(agraph.add_op(&binary_op), status::success);
+                if (post_op_on) {
+                    ASSERT_EQ(agraph.add_op(&post_op), status::success);
+                }
+                agraph.build_graph();
+
+                pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
+                apass->run(agraph);
+                ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+                auto partition = agraph.get_partitions()[0];
+                ASSERT_EQ(get_fused_op(partition)->get_kind(),
+                        dnnl_impl::op_kind::binary_post_ops_fusion);
+
+                ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
+                for (size_t k = 0; k < input_lts.size(); ++k)
+                    ASSERT_EQ(partition->get_inputs()[k].id, input_lts[k]);
+                ASSERT_EQ(partition->get_outputs().size(), output_lts.size());
+                for (size_t k = 0; k < output_lts.size(); ++k)
+                    ASSERT_EQ(partition->get_outputs()[k].id, output_lts[k]);
+            }
 }

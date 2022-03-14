@@ -44,211 +44,6 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(binary_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    relu->fill_and_connect_input(0, *add, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::add_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_sigmoid_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
-                    sigmoid->fill_and_connect_input(0, *add, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::add_sigmoid);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_add_multiply_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
-
-                    // pattern will not be matched if the add operation need
-                    // broadcast
-                    mul->set_attr<bool>("broadcast_check", true);
-                    mul->fill_and_connect_input(0, *add, 0);
-                    mul->fill_and_connect_input(1, *wildcard, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::add_multiply);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    // pattern will not be matched if the add operation need
-                    // broadcast
-                    add->set_attr<bool>("broadcast_check", true);
-                    add->fill_and_connect_input(0, *mul, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::multiply_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_multiply_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    relu->fill_and_connect_input(0, *mul, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::multiply_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_mul_sigmoid_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *mul = apattern->create_op(impl::op_kind::Multiply);
-                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
-                    sigmoid->fill_and_connect_input(0, *mul, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::multiply_sigmoid);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_maximum_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *max = apattern->create_op(impl::op_kind::Maximum);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    // pattern will not be matched if the add operation need
-                    // broadcast
-                    add->set_attr<bool>("broadcast_check", true);
-                    add->fill_and_connect_input(0, *max, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::maximum_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_maximum_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *max = apattern->create_op(impl::op_kind::Maximum);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    relu->fill_and_connect_input(0, *max, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::maximum_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_max_sigmoid_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *max = apattern->create_op(impl::op_kind::Maximum);
-                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
-                    sigmoid->fill_and_connect_input(0, *max, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::maximum_sigmoid);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_minimum_add_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *min = apattern->create_op(impl::op_kind::Minimum);
-                    op_t *wildcard
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    // pattern will not be matched if the add operation need
-                    // broadcast
-                    add->set_attr<bool>("broadcast_check", true);
-                    add->fill_and_connect_input(0, *min, 0);
-                    add->fill_and_connect_input(1, *wildcard, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::minimum_add);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_minimum_relu_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *min = apattern->create_op(impl::op_kind::Minimum);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    relu->fill_and_connect_input(0, *min, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::minimum_relu);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_min_sigmoid_fusion)
-        .set_priority(8.2f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *min = apattern->create_op(impl::op_kind::Minimum);
-                    op_t *sigmoid = apattern->create_op(impl::op_kind::Sigmoid);
-                    sigmoid->fill_and_connect_input(0, *min, 0);
-                })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::minimum_sigmoid);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                });
-
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reciprocal_multiply_fusion)
         .set_priority(8.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -262,6 +57,60 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reciprocal_multiply_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(impl::op_kind::Divide);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// TODO(zitian): wait for the implementation of comparison ops:
+//      Gt, Ge, Le, Lt, Eq, Ne
+// TODO(zitian): Sigmoid+Multiply as Swish
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_post_ops_fusion)
+        .set_priority(8.1f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto binary_op = pgraph->append_alternation(
+                            {impl::op_kind::Add, impl::op_kind::Divide,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Multiply,
+                                    impl::op_kind::Subtract},
+                            "binary_op");
+                    auto optional_post_subgraph = std::make_shared<pb_graph_t>(
+                            "optional_post_subgraph");
+                    auto alternative_post_op
+                            = optional_post_subgraph->append_alternation(
+                                    {impl::op_kind::Abs, impl::op_kind::Add,
+                                            impl::op_kind::Clamp,
+                                            impl::op_kind::Divide,
+                                            impl::op_kind::Elu,
+                                            impl::op_kind::Exp,
+                                            impl::op_kind::GELU,
+                                            impl::op_kind::HardSwish,
+                                            impl::op_kind::Log,
+                                            impl::op_kind::Maximum,
+                                            impl::op_kind::Minimum,
+                                            impl::op_kind::Multiply,
+                                            impl::op_kind::Pow,
+                                            impl::op_kind::ReLU,
+                                            impl::op_kind::Round,
+                                            impl::op_kind::Sigmoid,
+                                            impl::op_kind::SoftPlus,
+                                            impl::op_kind::Sqrt,
+                                            impl::op_kind::Square,
+                                            impl::op_kind::Subtract,
+                                            impl::op_kind::Tanh},
+                                    "alternative_post_op");
+                    optional_post_subgraph->create_input_port(
+                            0, alternative_post_op, 0);
+                    optional_post_subgraph->create_output_port(
+                            0, alternative_post_op, 0);
+                    pgraph->append_optional(optional_post_subgraph,
+                            {in_edge(0, binary_op, 0)}, "optional_post_op");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::binary_post_ops_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
