@@ -123,6 +123,7 @@ namespace op_kind {
     X(f32_MHA, F32_MHA) \
     X(chained_relu, Chained_relu) \
     X(dnnl_prelu, Dnnl_prelu) \
+    X(dnnl_prelu_bwd, Dnnl_prelu_bwd) \
     X(reorder_sum, Reorder_sum) \
     X(int8_reorder, INT8_reorder) \
     X(dnnl_batchnorm_bwd, Dnnl_batchnorm_bwd) \

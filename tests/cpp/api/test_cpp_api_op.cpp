@@ -70,6 +70,7 @@ TEST(api_op, create_all_ops) {
             op::kind::Pow,
             op::kind::PowBackprop,
             op::kind::PReLU,
+            op::kind::PReLUBackprop,
             op::kind::ReduceL1,
             op::kind::ReduceL2,
             op::kind::ReduceMax,

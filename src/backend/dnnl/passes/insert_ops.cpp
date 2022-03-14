@@ -40,7 +40,8 @@ static bool need_insert_permute(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             op_kind::dnnl_conv_depthwise, op_kind::dnnl_convtranspose,
             op_kind::dnnl_pool, op_kind::dnnl_batchnorm, op_kind::dnnl_prelu,
-            op_kind::dnnl_resampling, op_kind::dnnl_resampling_bwd};
+            op_kind::dnnl_prelu_bwd, op_kind::dnnl_resampling,
+            op_kind::dnnl_resampling_bwd};
     return ops.count(kind) != 0;
 }
 
@@ -148,10 +149,11 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
 
         for (size_t i = 0; i < op->num_inputs(); ++i) {
             // Skip for those non-data input and non-post-binary inputs,
-            // If PReLU data format is NXC, we need to permute both inputs.
+            // If PReLU/PReLUBackprop data format is NXC, we need to permute all
+            // inputs.
             if (i > 0 && i < op->num_inputs() - num_post_binary_ops
-                    && op->get_kind() != impl::op_kind::PReLU
                     && op->get_kind() != op_kind::dnnl_prelu
+                    && op->get_kind() != op_kind::dnnl_prelu_bwd
                     && op->get_kind() != op_kind::dnnl_resampling_bwd)
                 continue;
             // Skip optional non-data input for resampling backward op
@@ -603,17 +605,25 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
 
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_prelu) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_prelu
+                && cur_op->get_kind() != op_kind::dnnl_prelu_bwd)
+            continue;
 
         // check doable
         auto src_lt = cur_op->get_input_value(0)->get_logical_tensor();
         auto wei_lt = cur_op->get_input_value(1)->get_logical_tensor();
+        const auto wei_vdims = ltw(wei_lt).vdims();
         const std::string data_format
                 = cur_op->get_attr<std::string>("data_format");
-        const bool per_channel_broadcast
-                = cur_op->get_attr<bool>("per_channel_broadcast");
 
-        if (!prelu_doable(ltw(src_lt).vdims(), ltw(wei_lt).vdims(), data_format,
+        // In backward pass if the slope is one-dimensional
+        // and its dims[0] != 1, then per channel broadcast will be performed.
+        const bool per_channel_broadcast
+                = cur_op->get_kind() == op_kind::dnnl_prelu
+                ? cur_op->get_attr<bool>("per_channel_broadcast")
+                : wei_vdims.size() == 1 && wei_vdims[0] != 1;
+
+        if (!prelu_doable(ltw(src_lt).vdims(), wei_vdims, data_format,
                     per_channel_broadcast)) {
             return status::invalid_shape;
         }
@@ -628,14 +638,19 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
             int wei_input_id = 1;
             insert_op_before(expand_op, cur_op, wei_input_id);
             to_be_inserted_ops.emplace_back(expand_op);
-        }
 
-        // replace original op to dnnl specific op
-        op_ptr new_op = std::make_shared<op_t>(op_kind::dnnl_prelu);
-        replace_op(cur_op, new_op);
-        new_op->merge_attributes(cur_op->get_attributes());
-        to_be_inserted_ops.emplace_back(new_op);
-        to_be_removed_ops.emplace_back(cur_op);
+            if (data_format == "NCX" && src_ndims > 2
+                    && per_channel_broadcast) {
+                // If data format is NCX we need to permute expanded weights,
+                // which are in format NXC.
+                op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+                perm_op->set_attr<std::string>("permute_kind", "permute");
+                perm_op->set_attr<std::string>("from_format", "NXC");
+                perm_op->set_attr<std::string>("to_format", "NCX");
+                insert_op_after(perm_op, expand_op, 0);
+                to_be_inserted_ops.emplace_back(perm_op);
+            }
+        }
     }
 
     for (const auto &op : to_be_inserted_ops) {

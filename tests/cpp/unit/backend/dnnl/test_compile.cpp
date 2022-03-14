@@ -19817,8 +19817,149 @@ INSTANTIATE_TEST_SUITE_P(Execute, Prelu,
                         false},
                 // 1d weights, channel-wise broadcast, NCX
                 dnnl_graph_test_prelu_params {{2}, {1.0, 2.0},
-                        {-2.0, -3.0, -1.0, -1.0, 0.0, 3.5, -1.0, 1.0}, "NCX",
+                        {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -2.0, 1.0}, "NCX",
                         true}));
+
+struct dnnl_graph_test_prelu_bwd_params {
+    dnnl::graph::impl::dims data_dims;
+    dnnl::graph::impl::dims wei_dims;
+    dnnl::graph::impl::dims diff_wei_dims;
+    test::vector<float> src;
+    test::vector<float> wei;
+    test::vector<float> diff_dst;
+    test::vector<float> ref_diff_src;
+    test::vector<float> ref_diff_wei;
+    std::string data_format;
+};
+
+class PreluBackprop
+    : public ::testing::TestWithParam<dnnl_graph_test_prelu_bwd_params> {
+public:
+    void TestPreluBackprop() {
+        const auto params = ::testing::TestWithParam<
+                dnnl_graph_test_prelu_bwd_params>::GetParam();
+        impl::engine_t &eng = get_engine();
+        impl::stream_t &strm = get_stream();
+
+        test::vector<float> src = params.src;
+        test::vector<float> wei = params.wei;
+        test::vector<float> diff_dst = params.diff_dst;
+        test::vector<float> diff_src(src.size(), 0.f);
+
+        size_t diff_wei_size = 1;
+        for (auto dim : params.diff_wei_dims) {
+            diff_wei_size *= dim;
+        }
+        test::vector<float> diff_wei(diff_wei_size, 0.f);
+
+        impl::op_t prelu_op(impl::op_kind::PReLUBackprop, "prelu_bwd");
+        prelu_op.set_attr<std::string>("data_format", params.data_format);
+
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, params.data_dims, impl::data_type::f32);
+        impl::logical_tensor_t wei_lt = utils::logical_tensor_init(
+                1, params.wei_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+                2, params.data_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+                3, params.data_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
+                4, params.diff_wei_dims, impl::data_type::f32);
+
+        prelu_op.add_input(src_lt);
+        prelu_op.add_input(wei_lt);
+        prelu_op.add_input(diff_dst_lt);
+        prelu_op.add_output(diff_src_lt);
+        prelu_op.add_output(diff_wei_lt);
+
+        impl::graph_t g(eng.kind());
+        g.add_op(&prelu_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass = get_pass("prelu_bwd_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &wei_lt, &diff_dst_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {
+                &diff_src_lt, &diff_wei_lt};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t wei_ts(wei_lt, &eng, wei.data());
+        impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+        impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
+        impl::tensor_t diff_wei_ts(diff_wei_lt, &eng, diff_wei.data());
+
+        ASSERT_EQ(cp.execute(&strm, {src_ts, wei_ts, diff_dst_ts},
+                          {diff_src_ts, diff_wei_ts}),
+                impl::status::success);
+        strm.wait();
+
+        for (size_t i = 0; i < params.ref_diff_src.size(); ++i) {
+            ASSERT_FLOAT_EQ(diff_src[i], params.ref_diff_src[i]);
+        }
+        for (size_t i = 0; i < params.ref_diff_wei.size(); ++i) {
+            ASSERT_FLOAT_EQ(diff_wei[i], params.ref_diff_wei[i]);
+        }
+    }
+};
+
+TEST_P(PreluBackprop, TestPreluBackprop) {
+    TestPreluBackprop();
+}
+
+INSTANTIATE_TEST_SUITE_P(Execute, PreluBackprop,
+        ::testing::Values(
+                // NCX, 1d slope, per tensor broadcast, pytorch case
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1},
+                        {1, 1, 1, 1},
+                        {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0}, {-4.0},
+                        {-0.0625, 0.125, 0.0, 0.0625, -0.125, 0.0, 0.0625,
+                                0.125},
+                        {0.25, -0.5, -0.0, 0.0625, 0.5, 0.0, 0.0625, 0.125},
+                        {0.125}, "NCX"},
+                // NCX, 1d slope, per channel broadcast, pytorch case
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {2},
+                        {1, 2, 1, 1},
+                        {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0}, {-4.0, 2.0},
+                        {-0.0625, 0.125, 0.0, 0.0625, -0.125, 0.0, 0.0625,
+                                0.125},
+                        {0.25, -0.5, -0.0, 0.0625, -0.25, 0.0, 0.0625, 0.125},
+                        {0.0, 0.125}, "NCX"},
+                // NCX, tensorflow case
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {2, 2, 2},
+                        {1, 2, 2, 2},
+                        {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0},
+                        {-4.0, 2.0, 1.0, 0.5, -0.25, 8.0, 4.0, 2.0},
+                        {-0.0625, 0.125, 0.0, 0.0625, -0.125, 0.0, 0.0625,
+                                0.125},
+                        {0.25, 0.25, 0.0, 0.0625, 0.03125, 0.0, 0.0625, 0.125},
+                        {0.0, 0.0, 0.0, 0.0, 0.125, 0.0, 0.0, 0.0}, "NCX"},
+                // NXC, 1d slope, per tensor broadcast, pytorch case
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1},
+                        {1, 1, 1, 1},
+                        {-0.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 2.0}, {-4.0},
+                        {-0.0625, -0.125, 0.125, 0.0, 0.0, 0.0625, 0.0625,
+                                0.125},
+                        {0.25, 0.5, -0.5, 0.0, -0.0, 0.0625, 0.0625, 0.125},
+                        {0.125}, "NXC"},
+                // 2d input, per tensor broadcast
+                dnnl_graph_test_prelu_bwd_params {{1, 2}, {1}, {1, 1},
+                        {-0.0, 0.0}, {-4.0}, {-0.0625, 0.125}, {0.25, -0.5},
+                        {0.0}, "NCX"},
+                // 2d input, per channel broadcast
+                dnnl_graph_test_prelu_bwd_params {{1, 2}, {2}, {1, 2},
+                        {-0.0, 0.0}, {-4.0, 2.0}, {-0.0625, 0.125},
+                        {0.25, 0.25}, {0.0, 0.0}, "NCX"}));
 
 TEST(ExecuteSubgraphInt8, Relu) {
     // compare results between:

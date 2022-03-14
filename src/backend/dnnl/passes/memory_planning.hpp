@@ -428,6 +428,9 @@ private:
     void prepare_args_for_prelu(op_t *op, const dnnl::engine &p_engine,
             primitive_attr_mgr_t &prm_attr_mgr);
 
+    void prepare_args_for_prelu_bwd(op_t *op, const dnnl::engine &p_engine,
+            primitive_attr_mgr_t &prm_attr_mgr);
+
     void prepare_args_for_siso_op(op_t *op, const dnnl::engine &p_engine,
             primitive_attr_mgr_t &prm_attr_mgr, bool need_scratchpad = false,
             bool need_workspace = false);

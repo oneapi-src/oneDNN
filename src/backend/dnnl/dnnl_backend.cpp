@@ -180,6 +180,7 @@ bool dnnl_backend::register_kernels() {
 
     // prelu kernel
     DNNL_REGISTER_KERNEL(impl::op_kind::PReLU, float_prelu_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::PReLUBackprop, prelu_bwd_t)
 
     // reduction operators
     DNNL_REGISTER_KERNEL(impl::op_kind::ReduceL1, float_reduction)

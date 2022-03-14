@@ -876,17 +876,17 @@ bool prelu_doable(const std::vector<dim_t> &src_dims,
 
     bool doable = false;
     if (wei_ndims == 1) {
-        if (per_channel_broadcast) {
+        if (!per_channel_broadcast || src_ndims == wei_ndims) {
+            // if no broadcast to channel or src_ndims == 1
+            // then wei dim should be equal to last src dim,
+            // or equal to 1.
+            doable = src_dims[src_ndims - 1] == wei_dims[0] || wei_dims[0] == 1;
+        } else {
             // if broadcast to channel,
             // then src channel dim should be equal to wei dim
             const int channel_dim_num
                     = data_format == "NCX" ? 1 : src_dims[src_ndims - 1];
             doable = src_dims[channel_dim_num] == wei_dims[0];
-        } else {
-            // if no broadcast to channel,
-            // then wei dim should be equal to last src dim,
-            // or equal to 1.
-            doable = src_dims[src_ndims - 1] == wei_dims[0] || wei_dims[0] == 1;
         }
     } else {
         for (int i = 1; i <= wei_ndims; ++i) {
