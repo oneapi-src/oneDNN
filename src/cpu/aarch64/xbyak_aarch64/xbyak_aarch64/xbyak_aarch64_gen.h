@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2021 FUJITSU LIMITED
+ * Copyright 2019-2022 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -264,12 +264,14 @@ class CodeGenerator : public CodeArray {
   void CondBrImm(Cond cond, const Label &label);
   void CondBrImm(Cond cond, int64_t label);
   void ExceptionGen(uint32_t opc, uint32_t op2, uint32_t LL, uint32_t imm);
+  void SysInstWithRegArg(uint32_t CRm, uint32_t op2, const XReg &rt);
   void Hints(uint32_t CRm, uint32_t op2);
   void Hints(uint32_t imm);
   void BarriersOpt(uint32_t op2, BarOpt opt, uint32_t rt);
   void BarriersNoOpt(uint32_t CRm, uint32_t op2, uint32_t rt);
   void PState(PStateField psfield, uint32_t imm);
   void PState(uint32_t op1, uint32_t CRm, uint32_t op2);
+  void SysWithResult(uint32_t op1, uint32_t CRn, uint32_t CRm, uint32_t op2, const XReg &rt);
   void SysInst(uint32_t L, uint32_t op1, uint32_t CRn, uint32_t CRm, uint32_t op2, const XReg &rt);
   void SysRegMove(uint32_t L, uint32_t op0, uint32_t op1, uint32_t CRn, uint32_t CRm, uint32_t op2, const XReg &rt);
   void UncondBrNoReg(uint32_t opc, uint32_t op2, uint32_t op3, uint32_t rn, uint32_t op4);
@@ -330,6 +332,7 @@ class CodeGenerator : public CodeArray {
   void LdStRegUnpriv(uint32_t size, uint32_t opc, const RReg &rt, const AdrImm &adr);
   void LdStRegPre(uint32_t size, uint32_t opc, const RReg &rt, const AdrPreImm &adr);
   void LdStSimdFpRegPre(uint32_t opc, const VRegSc &vt, const AdrPreImm &adr);
+  void AtomicMemOpSt64b(uint32_t size, uint32_t V, uint32_t A, uint32_t R, uint32_t o3, uint32_t opc, const RReg &rs, const RReg &rt, const AdrNoOfs &adr);
   void AtomicMemOp(uint32_t size, uint32_t V, uint32_t A, uint32_t R, uint32_t o3, uint32_t opc, const RReg &rs, const RReg &rt, const AdrNoOfs &adr);
   void AtomicMemOp(uint32_t size, uint32_t V, uint32_t A, uint32_t R, uint32_t o3, uint32_t opc, const RReg &rs, const RReg &rt, const AdrImm &adr);
   void LdStReg(uint32_t size, uint32_t opc, const RReg &rt, const AdrReg &adr);
@@ -455,7 +458,7 @@ class CodeGenerator : public CodeArray {
   void SveIntAddReductPred(uint32_t opc, uint32_t U, const VRegSc &vd, const _PReg &pg, const _ZReg &zn);
   void SveIntMinMaxReductPred(uint32_t opc, uint32_t U, const VRegSc &vd, const _PReg &pg, const _ZReg &zn);
   void SveBitShPred(uint32_t opc, uint32_t type, const _ZReg &zdn, const _PReg &pg, const _ZReg &zm);
-  void SveBitwiseShByImmPred(uint32_t opc, const _ZReg &zdn, const _PReg &pg, uint32_t amount);
+  void SveBitwiseShByImmPred(uint32_t opc, uint32_t L, uint32_t U, const _ZReg &zdn, const _PReg &pg, uint32_t amount);
   void SveBitwiseShVecPred(uint32_t opc, const _ZReg &zdn, const _PReg &pg, const _ZReg &zm);
   void SveBitwiseShWElemPred(uint32_t opc, const _ZReg &zdn, const _PReg &pg, const _ZReg &zm);
   void SveIntUnaryArPred(uint32_t opc, uint32_t type, const _ZReg &zd, const _PReg &pg, const _ZReg &zn);
@@ -464,13 +467,18 @@ class CodeGenerator : public CodeArray {
   void SveIntMultAccumPred(uint32_t opc, const _ZReg &zda, const _PReg &pg, const _ZReg &zn, const _ZReg &zm);
   void SveIntMultAddPred(uint32_t opc, const _ZReg &zdn, const _PReg &pg, const _ZReg &zm, const _ZReg &za);
   void SveIntAddSubUnpred(uint32_t opc, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
+  void SveBitwiseExOrRotRightImm(const _ZReg &zdn, const _ZReg &znm, uint32_t amount);
   void SveBitwiseLOpUnpred(uint32_t opc, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
   void SveIndexGenImmImmInc(const _ZReg &zd, int32_t imm1, int32_t imm2);
+  void Sve2BitwiseTernalyOp(uint32_t opc, uint32_t o2, const _ZReg &zdn, const _ZReg &zm, const _ZReg &zk);
   void SveIndexGenImmRegInc(const _ZReg &zd, int32_t imm, const RReg &rm);
   void SveIndexGenRegImmInc(const _ZReg &zd, const RReg &rn, int32_t imm);
   void SveIndexGenRegRegInc(const _ZReg &zd, const RReg &rn, const RReg &rm);
   void SveStackFrameAdjust(uint32_t op, const XReg &xd, const XReg &xn, int32_t imm);
   void SveStackFrameSize(uint32_t op, uint32_t opc2, const XReg &xd, int32_t imm);
+  void Sve2IntMultUnpredGroup(uint32_t opc_r, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
+  void Sve2IntMultVecUnpred(uint32_t opc, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
+  void Sve2SignedSatDoubleMultHighUnpred(uint32_t r, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
   void SveBitwiseShByImmUnpred(uint32_t opc, const _ZReg &zd, const _ZReg &zn, uint32_t amount);
   void SveBitwiseShByWideElemUnPred(uint32_t opc, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
   void SveAddressGen(const _ZReg &zd, const AdrVec &adr);
@@ -497,7 +505,7 @@ class CodeGenerator : public CodeArray {
   void SveInsSimdFpSclarReg(const _ZReg &zdn, const VRegSc &vm);
   void SveInsGeneralReg(const _ZReg &zdn, const RReg &rm);
   void SveRevVecElem(const _ZReg &zd, const _ZReg &zn);
-  void SveTableLookup(const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
+  void SveTableLookup(uint32_t bit15_10, const _ZReg &zd, const _ZReg &zn, const ZRegList &zn_list, const _ZReg &zm);
   void SveUnpackVecElem(uint32_t U, uint32_t H, const _ZReg &zd, const _ZReg &zn);
   void SvePermutePredElem(uint32_t opc, uint32_t H, const _PReg &pd, const _PReg &pn, const _PReg &pm);
   void SveRevPredElem(const _PReg &pd, const _PReg &pn);
@@ -538,15 +546,30 @@ class CodeGenerator : public CodeArray {
   void SveSatuIncDecVecByPredCount(uint32_t D, uint32_t U, uint32_t opc, const _ZReg &zdn, const _PReg &pg);
   void SveFFRInit(uint32_t opc);
   void SveFFRWritePred(uint32_t opc, const _PReg &pn);
-  void SveCondTermScalars(uint32_t op, uint32_t ne, const RReg &rn, const RReg &rm);
   void SveIntCompScalarCountAndLimit(uint32_t U, uint32_t lt, uint32_t eq, const _PReg &pd, const RReg &rn, const RReg &rm);
+  void SveCondTermScalars(uint32_t op, uint32_t ne, const RReg &rn, const RReg &rm);
+  void SvePointConfCmp(uint32_t rw, const _PReg pd, const XReg &xn, const XReg &xm);
   void SveBcFpImmUnpred(uint32_t opc, uint32_t o2, const _ZReg &zd, double imm);
   void SveBcIntImmUnpred(uint32_t opc, const _ZReg &zd, int32_t imm, ShMod mod, uint32_t sh);
   void SveIntAddSubImmUnpred(uint32_t opc, const _ZReg &zdn, uint32_t imm, ShMod mod, uint32_t sh);
   void SveIntMinMaxImmUnpred(uint32_t opc, uint32_t o2, const _ZReg &zdn, int32_t imm);
   void SveIntMultImmUnpred(uint32_t opc, uint32_t o2, const _ZReg &zdn, int32_t imm);
-  void SveIntDotProdcutUnpred(uint32_t U, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm);
-  void SveIntDotProdcutIndexed(uint32_t size, uint32_t U, const _ZReg &zda, const _ZReg &zn, const ZRegElem &zm);
+  void SveIntMultAddUnpredGroup(uint32_t op0, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm, uint32_t rot);
+  void Sve2IntPredGroup(uint32_t bit21_13, const _ZReg &zda, const _ZReg &zdn, const _ZReg &zd, const _PReg &pg, const _ZReg &zn, const _ZReg &zm);
+  void SveMultIndexedGroup(uint32_t bit20_10, const _ZReg &zda, const _ZReg &zn, const ZRegElem &zm, uint32_t rot);
+  void Sve2WideIntArithGroup(uint32_t bit15_10, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
+  void SveMiscGroup(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm, uint32_t imm6);
+  void Sve2AccGroup(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zda, const _ZReg &zdn, const _ZReg &zn, const _ZReg &zm, uint32_t rot, uint32_t imm6);
+  void Sve2NarrGroup(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm, uint32_t amount);
+  void Sve2CharMatch(uint32_t bit21_4, const _PReg &pd, const _PReg &pg, const _ZReg &zn, const _ZReg &zm);
+  void Sve2HistCompSeg(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm);
+  void SveHistCnt(uint32_t bit23_10, const _ZReg &zd, const _PReg &pg, const _ZReg &zn, const _ZReg &zm);
+  void Sve2CryptoExtGroup(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zdn, const _ZReg &zn, const _ZReg &zm);
+  void SveFpConvPrecOddElem(uint32_t bit23_13, const _ZReg &zd, const _PReg &pg, const _ZReg &zn);
+  void Sve2FpPairOp(uint32_t bit23_13, const _ZReg &zdn, const _PReg &pg, const _ZReg &zm);
+  void SveFpWideMultAddIndexedGroup(uint32_t bit23_10, const _ZReg &zda, const _ZReg &zn, const ZRegElem &zm);
+  void SveFpWideMultAddGroup(uint32_t bit23_10, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm);
+  void SveFpMatMulAcc(uint32_t bit23_10, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm);
   void SveFpComplexAddPred(const _ZReg &zdn, const _PReg &pg, const _ZReg &zm, uint32_t ct);
   void SveFpComplexMultAddPred(const _ZReg &zda, const _PReg &pg, const _ZReg &zn, const _ZReg &zm, uint32_t ct);
   void SveFpMultAddIndexed(uint32_t op, const _ZReg &zda, const _ZReg &zn, const ZRegElem &zm);
@@ -603,6 +626,8 @@ class CodeGenerator : public CodeArray {
   void Sve64GatherLdSc64S(uint32_t msz, uint32_t U, uint32_t ff, const _ZReg &zt, const _PReg &pg, const AdrSc64S &adr);
   void Sve64GatherLdSc64U(uint32_t msz, uint32_t U, uint32_t ff, const _ZReg &zt, const _PReg &pg, const AdrSc64U &adr);
   void Sve64GatherLdSc32UU(uint32_t msz, uint32_t U, uint32_t ff, const _ZReg &zt, const _PReg &pg, const AdrSc32UU &adr);
+  void Sve2_64GatherNTLdSc64(uint32_t msz, uint32_t U, const _ZReg &zt, const _PReg &pg, const AdrVecSc64 &adr);
+  void Sve2_64GatherNTLdSc32(uint32_t msz, uint32_t U, const _ZReg &zt, const _PReg &pg, const AdrVecSc32 &adr);
   void Sve64GatherLdVecImm(uint32_t msz, uint32_t U, uint32_t ff, const _ZReg &zt, const _PReg &pg, const AdrVecImm64 &adr);
   void Sve64GatherPfSc64S(PrfopSve prfop_sve, uint32_t msz, const _PReg &pg, const AdrSc64S &adr);
   void Sve64GatherPfSc32US(PrfopSve prfop_sve, uint32_t msz, const _PReg &pg, const AdrSc32US &adr);
@@ -615,6 +640,8 @@ class CodeGenerator : public CodeArray {
   void Sve64ScatterStSc32US(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrSc32US &adr);
   void Sve64ScatterStSc32UU(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrSc32UU &adr);
   void Sve64ScatterStVecImm(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrVecImm64 &adr);
+  void Sve2_64ScatterNTStr(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrVecSc64 &adr);
+  void Sve2_32ScatterNTStr(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrVecSc32 &adr);
   void SveContiNTStScImm(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrScImm &adr);
   void SveContiNTStScImm(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrNoOfs &adr);
   void SveContiNTStScSc(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrScSc &adr);
@@ -653,11 +680,7 @@ public:
   const HReg h13, h14, h15, h16, h17, h18, h19, h20, h21, h22, h23;
   const HReg h24, h25, h26, h27, h28, h29, h30, h31;
 
-#ifdef XBYAK_AARCH64_FOR_DNNL
-  const SReg s0, s1, s2, s3, s4, s5, s6, s7, s8_, s9, s10, s11, s12;
-#else
   const SReg s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12;
-#endif
   const SReg s13, s14, s15, s16, s17, s18, s19, s20, s21, s22, s23;
   const SReg s24, s25, s26, s27, s28, s29, s30, s31;
 
@@ -696,13 +719,7 @@ public:
         h0(0), h1(1), h2(2), h3(3), h4(4), h5(5), h6(6), h7(7), h8(8), h9(9), h10(10), h11(11), h12(12), h13(13), h14(14), h15(15), h16(16), h17(17), h18(18), h19(19), h20(20), h21(21), h22(22), h23(23), h24(24), h25(25), h26(26), h27(27), h28(28), h29(29), h30(30), h31(31)
 
         ,
-        s0(0), s1(1), s2(2), s3(3), s4(4), s5(5), s6(6), s7(7),
-#ifdef XBYAK_AARCH64_FOR_DNNL
-        s8_(8),
-#else
-        s8(8),
-#endif
-        s9(9), s10(10), s11(11), s12(12), s13(13), s14(14), s15(15), s16(16), s17(17), s18(18), s19(19), s20(20), s21(21), s22(22), s23(23), s24(24), s25(25), s26(26), s27(27), s28(28), s29(29), s30(30), s31(31)
+        s0(0), s1(1), s2(2), s3(3), s4(4), s5(5), s6(6), s7(7), s8(8), s9(9), s10(10), s11(11), s12(12), s13(13), s14(14), s15(15), s16(16), s17(17), s18(18), s19(19), s20(20), s21(21), s22(22), s23(23), s24(24), s25(25), s26(26), s27(27), s28(28), s29(29), s30(30), s31(31)
 
         ,
         d0(0), d1(1), d2(2), d3(3), d4(4), d5(5), d6(6), d7(7), d8(8), d9(9), d10(10), d11(11), d12(12), d13(13), d14(14), d15(15), d16(16), d17(17), d18(18), d19(19), d20(20), d21(21), d22(22), d23(23), d24(24), d25(25), d26(26), d27(27), d28(28), d29(29), d30(30), d31(31)
@@ -758,7 +775,7 @@ public:
 #ifdef _WIN32
     (void)begin;
     (void)end;
-#elif __APPLE__
+#elif defined(__APPLE__)
     sys_icache_invalidate(begin, ((char *)end) - ((char *)begin));
 #else
     __builtin___clear_cache((char *)begin, (char *)end);

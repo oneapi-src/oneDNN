@@ -1,6 +1,6 @@
 #pragma once
 /*******************************************************************************
- * Copyright 2019-2021 FUJITSU LIMITED
+ * Copyright 2019-2022 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,10 +40,12 @@ enum AdrKind {
   SC_32VEC32E = 1 << 11, // scalar base plus 32-bit vecotr index (32-bit element)
   VEC_IMM64E = 1 << 12,  // vector base plus immediate offset (64-bit element)
   VEC_IMM32E = 1 << 13,  // vector base plus immediate offset (32-bit element)
+  VEC_SC32E = 1 << 14,   // vector base pulus 64-bit scalar offset (32-bit element)
+  VEC_SC64E = 1 << 15,   // vector base pulus 64-bit scalar offset (32-bit element)
 
   // for SVE address generator
-  VEC_PACK = 1 << 14,   // vector (packed)
-  VEC_UNPACK = 1 << 15, // vector (unpacked)
+  VEC_PACK = 1 << 16,   // vector (packed)
+  VEC_UNPACK = 1 << 17, // vector (unpacked)
 };
 
 class Adr {
@@ -235,6 +237,17 @@ public:
   uint32_t getSh() const { return sh_; }
 };
 
+// Vector plus scalar (64-bit unscaled sclar register offset, 64-bit element)
+class AdrVecSc64 : public Adr {
+  ZRegD zn_;
+  XReg xm_;
+
+public:
+  explicit AdrVecSc64(const ZRegD &zn, const XReg &xm) : Adr(VEC_SC64E), zn_(zn), xm_(xm) {}
+  const ZRegD &getZn() const { return zn_; }
+  const XReg &getXm() const { return xm_; }
+};
+
 // Scalar plus vector (unscaled 32-bit offset)
 class AdrSc32U : public Adr {
   XReg xn_;
@@ -262,6 +275,17 @@ public:
   const ZRegS &getZm() const { return zm_; }
   ExtMod getMod() const { return mod_; }
   uint32_t getSh() const { return sh_; }
+};
+
+// Vector plus scalar (64-bit unscaled sclar register offset, 32-bit element)
+class AdrVecSc32 : public Adr {
+  ZRegS zn_;
+  XReg xm_;
+
+public:
+  explicit AdrVecSc32(const ZRegS &zn, const XReg &xm) : Adr(VEC_SC32E), zn_(zn), xm_(xm) {}
+  const ZRegS &getZn() const { return zn_; }
+  const XReg &getXm() const { return xm_; }
 };
 
 // Scalar plus vector (unpacked unscaled 32-bit offset)
@@ -359,8 +383,10 @@ AdrPostReg post_ptr(const XReg &xn, XReg xm);
 AdrScImm ptr(const XReg &xn, int32_t simm, ExtMod mod);
 AdrSc64U ptr(const XReg &xn, const ZRegD &zm);
 AdrSc64S ptr(const XReg &xn, const ZRegD &zm, ShMod mod, uint32_t sh);
+AdrVecSc64 ptr(const ZRegD &zn, const XReg &xm);
 AdrSc32U ptr(const XReg &xn, const ZRegS &zm, ExtMod mod);
 AdrSc32S ptr(const XReg &xn, const ZRegS &zm, ExtMod mod, uint32_t sh);
+AdrVecSc32 ptr(const ZRegS &zn, const XReg &xm);
 AdrSc32UU ptr(const XReg &xn, const ZRegD &zm, ExtMod mod);
 AdrSc32US ptr(const XReg &xn, const ZRegD &zm, ExtMod mod, uint32_t sh);
 AdrVecImm64 ptr(const ZRegD &zn, uint32_t imm = 0);
@@ -397,9 +423,13 @@ inline AdrSc64U ptr(const XReg &xn, const ZRegD &zm) { return AdrSc64U(xn, zm); 
 
 inline AdrSc64S ptr(const XReg &xn, const ZRegD &zm, ShMod mod, uint32_t sh) { return AdrSc64S(xn, zm, mod, sh); }
 
+inline AdrVecSc64 ptr(const ZRegD &zn, const XReg &xm) { return AdrVecSc64(zn, xm); }
+
 inline AdrSc32U ptr(const XReg &xn, const ZRegS &zm, ExtMod mod) { return AdrSc32U(xn, zm, mod); }
 
 inline AdrSc32S ptr(const XReg &xn, const ZRegS &zm, ExtMod mod, uint32_t sh) { return AdrSc32S(xn, zm, mod, sh); }
+
+inline AdrVecSc32 ptr(const ZRegS &zn, const XReg &xm) { return AdrVecSc32(zn, xm); }
 
 inline AdrSc32UU ptr(const XReg &xn, const ZRegD &zm, ExtMod mod) { return AdrSc32UU(xn, zm, mod); }
 

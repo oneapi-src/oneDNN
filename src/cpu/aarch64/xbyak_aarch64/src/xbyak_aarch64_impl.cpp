@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 FUJITSU LIMITED
+ * Copyright 2020-2022 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  *******************************************************************************/
 #define XBYAK_AARCH64_MAKE_INSTANCE
 #include "xbyak_aarch64.h"
+#include <memory.h>
 
 namespace Xbyak_aarch64 {
 
