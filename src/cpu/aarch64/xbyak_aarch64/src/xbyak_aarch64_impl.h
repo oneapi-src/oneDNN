@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 FUJITSU LIMITED
+ * Copyright 2020-2022 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,25 +99,19 @@ uint32_t countSeqOneBit(uint64_t v, uint32_t size) {
   return num;
 }
 
-uint32_t compactImm(double imm, uint32_t size) {
-  uint32_t sign = (imm < 0) ? 1 : 0;
-
-  imm = std::abs(imm);
-  int32_t max_digit = static_cast<int32_t>(std::floor(std::log2(imm)));
-
-  int32_t n = (size == 16) ? 7 : (size == 32) ? 10 : 13;
-  int32_t exp = (max_digit - 1) + (1 << n);
-
-  imm -= pow(2, max_digit);
-  uint32_t frac = 0;
-  for (int i = 0; i < 4; ++i) {
-    if (pow(2, max_digit - 1 - i) <= imm) {
-      frac |= 1 << (3 - i);
-      imm -= pow(2, max_digit - 1 - i);
-    }
-  }
-  uint32_t imm8 = concat({F(sign, 7), F(field(~exp, n, n), 6), F(field(exp, 1, 0), 4), F(frac, 0)});
-  return imm8;
+// 8bitFloat = 1(sign) + 3(exponent) + 4(mantissa)
+inline uint32_t code8bitFloat(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  uint32_t sign = (u >> 63) & 1;
+  int e = int((u >> 52) & ones(11)) - 1023;
+  if (e < -3 || e > 4)
+    throw Error(ERR_ILLEGAL_IMM_VALUE);
+  e = (e + 7) & 7;
+  uint64_t m = u & ones(52);
+  if (m & ones(48))
+    throw Error(ERR_ILLEGAL_IMM_VALUE);
+  return uint32_t((sign << 7) | (e << 4) | (m >> 48));
 }
 
 uint32_t compactImm(uint64_t imm) {
@@ -222,6 +216,9 @@ uint32_t genSize(const Reg &Reg) {
     break;
   case 64:
     size = 3;
+    break;
+  case 128:
+    size = 4;
     break;
   default:
     size = 0;
@@ -488,7 +485,7 @@ uint32_t CodeGenerator::CondBrImmEnc(uint32_t cond, int64_t labelOffset) {
 }
 
 void CodeGenerator::CondBrImm(Cond cond, const Label &label) {
-  auto encFunc = [&, cond](int64_t labelOffset) { return CondBrImmEnc(cond, labelOffset); };
+  auto encFunc = [=](int64_t labelOffset) { return CondBrImmEnc(cond, labelOffset); };
   JmpLabel jmpL = JmpLabel(encFunc, size_);
   uint32_t code = CondBrImmEnc(cond, genLabelOffset(label, jmpL));
   dd(code);
@@ -504,6 +501,12 @@ void CodeGenerator::ExceptionGen(uint32_t opc, uint32_t op2, uint32_t LL, uint32
   uint32_t imm16 = imm & ones(16);
   verifyIncRange(imm, 0, ones(16), ERR_ILLEGAL_IMM_RANGE);
   uint32_t code = concat({F(0xd4, 24), F(opc, 21), F(imm16, 5), F(op2, 2), F(LL, 0)});
+  dd(code);
+}
+
+// System instructions with register argument
+void CodeGenerator::SysInstWithRegArg(uint32_t CRm, uint32_t op2, const XReg &rt) {
+  uint32_t code = concat({F(0xd5031, 12), F(CRm, 8), F(op2, 5), F(rt.getIdx(), 0)});
   dd(code);
 }
 
@@ -572,7 +575,13 @@ void CodeGenerator::PState(uint32_t op1, uint32_t CRm, uint32_t op2) {
   dd(code);
 }
 
-// Systtem instructions
+// System with result
+void CodeGenerator::SysWithResult(uint32_t op1, uint32_t CRn, uint32_t CRm, uint32_t op2, const XReg &rt) {
+  uint32_t code = concat({F(0x6a9, 21), F(op1, 16), F(CRn, 12), F(CRm, 8), F(op2, 5), F(rt.getIdx(), 0)});
+  dd(code);
+}
+
+// System instructions
 void CodeGenerator::SysInst(uint32_t L, uint32_t op1, uint32_t CRn, uint32_t CRm, uint32_t op2, const XReg &rt) {
   uint32_t code = concat({F(0xd5, 24), F(L, 21), F(1, 19), F(op1, 16), F(CRn, 12), F(CRm, 8), F(op2, 5), F(rt.getIdx(), 0)});
   dd(code);
@@ -608,7 +617,7 @@ uint32_t CodeGenerator::UncondBrImmEnc(uint32_t op, int64_t labelOffset) {
 }
 
 void CodeGenerator::UncondBrImm(uint32_t op, const Label &label) {
-  auto encFunc = [&, op](int64_t labelOffset) { return UncondBrImmEnc(op, labelOffset); };
+  auto encFunc = [=](int64_t labelOffset) { return UncondBrImmEnc(op, labelOffset); };
   JmpLabel jmpL = JmpLabel(encFunc, size_);
   uint32_t code = UncondBrImmEnc(op, genLabelOffset(label, jmpL));
   dd(code);
@@ -629,7 +638,7 @@ uint32_t CodeGenerator::CompareBrEnc(uint32_t op, const RReg &rt, int64_t labelO
 }
 
 void CodeGenerator::CompareBr(uint32_t op, const RReg &rt, const Label &label) {
-  auto encFunc = [&, op](int64_t labelOffset) { return CompareBrEnc(op, rt, labelOffset); };
+  auto encFunc = [=](int64_t labelOffset) { return CompareBrEnc(op, rt, labelOffset); };
   JmpLabel jmpL = JmpLabel(encFunc, size_);
   uint32_t code = CompareBrEnc(op, rt, genLabelOffset(label, jmpL));
   dd(code);
@@ -656,7 +665,7 @@ uint32_t CodeGenerator::TestBrEnc(uint32_t op, const RReg &rt, uint32_t imm, int
 }
 
 void CodeGenerator::TestBr(uint32_t op, const RReg &rt, uint32_t imm, const Label &label) {
-  auto encFunc = [&, op, rt, imm](int64_t labelOffset) { return TestBrEnc(op, rt, imm, labelOffset); };
+  auto encFunc = [=](int64_t labelOffset) { return TestBrEnc(op, rt, imm, labelOffset); };
   JmpLabel jmpL = JmpLabel(encFunc, size_);
   uint32_t code = TestBrEnc(op, rt, imm, genLabelOffset(label, jmpL));
   dd(code);
@@ -784,8 +793,8 @@ void CodeGenerator::StExclusive(uint32_t size, uint32_t o0, const WReg ws, const
   uint32_t o1 = 0;
 
   verifyIncList(adr.getImm(), {0}, ERR_ILLEGAL_IMM_VALUE);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(ws.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(ws.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(size, 30), F(0x8, 24), F(o2, 23), F(L, 22), F(o1, 21), F(ws.getIdx(), 16), F(o0, 15), F(0x1f, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
   dd(code);
@@ -797,7 +806,7 @@ void CodeGenerator::LdExclusive(uint32_t size, uint32_t o0, const RReg &rt, cons
   uint32_t o2 = 0;
   uint32_t o1 = 0;
 
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
   verifyIncList(adr.getImm(), {0}, ERR_ILLEGAL_IMM_VALUE);
 
   uint32_t code = concat({F(size, 30), F(0x8, 24), F(o2, 23), F(L, 22), F(o1, 21), F(0x1f, 16), F(o0, 15), F(0x1f, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
@@ -811,7 +820,7 @@ void CodeGenerator::StLORelase(uint32_t size, uint32_t o0, const RReg &rt, const
   uint32_t o1 = 0;
 
   verifyIncList(adr.getImm(), {0}, ERR_ILLEGAL_IMM_VALUE);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(size, 30), F(0x8, 24), F(o2, 23), F(L, 22), F(o1, 21), F(0x1f, 16), F(o0, 15), F(0x1f, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
   dd(code);
@@ -824,7 +833,7 @@ void CodeGenerator::LdLOAcquire(uint32_t size, uint32_t o0, const RReg &rt, cons
   uint32_t o1 = 0;
 
   verifyIncList(adr.getImm(), {0}, ERR_ILLEGAL_IMM_VALUE);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(size, 30), F(0x8, 24), F(o2, 23), F(L, 22), F(o1, 21), F(0x1f, 16), F(o0, 15), F(0x1f, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
   dd(code);
@@ -832,8 +841,8 @@ void CodeGenerator::LdLOAcquire(uint32_t size, uint32_t o0, const RReg &rt, cons
 
 // compare and swap
 void CodeGenerator::Cas(uint32_t size, uint32_t o2, uint32_t L, uint32_t o1, uint32_t o0, const RReg &rs, const RReg &rt, const AdrNoOfs &adr) {
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(rs.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rs.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(size, 30), F(0x8, 24), F(o2, 23), F(L, 22), F(o1, 21), F(rs.getIdx(), 16), F(o0, 15), F(0x1f, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
   dd(code);
@@ -844,9 +853,9 @@ void CodeGenerator::StExclusivePair(uint32_t L, uint32_t o1, uint32_t o0, const 
   uint32_t sz = (rt1.getBit() == 64) ? 1 : 0;
 
   verifyIncList(adr.getImm(), {0}, ERR_ILLEGAL_IMM_VALUE);
-  verifyIncRange(rt1.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(rt2.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(ws.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt1.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt2.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(ws.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(1, 31), F(sz, 30), F(0x8, 24), F(0, 23), F(L, 22), F(o1, 21), F(ws.getIdx(), 16), F(o0, 15), F(rt2.getIdx(), 10), F(adr.getXn().getIdx(), 5), F(rt1.getIdx(), 0)});
   dd(code);
@@ -857,8 +866,8 @@ void CodeGenerator::LdExclusivePair(uint32_t L, uint32_t o1, uint32_t o0, const 
   uint32_t sz = (rt1.getBit() == 64) ? 1 : 0;
 
   verifyIncList(adr.getImm(), {0}, ERR_ILLEGAL_IMM_VALUE);
-  verifyIncRange(rt1.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(rt2.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt1.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt2.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(1, 31), F(sz, 30), F(0x8, 24), F(0, 23), F(L, 22), F(o1, 21), F(0x1f, 16), F(o0, 15), F(rt2.getIdx(), 10), F(adr.getXn().getIdx(), 5), F(rt1.getIdx(), 0)});
   dd(code);
@@ -881,7 +890,7 @@ void CodeGenerator::LdaprStlr(uint32_t size, uint32_t opc, const RReg &rt, const
   uint32_t imm9 = simm & ones(9);
 
   verifyIncRange(simm, -256, 255, ERR_ILLEGAL_IMM_RANGE, true);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(size, 30), F(0x19, 24), F(opc, 22), F(imm9, 12), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
   dd(code);
@@ -964,8 +973,8 @@ void CodeGenerator::LdStNoAllocPair(uint32_t L, const RReg &rt1, const RReg &rt2
   uint32_t imm7 = (imm >> (times + 1)) & ones(7);
   uint32_t V = 0;
 
-  verifyIncRange(rt1.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(rt2.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt1.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt2.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(opc, 30), F(0x5, 27), F(V, 26), F(L, 22), F(imm7, 15), F(rt2.getIdx(), 10), F(adr.getXn().getIdx(), 5), F(rt1.getIdx(), 0)});
   dd(code);
@@ -1000,8 +1009,8 @@ void CodeGenerator::LdStRegPairPostImm(uint32_t opc, uint32_t L, const RReg &rt1
   uint32_t imm7 = (imm >> (times + 1)) & ones(7);
   uint32_t V = 0;
 
-  verifyIncRange(rt1.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(rt2.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt1.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt2.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(opc, 30), F(0x5, 27), F(V, 26), F(1, 23), F(L, 22), F(imm7, 15), F(rt2.getIdx(), 10), F(adr.getXn().getIdx(), 5), F(rt1.getIdx(), 0)});
   dd(code);
@@ -1036,8 +1045,8 @@ void CodeGenerator::LdStRegPair(uint32_t opc, uint32_t L, const RReg &rt1, const
   uint32_t imm7 = (imm >> (times + 1)) & ones(7);
   uint32_t V = 0;
 
-  verifyIncRange(rt1.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(rt2.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt1.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt2.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(opc, 30), F(0x5, 27), F(V, 26), F(2, 23), F(L, 22), F(imm7, 15), F(rt2.getIdx(), 10), F(adr.getXn().getIdx(), 5), F(rt1.getIdx(), 0)});
   dd(code);
@@ -1072,8 +1081,8 @@ void CodeGenerator::LdStRegPairPre(uint32_t opc, uint32_t L, const RReg &rt1, co
   uint32_t imm7 = (imm >> (times + 1)) & ones(7);
   uint32_t V = 0;
 
-  verifyIncRange(rt1.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
-  verifyIncRange(rt2.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt1.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt2.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(opc, 30), F(0x5, 27), F(V, 26), F(3, 23), F(L, 22), F(imm7, 15), F(rt2.getIdx(), 10), F(adr.getXn().getIdx(), 5), F(rt1.getIdx(), 0)});
   dd(code);
@@ -1102,7 +1111,7 @@ void CodeGenerator::LdStRegUnsImm(uint32_t size, uint32_t opc, const RReg &rt, c
   uint32_t imm9 = imm & ones(9);
 
   verifyIncRange(imm, -256, 255, ERR_ILLEGAL_IMM_RANGE, true);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t V = 0;
   uint32_t code = concat({F(size, 30), F(0x7, 27), F(V, 26), F(opc, 22), F(imm9, 12), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
@@ -1144,7 +1153,7 @@ void CodeGenerator::LdStRegPostImm(uint32_t size, uint32_t opc, const RReg &rt, 
   uint32_t imm9 = imm & ones(9);
 
   verifyIncRange(imm, -256, 255, ERR_ILLEGAL_IMM_RANGE, true);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t V = 0;
   uint32_t code = concat({F(size, 30), F(0x7, 27), F(V, 26), F(opc, 22), F(imm9, 12), F(1, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
@@ -1171,7 +1180,7 @@ void CodeGenerator::LdStRegUnpriv(uint32_t size, uint32_t opc, const RReg &rt, c
   uint32_t imm9 = imm & ones(9);
 
   verifyIncRange(imm, -256, 255, ERR_ILLEGAL_IMM_RANGE, true);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t V = 0;
   uint32_t code = concat({F(size, 30), F(0x7, 27), F(V, 26), F(opc, 22), F(imm9, 12), F(2, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
@@ -1184,7 +1193,7 @@ void CodeGenerator::LdStRegPre(uint32_t size, uint32_t opc, const RReg &rt, cons
   uint32_t imm9 = imm & ones(9);
 
   verifyIncRange(imm, -256, 255, ERR_ILLEGAL_IMM_RANGE, true);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t V = 0;
   uint32_t code = concat({F(size, 30), F(0x7, 27), F(V, 26), F(opc, 22), F(imm9, 12), F(3, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
@@ -1206,6 +1215,12 @@ void CodeGenerator::LdStSimdFpRegPre(uint32_t opc, const VRegSc &vt, const AdrPr
 }
 
 // Atomic memory oprations
+void CodeGenerator::AtomicMemOpSt64b(uint32_t size, uint32_t V, uint32_t A, uint32_t R, uint32_t o3, uint32_t opc, const RReg &rs, const RReg &rt, const AdrNoOfs &adr) {
+  verifyIncList(rt.getIdx(), {0, 2, 4, 6}, ERR_ILLEGAL_REG_IDX);
+
+  AtomicMemOp(size, V, A, R, o3, opc, rs, rt, adr);
+}
+
 void CodeGenerator::AtomicMemOp(uint32_t size, uint32_t V, uint32_t A, uint32_t R, uint32_t o3, uint32_t opc, const RReg &rs, const RReg &rt, const AdrNoOfs &adr) {
   uint32_t code = concat({F(size, 30), F(0x7, 27), F(V, 26), F(A, 23), F(R, 22), F(1, 21), F(rs.getIdx(), 16), F(o3, 15), F(opc, 12), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
   dd(code);
@@ -1359,7 +1374,7 @@ void CodeGenerator::LdStRegUnImm(uint32_t size, uint32_t opc, const RReg &rt, co
   verifyIncRange(imm, 0, 4095 * times, ERR_ILLEGAL_IMM_RANGE);
   verifyCond(
       imm, [=](uint64_t x) { return ((x & ones(size)) == 0); }, ERR_ILLEGAL_IMM_COND);
-  verifyIncRange(rt.getIdx(), 0, SP_IDX - 1, ERR_ILLEGAL_REG_IDX);
+  verifyIncRange(rt.getIdx(), 0, SP_IDX, ERR_ILLEGAL_REG_IDX);
 
   uint32_t V = 0;
   uint32_t code = concat({F(size, 30), F(0x7, 27), F(V, 26), F(1, 24), F(opc, 22), F(imm12, 10), F(adr.getXn().getIdx(), 5), F(rt.getIdx(), 0)});
@@ -2064,7 +2079,7 @@ void CodeGenerator::AdvSimdModiImmOrrBic(uint32_t op, uint32_t o2, const VRegVec
 void CodeGenerator::AdvSimdModiImmFmov(uint32_t op, uint32_t o2, const VRegVec &vd, double imm) {
   uint32_t Q = genQ(vd);
   uint32_t crmode = 0xf;
-  uint32_t imm8 = compactImm(imm, vd.getBit());
+  uint32_t imm8 = code8bitFloat(imm);
   uint32_t abc = field(imm8, 7, 5);
   uint32_t defgh = field(imm8, 4, 0);
   uint32_t code = concat({F(Q, 30), F(op, 29), F(0xf, 24), F(abc, 16), F(crmode, 12), F(o2, 11), F(1, 10), F(defgh, 5), F(vd.getIdx(), 0)});
@@ -2236,7 +2251,7 @@ void CodeGenerator::FpComp(uint32_t M, uint32_t S, uint32_t type, uint32_t op, u
 
 // Floating-piont immediate
 void CodeGenerator::FpImm(uint32_t M, uint32_t S, uint32_t type, const VRegSc &vd, double imm) {
-  uint32_t imm8 = compactImm(imm, vd.getBit());
+  uint32_t imm8 = code8bitFloat(imm);
   uint32_t code = concat({F(M, 31), F(S, 29), F(0xf, 25), F(type, 22), F(1, 21), F(imm8, 13), F(1, 12), F(vd.getIdx(), 0)});
   dd(code);
 }
@@ -2343,8 +2358,8 @@ void CodeGenerator::SveBitShPred(uint32_t opc, uint32_t type, const _ZReg &zdn, 
 }
 
 // SVE bitwise shift by immediate (predicated)
-void CodeGenerator::SveBitwiseShByImmPred(uint32_t opc, const _ZReg &zdn, const _PReg &pg, uint32_t amount) {
-  bool lsl = (opc == 3);
+void CodeGenerator::SveBitwiseShByImmPred(uint32_t opc, uint32_t L, uint32_t U, const _ZReg &zdn, const _PReg &pg, uint32_t amount) {
+  bool lsl = (L == 1);
   uint32_t size = genSize(zdn);
   uint32_t imm = (lsl) ? (amount + zdn.getBit()) : (2 * zdn.getBit() - amount);
   uint32_t imm3 = imm & ones(3);
@@ -2355,7 +2370,7 @@ void CodeGenerator::SveBitwiseShByImmPred(uint32_t opc, const _ZReg &zdn, const 
   verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
   verifyIncRange(amount, (1 - lsl), (zdn.getBit() - lsl), ERR_ILLEGAL_CONST_RANGE);
 
-  uint32_t code = concat({F(0x4, 24), F(tszh, 22), F(0, 19), F(opc, 16), F(4, 13), F(pg.getIdx(), 10), F(tszl, 8), F(imm3, 5), F(zdn.getIdx(), 0)});
+  uint32_t code = concat({F(0x4, 24), F(tszh, 22), F(opc, 18), F(L, 17), F(U, 16), F(4, 13), F(pg.getIdx(), 10), F(tszl, 8), F(imm3, 5), F(zdn.getIdx(), 0)});
   dd(code);
 }
 
@@ -2402,9 +2417,29 @@ void CodeGenerator::SveIntAddSubUnpred(uint32_t opc, const _ZReg &zd, const _ZRe
   dd(code);
 }
 
+// Bitwise exclusive OR and rotate right by immediate",
+void CodeGenerator::SveBitwiseExOrRotRightImm(const _ZReg &zdn, const _ZReg &zm, uint32_t amount) {
+  uint32_t size = zdn.getBit();
+  verifyIncRange(amount, 1, size, ERR_ILLEGAL_IMM_RANGE);
+
+  uint32_t imm = size * 2 - amount;
+  uint32_t tszh = field(imm, 6, 5);
+  uint32_t tszl = field(imm, 4, 3);
+  uint32_t imm3 = imm & ones(3);
+
+  uint32_t code = concat({F(0x4, 24), F(tszh, 22), F(1, 21), F(tszl, 19), F(imm3, 16), F(0xd, 10), F(zm.getIdx(), 5), F(zdn.getIdx(), 0)});
+  dd(code);
+}
+
 // SVE bitwise logical operations (unpredicated)
 void CodeGenerator::SveBitwiseLOpUnpred(uint32_t opc, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm) {
   uint32_t code = concat({F(0x4, 24), F(opc, 22), F(1, 21), F(zm.getIdx(), 16), F(0xc, 10), F(zn.getIdx(), 5), F(zd.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 bitwise ternary operations
+void CodeGenerator::Sve2BitwiseTernalyOp(uint32_t opc, uint32_t o2, const _ZReg &zdn, const _ZReg &zm, const _ZReg &zk) {
+  uint32_t code = concat({F(0x1, 26), F(opc, 22), F(1, 21), F(zm.getIdx(), 16), F(0x7, 11), F(o2, 10), F(zk.getIdx(), 5), F(zdn.getIdx(), 0)});
   dd(code);
 }
 
@@ -2470,6 +2505,18 @@ void CodeGenerator::SveStackFrameSize(uint32_t op, uint32_t opc2, const XReg &xd
   dd(code);
 }
 
+// SVE2 Integer Multiply - Unpredicated Group
+void CodeGenerator::Sve2IntMultUnpredGroup(uint32_t opc_r, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm) {
+  uint32_t size = genSize(zd);
+  uint32_t code = concat({F(0x4, 24), F(size, 22), F(1, 21), F(zm.getIdx(), 16), F(0x6, 12), F(opc_r, 10), F(zn.getIdx(), 5), F(zd.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 integer multiply vectors (unpredicated)
+void CodeGenerator::Sve2IntMultVecUnpred(uint32_t opc, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm) { Sve2IntMultUnpredGroup(opc, zd, zn, zm); }
+
+// SVE2 signed saturating doubling multiply high (unpredicated)
+void CodeGenerator::Sve2SignedSatDoubleMultHighUnpred(uint32_t r, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm) { Sve2IntMultUnpredGroup(0x4 | r, zd, zn, zm); }
 // SVE bitwise shift by immediate (unpredicated)
 void CodeGenerator::SveBitwiseShByImmUnpred(uint32_t opc, const _ZReg &zd, const _ZReg &zn, uint32_t amount) {
   bool lsl = (opc == 3);
@@ -2585,7 +2632,7 @@ void CodeGenerator::SveBcBitmaskImm(const _ZReg &zdn, uint64_t imm) { SveBitwise
 // SVE copy floating-point immediate (predicated)
 void CodeGenerator::SveCopyFpImmPred(const _ZReg &zd, const _PReg &pg, double imm) {
   uint32_t size = genSize(zd);
-  uint32_t imm8 = compactImm(imm, zd.getBit());
+  uint32_t imm8 = code8bitFloat(imm);
   uint32_t code = concat({F(0x5, 24), F(size, 22), F(1, 20), F(pg.getIdx(), 16), F(6, 13), F(imm8, 5), F(zd.getIdx(), 0)});
   dd(code);
 }
@@ -2663,9 +2710,12 @@ void CodeGenerator::SveRevVecElem(const _ZReg &zd, const _ZReg &zn) {
 }
 
 // SVE table lookup
-void CodeGenerator::SveTableLookup(const _ZReg &zd, const _ZReg &zn, const _ZReg &zm) {
+void CodeGenerator::SveTableLookup(uint32_t bit15_10, const _ZReg &zd, const _ZReg &zn, const ZRegList &zn_list, const _ZReg &zm) {
   uint32_t size = genSize(zd);
-  SvePerVecUnpred(size, zm.getIdx(), 0xc, zd, zn);
+  uint32_t zn_idx = zn.getIdx() | zn_list.getIdx();
+
+  uint32_t code = concat({F(0x5, 24), F(size, 22), F(0x1, 21), F(zm.getIdx(), 16), F(bit15_10, 10), F(zn_idx, 5), F(zd.getIdx(), 0)});
+  dd(code);
 }
 
 // SVE unpack vector elements
@@ -2945,13 +2995,6 @@ void CodeGenerator::SveFFRWritePred(uint32_t opc, const _PReg &pn) {
   dd(code);
 }
 
-// SVE conditionally terminate scalars
-void CodeGenerator::SveCondTermScalars(uint32_t op, uint32_t ne, const RReg &rn, const RReg &rm) {
-  uint32_t sz = genSf(rn);
-  uint32_t code = concat({F(0x25, 24), F(op, 23), F(sz, 22), F(1, 21), F(rm.getIdx(), 16), F(0x8, 10), F(rn.getIdx(), 5), F(ne, 4)});
-  dd(code);
-}
-
 // SVE integer compare scalar count and limit
 void CodeGenerator::SveIntCompScalarCountAndLimit(uint32_t U, uint32_t lt, uint32_t eq, const _PReg &pd, const RReg &rn, const RReg &rm) {
   uint32_t size = genSize(pd);
@@ -2960,10 +3003,24 @@ void CodeGenerator::SveIntCompScalarCountAndLimit(uint32_t U, uint32_t lt, uint3
   dd(code);
 }
 
+// SVE conditionally terminate scalars
+void CodeGenerator::SveCondTermScalars(uint32_t op, uint32_t ne, const RReg &rn, const RReg &rm) {
+  uint32_t sz = genSf(rn);
+  uint32_t code = concat({F(0x25, 24), F(op, 23), F(sz, 22), F(1, 21), F(rm.getIdx(), 16), F(0x8, 10), F(rn.getIdx(), 5), F(ne, 4)});
+  dd(code);
+}
+
+// SVE pointer conflict compare
+void CodeGenerator::SvePointConfCmp(uint32_t rw, const _PReg pd, const XReg &xn, const XReg &xm) {
+  uint32_t size = genSize(pd);
+  uint32_t code = concat({F(0x25, 24), F(size, 22), F(1, 21), F(xm.getIdx(), 16), F(0xc, 10), F(xn.getIdx(), 5), F(rw, 4), F(pd.getIdx(), 0)});
+  dd(code);
+}
+
 // SVE broadcast floating-point immediate (unpredicated)
 void CodeGenerator::SveBcFpImmUnpred(uint32_t opc, uint32_t o2, const _ZReg &zd, double imm) {
   uint32_t size = genSize(zd);
-  uint32_t imm8 = compactImm(imm, zd.getBit());
+  uint32_t imm8 = code8bitFloat(imm);
   uint32_t code = concat({F(0x25, 24), F(size, 22), F(7, 19), F(opc, 17), F(7, 14), F(o2, 13), F(imm8, 5), F(zd.getIdx(), 0)});
   dd(code);
 }
@@ -3014,23 +3071,431 @@ void CodeGenerator::SveIntMultImmUnpred(uint32_t opc, uint32_t o2, const _ZReg &
   dd(code);
 }
 
-// SVE integer dot product (unpredicated)
-void CodeGenerator::SveIntDotProdcutUnpred(uint32_t U, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm) {
+// SVE Integer Multiply-Add - Unpredicated
+void CodeGenerator::SveIntMultAddUnpredGroup(uint32_t op0, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm, uint32_t rot) {
   uint32_t size = genSize(zda);
-  uint32_t code = concat({F(0x44, 24), F(size, 22), F(zm.getIdx(), 16), F(U, 10), F(zn.getIdx(), 5), F(zda.getIdx(), 0)});
+
+  // If instruction has no "rot" opernad, 0 is passed.
+  verifyIncList(rot, {0, 90, 180, 270}, ERR_ILLEGAL_CONST_VALUE);
+  uint32_t code = concat({F(0x44, 24), F(size, 22), F(zm.getIdx(), 16), F(op0 | (rot / 90), 10), F(zn.getIdx(), 5), F(zda.getIdx(), 0)});
   dd(code);
 }
 
-// SVE integer dot product (indexed)
-void CodeGenerator::SveIntDotProdcutIndexed(uint32_t size, uint32_t U, const _ZReg &zda, const _ZReg &zn, const ZRegElem &zm) {
+// SVE2 Integer - Predicated Group
+void CodeGenerator::Sve2IntPredGroup(uint32_t bit21_13, const _ZReg &zda, const _ZReg &zdn, const _ZReg &zd, const _PReg &pg, const _ZReg &zn, const _ZReg &zm) {
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+
+  uint32_t size = genSize(zda) | genSize(zdn) | genSize(zd);
+
+  // Only one of zda, zdn, zd is valid.
+  uint32_t dst = zda.getIdx() | zdn.getIdx() | zd.getIdx();
+  // Either zn or zm is valid.
+  uint32_t src = zn.getIdx() | zm.getIdx();
+  uint32_t code = concat({F(0x44, 24), F(size, 22), F(bit21_13, 13), F(pg.getIdx(), 10), F(src, 5), F(dst, 0)});
+  dd(code);
+}
+
+// SVE Multiply - Indexed
+void CodeGenerator::SveMultIndexedGroup(uint32_t bit20_10, const _ZReg &zda, const _ZReg &zn, const ZRegElem &zm, uint32_t rot) {
   uint32_t zm_idx = zm.getIdx();
   uint32_t zm_eidx = zm.getElemIdx();
-  uint32_t opc = (size == 2) ? (((zm_eidx & ones(2)) << 3) | zm_idx) : (((zm_eidx & ones(1)) << 4) | zm_idx);
+  uint32_t max_zm_idx = 0;
+  uint32_t max_zm_eidx = 0;
+  uint32_t size = genSize(zda);
+  uint32_t i = 0;
 
-  verifyIncRange(zm_eidx, 0, (size == 2) ? 3 : 1, ERR_ILLEGAL_REG_ELEM_IDX);
-  verifyIncRange(zm_idx, 0, (size == 2) ? 7 : 15, ERR_ILLEGAL_REG_IDX);
+  switch (bit20_10) {
+  case 0x0:            // SDOT
+  case 0x1:            // UDOT
+    if (size == 0x2) { // SDOT <Zda>.S, <Zn>.B, <Zm>.B[<imm>]
+      max_zm_eidx = 3;
+      max_zm_idx = 7;
+      i = zm_eidx << 9;
+    } else if (size == 0x3) { // SDOT <Zda>.D, <Zn>.H, <Zm>.H[<imm>]
+      max_zm_eidx = 1;
+      max_zm_idx = 15;
+      i = zm_eidx << 10;
+    }
+    break;
+  case 0x2:  // MLA (indexed)
+  case 0x3:  // MLS (indexed)
+  case 0x4:  // SQRDMLAH (indexed)
+  case 0x5:  // SQRDMLSH (indexed)
+  case 0x3c: // SQDMULH (indexed)
+  case 0x3d: // SQRDMULH (indexed)
+  case 0x3e: // MUL (indexed)
+    switch (size) {
+    case 0x1: // H
+      max_zm_eidx = 7;
+      max_zm_idx = 7;
+      i = (((0x4 & zm_eidx) >> 2) << 12) | ((0x3 & zm_eidx) << 9);
+      size = 0;
+      break;
+    case 0x2: // S
+      max_zm_eidx = 3;
+      max_zm_idx = 7;
+      i = (0x3 & zm_eidx) << 9;
+      break;
+    case 0x3: // D
+      max_zm_eidx = 1;
+      max_zm_idx = 15;
+      i = (0x1 & zm_eidx) << 10;
+      break;
+    default:
+      throw Error(ERR_ILLEGAL_TYPE);
+      break;
+    }
+    break;
+  case 0x6: // USDOT (indexed)
+  case 0x7: // SUDOT (indexed)
+    max_zm_idx = 7;
+    max_zm_eidx = 7;
+    i = (0x3 & zm_eidx) << 9;
+    break;
+  case 0x8:  // SQDMLALB (indexed)
+  case 0x9:  // SQDMLALT (indexed)
+  case 0xc:  // SQDMLSLB (indexed)
+  case 0xd:  // SQDMLSLT (indexed)
+  case 0x20: // SMLALB (indexed)
+  case 0x21: // SMLALT (indexed)
+  case 0x24: // UMLALB (indexed)
+  case 0x25: // UMLALT (indexed)
+  case 0x28: // SMLSLB (indexed)
+  case 0x29: // SMLSLT (indexed)
+  case 0x2c: // UMLSLB (indexed)
+  case 0x2d: // UMLSLT (indexed)
+  case 0x30: // SMULLB (indexed)
+  case 0x31: // SMULLT (indexed)
+  case 0x34: // UMULLB (indexed)
+  case 0x35: // UMULLT (indexed)
+  case 0x38: // SQDMULLB (indexed)
+  case 0x39: // SQDMULLT (indexed)
+    switch (size) {
+    case 0x2: // S
+      max_zm_idx = 7;
+      max_zm_eidx = 7;
+      i = (((0x6 & zm_eidx) >> 1) << 9) | ((0x1 & zm_eidx) << 1);
+      break;
+    case 0x3: // D
+      max_zm_idx = 15;
+      max_zm_eidx = 3;
+      i = (((0x2 & zm_eidx) >> 1) << 10) | ((0x1 & zm_eidx) << 1);
+      break;
+    default:
+      throw Error(ERR_ILLEGAL_TYPE);
+      break;
+    }
+    break;
+  case 0x10: // CDOT (indexed)
+    switch (size) {
+    case 0x2: // S
+      max_zm_idx = 7;
+      max_zm_eidx = 3;
+      i = (0x3 & zm_eidx) << 9;
+      break;
+    case 0x3: // D
+      max_zm_idx = 15;
+      max_zm_eidx = 1;
+      i = (0x1 & zm_eidx) << 10;
+      break;
+    default:
+      throw Error(ERR_ILLEGAL_TYPE);
+      break;
+    }
+    break;
+  case 0x18: // CMLA (indexed)
+  case 0x1c: // SQRDCMLAH (indexed)
+    switch (size) {
+    case 0x1: // H
+      max_zm_idx = 7;
+      max_zm_eidx = 3;
+      i = (0x3 & zm_eidx) << 9;
+      size = 2;
+      break;
+    case 0x2: // S
+      max_zm_idx = 15;
+      max_zm_eidx = 1;
+      i = (0x1 & zm_eidx) << 10;
+      size = 3;
+      break;
+    default:
+      throw Error(ERR_ILLEGAL_TYPE);
+      break;
+    }
+    break;
+  default:
+    throw Error(ERR_ILLEGAL_TYPE);
+    break;
+  }
 
-  uint32_t code = concat({F(0x44, 24), F(size, 22), F(1, 21), F(opc, 16), F(U, 10), F(zn.getIdx(), 5), F(zda.getIdx(), 0)});
+  verifyIncList(rot, {0, 90, 180, 270}, ERR_ILLEGAL_CONST_VALUE);
+  verifyIncRange(zm_eidx, 0, max_zm_eidx, ERR_ILLEGAL_REG_ELEM_IDX);
+  verifyIncRange(zm_idx, 0, max_zm_idx, ERR_ILLEGAL_REG_IDX);
+
+  uint32_t code = concat({F(0x44, 24), F(size, 22), F(1, 21), F((bit20_10 | i | (rot / 90)), 10), F(zm_idx, 16), F(zn.getIdx(), 5), F(zda.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 Widening Integer Arithmetic
+void CodeGenerator::Sve2WideIntArithGroup(uint32_t bit15_10, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm) {
+  uint32_t size = genSize(zd);
+
+  if (bit15_10 == 0x1a /* PMULLB */ || bit15_10 == 0x1b /* PMULLT */) {
+    verifyIncList(size, {1, 3, 4}, ERR_ILLEGAL_TYPE);
+    size = (size == 4) ? 0 : size;
+  }
+
+  uint32_t code = concat({F(0x45, 24), F(size, 22), F(zm.getIdx(), 16), F(bit15_10, 10), F(zn.getIdx(), 5), F(zd.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE Misc
+void CodeGenerator::SveMiscGroup(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm, uint32_t amount) {
+  uint32_t size = genSize(zd);
+  uint32_t tmp_bit23_10 = 0;
+
+  if (bit23_10 == 0x28 /* SSHLLB*/ || bit23_10 == 0x29 /* SSHLLT */ || bit23_10 == 0x2a /* USHLLB */ || bit23_10 == 0x2b /* USHLLT */) {
+    /* DDI0584B_a_SVE/SVE_xml/xhtml/sshllb_z_zi.html
+      if !HaveSVE2() then UNDEFINED;
+      bits(3) tsize = tszh:tszl;
+      case tsize of
+      when '000' UNDEFINED;
+      when '001' esize = 8;
+      when '01x' esize = 16;
+      when '1xx' esize = 32;
+      integer n = UInt(Zn);
+      integer d = UInt(Zd);
+      integer shift = UInt(tsize:imm3) - esize;
+    */
+    uint32_t esize = 1 << (2 + size);
+    uint32_t imm = amount + esize;
+    uint32_t tszh = field(imm, 5, 5);
+    uint32_t tszl = field(imm, 4, 3);
+    uint32_t imm3 = imm & ones(3);
+
+    verifyIncRange(amount, 0, esize - 1, ERR_ILLEGAL_IMM_RANGE);
+
+    tmp_bit23_10 = (tszh << 12) | (tszl << 9) | (imm3 << 6);
+    size = 0;
+  }
+
+  uint32_t code = concat({F(0x45, 24), F(size, 22), F(zm.getIdx(), 16), F(bit23_10 | tmp_bit23_10, 10), F(zn.getIdx(), 5), F((zd.getIdx() | zda.getIdx()), 0)});
+  dd(code);
+}
+
+// SVE2 Accumulate
+void CodeGenerator::Sve2AccGroup(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zda, const _ZReg &zdn, const _ZReg &zn, const _ZReg &zm, uint32_t rot, uint32_t amount) {
+  uint32_t size = genSize(zd) | genSize(zda) | genSize(zdn);
+  uint32_t tmp_bit23_10 = 0;
+  uint32_t bit9_5 = zn.getIdx();
+  uint32_t bit20_16 = zm.getIdx();
+
+  if (bit23_10 == 0x36 /* CADD */ || bit23_10 == 0x76 /* SQCADD */) {
+
+    verifyIncList(rot, {90, 270}, ERR_ILLEGAL_IMM_VALUE);
+    rot = rot / 270;
+    bit9_5 = zm.getIdx();
+    bit20_16 = 0;
+  } else if (bit23_10 == 0x0034 /* ADCLB */ || bit23_10 == 0x0035 /* ADCLT */ || bit23_10 == 0x2064 /* SBCLB */ || bit23_10 == 0x2065 /* SBCLT */) {
+    size = size & 0x1; /* S -> 0x0, D -> 0x1 */
+  } else if (bit23_10 == 0x38 /* SSRA */ || bit23_10 == 0x39 /* USRA */ || bit23_10 == 0x3a /* SRSRA */ || bit23_10 == 0x3b /* URSRA */ || bit23_10 == 0x3c /* SRI */ || bit23_10 == 0x3d /* SLI*/) {
+    /* DDI0584B_a_SVE/SVE_xml/xhtml/ssra_z_zi.html
+      if !HaveSVE2() then UNDEFINED;
+      bits(4) tsize = tszh:tszl;
+      case tsize of
+      when '0000' UNDEFINED;
+      when '0001' esize = 8;
+      when '001x' esize = 16;
+      when '01xx' esize = 32;
+      when '1xxx' esize = 64;
+      integer n = UInt(Zn);
+      integer da = UInt(Zda);
+      integer shift = (2 * esize) - UInt(tsize:imm3);
+    */
+    uint32_t esize = (bit23_10 == 0x3c || bit23_10 == 0x3d) ? zd.getBit() : zda.getBit();
+    uint32_t imm = (bit23_10 == 0x3d) ? esize + amount : esize * 2 - amount;
+    uint32_t tszh = field(imm, 6, 5);
+    uint32_t tszl = field(imm, 4, 3);
+    uint32_t imm3 = imm & ones(3);
+
+    verifyIncRange(amount, 1, esize - 1, ERR_ILLEGAL_IMM_RANGE);
+
+    tmp_bit23_10 = (tszh << 12) | (tszl << 9) | (imm3 << 6);
+    size = 0;
+  }
+
+  uint32_t code = concat({F(0x45, 24), F(size, 22), F(bit20_16, 16), F((bit23_10 | tmp_bit23_10 | rot), 10), F(bit9_5, 5), F(zd.getIdx() | zda.getIdx() | zdn.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 Narrowing
+void CodeGenerator::Sve2NarrGroup(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm, uint32_t amount) {
+  uint32_t size = genSize(zd);
+  uint32_t tmp_bit23_16 = 0;
+  uint32_t tszh = 0;
+  uint32_t tszl = 0;
+  uint32_t imm3 = 0;
+  uint32_t imm = 0;
+  uint32_t esize = 0;
+
+  switch (bit23_10) {
+  case 0x810: /* SQXTNB */
+  case 0x811: /* SQXTNT */
+  case 0x812: /* UQXTNB */
+  case 0x813: /* UQXTNT */
+  case 0x814: /* SQXTUNB */
+  case 0x815: /* SQXTUNT */
+  {
+    uint32_t tmp_size = (size > 1) ? (size + 2) : (size + 1);
+    tszl = field(tmp_size, 1, 0);
+    tszh = field(tmp_size, 2, 2);
+  }
+    tmp_bit23_16 = (tszh << 6) | (tszl << 3);
+    size = 0;
+    break;
+  case 0x800: /* SQSHRUNB */
+  case 0x801: /* SQSHRUNT */
+  case 0x802: /* SQRSHRUNB */
+  case 0x803: /* SQRSHRUNT */
+  case 0x804: /* SHRNB */
+  case 0x805: /* SHRNT */
+  case 0x806: /* RSHRNB */
+  case 0x807: /* RSHRNT */
+  case 0x808: /* SQSHRNB */
+  case 0x809: /* SQSHRNT */
+  case 0x80a: /* SQRSHRNB */
+  case 0x80b: /* SQRSHRNT */
+  case 0x80c: /* UQSHRNB */
+  case 0x80d: /* UQSHRNT */
+  case 0x80e: /* UQRSHRNB */
+  case 0x80f: /* UQRSHRNT */
+    esize = zd.getBit();
+    imm = esize * 2 - amount;
+    tszh = field(imm, 5, 5);
+    tszl = field(imm, 4, 3);
+    imm3 = imm & ones(3);
+    tmp_bit23_16 = (tszh << 6) | (tszl << 3) | imm3;
+    verifyIncRange(amount, 1, esize - 1, ERR_ILLEGAL_IMM_RANGE);
+    size = 0;
+    break;
+  case 0x818: /* ADDHNB  */
+  case 0x819: /* ADDHNT  */
+  case 0x81a: /* RADDHNB */
+  case 0x81b: /* RADDHNT */
+  case 0x81c: /* SUBHNB  */
+  case 0x81d: /* SUBHNT  */
+  case 0x81e: /* RSUBHNB */
+  case 0x81f: /* RSUBHNT */
+    tmp_bit23_16 = zm.getIdx();
+    size = size + 1;
+    break;
+  default:
+    throw Error(ERR_ILLEGAL_TYPE);
+    break;
+  }
+  uint32_t code = concat({F(0x8a, 23), F(size, 22), F(tmp_bit23_16, 16), F(bit23_10, 10), F(zn.getIdx(), 5), F(zd.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 character math
+void CodeGenerator::Sve2CharMatch(uint32_t bit21_4, const _PReg &pd, const _PReg &pg, const _ZReg &zn, const _ZReg &zm) {
+  uint32_t size = genSize(zn);
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+  uint32_t code = concat({F(0x45, 24), F(size, 22), F(zm.getIdx(), 16), F(pg.getIdx(), 10), F(zn.getIdx(), 5), F(bit21_4, 4), F(pd.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 Histogram Computation - Segment
+void CodeGenerator::Sve2HistCompSeg(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zn, const _ZReg &zm) {
+  uint32_t size = genSize(zn);
+  uint32_t code = concat({F(0x45, 24), F(size, 22), F(zm.getIdx(), 16), F(bit23_10, 10), F(zn.getIdx(), 5), F(zd.getIdx(), 0)});
+  dd(code);
+}
+
+// Count matching elements in vector
+void CodeGenerator::SveHistCnt(uint32_t bit23_10, const _ZReg &zd, const _PReg &pg, const _ZReg &zn, const _ZReg &zm) {
+  uint32_t size = genSize(zd);
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+  uint32_t code = concat({F(0x45, 24), F(size, 22), F(zm.getIdx(), 16), F((bit23_10 | pg.getIdx()), 10), F(zn.getIdx(), 5), F(zd.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 Crypto Extensions
+void CodeGenerator::Sve2CryptoExtGroup(uint32_t bit23_10, const _ZReg &zd, const _ZReg &zdn, const _ZReg &zn, const _ZReg &zm) {
+  uint32_t size = genSize(zd);
+  uint32_t bit9_5 = zn.getIdx();
+  uint32_t bit20_16 = zm.getIdx();
+
+  if (bit23_10 == 0x8b8 /* AESE */ || bit23_10 == 0x8b9 /* AESD */ || bit23_10 == 0x8f8 /* SM4E */) {
+    bit9_5 = zm.getIdx();
+    bit20_16 = 0;
+  } else if (bit23_10 == 0x83c /* SM4EKEY */ || bit23_10 == 0x83d /* RAX1 */)
+    size = 0;
+
+  uint32_t code = concat({F(0x45, 24), F(size, 22), F(bit20_16, 16), F(bit23_10, 10), F(bit9_5, 5), F((zd.getIdx() | zdn.getIdx()), 0)});
+  dd(code);
+}
+
+// SVE floating-point convert precision odd elements",
+void CodeGenerator::SveFpConvPrecOddElem(uint32_t bit23_13, const _ZReg &zd, const _PReg &pg, const _ZReg &zn) {
+  uint32_t _bit23_13 = 0;
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+
+  if (bit23_13 == 0x445 /* FCVTN */)
+    _bit23_13 = (genSize(zd) == 1) ? 0x445 : 0x655;
+  else if (bit23_13 == 0x44d /* FCVTL */)
+    _bit23_13 = (genSize(zd) == 2) ? 0x44d : 0x65d;
+
+  uint32_t code = concat({F(0x64, 24), F((bit23_13 | _bit23_13), 13), F(pg.getIdx(), 10), F(zn.getIdx(), 5), F(zd.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 floating-point pairwise operations
+void CodeGenerator::Sve2FpPairOp(uint32_t bit23_13, const _ZReg &zdn, const _PReg &pg, const _ZReg &zm) {
+  uint32_t size = genSize(zdn);
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+
+  uint32_t code = concat({F(0x64, 24), F(size, 22), F(bit23_13, 13), F(pg.getIdx(), 10), F(zm.getIdx(), 5), F(zdn.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE Floating Point Widening Multiply-Add - Indexed
+void CodeGenerator::SveFpWideMultAddIndexedGroup(uint32_t bit23_10, const _ZReg &zda, const _ZReg &zn, const ZRegElem &zm) {
+  uint32_t zm_eidx = zm.getElemIdx();
+  uint32_t i2 = 0;
+  uint32_t i3h = 0;
+  uint32_t i3l = 0;
+
+  verifyIncRange(zm.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+
+  if (bit23_10 == 0x1810 /* BFDOT */) {
+    verifyIncRange(zm_eidx, 0, 3, ERR_ILLEGAL_REG_IDX);
+    i2 = zm_eidx;
+  } else {
+    verifyIncRange(zm_eidx, 0, 7, ERR_ILLEGAL_REG_IDX);
+    i3h = field(zm_eidx, 2, 1);
+    i3l = field(zm_eidx, 0, 0);
+  }
+
+  uint32_t code = concat({F(0x64, 24), F((i2 | i3h), 19), F(zm.getIdx(), 16), F(i3l, 11), F(bit23_10, 10), F(zn.getIdx(), 5), F(zda.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE Floating Point Widening Multiply-Add
+void CodeGenerator::SveFpWideMultAddGroup(uint32_t bit23_10, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm) {
+  uint32_t code = concat({F(0x64, 24), F(zm.getIdx(), 16), F(bit23_10, 10), F(zn.getIdx(), 5), F(zda.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE floating point matrix multiply accumulate
+void CodeGenerator::SveFpMatMulAcc(uint32_t bit23_10, const _ZReg &zda, const _ZReg &zn, const _ZReg &zm) {
+  uint32_t _bit22 = 0;
+
+  if (bit23_10 == 0x2839 /* FMMLA */)
+    if (genSize(zda) == 3 /* <Zda>.D */)
+      _bit22 = 0x1;
+
+  uint32_t code = concat({F(0x64, 24), F(_bit22, 22), F(zm.getIdx(), 16), F(bit23_10, 10), F(zn.getIdx(), 5), F(zda.getIdx(), 0)});
   dd(code);
 }
 
@@ -3529,6 +3994,24 @@ void CodeGenerator::Sve64GatherLdSc32UU(uint32_t msz, uint32_t U, uint32_t ff, c
   dd(code);
 }
 
+// SVE2 64-bit gather non-temporal load (scalar plus unpacked 32-bit unscaled offsets) : 64-bit element
+void CodeGenerator::Sve2_64GatherNTLdSc64(uint32_t msz, uint32_t U, const _ZReg &zt, const _PReg &pg, const AdrVecSc64 &adr) {
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+  // Sve2_64GatherNTLdSc64: U = bit14
+  // Sve2_64GatherNTLdSc32: U = bit13
+  uint32_t code = concat({F(0x62, 25), F(msz, 23), F(adr.getXm().getIdx(), 16), F(1, 15), F(U, 14), F(pg.getIdx(), 10), F(adr.getZn().getIdx(), 5), F(zt.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 64-bit gather non-temporal load (scalar plus unpacked 32-bit unscaled offsets) : 32-bit element
+void CodeGenerator::Sve2_64GatherNTLdSc32(uint32_t msz, uint32_t U, const _ZReg &zt, const _PReg &pg, const AdrVecSc32 &adr) {
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+  // Sve2_64GatherNTLdSc64: U = bit14
+  // Sve2_64GatherNTLdSc32: U = bit13
+  uint32_t code = concat({F(0x42, 25), F(msz, 23), F(adr.getXm().getIdx(), 16), F(1, 15), F(U, 13), F(pg.getIdx(), 10), F(adr.getZn().getIdx(), 5), F(zt.getIdx(), 0)});
+  dd(code);
+}
+
 // SVE 64-bit gather load (vector plus immeidate)
 void CodeGenerator::Sve64GatherLdVecImm(uint32_t msz, uint32_t U, uint32_t ff, const _ZReg &zt, const _PReg &pg, const AdrVecImm64 &adr) {
   uint32_t imm = adr.getImm();
@@ -3648,6 +4131,20 @@ void CodeGenerator::Sve64ScatterStVecImm(uint32_t msz, const _ZReg &zt, const _P
   verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
 
   uint32_t code = concat({F(0x72, 25), F(msz, 23), F(2, 21), F(imm5, 16), F(5, 13), F(pg.getIdx(), 10), F(adr.getZn().getIdx(), 5), F(zt.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 64-bit scatter non-temporal store (vector plus scalar)
+void CodeGenerator::Sve2_64ScatterNTStr(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrVecSc64 &adr) {
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+  uint32_t code = concat({F(0x72, 25), F(msz, 23), F(adr.getXm().getIdx(), 16), F(1, 13), F(pg.getIdx(), 10), F(adr.getZn().getIdx(), 5), F(zt.getIdx(), 0)});
+  dd(code);
+}
+
+// SVE2 32-bit scatter non-temporal store (vector plus scalar)
+void CodeGenerator::Sve2_32ScatterNTStr(uint32_t msz, const _ZReg &zt, const _PReg &pg, const AdrVecSc32 &adr) {
+  verifyIncRange(pg.getIdx(), 0, 7, ERR_ILLEGAL_REG_IDX);
+  uint32_t code = concat({F(0x72, 25), F(msz, 23), F(2, 21), F(adr.getXm().getIdx(), 16), F(1, 13), F(pg.getIdx(), 10), F(adr.getZn().getIdx(), 5), F(zt.getIdx(), 0)});
   dd(code);
 }
 
