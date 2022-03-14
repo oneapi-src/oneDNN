@@ -666,7 +666,7 @@ bool binary_doable(
 
 static bool post_binary_fusible_impl(const impl::op_t *base_op,
         const std::vector<dim_t> &fused_shape,
-        const std::vector<dim_t> &other_shape, const std::string &data_fmt) {
+        const std::vector<dim_t> &other_shape) {
     assertm(fused_shape.size() == other_shape.size(),
             "must have same ndims, pls run binary_canonicalization pass first");
     // full tensor and per tensor broadcasted
@@ -686,11 +686,21 @@ static bool post_binary_fusible_impl(const impl::op_t *base_op,
     }
 
     // per channel broadcasted
-    int32_t c_axis = data_fmt == "NXC" ? output_ndims - 1 : 1;
-    for (int32_t i = output_ndims - 1; i >= 0; i--) {
-        if (other_shape[i] == 1) continue;
-        if (i != c_axis || fused_shape[i] != other_shape[i]) { return false; }
+    const auto is_not_one = [](dim_t d) { return d != 1; };
+    const auto n_not_broadcastable
+            = std::count_if(other_shape.begin(), other_shape.end(), is_not_one);
+    if (n_not_broadcastable != 1) return false;
+    const auto c_axis_it
+            = std::find_if(other_shape.begin(), other_shape.end(), is_not_one);
+    const auto c_axis = static_cast<size_t>(
+            std::distance(other_shape.begin(), c_axis_it));
+    if (other_shape[c_axis] != fused_shape[c_axis]) return false;
+    if (base_op->has_attr("data_format")) {
+        const auto data_fmt = base_op->get_attr<std::string>("data_format");
+        int32_t orig_c_axis = data_fmt == "NCX" ? 1 : output_ndims - 1;
+        return c_axis == orig_c_axis;
     }
+
     return true;
 }
 
@@ -741,9 +751,6 @@ std::pair<bool, std::pair<size_t, int64_t>> shuffle_fusible(
 }
 
 bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op) {
-    std::string data_fmt = base_op->has_attr("data_format")
-            ? base_op->get_attr<std::string>("data_format")
-            : "NCX";
     auto fused_out = base_op->get_output_values()[0];
     auto consumers = fused_out->get_consumers();
     if (consumers.size() != 1) return false;
@@ -753,7 +760,7 @@ bool post_binary_fusible(const impl::op_t *base_op, const impl::op_t *bin_op) {
     auto other_in
             = bin_op->get_input_value(1 - fused_in_off)->get_logical_tensor();
     return post_binary_fusible_impl(
-            base_op, ltw(fused_in).vdims(), ltw(other_in).vdims(), data_fmt);
+            base_op, ltw(fused_in).vdims(), ltw(other_in).vdims());
 }
 
 bool post_depthwise_conv_fusible(
