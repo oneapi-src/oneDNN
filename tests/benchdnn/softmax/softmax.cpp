@@ -188,7 +188,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         if (res->state == SKIPPED) return;
     }
 
-    if (is_gpu()) { // switch to `if (is_nvidia_gpu())` once resolved
+    if (is_gpu()) {
         const bool sdt_is_int8 = prb->sdt == dnnl_s8 || prb->sdt == dnnl_u8;
         const bool ddt_is_int8 = prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8;
         const bool dt_ok = prb->sdt == prb->ddt && !sdt_is_int8 && !ddt_is_int8;

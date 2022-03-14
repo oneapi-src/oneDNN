@@ -120,11 +120,6 @@ static dnnl_status_t perf_func(
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, FWD_D, res);
     if (res->state == SKIPPED) return;
-
-    if (is_nvidia_gpu()) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

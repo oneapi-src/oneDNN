@@ -108,17 +108,7 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
-
     if (res->state == SKIPPED) return;
-
-    if (is_nvidia_gpu()) {
-        const bool dt_ok = prb->sdt != dnnl_s8 && prb->ddt != dnnl_s8;
-        if (prb->ndims == 5 || prb->alg == nearest || !prb->attr.is_def()
-                || !dt_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,

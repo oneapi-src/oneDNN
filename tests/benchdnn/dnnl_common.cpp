@@ -478,12 +478,6 @@ void check_known_skipped_case_common(
             res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
-        // cuda supports only f32, f16 and s8 data types
-        if (is_nvidia_gpu()
-                && (i_dt == dnnl_bf16 || i_dt == dnnl_u8 || i_dt == dnnl_s32)) {
-            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
-            break;
-        }
     }
 }
 
@@ -673,24 +667,6 @@ bool is_nvidia_gpu(const dnnl_engine_t &engine) {
     return eng_vendor_id == nvidia_vendor_id;
 #endif
     return false;
-}
-
-bool is_nvidia_eltwise_ok(
-        dir_t dir, attr_t::post_ops_t::kind_t alg, float alpha) {
-    using pk_t = attr_t::post_ops_t::kind_t;
-    switch (alg) {
-        case pk_t::BRELU: return true;
-        case pk_t::ELU: return (dir & FLAG_FWD);
-        case pk_t::LOGISTIC: return (dir & FLAG_FWD);
-        case pk_t::TANH: return (dir & FLAG_FWD);
-        case pk_t::RELU: return alpha == 0.f;
-        // TODO: can be easily supported by Nvidia backend
-        // case pk_t::ELU_DST: return true;
-        // case pk_t::LOGISTIC_DST: return true;
-        // case pk_t::TANH_DST: return true;
-        // case pk_t::RELU_DST: return alpha == 0.f;
-        default: return false;
-    };
 }
 
 #if defined(_WIN32) && !defined(__GNUC__)

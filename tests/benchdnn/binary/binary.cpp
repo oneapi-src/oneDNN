@@ -143,29 +143,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-
-    if (is_nvidia_gpu()) {
-        const std::vector<alg_t> supported_algs
-                = {alg_t::ADD, alg_t::MUL, alg_t::MIN, alg_t::MAX};
-        const bool alg_ok
-                = std::any_of(supported_algs.cbegin(), supported_algs.cend(),
-                        [&](const alg_t alg) { return prb->alg == alg; });
-        const bool dt_ok = prb->sdt[0] == prb->sdt[1];
-        const bool diff_dt_ok = dt_ok
-                && IMPLICATION(
-                        prb->sdt[0] != prb->ddt, prb->attr.scales.is_def());
-        if (!alg_ok || !dt_ok || !diff_dt_ok || !prb->attr.post_ops.is_def()
-                || bcast_src0) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-        for (const auto &s : prb->attr.scales.scales) {
-            if (s.second.runtime) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
-            }
-        }
-    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
