@@ -61,16 +61,20 @@ public:
     T *allocate(size_t num_elements) {
         if (get_test_engine_kind() == impl::engine_kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
+            dev_ = get_device();
+            ctx_ = get_context();
             return reinterpret_cast<T *>(cl::sycl::aligned_alloc(usm_alignment,
-                    num_elements * sizeof(T), get_device(), get_context(),
+                    num_elements * sizeof(T), dev_, ctx_,
                     cl::sycl::usm::alloc::shared));
 #else
             return reinterpret_cast<T *>(malloc(num_elements * sizeof(T)));
 #endif
         } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
+            dev_ = get_device();
+            ctx_ = get_context();
             return reinterpret_cast<T *>(cl::sycl::aligned_alloc(usm_alignment,
-                    num_elements * sizeof(T), get_device(), get_context(),
+                    num_elements * sizeof(T), dev_, ctx_,
                     cl::sycl::usm::alloc::shared));
 #else
             return nullptr;
@@ -85,13 +89,13 @@ public:
 
         if (get_test_engine_kind() == impl::engine_kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
-            cl::sycl::free(ptr, get_context());
+            cl::sycl::free(ptr, ctx_);
 #else
             free(ptr);
 #endif
         } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
-            cl::sycl::free(ptr, get_context());
+            cl::sycl::free(ptr, ctx_);
 #endif
         } else {
         }
@@ -101,6 +105,15 @@ public:
     struct rebind {
         using other = TestAllocator<U>;
     };
+
+private:
+#ifdef DNNL_GRAPH_WITH_SYCL
+    // The underlying implementation of cl::sycl::device and cl::sycl::context
+    // are shared ptr. So we can hold a copy of them to avoid be destroyed
+    // before we use them.
+    cl::sycl::device dev_;
+    cl::sycl::context ctx_;
+#endif
 };
 
 template <class T, class U>

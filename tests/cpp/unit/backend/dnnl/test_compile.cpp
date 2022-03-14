@@ -4424,13 +4424,11 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
-    SKIP_IF(eng.kind() == impl::engine_kind::gpu,
-            "Skip for GPU - not supported yet.");
-
     // prepare ops
     impl::op_t dequantize(0, impl::op_kind::Dequantize, "dq");
     dequantize.set_attr<std::vector<float>>("scales", {0.1f});
-    dequantize.set_attr<std::vector<int64_t>>("zps", {10});
+    int64_t zps = eng.kind() == impl::engine_kind::gpu ? 0 : 10;
+    dequantize.set_attr<std::vector<int64_t>>("zps", {zps});
     dequantize.set_attr<std::string>("qtype", "per_tensor");
     dequantize.set_attr<int64_t>("axis", 0);
 
@@ -8968,14 +8966,11 @@ TEST(Execute, MaxPoolBackwardWithIncides) {
     test::vector<float> diff_dst {4.0, 16.0, 8.0, 12.0};
 
     void *indices_data = nullptr;
-    test::vector<int32_t> s32_indices;
+    test::vector<int32_t> s32_indices {2, 0, 1, 3};
     test::vector<uint8_t> u8_indices {2, 0, 1, 3};
     if (get_test_engine_kind() == impl::engine_kind::cpu) {
-        u8_indices = test::vector<uint8_t> {2, 0, 1, 3};
         indices_data = u8_indices.data();
-
     } else {
-        s32_indices = test::vector<int32_t> {2, 0, 1, 3};
         indices_data = s32_indices.data();
     }
 
@@ -9925,19 +9920,21 @@ TEST(Execute, Sum) {
 
 TEST(Execute, QuantizePerTensor) {
     impl::engine_t &engine = get_engine();
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     impl::op_t quantize(impl::op_kind::Quantize);
     quantize.set_attr<std::vector<float>>("scales", {0.1f});
-    quantize.set_attr<std::vector<int64_t>>("zps", {10});
+    int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
+    quantize.set_attr<std::vector<int64_t>>("zps", {zps});
     quantize.set_attr<std::string>("qtype", "per_tensor");
     quantize.set_attr<int64_t>("axis", 0);
 
-    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<float> src {1.0, 0.0, 1.0, 2.0};
     test::vector<uint8_t> dst(src.size(), 0);
 
     // int8 = f32 / scales + zero_points
-    test::vector<uint8_t> ref_dst {0, 10, 20, 30};
+    test::vector<uint8_t> ref_dst = engine.kind() == impl::engine_kind::gpu
+            ? test::vector<uint8_t> {10, 0, 10, 20}
+            : test::vector<uint8_t> {20, 10, 20, 30};
 
     // prepare input/output logical tensor
     impl::logical_tensor_t src_lt
@@ -9982,19 +9979,21 @@ TEST(Execute, QuantizePerTensor) {
 
 TEST(Execute, QuantizePerTensorAnyLayout) {
     impl::engine_t &engine = get_engine();
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     impl::op_t quantize(impl::op_kind::Quantize);
     quantize.set_attr<std::vector<float>>("scales", {0.1f});
-    quantize.set_attr<std::vector<int64_t>>("zps", {10});
+    int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
+    quantize.set_attr<std::vector<int64_t>>("zps", {zps});
     quantize.set_attr<std::string>("qtype", "per_tensor");
     quantize.set_attr<int64_t>("axis", 0);
 
-    test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
+    test::vector<float> src {1.0, 0.0, 1.0, 2.0};
     test::vector<uint8_t> dst(src.size(), 0);
 
     // int8 = f32 / scales + zero_points
-    test::vector<uint8_t> ref_dst {0, 10, 20, 30};
+    test::vector<uint8_t> ref_dst = engine.kind() == impl::engine_kind::gpu
+            ? test::vector<uint8_t> {10, 0, 10, 20}
+            : test::vector<uint8_t> {20, 10, 20, 30};
 
     // prepare input/output logical tensor
     impl::logical_tensor_t src_lt
@@ -10039,7 +10038,6 @@ TEST(Execute, QuantizePerTensorAnyLayout) {
 
 TEST(Execute, QuantizePerChannelSymmetric) {
     impl::engine_t &engine = get_engine();
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     impl::op_t quantize(impl::op_kind::Quantize);
     quantize.set_attr<std::vector<float>>("scales", {0.1f, 0.2f});
@@ -10097,7 +10095,6 @@ TEST(Execute, QuantizePerChannelSymmetric) {
 TEST(Execute, TypecastQuantize) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     std::vector<int64_t> src_shape = {1, 8, 16};
     test::vector<float> src_data(product(src_shape));
@@ -10108,7 +10105,8 @@ TEST(Execute, TypecastQuantize) {
     impl::op_t typecast(0, impl::op_kind::TypeCast, "typecast");
     impl::op_t quantize(1, impl::op_kind::Quantize, "quantize");
     quantize.set_attr<std::vector<float>>("scales", {0.1f});
-    quantize.set_attr<std::vector<int64_t>>("zps", {10});
+    int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
+    quantize.set_attr<std::vector<int64_t>>("zps", {zps});
     quantize.set_attr<std::string>("qtype", "per_tensor");
     quantize.set_attr<int64_t>("axis", 0);
 
@@ -10155,11 +10153,11 @@ TEST(Execute, TypecastQuantize) {
 
 TEST(Execute, DequantizePerTensor) {
     impl::engine_t &engine = get_engine();
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     impl::op_t dequantize(impl::op_kind::Dequantize);
     dequantize.set_attr<std::vector<float>>("scales", {0.1f});
-    dequantize.set_attr<std::vector<int64_t>>("zps", {10});
+    int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
+    dequantize.set_attr<std::vector<int64_t>>("zps", {zps});
     dequantize.set_attr<std::string>("qtype", "per_tensor");
     dequantize.set_attr<int64_t>("axis", 0);
 
@@ -10167,7 +10165,9 @@ TEST(Execute, DequantizePerTensor) {
     test::vector<float> dst(src.size(), 0);
 
     // f32 = scales * (int8 - zero_points)
-    test::vector<float> ref_dst {-1.0, 0.0, 1.0, 2.0};
+    test::vector<float> ref_dst = engine.kind() == impl::engine_kind::gpu
+            ? test::vector<float> {0.0, 1.0, 2.0, 3.0}
+            : test::vector<float> {-1.0, 0.0, 1.0, 2.0};
 
     // prepare input/output logical tensor
     impl::logical_tensor_t src_lt
@@ -10212,11 +10212,11 @@ TEST(Execute, DequantizePerTensor) {
 
 TEST(Execute, DequantizePerTensorAnyLayout) {
     impl::engine_t &engine = get_engine();
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     impl::op_t dequantize(impl::op_kind::Dequantize);
     dequantize.set_attr<std::vector<float>>("scales", {0.1f});
-    dequantize.set_attr<std::vector<int64_t>>("zps", {10});
+    int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
+    dequantize.set_attr<std::vector<int64_t>>("zps", {zps});
     dequantize.set_attr<std::string>("qtype", "per_tensor");
     dequantize.set_attr<int64_t>("axis", 0);
 
@@ -10224,7 +10224,9 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
     test::vector<float> dst(src.size(), 0);
 
     // f32 = scales * (int8 - zero_points)
-    test::vector<float> ref_dst {-1.0, 0.0, 1.0, 2.0};
+    test::vector<float> ref_dst = engine.kind() == impl::engine_kind::gpu
+            ? test::vector<float> {0.0, 1.0, 2.0, 3.0}
+            : test::vector<float> {-1.0, 0.0, 1.0, 2.0};
 
     // prepare input/output logical tensor
     impl::logical_tensor_t src_lt
@@ -10269,7 +10271,6 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
 
 TEST(Execute, DequantizePerChannelSymmetric) {
     impl::engine_t &engine = get_engine();
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     impl::op_t dequantize(impl::op_kind::Dequantize);
     dequantize.set_attr<std::vector<float>>("scales", {0.1f, 0.2f});
@@ -10875,7 +10876,6 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &nd : nds)
@@ -10883,7 +10883,10 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
             continue;
 
         // prepare data
@@ -10931,7 +10934,11 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = src_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
@@ -11052,7 +11059,6 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &nd : nds)
@@ -11060,7 +11066,10 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
             continue;
 
         // prepare data
@@ -11105,13 +11114,25 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
                     [&]() { return f32_distribution(generator); });
         }
 
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_out = 1;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support int deconv with oscales: "./tests/benchdnn/benchdnn --deconv
+        // --engine=gpu --mode=c --api=P --dir=FWD_B --cfg=u8s8s8 --stag=acdb
+        // --wtag=ABcd2b8a4b --dtag=acdb --attr-oscale=common:0.000031
+        // mb1_ic8oc8_ih12oh14kh3sh1dh0ph0_iw12ow14kw3sw1dw0pw0"
+        float scale_src = engine.kind() == impl::engine_kind::gpu
+                ? 1.f
+                : 1 / 255.f; // map to 0~255
+        float scale_out = 1.f;
         int64_t zp_src = src_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : (out_channel / g);
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<float> scale_wei(scale_size,
+                engine.kind() == impl::engine_kind::gpu ? 1.f : 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
         impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
@@ -11225,6 +11246,9 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
+    // some cases with Exp post-ops can't pass correctness check on GPU
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {impl::op_kind::Abs,
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
             impl::op_kind::HardTanh, impl::op_kind::HardSwish,
@@ -11237,7 +11261,6 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &eltwise_kind : eltwise_kinds)
@@ -11246,7 +11269,10 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
             continue;
 
         // prepare data
@@ -11291,13 +11317,25 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
                     [&]() { return f32_distribution(generator); });
         }
 
-        float scale_src = 1 / 255.f; // map to 0~255
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support int deconv with oscales: "./tests/benchdnn/benchdnn --deconv
+        // --engine=gpu --mode=c --api=P --dir=FWD_B --cfg=u8s8s8 --stag=acdb
+        // --wtag=ABcd2b8a4b --dtag=acdb --attr-oscale=common:0.000031
+        // mb1_ic8oc8_ih12oh14kh3sh1dh0ph0_iw12ow14kw3sw1dw0pw0"
+        float scale_src = engine.kind() == impl::engine_kind::gpu
+                ? 1.f
+                : 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = src_qtype == "symmetric" ? 0 : -4;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : (out_channel / g);
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<float> scale_wei(scale_size,
+                engine.kind() == impl::engine_kind::gpu ? 1.f : 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
         impl::op_t dqdata_node(0, impl::op_kind::Dequantize, "dqdata_node");
@@ -11426,6 +11464,9 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
+    // some cases with Exp post-ops can't pass correctness check on GPU
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {impl::op_kind::Abs,
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
             impl::op_kind::HardTanh, impl::op_kind::HardSwish,
@@ -11438,7 +11479,6 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &eltwise_kind : eltwise_kinds)
@@ -11447,7 +11487,10 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
             continue;
 
         // prepare data
@@ -11492,11 +11535,14 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
                     [&]() { return f32_distribution(generator); });
         }
 
-        float scale_src = 1 / 255.f; // map to 0~255
+        float scale_src = engine.kind() == impl::engine_kind::gpu
+                ? 1.f
+                : 1 / 255.f; // map to 0~255
         int64_t zp_src = src_qtype == "symmetric" ? 0 : -4;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : (out_channel / g);
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<float> scale_wei(scale_size,
+                engine.kind() == impl::engine_kind::gpu ? 1.f : 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
         impl::op_t dqdata_node(0, impl::op_kind::Dequantize, "dqdata_node");
@@ -11622,12 +11668,14 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
             continue;
 
         // prepare data
@@ -11657,11 +11705,14 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
             return static_cast<int8_t>(s8_distribution(generator));
         });
 
-        float scale_src = 1 / 255.f; // map to 0~255
+        float scale_src = engine.kind() == impl::engine_kind::gpu
+                ? 1.f
+                : 1 / 255.f; // map to 0~255
         int64_t zp_src = src_qtype == "symmetric" ? 0 : -4;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<float> scale_wei(scale_size,
+                engine.kind() == impl::engine_kind::gpu ? 1.f : 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
         impl::op_t dqdata_node(0, impl::op_kind::Dequantize, "dqdata_node");
@@ -11775,7 +11826,6 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
     std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &nd : nds)
@@ -11786,7 +11836,10 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
     for_(const auto &src_qtype : src_qtypes)
     for_(const auto &other_qtype : other_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
             continue;
 
         // prepare data
@@ -11837,15 +11890,33 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
                     [&]() { return f32_distribution(generator); });
         }
 
-        float scale_src = 1 / 255.f; // map to 0~255
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support int deconv with oscales: "./tests/benchdnn/benchdnn --deconv
+        // --engine=gpu --mode=c --api=P --dir=FWD_B --cfg=u8s8s8 --stag=acdb
+        // --wtag=ABcd2b8a4b --dtag=acdb --attr-oscale=common:0.000031
+        // mb1_ic8oc8_ih12oh14kh3sh1dh0ph0_iw12ow14kw3sw1dw0pw0"
+        float scale_src = engine.kind() == impl::engine_kind::gpu
+                ? 1.f
+                : 1 / 255.f; // map to 0~255
         float scale_other = 1 / 127.f;
         float scale_out = 1;
-        int64_t zp_src = src_qtype == "symmetric" ? 0 : -4;
-        int64_t zp_other = other_qtype == "symmetric" ? 0 : -4;
-        int64_t zp_out = 78;
+        int64_t zp_src = src_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : -4;
+        int64_t zp_other = other_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : -4;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : (out_channel / g);
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<float> scale_wei(scale_size,
+                engine.kind() == impl::engine_kind::gpu ? 1.f : 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
         impl::op_t dqdata_node(0, impl::op_kind::Dequantize, "dqdata_node");
@@ -11995,7 +12066,10 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
     std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
+    // the two deconvs has different optimal layout on GPU, so can't construct a
+    // inplaced pattern
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &nd : nds)
@@ -12003,7 +12077,10 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
     for_(const auto &src_qtype : src_qtypes)
     for_(const auto &other_qtype : other_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
             continue;
 
         // prepare data
@@ -12047,15 +12124,28 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
             return static_cast<int8_t>(s8_distribution(generator));
         });
 
-        float scale_src = 1 / 255.f; // map to 0~255
+        float scale_src = engine.kind() == impl::engine_kind::gpu
+                ? 1.f
+                : 1 / 255.f; // map to 0~255
         float scale_other = 1 / 127.f;
         float scale_out = 1;
-        int64_t zp_src = src_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_out = 78;
+        int64_t zp_src = src_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : 128;
+        int64_t zp_other = other_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : 128;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : (out_channel / g);
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
+        std::vector<float> scale_wei(scale_size,
+                engine.kind() == impl::engine_kind::gpu ? 1.f : 1 / 127.f);
         std::vector<int64_t> zp_wei(scale_size, 0);
 
         impl::op_t dqdata_node(0, impl::op_kind::Dequantize, "dqdata_node");
@@ -12221,7 +12311,6 @@ TEST(ExecuteSubgraphInt8, Conv2dRelu) {
     std::vector<bool> with_biases = {true, false};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     for_(const auto &g : groups)
@@ -12262,7 +12351,11 @@ TEST(ExecuteSubgraphInt8, Conv2dRelu) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
         std::vector<float> scale_wei(scale_size, 1 / 127.f);
@@ -12385,7 +12478,6 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     std::vector<int64_t> groups = {1, 4};
@@ -12440,8 +12532,16 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         float scale_other = 1 / 127.f;
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_out = 78;
+        // post-sum didn't support zps on GPU
+        int64_t zp_other = other_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : 128;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
@@ -12600,7 +12700,6 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
 
     std::vector<int64_t> groups = {1, 4};
@@ -12651,7 +12750,11 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_other = 0;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
@@ -12817,7 +12920,6 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
                     && engine.kind() == impl::engine_kind::cpu,
@@ -12828,7 +12930,10 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (isa < dnnl_cpu_isa_avx512_core_vnni && src_qtype == "asymmetric")
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
             continue;
 
         // prepare fp32 data
@@ -12985,9 +13090,9 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
     std::vector<bool> with_biases = {true, false};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni,
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
+                    && engine.kind() == impl::engine_kind::cpu,
             "Skip the test for systems that do not support "
             "avx512_core_vnni.");
 
@@ -13143,9 +13248,9 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni,
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
+                    && engine.kind() == impl::engine_kind::cpu,
             "Skip the test for systems that do not support "
             "avx512_core_vnni.");
 
@@ -13345,9 +13450,9 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     static auto isa = dnnl_get_effective_cpu_isa();
-    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni,
+    SKIP_IF(isa < dnnl_cpu_isa_avx512_core_vnni
+                    && engine.kind() == impl::engine_kind::cpu,
             "Skip the test for systems that do not support "
             "avx512_core_vnni.");
 
@@ -13552,8 +13657,6 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
@@ -13589,7 +13692,11 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -13706,8 +13813,6 @@ TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::vector<int64_t>> src_shapes {{3, 8, 4}, {8, 4}};
     std::vector<std::vector<int64_t>> weight_shapes {{4, 1}, {4}};
     std::vector<std::vector<int64_t>> dst_shapes {
@@ -13740,7 +13845,11 @@ TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
             float scale_out = 1;
             int64_t zp_src = 0;
             int64_t zp_wei = 0;
-            int64_t zp_out = 78;
+            // The following cmd will be skiped by benchdnn, since oneDNN didn't
+            // support reorder with zps on GPU: "./tests/benchdnn/benchdnn
+            // --reorder --engine=gpu --mode=C --sdt=f32 --ddt=s8
+            // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+            int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
             impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
             dqdata_op.set_attr<std::string>("qtype", "per_tensor");
@@ -13853,8 +13962,6 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
     std::vector<std::vector<int64_t>> weight_shapes {{2, 4}};
@@ -13892,7 +13999,11 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
             float scale_out = 1;
             int64_t zp_src = 0;
             int64_t zp_wei = 0;
-            int64_t zp_out = 78;
+            // The following cmd will be skiped by benchdnn, since oneDNN didn't
+            // support reorder with zps on GPU: "./tests/benchdnn/benchdnn
+            // --reorder --engine=gpu --mode=C --sdt=f32 --ddt=s8
+            // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+            int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
             // -------------------------case 1----------------------------------
             impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
@@ -14011,8 +14122,6 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     // prepare fp32 data
     std::vector<int64_t> src_shape {8, 6};
     std::vector<int64_t> weight_shape {6, 4};
@@ -14034,7 +14143,11 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
     float scale_out = 1;
     int64_t zp_src = 0;
     int64_t zp_wei = 0;
-    int64_t zp_out = 78;
+    // The following cmd will be skiped by benchdnn, since oneDNN didn't
+    // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+    // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+    // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+    int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
     // -------------------------case 1----------------------------------
     impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
@@ -14614,8 +14727,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -14659,8 +14770,16 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
         float scale_other = 1 / 127.f;
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_out = 78;
+        // post-sum and reorder didn't support zps on gpu
+        int64_t zp_other = other_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : 128;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -14801,8 +14920,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2dX8s8f32) {
     // case 2: [quantize] - [int8_matmul]
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
-
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -14971,8 +15088,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
@@ -15109,8 +15224,6 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
@@ -15236,8 +15349,6 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
 TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
-
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -15384,8 +15495,6 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
 
     impl::engine_t &engine = get_engine();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<int64_t> groups = {1, 4};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
     std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
@@ -15404,8 +15513,16 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         float scale_other = 1 / 127.f;
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_out = 78;
+        // post-sum didn't support zps on GPU
+        int64_t zp_other = other_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : 128;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
@@ -15854,8 +15971,6 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::string> data_formats {"NCX", "NXC"};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 4, 4, 4}, {3, 3, 4, 4}, {3, 3, 4}};
@@ -15982,8 +16097,6 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
     using dims = impl::dnnl_impl::dims;
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
-
-    if (engine.kind() == impl::engine_kind::gpu) return;
 
     std::vector<std::string> data_formats {"NCX", "NXC"};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -16355,8 +16468,6 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<int64_t> groups = {1, 4};
     std::vector<bool> with_biases = {true, false};
     std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
@@ -16405,7 +16516,11 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_other = 0;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
 
@@ -16581,8 +16696,6 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::string> weight_qtypes = {"symmetric", "asymmetric"};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -16624,13 +16737,19 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_other = 1 / 127.f;
         float scale_out = 1;
-        int64_t zp_src = 90; // src is asymmetric
+        // reorder with zps is not supported on GPU
+        int64_t zp_src = engine.kind() == impl::engine_kind::gpu ? 0 : 90;
         int64_t zp_other = 0;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         auto generate_zps = [&]() {
             // backend integration doesn't support per_channel asym quant now.
-            if (qtype == "per_channel" || wei_qtype == "symmetric")
+            if (qtype == "per_channel" || wei_qtype == "symmetric"
+                    || engine.kind() == impl::engine_kind::gpu)
                 return 0;
             else {
                 return 78;
@@ -16800,8 +16919,6 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::vector<int64_t>> src_shapes {
             {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
@@ -16842,7 +16959,11 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -16979,8 +17100,6 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<bool> with_bias_types {true, false};
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -17017,7 +17136,11 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = 0;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -17165,8 +17288,6 @@ TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::vector<int64_t>> src_shapes {{8, 4}};
     std::vector<std::vector<int64_t>> weight_shapes {{8, 2, 4}};
     std::vector<std::vector<int64_t>> dst_shapes {{8, 8, 2}};
@@ -17200,7 +17321,11 @@ TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
         float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_wei = 0;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");
         qdata_op.set_attr<std::string>("qtype", "per_tensor");
@@ -17307,8 +17432,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
             "skip on machine without AVX");
     impl::engine_t &engine = get_engine();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     std::vector<std::string> qtypes {"per_tensor", "per_channel"};
     std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
     std::vector<std::vector<int64_t>> src_shapes {
@@ -17331,7 +17454,11 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
         float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
-        int64_t zp_out = 78;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
@@ -17701,7 +17828,9 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
+    // u8 to s8 shift by using a reroder with 128 zps is not supported on gpu
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     std::string qtype = "per_tensor";
     // prepare fp32 data
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
@@ -17812,7 +17941,9 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
+    // u8 to s8 shift by using a reroder with 128 zps is not supported on gpu
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     std::string qtype = "per_tensor";
     // prepare fp32 data
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
@@ -17926,7 +18057,9 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
+    // u8 to s8 shift by using a reroder with 128 zps is not supported on gpu
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     std::string qtype = "per_tensor";
     // prepare fp32 data
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
@@ -18057,7 +18190,6 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::vector<std::string> dtypes = {"uint8", "int8"};
 
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
@@ -18076,6 +18208,13 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
                     : impl::data_type::s8;
             float src_range = (src_dtype == "uint8") ? 255.f : 127.f;
             float weight_range = (weight_dtype == "uint8") ? 255.f : 127.f;
+
+            // u8 2 s8 shift by using reorder with -128 zps is not supported on
+            // GPU
+            if (weight_dtype == "uint8"
+                    && engine.kind() == impl::engine_kind::gpu)
+                continue;
+
             // random generate src, weight data
             // random seed = 7
             std::default_random_engine generator(7);
@@ -18184,7 +18323,6 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::vector<std::string> dtypes = {"uint8", "int8"};
 
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
@@ -18203,6 +18341,13 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
                     : impl::data_type::s8;
             float src_range = (src_dtype == "uint8") ? 255.f : 127.f;
             float weight_range = (weight_dtype == "uint8") ? 255.f : 127.f;
+
+            // u8 2 s8 shift by using reorder with -128 zps is not supported on
+            // GPU
+            if (weight_dtype == "uint8"
+                    && engine.kind() == impl::engine_kind::gpu)
+                continue;
+
             // random generate src, weight data
             // random seed = 7
             std::default_random_engine generator(7);
@@ -18325,7 +18470,6 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::vector<std::string> dtypes = {"uint8", "int8"};
 
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
@@ -18346,6 +18490,13 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
                     : impl::data_type::s8;
             float src_range = (src_dtype == "uint8") ? 255.f : 127.f;
             float weight_range = (weight_dtype == "uint8") ? 255.f : 127.f;
+
+            // u8 2 s8 shift by using reorder with -128 zps is not supported on
+            // GPU
+            if (weight_dtype == "uint8"
+                    && engine.kind() == impl::engine_kind::gpu)
+                continue;
+
             // random generate src, weight data
             // random seed = 7
             std::default_random_engine generator(7);
@@ -18468,8 +18619,6 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core
                     && engine.kind() == impl::engine_kind::cpu,
@@ -18495,6 +18644,13 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
                     : impl::data_type::s8;
             float src_range = (src_dtype == "uint8") ? 255.f : 127.f;
             float weight_range = (weight_dtype == "uint8") ? 255.f : 127.f;
+
+            // u8 2 s8 shift by using reorder with -128 zps is not supported on
+            // GPU
+            if (weight_dtype == "uint8"
+                    && engine.kind() == impl::engine_kind::gpu)
+                continue;
+
             // random generate src, weight data
             // random seed = 7
             std::default_random_engine generator(7);
@@ -18585,7 +18741,7 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
             binary_add_op.add_input(add_src1);
             binary_add_op.add_output(add_bf16);
 
-            impl::graph_t g;
+            impl::graph_t g(engine.kind());
             g.add_op(&dqdata_op);
             g.add_op(&dqweight_op);
             g.add_op(&matmul_op);
@@ -18632,7 +18788,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -18754,7 +18909,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -18912,7 +19066,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddBF16U8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -19051,7 +19204,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -19193,7 +19345,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -19587,7 +19738,7 @@ TEST(Execute, Int8Bf16Mha) {
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (eng.kind() == impl::engine_kind::gpu) return;
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu, "skip on gpu");
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core
@@ -20242,8 +20393,6 @@ TEST(ExecuteSubgraphInt8, Relu) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
-
     // prepare fp32 data
     std::vector<int64_t> shape {1, 3, 3};
 
@@ -20302,7 +20451,7 @@ TEST(ExecuteSubgraphInt8, Relu) {
     qout_op.add_input(dst_f32);
     qout_op.add_output(dst_u8);
 
-    impl::graph_t g;
+    impl::graph_t g(engine.kind());
     g.add_op(&dqdata_op);
     g.add_op(&relu_op);
     g.add_op(&qout_op);
