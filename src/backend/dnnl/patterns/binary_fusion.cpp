@@ -63,9 +63,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reciprocal_multiply_fusion)
 
 // TODO(zitian): wait for the implementation of comparison ops:
 //      Gt, Ge, Le, Lt, Eq, Ne
-// TODO(zitian): Sigmoid+Multiply as Swish
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_post_ops_fusion)
-        .set_priority(8.1f)
+        .set_priority(8.3f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto binary_op = pgraph->append_alternation(
@@ -75,6 +74,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_post_ops_fusion)
                                     impl::op_kind::Multiply,
                                     impl::op_kind::Subtract},
                             "binary_op");
+
+                    // special post op handle: swish is composed
+                    // by sigmoid and multiply
+                    auto swish_graph
+                            = std::make_shared<pb_graph_t>("swish_graph");
+                    auto psigmoid = swish_graph->append_op(
+                            impl::op_kind::Sigmoid, "psigmoid");
+                    auto pmultiply
+                            = swish_graph->append_op(impl::op_kind::Multiply,
+                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
+                    swish_graph->create_input_port(0, psigmoid, 0);
+                    swish_graph->create_input_port(0, pmultiply, 1);
+                    swish_graph->create_output_port(0, pmultiply, 0);
+
                     auto optional_post_subgraph = std::make_shared<pb_graph_t>(
                             "optional_post_subgraph");
                     auto alternative_post_op
@@ -104,8 +117,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_post_ops_fusion)
                             0, alternative_post_op, 0);
                     optional_post_subgraph->create_output_port(
                             0, alternative_post_op, 0);
-                    pgraph->append_optional(optional_post_subgraph,
-                            {in_edge(0, binary_op, 0)}, "optional_post_op");
+
+                    pgraph->append_alternation(
+                            {swish_graph, optional_post_subgraph},
+                            {in_edge(0, binary_op, 0)}, "palt");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

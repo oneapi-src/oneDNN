@@ -80,7 +80,6 @@ bool dnnl_backend::register_kernels() {
 
     // conv related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::Convolution, float_conv_fwd)
-    DNNL_REGISTER_KERNEL(op_kind::conv_bias_swish, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::dnnl_conv_depthwise, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::conv_simple_resblock, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::conv_bias_post_ops_fusion, float_conv_fwd)
@@ -144,7 +143,6 @@ bool dnnl_backend::register_kernels() {
 
     // matmul related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::MatMul, float_matmul)
-    DNNL_REGISTER_KERNEL(op_kind::matmul_bias_swish, float_matmul)
     DNNL_REGISTER_KERNEL(op_kind::matmul_post_ops_chain_fusion, float_matmul)
     DNNL_REGISTER_KERNEL(
             op_kind::matmul_bias_post_ops_chain_fusion, float_matmul)

@@ -81,6 +81,7 @@ public:
         // non-broadcast add. So we have to know concret shape before fuse
         // post-ops
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);

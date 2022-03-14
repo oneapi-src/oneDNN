@@ -421,6 +421,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
                     padd_graph->create_input_port(1, pdequant_add, 1);
                     padd_graph->create_output_port(0, padd, 0);
 
+                    // special post op handle: swish is composed
+                    // by sigmoid and multiply
+                    auto swish_graph
+                            = std::make_shared<pb_graph_t>("swish_graph");
+                    auto psigmoid = swish_graph->append_op(
+                            impl::op_kind::Sigmoid, "psigmoid");
+                    auto pmultiply
+                            = swish_graph->append_op(impl::op_kind::Multiply,
+                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
+                    swish_graph->create_input_port(0, psigmoid, 0);
+                    swish_graph->create_input_port(0, pmultiply, 1);
+                    swish_graph->create_output_port(0, pmultiply, 0);
+
                     auto peltwise_graph
                             = std::make_shared<pb_graph_t>("peltwise_graph");
                     pm::pb_op *pop = peltwise_graph->append_alternation(
@@ -440,7 +453,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
                     auto prep_graph
                             = std::make_shared<pb_graph_t>("prep_graph");
                     auto palt = prep_graph->append_alternation(
-                            {padd_graph, peltwise_graph}, "palternation");
+                            {padd_graph, swish_graph, peltwise_graph},
+                            "palternation");
                     prep_graph->create_input_port(0, palt, 0);
                     prep_graph->create_input_port(1, palt, 1);
                     prep_graph->create_output_port(0, palt, 0);
@@ -464,48 +478,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::int8_conv_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_swish_fusion)
-        .set_priority(9.8f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *conv
-                            = pgraph->append_op(impl::op_kind::Convolution);
-                    conv->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, conv, 0)});
-
-                    pm::pb_op *sigmoid
-                            = pgraph->append_op(impl::op_kind::Sigmoid,
-                                    in_edges_t {in_edge(0, bias, 0)});
-
-                    pgraph->append_op(impl::op_kind::Multiply,
-                            in_edges_t {in_edge(0, bias, 0),
-                                    in_edge(1, sigmoid, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *conv = pgraph->append_op(
-                            impl::op_kind::Convolution, "p-conv");
-                    conv->append_decision_function(check_input_num<3>);
-
-                    pm::pb_op *sigmoid
-                            = pgraph->append_op(impl::op_kind::Sigmoid,
-                                    in_edges_t {in_edge(0, conv, 0)}, "p-sig");
-
-                    pgraph->append_op(impl::op_kind::Multiply,
-                            in_edges_t {in_edge(0, conv, 0),
-                                    in_edge(1, sigmoid, 0)},
-                            "p-mul");
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::conv_bias_swish);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
@@ -1021,8 +993,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_post_ops_fusion)
                     auto popt = pgraph->append_optional(
                             popt_graph, {in_edge(0, pconv, 0)}, "popt");
 
-                    // TODO(Yixin): special post op handle: swish is composed
+                    // special post op handle: swish is composed
                     // by sigmoid and multiply
+                    auto swish_graph
+                            = std::make_shared<pb_graph_t>("swish_graph");
+                    auto psigmoid = swish_graph->append_op(
+                            impl::op_kind::Sigmoid, "psigmoid");
+                    auto pmultiply
+                            = swish_graph->append_op(impl::op_kind::Multiply,
+                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
+                    swish_graph->create_input_port(0, psigmoid, 0);
+                    swish_graph->create_input_port(0, pmultiply, 1);
+                    swish_graph->create_output_port(0, pmultiply, 0);
+
                     auto other_postop_graph = std::make_shared<pb_graph_t>(
                             "pother_postop_graph");
                     pm::pb_op *pop = other_postop_graph->append_alternation(
@@ -1044,7 +1027,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_post_ops_fusion)
                     other_postop_graph->create_input_port(1, pop, 1);
                     other_postop_graph->create_output_port(0, pop, 0);
 
-                    pgraph->append_repetition(other_postop_graph, {0, 0}, 0,
+                    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+                    auto palt = alt_graph->append_alternation(
+                            {swish_graph, other_postop_graph}, "palt");
+                    alt_graph->create_input_port(0, palt, 0);
+                    alt_graph->create_output_port(0, palt, 0);
+
+                    pgraph->append_repetition(alt_graph, {0, 0}, 0,
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
                 })
@@ -1071,12 +1060,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
         .set_priority(9.8f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *conv
-                            = pgraph->append_op(impl::op_kind::Convolution);
+                    pm::pb_op *conv = pgraph->append_op(
+                            impl::op_kind::Convolution, "conv");
                     conv->append_decision_function(check_input_num<2>);
                     pm::pb_op *biasadd
                             = pgraph->append_op(impl::op_kind::BiasAdd,
-                                    in_edges_t {in_edge(0, conv, 0)});
+                                    in_edges_t {in_edge(0, conv, 0)}, "bias");
 
                     // Optional BN
                     auto popt_graph
@@ -1088,8 +1077,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                     auto popt = pgraph->append_optional(
                             popt_graph, {in_edge(0, biasadd, 0)}, "popt");
 
-                    // TODO(Yixin): special post op handle: swish is composed
+                    // special post op handle: swish is composed
                     // by sigmoid and multiply
+                    auto swish_graph
+                            = std::make_shared<pb_graph_t>("swish_graph");
+                    auto psigmoid = swish_graph->append_op(
+                            impl::op_kind::Sigmoid, "psigmoid");
+                    auto pmultiply
+                            = swish_graph->append_op(impl::op_kind::Multiply,
+                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
+                    swish_graph->create_input_port(0, psigmoid, 0);
+                    swish_graph->create_input_port(0, pmultiply, 1);
+                    swish_graph->create_output_port(0, pmultiply, 0);
+
                     auto other_postop_graph = std::make_shared<pb_graph_t>(
                             "pother_postop_graph");
                     pm::pb_op *pop = other_postop_graph->append_alternation(
@@ -1111,14 +1111,20 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                     other_postop_graph->create_input_port(1, pop, 1);
                     other_postop_graph->create_output_port(0, pop, 0);
 
-                    pgraph->append_repetition(other_postop_graph, {0, 0}, 0,
+                    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+                    auto palt = alt_graph->append_alternation(
+                            {swish_graph, other_postop_graph}, "palt");
+                    alt_graph->create_input_port(0, palt, 0);
+                    alt_graph->create_output_port(0, palt, 0);
+
+                    pgraph->append_repetition(alt_graph, {0, 0}, 0,
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
                 })
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *conv
-                            = pgraph->append_op(impl::op_kind::Convolution);
+                    pm::pb_op *conv = pgraph->append_op(
+                            impl::op_kind::Convolution, "conv");
                     conv->append_decision_function(check_input_num<3>);
 
                     // Optional BN
@@ -1131,8 +1137,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                     auto popt = pgraph->append_optional(
                             popt_graph, {in_edge(0, conv, 0)}, "popt");
 
-                    // TODO(Yixin): special post op handle: swish is composed
+                    // special post op handle: swish is composed
                     // by sigmoid and multiply
+                    auto swish_graph
+                            = std::make_shared<pb_graph_t>("swish_graph");
+                    auto psigmoid = swish_graph->append_op(
+                            impl::op_kind::Sigmoid, "psigmoid");
+                    auto pmultiply
+                            = swish_graph->append_op(impl::op_kind::Multiply,
+                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
+                    swish_graph->create_input_port(0, psigmoid, 0);
+                    swish_graph->create_input_port(0, pmultiply, 1);
+                    swish_graph->create_output_port(0, pmultiply, 0);
+
                     auto other_postop_graph = std::make_shared<pb_graph_t>(
                             "pother_postop_graph");
                     pm::pb_op *pop = other_postop_graph->append_alternation(
@@ -1154,7 +1171,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                     other_postop_graph->create_input_port(1, pop, 1);
                     other_postop_graph->create_output_port(0, pop, 0);
 
-                    pgraph->append_repetition(other_postop_graph, {0, 0}, 0,
+                    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+                    auto palt = alt_graph->append_alternation(
+                            {swish_graph, other_postop_graph}, "palt");
+                    alt_graph->create_input_port(0, palt, 0);
+                    alt_graph->create_output_port(0, palt, 0);
+
+                    pgraph->append_repetition(alt_graph, {0, 0}, 0,
                             MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
                             "prepetition");
                 })

@@ -39,11 +39,9 @@ namespace op_kind {
     X(bn_bwd_relu_bwd, BatchNormBwd_reluBwd) \
     X(bn_fwd_train_relu, BatchNormFwdTrain_relu) \
     X(binary_post_ops_fusion, Binary_post_ops_fusion) \
-    X(conv_bias_swish, Conv_bias_swish) \
     X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
     X(conv_bias_post_ops_fusion, conv_bias_post_ops_fusion) \
     X(convtranspose_fusion, ConvTranspose_fusion) \
-    X(matmul_bias_swish, MatMul_bias_swish) \
     X(pool_binary, Pool_binary) \
     X(int8_conv_post_ops_fusion, INT8_conv_post_ops_chain) \
     X(int8_matmul_post_ops_fusion, INT8_matmul_post_ops_fusion) \

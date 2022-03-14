@@ -94,7 +94,7 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
         BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
 
