@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -83,7 +83,6 @@ struct cudnn_pooling_fwd_t : public primitive_t {
             auto src_dt = src_md()->data_type;
 
             bool ok = true && is_fwd();
-            ok = ok && set_default_params() == status::success;
             ok = ok
                     && utils::one_of(desc()->prop_kind, forward_training,
                             forward_inference);
@@ -92,6 +91,7 @@ struct cudnn_pooling_fwd_t : public primitive_t {
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding);
             ok = ok && utils::one_of(src_dt, s8, f16, f32);
+            ok = ok && src_dt == dst_md()->data_type;
             ok = ok
                     && IMPLICATION(utils::one_of(src_dt, f16),
                             desc()->prop_kind == forward_inference);
@@ -99,6 +99,7 @@ struct cudnn_pooling_fwd_t : public primitive_t {
                     && IMPLICATION(
                             src_dt == s8, desc()->accum_data_type == s32);
             ok = ok && attr()->has_default_values();
+            ok = ok && set_default_params() == status::success;
             ok = ok && blocking_ok();
             if (!ok) return status::unimplemented;
 
