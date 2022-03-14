@@ -37,122 +37,6 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  */
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(convtranspose_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_bias_fusion)
-        .set_priority(9.7f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *convtranspose
-                            = pgraph->append_op(impl::op_kind::ConvTranspose);
-                    convtranspose->append_decision_function(check_input_num<2>);
-                    pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, convtranspose, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *convtranspose
-                            = pgraph->append_op(impl::op_kind::ConvTranspose);
-                    convtranspose->append_decision_function(check_input_num<3>);
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::convtranspose_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_add_fusion)
-        .set_priority(10.0f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *convtranspose
-                            = pgraph->append_op(impl::op_kind::ConvTranspose);
-                    convtranspose->append_decision_function(check_input_num<2>);
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, convtranspose, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::convtranspose_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_bias_add_fusion)
-        .set_priority(10.1f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *convtranspose
-                            = pgraph->append_op(impl::op_kind::ConvTranspose);
-                    convtranspose->append_decision_function(check_input_num<2>);
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, convtranspose, 0)});
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, bias, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *convtranspose
-                            = pgraph->append_op(impl::op_kind::ConvTranspose);
-                    convtranspose->append_decision_function(check_input_num<3>);
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, convtranspose, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::convtranspose_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_relu_fusion)
-        .set_priority(9.8f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *convtranspose
-                            = pgraph->append_op(impl::op_kind::ConvTranspose);
-                    convtranspose->append_decision_function(check_input_num<2>);
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, convtranspose, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::convtranspose_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_bias_relu_fusion)
-        .set_priority(9.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *convtranspose
-                            = pgraph->append_op(impl::op_kind::ConvTranspose);
-                    convtranspose->append_decision_function(check_input_num<2>);
-                    pm::pb_op *bias = pgraph->append_op(impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(0, convtranspose, 0)});
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, bias, 0)});
-                })
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *convtranspose
-                            = pgraph->append_op(impl::op_kind::ConvTranspose);
-                    convtranspose->append_decision_function(check_input_num<3>);
-                    pgraph->append_op(impl::op_kind::ReLU,
-                            in_edges_t {in_edge(0, convtranspose, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::convtranspose_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
 /*
                     [quant_weight]*
         |                  |
@@ -265,6 +149,61 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::quantized_convtranspose_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// TODO(zitian): add Sigmoid+Multiply support
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_post_ops_fusion)
+        .set_priority(10.4f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    // convtranspose
+                    auto convtranspose = pgraph->append_op(
+                            impl::op_kind::ConvTranspose, "convtranspose");
+
+                    // optional biasadd
+                    auto biasadd_subgraph
+                            = std::make_shared<pb_graph_t>("biasadd_subgraph");
+                    auto biasadd = biasadd_subgraph->append_op(
+                            impl::op_kind::BiasAdd, "biasadd");
+                    biasadd->append_decision_function(
+                            check_producer_input_num<2>);
+                    biasadd_subgraph->create_input_port(0, biasadd, 0);
+                    biasadd_subgraph->create_output_port(0, biasadd, 0);
+                    auto optional_biasadd
+                            = pgraph->append_optional(biasadd_subgraph,
+                                    {in_edge(0, convtranspose, 0)}, "biasadd");
+
+                    auto post_ops = std::make_shared<pb_graph_t>("post_ops");
+                    auto alternation = post_ops->append_alternation(
+                            {impl::op_kind::Abs, impl::op_kind::Add,
+                                    impl::op_kind::Clamp, impl::op_kind::Divide,
+                                    impl::op_kind::Elu, impl::op_kind::Exp,
+                                    impl::op_kind::GELU,
+                                    impl::op_kind::HardSwish,
+                                    impl::op_kind::Log, impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Multiply, impl::op_kind::Pow,
+                                    impl::op_kind::ReLU, impl::op_kind::Round,
+                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::SoftPlus,
+                                    impl::op_kind::Sqrt, impl::op_kind::Square,
+                                    impl::op_kind::Subtract,
+                                    impl::op_kind::Tanh},
+                            "alternation");
+                    post_ops->create_input_port(0, alternation, 0);
+                    post_ops->create_output_port(0, alternation, 0);
+                    auto optional_post_ops = pgraph->append_optional(post_ops,
+                            in_edges_t {in_edge(0, optional_biasadd, 0)},
+                            "optional_post_ops");
+                    pgraph->create_input_port(0, convtranspose, 0);
+                    pgraph->create_output_port(0, optional_post_ops, 0);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::convtranspose_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
