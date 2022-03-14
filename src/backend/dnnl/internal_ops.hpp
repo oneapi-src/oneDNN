@@ -38,6 +38,7 @@ namespace op_kind {
     X(bn_relu, BatchNorm_relu) \
     X(bn_bwd_relu_bwd, BatchNormBwd_reluBwd) \
     X(bn_fwd_train_relu, BatchNormFwdTrain_relu) \
+    X(binary_post_ops_fusion, Binary_post_ops_fusion) \
     X(conv_bias_swish, Conv_bias_swish) \
     X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
     X(conv_bias_post_ops_fusion, conv_bias_post_ops_fusion) \
@@ -84,15 +85,6 @@ namespace op_kind {
     X(int8_maxpool, INT8_MaxPool) \
     X(int8_maxpool_add, INT8_MaxPool_add) \
     X(eltwise_binary, Eltwise_binary) \
-    X(add_relu, Add_relu) \
-    X(add_sigmoid, Add_sigmoid) \
-    X(add_multiply, Add_multiply) \
-    X(multiply_relu, Multiply_relu) \
-    X(multiply_sigmoid, Multiply_sigmoid) \
-    X(maximum_relu, Maximum_relu) \
-    X(maximum_sigmoid, Maximum_sigmoid) \
-    X(minimum_relu, Minimum_relu) \
-    X(minimum_sigmoid, Minimum_sigmoid) \
     X(x8x8float_matmul, X8X8FLOAT_MatMul) \
     X(x8s8float_matmul_bias, X8S8FLOAT_MatMul_bias) \
     X(x8s8f32_matmul_relu, X8S8F32_MatMul_relu) \
@@ -101,9 +93,6 @@ namespace op_kind {
     X(x8s8f32_matmul_bias_sigmoid, X8S8F32_MatMul_bias_sigmoid) \
     X(x8s8f32_matmul_gelu, X8S8F32_MatMul_gelu) \
     X(x8s8f32_matmul_bias_gelu, X8S8F32_MatMul_bias_gelu) \
-    X(multiply_add, Multiply_add) \
-    X(maximum_add, Maximum_add) \
-    X(minimum_add, Minimum_add) \
     X(x8s8f32_quant_wei_matmul_add, X8S8F32_Quant_wei_MatMul_add) \
     X(x8s8f32_quant_wei_matmul_bias_add, X8S8F32_Quant_wei_MatMul_bias_add) \
     X(x8s8f32_quant_wei_matmul, X8S8F32_Quant_wei_MatMul) \
