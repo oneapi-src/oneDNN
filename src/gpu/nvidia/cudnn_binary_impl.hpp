@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -98,7 +98,10 @@ struct cudnn_binary_impl_t : public cudnn_binary_impl_base_t {
         if (has_zero_dims(pd->src_md(0)->dims, pd->ndims())) {
             return status::success;
         }
-        if (pd->ndims() > CUDNN_DIM_MAX) { return status::invalid_arguments; }
+        // From official doc: "All tensor formats up to dimension five (5) are
+        // supported. This routine does not support tensor formats beyond these
+        // dimensions.
+        if (pd->ndims() > 5) { return status::unimplemented; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();
         convert_dims(pd->src_md(0)->padded_dims, dims[src_0], pd->ndims());
         convert_dims(pd->src_md(1)->padded_dims, dims[src_1], pd->ndims());
