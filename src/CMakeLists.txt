@@ -192,12 +192,6 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
-if(DNNL_WITH_SYCL)
-    install(FILES
-        "../cmake/FindLevelZero.cmake"
-        DESTINATION ${LIB_CONFIG_INSTALL_DIR})
-endif()
-
 # On Windows we need to add dnnl.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
 if(WIN32)
