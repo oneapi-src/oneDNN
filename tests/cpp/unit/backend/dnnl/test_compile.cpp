@@ -8087,6 +8087,70 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
     }
 }
 
+TEST(ExecuteSubgraphFp32, ReciprocalMul) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0_data {1.0, 2.0, 3.0, 10.0, 20.0, 30.0};
+    test::vector<float> src1_data {2.0, 2.0, 2.0, 5.0, 5.0, 5.0};
+    test::vector<float> ref_dst_data {0.5, 1.0, 1.5, 2.0, 4.0, 6.0};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    impl::op_t reciprocal_op {0, impl::op_kind::Reciprocal, "reciprocal"};
+
+    impl::op_t mul_op {1, impl::op_kind::Multiply, "mul"};
+
+    // prepare logical tensor
+    impl::logical_tensor_t src0
+            = utils::logical_tensor_init(0, {1, 2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t src1
+            = utils::logical_tensor_init(1, {1, 2, 3}, impl::data_type::f32);
+    impl::logical_tensor_t reciprocal_dst = utils::logical_tensor_init(
+            3, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t mul_dst = utils::logical_tensor_init(
+            4, {1, 2, 3}, impl::data_type::f32, impl::layout_type::any);
+
+    reciprocal_op.add_input(src1);
+    reciprocal_op.add_output(reciprocal_dst);
+    mul_op.add_input(src0);
+    mul_op.add_input(reciprocal_dst);
+    mul_op.add_output(mul_dst);
+
+    impl::graph_t g(eng.kind());
+    ASSERT_EQ(g.add_op(&reciprocal_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&mul_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("reciprocal_multiply_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    impl::partition_t p;
+    p.init(part);
+
+    // compile
+    std::vector<const impl::logical_tensor_t *> inputs {&src0, &src1};
+    std::vector<const impl::logical_tensor_t *> outputs {&mul_dst};
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(mul_dst.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src0_ts(src0, &eng, src0_data.data());
+    impl::tensor_t src1_ts(src1, &eng, src1_data.data());
+    impl::tensor_t dst_ts(lt, &eng, dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+}
+
 TEST(Execute, Softmax) {
     impl::engine_t &eng = get_engine();
 

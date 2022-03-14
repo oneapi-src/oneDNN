@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define BACKEND_DNNL_UTILS_HPP
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <stdlib.h>
 #include <utility>
@@ -139,6 +140,14 @@ inline int tensor_scale_mask(dim scale_size, bool grouped) {
 
 inline int tensor_zp_mask(dim zp_size) {
     return zp_size > 1 ? 1 : 0;
+}
+
+inline bool compare_float(
+        float ref, float given, float rtol = 1e-5f, float atol = 1e-6f) {
+    const float diff = std::abs(given - ref);
+    const float bigger
+            = std::abs(ref) > std::abs(given) ? std::abs(ref) : std::abs(given);
+    return diff <= rtol * bigger + atol;
 }
 
 } // namespace utils

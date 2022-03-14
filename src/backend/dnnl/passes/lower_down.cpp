@@ -2297,6 +2297,119 @@ impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+impl::status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg) {
+    /* transformation below graphs
+    Case 1:
+        in0       in1
+         \         |               in0    in1
+          \     reciprocal          \      /
+           \       /        --->      div
+              mul                      |
+               |                     out0
+              out0
+
+    Case 2:
+        in0       in1
+         \         |               in1    in0
+      reciprocal   |                \      /
+           \       /        --->      div
+              mul                      |
+               |                      out0
+              out0
+    */
+    auto &subgraph = sg->get_mutable_ops();
+    std::vector<std::pair<op_t *, op_t *>> div_patterns;
+    std::vector<size_t> mul_other_offsets;
+    std::set<op_t *> visited;
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_eltwise
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        auto is_reciprocal = [&cur_op]() -> bool {
+            bool ok = static_cast<dnnl::algorithm>(
+                              cur_op->get_attr<int64_t>("alg_kind"))
+                    == dnnl::algorithm::eltwise_pow;
+            if (!ok) return false;
+
+            // check attribute alpha
+            float alpha = 0.f;
+            if (cur_op->has_attr("alpha"))
+                alpha = cur_op->get_attr<float>("alpha");
+            if (!utils::compare_float(alpha, 1.f)) return false;
+
+            // check attribute beta
+            float beta = 0.f;
+            if (cur_op->has_attr("beta"))
+                beta = cur_op->get_attr<float>("beta");
+            if (!utils::compare_float(beta, -1.f)) return false;
+            return true;
+        };
+
+        if (!is_reciprocal()) continue;
+
+        visited.insert(cur_op.get());
+
+        auto reciprocal_out = cur_op->get_output_value(0);
+        auto reciprocal_csm = reciprocal_out->get_consumers();
+        if (reciprocal_csm.size() != 1) continue;
+
+        auto &csm_op = reciprocal_csm[0].get_op();
+        if (csm_op.get_kind() != op_kind::dnnl_binary
+                || static_cast<dnnl::algorithm>(
+                           csm_op.get_attr<int64_t>("alg_kind"))
+                        != dnnl::algorithm::binary_mul)
+            continue;
+
+        // offset should be 0 or 1
+        size_t offset = reciprocal_csm[0].get_offset();
+        size_t mul_other_offset = 1 - offset;
+        mul_other_offsets.emplace_back(mul_other_offset);
+
+        div_patterns.emplace_back(
+                std::pair<op_t *, op_t *> {cur_op.get(), &csm_op});
+    }
+
+    if (div_patterns.empty()) return impl::status::success;
+
+    for (size_t i = 0; i < div_patterns.size(); ++i) {
+        auto reciprocal_op = div_patterns[i].first;
+        auto mul_op = div_patterns[i].second;
+        auto mul_other_offset = mul_other_offsets[i];
+
+        op_ptr div_op = std::make_shared<op_t>(op_kind::dnnl_binary);
+        div_op->set_attr<int64_t>(
+                "alg_kind", static_cast<int64_t>(dnnl::algorithm::binary_div));
+
+        auto mul_other_in_val = mul_op->get_input_value(mul_other_offset);
+        mul_other_in_val->remove_consumer(*mul_op, mul_other_offset);
+        div_op->connect_input(0, mul_other_in_val);
+
+        auto reciprocal_in_val = reciprocal_op->get_input_value(0);
+        reciprocal_in_val->remove_consumer(*reciprocal_op, 0);
+        div_op->connect_input(1, reciprocal_in_val);
+
+        auto mul_out_val = mul_op->get_output_value(0);
+        div_op->add_output(mul_out_val);
+        mul_out_val->set_producer(*div_op);
+
+        insert_empty_scratchpad(div_op);
+
+        subgraph.emplace_back(div_op);
+
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [reciprocal_op](const op_ptr &f_op) {
+                    return reciprocal_op == f_op.get();
+                });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+
+        pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [mul_op](const op_ptr &f_op) { return mul_op == f_op.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+    return impl::status::success;
+}
+
 impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<op_ptr> to_be_removed_ops, to_be_inserted_ops;
@@ -3294,6 +3407,14 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
             new_op->set_attr<bool>("change_layout", false);
             insert_scratchpad = false;
+        } else if (cur_op->get_kind() == impl::op_kind::Reciprocal) {
+            // mapping to dnnl algorithm pow
+            new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+            merge_attr = false;
+            new_op->set_attr<int64_t>("alg_kind",
+                    static_cast<int64_t>(dnnl::algorithm::eltwise_pow));
+            new_op->set_attr<float>("alpha", 1.f);
+            new_op->set_attr<float>("beta", -1.f);
         } else {
             // TODO(xxx) Lower other ops to internal ops
             continue;

@@ -105,6 +105,7 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_reciprocal_mul_to_div);
 
         // Because we use binary post-ops for broadcast add and sum post-ops for
         // non-broadcast add. So we have to know concret shape before fuse

@@ -67,6 +67,8 @@ impl::status_t fuse_zero_points(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg);
+
 impl::status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg);
