@@ -314,14 +314,18 @@ stmt brgemm_fusion_register::remake_brgemm_intrinsic_by_fusion(
                                   ->base_->ptr_.static_as<tensor>()
                                   ->elem_dtype_;
     int basic_arg_size = node->type_ == intrin_type::brgemm
-            ? brgemm_args::STRIDE_B
-            : brgemm_args::LEN;
+            ? brgemm_args::NUM_BASIC_ARGS_STRIDE
+            : brgemm_args::NUM_BASIC_ARGS_LIST;
+    // layout of node->args (full args):
+    //    | basic_args | postops_data list(11 elems) | c_buf | bdmask_idx
     auto new_args = std::vector<expr>(
-            node->args_.begin(), node->args_.begin() + basic_arg_size + 1);
+            node->args_.begin(), node->args_.begin() + basic_arg_size);
     new_args.insert(new_args.end(), data_.begin(), data_.end());
     if (!c_buf.defined()) { c_buf = get_ir_null(); }
     new_args.emplace_back(c_buf);
+    new_args.emplace_back(node->args_.back());
     new_args[brgemm_args::C] = last_out_;
+    assert(new_args.size() == node->args_.size());
     auto new_node = copy_attr(*node,
             make_expr<intrin_call_node>(node->type_, new_args,
                     any_map_t {{intrin_attr::brgemm_extras, extra_args},

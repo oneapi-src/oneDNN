@@ -47,27 +47,49 @@ using namespace builtin;
 using namespace brgemm;
 
 static bool check_arg_range(const std::vector<expr> &args,
-        std::vector<expr_c> &out_exprs, int start, int end) {
-    out_exprs.reserve(out_exprs.size() + end - start);
+        std::vector<expr_c> &cached_args, int start, int end) {
+    cached_args.reserve(cached_args.size() + end - start);
     // check the parameters, if they are all constants,
     // we can cache the kernel
     for (int i = start; i < end; i++) {
-        if (!args[i].isa<constant>() && !args[i].isa<tensor>()) {
+        if (!args[i].isa<constant>() && !args[i].isa<tensor>()
+                && !args[i].isa<indexing>()) {
             // not const, don't cache
             return false;
         }
-        out_exprs.emplace_back(args[i]);
+        cached_args.emplace_back(args[i]);
     }
     return true;
 }
 
 static std::vector<int64_t> get_brgemm_attrs_key(
         const sc_brgemm_attrs_t &attrs) {
-    std::vector<int64_t> key(brgemm::attr_key::nkeys, 0);
+    std::vector<int64_t> key(attr_key::nkeys, 0);
     for (auto &attr : attrs) {
         key[attr.first] = attr.second;
     }
     return key;
+}
+
+static void validate_brgemm_attrs(const sc_brgemm_attrs_t &brg_attrs,
+        const sc_brgemm_bd_mask_t &bd_mask, const int bd_mask_set_num,
+        bool &use_bd_mask) {
+    auto keys = get_brgemm_attrs_key(brg_attrs);
+    if (keys[attr_key::use_uker]) {
+        COMPILE_ASSERT(keys[attr_key::max_bs] > 0,
+                "max_bs should be >0 and valid number for the bs used by "
+                "brgemm when use_uker=true, but got "
+                        << keys[attr_key::max_bs] << ".");
+    }
+    use_bd_mask = false;
+    if (keys[attr_key::bd_mask_level] > 0) {
+        COMPILE_ASSERT(!bd_mask.empty(),
+                "bd_mask should be specified when bd_mask_level>0.");
+        COMPILE_ASSERT(bd_mask_set_num > 0,
+                "bd_mask_set_num should be >0 when bd_mask_level>0, but got "
+                        << bd_mask_set_num << ".");
+        use_bd_mask = true;
+    }
 }
 
 static expr get_brgemm_attrs_arg(const ir_module_ptr &mod,
@@ -75,7 +97,7 @@ static expr get_brgemm_attrs_arg(const ir_module_ptr &mod,
         std::unordered_map<std::vector<int64_t>, expr> &cache) {
     size_t sz = attrs.size();
     if (sz == 0) { return get_ir_null(); }
-    COMPILE_ASSERT(sz <= brgemm::attr_key::nkeys,
+    COMPILE_ASSERT(sz <= attr_key::nkeys,
             "Size of user defined attributes should not exceed nkeys!");
     std::vector<int64_t> key = get_brgemm_attrs_key(attrs);
     if (cache.find(key) != cache.end()) { return cache[key]; }
@@ -97,21 +119,35 @@ static expr get_brgemm_attrs_arg(const ir_module_ptr &mod,
     return tsr;
 }
 
-static expr get_brgemm_bd_mask_arg(const ir_module_ptr &mod,
-        const sc_brgemm_bd_mask_t &bd_mask,
-        std::unordered_map<sc_brgemm_bd_mask_t, expr> &cache) {
+static std::pair<expr, expr> get_brgemm_bd_mask_arg(const ir_module_ptr &mod,
+        const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
+        const expr &bd_mask_len, const int bd_mask_set_num,
+        std::unordered_map<sc_brgemm_bd_mask_t, std::pair<expr, expr>> &cache,
+        std::vector<std::vector<stmt>> &brg_bd_mask_arr_assignment) {
     size_t sz = bd_mask.size();
-    if (sz == 0) { return get_ir_null(); }
+    if (sz == 0) { return std::pair<expr, expr>(get_ir_null(), get_ir_null()); }
     if (cache.find(bd_mask) != cache.end()) { return cache[bd_mask]; }
     size_t tsr_sz = sz;
     auto init = std::make_shared<static_data_t>(bd_mask);
-    auto tsr = builder::make_tensor("__brgemm_bd_mask", {tsr_sz}, datatypes::u8,
-            address_space::automatic, init);
+    expr full_bd_mask = builder::make_tensor("__brgemm_full_bd_mask", {tsr_sz},
+            datatypes::u8, address_space::automatic, init);
     mod->add_global_var(builder::make_var_tensor_def_unattached(
-            tsr, linkage::private_global)
+            full_bd_mask, linkage::private_global)
                                 .static_as<define>());
-    cache[bd_mask] = tsr;
-    return tsr;
+
+    expr bd_mask_arr = mod->make_global_tensor(datatypes::pointer,
+            "__brgemm_bd_mask_arr", {bd_mask_set_num}, linkage::private_global);
+    std::vector<stmt> bd_mask_arr_assignment(bd_mask_set_num);
+    for (int i = 0; i < bd_mask_set_num; ++i) {
+        bd_mask_arr_assignment.at(i) = builder::make_assign_unattached(
+                builder::make_indexing(bd_mask_arr, {i}),
+                builder::tensor_ptr(full_bd_mask, {i * bd_mask_len}));
+    }
+    brg_bd_mask_arr_assignment.push_back(bd_mask_arr_assignment);
+    auto ret = std::pair<expr, expr>(bd_mask_arr, bd_mask_arr[bd_mask_idx]);
+    cache[bd_mask] = ret;
+
+    return ret;
 }
 
 static expr get_brgemm_postops_setting_arg(const ir_module_ptr &mod,
@@ -176,23 +212,23 @@ static sc_data_type_t infer_out_dtype(const sc_data_type_t &in_dtype) {
 
 static expr brgemm_init_kernel_cache(brgemm_mode mode,
         scflags_t::brgemm_t backend, const std::vector<expr> &args,
-        std::vector<expr_c> &out_exprs, float beta, bool has_postop) {
+        std::vector<expr_c> &cached_args, float beta, bool has_postop) {
     if (mode == brgemm_mode::stride) {
-        // + extra cache args
-        const int expected_cache_org_args = brgemm_args::STRIDE_B + 1;
-        const int expected_cache_extra_start = brgemm_args::STRIDE_B
-                + brgemm::postops_data_init_func_nargs + 2;
+        // cache basic args
+        const int expected_cache_org_args = brgemm_args::NUM_BASIC_ARGS_STRIDE;
+        const int expected_cache_extra_start
+                = brgemm_args::NUM_FULL_ARGS_STRIDE;
         const int expected_cache_extra_args
                 = brgemm_args::extra_args_offset::cache_nargs;
         // +1 for context pointer
         assert(args.size()
-                == brgemm_args::NUM_ARGS_CPU
+                == brgemm_args::NUM_FULL_ARGS_STRIDE
                         + brgemm_args::extra_args_offset::nargs + 1);
-        if (!check_arg_range(
-                    args, out_exprs, brgemm_args::M, expected_cache_org_args)) {
+        if (!check_arg_range(args, cached_args, brgemm_args::M,
+                    expected_cache_org_args)) {
             return expr();
         }
-        if (!check_arg_range(args, out_exprs, expected_cache_extra_start,
+        if (!check_arg_range(args, cached_args, expected_cache_extra_start,
                     expected_cache_extra_start + expected_cache_extra_args)) {
             return expr();
         }
@@ -202,37 +238,36 @@ static expr brgemm_init_kernel_cache(brgemm_mode mode,
                         args[brgemm_args::LDB], args[brgemm_args::LDC],
                         args[brgemm_args::STRIDE_A],
                         args[brgemm_args::STRIDE_B], beta,
-                        args[brgemm_args::NUM_ARGS_CPU
+                        args[brgemm_args::NUM_FULL_ARGS_STRIDE
                                 + brgemm_args::extra_args_offset::
                                         dtypeA], // dtypeA
-                        args[brgemm_args::NUM_ARGS_CPU
+                        args[brgemm_args::NUM_FULL_ARGS_STRIDE
                                 + brgemm_args::extra_args_offset::
                                         dtypeB], // dtypeB
-                        args[brgemm_args::NUM_ARGS_CPU
+                        args[brgemm_args::NUM_FULL_ARGS_STRIDE
                                 + brgemm_args::extra_args_offset::
                                         brg_attrs], // attrs
-                        args[brgemm_args::NUM_ARGS_CPU
+                        args[brgemm_args::NUM_FULL_ARGS_STRIDE
                                 + brgemm_args::extra_args_offset::
                                         bd_mask], // bd_mask
-                        args[brgemm_args::NUM_ARGS_CPU
+                        args[brgemm_args::NUM_FULL_ARGS_STRIDE
                                 + brgemm_args::extra_args_offset::
                                         postops_setting]); // postops set
     } else {
-        // + extra cache args
-        const int expected_cache_org_args = brgemm_args::LEN + 1;
-        const int expected_cache_extra_start
-                = brgemm_args::LEN + brgemm::postops_data_init_func_nargs + 2;
+        // cache basic args and bdmask
+        const int expected_cache_org_args = brgemm_args::NUM_BASIC_ARGS_LIST;
+        const int expected_cache_extra_start = brgemm_args::NUM_FULL_ARGS_LIST;
         const int expected_cache_extra_args
                 = brgemm_args::extra_args_offset::cache_nargs;
         // +1 for context pointer
         assert(args.size()
-                == brgemm_args::NUM_ARGS_LIST
+                == brgemm_args::NUM_FULL_ARGS_LIST
                         + brgemm_args::extra_args_offset::nargs + 1);
-        if (!check_arg_range(
-                    args, out_exprs, brgemm_args::M, expected_cache_org_args)) {
+        if (!check_arg_range(args, cached_args, brgemm_args::M,
+                    expected_cache_org_args)) {
             return expr();
         }
-        if (!check_arg_range(args, out_exprs, expected_cache_extra_start,
+        if (!check_arg_range(args, cached_args, expected_cache_extra_start,
                     expected_cache_extra_start + expected_cache_extra_args)) {
             return expr();
         }
@@ -240,19 +275,19 @@ static expr brgemm_init_kernel_cache(brgemm_mode mode,
                 .first(args[brgemm_args::M], args[brgemm_args::N],
                         args[brgemm_args::K], args[brgemm_args::LDA],
                         args[brgemm_args::LDB], args[brgemm_args::LDC], beta,
-                        args[brgemm_args::NUM_ARGS_LIST
+                        args[brgemm_args::NUM_FULL_ARGS_LIST
                                 + brgemm_args::extra_args_offset::
                                         dtypeA], // dtypeA
-                        args[brgemm_args::NUM_ARGS_LIST
+                        args[brgemm_args::NUM_FULL_ARGS_LIST
                                 + brgemm_args::extra_args_offset::
                                         dtypeB], // dtypeB
-                        args[brgemm_args::NUM_ARGS_LIST
+                        args[brgemm_args::NUM_FULL_ARGS_LIST
                                 + brgemm_args::extra_args_offset::
                                         brg_attrs], // attrs
-                        args[brgemm_args::NUM_ARGS_LIST
+                        args[brgemm_args::NUM_FULL_ARGS_LIST
                                 + brgemm_args::extra_args_offset::
                                         bd_mask], // bd_mask
-                        args[brgemm_args::NUM_ARGS_LIST
+                        args[brgemm_args::NUM_FULL_ARGS_LIST
                                 + brgemm_args::extra_args_offset::
                                         postops_setting]); // postops set
     }
@@ -261,7 +296,7 @@ static expr brgemm_init_kernel_cache(brgemm_mode mode,
 static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
         const expr &cache, const std::vector<expr> &args, bool has_postop) {
     if (mode == brgemm_mode::stride) {
-        const int expected_num_args = brgemm_args::NUM_ARGS_CPU
+        const int expected_num_args = brgemm_args::NUM_FULL_ARGS_STRIDE
                 + brgemm_args::extra_args_offset::nargs;
         assert(args.size() == expected_num_args + 1);
         auto run_func
@@ -271,10 +306,10 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
             return run_func(cache, args[brgemm_args::A], args[brgemm_args::B],
                     args[brgemm_args::C], args[brgemm_args::NUM],
                     /*postop data*/
-                    args[brgemm_args::NUM_ARGS_CPU
+                    args[brgemm_args::NUM_FULL_ARGS_STRIDE
                             + brgemm_args::extra_args_offset::postops_data],
                     /*c_buf*/
-                    args[brgemm_args::NUM_ARGS_CPU
+                    args[brgemm_args::NUM_FULL_ARGS_STRIDE
                             + brgemm_args::extra_args_offset::c_buf],
                     /*ctx*/ args.back());
         }
@@ -282,7 +317,7 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
                 args[brgemm_args::C], args[brgemm_args::NUM],
                 /*ctx*/ args.back());
     } else {
-        const int expected_num_args = brgemm_args::NUM_ARGS_LIST
+        const int expected_num_args = brgemm_args::NUM_FULL_ARGS_LIST
                 + brgemm_args::extra_args_offset::nargs;
         assert(args.size() == expected_num_args + 1);
         auto run_func
@@ -293,15 +328,15 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
                     args[brgemm_args::C], args[brgemm_args::NUM],
                     args[brgemm_args::STRIDE_A], args[brgemm_args::STRIDE_B],
                     args[brgemm_args::LEN],
-                    args[brgemm_args::NUM_ARGS_LIST
+                    args[brgemm_args::NUM_FULL_ARGS_LIST
                             + brgemm_args::extra_args_offset::dtypeA],
-                    args[brgemm_args::NUM_ARGS_LIST
+                    args[brgemm_args::NUM_FULL_ARGS_LIST
                             + brgemm_args::extra_args_offset::dtypeB],
                     /*postop data*/
-                    args[brgemm_args::NUM_ARGS_LIST
+                    args[brgemm_args::NUM_FULL_ARGS_LIST
                             + brgemm_args::extra_args_offset::postops_data],
                     /*c_buf*/
-                    args[brgemm_args::NUM_ARGS_LIST
+                    args[brgemm_args::NUM_FULL_ARGS_LIST
                             + brgemm_args::extra_args_offset::c_buf],
                     /*ctx*/ args.back());
         }
@@ -309,9 +344,9 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
                 args[brgemm_args::C], args[brgemm_args::NUM],
                 args[brgemm_args::STRIDE_A], args[brgemm_args::STRIDE_B],
                 args[brgemm_args::LEN],
-                args[brgemm_args::NUM_ARGS_LIST
+                args[brgemm_args::NUM_FULL_ARGS_LIST
                         + brgemm_args::extra_args_offset::dtypeA],
-                args[brgemm_args::NUM_ARGS_LIST
+                args[brgemm_args::NUM_FULL_ARGS_LIST
                         + brgemm_args::extra_args_offset::dtypeB],
                 /*ctx*/ args.back());
     }
@@ -325,15 +360,20 @@ public:
     using param_cache_table = content_hash_map<std::vector<expr_c>, expr>;
     ir_module_ptr mod_;
     bool optimize_;
+    int brg_bdmask_set_num_ = 0;
+    bool brg_use_bdmask_ = false;
     // brgemm init stmts includes postops_data/c_buf
     std::vector<stmt_c> brg_postop_init_;
     std::unordered_map<std::vector<int64_t>, expr> attrs_cache_;
-    std::unordered_map<sc_brgemm_bd_mask_t, expr> bd_mask_cache_;
+    std::unordered_map<sc_brgemm_bd_mask_t, std::pair<expr, expr>>
+            bd_mask_cache_;
     std::unordered_map<sc_brgemm_postops_setting_t, expr> postop_set_cache_;
+    std::vector<std::vector<stmt>> sc_kernel_cache_assignment_;
+    std::vector<std::vector<stmt>> brg_bd_mask_arr_assignment_;
     // the kernel name => param_cache_table mapping
     std::unordered_map<std::string, param_cache_table> kernel_cache;
     typedef expr (*init_func_t)(brgemm_mode mode, scflags_t::brgemm_t backend,
-            const std::vector<expr> &args, std::vector<expr_c> &out_exprs,
+            const std::vector<expr> &args, std::vector<expr_c> &cached_args,
             float beta, bool has_postop);
     using run_func_t = expr (*)(brgemm_mode, scflags_t::brgemm_t, const expr &,
             const std::vector<expr> &, bool has_postop);
@@ -341,34 +381,103 @@ public:
             expr_c v, const std::vector<expr> &args, const std::string &name,
             init_func_t init_func, run_func_t run_func, float beta,
             bool has_postop) {
-        std::vector<expr_c> out_exprs;
-        expr cachev
-                = init_func(mode, backend, args, out_exprs, beta, has_postop);
-        // check if the kernel lowerer agrees to optimize the kernel call
-        if (!cachev.defined()) {
-            SC_MODULE_INFO << "Cannot optimize the kernel call: " << v;
-            return v;
-        }
-        // find the param_cache_table in the kernel cache
-        auto first_itr = kernel_cache.find(name);
-        if (first_itr != kernel_cache.end()) {
-            auto &entry = first_itr->second;
-            auto second_itr = entry.find(out_exprs);
-            if (second_itr != entry.end()) {
-                // if the same parameters are cached in the kernel_cache,
-                // reuse the cached kernel pointer
-                return run_func(
-                        mode, backend, second_itr->second, args, has_postop);
+        std::vector<expr_c> cached_args;
+
+        if (brg_use_bdmask_) {
+            int num_full_args = (mode == brgemm_mode::stride)
+                    ? brgemm_args::NUM_FULL_ARGS_STRIDE
+                    : brgemm_args::NUM_FULL_ARGS_LIST;
+            int bd_mask_arg_offset
+                    = num_full_args + +brgemm_args::extra_args_offset::bd_mask;
+            expr bd_mask = args[bd_mask_arg_offset];
+            expr bd_mask_idx = args[num_full_args - 1];
+            assert(bd_mask.defined() && bd_mask_idx.defined());
+
+            expr result = get_ir_null();
+            std::vector<expr> brg_args = args;
+            std::vector<expr> sc_kernel_cache;
+            // cached_args contains the original bd_mask with new index
+            std::vector<expr_c> cached_args_iter;
+
+            // cached_args contains the bd_mask_arr
+            expr cachev = init_func(
+                    mode, backend, args, cached_args, beta, has_postop);
+            if (!cachev.defined()) {
+                SC_MODULE_INFO << "Cannot optimize the kernel call: " << v;
+                return v;
             }
+
+            // find the param_cache_table in the kernel cache
+            auto first_itr = kernel_cache.find(name);
+            if (first_itr != kernel_cache.end()) {
+                auto &entry = first_itr->second;
+                auto second_itr = entry.find(cached_args);
+                if (second_itr != entry.end()) {
+                    // if the same parameters are cached in the
+                    // kernel_cache, reuse the cached kernel pointer
+                    return run_func(mode, backend,
+                            second_itr->second[bd_mask_idx], args, has_postop);
+                }
+            }
+
+            expr sc_kernel_cache_arr = mod_->make_global_tensor(
+                    datatypes::pointer, "__sc_kernel_cache_arr",
+                    {brg_bdmask_set_num_}, linkage::private_global);
+            std::vector<stmt> kernel_cache_assignment;
+            for (int i = 0; i < brg_bdmask_set_num_; ++i) {
+                brg_args[bd_mask_arg_offset] = bd_mask[i];
+                expr cachev = init_func(mode, backend, brg_args,
+                        cached_args_iter, beta, has_postop);
+
+                if (!cachev.defined()) {
+                    SC_MODULE_INFO << "Cannot optimize the kernel call: " << v;
+                    return v;
+                }
+                kernel_cache_assignment.emplace_back(
+                        builder::make_assign_unattached(
+                                builder::make_indexing(
+                                        sc_kernel_cache_arr, {i}),
+                                cachev));
+            }
+            sc_kernel_cache_assignment_.push_back(kernel_cache_assignment);
+            // put the var to the kernel_cache
+            kernel_cache[name][cached_args] = sc_kernel_cache_arr;
+            brg_args[bd_mask_arg_offset] = bd_mask[bd_mask_idx];
+            result = run_func(mode, backend, sc_kernel_cache_arr[bd_mask_idx],
+                    brg_args, has_postop);
+            assert(result.defined());
+
+            return result;
+        } else {
+            expr cachev = init_func(
+                    mode, backend, args, cached_args, beta, has_postop);
+
+            // check if the kernel lowerer agrees to optimize the kernel call
+            if (!cachev.defined()) {
+                SC_MODULE_INFO << "Cannot optimize the kernel call: " << v;
+                return v;
+            }
+            // find the param_cache_table in the kernel cache
+            auto first_itr = kernel_cache.find(name);
+            if (first_itr != kernel_cache.end()) {
+                auto &entry = first_itr->second;
+                auto second_itr = entry.find(cached_args);
+                if (second_itr != entry.end()) {
+                    // if the same parameters are cached in the kernel_cache,
+                    // reuse the cached kernel pointer
+                    return run_func(mode, backend, second_itr->second, args,
+                            has_postop);
+                }
+            }
+            // Make kernel pointer global var. will be auto-renamed
+            expr cache = mod_->make_global_var(cachev->dtype_,
+                    "__sc_kernel_cache", linkage::private_global, cachev);
+            // put the var to the kernel_cache
+            kernel_cache[name][cached_args] = cache;
+            expr result = run_func(mode, backend, cache, args, has_postop);
+            assert(result.defined());
+            return result;
         }
-        // Make kernel pointer global var. will be auto-renamed
-        expr cache = mod_->make_global_var(cachev->dtype_, "__sc_kernel_cache",
-                linkage::private_global, cachev);
-        // put the var to the kernel_cache
-        kernel_cache[name][out_exprs] = cache;
-        expr result = run_func(mode, backend, cache, args, has_postop);
-        assert(result.defined());
-        return result;
     }
 
     expr_c visit(intrin_call_c v) override {
@@ -385,41 +494,45 @@ public:
         }
         extras = &v->intrin_attrs_->get<brgemm_args::extra_args_t>(
                 intrin_attr::brgemm_extras);
+        COMPILE_ASSERT(extras->is_cpu_, "Found non-CPU brgemm: " << v);
         dtypeA = extras->dtype_A_;
         dtypeB = extras->dtype_B_;
         sc_brgemm_attrs_t &brg_attrs = extras->brg_attrs_;
         sc_brgemm_bd_mask_t &bd_mask = extras->bd_mask_;
+        brg_bdmask_set_num_ = extras->bd_mask_set_num_;
         sc_brgemm_postops_setting_t &brg_postops_setting
                 = extras->postops_setting_;
-        std::vector<expr> brg_postops_data;
-        int basic_arg_offset;
         assert(mode == brgemm_mode::stride || mode == brgemm_mode::addr_list);
-        if (mode == brgemm_mode::stride) {
-            basic_arg_offset = brgemm_args::STRIDE_B + 1;
-            brg_postops_data
-                    = std::vector<expr>(v->args_.begin() + basic_arg_offset,
-                            v->args_.begin() + brgemm_args::NUM_ARGS_CPU - 1);
-        } else {
-            basic_arg_offset = brgemm_args::LEN + 1;
-            brg_postops_data
-                    = std::vector<expr>(v->args_.begin() + brgemm_args::LEN + 1,
-                            v->args_.begin() + brgemm_args::NUM_ARGS_LIST - 1);
-        }
-        assert(brg_postops_data.size() == brgemm::postops_data_init_func_nargs);
-        auto c_buf_offset = v->args_.size() - 1;
-        expr brg_c_buf = v->args_[c_buf_offset];
-        COMPILE_ASSERT(extras->is_cpu_, "Found non-CPU brgemm: " << v);
-        scflags_t::brgemm_t backend = mod_->ctx_->flags_.brgemm_backend_;
+        int num_basic_args = (mode == brgemm_mode::stride)
+                ? brgemm_args::NUM_BASIC_ARGS_STRIDE
+                : brgemm_args::NUM_BASIC_ARGS_LIST;
+        int num_full_args = (mode == brgemm_mode::stride)
+                ? brgemm_args::NUM_FULL_ARGS_STRIDE
+                : brgemm_args::NUM_FULL_ARGS_LIST;
+        COMPILE_ASSERT(v->args_.size() == static_cast<size_t>(num_full_args),
+                "invalid number of brgemm args, expected to be "
+                        << num_full_args << ", but got " << v->args_.size()
+                        << ".");
 
-        auto fpair = get_brgemm_update_funcs(mode, backend);
-        func_t f;
-        if (extras->cpu_.init_) {
-            f = fpair.second;
-        } else {
-            f = fpair.first;
-        }
-        assert(f);
+        // layout of v->args (full args):
+        //    | basic_args | postops_data list(11 elems) | c_buf | bdmask_idx
+        std::vector<expr> brg_postops_data
+                = std::vector<expr>(v->args_.begin() + num_basic_args,
+                        v->args_.begin() + num_full_args - 2);
+        COMPILE_ASSERT(
+                brg_postops_data.size() == brgemm::postops_data_init_func_nargs,
+                "brg_postops_data.size() is expected to be "
+                        << brgemm::postops_data_init_func_nargs << ", but got "
+                        << brg_postops_data.size());
 
+        validate_brgemm_attrs(
+                brg_attrs, bd_mask, brg_bdmask_set_num_, brg_use_bdmask_);
+
+        // layout of opt_args:
+        //    | basic_args | postops_data list(11 elems) | c_buf | bdmask_idx
+        //    | dtypeA | dtypeB | attrs | bd_mask | postops setting
+        //    | postops data | c_buf | stream |
+        // The 1st c_buf will be replaced by 2nd c_buf
         std::vector<expr> opt_args {v->args_.begin(), v->args_.end()};
         opt_args.emplace_back(dtypeA.as_etype_int());
         opt_args.emplace_back(dtypeB.as_etype_int());
@@ -428,9 +541,17 @@ public:
                 = get_brgemm_attrs_arg(mod_, brg_attrs, attrs_cache_);
         opt_args.emplace_back(brg_attrs_arg);
         // bd mask
-        expr bd_mask_arg
-                = get_brgemm_bd_mask_arg(mod_, bd_mask, bd_mask_cache_);
-        opt_args.emplace_back(bd_mask_arg);
+        expr bd_mask_arr = get_ir_null(), cur_bd_mask = get_ir_null();
+        if (brg_use_bdmask_) {
+            expr bd_mask_idx = v->args_[num_full_args - 1];
+            expr bd_mask_len = v->args_[brgemm_args::M];
+            auto bd_mask_arg = get_brgemm_bd_mask_arg(mod_, bd_mask,
+                    bd_mask_idx, bd_mask_len, brg_bdmask_set_num_,
+                    bd_mask_cache_, brg_bd_mask_arr_assignment_);
+            bd_mask_arr = bd_mask_arg.first;
+            cur_bd_mask = bd_mask_arg.second;
+        }
+        opt_args.emplace_back(bd_mask_arr);
         // brgemm postops setting
         expr brg_setting_arg = get_brgemm_postops_setting_arg(
                 mod_, brg_postops_setting, postop_set_cache_);
@@ -451,6 +572,7 @@ public:
         opt_args.emplace_back(brg_data_arg);
 
         // brgemm c buf, currently we create a local buffer with M*N size
+        expr brg_c_buf = v->args_[num_full_args - 2];
         assert(brg_c_buf.defined());
         if (brg_c_buf->equals(get_ir_null())) {
             if (!brg_postops_setting.empty()) {
@@ -463,19 +585,28 @@ public:
         }
         opt_args.emplace_back(brg_c_buf);
 
-        // the context (as null)
-        opt_args.emplace_back(
-                make_expr<constant_node>(0UL, datatypes::pointer));
+        // placeholder for the context, required by brgemm with AMX.
+        opt_args.emplace_back(get_ir_null());
         brg_postop_init_ = ret;
-        bool optimized = optimize_;
-        // skip postop data list but reserve c buf
+
+        // layout of no_opt_args:
+        //    | basic_args | dtypeA | dtypeB | attrs | bd_mask | postops setting
+        //    | postops data | c_buf | stream |
         std::vector<expr> no_opt_args(
-                opt_args.begin(), opt_args.begin() + basic_arg_offset);
-        // +1 for old c_buf
+                opt_args.begin(), opt_args.begin() + num_basic_args);
+        // +2 for old c_buf and bdmask_idx
         no_opt_args.insert(no_opt_args.end(),
-                opt_args.begin() + basic_arg_offset
-                        + brgemm::postops_data_init_func_nargs + 1,
+                opt_args.begin() + num_basic_args
+                        + brgemm::postops_data_init_func_nargs + 2,
                 opt_args.end());
+        no_opt_args[num_basic_args + 3] = cur_bd_mask;
+
+        bool optimized = optimize_;
+        scflags_t::brgemm_t backend = mod_->ctx_->flags_.brgemm_backend_;
+        auto fpair = get_brgemm_update_funcs(mode, backend);
+        func_t f = extras->cpu_.init_ ? fpair.second : fpair.first;
+        assert(f);
+
         if (!optimized) {
             return builder::make_call(f, no_opt_args);
         } else {
@@ -512,7 +643,7 @@ public:
 
     kernel_lower_impl_t(ir_module_ptr mod, bool optimize)
         : mod_(std::move(mod)), optimize_(optimize) {}
-}; // namespace sc
+};
 
 const_ir_module_ptr kernel_lowering_cpu_t::operator()(const_ir_module_ptr m) {
     auto ret = m->copy();
@@ -536,6 +667,20 @@ const_ir_module_ptr kernel_lowering_cpu_t::operator()(const_ir_module_ptr m) {
             }
         } else {
             ret->add_func({ret->make_init_func()});
+        }
+        if (pass.brg_use_bdmask_) {
+            if (auto initf = ret->get_func("__sc_init__")) {
+                for (auto &sts : pass.brg_bd_mask_arr_assignment_) {
+                    for (auto &st : sts) {
+                        initf->body_.checked_as<stmts>()->seq_.push_back(st);
+                    }
+                }
+                for (auto &sts : pass.sc_kernel_cache_assignment_) {
+                    for (auto &st : sts) {
+                        initf->body_.checked_as<stmts>()->seq_.push_back(st);
+                    }
+                }
+            }
         }
     }
 

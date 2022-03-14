@@ -380,7 +380,7 @@ void validate_impl_t::view(intrin_call_c v) {
         case intrin_type::brgemm: {
             COMPILE_ASSERT(v->dtype_ == datatypes::void_t,
                     "brgemm should return void");
-            COMPILE_ASSERT(v->args_.size() == brgemm_args::NUM_ARGS_CPU,
+            COMPILE_ASSERT(v->args_.size() == brgemm_args::NUM_FULL_ARGS_STRIDE,
                     "Wrong number of arguments for brgemm");
             auto &extras = v->intrin_attrs_->get<brgemm_args::extra_args_t>(
                     intrin_attr::brgemm_extras);
@@ -426,7 +426,7 @@ void validate_impl_t::view(intrin_call_c v) {
         case intrin_type::list_brgemm: {
             COMPILE_ASSERT(v->dtype_ == datatypes::void_t,
                     "list_brgemm should return void");
-            COMPILE_ASSERT(v->args_.size() == brgemm_args::NUM_ARGS_LIST,
+            COMPILE_ASSERT(v->args_.size() == brgemm_args::NUM_FULL_ARGS_LIST,
                     "Wrong number of arguments for list_brgemm");
 
             auto &extras = v->intrin_attrs_->get<brgemm_args::extra_args_t>(

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -93,7 +93,8 @@ public:
             auto ptr = dispatch(v->ptr_).checked_as<tensorptr_c>();
             assert(ptr->base_->idx_.size() == 1);
             const std::vector<expr> *shape = get_base_shape(oldptr);
-            assert(!shape->empty());
+            // 1D input might not have shape info
+            assert(oldptr->base_->idx_.size() == 1 || !shape->empty());
 
             // flatten the indices using the reshaped dimensions
             process_indexing(this, *shape, v->idx_, newidx);

@@ -45,12 +45,15 @@ constexpr int LDB = 8;
 constexpr int LDC = 9;
 constexpr int STRIDE_A = 10;
 constexpr int STRIDE_B = 11;
+constexpr int NUM_BASIC_ARGS_STRIDE = STRIDE_B + 1;
 constexpr int LEN = 12;
-// extra +1 for c_buf
-constexpr int NUM_ARGS_CPU
-        = STRIDE_B + brgemm::postops_data_init_func_nargs + 2;
-// extra +1 for c_buf
-constexpr int NUM_ARGS_LIST = LEN + brgemm::postops_data_init_func_nargs + 2;
+constexpr int NUM_BASIC_ARGS_LIST = LEN + 1;
+// extra +2 for c_buf and bdmask_idx
+constexpr int NUM_FULL_ARGS_STRIDE
+        = NUM_BASIC_ARGS_STRIDE + brgemm::postops_data_init_func_nargs + 2;
+// extra +2 for c_buf and bdmask_idx
+constexpr int NUM_FULL_ARGS_LIST
+        = NUM_BASIC_ARGS_LIST + brgemm::postops_data_init_func_nargs + 2;
 
 struct cpu_t {
     // use init_update or update
@@ -78,6 +81,7 @@ struct extra_args_t {
     sc_data_type_t dtype_C_ = datatypes::undef; // element dtype of mat C
     sc_brgemm_attrs_t brg_attrs_; // brgemm attrs
     sc_brgemm_bd_mask_t bd_mask_; // bd mask
+    int bd_mask_set_num_; // num of bd_mask set
     sc_brgemm_postops_setting_t postops_setting_; // post ops setting
 
     union {
@@ -88,6 +92,7 @@ struct extra_args_t {
             sc_data_type_t dtypeC = datatypes::undef,
             const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
             const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+            const int bd_mask_set_num = 1,
             const sc_brgemm_postops_setting_t &brg_postops
             = sc_brgemm_postops_setting_t())
         : is_cpu_(true)
@@ -96,12 +101,14 @@ struct extra_args_t {
         , dtype_C_(dtypeC == datatypes::undef ? dtypeA : dtypeC)
         , brg_attrs_(brg_attrs)
         , bd_mask_(bd_mask)
+        , bd_mask_set_num_(bd_mask_set_num)
         , postops_setting_(brg_postops)
         , cpu_(g) {}
     bool operator==(const extra_args_t &other) const {
         return is_cpu_ == other.is_cpu_ && dtype_A_ == other.dtype_A_
                 && dtype_B_ == other.dtype_B_ && dtype_C_ == other.dtype_C_
                 && brg_attrs_ == other.brg_attrs_ && bd_mask_ == other.bd_mask_
+                && bd_mask_set_num_ == other.bd_mask_set_num_
                 && postops_setting_ == other.postops_setting_
                 && cpu_ == other.cpu_;
     }
@@ -110,8 +117,8 @@ struct extra_args_t {
     }
 };
 
-extern sc_data_type_t arg_types[NUM_ARGS_CPU];
-extern sc_data_type_t list_arg_types[NUM_ARGS_LIST];
+extern sc_data_type_t arg_types[NUM_FULL_ARGS_STRIDE];
+extern sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST];
 } // namespace brgemm_args
 
 intrinsic_handler_t &get_intrinsic_handler(intrin_type intrin);

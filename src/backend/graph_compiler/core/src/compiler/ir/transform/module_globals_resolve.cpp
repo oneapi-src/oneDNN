@@ -196,9 +196,11 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
             if (tsr->init_value_) {
                 auto size = get_tensor_size(tsr, def);
                 COMPILE_ASSERT(tsr->init_value_->size_ == size,
-                        "The size of the global tensor does not match its "
-                        "initializer: "
-                                << def);
+                        "The size of the global tensor ("
+                                << tsr->init_value_->size_
+                                << ") does not match its "
+                                   "initializer ("
+                                << size << "): " << def);
                 allocated_size
                         = update_allocated_size(tsr, size, allocated_size);
             }

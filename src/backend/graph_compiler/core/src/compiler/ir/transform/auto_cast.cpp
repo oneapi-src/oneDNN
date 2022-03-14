@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -272,8 +272,11 @@ public:
                 // do nothing
                 break;
             case intrin_type::brgemm:
-                COMPILE_ASSERT(newargs.size() == brgemm_args::NUM_ARGS_CPU,
-                        "Wrong number of arguments for brgemm");
+                COMPILE_ASSERT(
+                        newargs.size() == brgemm_args::NUM_FULL_ARGS_STRIDE,
+                        "Wrong number of arguments for brgemm, expected "
+                                << brgemm_args::NUM_FULL_ARGS_STRIDE
+                                << ", but got " << newargs.size() << ".");
                 // the A, B, C are overloaded arguments
                 for (unsigned i = brgemm_args::C + 1; i < newargs.size(); i++) {
                     // cast newargs[i] to the expected types
@@ -283,8 +286,11 @@ public:
                 }
                 break;
             case intrin_type::list_brgemm:
-                COMPILE_ASSERT(newargs.size() == brgemm_args::NUM_ARGS_LIST,
-                        "Wrong number of arguments for list_brgemm");
+                COMPILE_ASSERT(
+                        newargs.size() == brgemm_args::NUM_FULL_ARGS_LIST,
+                        "Wrong number of arguments for list brgemm, expected "
+                                << brgemm_args::NUM_FULL_ARGS_LIST
+                                << ", but got " << newargs.size() << ".");
                 for (unsigned i = 0; i < newargs.size(); i++) {
                     // cast newargs[i] to the expected types
                     expr_c v = newargs[i];

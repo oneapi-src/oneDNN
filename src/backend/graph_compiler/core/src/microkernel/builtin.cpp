@@ -323,14 +323,15 @@ void brgemm_init_update(const expr &A, const expr &B, const expr &C,
         const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
-        const sc_brgemm_bd_mask_t &bd_mask,
+        const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
+        const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     builder::get_current_builder()->brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC,
-            stride_a, stride_b, postops_data, c_buf,
+            stride_a, stride_b, postops_data, c_buf, bd_mask_idx,
             {brgemm_args::cpu_t {true}, dtypeA, dtypeB,
                     infer_output_dtype(dtypeA), brg_attrs, bd_mask,
-                    postops_set});
+                    bd_mask_set_num, postops_set});
 }
 
 void brgemm_init_update_allow_fusion(const expr &A, const expr &B,
@@ -339,11 +340,12 @@ void brgemm_init_update_allow_fusion(const expr &A, const expr &B,
         const expr &stride_a, const expr &stride_b,
         const sc_data_type_t &dtypeA, const sc_data_type_t &dtypeB,
         const sc_brgemm_attrs_t &brg_attrs, const sc_brgemm_bd_mask_t &bd_mask,
+        const expr &bd_mask_idx, const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     brgemm_init_update(A, B, C, num, M, N, K, LDA, LDB, LDC, stride_a, stride_b,
-            dtypeA, dtypeB, brg_attrs, bd_mask, postops_set, postops_data,
-            c_buf);
+            dtypeA, dtypeB, brg_attrs, bd_mask, bd_mask_idx, bd_mask_set_num,
+            postops_set, postops_data, c_buf);
     builder::get_current_builder()
             ->get_current_scope()
             .body.back()
@@ -357,14 +359,15 @@ void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
         const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
-        const sc_brgemm_bd_mask_t &bd_mask,
+        const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
+        const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     builder::get_current_builder()->brgemm(A, B, C, num, M, N, K, LDA, LDB, LDC,
-            stride_a, stride_b, postops_data, c_buf,
+            stride_a, stride_b, postops_data, c_buf, bd_mask_idx,
             {brgemm_args::cpu_t {false}, dtypeA, dtypeB,
                     infer_output_dtype(dtypeA), brg_attrs, bd_mask,
-                    postops_set});
+                    bd_mask_set_num, postops_set});
 }
 
 void brgemm_list_update(const expr &A, const expr &B, const expr &C,
@@ -372,14 +375,15 @@ void brgemm_list_update(const expr &A, const expr &B, const expr &C,
         const expr &LDA, const expr &LDB, const expr &LDC, const expr &stride_a,
         const expr &stride_b, const expr &len, const sc_data_type_t &dtypeA,
         const sc_data_type_t &dtypeB, const sc_brgemm_attrs_t &brg_attrs,
-        const sc_brgemm_bd_mask_t &bd_mask,
+        const sc_brgemm_bd_mask_t &bd_mask, const expr &bd_mask_idx,
+        const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
     builder::get_current_builder()->list_brgemm(A, B, C, num, M, N, K, LDA, LDB,
-            LDC, stride_a, stride_b, len, postops_data, c_buf,
+            LDC, stride_a, stride_b, len, postops_data, c_buf, bd_mask_idx,
             brgemm_args::extra_args_t(brgemm_args::cpu_t {false}, dtypeA,
                     dtypeB, infer_output_dtype(dtypeA), brg_attrs, bd_mask,
-                    postops_set));
+                    bd_mask_set_num, postops_set));
 }
 
 void brgemm_init(

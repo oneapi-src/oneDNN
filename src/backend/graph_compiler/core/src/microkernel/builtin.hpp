@@ -125,6 +125,8 @@ void dnnl_brgemm_init(
  * @param dtypeB sc_data_type_t
  * @param brg_attrs any_map
  * @param bd_mask bd_mask
+ * @param bd_mask_idx bd_mask idx for same brgemm with different bd_mask
+ * @param bd_mask_set_num num of different bd_mask for same brgemm
  * @param brg_postops_setting postops_setting
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
@@ -136,6 +138,8 @@ void brgemm_init_update(const expr &A, const expr &B, const expr &C,
         const sc_data_type_t &dtypeB,
         const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
         const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const expr &bd_mask_idx = get_ir_zero_index(),
+        const int &bd_mask_set_num = 1,
         const sc_brgemm_postops_setting_t &brg_postops_setting
         = sc_brgemm_postops_setting_t(),
         const std::vector<expr> &brg_postops_data
@@ -163,6 +167,8 @@ void brgemm_init_update(const expr &A, const expr &B, const expr &C,
  * @param dtypeB sc_data_type_t
  * @param brg_attrs any_map
  * @param bd_mask bd_mask
+ * @param bd_mask_idx bd_mask idx for same brgemm with different bd_mask
+ * @param bd_mask_set_num num of different bd_mask for same brgemm
  * @param brg_postops_setting postops_setting
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
@@ -174,6 +180,8 @@ void brgemm_init_update_allow_fusion(const expr &A, const expr &B,
         const sc_data_type_t &dtypeA, const sc_data_type_t &dtypeB,
         const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
         const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const expr &bd_mask_idx = get_ir_zero_index(),
+        const int &bd_mask_set_num = 1,
         const sc_brgemm_postops_setting_t &brg_postops_setting
         = sc_brgemm_postops_setting_t(),
         const std::vector<expr> &brg_postops_data
@@ -212,6 +220,8 @@ void brgemm_init(
  * @param dtypeB sc_data_type_t
  * @param brg_attrs any_map
  * @param bd_mask bd_mask
+ * @param bd_mask_idx bd_mask idx for same brgemm with different bd_mask
+ * @param bd_mask_set_num num of different bd_mask for same brgemm
  * @param brg_postops_setting postops_setting
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
@@ -223,6 +233,8 @@ void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
         const sc_data_type_t &dtypeB,
         const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
         const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const expr &bd_mask_idx = get_ir_zero_index(),
+        const int &bd_mask_set_num = 1,
         const sc_brgemm_postops_setting_t &brg_postops_setting
         = sc_brgemm_postops_setting_t(),
         const std::vector<expr> &brg_postops_data
@@ -250,6 +262,8 @@ void brgemm_update(const expr &A, const expr &B, const expr &C, const expr &num,
  * @param dtypeB sc_data_type_t
  * @param brg_attrs any_map
  * @param bd_mask bd_mask
+ * @param bd_mask_idx bd_mask idx for same brgemm with different bd_mask
+ * @param bd_mask_set_num num of different bd_mask for same brgemm
  * @param brg_postops_setting postops_setting
  * @param brg_postops_data postops_data
  * @param brg_c_buf c_buf
@@ -261,6 +275,8 @@ void brgemm_list_update(const expr &A, const expr &B, const expr &C,
         const sc_data_type_t &dtypeB,
         const sc_brgemm_attrs_t &brg_attrs = sc_brgemm_attrs_t(),
         const sc_brgemm_bd_mask_t &bd_mask = sc_brgemm_bd_mask_t(),
+        const expr &bd_mask_idx = get_ir_zero_index(),
+        const int &bd_mask_set_num = 1,
         const sc_brgemm_postops_setting_t &brg_postops_setting
         = sc_brgemm_postops_setting_t(),
         const std::vector<expr> &brg_postops_data

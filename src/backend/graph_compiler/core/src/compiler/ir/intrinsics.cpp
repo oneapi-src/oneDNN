@@ -252,7 +252,7 @@ struct brgemm_handler_t : public intrinsic_handler_t {
 };
 
 namespace brgemm_args {
-sc_data_type_t arg_types[NUM_ARGS_CPU] = {
+sc_data_type_t arg_types[NUM_FULL_ARGS_STRIDE] = {
         datatypes::pointer, // A (overloaded)
         datatypes::pointer, // B
         datatypes::pointer, // C
@@ -276,10 +276,11 @@ sc_data_type_t arg_types[NUM_ARGS_CPU] = {
         datatypes::pointer, // b_zp_compensations
         datatypes::pointer, // c_zp_values
         datatypes::boolean, // skip_accumulation
-        datatypes::pointer // c_buf
+        datatypes::pointer, // c_buf
+        datatypes::index // bdmask_idx
 };
 
-sc_data_type_t list_arg_types[NUM_ARGS_LIST] = {
+sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST] = {
         datatypes::pointer, // A
         datatypes::pointer, // B
         datatypes::pointer, // C
@@ -304,7 +305,8 @@ sc_data_type_t list_arg_types[NUM_ARGS_LIST] = {
         datatypes::pointer, // b_zp_compensations
         datatypes::pointer, // c_zp_values
         datatypes::boolean, // skip_accumulation
-        datatypes::pointer // c_buf
+        datatypes::pointer, // c_buf
+        datatypes::index // bdmask_idx
 };
 } // namespace brgemm_args
 
@@ -336,9 +338,9 @@ static std::unique_ptr<intrinsic_handler_t> handlers[]
                 utils::make_unique<shl_handler_t>(),
                 utils::make_unique<shr_handler_t>(),
                 utils::make_unique<brgemm_handler_t>(
-                        brgemm_args::NUM_ARGS_CPU, "brgemm"),
+                        brgemm_args::NUM_FULL_ARGS_STRIDE, "brgemm"),
                 utils::make_unique<brgemm_handler_t>(
-                        brgemm_args::NUM_ARGS_LIST, "list_brgemm")};
+                        brgemm_args::NUM_FULL_ARGS_LIST, "list_brgemm")};
 
 static_assert(sizeof(handlers) / sizeof(handlers[0])
                 == int(intrin_type::NUM_INTRINSICS),

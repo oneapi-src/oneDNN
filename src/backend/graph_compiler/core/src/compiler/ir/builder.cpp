@@ -595,7 +595,7 @@ stmt builder_impl_t::brgemm(const expr_c &x, const expr_c &w, const expr_c &y,
         const expr_c &ldx, const expr_c &ldw, const expr_c &ldy,
         const expr_c &x_block_stride, const expr_c &w_block_stride,
         const std::vector<expr> &postops_data, const expr_c &c_buf,
-        const brgemm_args::extra_args_t &extras) {
+        const expr_c &bd_mask_idx, const brgemm_args::extra_args_t &extras) {
     auto args = std::vector<expr> {x.remove_const(), w.remove_const(),
             y.remove_const(), blocks.remove_const(), M.remove_const(),
             N.remove_const(), K.remove_const(), ldx.remove_const(),
@@ -603,6 +603,7 @@ stmt builder_impl_t::brgemm(const expr_c &x, const expr_c &w, const expr_c &y,
             x_block_stride.remove_const(), w_block_stride.remove_const()};
     args.insert(args.end(), postops_data.begin(), postops_data.end());
     args.emplace_back(c_buf.remove_const());
+    args.emplace_back(bd_mask_idx.remove_const());
     return push_evaluate(make_expr<intrin_call_node>(intrin_type::brgemm, args,
             any_map_t {{intrin_attr::brgemm_extras, extras}}));
 }
@@ -613,7 +614,7 @@ stmt builder_impl_t::list_brgemm(const expr_c &x, const expr_c &w,
         const expr_c &ldy, const expr_c &x_block_stride,
         const expr_c &w_block_stride, const expr_c &len,
         const std::vector<expr> &postops_data, const expr_c &c_buf,
-        const brgemm_args::extra_args_t &extras) {
+        const expr_c &bd_mask_idx, const brgemm_args::extra_args_t &extras) {
     auto args = std::vector<expr> {x.remove_const(), w.remove_const(),
             y.remove_const(), blocks.remove_const(), M.remove_const(),
             N.remove_const(), K.remove_const(), ldx.remove_const(),
@@ -622,6 +623,7 @@ stmt builder_impl_t::list_brgemm(const expr_c &x, const expr_c &w,
             len.remove_const()};
     args.insert(args.end(), postops_data.begin(), postops_data.end());
     args.emplace_back(c_buf.remove_const());
+    args.emplace_back(bd_mask_idx.remove_const());
     return push_evaluate(make_expr<intrin_call_node>(intrin_type::list_brgemm,
             args, any_map_t {{intrin_attr::brgemm_extras, extras}}));
 }

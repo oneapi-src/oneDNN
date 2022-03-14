@@ -476,7 +476,7 @@ public:
             dispatch_args(v->args_);
             // now tick_ is the tick when the last parameter is calculated. set
             // the tick for referenced tensors
-            assert(v->args_.size() == brgemm_args::NUM_ARGS_CPU);
+            assert(v->args_.size() == brgemm_args::NUM_FULL_ARGS_STRIDE);
             for (int i = 0; i < brgemm_args::C + 1; i++) {
                 auto &p = v->args_[i];
                 tensor_c tsr;
