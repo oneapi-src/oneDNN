@@ -36,7 +36,7 @@ using namespace Xbyak;
 
 using data_t = int8_t;
 
-struct jit_uni_bnorm_s8_call_params_t {
+struct call_params_bnorm_t {
     // keep int sizes at 8 bytes -- jit code expects this
     size_t channel_offt_count, spat_offt_count;
     float eps;
@@ -105,7 +105,7 @@ struct jit_bnorm_base_t : public jit_generator {
         uni_vmovq(xone, reg_tmp);
         uni_vbroadcastss(vone, xone);
 
-#define PARAM_OFF(x) offsetof(jit_uni_bnorm_s8_call_params_t, x)
+#define PARAM_OFF(x) offsetof(call_params_bnorm_t, x)
         uni_vbroadcastss(veps, vmmword[reg_param + PARAM_OFF(eps)]);
         uni_vpxor(vzero, vzero, vzero);
 
@@ -659,7 +659,7 @@ struct driver_t : public c_compatible {
         dim_t W = pd_->W();
         dim_t SP = D * H * W;
 
-        jit_uni_bnorm_s8_call_params_t p;
+        call_params_bnorm_t p;
 
         p.eps = pd_->desc()->batch_norm_epsilon;
 
