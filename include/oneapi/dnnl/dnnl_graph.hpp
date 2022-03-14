@@ -834,6 +834,7 @@ public:
         PowBackprop = kPowBackprop,
         PowBackpropExponent = kPowBackpropExponent,
         PReLU = kPReLU,
+        PReLUBackprop = kPReLUBackprop,
         Quantize = kQuantize,
         Reciprocal = kReciprocal,
         ReduceL1 = kReduceL1,

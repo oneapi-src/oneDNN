@@ -965,6 +965,30 @@ DNNL_GRAPH_OP_SCHEMA(PReLU, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(PReLUBackprop, 1,
+        op_schema_t()
+                .set_num_inputs(3)
+                .set_num_outputs(2)
+                .set_input(0, "input_forward", "input of forward", "T")
+                .set_input(1, "slope", "slope tensor", "T")
+                .set_input(2, "output_delta",
+                        "the gradient tensor with respect to the output of "
+                        "prelu",
+                        "T")
+                .set_output(0, "input_delta",
+                        "the gradient tensor with respect to the input of "
+                        "prelu",
+                        "T")
+                .set_output(1, "slope_delta",
+                        "the gradient tensor with respect to the slope", "T")
+                .set_attr("data_format",
+                        "the data format of input / output, the options are "
+                        "NCX and NXC",
+                        false, attribute_kind::s, "NXC")
+                .set_type_constraints(
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_prelu_bwd_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(ReduceL1, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
