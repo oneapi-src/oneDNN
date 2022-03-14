@@ -174,6 +174,16 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
             }
             // find coupled node_output
             if (!consumer_matched) {
+                // TODO(Yixin): temporary fix sigmoid + multiply = swish
+                // After successfully matching sigmoid, multiply is also
+                // matched because multiply is sigmoid's out_op.
+                // When matching multiply, check if it is already in the
+                // matched op_map, if yes, the match is OK
+                if (node_output.second.size() == 1
+                        && node_output.second[0]->first->get_node_kind()
+                                != pb_node_kind::PB_NODE_KIND_OP
+                        && op_map_for_current_node_output.count(out_op))
+                    continue;
                 // check if allow external output
                 if (node->get_node_kind() == pb_node_kind::PB_NODE_KIND_OP) {
                     pb_op *p_op = dynamic_cast<pb_op *>(node);
@@ -517,9 +527,8 @@ bool match_graph(const binding_t &bind_arg, match_context_t *ctx,
         case BIND_IN: {
             auto consumers
                     = ctx->get_graph()->get_inner_consumer(bind_arg.bind_port);
-            assertm(consumers->size() == 1,
-                    "pattern graph is restricted to have only 1 consumer "
-                    "for in/out ports");
+            // TODO(Yixin) Currently support more than 1 consumer for in_ports
+            // But will only traverse from the first consumer
             local_bind.bind_node = (*consumers)[0]->first;
             local_bind.bind_port = (*consumers)[0]->second;
             if (!match_graph_helper(local_bind, ctx, matched_op_map))
