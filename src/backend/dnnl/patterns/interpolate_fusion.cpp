@@ -73,9 +73,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_post_ops_fusion)
                             "pother_postop_graph");
                     pm::pb_op *pop = other_postop_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh, impl::op_kind::Log,
-                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::Elu, impl::op_kind::Exp,
+                                    impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh,
+                                    impl::op_kind::HardSwish,
+                                    impl::op_kind::Log, impl::op_kind::Sigmoid,
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,
                                     impl::op_kind::Sqrt, impl::op_kind::Square,

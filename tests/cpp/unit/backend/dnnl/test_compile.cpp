@@ -14061,13 +14061,15 @@ TEST(Execute, InterpolatePostOps) {
     impl::stream_t &strm = get_stream();
 
     const std::vector<impl::op_kind_t> supported_post_ops = {impl::op_kind::Abs,
-            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::GELU,
-            impl::op_kind::HardTanh, impl::op_kind::Log, impl::op_kind::Sigmoid,
-            impl::op_kind::SoftPlus, impl::op_kind::Pow, impl::op_kind::ReLU,
-            impl::op_kind::Round, impl::op_kind::Sqrt, impl::op_kind::Square,
-            impl::op_kind::Tanh, impl::op_kind::Add, impl::op_kind::Multiply,
-            impl::op_kind::Maximum, impl::op_kind::Minimum,
-            impl::op_kind::Divide, impl::op_kind::Subtract};
+            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
+            impl::op_kind::GELU, impl::op_kind::HardTanh,
+            impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add,
+            impl::op_kind::Multiply, impl::op_kind::Maximum,
+            impl::op_kind::Minimum, impl::op_kind::Divide,
+            impl::op_kind::Subtract};
     const std::vector<impl::op_kind_t> two_inputs_ops {impl::op_kind::Multiply,
             impl::op_kind::Add, impl::op_kind::Maximum, impl::op_kind::Minimum,
             impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
@@ -15420,10 +15422,15 @@ INSTANTIATE_TEST_SUITE_P(Execute, EltwiseBinary,
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::SoftPlus,
                         impl::op_kind::Minimum, {1, 1, 2, 2},
                         {2.0, 2.0, 2.0, 2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::Exp,
+                        impl::op_kind::Minimum, {1, 1, 2, 2},
+                        {2.0, 2.0, 2.0, 2.0}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Elu,
                         impl::op_kind::Subtract, {1, 1, 2, 2},
                         {2.0, 2.0, 2.0, 2.0}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Sqrt,
+                        impl::op_kind::Minimum, {1}, {2.0}, false},
+                dnnl_graph_test_eltwise_binary_params {impl::op_kind::HardSwish,
                         impl::op_kind::Minimum, {1}, {2.0}, false},
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Tanh,
                         impl::op_kind::Add, {1}, {2.0}, true}));

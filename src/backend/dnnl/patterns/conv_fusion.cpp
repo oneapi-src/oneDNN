@@ -365,7 +365,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_depthwise_fusion)
                 |
               [bias]*                     [dequant_add]
                 |                             /
-        [ Abs/Clamp/Elu/GELU/HardTanh/Log/Sigmoid/SoftPlus/
+        [ Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/ Add*[0,1] ]*[0,3]
                 |
             [quant_out]*  
@@ -438,9 +438,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
                             = std::make_shared<pb_graph_t>("peltwise_graph");
                     pm::pb_op *pop = peltwise_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh, impl::op_kind::Log,
-                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::Elu, impl::op_kind::Exp,
+                                    impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh,
+                                    impl::op_kind::HardSwish,
+                                    impl::op_kind::Log, impl::op_kind::Sigmoid,
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,
                                     impl::op_kind::Sqrt, impl::op_kind::Square,
@@ -970,7 +972,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
               \   /
               conv
                 |
-        [ Abs/Clamp/Elu/GELU/HardTanh/Log/Sigmoid/SoftPlus/
+        [ Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3] 
                 |       
@@ -1010,9 +1012,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_post_ops_fusion)
                             "pother_postop_graph");
                     pm::pb_op *pop = other_postop_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh, impl::op_kind::Log,
-                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::Elu, impl::op_kind::Exp,
+                                    impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh,
+                                    impl::op_kind::HardSwish,
+                                    impl::op_kind::Log, impl::op_kind::Sigmoid,
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,
                                     impl::op_kind::Sqrt, impl::op_kind::Square,
@@ -1051,7 +1055,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_post_ops_fusion)
                 |
               bias
                 |
-        [ Abs/Clamp/Elu/GELU/HardTanh/Log/Sigmoid/SoftPlus/
+        [ Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3] 
                 |      
@@ -1094,9 +1098,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                             "pother_postop_graph");
                     pm::pb_op *pop = other_postop_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh, impl::op_kind::Log,
-                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::Elu, impl::op_kind::Exp,
+                                    impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh,
+                                    impl::op_kind::HardSwish,
+                                    impl::op_kind::Log, impl::op_kind::Sigmoid,
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,
                                     impl::op_kind::Sqrt, impl::op_kind::Square,
@@ -1154,9 +1160,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                             "pother_postop_graph");
                     pm::pb_op *pop = other_postop_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh, impl::op_kind::Log,
-                                    impl::op_kind::Sigmoid,
+                                    impl::op_kind::Elu, impl::op_kind::Exp,
+                                    impl::op_kind::GELU,
+                                    impl::op_kind::HardTanh,
+                                    impl::op_kind::HardSwish,
+                                    impl::op_kind::Log, impl::op_kind::Sigmoid,
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,
                                     impl::op_kind::Sqrt, impl::op_kind::Square,
