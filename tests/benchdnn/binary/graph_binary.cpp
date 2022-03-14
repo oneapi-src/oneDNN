@@ -34,11 +34,13 @@ binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
     for (auto d = 0; d < ndims; ++d)
         dst_dims.push_back(std::max(src0_dims[d], src1_dims[d]));
 
+    raw_src0_tag = prb->stag[0];
+    raw_src1_tag = prb->stag[1];
+    raw_dst_tag = prb->dtag;
+
     src0_dt = convert_dt(prb->sdt[0]);
     src1_dt = convert_dt(prb->sdt[1]);
     dst_dt = convert_dt(prb->ddt);
-
-    data_format = convert_tag(prb->dtag);
 
     op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
 
@@ -97,9 +99,11 @@ fill_status_t binary_graph_prb_t::handle_main_op_() {
     const std::string SRC1 {TENSOR_ID + "_SRC1"};
     const std::string DST {TENSOR_ID + "_DST"};
 
-    tensor_descs_.emplace(SRC0, spec_.src0_dt, spec_.src0_dims, lt::strided);
-    tensor_descs_.emplace(SRC1, spec_.src1_dt, spec_.src1_dims, lt::strided);
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, lt::strided);
+    tensor_descs_.emplace(
+            SRC0, spec_.src0_dt, spec_.src0_dims, spec_.raw_src0_tag);
+    tensor_descs_.emplace(
+            SRC1, spec_.src1_dt, spec_.src1_dims, spec_.raw_src1_tag);
+    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
 
     dnnl::graph::op binary(new_op_id, spec_.op_kind,
             {tensor_descs_[SRC0], tensor_descs_[SRC1]}, {tensor_descs_[DST]},

@@ -1,10 +1,16 @@
 # main op
 --reset
---alg=ADD,MUL,MAX,MIN,SUB --stag=abx:abx 64x128x28x28:64x128x28x28
+--alg=ADD,MUL,MAX,MIN,SUB --stag=abx:abx --dtag=abx 64x128x28x28:64x128x28x28
+
+--reset
+--alg=ADD,MUL,MAX,MIN,SUB --stag=axb:axb --dtag=axb 64x128x28x28:64x128x28x28
 
 # post binary
 --reset
---alg=MUL --ddt=f32 --sdt=f32:f32 --attr-post-ops=add:f32:common --stag=abx:abx 64x128x28x28:64x128x28x28
+--alg=MUL --ddt=f32 --sdt=f32:f32 --attr-post-ops=add:f32:common,add:f32:per_oc,add:f32:per_oc:axb --stag=abx:abx
+64x128:64x128
+2x4x2:2x4x2
+64x128x28x28:64x128x28x28
 
 # post sum
 --reset

@@ -58,6 +58,12 @@ private:
         std::string auto_broadcast {"numpy"};
         std::string backend {"dnnl"};
 
+        std::string data_format {"NCX"};
+
+        std::string raw_src0_tag;
+        std::string raw_src1_tag;
+        std::string raw_dst_tag;
+
         dims_t src0_dims;
         dims_t src1_dims;
         dims_t dst_dims;
@@ -65,8 +71,6 @@ private:
         dt src0_dt;
         dt src1_dt;
         dt dst_dt;
-
-        std::string data_format;
 
         dnnl::graph::op::kind op_kind;
     };
