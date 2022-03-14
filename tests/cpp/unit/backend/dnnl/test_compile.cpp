@@ -4815,9 +4815,8 @@ public:
         g.add_op(&convtranspose_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = params.with_bias
-                ? get_pass("convtranspose_bias_fusion")
-                : get_pass("convtranspose_pass");
+        impl::pass::pass_base_ptr apass
+                = get_pass("convtranspose_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -6855,9 +6854,8 @@ public:
         g.add_op(&add_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = params.with_bias
-                ? get_pass("convtranspose_bias_add_fusion")
-                : get_pass("convtranspose_add_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass("convtranspose_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -7010,9 +7008,8 @@ TEST(operator_kernel, convtranspose_relu) {
         g.add_op(&relu_op);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = with_bias
-                ? get_pass("convtranspose_bias_relu_fusion")
-                : get_pass("convtranspose_relu_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass("convtranspose_post_ops_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];

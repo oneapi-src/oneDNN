@@ -2950,7 +2950,7 @@ TEST(Pass, FuseConvtransposeBiasadd) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 2);
 
-    pass::pass_base_ptr apass = get_pass("convtranspose_bias_fusion");
+    pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -2994,9 +2994,7 @@ TEST(Pass, FuseConvtransposeAdd) {
         agraph.build_graph();
         ASSERT_EQ(agraph.num_ops(), 2);
 
-        pass::pass_base_ptr apass = with_bias
-                ? get_pass("convtranspose_bias_add_fusion")
-                : get_pass("convtranspose_add_fusion");
+        pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -3048,7 +3046,7 @@ TEST(Pass, FuseConvtransposeAddTwoInputs) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 3);
 
-    pass::pass_base_ptr apass = get_pass("convtranspose_bias_add_fusion");
+    pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -3092,9 +3090,7 @@ TEST(Pass, FuseConvtransposeRelu) {
         agraph.build_graph();
         ASSERT_EQ(agraph.num_ops(), 2);
 
-        pass::pass_base_ptr apass = with_bias
-                ? get_pass("convtranspose_bias_relu_fusion")
-                : get_pass("convtranspose_relu_fusion");
+        pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -3141,7 +3137,7 @@ TEST(Pass, FuseConvtransposeReLUTwoInputs) {
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 3);
 
-    pass::pass_base_ptr apass = get_pass("convtranspose_bias_relu_fusion");
+    pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -12020,4 +12016,118 @@ TEST(Pass, BinaryPostops) {
                 for (size_t k = 0; k < output_lts.size(); ++k)
                     ASSERT_EQ(partition->get_outputs()[k].id, output_lts[k]);
             }
+}
+
+// TODO(zitian): add test case for Sigmoid+Multiply in a elegant way
+// TODO(zitian): set addbias optional in test case
+TEST(Pass, ConvtransposePostops) {
+    /*
+        0       1
+        \       /
+        convtranspose
+            |
+        addbias * [0, 1]
+            |
+        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 1]
+    */
+
+    std::vector<bool> with_conv_bias = {true, false};
+    std::vector<bool> with_post_bias = {true, false};
+    std::vector<bool> with_post_activation = {true, false};
+    std::vector<op_kind_t> supported_ops {Abs, Add, Clamp, Divide, Elu, Exp,
+            GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round,
+            Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+    std::vector<op_kind_t> supported_binary_ops {
+            Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
+
+    for (auto conv_bias_on : with_conv_bias)
+        for (auto post_bias_on : with_post_bias)
+            for (auto post_activation_on : with_post_activation)
+                for (auto Activation : supported_ops) {
+                    auto is_binary_activation
+                            = (std::find(supported_binary_ops.begin(),
+                                       supported_binary_ops.end(), Activation)
+                                    != supported_binary_ops.end());
+
+                    graph_t agraph;
+                    op_t convtranspose {0, ConvTranspose, "convtranspose"};
+                    set_conv_common_attr(convtranspose);
+                    op_t biasadd {1, BiasAdd, "biasadd"};
+                    op_t activation {2, Activation, "activation"};
+
+                    // set additional parameters for specific ops
+                    if (Activation == Elu) {
+                        activation.set_attr<float>("alpha", 1.0f);
+                    } else if (Activation == Clamp) {
+                        activation.set_attr<float>("min", 1.0f);
+                        activation.set_attr<float>("max", 3.0f);
+                    } else if (Activation == HardTanh) {
+                        activation.set_attr<float>("min", 1.0f);
+                        activation.set_attr<float>("max", 3.0f);
+                    }
+
+                    std::vector<logical_tensor_t> lt_vec
+                            = create_logical_tensors(8);
+                    size_t lt_idx = -1;
+                    std::vector<size_t> input_lts = {};
+                    std::vector<size_t> output_lts = {};
+                    convtranspose.add_input(lt_vec[++lt_idx]);
+                    input_lts.push_back(lt_idx);
+                    convtranspose.add_input(lt_vec[++lt_idx]);
+                    input_lts.push_back(lt_idx);
+                    if (conv_bias_on) {
+                        convtranspose.add_input(lt_vec[++lt_idx]);
+                        input_lts.push_back(lt_idx);
+                    }
+                    convtranspose.add_output(lt_vec[++lt_idx]);
+                    if (post_bias_on) {
+                        biasadd.add_input(lt_vec[lt_idx]);
+                        biasadd.add_input(lt_vec[++lt_idx]);
+                        input_lts.push_back(lt_idx);
+                        biasadd.add_output(lt_vec[++lt_idx]);
+                    }
+                    if (post_activation_on) {
+                        activation.add_input(lt_vec[lt_idx]);
+                        if (is_binary_activation) {
+                            activation.add_input(lt_vec[++lt_idx]);
+                            input_lts.push_back(lt_idx);
+                        }
+                        activation.add_output(lt_vec[++lt_idx]);
+                    }
+                    if (conv_bias_on && post_bias_on) {
+                        // a special case where the matching process
+                        // should terminate before biasadd
+                        input_lts = std::vector<size_t>(
+                                input_lts.begin(), input_lts.begin() + 3);
+                        output_lts.push_back(3);
+                    } else
+                        output_lts.push_back(lt_idx);
+
+                    ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
+                    if (post_bias_on) {
+                        ASSERT_EQ(agraph.add_op(&biasadd), status::success);
+                    }
+                    if (post_activation_on) {
+                        ASSERT_EQ(agraph.add_op(&activation), status::success);
+                    }
+                    agraph.build_graph();
+
+                    pass::pass_base_ptr apass
+                            = get_pass("convtranspose_post_ops_fusion");
+                    apass->run(agraph);
+                    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+                    auto partition = agraph.get_partitions()[0];
+                    ASSERT_EQ(get_fused_op(partition)->get_kind(),
+                            dnnl_impl::op_kind::convtranspose_fusion);
+
+                    ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
+                    for (size_t k = 0; k < input_lts.size(); ++k)
+                        ASSERT_EQ(partition->get_inputs()[k].id, input_lts[k]);
+                    ASSERT_EQ(
+                            partition->get_outputs().size(), output_lts.size());
+                    for (size_t k = 0; k < output_lts.size(); ++k)
+                        ASSERT_EQ(
+                                partition->get_outputs()[k].id, output_lts[k]);
+                }
 }
