@@ -669,7 +669,8 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
     const std::string BIN_DST {TENSOR_ID + "_DST"};
 
     if (bin_src_dims != dst_dims) {
-        p.tensor_descs_.emplace(BIN_SRC, bin_src_dt, bin_src_dims, lt::strided);
+        p.tensor_descs_.emplace(
+                BIN_SRC, bin_src_dt, bin_src_dims, po_entry.binary.tag);
     } else {
         BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
                 p.tensor_descs_, BIN_SRC, bin_src_dt, bin_src_dims, dst_lt);
