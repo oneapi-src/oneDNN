@@ -80,6 +80,8 @@ private:
         dt dst_dt;
 
         dnnl::graph::op::kind op_kind;
+        std::string op_name;
+        bool is_fwd;
     };
     spec_t spec_;
     po_handlers_t po_handler;
