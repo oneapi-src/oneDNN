@@ -133,7 +133,8 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
     switch (memory_kind) {
         case memory_kind_ext_t::usm:
         case memory_kind_ext_t::buffer: {
-            auto md_padded = pad_memory_desc(md_, &is_canary_protected_);
+            auto md_padded
+                    = pad_memory_desc(md_, engine_kind_, &is_canary_protected_);
             dnnl_sycl_interop_memory_kind_t mem_kind
                     = (memory_kind == memory_kind_ext_t::usm
                                     ? dnnl_sycl_interop_usm
@@ -148,8 +149,8 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
         case memory_kind_ext_t::usm_shared: {
             SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
             is_data_owner_ = true;
-            size_t sz = pad_memory_size(
-                    dnnl_memory_desc_get_size(&md_), &is_canary_protected_);
+            size_t sz = pad_memory_size(dnnl_memory_desc_get_size(&md_),
+                    engine_kind_, &is_canary_protected_);
             auto eng = dnnl::engine(engine_, true);
             auto dev = dnnl::sycl_interop::get_device(eng);
             auto ctx = dnnl::sycl_interop::get_context(eng);
@@ -189,7 +190,8 @@ int dnn_mem_t::initialize_memory_create_opencl(
     switch (memory_kind) {
         case memory_kind_ext_t::usm:
         case memory_kind_ext_t::buffer: {
-            auto md_padded = pad_memory_desc(md_, &is_canary_protected_);
+            auto md_padded
+                    = pad_memory_desc(md_, engine_kind_, &is_canary_protected_);
             dnnl_ocl_interop_memory_kind_t mem_kind
                     = (memory_kind == memory_kind_ext_t::usm
                                     ? dnnl_ocl_interop_usm
@@ -203,8 +205,8 @@ int dnn_mem_t::initialize_memory_create_opencl(
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared: {
             is_data_owner_ = true;
-            size_t sz = pad_memory_size(
-                    dnnl_memory_desc_get_size(&md_), &is_canary_protected_);
+            size_t sz = pad_memory_size(dnnl_memory_desc_get_size(&md_),
+                    engine_kind_, &is_canary_protected_);
             if (memory_kind == memory_kind_ext_t::usm_device) {
                 data_ = dnnl::impl::gpu::ocl::usm::malloc_device(engine_, sz);
             } else {
@@ -474,7 +476,7 @@ int check_buffer_overwrite(const dnn_mem_t &mem, int arg) {
     if (!mem.is_canary_protected()) return OK;
 
     size_t sz = mem.size();
-    size_t sz_padded = dnn_mem_t::pad_memory_size(sz);
+    size_t sz_padded = dnn_mem_t::pad_memory_size(sz, mem.engine_kind());
 
     auto *mem_ptr = (const uint8_t *)mem;
     for (size_t i = sz; i < sz_padded; i++) {
