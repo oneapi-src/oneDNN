@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ static void get_output_shape(sc_dims &outshape, const sc_dims &input_dims,
 
 static_reshape_op::static_reshape_op(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-    : sc_op("static_reshape_op", ins, outs, attrs) {
+    : sc_op("static_reshape", ins, outs, attrs) {
     COMPILE_ASSERT(
             attrs.has_key("shape"), "Static reshape requires shape attributes");
     auto shape = attrs.get<sc_dims>("shape");
