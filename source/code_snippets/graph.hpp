@@ -9,7 +9,10 @@ graph(engine::kind engine_kind);
 ///
 /// @param op An operator/node that represents the entry of frameworks'
 ///    graph
-void add_op(const op &op);
+/// @param allow_exception A flag indicating whether the method is allowed
+///    to throw an exception if it fails to add the op to the graph.
+/// @returns #success or a status describing the error otherwise.
+status add_op(const op &op, bool allow_exception = true);
 
 using partition_vec = std::vector<partition>;
 /// Get filtered partitions

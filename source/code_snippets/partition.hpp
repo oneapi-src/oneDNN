@@ -11,12 +11,12 @@ partition(const op &aop, engine::kind ekind);
 ///
 /// @returns Number of ops
 size_t get_ops_num() const;
- 
+
 /// Returns all op’s id of the partition
 ///
 /// @returns An unordered set of op ids
-std::vector<size_t> get_ops();
- 
+std::vector<size_t> get_ops() const;
+
 /// Returns the unique id of the partition
 ///
 /// @returns Unique id
