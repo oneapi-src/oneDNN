@@ -211,9 +211,11 @@ struct dnn_mem_t {
 
     // Increases memory size to catch potential buffer overreads and
     // overwrites. The padded area is filled with a canary value.
-    static size_t pad_memory_size(size_t sz, bool *was_padded = nullptr) {
+    static size_t pad_memory_size(size_t sz, dnnl_engine_kind_t engine_kind,
+            bool *was_padded = nullptr) {
         if (was_padded) *was_padded = false;
-        if (sz == 0 || !is_bench_mode(CORR)) return 0;
+        if (sz == 0 || !is_bench_mode(CORR) || engine_kind == dnnl_cpu)
+            return 0;
 
         const int pad_size = 4096;
         if (was_padded) *was_padded = true;
@@ -222,13 +224,14 @@ struct dnn_mem_t {
 
     // Increases memory descriptor size to catch potential buffer overreads and
     // overwrites. The padded area is filled with a canary value.
-    static dnnl_memory_desc_t pad_memory_desc(
-            const dnnl_memory_desc_t &md, bool *was_padded = nullptr) {
+    static dnnl_memory_desc_t pad_memory_desc(const dnnl_memory_desc_t &md,
+            dnnl_engine_kind_t engine_kind, bool *was_padded = nullptr) {
         if (was_padded) *was_padded = false;
         size_t old_sz = dnnl_memory_desc_get_size(&md);
-        if (old_sz == 0 || !is_bench_mode(CORR)) return md;
+        if (old_sz == 0 || !is_bench_mode(CORR) || engine_kind == dnnl_cpu)
+            return md;
 
-        size_t sz = pad_memory_size(old_sz, was_padded);
+        size_t sz = pad_memory_size(old_sz, engine_kind, was_padded);
         if (sz == old_sz) return md;
 
         dnnl_memory_desc_t ret;
@@ -280,7 +283,7 @@ private:
         SAFE(initialize_memory_create(handle_info), CRIT);
 
         size_t sz = dnnl_memory_desc_get_size(&md_);
-        if (is_canary_protected_) sz = pad_memory_size(sz);
+        if (is_canary_protected_) sz = pad_memory_size(sz, engine_kind_);
 
         // Do not fill a memory if its size is zero. Moreover, memset expects
         // defined pointer, nullptr is not allowed.
