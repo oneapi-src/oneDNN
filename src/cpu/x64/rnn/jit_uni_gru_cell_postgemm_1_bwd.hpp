@@ -84,8 +84,7 @@ protected:
         const auto addr_scratch_gates_reg = abi_param2;
         const auto addr_diff_states_t_lp1_reg = abi_param3;
         const auto addr_diff_states_tp1_l_reg = abi_param4;
-        const auto addr_attn_reg = r14;
-        const auto addr_diff_attn_reg = r15;
+        const auto addr_attn_reg = r15;
 #ifdef _WIN32
         const auto addr_diff_states_t_l_reg = r10;
         const auto addr_states_tm1_l_reg = r11;
@@ -93,13 +92,11 @@ protected:
         mov(addr_diff_states_t_l_reg, ptr[base_args]);
         mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
         if (is_augru) mov(addr_attn_reg, ptr[base_args + 48]);
-        if (is_augru) mov(addr_diff_attn_reg, ptr[base_args + 56]);
 #else
         const auto addr_diff_states_t_l_reg = abi_param5;
         const auto addr_states_tm1_l_reg = abi_param6;
         const auto base_args = get_stack_params_address();
         if (is_augru) mov(addr_attn_reg, ptr[base_args + 32]);
-        if (is_augru) mov(addr_diff_attn_reg, ptr[base_args + 40]);
 #endif
 
         // helper lambda to address the gates and biases
@@ -292,7 +289,13 @@ protected:
             Xmm diff_attn_acc(dattn_acc_idx);
             vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
             vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
-            uni_vmovss(ptr[addr_diff_attn_reg], diff_attn_acc);
+            const auto base_args = get_stack_params_address();
+#ifdef _WIN32
+            mov(addr_attn_reg, ptr[base_args + 56]);
+#else
+            mov(addr_attn_reg, ptr[base_args + 40]);
+#endif
+            uni_vmovss(ptr[addr_attn_reg], diff_attn_acc);
         }
 
         postamble();

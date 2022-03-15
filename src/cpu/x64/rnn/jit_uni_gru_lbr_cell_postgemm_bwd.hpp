@@ -69,7 +69,8 @@ protected:
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
         const int dG0_idx = 1, dG1_idx = 2, dG2_idx = 3, G0_idx = 4, G1_idx = 5,
                   G2_idx = 6, h_idx = 7, dHt_idx = 8, one_idx = 9,
-                  tmp1_idx = 10, tmp2_idx = 11, dattn_acc_idx = 12, attn_idx = 13;
+                  tmp1_idx = 10, tmp2_idx = 11, dattn_acc_idx = 12,
+                  attn_idx = 13;
         const Vmm one_vmm(one_idx);
         const Xmm one_xmm(one_idx);
 
@@ -85,7 +86,6 @@ protected:
         const auto addr_diff_states_t_lp1_reg = abi_param3;
         const auto addr_diff_states_tp1_l_reg = abi_param4;
         const auto addr_attn_reg = r14;
-        const auto addr_diff_attn_reg = r15;
 #ifdef _WIN32
         const auto addr_diff_states_t_l_reg = r10;
         const auto addr_states_tm1_l_reg = r11;
@@ -97,7 +97,6 @@ protected:
         mov(addr_scratch_cell_reg, ptr[base_args + 16]);
         mov(addr_ws_grid_reg, ptr[base_args + 24]);
         if (is_augru) mov(addr_attn_reg, ptr[base_args + 48]);
-        if (is_augru) mov(addr_diff_attn_reg, ptr[base_args + 56]);
 #else
         const auto addr_diff_states_t_l_reg = abi_param5;
         const auto addr_states_tm1_l_reg = abi_param6;
@@ -107,7 +106,6 @@ protected:
         mov(addr_scratch_cell_reg, ptr[base_args]);
         mov(addr_ws_grid_reg, ptr[base_args + 8]);
         if (is_augru) mov(addr_attn_reg, ptr[base_args + 32]);
-        if (is_augru) mov(addr_diff_attn_reg, ptr[base_args + 40]);
 #endif
 
         // helper lambda to address the gates and biases
@@ -348,7 +346,13 @@ protected:
             Xmm diff_attn_acc(dattn_acc_idx);
             vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
             vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
-            uni_vmovss(ptr[addr_diff_attn_reg], diff_attn_acc);
+            const auto base_args = get_stack_params_address();
+#ifdef _WIN32
+            mov(addr_attn_reg, ptr[base_args + 56]);
+#else
+            mov(addr_attn_reg, ptr[base_args + 40]);
+#endif
+            uni_vmovss(ptr[addr_attn_reg], diff_attn_acc);
         }
 
         postamble();
