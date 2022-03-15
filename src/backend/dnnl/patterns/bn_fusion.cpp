@@ -23,9 +23,11 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
+namespace pm = impl::utils::pm;
+using in_edges_t = pm::in_edges_t;
+using pb_graph_t = pm::pb_graph_t;
+using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
+using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 /*!
  * \brief This provides batchnorm-related fusion, i.e.
@@ -40,35 +42,35 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(bn_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, bn_relu_fusion)
         .set_priority(8.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *bn = apattern->create_op(
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto bn = pgraph->append_op(
                             impl::op_kind::BatchNormInference);
-                    op_t *relu = apattern->create_op(impl::op_kind::ReLU);
-                    relu->fill_and_connect_input(0, *bn, 0);
+                    pgraph->append_op(impl::op_kind::ReLU, {in_edge(0, bn, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(op_kind::bn_relu);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::bn_relu);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, bn_bwd_relu_bwd_fusion)
         .set_priority(8.8f)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *relu_bwd
-                            = apattern->create_op(impl::op_kind::ReLUBackprop);
-                    op_t *bn_bwd = apattern->create_op(
-                            impl::op_kind::BatchNormTrainingBackprop);
-                    bn_bwd->fill_and_connect_input(0, *relu_bwd, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto relu_bwd
+                            = pgraph->append_op(impl::op_kind::ReLUBackprop);
+                    pgraph->append_op(impl::op_kind::BatchNormTrainingBackprop,
+                            {in_edge(0, relu_bwd, 0)});
                 })
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op = optimized_pattern->create_op(
-                            op_kind::bn_bwd_relu_bwd);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::bn_bwd_relu_bwd);
                     fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
