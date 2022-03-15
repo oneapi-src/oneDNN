@@ -369,10 +369,16 @@ public:
         auto ret = ir_visitor_t::visit(v).checked_as<cast_c>().remove_const();
         if (ret->in_->dtype_.is_etype(sc_data_etype::BF16)) {
             expr new_in = visit_need_def_args({ret->in_})[0].remove_const();
+            if (!new_in.ptr_same(ret->in_)) {
+                ret = ret->remake().static_as<cast>();
+            }
             ret->in_ = new_in;
             return create_cast_bf16_to_f32(ctx_, ret);
         } else if (ret->dtype_.is_etype(sc_data_etype::BF16)) {
             expr new_in = visit_need_def_args({ret->in_})[0].remove_const();
+            if (!new_in.ptr_same(ret->in_)) {
+                ret = ret->remake().static_as<cast>();
+            }
             ret->in_ = new_in;
             return create_cast_f32_to_bf16(ctx_, ret);
         }
