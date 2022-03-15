@@ -504,21 +504,6 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
     ret = pre_process(tmp_outputs, outputs, backend);
     if (status::success != ret) return ret;
 
-    // Set compatible layout to outputs and overwrite user provided strides
-    for (size_t i = 0; i < get_outputs_num(); ++i) {
-        if (tid_require_strided_output_.count(tmp_outputs[i].id)) {
-            if (logical_tensor_wrapper_t(tmp_outputs[i]).is_opaque())
-                return status::invalid_argument;
-            if (logical_tensor_wrapper_t(tmp_outputs[i]).is_strided()) continue;
-            // Make layout type as strided to let shape inference to fill
-            // strides
-            tmp_outputs[i].layout_type = layout_type::strided;
-            std::vector<dim_t> unknown_strides(tmp_outputs[i].ndims, -1);
-            utils::array_copy(tmp_outputs[i].layout.strides,
-                    unknown_strides.data(), unknown_strides.size());
-        }
-    }
-
     // The impl's compile will generate the compiled_partition_impl and
     // modify the given inputs outputs logical tensor
     ret = pimpl_->compile(cp, tmp_inputs, tmp_outputs, aengine);

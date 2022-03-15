@@ -990,7 +990,7 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
                            *compiled_partition, sum_input1.id, &opt_sum_input1),
             dnnl_graph_result_success,
             COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
-    ASSERT_EQ(opt_sum_input1.layout_type, dnnl_graph_layout_type_opaque);
+    ASSERT_EQ(opt_sum_input1.layout_type, dnnl_graph_layout_type_strided);
 
     const dnnl_graph_logical_tensor_t *p1_inputs[3]
             = {&conv0_input, &conv0_weight, &opt_sum_input1};
@@ -1007,7 +1007,7 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
                            &opaque_sum_output),
             dnnl_graph_result_success,
             COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS);
-    ASSERT_EQ(opaque_sum_output.layout_type, dnnl_graph_layout_type_opaque);
+    ASSERT_EQ(opaque_sum_output.layout_type, dnnl_graph_layout_type_strided);
 
     // Check in-place pairs
     size_t num_inplace_pairs = 10; // Initialized with an impossible value.

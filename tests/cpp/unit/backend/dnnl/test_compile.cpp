@@ -259,7 +259,7 @@ TEST(Compile, ConvolutionFp32) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 }
 
 TEST(Compile, ConvolutionBackpropDataFp32) {
@@ -404,7 +404,7 @@ TEST(Compile, ConvtransposeFp32) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 }
 
 void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic, impl::dim_t ih,
@@ -1265,7 +1265,7 @@ TEST(Execute, Add) {
     cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
-    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -2164,7 +2164,7 @@ TEST(Execute, AddRelu) {
     cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
-    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -2227,7 +2227,7 @@ TEST(Execute, AddSigmoid) {
     cp.query_logical_tensor(dst_lt.id, &compiled_dst_lt);
 
     ASSERT_EQ(dst_lt.layout_type, impl::layout_type::any);
-    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(compiled_dst_lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -4405,7 +4405,7 @@ TEST(Execute, MaxPool) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
@@ -4483,7 +4483,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
 
     impl::logical_tensor_t lt;
     dq_cp.query_logical_tensor(dq_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     std::vector<const impl::logical_tensor_t *> mp_inputs {&lt};
     std::vector<const impl::logical_tensor_t *> mp_outputs {&mp_dst_lt};
@@ -4491,7 +4491,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
             impl::status::success);
 
     mp_cp.query_logical_tensor(mp_dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 }
 
 TEST(Execute, AvgPoolExcludePad) {
@@ -4543,7 +4543,7 @@ TEST(Execute, AvgPoolExcludePad) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
@@ -4606,7 +4606,7 @@ TEST(Execute, AvgPoolIncludePad) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
@@ -7128,7 +7128,7 @@ void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
 
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
@@ -8125,7 +8125,7 @@ TEST(ExecuteSubgraphFp32, ReciprocalMul) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(mul_dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src0_ts(src0, &eng, src0_data.data());
     impl::tensor_t src1_ts(src1, &eng, src1_data.data());
@@ -8179,7 +8179,7 @@ TEST(Execute, Softmax) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src, &eng, src_data.data());
     impl::tensor_t dst_ts(lt, &eng, dst_data.data());
@@ -8231,7 +8231,7 @@ TEST(Execute, SoftmaxWithLastDim) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src, &eng, src_data.data());
     impl::tensor_t dst_ts(lt, &eng, dst_data.data());
@@ -8294,7 +8294,7 @@ void test_softmax_bwd_common(const impl::op_kind_t op_kind,
 
     impl::logical_tensor_t q_lt;
     cp.query_logical_tensor(diff_src_lt.id, &q_lt);
-    ASSERT_EQ(q_lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(q_lt.layout_type, impl::layout_type::strided);
 
     for (auto i = 0; i < dst_lt.ndims; i++)
         ASSERT_EQ(q_lt.dims[i], dst_lt.dims[i]);
@@ -8427,7 +8427,7 @@ TEST(Execute, LogSoftmax) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src, &eng, src_data.data());
     impl::tensor_t dst_ts(lt, &eng, dst_data.data());
@@ -8517,7 +8517,7 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(diff_src_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
     impl::tensor_t diff_src_ts(lt, &eng, diff_src.data());
@@ -8575,7 +8575,7 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(diff_src_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
     impl::tensor_t diff_src_ts(lt, &eng, diff_src.data());
@@ -8659,7 +8659,7 @@ TEST(Execute, MaxPoolBackwardWithIncides) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(diff_src_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
@@ -8724,7 +8724,7 @@ TEST(Execute, MaxPoolBackwardWithoutIncides) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(diff_src_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &eng, src.data());
     impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
@@ -8783,7 +8783,7 @@ TEST(Execute, MaxPoolBackwardWithoutIncidesPlainGrad) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(diff_src_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     test::vector<float> src(product(input_dims), 1);
     test::vector<float> diff_dst(product(output_dims), 1);
@@ -9657,7 +9657,7 @@ TEST(Execute, QuantizePerTensorAnyLayout) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &engine, src.data());
     impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
@@ -9887,7 +9887,7 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
     impl::tensor_t src_ts(src_lt, &engine, src.data());
     impl::tensor_t dst_ts(dst_lt, &engine, dst.data());
@@ -14776,7 +14776,7 @@ public:
         impl::logical_tensor_t lt;
         cp.query_logical_tensor(binary_dst_lt.id, &lt);
 
-        ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
         impl::tensor_t src_ts(eltwise_src_lt, &eng, src.data());
         impl::tensor_t binary_src_ts(binary_src_lt, &eng, binary_src.data());
@@ -18575,6 +18575,134 @@ TEST(Execute, ConvResBlock) {
     strm.wait();
 }
 
+TEST(Execute, ConvResBlockWithNhwcLayout) {
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    impl::op_t conv0(0, impl::op_kind::Convolution, "conv0");
+    impl::op_t relu0(1, impl::op_kind::ReLU, "relu0");
+    impl::op_t conv1(2, impl::op_kind::Convolution, "conv1");
+    impl::op_t relu1(3, impl::op_kind::ReLU, "relu1");
+    impl::op_t conv2(4, impl::op_kind::Convolution, "conv2");
+    impl::op_t relu2(5, impl::op_kind::ReLU, "relu2");
+    impl::op_t add(6, impl::op_kind::Add, "add");
+
+    std::vector<int64_t> v_1_1 = {1, 1}, v_0_0 = {0, 0};
+    utils::set_conv_common_attr(
+            conv0, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+    utils::set_conv_common_attr(
+            conv1, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+    utils::set_conv_common_attr(
+            conv2, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+
+    // prepare logical tensor
+    std::vector<impl::dim_t> src_shape = {8, 8, 32, 32};
+    // strides for nhwc
+    std::vector<impl::dim_t> src_strides_nhwc {
+            src_shape[2] * src_shape[3] * src_shape[1], 1,
+            src_shape[3] * src_shape[1], src_shape[1]};
+    std::vector<impl::dim_t> wei_shape = {8, 8, 1, 1};
+    impl::data_type_t dtype = impl::data_type::f32;
+    auto conv0_src
+            = utils::logical_tensor_init(0, src_shape, src_strides_nhwc, dtype);
+    auto conv0_wei = utils::logical_tensor_init(1, wei_shape, dtype);
+    auto relu0_src = utils::logical_tensor_init(2, src_shape, dtype);
+    auto conv1_src = utils::logical_tensor_init(3, src_shape, dtype);
+    auto conv1_wei = utils::logical_tensor_init(4, wei_shape, dtype);
+    auto relu1_src = utils::logical_tensor_init(5, src_shape, dtype);
+    auto conv2_src = utils::logical_tensor_init(6, src_shape, dtype);
+    auto conv2_wei = utils::logical_tensor_init(7, wei_shape, dtype);
+    auto add_src0 = utils::logical_tensor_init(8, src_shape, dtype);
+    auto relu2_src = utils::logical_tensor_init(9, src_shape, dtype);
+    auto relu2_dst = utils::logical_tensor_init(
+            10, src_shape, dtype, impl::layout_type::any);
+
+    conv0.add_input(conv0_src);
+    conv0.add_input(conv0_wei);
+    conv0.add_output(relu0_src);
+    relu0.add_input(relu0_src);
+    relu0.add_output(conv1_src);
+    conv1.add_input(conv1_src);
+    conv1.add_input(conv1_wei);
+    conv1.add_output(relu1_src);
+    relu1.add_input(relu1_src);
+    relu1.add_output(conv2_src);
+    conv2.add_input(conv2_src);
+    conv2.add_input(conv2_wei);
+    conv2.add_output(add_src0);
+    add.add_input(add_src0);
+    add.add_input(conv0_src);
+    add.add_output(relu2_src);
+    relu2.add_input(relu2_src);
+    relu2.add_output(relu2_dst);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv0);
+    g.add_op(&relu0);
+    g.add_op(&conv1);
+    g.add_op(&relu1);
+    g.add_op(&conv2);
+    g.add_op(&add);
+    g.add_op(&relu2);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 7);
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_simple_resblock_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &conv0_src, &conv0_wei, &conv1_wei, &conv2_wei, &conv0_src};
+    std::vector<const impl::logical_tensor_t *> outputs {&relu2_dst};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t queried_relu2_dst;
+    cp.query_logical_tensor(relu2_dst.id, &queried_relu2_dst);
+    ASSERT_EQ(queried_relu2_dst.layout_type, impl::layout_type::strided);
+
+    test::vector<float> conv0_src_data(8 * 8 * 32 * 32);
+    test::vector<float> conv0_wei_data(8 * 8 * 1 * 1);
+    test::vector<float> conv1_wei_data(8 * 8 * 1 * 1);
+    test::vector<float> conv2_wei_data(8 * 8 * 1 * 1);
+    test::vector<float> relu2_dst_data(8 * 8 * 32 * 32);
+    test::vector<float> ref_dst_data(8 * 8 * 32 * 32);
+
+    // Initialize
+    std::default_random_engine generator;
+    std::normal_distribution<float> distribution(0.0f, 0.1f);
+
+    std::generate(conv0_src_data.begin(), conv0_src_data.end(),
+            [&]() { return distribution(generator); });
+    std::generate(conv0_wei_data.begin(), conv0_wei_data.end(),
+            [&]() { return distribution(generator); });
+    std::generate(conv1_wei_data.begin(), conv1_wei_data.end(),
+            [&]() { return distribution(generator); });
+    std::generate(conv2_wei_data.begin(), conv2_wei_data.end(),
+            [&]() { return distribution(generator); });
+
+    impl::tensor_t conv0_src_ts(conv0_src, &eng, conv0_src_data.data());
+    impl::tensor_t conv0_wei_ts(conv0_wei, &eng, conv0_wei_data.data());
+    impl::tensor_t conv1_wei_ts(conv1_wei, &eng, conv1_wei_data.data());
+    impl::tensor_t conv2_wei_ts(conv2_wei, &eng, conv2_wei_data.data());
+    impl::tensor_t relu2_dst_ts(relu2_dst, &eng, relu2_dst_data.data());
+    impl::tensor_t ref_dst_ts(relu2_dst, &eng, ref_dst_data.data());
+
+    ASSERT_EQ(cp.execute(&strm,
+                      {conv0_src_ts, conv0_wei_ts, conv1_wei_ts, conv2_wei_ts},
+                      {relu2_dst_ts}),
+            impl::status::success);
+    strm.wait();
+}
+
 TEST(Execute, Int8Mha) {
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
@@ -19155,7 +19283,7 @@ public:
         impl::logical_tensor_t lt;
         cp.query_logical_tensor(dst_lt.id, &lt);
 
-        ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 
         impl::tensor_t src_ts(src_lt, &eng, src.data());
         impl::tensor_t wei_ts(wei_lt, &eng, wei.data());

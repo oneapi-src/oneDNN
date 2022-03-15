@@ -132,9 +132,8 @@ public:
 
         // fill information for outputs logical tensors
         for (size_t i = 0; i < outputs.size(); i++) {
-            BACKEND_DNNL_CHECK(set_shape_and_layout(
-                    const_cast<impl::logical_tensor_t &>(outputs[i]),
-                    subgraph_->outs_[i]));
+            auto &out = const_cast<impl::logical_tensor_t &>(outputs[i]);
+            out = subgraph_->outs_[i];
         }
 
         // generate a hash key for exec_args_mgr
@@ -284,9 +283,8 @@ public:
         BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
 
         for (size_t i = 0; i < outputs.size(); i++) {
-            BACKEND_DNNL_CHECK(set_shape_and_layout(
-                    const_cast<impl::logical_tensor_t &>(outputs[i]),
-                    subgraph_->outs_[i]));
+            auto &out = const_cast<impl::logical_tensor_t &>(outputs[i]);
+            out = subgraph_->outs_[i];
         }
 
         resource_ctor_ = [this]() {

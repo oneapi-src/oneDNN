@@ -23,6 +23,8 @@
 
 #include "interface/c_types_map.hpp"
 
+#include "backend/dnnl/common.hpp"
+
 #include "insert_ops.hpp"
 #include "utils.hpp"
 
@@ -42,17 +44,6 @@ static bool need_insert_permute(op_kind_t kind) {
             op_kind::dnnl_pool, op_kind::dnnl_batchnorm, op_kind::dnnl_prelu,
             op_kind::dnnl_resampling, op_kind::dnnl_resampling_bwd};
     return ops.count(kind) != 0;
-}
-
-static inline dims get_dense_strides(const dims &shape) {
-    dims strides(shape.size());
-    for (auto it = shape.begin(); it < shape.end(); ++it) {
-        const auto val = std::accumulate(
-                std::next(it), shape.end(), 1, std::multiplies<dim_t>());
-        const auto dist = std::distance(shape.begin(), it);
-        strides[static_cast<size_t>(dist)] = val;
-    }
-    return strides;
 }
 
 impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
@@ -217,7 +208,7 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         const auto known_strides
                 = (src.is_strided()) ? !src.is_stride_unknown() : false;
         const bool need_permute = axis == src.ndims() - 1 && known_strides
-                && src.vstrides() == get_dense_strides(src.vdims());
+                && src.vstrides() == get_ncx_strides(src.vdims());
         if (!need_permute) continue;
 
         const int64_t new_axis = 1;

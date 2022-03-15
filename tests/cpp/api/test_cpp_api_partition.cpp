@@ -99,7 +99,7 @@ TEST(api_partition, partition_test) {
     // query logical tensor from compiled partition
     auto lt4_opaque = cp.query_logical_tensor(3);
     ASSERT_EQ(
-            lt4_opaque.get_layout_type(), logical_tensor::layout_type::opaque);
+            lt4_opaque.get_layout_type(), logical_tensor::layout_type::strided);
 }
 
 TEST(api_partition, get_inputs_outputs_ids) {

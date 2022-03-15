@@ -29,7 +29,6 @@
 #include "interface/shape_infer.hpp"
 #include "interface/value.hpp"
 #include "utils/debug.hpp"
-#include "utils/utils.hpp"
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"

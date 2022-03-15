@@ -68,7 +68,7 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    src = to_format_any(src);
+    src = to_nxc_format(src);
     // assume constant weight is for inference scenario
     const auto &wei_lt = op->get_input_value(1)->get_logical_tensor();
     auto pkind = (impl::logical_tensor_wrapper_t(wei_lt).property_type()
@@ -89,7 +89,7 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(dst_offset)->get_logical_tensor());
-    dst = to_format_any(dst);
+    dst = to_nxc_format(dst);
 
     dnnl::convolution_forward::primitive_desc pd;
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
@@ -252,6 +252,7 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
             op->get_input_value(0)->get_logical_tensor());
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
 
     // infer dnnl expilicit pad
     dims new_pads_end(pads_end);
@@ -340,7 +341,7 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
             ? make_dnnl_memory_desc(
                     op->get_input_value(2)->get_logical_tensor())
             : dnnl::memory::desc(diff_src.dims(), diff_src.data_type(),
-                    get_default_format(diff_src.dims()));
+                    get_ncx_format(diff_src.dims()));
 
     // infer dnnl explicit pad
     dims new_pads_end(pads_end);
@@ -444,7 +445,7 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
     if (blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
             && blk.inner_blks[0] == 4) {
         // to default format
-        src = to_default_format(src);
+        src = to_ncx_format(src);
     }
 
     auto pkind = op->get_attr<bool>("is_training")
@@ -489,7 +490,7 @@ create_batchnorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
     if (blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
             && blk.inner_blks[0] == 4) {
         // to default format
-        src = to_default_format(src);
+        src = to_ncx_format(src);
     }
 
     auto forward_hints = dnnl::batch_normalization_forward::primitive_desc(
@@ -801,7 +802,7 @@ inline dnnl::concat::primitive_desc create_concat_pd(
         if (in_dims.size() == 4)
             return format_tag::acdb;
         else
-            return get_default_format(in_dims);
+            return get_ncx_format(in_dims);
     };
 
     const auto rank = op->get_output_value(0)->get_logical_tensor().ndims;
@@ -952,6 +953,7 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
             op->get_input_value(1)->get_logical_tensor());
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
 
     const algorithm algo
             = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
