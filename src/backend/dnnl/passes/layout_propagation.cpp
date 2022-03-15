@@ -44,7 +44,8 @@ static value_ptr insert_workspace(op_ptr &op) {
 }
 
 static inline void insert_reorder_before(op_ptr &op, size_t offset,
-        const dnnl::memory::desc &opt_mdesc, std::vector<op_ptr> &reorder_ops) {
+        const dnnl::memory::desc &opt_mdesc, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr, std::vector<op_ptr> &reorder_ops) {
     value_ptr in_val = op->get_input_value(offset);
     const logical_tensor_t &in_lt = in_val->get_logical_tensor();
     // just return if real input layout is the same as optimal layout or
@@ -52,8 +53,10 @@ static inline void insert_reorder_before(op_ptr &op, size_t offset,
     if (make_dnnl_memory_desc(in_lt) == opt_mdesc || ltw(in_lt).is_any())
         return;
 
+    // create reorder op, connect it to graph and add it's scratchpad output
     auto reorder_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
     insert_op_before(reorder_op, op, offset);
+    auto scratchpad_val = insert_empty_scratchpad(reorder_op);
     reorder_ops.emplace_back(reorder_op);
     // set optimal layout to reorder's output
     auto reorder_out_val = reorder_op->get_output_value(0);
@@ -61,10 +64,20 @@ static inline void insert_reorder_before(op_ptr &op, size_t offset,
     // fill shape info
     reorder_out_val->set_data_type(ltw(in_lt).data_type());
     reorder_out_val->set_dims(ltw(in_lt).vdims());
+
+    // set layout info for scratchpad output
+    const auto &pd = create_reorder_pd(reorder_op, p_engine, prm_attr_mgr);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+    fill_layout_info(scratchpad_val, scratchpad_desc);
 }
 
 static inline void insert_reorder_after(op_ptr &op, size_t offset,
-        const dnnl::memory::desc &opt_mdesc, std::vector<op_ptr> &reorder_ops) {
+        const dnnl::memory::desc &opt_mdesc, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr, std::vector<op_ptr> &reorder_ops) {
     value_ptr out_val = op->get_output_value(offset);
     const logical_tensor_t &out_lt = out_val->get_logical_tensor();
     // just return if real output layout is the same as optimal layout or
@@ -72,8 +85,10 @@ static inline void insert_reorder_after(op_ptr &op, size_t offset,
     if (make_dnnl_memory_desc(out_lt) == opt_mdesc || ltw(out_lt).is_any())
         return;
 
+    // create reorder op, connect it to graph and add it's scratchpad output
     auto reorder_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
     insert_op_after(reorder_op, op, offset);
+    auto scratchpad_val = insert_empty_scratchpad(reorder_op);
     reorder_ops.emplace_back(reorder_op);
     // set optimal layout to reorder's input
     auto reorder_in_val = reorder_op->get_input_value(0);
@@ -81,6 +96,15 @@ static inline void insert_reorder_after(op_ptr &op, size_t offset,
     // fill shape info
     reorder_in_val->set_data_type(ltw(out_lt).data_type());
     reorder_in_val->set_dims(ltw(out_lt).vdims());
+
+    // set layout info for scratchpad output
+    const auto &pd = create_reorder_pd(reorder_op, p_engine, prm_attr_mgr);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+    fill_layout_info(scratchpad_val, scratchpad_desc);
 }
 
 static void layout_propagation_for_conv(op_ptr &op,
@@ -96,29 +120,34 @@ static void layout_propagation_for_conv(op_ptr &op,
     if (!is_first_time) return;
 
     // insert reorders for conv's inputs
-    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        insert_reorder_before(op, 2, pd.bias_desc(), reorder_ops);
+        insert_reorder_before(
+                op, 2, pd.bias_desc(), p_engine, prm_attr_mgr, reorder_ops);
         value_ptr bias = op->get_input_value(2);
         fill_layout_info(bias, pd.bias_desc());
     } else if (is_dw) {
         const auto &dw_wei_opt_mdesc = pd.query_md(query::exec_arg_md,
                 DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-        insert_reorder_before(op, 2, dw_wei_opt_mdesc, reorder_ops);
+        insert_reorder_before(
+                op, 2, dw_wei_opt_mdesc, p_engine, prm_attr_mgr, reorder_ops);
         value_ptr dw_wei = op->get_input_value(2);
         fill_layout_info(dw_wei, dw_wei_opt_mdesc);
     }
     // insert a reorder if output layout is different from output optimal layout
     // 1) output layout is opaque
     // 2) output is any, directly set optimal layout
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -146,23 +175,27 @@ static void layout_propagation_for_deconv(op_ptr &op,
     if (!is_first_time) return;
 
     // insert reorders for deconv's inputs
-    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        insert_reorder_before(op, 2, pd.bias_desc(), reorder_ops);
+        insert_reorder_before(
+                op, 2, pd.bias_desc(), p_engine, prm_attr_mgr, reorder_ops);
         value_ptr bias = op->get_input_value(2);
         fill_layout_info(bias, pd.bias_desc());
     }
     // insert a reorder if output layout is different from output optimal layout
     // 1) output layout is opaque
     // 2) output is any, directly set optimal layout
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -190,7 +223,8 @@ static void layout_propagation_for_eltwise(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -215,11 +249,12 @@ static void layout_propagation_for_eltwise_bwd(op_ptr &op,
     auto opt_desc = (op->has_attr("use_dst") && op->get_attr<bool>("use_dst"))
             ? pd.dst_desc()
             : pd.src_desc();
-    insert_reorder_before(op, 0, opt_desc, reorder_ops);
+    insert_reorder_before(op, 0, opt_desc, p_engine, prm_attr_mgr, reorder_ops);
     value_ptr data = op->get_input_value(0);
     fill_layout_info(data, opt_desc);
 
-    insert_reorder_before(op, 1, pd.diff_dst_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_dst = op->get_input_value(1);
     fill_layout_info(diff_dst, opt_desc);
 
@@ -240,7 +275,8 @@ static void layout_propagation_for_binary(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -254,13 +290,14 @@ static void layout_propagation_for_concat(op_ptr &op,
     auto pd = create_concat_pd(op, p_engine, prm_attr_mgr);
 
     for (size_t i = 0; i < op->num_inputs(); ++i) {
-        insert_reorder_before(
-                op, i, pd.src_desc(static_cast<int>(i)), reorder_ops);
+        insert_reorder_before(op, i, pd.src_desc(static_cast<int>(i)), p_engine,
+                prm_attr_mgr, reorder_ops);
         fill_layout_info(
                 op->get_input_value(i), pd.src_desc(static_cast<int>(i)));
     }
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     fill_layout_info(op->get_output_value(0), pd.dst_desc());
 
     auto scratchpad_val = op->get_output_value(1);
@@ -289,7 +326,8 @@ static void layout_propagation_for_shuffle(op_ptr &op,
     assertm(!ltw(src->get_logical_tensor()).is_any(),
             "shuffle's src can't be any layout");
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     fill_layout_info(dst, pd.dst_desc());
 
     value_ptr scratchpad_val = op->get_output_value(1);
@@ -307,23 +345,27 @@ static void layout_propagation_for_matmul(op_ptr &op,
     if (!is_first_time) return;
 
     // insert reorders for matmul's inputs
-    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
     if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
-        insert_reorder_before(op, 2, pd.bias_desc(), reorder_ops);
+        insert_reorder_before(
+                op, 2, pd.bias_desc(), p_engine, prm_attr_mgr, reorder_ops);
         value_ptr bias = op->get_input_value(2);
         fill_layout_info(bias, pd.bias_desc());
     }
     // insert a reorder if output layout is different from output optimal layout
     // 1) output layout is opaque
     // 2) output is any, directly set optimal layout
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -349,7 +391,8 @@ static void layout_propagation_for_pool(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -379,11 +422,13 @@ static void layout_propagation_for_pool_bwd(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.diff_dst_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_dst = op->get_input_value(0);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
-    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_src = op->get_output_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
@@ -402,11 +447,13 @@ static void layout_propagation_for_batchnorm(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -445,23 +492,28 @@ static void layout_propagation_for_batchnorm_bwd(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_before(op, 1, pd.diff_dst_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_dst = op->get_input_value(1);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
-    insert_reorder_before(op, 3, pd.mean_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 3, pd.mean_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr mean = op->get_input_value(3);
     fill_layout_info(mean, pd.mean_desc());
 
-    insert_reorder_before(op, 4, pd.variance_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 4, pd.variance_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr var = op->get_input_value(4);
     fill_layout_info(var, pd.variance_desc());
 
-    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.diff_src_desc());
 
@@ -486,15 +538,18 @@ static void layout_propagation_for_prelu(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -513,22 +568,26 @@ static void layout_propagation_for_prelu_bwd(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
     value_ptr diff_dst = op->get_input_value(2);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
-    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_src = op->get_input_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
-    insert_reorder_after(op, 1, pd.diff_weights_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 1, pd.diff_weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_wei = op->get_input_value(1);
     fill_layout_info(diff_wei, pd.diff_weights_desc());
 
@@ -546,7 +605,8 @@ static void layout_propagation_for_layernorm(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -578,50 +638,59 @@ static void layout_propagation_for_layernorm_bwd(op_ptr &op,
     if (!is_first_time) return;
 
     size_t in_index {0};
-    insert_reorder_before(op, in_index, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, in_index, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(in_index++);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_before(op, in_index, pd.diff_dst_desc(), reorder_ops);
+    insert_reorder_before(op, in_index, pd.diff_dst_desc(), p_engine,
+            prm_attr_mgr, reorder_ops);
     value_ptr diff_dst = op->get_input_value(in_index++);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
-    insert_reorder_before(op, in_index, pd.mean_desc(), reorder_ops);
+    insert_reorder_before(
+            op, in_index, pd.mean_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr mean = op->get_input_value(in_index++);
     fill_layout_info(mean, pd.mean_desc());
 
-    insert_reorder_before(op, in_index, pd.variance_desc(), reorder_ops);
+    insert_reorder_before(op, in_index, pd.variance_desc(), p_engine,
+            prm_attr_mgr, reorder_ops);
     value_ptr var = op->get_input_value(in_index++);
     fill_layout_info(var, pd.variance_desc());
 
     size_t out_index {0};
-    insert_reorder_after(op, out_index, pd.diff_src_desc(), reorder_ops);
+    insert_reorder_after(op, out_index, pd.diff_src_desc(), p_engine,
+            prm_attr_mgr, reorder_ops);
     value_ptr diff_src = op->get_output_value(out_index++);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
     if (op->get_attr<bool>("with_gamma")) {
         const auto &scale_opt_mdesc
                 = pd.query_md(query::exec_arg_md, DNNL_ARG_SCALE);
-        insert_reorder_before(op, in_index, scale_opt_mdesc, reorder_ops);
+        insert_reorder_before(op, in_index, scale_opt_mdesc, p_engine,
+                prm_attr_mgr, reorder_ops);
         value_ptr scale = op->get_input_value(in_index++);
         fill_layout_info(scale, scale_opt_mdesc);
 
         const auto &diff_scale_opt_mdesc
                 = pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SCALE);
-        insert_reorder_after(op, out_index, diff_scale_opt_mdesc, reorder_ops);
+        insert_reorder_after(op, out_index, diff_scale_opt_mdesc, p_engine,
+                prm_attr_mgr, reorder_ops);
         value_ptr diff_scale = op->get_output_value(out_index++);
         fill_layout_info(diff_scale, diff_scale_opt_mdesc);
     }
     if (op->get_attr<bool>("with_beta")) {
         const auto &shift_opt_mdesc
                 = pd.query_md(query::exec_arg_md, DNNL_ARG_SHIFT);
-        insert_reorder_before(op, in_index, shift_opt_mdesc, reorder_ops);
+        insert_reorder_before(op, in_index, shift_opt_mdesc, p_engine,
+                prm_attr_mgr, reorder_ops);
         value_ptr shift = op->get_input_value(in_index++);
         fill_layout_info(shift, shift_opt_mdesc);
 
         const auto &diff_shift_opt_mdesc
                 = pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SHIFT);
-        insert_reorder_after(op, out_index, diff_shift_opt_mdesc, reorder_ops);
+        insert_reorder_after(op, out_index, diff_shift_opt_mdesc, p_engine,
+                prm_attr_mgr, reorder_ops);
         value_ptr diff_shift = op->get_output_value(out_index++);
         fill_layout_info(diff_shift, diff_shift_opt_mdesc);
     }
@@ -630,8 +699,9 @@ static void layout_propagation_for_layernorm_bwd(op_ptr &op,
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 }
 
-static void layout_propagation_for_permute(
-        op_ptr &op, std::vector<op_ptr> &reorder_ops) {
+static void layout_propagation_for_permute(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -728,7 +798,8 @@ static void layout_propagation_for_permute(
         // if the input md derived from output md is different from the real
         // input mem desc, just insert a reorder before the op
         if (make_dnnl_memory_desc(in_lt) != tmp_in_md)
-            insert_reorder_before(op, 0, tmp_in_md, reorder_ops);
+            insert_reorder_before(
+                    op, 0, tmp_in_md, p_engine, prm_attr_mgr, reorder_ops);
     }
 }
 
@@ -771,8 +842,9 @@ static void layout_propagation_for_reshape(op_ptr &op) {
     }
 }
 
-static void layout_propagation_for_transpose(
-        op_ptr &op, std::vector<op_ptr> &reorder_ops) {
+static void layout_propagation_for_transpose(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -799,7 +871,8 @@ static void layout_propagation_for_transpose(
         // to convert the transposed layout to the specified one.
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
         if (expected_out_md != out_md) {
-            insert_reorder_after(op, 0, expected_out_md, reorder_ops);
+            insert_reorder_after(op, 0, expected_out_md, p_engine, prm_attr_mgr,
+                    reorder_ops);
         }
     }
 }
@@ -817,8 +890,9 @@ static void layout_propagation_for_expand(op_ptr &op) {
     }
 }
 
-static void layout_propagation_for_squeeze(
-        op_ptr &op, std::vector<op_ptr> &reorder_ops) {
+static void layout_propagation_for_squeeze(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -849,7 +923,8 @@ static void layout_propagation_for_squeeze(
             auto out_md = make_dnnl_memory_desc(out_lt);
             auto tmp_in_md = out_md.reshape(in_md.dims());
             if (in_md != tmp_in_md)
-                insert_reorder_before(op, 0, tmp_in_md, reorder_ops);
+                insert_reorder_before(
+                        op, 0, tmp_in_md, p_engine, prm_attr_mgr, reorder_ops);
         }
         return;
     }
@@ -917,11 +992,13 @@ static void layout_propagation_for_squeeze(
         // if the input md derived from output md is different from the real
         // input mem desc, just insert a reorder before the op
         if (make_dnnl_memory_desc(in_lt) != tmp_in_md)
-            insert_reorder_before(op, 0, tmp_in_md, reorder_ops);
+            insert_reorder_before(
+                    op, 0, tmp_in_md, p_engine, prm_attr_mgr, reorder_ops);
     }
 }
 
-static void layout_propagation_for_reorder(op_ptr &op) {
+static void layout_propagation_for_reorder(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
@@ -949,10 +1026,22 @@ static void layout_propagation_for_reorder(op_ptr &op) {
                 = static_cast<dnnl_data_type_t>(ltw(in_lt).data_type());
         fill_layout_info(src, in_md);
     }
+
+    // set layout info for scratchpad output
+    if (op->num_outputs() == 1) { insert_empty_scratchpad(op); }
+    const auto &pd = create_reorder_pd(op, p_engine, prm_attr_mgr);
+    auto scratchpad_val = op->get_output_value(1);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+    fill_layout_info(scratchpad_val, scratchpad_desc);
 }
 
-static void layout_propagation_for_mul_scales(op_ptr &op) {
-    layout_propagation_for_reorder(op);
+static void layout_propagation_for_mul_scales(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+    layout_propagation_for_reorder(op, p_engine, prm_attr_mgr);
 }
 
 static void layout_propagation_for_bn_folding(
@@ -984,15 +1073,18 @@ static void layout_propagation_for_conv_bwd_data(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.diff_dst_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_dst = op->get_input_value(0);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
-    insert_reorder_before(op, 1, pd.weights_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
-    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_src = op->get_output_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
@@ -1018,15 +1110,18 @@ static void layout_propagation_for_conv_bwd_weights(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.src_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr src = op->get_input_value(0);
     fill_layout_info(src, pd.src_desc());
 
-    insert_reorder_before(op, 1, pd.diff_dst_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 1, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_dst = op->get_input_value(1);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
-    insert_reorder_after(op, 0, pd.diff_weights_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_weights = op->get_output_value(0);
     fill_layout_info(diff_weights, pd.diff_weights_desc());
 
@@ -1053,7 +1148,8 @@ static void layout_propagation_for_resampling(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -1072,7 +1168,8 @@ static void layout_propagation_for_resampling_bwd(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_src = op->get_output_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
@@ -1099,7 +1196,8 @@ static void layout_propagation_for_dnnl_sum(op_ptr &op,
     auto pd = create_dnnl_sum_pd(op, p_engine, prm_attr_mgr);
 
     if (ltw(dst->get_logical_tensor()).is_any()) {
-        insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+        insert_reorder_after(
+                op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
         dst = op->get_output_value(0);
         fill_layout_info(dst, pd.dst_desc());
     }
@@ -1123,7 +1221,8 @@ static void layout_propagation_for_softmax(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -1147,11 +1246,13 @@ static void layout_propagation_for_softmax_bwd(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.diff_dst_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_dst = op->get_input_value(0);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
-    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_src = op->get_output_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
@@ -1174,7 +1275,8 @@ static void layout_propagation_for_logsoftmax(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -1197,11 +1299,13 @@ static void layout_propagation_for_logsoftmax_bwd(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_before(op, 0, pd.diff_dst_desc(), reorder_ops);
+    insert_reorder_before(
+            op, 0, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_dst = op->get_input_value(0);
     fill_layout_info(diff_dst, pd.diff_dst_desc());
 
-    insert_reorder_after(op, 0, pd.diff_src_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr diff_src = op->get_output_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
@@ -1224,7 +1328,8 @@ static void layout_propagation_for_reduction(op_ptr &op,
 
     if (!is_first_time) return;
 
-    insert_reorder_after(op, 0, pd.dst_desc(), reorder_ops);
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
@@ -1356,21 +1461,25 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                 layout_propagation_for_prelu_bwd(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::permute) {
-                layout_propagation_for_permute(cur_op, reorder_ops);
+                layout_propagation_for_permute(
+                        cur_op, p_engine, prm_attr_mgr, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_mul_scales) {
-                layout_propagation_for_mul_scales(cur_op);
+                layout_propagation_for_mul_scales(
+                        cur_op, p_engine, prm_attr_mgr);
             } else if (cur_op->get_kind() == op_kind::to_group) {
                 layout_propagation_for_to_group(cur_op);
             } else if (cur_op->get_kind() == impl::op_kind::StaticReshape) {
                 layout_propagation_for_reshape(cur_op);
             } else if (cur_op->get_kind() == impl::op_kind::StaticTranspose) {
-                layout_propagation_for_transpose(cur_op, reorder_ops);
+                layout_propagation_for_transpose(
+                        cur_op, p_engine, prm_attr_mgr, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::expand) {
                 layout_propagation_for_expand(cur_op);
             } else if (cur_op->get_kind() == op_kind::dnnl_reorder) {
-                layout_propagation_for_reorder(cur_op);
+                layout_propagation_for_reorder(cur_op, p_engine, prm_attr_mgr);
             } else if (cur_op->get_kind() == op_kind::squeeze) {
-                layout_propagation_for_squeeze(cur_op, reorder_ops);
+                layout_propagation_for_squeeze(
+                        cur_op, p_engine, prm_attr_mgr, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_bn_folding) {
                 layout_propagation_for_bn_folding(cur_op, p_engine);
             } else if (cur_op->get_kind() == op_kind::dnnl_resampling) {

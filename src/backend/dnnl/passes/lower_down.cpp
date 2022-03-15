@@ -33,6 +33,7 @@
 
 #include "insert_ops.hpp"
 #include "lower_down.hpp"
+#include "op_executable.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -1683,6 +1684,9 @@ impl::status_t fuse_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
 
         subgraph.emplace_back(fused_op);
 
+        // add scratchpad output
+        insert_empty_scratchpad(fused_op);
+
         auto pos = std::find_if(subgraph.begin(), subgraph.end(),
                 [op1](const op_ptr &f_op) { return op1 == f_op.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
@@ -2656,9 +2660,12 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             = {op_kind::dnnl_reorder};
 
     auto &subgraph = sg->get_mutable_ops();
+    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+    auto &p_engine = sg->p_engine_;
 
-    auto fuse_two_adjacent_reorders = [](std::vector<op_ptr> &subgraph,
-                                              bool &changed) -> impl::status_t {
+    auto fuse_two_adjacent_reorders
+            = [&prm_attr_mgr, &p_engine](std::vector<op_ptr> &subgraph,
+                      bool &changed) -> impl::status_t {
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<const op_t *> visited;
@@ -2668,8 +2675,6 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
                             || visited.count(op) != 0)
                         return impl::status::success;
 
-                    assertm(op->num_outputs() == 1,
-                            "cur_op should have only one output value.");
                     auto out_val = op->get_output_values()[0];
                     auto consumers = out_val->get_consumers();
                     if (consumers.size() != 1) return impl::status::success;
@@ -2830,6 +2835,16 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             auto out_val = op2->get_output_value(0);
             fused_op->add_output(out_val);
             out_val->set_producer(*fused_op);
+
+            auto scratchpad_val = insert_empty_scratchpad(fused_op);
+            const auto &pd
+                    = create_reorder_pd(fused_op, *p_engine, prm_attr_mgr);
+            const memory::desc scratchpad_desc = pd.scratchpad_desc();
+            const memory::dims dims = scratchpad_desc.dims();
+            scratchpad_val->set_dims(dims);
+            scratchpad_val->set_data_type(static_cast<impl::data_type_t>(
+                    scratchpad_desc.data_type()));
+            fill_layout_info(scratchpad_val, scratchpad_desc);
 
             subgraph.emplace_back(fused_op);
 
@@ -3100,6 +3115,8 @@ impl::status_t fuse_dynamic_mul_scales_add_zps(
         fused_op->add_output(dst);
         dst->set_producer(*fused_op);
 
+        insert_empty_scratchpad(fused_op);
+
         to_be_inserted_ops.emplace_back(fused_op);
         to_be_removed_ops.emplace_back(mul_scales);
         to_be_removed_ops.emplace_back(add_zps);
@@ -3182,6 +3199,8 @@ impl::status_t fuse_dynamic_sub_zps_mul_scales(
         fused_op->add_output(dst);
         dst->set_producer(*fused_op);
 
+        insert_empty_scratchpad(fused_op);
+
         to_be_inserted_ops.emplace_back(fused_op);
         to_be_removed_ops.emplace_back(op1);
         to_be_removed_ops.emplace_back(op2);
@@ -3221,6 +3240,7 @@ impl::status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                         dnnl_impl::op_kind::dnnl_reorder);
                 tc_op->set_attr<bool>("change_layout", false);
                 insert_op_before(tc_op, cur_op, index);
+                insert_empty_scratchpad(tc_op);
                 to_be_inserted_ops.emplace_back(tc_op);
                 tc_op->get_output_value(0)->set_data_type(impl::data_type::s32);
                 index++;
@@ -3404,11 +3424,11 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             // split_quant_dequant pass to perform the lowering?
             new_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
             new_op->set_attr<bool>("change_layout", true);
-            insert_scratchpad = false;
+            insert_scratchpad = true;
         } else if (cur_op->get_kind() == impl::op_kind::TypeCast) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
             new_op->set_attr<bool>("change_layout", false);
-            insert_scratchpad = false;
+            insert_scratchpad = true;
         } else if (cur_op->get_kind() == impl::op_kind::Reciprocal) {
             // mapping to dnnl algorithm pow
             new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);

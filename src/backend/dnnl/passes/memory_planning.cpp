@@ -915,6 +915,11 @@ void memory_planner_t::prepare_args_for_reorder_op(op_t *op,
     exec_args_set_.find_value_mem_map(op->get_output_value(0).get(), mem);
     args.insert({DNNL_ARG_TO, mem});
 
+    if (op->num_outputs() == 2) {
+        exec_args_set_.find_value_mem_map(op->get_output_value(1).get(), mem);
+        args.insert({DNNL_ARG_SCRATCHPAD, mem});
+    }
+
     exec_args_set_.add_exec_args(args);
 }
 

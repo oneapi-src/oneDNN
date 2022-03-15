@@ -1200,6 +1200,66 @@ inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
     return {pd, true};
 }
 
+inline dnnl::reorder::primitive_desc create_reorder_pd(
+        std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
+        primitive_attr_mgr_t &prm_attr_mgr) {
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr("primitive_attr_key")
+            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
+        int64_t attr_key = op->get_attr<int64_t>("primitive_attr_key");
+        prm_attr = prm_attr_mgr.get_attr(attr_key);
+    }
+
+    // generate mask
+    int mask = 0;
+    if (op->has_attr("axis") && op->has_attr("qtype")) {
+        int64_t axis = op->get_attr<int64_t>("axis");
+        std::string qtype = op->get_attr<std::string>("qtype");
+        mask = qtype == "per_tensor" ? 0 : 1 << axis;
+    }
+
+    if (op->has_attr("with_runtime_src_zps")
+            && op->get_attr<bool>("with_runtime_src_zps")) {
+        // runtime src zps
+        prm_attr.set_zero_points(DNNL_ARG_FROM, mask, {DNNL_RUNTIME_S32_VAL});
+    } else if (op->has_attr("src_zps")) {
+        auto zps = op->get_attr<std::vector<int64_t>>("src_zps");
+        std::vector<int32_t> neg_zps = dnnl_impl::utils::fmap(
+                zps, [](int64_t zp) { return static_cast<int32_t>(-zp); });
+        prm_attr.set_zero_points(DNNL_ARG_FROM, mask, neg_zps);
+    }
+
+    if (op->has_attr("with_runtime_scales")
+            && op->get_attr<bool>("with_runtime_scales")) {
+        // runtime scales
+        prm_attr.set_output_scales(mask, {DNNL_RUNTIME_F32_VAL});
+    } else if (op->has_attr("scales")) {
+        auto scales = op->get_attr<std::vector<float>>("scales");
+        prm_attr.set_output_scales(mask, scales);
+    }
+
+    if (op->has_attr("with_runtime_dst_zps")
+            && op->get_attr<bool>("with_runtime_dst_zps")) {
+        // runtime dst zps
+        prm_attr.set_zero_points(DNNL_ARG_TO, mask, {DNNL_RUNTIME_S32_VAL});
+    } else if (op->has_attr("dst_zps")) {
+        auto zps = op->get_attr<std::vector<int64_t>>("dst_zps");
+        std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(
+                zps, [](int64_t zp) { return static_cast<int32_t>(zp); });
+        prm_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
+    }
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    auto in_md = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto out_md = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    auto pd = dnnl::reorder::primitive_desc(
+            p_engine, in_md, p_engine, out_md, prm_attr);
+    return pd;
+}
+
 struct op_executable_t {
     virtual ~op_executable_t() = default;
     virtual void execute(const stream &stream,
@@ -1568,60 +1628,7 @@ private:
 struct reorder_executable_t : public op_executable_t {
     reorder_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-        auto in_md = make_dnnl_memory_desc(
-                op->get_input_value(0)->get_logical_tensor());
-        auto out_md = make_dnnl_memory_desc(
-                op->get_output_value(0)->get_logical_tensor());
-
-        dnnl::primitive_attr prm_attr;
-        if (op->has_attr("primitive_attr_key")
-                && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-            int64_t attr_key = op->get_attr<int64_t>("primitive_attr_key");
-            prm_attr = prm_attr_mgr.get_attr(attr_key);
-        }
-
-        // generate mask
-        int mask = 0;
-        if (op->has_attr("axis") && op->has_attr("qtype")) {
-            int64_t axis = op->get_attr<int64_t>("axis");
-            std::string qtype = op->get_attr<std::string>("qtype");
-            mask = qtype == "per_tensor" ? 0 : 1 << axis;
-        }
-
-        if (op->has_attr("with_runtime_src_zps")
-                && op->get_attr<bool>("with_runtime_src_zps")) {
-            // runtime src zps
-            prm_attr.set_zero_points(
-                    DNNL_ARG_FROM, mask, {DNNL_RUNTIME_S32_VAL});
-        } else if (op->has_attr("src_zps")) {
-            auto zps = op->get_attr<std::vector<int64_t>>("src_zps");
-            std::vector<int32_t> neg_zps = dnnl_impl::utils::fmap(
-                    zps, [](int64_t zp) { return static_cast<int32_t>(-zp); });
-            prm_attr.set_zero_points(DNNL_ARG_FROM, mask, neg_zps);
-        }
-
-        if (op->has_attr("with_runtime_scales")
-                && op->get_attr<bool>("with_runtime_scales")) {
-            // runtime scales
-            prm_attr.set_output_scales(mask, {DNNL_RUNTIME_F32_VAL});
-        } else if (op->has_attr("scales")) {
-            auto scales = op->get_attr<std::vector<float>>("scales");
-            prm_attr.set_output_scales(mask, scales);
-        }
-
-        if (op->has_attr("with_runtime_dst_zps")
-                && op->get_attr<bool>("with_runtime_dst_zps")) {
-            // runtime dst zps
-            prm_attr.set_zero_points(DNNL_ARG_TO, mask, {DNNL_RUNTIME_S32_VAL});
-        } else if (op->has_attr("dst_zps")) {
-            auto zps = op->get_attr<std::vector<int64_t>>("dst_zps");
-            std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(
-                    zps, [](int64_t zp) { return static_cast<int32_t>(zp); });
-            prm_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
-        }
-
-        pd_ = dnnl::reorder::primitive_desc(
-                p_engine, in_md, p_engine, out_md, prm_attr);
+        pd_ = create_reorder_pd(op, p_engine, prm_attr_mgr);
         prim_ = dnnl::reorder(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");

@@ -62,8 +62,6 @@ void fuse_op_to_successor(op_t *op, std::vector<op_ptr> &subgraph) {
     value_ptr in_val = op->get_input_value(0);
     in_val->remove_consumer(*op, 0);
 
-    assertm(op->num_outputs() == 1,
-            "this op should have only one output value.");
     value_ptr out_val = op->get_output_value(0);
     auto consumers = out_val->get_consumers();
     assertm(!consumers.empty() && consumers.size() == 1,

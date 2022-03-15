@@ -483,11 +483,15 @@ DNNL_GRAPH_OP_SCHEMA(int8_matmul_post_ops_fusion, 1,
 DNNL_GRAPH_OP_SCHEMA(dnnl_mul_scales, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 2}))
-                .set_num_outputs(1)
+                .set_num_outputs(std::set<size_t>({1, 2}))
                 .set_input(0, "x", "input tensor")
                 .set_input(1, "scales", "scales tensor")
                 .set_output(0, "y", "output tensor")
+                .set_output(1, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
                 .set_attr("qtype", "quantization type", false,
                         attribute_kind::s, "per_tensor")
                 .set_attr("axis", "quantization type", false, attribute_kind::i,
@@ -1674,10 +1678,14 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm, 1,
 DNNL_GRAPH_OP_SCHEMA(dnnl_reorder, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_inputs(std::set<size_t>({1, 32}))
-                .set_num_outputs(1) // No scratchpad
+                .set_num_outputs(std::set<size_t>({1, 2}))
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
+                .set_output(1, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
                 // TODO(xxx) Multiple ops will be mapped to dnnl_reorder
                 // finally, how to deal with the attrs?
                 .set_attr("qtype",

@@ -36,7 +36,8 @@ namespace {
 inline bool has_scratchpad(impl::op_kind_t kind) {
     const static std::set<impl::op_kind_t> ops {op_kind::dnnl_convolution,
             op_kind::dnnl_bn_folding, op_kind::dnnl_pool, op_kind::dnnl_matmul,
-            op_kind::dnnl_convtranspose};
+            op_kind::dnnl_convtranspose, op_kind::dnnl_reorder,
+            op_kind::dnnl_mul_scales};
     return ops.count(kind) != 0;
 }
 }; // namespace
@@ -55,6 +56,10 @@ impl::status_t constant_propagation(std::shared_ptr<subgraph_t> &sg) {
         impl::topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
             size_t scpad_num
                     = with_scratchpad && has_scratchpad(op->get_kind()) ? 1 : 0;
+            if (op->get_kind() == op_kind::dnnl_reorder
+                    || op->get_kind() == op_kind::dnnl_mul_scales) {
+                if (op->num_outputs() == 1) { scpad_num = 0; }
+            }
 
             bool all_inputs_are_constant = true;
             for (const auto &in : op->get_input_values()) {
@@ -81,7 +86,8 @@ impl::status_t constant_propagation(std::shared_ptr<subgraph_t> &sg) {
 
             if (all_inputs_are_constant && !all_outputs_are_constant) {
                 // propagate from in to out
-                for (auto &out : op->get_output_values()) {
+                for (size_t i = 0; i < op->num_outputs() - scpad_num; i++) {
+                    auto out = op->get_output_value(i);
                     out->set_property(property_type::constant);
                 }
                 changed = changed || true;

@@ -589,6 +589,7 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
                 "dst_zps", std::vector<int64_t> {-128});
         insert_op_before(u8_to_s8_op, cur_op, 1);
         u8_to_s8_op->get_output_value(0)->set_data_type(impl::data_type::s8);
+        insert_empty_scratchpad(u8_to_s8_op);
         to_be_inserted_ops.emplace_back(u8_to_s8_op);
     }
     for (const auto &op : to_be_inserted_ops)
