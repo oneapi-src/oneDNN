@@ -46,24 +46,27 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
 namespace {
 
 // Checks if mask corresponds to broadcast per first and last dimensions
-// Returns true if mask (5D) is equal to [0, 1, 1, 1, 0]
+// Returns true if any of the following occurs:
+// - mask (5D) is equal to [0, 1, 1, 1, 0]
+// - if any of the mask bits are equal to 1 and the corresponding output
+//   dimensions are equal to 1.
 bool is_per_mb_w_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
         const memory_desc_wrapper &dst_d) {
     const auto ndims = dst_d.ndims();
-    const int last_dim = ndims - 1;
-
-    bool per_mb_w_bcast = !mask.test(0) && !mask.test(last_dim);
-    if (!per_mb_w_bcast) return false;
-
-    for (int d = 1; d < last_dim; ++d)
-        per_mb_w_bcast = per_mb_w_bcast && mask.test(d);
-    return per_mb_w_bcast;
+    for (int d = 0; d < ndims; ++d) {
+        if (!utils::one_of(d, 0, ndims - 1) && !mask.test(d)) return false;
+        if (utils::one_of(d, 0, ndims - 1) && mask.test(d)
+                && dst_d.dims()[d] != 1)
+            return false;
+    }
+    return true;
 }
 
 // Checks if mask corresponds to broadcast per batch and spatial dimensions
-// Returns true if mask (5D) is equal to [0, 1, 0, 0, 0] and
-// also if any of mask bits equal 0 will be equal to 1,
-// but only if corresponding output dimensions are also equal to 1.
+// Returns true if any of the following occurs:
+// - mask (5D) is equal to [0, 1, 0, 0, 0]
+// - if any of the mask bits are equal to 1 and the corresponding output
+//   dimensions are equal to 1.
 bool is_channel_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
         const memory_desc_wrapper &dst_d) {
     for (int d = 0; d < dst_d.ndims(); ++d) {
