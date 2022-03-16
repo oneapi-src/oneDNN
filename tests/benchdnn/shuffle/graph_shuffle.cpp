@@ -185,14 +185,25 @@ int doit(const ::shuffle::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        args_t ref_args;
-        ref_args.set(DNNL_ARG_SRC, src_fp);
-        ref_args.set(DNNL_ARG_DST, dst_fp);
+        args_t args, ref_args;
 
-        TIME_REF(::shuffle::compute_ref(prb, ref_args));
+        if (prb->dir & FLAG_FWD) {
+            args.set(DNNL_ARG_DST, dst_dt);
+            ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_DST, dst_fp);
 
-        compare::compare_t cmp;
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, ::shuffle::setup_cmp, res);
+        } else if (prb->dir & FLAG_BWD) {
+            args.set(DNNL_ARG_DIFF_SRC, dst_dt);
+            ref_args.set(DNNL_ARG_DIFF_DST, src_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC, dst_fp);
+
+            check_correctness(
+                    prb, {SRC}, args, ref_args, ::shuffle::setup_cmp, res);
+        } else {
+            SAFE(FAIL, CRIT);
+        }
     }
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),

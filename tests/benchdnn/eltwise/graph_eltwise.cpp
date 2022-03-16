@@ -159,6 +159,19 @@ fill_status_t eltwise_graph_prb_t::handle_low_precision_(
     return ctor_status;
 }
 
+void graph_bwd_check_correctness(const ::eltwise::prb_t *prb,
+        const args_t &args, const args_t &ref_args, res_t *res) {
+    compare::compare_t cmp;
+    cmp.set_data_kind(SRC);
+    ::eltwise::setup_cmp(cmp, prb, SRC, ref_args);
+
+    const int arg = DNNL_ARG_DIFF_SRC;
+    const auto &mem_dt = args.find(arg);
+    const auto &mem_fp = ref_args.find(arg);
+
+    cmp.compare(mem_fp, mem_dt, prb->attr, res);
+}
+
 int doit(const ::eltwise::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
     res->impl_name = "graph";
@@ -217,38 +230,11 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
 
     SAFE(::eltwise::fill_data(prb, SRC, src_dt, src_fp), WARN);
 
-    const bool is_fwd = prb->dir & FLAG_FWD;
-    const dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
-
-    // Shouldn't be defined inside since not available when `eltwise_add_check`
-    // is invoked due to removed from stack.
-    const float trh
-            = ::eltwise::get_eltwise_threshold(prb->dt, prb->alg, is_fwd);
-    compare::compare_t cmp;
-    if (is_bench_mode(CORR)) {
-        cmp.set_threshold(trh);
-        cmp.set_zero_trust_percent(
-                ::eltwise::get_eltwise_zero_trust_percent(prb));
-
-        const auto eltwise_add_check =
-                [&](const compare::compare_t::driver_check_func_args_t &args) {
-                    // Some algorithms require absolute value comparison for inputs
-                    // where catastrophic cancellation may happen.
-                    const float src = arg_fp.get_elem(args.idx);
-                    if (::eltwise::check_abs_err(prb, src, trh))
-                        return args.diff <= trh;
-                    if (prb->attr.post_ops.binary_index() != -1)
-                        return args.diff <= trh;
-                    return false;
-                };
-        cmp.set_driver_check_function(eltwise_add_check);
-    }
-
     dnnl::graph::engine &eng = get_test_engine();
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
-    args_t ref_args;
+    args_t args, ref_args;
 
-    if (is_fwd) {
+    if (prb->dir & FLAG_FWD) {
         tensors_in.emplace_back(
                 dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
         tensors_out.emplace_back(
@@ -260,12 +246,14 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
+            args.set(DNNL_ARG_DST, dst_dt);
+
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(binary_po_args, binary_po_fp);
 
-            TIME_REF(::eltwise::compute_ref(prb, ref_args));
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, ::eltwise::setup_cmp, res);
         }
         SAFE(measure_perf(
                      res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
@@ -300,14 +288,19 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
         tensors_out.emplace_back(dnnl::graph::tensor(
                 outs[0], eng, static_cast<void *>(d_src_dt)));
         if (is_bench_mode(CORR)) {
+            args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
+
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+
             ::eltwise::compute_ref(prb, ref_args);
+
             if (prb->use_dst()) SAFE(dst_dt.reorder(dst_fp), WARN);
             SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
-            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
+
+            graph_bwd_check_correctness(prb, args, ref_args, res);
         }
         SAFE(measure_perf(
                      res->timer_map.perf_timer(), cp, tensors_in, tensors_out),

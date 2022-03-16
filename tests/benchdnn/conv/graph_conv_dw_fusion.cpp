@@ -263,13 +263,16 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, input_ts, output_ts, res), WARN);
 
     if (is_bench_mode(CORR)) {
+        args_t ref_args;
+        compare::compare_t cmp;
+        cmp.set_data_kind(DST);
         const auto fp = dnnl_f32;
         const auto &dnnl_test_engine = ::get_test_engine();
+        ::conv::setup_cmp(cmp, p1.get(), DST, ref_args);
         dnn_mem_t dst_fused(dst_dt, fp, tag::abx, dnnl_test_engine);
         dnn_mem_t dst_unfused(dst_dt1, fp, tag::abx, dnnl_test_engine);
 
-        SAFE(::conv::compare_data(p1.get(), DST, dst_fused, dst_unfused, res),
-                WARN);
+        cmp.compare(dst_unfused, dst_fused, prb->attr, res);
     }
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, input_ts, output_ts),

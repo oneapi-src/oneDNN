@@ -344,7 +344,6 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     args_t ref_args;
 
     if (is_bench_mode(CORR)) {
-        dnnl_primitive_t c_ref = nullptr;
         {
             ::conv::prb_t prb_tr((::conv::desc_t)*prb, prb->dir, prb->cfg,
                     prb->stag, prb->wtag, prb->dtag, prb->alg, prb->attr,
@@ -367,17 +366,19 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
                 scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
             }
 
-            args_t ref_args;
+            args_t args, ref_args;
+
+            args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(binary_po_args, binary_po_fp);
-            TIME_REF(::deconv::compute_ref(&prb_tr, ref_args, c_ref));
-        }
 
-        SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, ::conv::setup_cmp, res);
+        }
     }
 
     measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out);

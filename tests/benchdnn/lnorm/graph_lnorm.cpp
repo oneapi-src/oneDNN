@@ -71,42 +71,6 @@ void check_known_skipped_case_graph(
     }
 }
 
-/* When the error is larger than eps, It could be
- * due to catastrophic cancellation in final result
- * which is computed as `Y = a * X + b`.
- * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
- * Then large error in `a * X` could result in a final
- * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
- * which has no meaningful digits left in mantissa.*/
-void add_additional_fwd_lnorm_check(const ::lnorm::prb_t *&prb,
-        const dnn_mem_t &ss_fp, const dnn_mem_t &dst_fp, const float &eps,
-        compare::compare_t &cmp) {
-    using cmp_args_t = compare::compare_t::driver_check_func_args_t;
-    const auto lnorm_add_check = [&](const cmp_args_t &args) {
-        if (!prb->use_ss()) return false;
-
-        ::dims_t l_dims = md2dims(dst_fp.md_);
-        const dims_t dims_idx = off2dims_idx(l_dims, args.idx);
-        const int64_t c = dims_idx[prb->ndims - 1];
-        const float beta = static_cast<const float *>(ss_fp)[prb->c + c];
-        /* Using an empirically derived threshold,
-         * check if cancellation error
-         * in `|Y| = |a*X - (-b)|` is huge.*/
-        bool maybe_cancellation_error
-                = (fabsf(args.got - beta)
-                          / (fabsf(args.got) > FLT_MIN ? fabsf(args.got) : 1))
-                > 1.0f;
-        if (maybe_cancellation_error) {
-            /* Check for error in `a * X` */
-            float diff_aX
-                    = fabsf((args.got - beta) - (args.got + args.diff - beta));
-            return diff_aX <= eps;
-        }
-        return false;
-    };
-    cmp.set_driver_check_function(lnorm_add_check);
-}
-
 fill_status_t lnorm_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
     using graph_dt = dnnl::graph::logical_tensor::data_type;
@@ -322,6 +286,9 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
+            args_t args;
+            args.set(DNNL_ARG_DST, dst_dt);
+
             args_t ref_args;
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
@@ -329,33 +296,16 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SCALE_SHIFT, ss_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
 
-            TIME_REF(::lnorm::compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-            const int digits_f32 = 24;
-            const float eps = (1 << (digits_f32 - digits_dt(prb->dt))) * 5e-7;
-            cmp.set_threshold(eps);
-            cmp.set_data_kind(DST);
-            // TODO: improve bf16 filling
-            if (prb->dt == dnnl_bf16) cmp.set_zero_trust_percent(100.f);
-
-            add_additional_fwd_lnorm_check(prb, ss_fp, dst_fp, eps, cmp);
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
-
-            //TODO: this will be used only when training test cases are enabled.
+            std::vector<data_kind_t> kinds {DST};
             if (!(prb->flags & ::lnorm::GLOB_STATS) && !(prb->dir & FLAG_INF)) {
-                compare::compare_t cmp_mean;
-                cmp_mean.set_data_kind(MEAN);
-                if (prb->dt == dnnl_bf16 || prb->dt == dnnl_f16)
-                    cmp_mean.set_zero_trust_percent(100.f);
-                SAFE(cmp_mean.compare(mean_fp, mean_dt, prb->attr, res), WARN);
-
-                compare::compare_t cmp_var;
-                cmp_var.set_data_kind(VAR);
-                if (prb->dt == dnnl_bf16 || prb->dt == dnnl_f16)
-                    cmp_var.set_zero_trust_percent(100.f);
-                SAFE(cmp_var.compare(var_fp, var_dt, prb->attr, res), WARN);
+                args.set(DNNL_ARG_MEAN, mean_dt);
+                args.set(DNNL_ARG_VARIANCE, var_dt);
+                kinds.push_back(MEAN);
+                kinds.push_back(VAR);
             }
+
+            check_correctness(
+                    prb, kinds, args, ref_args, ::lnorm::setup_cmp, res);
         }
     } else {
         dnn_mem_t d_ss_fp(ndims_ss, dims_ss, dnnl_f32, tag::abx, cpu_engine);
@@ -442,7 +392,9 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         }
 
         if (is_bench_mode(CORR)) {
-            args_t ref_args;
+            args_t args, ref_args;
+
+            args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
@@ -451,22 +403,14 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
             ref_args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_fp);
 
-            TIME_REF(::lnorm::compute_ref(prb, ref_args));
-
-            compare::compare_t cmp_data;
-            const int digits_f32 = 24;
-            const float eps = (1 << (digits_f32 - digits_dt(prb->dt))) * 2e-7;
-            cmp_data.set_threshold(eps);
-            cmp_data.set_data_kind(SRC);
-            cmp_data.set_zero_trust_percent(70.f);
-            SAFE(cmp_data.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
-
+            std::vector<data_kind_t> kinds {SRC};
             if (spec.use_affine && (prb->dir & FLAG_WEI)) {
-                compare::compare_t cmp_ss;
-                cmp_ss.set_threshold(eps);
-                cmp_ss.set_data_kind(SC);
-                SAFE(cmp_ss.compare(d_ss_fp, d_ss_dt, prb->attr, res), WARN);
+                args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
+                kinds.push_back(SS);
             }
+
+            check_correctness(
+                    prb, kinds, args, ref_args, ::lnorm::setup_cmp, res);
         }
     }
 

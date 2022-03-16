@@ -202,7 +202,9 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        args_t ref_args;
+        args_t args, ref_args;
+
+        args.set(DNNL_ARG_SRC, src_dt);
         ref_args.set(DNNL_ARG_SRC, src_fp);
         ref_args.set(DNNL_ARG_MEAN, mean_fp);
         ref_args.set(DNNL_ARG_VARIANCE, var_fp);
@@ -213,19 +215,17 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_DST, dst_fp);
         ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
 
-        TIME_REF(::bnorm::compute_ref(prb, ref_args));
-
-        if (prb->dir & FLAG_FWD) {
-            if (!(prb->flags & ::bnorm::GLOB_STATS) && !(prb->dir & FLAG_INF)) {
-                SAFE(::bnorm::compare(prb, MEAN, mean_fp, mean_dt, res), WARN);
-                SAFE(::bnorm::compare(prb, VAR, var_fp, var_dt, res), WARN);
-            }
-            static const engine_t cpu_engine(dnnl_cpu);
-            dnn_mem_t dst(dst_dt, dnnl_f32, tag::abx, cpu_engine);
-            SAFE(::bnorm::compare(
-                         prb, DST, dst_fp, dst, res, &scale_fp, &shift_fp),
-                    WARN);
+        std::vector<data_kind_t> kinds {DST};
+        if (prb->dir & FLAG_FWD
+                && (!(prb->flags & ::bnorm::GLOB_STATS)
+                        && !(prb->dir & FLAG_INF))) {
+            args.set(DNNL_ARG_MEAN, mean_dt);
+            args.set(DNNL_ARG_VARIANCE, var_dt);
+            kinds.push_back(MEAN);
+            kinds.push_back(VAR);
         }
+
+        check_correctness(prb, kinds, args, ref_args, ::bnorm::setup_cmp, res);
     }
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),

@@ -437,14 +437,15 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
-    args_t ref_args;
+    args_t args, ref_args;
 
     if (is_bench_mode(CORR)) {
         if (prb->dir & FLAG_FWD) {
-            dnnl_primitive_t c_ref = nullptr;
+            args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
+
             std::vector<int> binary_po_args;
             for (size_t idx_bin : post_bin_indices) {
                 binary_po_args.emplace_back((DNNL_ARG_ATTR_MULTIPLE_POST_OP(
@@ -462,24 +463,24 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             }
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
 
-            TIME_REF(::conv::compute_ref(prb, ref_args, c_ref));
-            SAFE(compare_data(prb, DST, dst_dt, dst_fp, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, ::conv::setup_cmp, res);
         } else if (prb->dir == BWD_D) {
-            dnnl_primitive_t c_ref = nullptr;
+            args.set(DNNL_ARG_DIFF_SRC, src_dt);
             ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
 
-            TIME_REF(::conv::compute_ref(prb, ref_args, c_ref));
-            SAFE(compare_data(prb, SRC, src_dt, src_fp, res), WARN);
+            check_correctness(
+                    prb, {SRC}, args, ref_args, ::conv::setup_cmp, res);
         } else if (prb->dir == BWD_W) {
-            dnnl_primitive_t c_ref = nullptr;
+            args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_fp);
 
-            TIME_REF(::conv::compute_ref(prb, ref_args, c_ref));
-            SAFE(compare_data(prb, WEI, wei_dt, wei_fp, res), WARN);
+            check_correctness(
+                    prb, {WEI}, args, ref_args, ::conv::setup_cmp, res);
         } else {
             SAFE(FAIL, CRIT);
         }

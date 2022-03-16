@@ -348,14 +348,15 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
-    dnnl_primitive_t c_ref = nullptr;
     dnn_mem_t bia_fp_scaled;
-    args_t ref_args;
+    args_t args, ref_args;
 
     if (is_bench_mode(CORR)) {
+        args.set(DNNL_ARG_DST, dst_dt);
         ref_args.set(DNNL_ARG_SRC, src_fp);
         ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
         ref_args.set(DNNL_ARG_DST, dst_fp);
+
         std::vector<int> binary_po_args;
         for (size_t idx_bin : post_bin_indices) {
             binary_po_args.emplace_back(
@@ -371,14 +372,8 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         } else {
             ref_args.set(DNNL_ARG_BIAS, bia_fp);
         }
-        ::matmul::compute_ref(prb, ref_args, c_ref);
 
-        compare::compare_t cmp;
-        cmp.set_threshold(prb->cfg[DST].eps);
-        cmp.set_data_kind(DST);
-        cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
-
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        check_correctness(prb, {DST}, args, ref_args, ::matmul::setup_cmp, res);
     }
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),

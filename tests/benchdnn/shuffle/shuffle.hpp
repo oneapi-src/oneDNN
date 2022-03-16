@@ -110,6 +110,9 @@ inline size_t data_off(const prb_t *prb, int64_t mb, int64_t c, int64_t d,
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
+
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 

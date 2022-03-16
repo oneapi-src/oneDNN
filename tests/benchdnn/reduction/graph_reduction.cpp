@@ -125,12 +125,13 @@ int doit(const ::reduction::prb_t *prb, res_t *res) {
     SAFE(::reduction::fill_dst(prb, dst_dt, dst_fp), WARN);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
     if (graph_prb.has_post_bin()) {
         binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), prb->dtag));
-        const int idx = 0;
-        ::binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back());
+        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
+        ::binary::fill_mem(po_idx, binary_po_dt.back(), binary_po_fp.back());
+        binary_po_args.push_back(po_idx);
     }
 
     dnnl::graph::engine &eng = get_test_engine();
@@ -156,13 +157,15 @@ int doit(const ::reduction::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        ::reduction::compute_ref(prb, src_fp, binary_po_fp, dst_fp);
-        compare::compare_t cmp;
-        // `5` is a temporary magic const for GPU to pass norm algs.
-        // TODO: consider change the filling with power-of-two values for better
-        // answer precision.
-        cmp.set_threshold(5 * epsilon_dt(prb->ddt));
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        args_t args, ref_args;
+
+        args.set(DNNL_ARG_DST, dst_dt);
+        ref_args.set(DNNL_ARG_SRC, src_fp);
+        ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(binary_po_args, binary_po_fp);
+
+        check_correctness(
+                prb, {DST}, args, ref_args, ::reduction::setup_cmp, res);
     }
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),

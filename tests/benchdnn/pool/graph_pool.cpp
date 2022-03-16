@@ -234,6 +234,19 @@ fill_status_t pool_graph_prb_t::handle_low_precision_(
     return ctor_status;
 }
 
+void graph_bwd_check_correctness(const ::pool::prb_t *prb, const args_t &args,
+        const args_t &ref_args, res_t *res) {
+    compare::compare_t cmp;
+    cmp.set_data_kind(SRC);
+    ::pool::setup_cmp(cmp, prb, SRC, ref_args);
+
+    const int arg = DNNL_ARG_DIFF_SRC;
+    const auto &mem_dt = args.find(arg);
+    const auto &mem_fp = ref_args.find(arg);
+
+    cmp.compare(mem_fp, mem_dt, prb->attr, res);
+}
+
 int doit(const ::pool::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
     res->impl_name = "graph";
@@ -293,7 +306,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     dnnl::graph::engine &eng = get_test_engine();
 
     dnn_mem_t d_dst_dt, d_src_dt, ws_dt;
-    args_t ref_args;
+    args_t args, ref_args;
 
     if (is_fwd) {
         tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
@@ -303,18 +316,16 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
                     ins.back(), eng, static_cast<void *>(binary_po_dt.back())));
         }
         if (is_bench_mode(CORR)) {
+            args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
             ref_args.set(binary_po_args, binary_po_fp);
-            TIME_REF(::pool::compute_ref(prb, ref_args));
-            SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
-            compare::compare_t cmp;
-            cmp.set_threshold(prb->cfg[DST].eps);
-            cmp.set_data_kind(DST);
-            cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
 
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, ::pool::setup_cmp, res);
+
             return OK;
         }
     } else {
@@ -325,13 +336,17 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
         d_src_dt = make_dnn_mem(outs[0], prb->tag);
         SAFE(fill_dst(prb, d_dst_dt, d_dst_fp, res), WARN);
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(d_src_dt));
+
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         ref_args.set(DNNL_ARG_SRC, src_fp);
         ref_args.set(DNNL_ARG_DST, dst_fp);
         ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
         ref_args.set(binary_po_args, binary_po_fp);
         ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
         ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+
         TIME_REF(::pool::compute_ref(prb, ref_args));
+
         if (is_max_pool) {
             tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
             tensors_in.emplace_back(ins[1], eng, static_cast<void *>(d_dst_dt));
@@ -344,13 +359,11 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
         } else {
             tensors_in.emplace_back(ins[0], eng, static_cast<void *>(d_dst_dt));
         }
+
         if (is_bench_mode(CORR)) {
             SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
-            compare::compare_t cmp;
-            cmp.set_threshold(prb->cfg[SRC].eps);
-            cmp.set_data_kind(SRC);
-            cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
-            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
+            graph_bwd_check_correctness(prb, args, ref_args, res);
+
             return OK;
         }
     }

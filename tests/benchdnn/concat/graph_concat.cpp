@@ -214,7 +214,7 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
 
     dnnl::graph::engine &eng = get_test_engine();
 
-    args_t ref_args;
+    args_t args, ref_args;
     for (auto i = 0; i < prb->n_inputs(); ++i) {
         src_fp.emplace_back(
                 make_dnn_mem(ins[i], spec.src_dims[i], dt::f32, tag::abx));
@@ -237,11 +237,10 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
+        args.set(DNNL_ARG_DST, dst_dt);
         ref_args.set(DNNL_ARG_DST, dst_fp);
-        TIME_REF(::concat::compute_ref(prb, ref_args));
 
-        compare::compare_t cmp;
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        check_correctness(prb, {DST}, args, ref_args, ::concat::setup_cmp, res);
     }
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),

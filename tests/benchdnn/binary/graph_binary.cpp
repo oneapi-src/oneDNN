@@ -206,27 +206,15 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        args_t ref_args;
+        args_t args, ref_args;
+
+        args.set(DNNL_ARG_DST, dst_dt);
         ref_args.set(DNNL_ARG_SRC_0, src0_fp);
         ref_args.set(DNNL_ARG_SRC_1, src1_fp);
         ref_args.set(DNNL_ARG_DST, dst_fp);
         ref_args.set(binary_po_args, binary_po_fp);
 
-        TIME_REF(::binary::compute_ref(prb, ref_args));
-
-        compare::compare_t cmp;
-        cmp.set_threshold(epsilon_dt(dst_dt.dt()));
-        const auto binary_add_check =
-                [&](const compare::compare_t::driver_check_func_args_t &args) {
-                    // fp16 result can slightly mismatch for division due to difference
-                    // in backends implementations.
-                    return prb->alg == attr_t::post_ops_t::kind_t::DIV
-                            ? args.diff < epsilon_dt(args.dt)
-                            : false;
-                };
-        cmp.set_driver_check_function(binary_add_check);
-
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        check_correctness(prb, {DST}, args, ref_args, ::binary::setup_cmp, res);
     }
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),

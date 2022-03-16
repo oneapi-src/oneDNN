@@ -257,31 +257,6 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        compare::compare_t cmp;
-        cmp.set_data_kind(DST);
-        const bool has_s32 = spec.src_dt == dt::s32 || spec.dst_dt == dt::s32;
-        const bool has_s8 = spec.src_dt == dt::s8 || spec.dst_dt == dt::s8;
-        const bool has_u8 = spec.src_dt == dt::u8 || spec.dst_dt == dt::u8;
-        if (has_u8)
-            cmp.set_zero_trust_percent(58.f); // 4/7 inputs becomes 0
-        else if (has_s32 || has_s8)
-            cmp.set_zero_trust_percent(43.f); // 3/7 inputs becomes 0
-
-        // A hack to avoid false-positive result from f32->s32 conversion
-        // in case of sum post-op on GPU happening when two max_dt values
-        // are summed together.
-        using cmp_args_t = compare::compare_t::driver_check_func_args_t;
-        const auto reorder_add_check = [&](const cmp_args_t &args) {
-            if (args.dt == dnnl_s32 && args.got == max_dt(args.dt)
-                    && is_gpu()) {
-                // 128.f = float(INT_MAX)
-                //                - BENCHDNN_S32_TO_F32_SAT_CONST;
-                return args.diff == 128.f;
-            }
-            return false;
-        };
-        cmp.set_driver_check_function(reorder_add_check);
-
         const auto assign_comp_mem
                 = [&](dnn_mem_t &m, ::reorder::flag_bit_t flag) {
                       if (prb->is_reorder_with_compensation(flag)) {
@@ -297,13 +272,13 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         assign_comp_mem(dst_s8_comp_ref, ::reorder::FLAG_S8S8_COMP);
         assign_comp_mem(dst_zp_comp_ref, ::reorder::FLAG_ZP_COMP);
 
-        args_t ref_args;
+        args_t args, ref_args;
+
+        args.set(DNNL_ARG_TO, dst_dt);
         ref_args.set(DNNL_ARG_FROM, src_fp);
         ref_args.set(DNNL_ARG_TO, dst_fp);
         ref_args.set(DNNL_ARG_SRC_1, dst_s8_comp_ref); // Additional input
         ref_args.set(DNNL_ARG_SRC_2, dst_zp_comp_ref); // Additional input
-
-        TIME_REF(::reorder::compute_ref(prb, ref_args));
 
         // Validate main reorder part.
         // Remove extra desc so that reorders with compensation could have
@@ -312,17 +287,16 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         const auto orig_dst_extra = dst_dt.md_.extra;
         dst_dt.md_.extra = empty_extra;
 
-        // TODO: enable additional checks for border values validity.
-        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+        check_correctness(
+                prb, {DST}, args, ref_args, ::reorder::setup_cmp, res);
 
         // Restore extra for compensation comparison and performance mode.
         dst_dt.md_.extra = orig_dst_extra;
 
         // Validate compensated reorder part.
         if (prb->is_reorder_with_compensation(::reorder::FLAG_ANY)) {
-            SAFE(compare_compensation(
-                         prb, dst_s8_comp_ref, dst_zp_comp_ref, dst_dt, res),
-                    WARN);
+            compare_compensation(
+                    prb, dst_s8_comp_ref, dst_zp_comp_ref, dst_dt, res);
         }
     }
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),

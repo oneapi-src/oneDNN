@@ -155,18 +155,16 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
+            args_t args;
+            args.set(DNNL_ARG_DST, dst_dt);
+
             args_t ref_args;
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, slope_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
 
-            TIME_REF(::prelu::compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-            cmp.set_threshold(2 * epsilon_dt(prb->sdt[0]));
-            cmp.set_zero_trust_percent(50.f); // Due to filling
-            cmp.set_data_kind(DST);
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, ::prelu::setup_cmp, res);
         }
     } else if (prb->dir & FLAG_BWD) {
         auto d_dst_fp = make_dnn_mem(ins[2], dt::f32, tag::abx);
@@ -188,6 +186,10 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
+            args_t args;
+            args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
+            args.set(DNNL_ARG_DIFF_WEIGHTS, d_slope_dt);
+
             args_t ref_args;
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, slope_fp);
@@ -195,21 +197,8 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, d_slope_fp);
 
-            TIME_REF(::prelu::compute_ref(prb, ref_args));
-
-            compare::compare_t cmp_d_src;
-            cmp_d_src.set_threshold(2 * epsilon_dt(prb->sdt[0]));
-            cmp_d_src.set_zero_trust_percent(50.f); // Due to filling
-            cmp_d_src.set_data_kind(SRC);
-            SAFE(cmp_d_src.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
-
-            compare::compare_t cmp_d_slope;
-            cmp_d_slope.set_threshold(2 * epsilon_dt(prb->sdt[1]));
-            // Weights are very sparse, no sense to test for trust.
-            cmp_d_slope.set_zero_trust_percent(100.f);
-            cmp_d_slope.set_data_kind(WEI);
-            SAFE(cmp_d_slope.compare(d_slope_fp, d_slope_dt, prb->attr, res),
-                    WARN);
+            check_correctness(
+                    prb, {SRC, WEI}, args, ref_args, ::prelu::setup_cmp, res);
         }
     } else {
         SAFE(FAIL, CRIT);

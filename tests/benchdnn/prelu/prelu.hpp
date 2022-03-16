@@ -97,6 +97,9 @@ int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
+
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 

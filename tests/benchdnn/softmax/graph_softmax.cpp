@@ -143,26 +143,14 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            args_t ref_args;
+            args_t args, ref_args;
+
+            args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
 
-            TIME_REF(::softmax::compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-            const float trh_coeff_log
-                    = prb->alg == ::softmax::LOGSOFTMAX ? 4 : 1;
-            const float trh_coeff_f32 = prb->sdt == dnnl_f32 ? 10.f : 1.f;
-            const float trh
-                    = trh_coeff_log * trh_coeff_f32 * epsilon_dt(prb->sdt);
-            cmp.set_threshold(trh);
-
-            const int64_t axis_size = prb->dims[prb->axis];
-            cmp.set_zero_trust_percent(axis_size < 10 ? 100.f : 60.f);
-
-            ::softmax::add_additional_softmax_check(cmp);
-
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, ::softmax::setup_cmp, res);
         }
     } else if (prb->dir & FLAG_BWD) {
         auto d_dst_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
@@ -184,21 +172,15 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            args_t ref_args;
+            args_t args, ref_args;
+
+            args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
 
-            TIME_REF(::softmax::compute_ref(prb, ref_args));
-
-            compare::compare_t cmp;
-            const float trh_coeff_f32 = prb->sdt == dnnl_f32 ? 10.f : 1.f;
-            const float trh = 4 * trh_coeff_f32 * epsilon_dt(prb->sdt);
-            cmp.set_threshold(trh);
-
-            ::softmax::add_additional_softmax_check(cmp);
-
-            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
+            check_correctness(
+                    prb, {SRC}, args, ref_args, ::softmax::setup_cmp, res);
         }
     } else {
         SAFE(FAIL, CRIT);

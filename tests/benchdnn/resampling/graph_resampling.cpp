@@ -210,12 +210,6 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         binary_po_args.push_back(po_idx);
     }
 
-    compare::compare_t cmp;
-    const bool operations_order_can_be_different
-            = prb->alg == ::resampling::linear;
-    if (operations_order_can_be_different)
-        ::resampling::add_additional_check_to_compare(cmp);
-
     SAFE(::resampling::fill_src(prb, src_dt, src_fp, res), WARN);
 
     if (prb->dir & FLAG_FWD) {
@@ -248,25 +242,17 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            args_t ref_args;
+            args_t args, ref_args;
+
+            args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(binary_po_args, binary_po_fp);
 
-            TIME_REF(::resampling::compute_ref(prb, ref_args));
-
-            const float linear_trh = epsilon_dt(prb->sdt) > epsilon_dt(prb->ddt)
-                    ? epsilon_dt(prb->sdt) // conversion error sdt->ddt
-                    : 7 * epsilon_dt(prb->ddt); // algorithm calculation error
-            float trh = prb->alg == ::resampling::nearest ? 0.f : linear_trh;
-
-            cmp.set_threshold(trh);
-            // No sense to test zero trust for upsampling since it produces
-            // valid zeros.
-            // TODO: validate this once again.
-            cmp.set_zero_trust_percent(100.f);
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
+            check_correctness(
+                    prb, {DST}, args, ref_args, ::resampling::setup_cmp, res);
         }
+
         SAFE(measure_perf(
                      res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
                 WARN);
@@ -298,31 +284,19 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            args_t ref_args;
+            args_t args, ref_args;
+
+            args.set(DNNL_ARG_DIFF_SRC, dst_dt);
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, dst_fp);
 
-            TIME_REF(::resampling::compute_ref(prb, ref_args));
-            const float linear_trh = epsilon_dt(prb->ddt) > epsilon_dt(prb->sdt)
-                    ? epsilon_dt(prb->ddt)
-                    : 7 * epsilon_dt(prb->sdt);
-            float trh = prb->alg == ::resampling::nearest ? 0.f : linear_trh;
-
-            // cuDNN precision is different from ref one due to different
-            // computation algorithm used for resampling.
-            if (is_nvidia_gpu()) trh = 2e-5;
-
-            cmp.set_threshold(trh);
-            // No sense to test zero trust for upsampling since it produces
-            // valid zeros.
-            // TODO: validate this once again.
-            cmp.set_zero_trust_percent(100.f);
-            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
-
-            SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in,
-                         tensors_out),
-                    WARN);
+            check_correctness(
+                    prb, {SRC}, args, ref_args, ::resampling::setup_cmp, res);
         }
+
+        SAFE(measure_perf(
+                     res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
+                WARN);
     }
     return OK;
 }
