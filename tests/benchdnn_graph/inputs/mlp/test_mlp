@@ -4,7 +4,7 @@
 --actfunc=relu
 --attr-oscale=common:2.25
 --attr-zero-points=dst:common:3+src:common:2
---training=true,false
+--dir=FWD_I,FWD_D,BWD_DW
 1x512x256
 256x1024x2
 
@@ -15,7 +15,7 @@
 --actfunc=relu+relu
 --attr-oscale=common:2.25
 --attr-zero-points=dst:common:3+src:common:2
---training=true,false
+--dir=FWD_I,FWD_D,BWD_DW
 8x384x1024x2
 8x384x4096x1024
 8x384x1024x1024

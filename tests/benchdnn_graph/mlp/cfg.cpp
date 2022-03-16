@@ -178,10 +178,16 @@ void mlp_graph_prb_t::build_tensor_desc_fwd(const mlp_graph_spec_t &spec) {
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
                     = {tensor_descs_[tensor_name], SRC, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
+
             tensor_name = STRINGIFY(WEI_) + std::to_string(i);
-            tensor_descs_.emplace(tensor_name, spec.mlp_layer_dt,
-                    spec.weight_dims[i], lt::strided,
-                    tensor_descs_t::property_type::constant);
+            if (spec.is_fwd_inference) {
+                tensor_descs_.emplace(tensor_name, spec.mlp_layer_dt,
+                        spec.weight_dims[i], lt::strided,
+                        tensor_descs_t::property_type::constant);
+            } else {
+                tensor_descs_.emplace(tensor_name, spec.mlp_layer_dt,
+                        spec.weight_dims[i], spec.raw_wei_tag);
+            }
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
                     = {tensor_descs_[tensor_name], WEI, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
@@ -189,9 +195,14 @@ void mlp_graph_prb_t::build_tensor_desc_fwd(const mlp_graph_spec_t &spec) {
 
         if (spec.has_bias) {
             tensor_name = STRINGIFY(BIA_) + std::to_string(i);
-            tensor_descs_.emplace(tensor_name, spec.mlp_bias_dt,
-                    spec.bias_dims[i], lt::strided,
-                    tensor_descs_t::property_type::constant);
+            if (spec.is_fwd_inference) {
+                tensor_descs_.emplace(tensor_name, spec.mlp_bias_dt,
+                        spec.bias_dims[i], lt::strided,
+                        tensor_descs_t::property_type::constant);
+            } else {
+                tensor_descs_.emplace(tensor_name, spec.mlp_bias_dt,
+                        spec.bias_dims[i], std::string(tag::x));
+            }
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
                     = {tensor_descs_[tensor_name], BIA, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
@@ -265,16 +276,14 @@ void mlp_graph_prb_t::build_tensor_desc_bwd(const mlp_graph_spec_t &spec) {
         desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
         tensor_name = STRINGIFY(WEI_GRAD_) + std::to_string(i);
         tensor_descs_.emplace(tensor_name, spec.mlp_layer_dt,
-                spec.weight_dims[i], lt::strided,
-                tensor_descs_t::property_type::constant);
+                spec.weight_dims[i], spec.raw_wei_tag);
         ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
                 = {tensor_descs_[tensor_name], WEI, -1, -1};
         desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
         if (spec.has_bias) {
             tensor_name = STRINGIFY(BIA_GRAD_) + std::to_string(i);
             tensor_descs_.emplace(tensor_name, spec.mlp_bias_dt,
-                    spec.bias_dims[i], lt::strided,
-                    tensor_descs_t::property_type::constant);
+                    spec.bias_dims[i], std::string(tag::x));
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
                     = {tensor_descs_[tensor_name], BIA, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();

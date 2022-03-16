@@ -85,11 +85,11 @@ void mha_graph_prb_t::addMatmulOp(bool is_transpose_a, bool is_transpose_b,
     ops_[new_op_id].set_attr("transpose_b", is_transpose_b);
 }
 
-void mha_graph_prb_t::addArithOp(bool addOp, dnnl::graph::op::kind op_kind,
+void mha_graph_prb_t::addArithOp(bool add_op, dnnl::graph::op::kind op_kind,
         bool set_broadcast, const std::string src1, const std::string src2,
         const std::string dst) {
     using op = dnnl::graph::op;
-    if (!addOp) { return; }
+    if (!add_op) { return; }
     auto new_op_id = ops_.size();
     ops_.emplace_back(
             op(new_op_id, op_kind, {tensor_descs_[src1], tensor_descs_[src2]},
@@ -209,7 +209,7 @@ void mha_graph_prb_t::build_tensor_desc_fwd(const mha_graph_spec_t &spec) {
                 = {true, STRINGIFY(QKVDST), spec.mha_quan_dt, qkv_shape};
         tensor_desc_cfg[QKVINT8DST] = {spec.MHA_int8, STRINGIFY(QKVINT8DST),
                 spec.mha_inout_dt, qkv_shape};
-    } else if (spec.is_training) {
+    } else if (spec.is_fwd_training) {
         tensor_desc_cfg[QDST]
                 = {true, STRINGIFY(QDST), spec.mha_dt, qkv_transpose_shape};
         tensor_desc_cfg[KDST]
@@ -237,7 +237,7 @@ void mha_graph_prb_t::build_tensor_desc_fwd(const mha_graph_spec_t &spec) {
     tensor_desc_cfg[QKSOFTMAXQUAN] = {spec.MHA_int8, STRINGIFY(QKSOFTMAXQUAN),
             spec.mha_inout_dt, qk_matmul_shape};
     auto dequandt = spec.MHA_int8 ? spec.mha_quan_dt : spec.mha_dt;
-    tensor_desc_cfg[QKSOFTMAXDEQUAN] = {spec.MHA_int8 || spec.is_training,
+    tensor_desc_cfg[QKSOFTMAXDEQUAN] = {spec.MHA_int8 || spec.is_fwd_training,
             STRINGIFY(QKSOFTMAXDEQUAN), dequandt, qk_matmul_shape};
     tensor_desc_cfg[QKVMATMUL]
             = {true, STRINGIFY(QKVMATMUL), spec.mha_dt, qkv_transpose_shape};
@@ -256,7 +256,6 @@ void mha_graph_prb_t::build_tensor_desc_fwd(const mha_graph_spec_t &spec) {
 }
 
 void mha_graph_prb_t::build_tensor_desc_bwd(const mha_graph_spec_t &spec) {
-    BENCHDNN_PRINT(0, "inside build_tensor_desc_training %d\n", 0);
     int64_t bs = spec.dims[0];
     int64_t seq_len = spec.dims[1];
     int64_t embed_sz = spec.dims[2];
@@ -269,6 +268,23 @@ void mha_graph_prb_t::build_tensor_desc_bwd(const mha_graph_spec_t &spec) {
     dims_t attention_mask_shape = {bs, 1, 1, seq_len};
     _tensor_desc_info tensor_desc_cfg;
 
+    for (int i = 0; i < TENSOR_DESC_BWD_TYPES_TOTAL; i++) {
+        tensor_desc_cfg[i].isavailable = false;
+    }
+    tensor_desc_cfg[QKSOFTMAXDEQUAN]
+            = {true, STRINGIFY(QKSOFTMAXDEQUAN), spec.mha_dt, qk_matmul_shape};
+    tensor_desc_cfg[QDST]
+            = {true, STRINGIFY(QDST), spec.mha_dt, qkv_transpose_shape};
+    tensor_desc_cfg[KDST]
+            = {true, STRINGIFY(KDST), spec.mha_dt, qkv_transpose_shape};
+    tensor_desc_cfg[VDST]
+            = {true, STRINGIFY(VDST), spec.mha_dt, qkv_transpose_shape};
+    tensor_desc_cfg[QKDROPOUT]
+            = {true, STRINGIFY(QKDROPOUT), spec.mha_dt, qk_matmul_shape};
+    tensor_desc_cfg[QKSOFTMAX]
+            = {true, STRINGIFY(QKSOFTMAX), spec.mha_dt, qk_matmul_shape};
+    tensor_desc_cfg[QKDIVSCALE]
+            = {true, STRINGIFY(QKDIVSCALE), graph_dt::f32, {1}};
     tensor_desc_cfg[GRADIN] = {true, STRINGIFY(GRADIN), spec.mha_dt, spec.dims};
     tensor_desc_cfg[GRADTIN]
             = {true, STRINGIFY(GRADTIN), spec.mha_dt, qkv_shape};
@@ -295,7 +311,7 @@ void mha_graph_prb_t::build_tensor_desc_bwd(const mha_graph_spec_t &spec) {
     tensor_desc_cfg[GRADQWEI]
             = {true, STRINGIFY(GRADQWEI), spec.mha_dt, qkv_shape};
 
-    for (int i = GRADIN; i < TENSOR_DESC_BWD_TYPES_TOTAL; i++) {
+    for (int i = 0; i < TENSOR_DESC_BWD_TYPES_TOTAL; i++) {
         if (tensor_desc_cfg[i].isavailable) {
             tensor_descs_.emplace(tensor_desc_cfg[i].tensor_desc_name,
                     tensor_desc_cfg[i].dt, tensor_desc_cfg[i].dims, spec.tag);
