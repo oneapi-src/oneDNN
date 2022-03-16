@@ -91,8 +91,6 @@ void check_correctness(const settings_t &s) {
             perf_report_t pr(&prb, s.perf_template);
             pr.report(&res, pstr);
         }
-
-        benchdnn_stat.tests++;
     }
 }
 

@@ -123,8 +123,8 @@ void parse_result(res_t &res, const char *pstr) {
                 bs.passed++;
             } else if (is_bench_mode(RUN)) {
                 BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-                break;
             }
+            break;
         case FAILED:
             bs.failed++;
             BENCHDNN_PRINT(0, "%d:%s (errors:%lu total:%lu) __REPRO: %s\n",
@@ -155,6 +155,10 @@ void parse_result(res_t &res, const char *pstr) {
             break;
         default: assert(!"unknown state"); SAFE_V(FAIL);
     }
+
+    bs.tests++;
+    assert(bs.tests == (bs.passed + bs.skipped + bs.mistrusted + bs.failed)
+            || bs.tests == bs.listed);
 
     if (is_bench_mode(PERF)) {
         using bt = timer::timer_t;
