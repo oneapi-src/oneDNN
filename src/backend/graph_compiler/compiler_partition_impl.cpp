@@ -39,6 +39,7 @@ static std::unordered_map<
 static std::unordered_map<const impl::engine_t *,
         std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>>
         engine_map;
+static std::mutex global_mutex;
 
 impl::status_t compiler_partition_impl_t::infer_shape(
         std::vector<const impl::logical_tensor_t *> &inputs,
@@ -202,13 +203,16 @@ impl::status_t compiler_partition_impl_t::compile(
         sc::context_ptr ctx;
         ctx = sc::get_default_context();
         std::shared_ptr<compiler_graph_engine_t> graph_engine;
-        auto iter = engine_map.find(aengine);
-        if (iter != engine_map.end()) {
-            graph_engine = iter->second;
-        } else {
-            graph_engine = std::make_shared<compiler_graph_engine_t>(
-                    &graph_engine_vtable, aengine->get_allocator());
-            engine_map[aengine] = graph_engine;
+        {
+            std::lock_guard<std::mutex> lock(global_mutex);
+            auto iter = engine_map.find(aengine);
+            if (iter != engine_map.end()) {
+                graph_engine = iter->second;
+            } else {
+                graph_engine = std::make_shared<compiler_graph_engine_t>(
+                        &graph_engine_vtable, aengine->get_allocator());
+                engine_map[aengine] = graph_engine;
+            }
         }
 
         ctx->engine_ = static_cast<sc::runtime::engine_t *>(graph_engine.get());
@@ -324,13 +328,13 @@ compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
     : impl::compiled_partition_impl_t(engine, inputs, outputs, {})
     , jit_func_(jit_func)
     , graph_engine_(graph_engine) {
-    std::lock_guard<std::mutex> lock(mtx_);
+    std::lock_guard<std::mutex> lock(global_mutex);
     partition_count_map[graph_engine_]++;
     graph_engine_->allocator_->retain();
 }
 
 compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
-    std::lock_guard<std::mutex> lock(mtx_);
+    std::lock_guard<std::mutex> lock(global_mutex);
     auto itr = partition_count_map.find(graph_engine_);
     if (itr != partition_count_map.end()) {
         itr->second--;

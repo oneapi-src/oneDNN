@@ -123,7 +123,6 @@ public:
 private:
     std::shared_ptr<sc::jit_function_t> jit_func_;
     std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t> graph_engine_;
-    mutable std::mutex mtx_;
 };
 
 } // namespace compiler_impl
