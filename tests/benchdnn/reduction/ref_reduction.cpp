@@ -73,10 +73,12 @@ void finalize(float &dst, alg_t alg, float p, float eps, dnnl_dim_t n) {
     }
 }
 
-void compute_ref(const prb_t *prb, const dnn_mem_t &src,
-        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst) {
+void compute_ref(
+        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+
     float *dst_ptr = (float *)dst;
-    const float *src_ptr = (const float *)src;
 
     const auto &ndims = prb->ndims;
     const auto &src_dims = prb->vdims[0];
@@ -101,7 +103,7 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src,
 
     if (reduce_size == 1) return;
 
-    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
     benchdnn_parallel_nd(idle_size, [&](int64_t f) {
         dims_t idle_pos = off2dims_idx(dst_dims, f);
         const int64_t dst_off = md_off_v(dst.md_, idle_pos.data());
@@ -112,17 +114,13 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src,
             dims_t reduce_pos = off2dims_idx(reduce_dims, r);
             const int64_t src_reduce_off = md_off_v(src.md_, reduce_pos.data());
             const int64_t src_off = src_idle_off + src_reduce_off;
-            accumulate(acc, src_ptr[src_off], alg, p, eps);
+            accumulate(acc, src.get_elem(src_off), alg, p, eps);
         }
         finalize(acc, alg, p, eps, reduce_size);
-        std::vector<float> v_binary_vals(v_bin_po_mask.size());
-        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
-            const auto bin_po_offset
-                    = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
-            const float binary_val = binary_po[d].get_elem(bin_po_offset);
-            v_binary_vals[d] = binary_val;
-        }
-        maybe_post_ops(prb->attr, acc, dst_ptr[dst_off], v_binary_vals);
+
+        const auto v_po_vals = prepare_po_vals(dst, args, v_po_masks, dst_off);
+
+        maybe_post_ops(prb->attr, acc, dst_ptr[dst_off], v_po_vals);
         dst_ptr[dst_off] = acc;
     });
 }
