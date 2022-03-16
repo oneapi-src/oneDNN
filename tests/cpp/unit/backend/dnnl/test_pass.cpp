@@ -7830,8 +7830,8 @@ TEST(Pass, FuseToInt8ReluAdd) {
             dnnl_impl::op_kind::int8_relu_add);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 0);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6);
