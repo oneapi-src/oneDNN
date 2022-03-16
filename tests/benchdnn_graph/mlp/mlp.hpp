@@ -60,7 +60,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
     prb_dims_t prb_dims;
-    std::vector<bool> is_training {false};
+    std::vector<dir_t> dir {FWD_I};
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<std::string> stag {tag::abx}, wtag {tag::abx}, dtag {tag::abx};
@@ -82,16 +82,15 @@ struct mlp_graph_spec_t {
     mlp_graph_spec_t(const prb_dims_t &a_dims, const std::string &wtag,
             const std::string &dtag, const dnnl_data_type_t &bia_dt,
             const dt_conf_t *cfg, std::vector<attr_t::post_ops_t> actfunc,
-            attr_t::scale_t scales, attr_t::zero_points_t zps, bool is_training)
+            attr_t::scale_t scales, attr_t::zero_points_t zps, dir_t dir)
         : prb_dims(a_dims)
         , cfg(cfg)
         , actfunc(actfunc)
         , raw_data_tag(dtag)
         , raw_wei_tag(wtag)
         , batch_sz(a_dims.dims[0])
-        , is_training(is_training) {
+        , dir(dir) {
         assert(actfunc[0].entry.size() == prb_dims.ndims - 2);
-        ;
         num_hidden_layers = prb_dims.ndims - 2;
         for (int i = 1; i < prb_dims.ndims - 1; i++) {
             layer_dims.push_back({batch_sz, prb_dims.dims[i]});
@@ -116,6 +115,9 @@ struct mlp_graph_spec_t {
             attr.insert(zps);
         }
         use_dst = (rand() % 2 == 1) ? true : false;
+        is_fwd_inference = (dir & FLAG_INF);
+        is_fwd_training = (dir & FLAG_FWD) && !(dir & FLAG_INF);
+        is_bwd_training = (dir & FLAG_BWD);
     }
     ~mlp_graph_spec_t() {}
     prb_dims_t prb_dims;
@@ -126,9 +128,10 @@ struct mlp_graph_spec_t {
     std::string raw_data_tag;
     std::string raw_wei_tag;
     int batch_sz;
-    bool is_training {false};
+    dir_t dir;
     bool use_static_transpose {false};
 
+    bool is_fwd_inference, is_fwd_training, is_bwd_training;
     bool has_bias {false};
     bool use_dst {false};
     std::vector<dnnl::graph::logical_tensor::dims_t> layer_dims, weight_dims,

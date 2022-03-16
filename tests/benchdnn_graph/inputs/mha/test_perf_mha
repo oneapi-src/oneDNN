@@ -38,3 +38,9 @@
 
 --pattern=v3
 128x384x1024
+
+--reset
+--head=16
+--dt=f32,bf16
+--dir=FWD_D,BWD_DW
+128x384x1024

@@ -66,13 +66,13 @@ enum tensor_desc_fwd {
     VTSRC, //v1 - transpose input
     VDST, //v1, v2, v3, training - input to QKV matmul
     KDST, //v1, v2, v3 , training- input to QK matmul
-    QKMATMULDST, //v1, v2, v3, training - output QK matmul
+    QKMATMULDST, //v1, v2, v3, fwd_training - output QK matmul
     QKDIVSCALE, //v1, v2, v3, training - score scale
     QKDIVDST, //v1, v2, v3 - score output
     QKATTN,
     QKADD,
     QKSOFTMAX, //v1,v2,v3 - softmax output
-    QKDROPOUT, //training - dropout input
+    QKDROPOUT, //fwd_training - dropout input
     QKSOFTMAXQUANCAST, //v3 - softmax cast
     QKSOFTMAXQUAN, //v1 (int8), v2(int8), v3
     QKSOFTMAXDEQUAN, //v1 (int8), v2(int8), v3, training dropout o/p
@@ -135,7 +135,7 @@ struct settings_t {
 
     const char *pattern = nullptr;
     prb_dims_t prb_dims;
-    std::vector<bool> is_training {false};
+    std::vector<dir_t> dir {FWD_I};
     std::vector<int> heads {16};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
@@ -162,7 +162,7 @@ struct mha_graph_spec_t {
     mha_graph_spec_t(std::string pattern, const dims_t &dims, const int ndims,
             const int &head, const dnnl_data_type_t &dt,
             const attr_t &quan_attr, const attr_t &dequan_attr,
-            float quan_scale, float dequan_scale, bool is_training)
+            float quan_scale, float dequan_scale, dir_t dir)
         : mha_pattern(pattern)
         , dims(dims)
         , ndims(ndims)
@@ -170,7 +170,7 @@ struct mha_graph_spec_t {
         , mha_inout_dt(benchdnnext::convert_dt(dt))
         , quan_attr(quan_attr)
         , dequan_attr(dequan_attr)
-        , is_training(is_training) {
+        , dir(dir) {
         tag = tag::abx; //TODO: pass from command line
         this->quan_attr.oscale.scale = quan_scale;
         this->dequan_attr.oscale.scale = dequan_scale;
@@ -182,6 +182,9 @@ struct mha_graph_spec_t {
         mha_dt = (mha_inout_dt == graph_dt::bf16 || mha_pattern == "v3")
                 ? graph_dt::bf16
                 : graph_dt::f32;
+        is_fwd_inference = (dir & FLAG_INF);
+        is_fwd_training = (dir & FLAG_FWD) && !(dir & FLAG_INF);
+        is_bwd_training = (dir & FLAG_BWD);
     }
     ~mha_graph_spec_t() {}
 
@@ -195,11 +198,12 @@ struct mha_graph_spec_t {
     std::string tag;
     bool MHA_int8 {false};
     attr_t quan_attr, dequan_attr;
-    bool is_training {false};
+    dir_t dir;
     std::string quan_qtype, dequan_qtype;
     //TODO: zps needs to be modified depending on qtype/policy
     std::vector<int64_t> quan_zps, dequan_zps;
     std::vector<float> quan_scales, dequan_scales;
+    bool is_fwd_inference, is_fwd_training, is_bwd_training;
     void generate_scales();
     void generate_zero_points();
 };
@@ -222,9 +226,11 @@ struct mha_graph_prb_t : public ::benchdnnext::graph_prb_t {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-        ctor_status = build_mha_subgraph_fwd(spec);
-        if (stop_work(ctor_status)) return;
-        ctor_status = build_mha_subgraph_bwd(spec);
+        if (spec.dir & FLAG_FWD) {
+            ctor_status = build_mha_subgraph_fwd(spec);
+        } else {
+            ctor_status = build_mha_subgraph_bwd(spec);
+        }
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;
