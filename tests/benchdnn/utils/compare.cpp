@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <sstream>
@@ -63,6 +64,25 @@ static void dump_norm_values(const diff_norm_t &diff_norm, data_kind_t kind) {
             diff_norm.diff_[norm_t::L2], diff_norm.rel_diff(norm_t::L2),
             skind.c_str(), diff_norm.a_[norm_t::L8], diff_norm.b_[norm_t::L8],
             diff_norm.diff_[norm_t::L8], diff_norm.rel_diff(norm_t::L8));
+}
+
+static bool has_binary_comparison_po(const attr_t &attr) {
+    const auto &po = attr.post_ops;
+    if (po.is_def()) return false;
+
+    using alg_t = attr_t::post_ops_t::kind_t;
+    static const std::vector<alg_t> cmp_alg = {alg_t::MAX, alg_t::MIN,
+            alg_t::GE, alg_t::GT, alg_t::LE, alg_t::LT, alg_t::EQ, alg_t::NE};
+
+    for (int idx = 0; idx < po.len(); ++idx) {
+        const auto &e = po.entry[idx];
+        if (!e.is_binary_kind()) continue;
+
+        if (std::any_of(cmp_alg.cbegin(), cmp_alg.cend(),
+                    [&](const alg_t alg) { return e.kind == alg; }))
+            return true;
+    }
+    return false;
 }
 
 bool compare_extreme_values(float a, float b) {
@@ -180,6 +200,12 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                 const float experimental_tolerated_trh = 2e-5;
                 ok = args.diff <= experimental_tolerated_trh;
             }
+            // Binary MAX, MIN and comparison operations post-ops may return
+            // different results for different backends when NaN is one of
+            // inputs. Depending on its position and implementation, either
+            // first or second operand may be returned.
+            if (!ok && has_binary_comparison_po(attr) && op_output_has_nans_)
+                ok = true;
         }
 
         // Update zero stats for mistrust testing.
