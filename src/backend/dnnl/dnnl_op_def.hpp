@@ -700,6 +700,68 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
                 .set_shape_inference_function(
                         infer_dnnl_convtranspose_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_data, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(2)
+                .set_input(0, "output_delta",
+                        "gradients tensor with respect to the output of the "
+                        "ConvTranspose")
+                .set_input(1, "filter", "filter tensor")
+                .set_output(0, "input_delta", "output tensor")
+                .set_output(1, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
+                // Attributes inherited from ConvTransposeBackpropData.
+                .SET_CONV_COMMON_ATTRS
+                // New added attributes
+                .set_attr("canonicalized",
+                        "additional flag to indicate whether the op can be "
+                        "directly mapped to DNNL primitive",
+                        false, attribute_kind::b, false)
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
+                // Analysis rules
+                .set_shape_inference_function(
+                        infer_dnnl_convtranspose_bprop_data_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_weights, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_outputs(2)
+                .set_input(0, "input", "input tensor")
+                .set_input(1, "output_delta",
+                        "gradients tensor with respect to the output of the "
+                        "ConvTranspose")
+                .set_input(2, "filter_shape",
+                        "tensor, that specifies shape of filter")
+                .set_output(0, "filter_delta",
+                        "gradient tensor with respect to the weight of the "
+                        "ConvTranspose")
+                .set_output(1, "scratchpad",
+                        "scratchpad tensor, which is a temporary output and "
+                        "not connected to any other ops")
+                // Attributes inherited from ConvTransposeBackpropFilters.
+                .set_attr("filter_shape", "describing filter shape", false,
+                        attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .SET_CONV_COMMON_ATTRS
+                // New added attributes
+                .set_attr("canonicalized",
+                        "additional flag to indicate whether the op can be "
+                        "directly mapped to DNNL primitive",
+                        false, attribute_kind::b, false)
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
+                // Analysis rules
+                .set_shape_inference_function(
+                        infer_convtranspose_bprop_filters_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::variadic)

@@ -53,6 +53,13 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose) {
             exec = std::make_shared<deconv_fwd_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose_bwd_data) {
+            exec = std::make_shared<deconv_bwd_data_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+        } else if (cur_op->get_kind()
+                == op_kind::dnnl_convtranspose_bwd_weights) {
+            exec = std::make_shared<deconv_bwd_weights_executable_t>(
+                    cur_op, p_engine, prm_attr_mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_matmul) {
             exec = std::make_shared<matmul_executable_t>(
                     cur_op, p_engine, prm_attr_mgr, pd_cache);

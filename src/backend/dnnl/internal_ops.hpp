@@ -145,7 +145,9 @@ namespace op_kind {
     X(quantized_convtranspose_fusion, Quantized_convtranspose_fusion) \
     X(quantized_concat_fusion, Quantized_concat_fusion) \
     X(matmul_post_ops_chain_fusion, MatMul_post_ops_chain_fusion) \
-    X(matmul_bias_post_ops_chain_fusion, MatMul_bias_post_ops_chain_fusion)
+    X(matmul_bias_post_ops_chain_fusion, MatMul_bias_post_ops_chain_fusion) \
+    X(dnnl_convtranspose_bwd_data, Dnnl_convtranspose_bwd_data) \
+    X(dnnl_convtranspose_bwd_weights, Dnnl_convtranspose_bwd_weights)
 
 enum {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,

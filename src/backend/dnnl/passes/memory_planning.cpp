@@ -1339,9 +1339,13 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_prelu_bwd(op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
                     bind_memory_for_bn_folding(op, p_engine);
-                } else if (op->get_kind() == op_kind::dnnl_conv_bwd_data) {
+                } else if (op->get_kind() == op_kind::dnnl_conv_bwd_data
+                        || op->get_kind()
+                                == op_kind::dnnl_convtranspose_bwd_data) {
                     bind_memory_for_conv_bwd_data(op, p_engine, prm_attr_mgr);
-                } else if (op->get_kind() == op_kind::dnnl_conv_bwd_weights) {
+                } else if (op->get_kind() == op_kind::dnnl_conv_bwd_weights
+                        || op->get_kind()
+                                == op_kind::dnnl_convtranspose_bwd_weights) {
                     bind_memory_for_conv_bwd_weights(
                             op, p_engine, prm_attr_mgr);
                 } else if (op->get_kind() == op_kind::dnnl_batchnorm) {
