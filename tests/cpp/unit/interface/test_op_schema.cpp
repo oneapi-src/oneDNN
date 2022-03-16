@@ -181,6 +181,136 @@ TEST(OpSchema, InferConvtransposeBiasOutputShape) {
     EXPECT_EQ(pads_end, expected_pads_end);
 }
 
+TEST(OpSchema, ConvTransposeBackpropData) {
+    const op_kind_t op_kind_ = op_kind::ConvTransposeBackpropData;
+    const std::set<size_t> expected_in_sizes = {2};
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 8;
+    const std::map<std::string, bool> attrs_data
+            = {{"strides", true}, {"pads_begin", true}, {"pads_end", true},
+                    {"dilations", true}, {"auto_pad", false}, {"groups", false},
+                    {"data_format", false}, {"filter_format", false}};
+    for (auto expected_in_size : expected_in_sizes) {
+        verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+}
+
+TEST(OpSchema, InferConvTransposeBackpropDataShapeWithNxcXio) {
+    const auto kind = op_kind::ConvTransposeBackpropData;
+    const std::string data_format {"NCX"};
+    const std::string filter_format {"OIX"};
+    const int64_t groups {1};
+    const int64_t stride {4};
+    const int64_t pad {0};
+    const int64_t dilation {1};
+    const std::vector<int64_t> diff_dst_shape {256, 3, 227, 227};
+    const std::vector<int64_t> wei_shape {3, 96, 11, 11};
+    const std::vector<int64_t> expected_diff_src_shape {256, 96, 55, 55};
+
+    verify_shape_infer_for_convtranspose_bprop_data(kind, data_format,
+            filter_format, groups, stride, pad, dilation, diff_dst_shape,
+            wei_shape, expected_diff_src_shape);
+}
+
+TEST(OpSchema, InferConvTransposeBackpropDataShapeWithNcxOix) {
+    const auto kind = op_kind::ConvTransposeBackpropData;
+    const std::string data_format {"NCX"};
+    const std::string filter_format {"OIX"};
+    const int64_t groups {1};
+    const int64_t stride {4};
+    const int64_t pad {0};
+    const int64_t dilation {1};
+    const std::vector<int64_t> diff_dst_shape {256, 3, 227, 227};
+    const std::vector<int64_t> wei_shape {3, 96, 11, 11};
+    const std::vector<int64_t> expected_diff_src_shape {256, 96, 55, 55};
+
+    verify_shape_infer_for_convtranspose_bprop_data(kind, data_format,
+            filter_format, groups, stride, pad, dilation, diff_dst_shape,
+            wei_shape, expected_diff_src_shape);
+}
+
+TEST(OpSchema, InferConvTransposeBackpropDataShapeWithNxcXioAndGroups) {
+    const auto kind = op_kind::ConvTransposeBackpropData;
+    const std::string data_format {"NCX"};
+    const std::string filter_format {"OIX"};
+    const int64_t groups {2};
+    const int64_t stride {1};
+    const int64_t pad {1};
+    const int64_t dilation {1};
+    const std::vector<int64_t> diff_dst_shape {256, 384, 13, 13};
+    const std::vector<int64_t> wei_shape {192, 256, 3, 3};
+    const std::vector<int64_t> expected_diff_src_shape {256, 256, 13, 13};
+
+    verify_shape_infer_for_convtranspose_bprop_data(kind, data_format,
+            filter_format, groups, stride, pad, dilation, diff_dst_shape,
+            wei_shape, expected_diff_src_shape);
+}
+
+TEST(OpSchema, InferConvTransposeBackpropDataShapeWithNcxOixAndGroups) {
+    const auto kind = op_kind::ConvTransposeBackpropData;
+    const std::string data_format {"NCX"};
+    const std::string filter_format {"OIX"};
+    const int64_t groups {2};
+    const int64_t stride {1};
+    const int64_t pad {1};
+    const int64_t dilation {1};
+    const std::vector<int64_t> diff_dst_shape {256, 384, 13, 13};
+    const std::vector<int64_t> wei_shape {192, 256, 3, 3};
+    const std::vector<int64_t> expected_diff_src_shape {256, 256, 13, 13};
+
+    verify_shape_infer_for_convtranspose_bprop_data(kind, data_format,
+            filter_format, groups, stride, pad, dilation, diff_dst_shape,
+            wei_shape, expected_diff_src_shape);
+}
+
+TEST(OpSchema, ConvTransposeBackpropFilters) {
+    const op_kind_t op_kind_ = op_kind::ConvTransposeBackpropFilters;
+    const std::set<size_t> expected_in_sizes = {2, 3};
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 9;
+    const std::map<std::string, bool> attrs_data = {{"strides", true},
+            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
+            {"auto_pad", false}, {"groups", false}, {"data_format", false},
+            {"filter_format", false}, {"filter_shape", false}};
+    for (auto expected_in_size : expected_in_sizes) {
+        verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+                expected_attr_size, attrs_data);
+    }
+}
+
+TEST(OpSchema, InferConvTransposeBackpropFiltersShapeFromAttribute) {
+    const auto kind = op_kind::ConvTransposeBackpropFilters;
+    const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(kind);
+    EXPECT_TRUE(nullptr != a_op_schema);
+    op_t a_op {kind, op_t::kind2str(kind)};
+    std::vector<int64_t> strides = {4, 4};
+    std::vector<int64_t> pads_begin = {0, 0};
+    std::vector<int64_t> pads_end = {0, 0};
+    std::vector<int64_t> dilations = {1, 1};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    int64_t groups = 1;
+
+    set_conv_common_attr(a_op, strides, pads_begin, pads_end, dilations, "None",
+            data_format, filter_format, groups);
+    const std::vector<int64_t> expected_diff_wei_shape {3, 96, 11, 11};
+    a_op.set_attr<std::vector<int64_t>>(
+            "filter_shape", expected_diff_wei_shape);
+
+    auto src_lt = logical_tensor_init(0, {256, 96, 55, 55}, data_type::f32);
+    auto diff_dst_lt
+            = logical_tensor_init(1, {256, 3, 227, 227}, data_type::f32);
+    auto diff_wei_lt = logical_tensor_init(2, data_type::f32);
+    std::vector<logical_tensor_t *> in_lts {&src_lt, &diff_dst_lt};
+    std::vector<logical_tensor_t *> out_lts {&diff_wei_lt};
+    a_op_schema->shape_infer(&a_op, in_lts, out_lts);
+
+    const std::vector<int64_t> infered_diff_wei_shape
+            = logical_tensor_wrapper_t(diff_wei_lt).vdims();
+    EXPECT_EQ(infered_diff_wei_shape, expected_diff_wei_shape);
+}
+
 TEST(OpSchema, GenerateDefaultAttribute) {
     const op_schema_t *matmul_op_schema
             = op_schema_registry_t::get_op_schema(op_kind::MatMul);

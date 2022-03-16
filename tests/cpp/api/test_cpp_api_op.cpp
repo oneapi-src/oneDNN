@@ -45,6 +45,8 @@ TEST(api_op, create_all_ops) {
             op::kind::ConvolutionBackpropData,
             op::kind::ConvolutionBackpropFilters,
             op::kind::ConvTranspose,
+            op::kind::ConvTransposeBackpropData,
+            op::kind::ConvTransposeBackpropFilters,
             op::kind::Divide,
             op::kind::Elu,
             op::kind::EluBackprop,

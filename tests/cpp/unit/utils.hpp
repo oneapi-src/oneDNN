@@ -448,6 +448,42 @@ static inline void verify_shape_infer_for_conv(
     EXPECT_EQ(infered_pads_end, expected_pads);
 }
 
+static inline void verify_shape_infer_for_convtranspose_bprop_data(
+        const dnnl::graph::impl::op_kind_t op_kind_,
+        const std::string &data_format, const std::string &filter_format,
+        const int64_t groups, const int64_t stride, const int64_t pad,
+        const int64_t dilation, const std::vector<int64_t> &diff_dst_shape,
+        const std::vector<int64_t> &wei_shape,
+        const std::vector<int64_t> &expected_diff_src_shape) {
+    using namespace dnnl::graph::impl;
+    const op_schema_t *op_schema_
+            = op_schema_registry_t::get_op_schema(op_kind_);
+    op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
+
+    const size_t spatial_dims = diff_dst_shape.size() - 2;
+    const std::vector<int64_t> strides(spatial_dims, stride);
+    const std::vector<int64_t> pads_begin(spatial_dims, pad);
+    const std::vector<int64_t> pads_end(spatial_dims, pad);
+    const std::vector<int64_t> dilations(spatial_dims, dilation);
+    const std::string auto_pad {"None"};
+
+    set_conv_common_attr(op_, strides, pads_begin, pads_end, dilations,
+            auto_pad, data_format, filter_format, groups);
+
+    logical_tensor_t diff_dst_lt
+            = logical_tensor_init(0, diff_dst_shape, data_type::f32);
+    logical_tensor_t wei_lt = logical_tensor_init(1, wei_shape, data_type::f32);
+    logical_tensor_t diff_src_lt = logical_tensor_init(2, data_type::f32);
+
+    std::vector<logical_tensor_t *> in_lts {&diff_dst_lt, &wei_lt};
+    std::vector<logical_tensor_t *> out_lts {&diff_src_lt};
+
+    op_schema_->shape_infer(&op_, in_lts, out_lts);
+    const std::vector<int64_t> infered_diff_src_shape
+            = logical_tensor_wrapper_t(diff_src_lt).vdims();
+    EXPECT_EQ(infered_diff_src_shape, expected_diff_src_shape);
+}
+
 static inline void verify_shape_infer_for_convtranspose(
         const dnnl::graph::impl::op_kind_t op_kind_, std::string data_format,
         std::string filter_format, int64_t groups,
