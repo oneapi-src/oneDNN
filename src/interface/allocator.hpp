@@ -159,12 +159,19 @@ public:
 
         static size_t get_total_persist_memory(
                 const dnnl_graph_allocator *alloc);
+
+        static void lock_write();
+        static void unlock_write();
     };
 
     void *allocate(size_t n, attribute_t attr = {}) const {
-        void *buffer = cpu_malloc_(n, attr.data);
 #ifndef NDEBUG
+        monitor_t::lock_write();
+        void *buffer = cpu_malloc_(n, attr.data);
         monitor_t::record_allocate(this, buffer, n, attr);
+        monitor_t::unlock_write();
+#else
+        void *buffer = cpu_malloc_(n, attr.data);
 #endif
         return buffer;
     }
@@ -172,10 +179,15 @@ public:
 #ifdef DNNL_GRAPH_WITH_SYCL
     void *allocate(size_t n, const cl::sycl::device &dev,
             const cl::sycl::context &ctx, attribute_t attr) const {
+#ifndef NDEBUG
+        monitor_t::lock_write();
         void *buffer = sycl_malloc_(n, static_cast<const void *>(&dev),
                 static_cast<const void *>(&ctx), attr.data);
-#ifndef NDEBUG
         monitor_t::record_allocate(this, buffer, n, attr);
+        monitor_t::unlock_write();
+#else
+        void *buffer = sycl_malloc_(n, static_cast<const void *>(&dev),
+                static_cast<const void *>(&ctx), attr.data);
 #endif
         return buffer;
     }
@@ -183,10 +195,15 @@ public:
 
     template <typename T>
     T *allocate(size_t num_elem, attribute_t attr = {}) {
+#ifndef NDEBUG
+        monitor_t::lock_write();
         T *buffer = static_cast<T *>(
                 cpu_malloc_(num_elem * sizeof(T), attr.data));
-#ifndef NDEBUG
         monitor_t::record_allocate(this, buffer, num_elem * sizeof(T), attr);
+        monitor_t::unlock_write();
+#else
+        T *buffer = static_cast<T *>(
+                cpu_malloc_(num_elem * sizeof(T), attr.data));
 #endif
         return buffer;
     }
@@ -195,12 +212,18 @@ public:
     template <typename T>
     T *allocate(size_t num_elem, const cl::sycl::device &dev,
             const cl::sycl::context &ctx, attribute_t attr = {}) {
+#ifndef NDEBUG
+        monitor_t::lock_write();
         T *buffer = static_cast<T *>(sycl_malloc_(num_elem * sizeof(T),
                 static_cast<const void *>(&dev),
                 static_cast<const void *>(&ctx), attr.data));
-#ifndef NDEBUG
         monitor_t::record_allocate(
                 this, (void *)buffer, num_elem * sizeof(T), attr);
+        monitor_t::unlock_write();
+#else
+        T *buffer = static_cast<T *>(sycl_malloc_(num_elem * sizeof(T),
+                static_cast<const void *>(&dev),
+                static_cast<const void *>(&ctx), attr.data));
 #endif
         return buffer;
     }
@@ -208,9 +231,13 @@ public:
 
     void deallocate(void *buffer) const {
         if (buffer) {
-            cpu_free_(buffer);
 #ifndef NDEBUG
+            monitor_t::lock_write();
             monitor_t::record_deallocate(this, buffer);
+            cpu_free_(buffer);
+            monitor_t::unlock_write();
+#else
+            cpu_free_(buffer);
 #endif
         }
     }
@@ -218,9 +245,13 @@ public:
 #ifdef DNNL_GRAPH_WITH_SYCL
     void deallocate(void *buffer, const cl::sycl::context &ctx) const {
         if (buffer) {
-            sycl_free_(buffer, static_cast<const void *>(&ctx));
 #ifndef NDEBUG
+            monitor_t::lock_write();
             monitor_t::record_deallocate(this, buffer);
+            sycl_free_(buffer, static_cast<const void *>(&ctx));
+            monitor_t::unlock_write();
+#else
+            sycl_free_(buffer, static_cast<const void *>(&ctx));
 #endif
         }
     }

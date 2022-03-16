@@ -91,20 +91,16 @@ void dnnl_graph_allocator::monitor_t::record_allocate(
         const dnnl_graph_allocator *alloc, const void *buf, size_t size,
         const dnnl_graph_allocator::attribute_t &attr) {
     if (attr.data.type == allocator_lifetime::persistent) {
-        rw_mutex_.lock_write();
         persist_mem_[alloc] += size;
         persist_mem_infos_[alloc].emplace(
                 buf, mem_info_t {size, allocator_lifetime::persistent});
-        rw_mutex_.unlock_write();
     } else if (attr.data.type == allocator_lifetime::temp) {
         auto tid = std::this_thread::get_id();
-        rw_mutex_.lock_write();
         temp_mem_[tid][alloc] += size;
         if (peak_temp_mem_[tid][alloc] < temp_mem_[tid][alloc])
             peak_temp_mem_[tid][alloc] = temp_mem_[tid][alloc];
         temp_mem_infos_[tid][alloc].emplace(
                 buf, mem_info_t {size, allocator_lifetime::temp});
-        rw_mutex_.unlock_write();
     } else {
         // we didn't use output type buffer now.
         assertm(0, "we didn't use output type buffer now");
@@ -113,25 +109,17 @@ void dnnl_graph_allocator::monitor_t::record_allocate(
 
 void dnnl_graph_allocator::monitor_t::record_deallocate(
         const dnnl_graph_allocator *alloc, const void *buf) {
-    rw_mutex_.lock_read();
     bool is_persist = persist_mem_infos_.find(alloc) != persist_mem_infos_.end()
             && persist_mem_infos_.at(alloc).find(buf)
                     != persist_mem_infos_.at(alloc).end();
-    rw_mutex_.unlock_read();
-
     if (is_persist) {
-        rw_mutex_.lock_write();
         auto persist_pos = persist_mem_infos_.at(alloc).find(buf);
         persist_mem_[alloc] -= persist_pos->second.size_;
         persist_mem_infos_[alloc].erase(persist_pos);
-        rw_mutex_.unlock_write();
     } else {
         auto tid = std::this_thread::get_id();
-        rw_mutex_.lock_write();
         auto temp_pos = temp_mem_infos_[tid][alloc].find(buf);
         temp_mem_[tid][alloc] -= temp_pos->second.size_;
-        temp_mem_infos_[tid][alloc].erase(temp_pos);
-        rw_mutex_.unlock_write();
     }
 }
 
@@ -160,4 +148,12 @@ size_t dnnl_graph_allocator::monitor_t::get_total_persist_memory(
             : 0;
     rw_mutex_.unlock_read();
     return size;
+}
+
+void dnnl_graph_allocator::monitor_t::lock_write() {
+    rw_mutex_.lock_write();
+}
+
+void dnnl_graph_allocator::monitor_t::unlock_write() {
+    rw_mutex_.unlock_write();
 }
