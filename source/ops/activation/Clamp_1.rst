@@ -64,7 +64,5 @@ function.
 *Clamp* does the following with the input tensor element-wise:
 
 .. math::
-   clamp( x )=\left\{\begin{array}{ll}
-       max\_value \quad \mbox{if } \quad input( x )>max\_value \\
-       min\_value \quad \mbox{if } \quad input( x )
-   \end{array}\right.
+   clamp( x_i )=min(max(x_i,min\_value),max\_value)
+
