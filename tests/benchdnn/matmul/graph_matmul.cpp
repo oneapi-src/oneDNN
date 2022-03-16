@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -278,37 +278,45 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
     const auto apply_bias = convert_dt(prb->bia_dt) != dt::undef;
 
-    auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
-    auto wei_fp = make_dnn_mem(ins[1], dt::f32, tag::abx);
+    size_t idx_ins = 0;
+    auto src_fp = make_dnn_mem(ins[idx_ins], dt::f32, tag::abx);
+    auto src_dt = make_dnn_mem(ins[idx_ins], prb->stag);
+    auto wei_fp = make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx);
+    auto wei_dt = make_dnn_mem(ins[idx_ins], prb->wtag);
     auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
-    dnn_mem_t bia_fp;
-    if (apply_bias) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::abx);
-
-    auto src_dt = make_dnn_mem(ins[0], prb->stag);
-    auto wei_dt = make_dnn_mem(ins[1], prb->wtag);
     auto dst_dt = make_dnn_mem(outs[0], prb->dtag);
-    dnn_mem_t bia_dt;
-    if (apply_bias) bia_dt = make_dnn_mem(ins[2], tag::abx);
+    dnn_mem_t bia_fp, bia_dt;
+    if (apply_bias) {
+        bia_fp = make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx);
+        bia_dt = make_dnn_mem(ins[idx_ins], tag::abx);
+    }
 
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
     SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
     if (apply_bias) SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 
-    // matmul operator supports only binary-add (single binary post-op)
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    const std::vector<attr_t::post_ops_t::entry_t> &po_entry
+            = prb->attr.post_ops.entry;
+    const std::vector<size_t> post_bin_indices = get_post_bin_indices(po_entry);
     if (graph_prb.has_post_bin()) {
-        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
-        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), prb->dtag));
-        const int idx = 0;
-        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back());
+        for (size_t i = 0; i < post_bin_indices.size(); i++) {
+            binary_po_fp.emplace_back(
+                    make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx));
+            binary_po_dt.emplace_back(make_dnn_mem(ins[idx_ins], tag::abx));
+            binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                     static_cast<int>(post_bin_indices[i])),
+                    binary_po_dt[i], binary_po_fp[i]);
+        }
     }
-
     dnnl::graph::engine &eng = get_test_engine();
 
-    dnnl::graph::tensor src_tensor(ins[0], eng, static_cast<void *>(src_dt));
-    dnnl::graph::tensor wei_tensor(ins[1], eng, static_cast<void *>(wei_dt));
+    idx_ins = 0;
+    dnnl::graph::tensor src_tensor(
+            ins[idx_ins], eng, static_cast<void *>(src_dt));
+    dnnl::graph::tensor wei_tensor(
+            ins[++idx_ins], eng, static_cast<void *>(wei_dt));
     dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));
     dnnl::graph::tensor bia_tensor;
     dnnl::graph::tensor bin_tensor;
@@ -318,19 +326,24 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
     if (apply_bias) {
-        bia_tensor
-                = dnnl::graph::tensor(ins[2], eng, static_cast<void *>(bia_dt));
+        bia_tensor = dnnl::graph::tensor(
+                ins[++idx_ins], eng, static_cast<void *>(bia_dt));
         tensors_in.emplace_back(bia_tensor);
     }
-    // we can't have fuse with both sum and binary-add at the same time
-    if (graph_prb.has_post_bin()) {
-        bin_tensor = dnnl::graph::tensor(
-                ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
-        tensors_in.emplace_back(bin_tensor);
-    } else if (graph_prb.has_post_sum()) {
-        sum_src1_tensor = dnnl::graph::tensor(
-                ins.back(), eng, static_cast<void *>(dst_dt));
-        tensors_in.emplace_back(sum_src1_tensor);
+
+    size_t bin_dt_idx = 0;
+    for (size_t i = 0; i < po_entry.size(); i++) {
+        // we can't have fuse with both sum and binary-add at the same time
+        if (po_entry[i].is_sum_kind()) { // Always use in-place operation.
+            sum_src1_tensor = dnnl::graph::tensor(
+                    ins[++idx_ins], eng, static_cast<void *>(dst_dt));
+            tensors_in.emplace_back(sum_src1_tensor);
+        } else if (po_entry[i].is_binary_kind()) {
+            bin_tensor = dnnl::graph::tensor(ins[++idx_ins], eng,
+                    static_cast<void *>(binary_po_dt[bin_dt_idx]));
+            tensors_in.emplace_back(bin_tensor);
+            ++bin_dt_idx;
+        }
     }
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out), WARN);
@@ -344,9 +357,10 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
         ref_args.set(DNNL_ARG_DST, dst_fp);
         std::vector<int> binary_po_args;
-        for (int idx = 0; idx < binary_po_fp.size(); idx++) {
+        for (size_t idx_bin : post_bin_indices) {
             binary_po_args.emplace_back(
-                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(static_cast<int>(idx_bin))
+                            | DNNL_ARG_SRC_1));
         }
         ref_args.set(binary_po_args, binary_po_fp);
 
