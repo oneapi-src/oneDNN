@@ -163,13 +163,13 @@ void mlp_graph_prb_t::build_tensor_desc_fwd(const mlp_graph_spec_t &spec) {
             tensor_descs_.emplace(tensor_name, spec.mlp_layer_dt,
                     spec.layer_dims[i], spec.raw_data_tag);
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
-                    = {tensor_descs_[tensor_name], -1, -1, -1};
+                    = {tensor_descs_[tensor_name], DAT_TOTAL, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
             tensor_name = STRINGIFY(WEI_) + std::to_string(i);
             tensor_descs_.emplace(tensor_name, spec.mlp_layer_dt,
                     spec.weight_dims[i], spec.raw_wei_tag);
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
-                    = {tensor_descs_[tensor_name], -1, -1, -1};
+                    = {tensor_descs_[tensor_name], DAT_TOTAL, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
         } else {
             tensor_name = STRINGIFY(DATA_) + std::to_string(i);
@@ -220,7 +220,7 @@ void mlp_graph_prb_t::build_tensor_desc_fwd(const mlp_graph_spec_t &spec) {
             tensor_descs_.emplace(tensor_name, spec.mlp_layer_dt,
                     spec.layer_dims[i + 1], spec.raw_data_tag);
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
-                    = {tensor_descs_[tensor_name], -1, -1, -1};
+                    = {tensor_descs_[tensor_name], DAT_TOTAL, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
         }
     }
@@ -258,14 +258,14 @@ void mlp_graph_prb_t::build_tensor_desc_bwd(const mlp_graph_spec_t &spec) {
                     {spec.layer_dims[i][1], spec.layer_dims[i][0]},
                     spec.raw_data_tag);
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
-                    = {tensor_descs_[tensor_name], -1, -1, -1};
+                    = {tensor_descs_[tensor_name], DAT_TOTAL, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
             tensor_name = STRINGIFY(WEI_TGRAD_) + std::to_string(i);
             tensor_descs_.emplace(tensor_name, spec.mlp_wei_dt,
                     {spec.weight_dims[i][1], spec.weight_dims[i][0]},
                     spec.raw_data_tag);
             ltid_desc_lut[tensor_descs_[tensor_name].get_id()]
-                    = {tensor_descs_[tensor_name], -1, -1, -1};
+                    = {tensor_descs_[tensor_name], DAT_TOTAL, -1, -1};
             desc_ltid_lut[tensor_name] = tensor_descs_[tensor_name].get_id();
         }
         tensor_name = STRINGIFY(DATA_GRAD_) + std::to_string(i);

@@ -57,10 +57,9 @@ void check_correctness(const settings_t &s) {
             const char *pstr = cpp_pstr.c_str();
             BENCHDNN_PRINT(1, "run: %s\n", pstr);
             res_t res {};
-            const int status = doit(&spec, &res);
-            bool want_perf_report = false;
-            parse_result(res, want_perf_report, status, pstr);
-            if (want_perf_report && is_bench_mode(PERF)) {
+            doit(&spec, &res);
+            parse_result(res, pstr);
+            if (is_bench_mode(PERF)) {
                 perf_report_t pr(&spec, s.perf_template);
                 pr.report(&res, pstr);
             }

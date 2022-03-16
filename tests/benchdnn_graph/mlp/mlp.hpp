@@ -48,7 +48,7 @@ enum tensor_desc {
 };
 struct lt_info {
     dnnl::graph::logical_tensor lt;
-    int data_fill_idx;
+    data_kind_t data_fill_idx;
     int dt_mem_idx;
     int fp_mem_idx;
 };
