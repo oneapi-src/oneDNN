@@ -18,4 +18,4 @@ mb50ic64ih56oc64oh56kh1ph0
 --reset
 --cfg=bf16bf16bf16
 --dir=FWD_B
---attr-post-ops=sum,add:bf16:common,add:bf16:per_oc,logistic,sqrt,tanh,sum+elu,sum+relu,sum+clip:0:6 mb50ic64ih56oc64oh56kh1ph0
+--attr-post-ops=sum,add:bf16:common,add:bf16:per_oc,logistic,sqrt,tanh,sum+elu,sum+relu,sum+clip_v2:0:6 mb50ic64ih56oc64oh56kh1ph0

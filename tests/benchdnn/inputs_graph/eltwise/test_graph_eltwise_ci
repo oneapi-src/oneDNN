@@ -1,17 +1,44 @@
 #all supported algs
 --reset
 --inplace=true,false
---dir=FWD_I
+--dir=FWD_D
 --dt=f32
 --tag=abx,axb
+
+--alpha=0 --beta=0
+--alg=abs,exp,gelu_erf,hardswish,log,soft_relu,sqrt,square,tanh,logistic,logsigmoid
+64x512x28x28
+
 --alpha= --beta=
---alg=abs,clip,elu,exp,gelu_erf,log,sqrt,square,tanh,logistic
+--alg=clip_v2
+64x512x28x28
+
+--alpha= --beta=0
+--alg=elu
+64x512x28x28
+
+#all supported algs bwd
+--reset
+--inplace=true,false
+--dir=BWD_D
+--dt=f32
+--tag=abx,axb
+--alpha=0 --beta=0
+--alg=gelu_erf,hardswish,relu_dst,soft_relu,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst,logsigmoid
+64x512x28x28
+
+--alpha= --beta=
+--alg=clip_v2,clip_v2_dst
+64x512x28x28
+
+--alpha= --beta=0
+--alg=elu,elu_dst
 64x512x28x28
 
 #gelu shapes from bert_squad -TODO - add gelu_tanh???
 --reset
 --inplace=true,false
---dir=FWD_I
+--dir=FWD_D
 --dt=f32
 --tag=abx
 --alpha= --beta=
@@ -21,7 +48,7 @@
 #relu input shapes - TODO add different alpha cases.. 
 --reset
 --inplace=true,false
---dir=FWD_I
+--dir=FWD_D,BWD_D
 --dt=f32
 --tag=abx
 --alpha=0 --beta=

@@ -84,7 +84,7 @@ void check_graph_eltwise_params(res_t *res,
     using alg_t = attr_t::post_ops_t::kind_t;
 
     constexpr float eps = 1.0e-05;
-    if (alg == alg_t::RELU) {
+    if (alg == alg_t::RELU || alg == alg_t::RELU_DST) {
         const float expected_alpha = 0.0;
         if (std::fabs(expected_alpha - alpha) > eps) {
             res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
@@ -139,56 +139,114 @@ dnnl_data_type_t convert_dt(
     }
 }
 
-dnnl::graph::op::kind convert_alg_kind(const dnnl_alg_kind_t kind) noexcept {
+dnnl::graph::op::kind convert_alg_kind(
+        const dnnl_alg_kind_t kind, bool is_fwd) noexcept {
     using graph_op = dnnl::graph::op::kind;
     // all options could be easily added later
-    switch (kind) {
-        case dnnl_eltwise_abs: return graph_op::Abs;
-        case dnnl_eltwise_clip: return graph_op::HardTanh;
-        case dnnl_eltwise_elu: return graph_op::Elu;
-        case dnnl_eltwise_exp: return graph_op::Exp;
-        case dnnl_eltwise_gelu_erf: return graph_op::GELU;
-        case dnnl_eltwise_log: return graph_op::Log;
-        case dnnl_eltwise_logistic: return graph_op::Sigmoid;
-        case dnnl_eltwise_pow: return graph_op::Pow;
-        case dnnl_eltwise_relu: return graph_op::ReLU;
-        case dnnl_eltwise_round: return graph_op::Round;
-        case dnnl_eltwise_sqrt: return graph_op::Sqrt;
-        case dnnl_eltwise_square: return graph_op::Square;
-        case dnnl_eltwise_tanh: return graph_op::Tanh;
-        case dnnl_binary_add: return graph_op::Add;
-        case dnnl_binary_div: return graph_op::Divide;
-        case dnnl_binary_max: return graph_op::Maximum;
-        case dnnl_binary_min: return graph_op::Minimum;
-        case dnnl_binary_mul: return graph_op::Multiply;
-        case dnnl_binary_sub: return graph_op::Subtract;
-        case dnnl_reduction_norm_lp_power_p_sum: return graph_op::ReduceL1;
-        case dnnl_reduction_norm_lp_sum: return graph_op::ReduceL2;
-        case dnnl_reduction_max: return graph_op::ReduceMax;
-        case dnnl_reduction_mean: return graph_op::ReduceMean;
-        case dnnl_reduction_min: return graph_op::ReduceMin;
-        case dnnl_reduction_mul: return graph_op::ReduceProd;
-        case dnnl_reduction_sum: return graph_op::ReduceSum;
-        // TODO (damianszw): find nicer way to tell about unsupported type
-        case dnnl_eltwise_bounded_relu:
-        case dnnl_eltwise_clip_v2:
-        case dnnl_eltwise_clip_v2_use_dst_for_bwd:
-        case dnnl_eltwise_elu_use_dst_for_bwd:
-        case dnnl_eltwise_exp_use_dst_for_bwd:
-        case dnnl_eltwise_gelu_tanh:
-        case dnnl_eltwise_hardswish:
-        case dnnl_eltwise_linear:
-        case dnnl_eltwise_logistic_use_dst_for_bwd:
-        case dnnl_eltwise_logsigmoid:
-        case dnnl_eltwise_mish:
-        case dnnl_eltwise_relu_use_dst_for_bwd:
-        case dnnl_eltwise_sqrt_use_dst_for_bwd:
-        case dnnl_eltwise_soft_relu:
-        case dnnl_eltwise_swish:
-        case dnnl_eltwise_tanh_use_dst_for_bwd:
-        case dnnl_reduction_norm_lp_power_p_max:
-        case dnnl_reduction_norm_lp_max:
-        default: return graph_op::LastSymbol;
+    if (is_fwd) {
+        switch (kind) {
+            case dnnl_eltwise_abs: return graph_op::Abs;
+            case dnnl_eltwise_clip_v2: return graph_op::HardTanh;
+            case dnnl_eltwise_elu: return graph_op::Elu;
+            case dnnl_eltwise_exp: return graph_op::Exp;
+            case dnnl_eltwise_gelu_erf: return graph_op::GELU;
+            case dnnl_eltwise_hardswish: return graph_op::HardSwish;
+            case dnnl_eltwise_log: return graph_op::Log;
+            case dnnl_eltwise_logistic: return graph_op::Sigmoid;
+            case dnnl_eltwise_logsigmoid: return graph_op::SoftPlus;
+            case dnnl_eltwise_pow: return graph_op::Pow;
+            case dnnl_eltwise_relu: return graph_op::ReLU;
+            case dnnl_eltwise_soft_relu: return graph_op::SoftPlus;
+            case dnnl_eltwise_round: return graph_op::Round;
+            case dnnl_eltwise_sqrt: return graph_op::Sqrt;
+            case dnnl_eltwise_square: return graph_op::Square;
+            case dnnl_eltwise_tanh: return graph_op::Tanh;
+            case dnnl_binary_add: return graph_op::Add;
+            case dnnl_binary_div: return graph_op::Divide;
+            case dnnl_binary_max: return graph_op::Maximum;
+            case dnnl_binary_min: return graph_op::Minimum;
+            case dnnl_binary_mul: return graph_op::Multiply;
+            case dnnl_binary_sub: return graph_op::Subtract;
+            case dnnl_reduction_norm_lp_power_p_sum: return graph_op::ReduceL1;
+            case dnnl_reduction_norm_lp_sum: return graph_op::ReduceL2;
+            case dnnl_reduction_max: return graph_op::ReduceMax;
+            case dnnl_reduction_mean: return graph_op::ReduceMean;
+            case dnnl_reduction_min: return graph_op::ReduceMin;
+            case dnnl_reduction_mul: return graph_op::ReduceProd;
+            case dnnl_reduction_sum: return graph_op::ReduceSum;
+            // TODO (damianszw): find nicer way to tell about unsupported type
+            case dnnl_eltwise_bounded_relu:
+            case dnnl_eltwise_clip:
+            case dnnl_eltwise_clip_v2_use_dst_for_bwd:
+            case dnnl_eltwise_elu_use_dst_for_bwd:
+            case dnnl_eltwise_exp_use_dst_for_bwd:
+            case dnnl_eltwise_gelu_tanh:
+            case dnnl_eltwise_linear:
+            case dnnl_eltwise_logistic_use_dst_for_bwd:
+            case dnnl_eltwise_mish:
+            case dnnl_eltwise_relu_use_dst_for_bwd:
+            case dnnl_eltwise_sqrt_use_dst_for_bwd:
+            case dnnl_eltwise_swish:
+            case dnnl_eltwise_tanh_use_dst_for_bwd:
+            case dnnl_reduction_norm_lp_power_p_max:
+            case dnnl_reduction_norm_lp_max:
+            default: return graph_op::LastSymbol;
+        }
+    } else {
+        switch (kind) {
+            case dnnl_eltwise_clip_v2:
+            case dnnl_eltwise_clip_v2_use_dst_for_bwd:
+                return graph_op::HardTanhBackprop;
+            case dnnl_eltwise_elu:
+            case dnnl_eltwise_elu_use_dst_for_bwd: return graph_op::EluBackprop;
+            case dnnl_eltwise_gelu_erf: return graph_op::GELUBackprop;
+            case dnnl_eltwise_hardswish: return graph_op::HardSwishBackprop;
+            case dnnl_eltwise_logistic:
+            case dnnl_eltwise_logistic_use_dst_for_bwd:
+                return graph_op::SigmoidBackprop;
+            case dnnl_eltwise_logsigmoid: return graph_op::SoftPlusBackprop;
+            case dnnl_eltwise_relu:
+            case dnnl_eltwise_relu_use_dst_for_bwd:
+                return graph_op::ReLUBackprop;
+            case dnnl_eltwise_soft_relu: return graph_op::SoftPlusBackprop;
+            case dnnl_eltwise_sqrt:
+            case dnnl_eltwise_sqrt_use_dst_for_bwd:
+                return graph_op::SqrtBackprop;
+            case dnnl_eltwise_tanh:
+            case dnnl_eltwise_tanh_use_dst_for_bwd:
+                return graph_op::TanhBackprop;
+            // Don't support for now
+            case dnnl_eltwise_abs:
+            case dnnl_eltwise_exp:
+            case dnnl_eltwise_log:
+            case dnnl_eltwise_pow:
+            case dnnl_eltwise_round:
+            case dnnl_eltwise_square:
+            case dnnl_binary_add:
+            case dnnl_binary_div:
+            case dnnl_binary_max:
+            case dnnl_binary_min:
+            case dnnl_binary_mul:
+            case dnnl_binary_sub:
+            case dnnl_reduction_norm_lp_power_p_sum:
+            case dnnl_reduction_norm_lp_sum:
+            case dnnl_reduction_max:
+            case dnnl_reduction_mean:
+            case dnnl_reduction_min:
+            case dnnl_reduction_mul:
+            case dnnl_reduction_sum:
+            // TODO (damianszw): find nicer way to tell about unsupported type
+            case dnnl_eltwise_bounded_relu:
+            case dnnl_eltwise_clip:
+            case dnnl_eltwise_exp_use_dst_for_bwd:
+            case dnnl_eltwise_gelu_tanh:
+            case dnnl_eltwise_linear:
+            case dnnl_eltwise_mish:
+            case dnnl_eltwise_swish:
+            case dnnl_reduction_norm_lp_power_p_max:
+            case dnnl_reduction_norm_lp_max:
+            default: return graph_op::LastSymbol;
+        }
     }
 }
 
@@ -543,6 +601,12 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
     const auto attrs = convert_eltw_entry(post_op_kind, po_entry);
     for (const auto &kv : attrs) {
         eltwise.set_attr(kv.first, kv.second);
+    }
+
+    if (po_entry.eltwise.alg == dnnl_eltwise_soft_relu) {
+        eltwise.set_attr("beta", static_cast<int64_t>(1));
+    } else if (po_entry.eltwise.alg == dnnl_eltwise_logsigmoid) {
+        eltwise.set_attr("beta", static_cast<int64_t>(-1));
     }
 
     p.ops_.emplace_back(eltwise);
