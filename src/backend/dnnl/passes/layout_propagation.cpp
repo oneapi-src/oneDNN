@@ -211,6 +211,86 @@ static void layout_propagation_for_deconv(op_ptr &op,
     fill_layout_info(scratchpad_val, scratchpad_desc);
 }
 
+static void layout_propagation_for_deconv_bwd_data(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    // always create pd using any format
+    const auto &pd_flag_pair
+            = create_deconv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    // insert reorders for inputs
+    insert_reorder_before(
+            op, 0, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
+    value_ptr diff_dst = op->get_input_value(0);
+    fill_layout_info(diff_dst, pd.diff_dst_desc());
+
+    insert_reorder_before(
+            op, 1, pd.weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
+    value_ptr wei = op->get_input_value(1);
+    fill_layout_info(wei, pd.weights_desc());
+
+    // insert a reorder if output layout is different from output optimal layout
+    // 1) output layout is opaque
+    // 2) output is any, directly set optimal layout
+    insert_reorder_after(
+            op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
+    value_ptr diff_src = op->get_output_value(0);
+    fill_layout_info(diff_src, pd.diff_src_desc());
+
+    // fill scratchpads dimensions and data type to scratchpad value_t
+    // according to op schema, scratchpad must be be second output
+    auto scratchpad_val = op->get_output_value(1);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    // make scratchpad as deconv's bwd last output
+    fill_layout_info(scratchpad_val, scratchpad_desc);
+}
+
+static void layout_propagation_for_deconv_bwd_weights(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
+    const auto &pd_flag_pair = create_deconv_bwd_weights_pd(
+            op, p_engine, prm_attr_mgr, pd_cache);
+    const auto &pd = pd_flag_pair.first;
+    const auto is_first_time = pd_flag_pair.second;
+
+    if (!is_first_time) return;
+
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, prm_attr_mgr, reorder_ops);
+    value_ptr src = op->get_input_value(0);
+    fill_layout_info(src, pd.src_desc());
+
+    insert_reorder_before(
+            op, 1, pd.diff_dst_desc(), p_engine, prm_attr_mgr, reorder_ops);
+    value_ptr diff_dst = op->get_input_value(1);
+    fill_layout_info(diff_dst, pd.diff_dst_desc());
+
+    insert_reorder_after(
+            op, 0, pd.diff_weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
+    value_ptr diff_weights = op->get_output_value(0);
+    fill_layout_info(diff_weights, pd.diff_weights_desc());
+
+    // fill scratchpads dimensions and data type to scratchpad value_t
+    auto scratchpad_val = op->get_output_value(1);
+    const memory::desc scratchpad_desc = pd.scratchpad_desc();
+    const memory::dims dims = scratchpad_desc.dims();
+    scratchpad_val->set_dims(dims);
+    scratchpad_val->set_data_type(
+            static_cast<impl::data_type_t>(scratchpad_desc.data_type()));
+
+    // make scratchpad as deconv's bwd last output
+    fill_layout_info(scratchpad_val, scratchpad_desc);
+}
+
 static void layout_propagation_for_eltwise(op_ptr &op,
         const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
         pd_cache_t &pd_cache, std::vector<op_ptr> &reorder_ops) {
@@ -1417,6 +1497,14 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose) {
                 layout_propagation_for_deconv(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind()
+                    == op_kind::dnnl_convtranspose_bwd_data) {
+                layout_propagation_for_deconv_bwd_data(
+                        cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
+            } else if (cur_op->get_kind()
+                    == op_kind::dnnl_convtranspose_bwd_weights) {
+                layout_propagation_for_deconv_bwd_weights(
                         cur_op, p_engine, prm_attr_mgr, pd_cache, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
                 layout_propagation_for_conv_bwd_data(

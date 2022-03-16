@@ -93,6 +93,10 @@ bool dnnl_backend::register_kernels() {
 
     // convtranspose related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::ConvTranspose, float_convtranspose_fwd)
+    DNNL_REGISTER_KERNEL(
+            impl::op_kind::ConvTransposeBackpropData, convtranspose_bwd_data)
+    DNNL_REGISTER_KERNEL(impl::op_kind::ConvTransposeBackpropFilters,
+            convtranspose_bwd_weights)
     DNNL_REGISTER_KERNEL(op_kind::convtranspose_fusion, float_convtranspose_fwd)
     // bn related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::BatchNormInference, batchnorm_fwd_t)

@@ -48,9 +48,8 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
-template <bool quantized>
-struct convtranspose_fwd_t : public kernel_base_t {
-private:
+struct convtranspose_base_t : public kernel_base_t {
+protected:
     dnnl::engine p_engine_;
     impl::allocator_t *g_alloc_;
 
@@ -66,7 +65,7 @@ private:
     bool enable_constant_cache_ = is_constant_cache_enabled();
 
 public:
-    ~convtranspose_fwd_t() override {
+    ~convtranspose_base_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
 
@@ -74,93 +73,6 @@ public:
             constant_cache_t constant_cache;
             constant_cache.remove_if_exist(constant_key_);
         }
-    }
-
-    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
-            const impl::engine_t *g_engine,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs) override {
-        p_engine_ = make_dnnl_engine(*g_engine);
-        g_alloc_ = g_engine->get_allocator();
-
-        // get subgraph from the deep copied partition
-        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
-        BACKEND_DNNL_CHECK(
-                set_given_inputs_outputs(subgraph_, inputs, outputs));
-
-        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
-            return this->memory_planner_.get_memory_info(val);
-        });
-        pass_pipeline_t pipeline(vis);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
-        BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
-
-        // Because we use binary post-ops for broadcast add and sum post-ops for
-        // non-broadcast add. So we have to know concret shape before fuse
-        // post-ops
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
-        if (quantized) {
-            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_conv_or_deconv);
-            BACKEND_DNNL_ADD_PASS(pipeline, folding_mul_scales);
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
-        }
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-        if (quantized) {
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points);
-            // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_scales_add_zps);
-        }
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-
-        pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
-        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
-
-        // constant propagation
-        if (enable_constant_cache_) {
-            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<true>);
-        }
-
-        // bind the memory for each op
-        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
-            return memory_planner_.run(sg);
-        };
-        pipeline.reset_visualize_arg(true, true);
-        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
-        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
-
-        // Run the added passes
-        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
-
-        // fill information for inputs logical tensors
-        for (size_t i = 0; i < inputs.size(); i++) {
-            BACKEND_DNNL_CHECK(set_shape_and_layout(
-                    const_cast<impl::logical_tensor_t &>(inputs[i]),
-                    subgraph_->ins_[i]));
-        }
-
-        // fill information for outputs logical tensors
-        for (size_t i = 0; i < outputs.size(); i++) {
-            BACKEND_DNNL_CHECK(set_shape_and_layout(
-                    const_cast<impl::logical_tensor_t &>(outputs[i]),
-                    subgraph_->outs_[i]));
-        }
-
-        resource_ctor_ = [this]() {
-            return this->memory_planner_.get_exec_args_set().clone();
-        };
-
-        return impl::status::success;
     }
 
     impl::status_t execute_impl(const dnnl_partition_impl_t *part,
@@ -248,6 +160,97 @@ public:
 
         return impl::status::success;
     }
+};
+
+template <bool quantized>
+struct convtranspose_fwd_t : public convtranspose_base_t {
+public:
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
+
+        // get subgraph from the deep copied partition
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
+        BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
+
+        // Because we use binary post-ops for broadcast add and sum post-ops for
+        // non-broadcast add. So we have to know concret shape before fuse
+        // post-ops
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_conv_or_deconv);
+            BACKEND_DNNL_ADD_PASS(pipeline, folding_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
+        }
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
+        if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_zero_points);
+            // fuse neighboring mul_scales and zdd_zps op to quantize/dequantize
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_scales_add_zps);
+        }
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        // constant propagation
+        if (enable_constant_cache_) {
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<true>);
+        }
+
+        // bind the memory for each op
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        // fill information for inputs logical tensors
+        for (size_t i = 0; i < inputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(inputs[i]),
+                    subgraph_->ins_[i]));
+        }
+
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
+        }
+
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
+
+        return impl::status::success;
+    }
 
     impl::status_t prepare_inplace_pairs_impl() override {
         inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
@@ -257,6 +260,134 @@ public:
 
 using float_convtranspose_fwd = convtranspose_fwd_t</* quantized */ false>;
 using quantized_convtranspose = convtranspose_fwd_t</* quantized */ true>;
+
+struct convtranspose_bwd_data : public conv_base_t {
+public:
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
+
+        // get subgraph from the deep copied partition
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_to_group_for_conv_or_deconv);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        // constant propagation
+        if (enable_constant_cache_) {
+            BACKEND_DNNL_ADD_PASS(pipeline, constant_propagation<true>);
+        }
+        // bind the memory for each op
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        // fill information for inputs logical tensors
+        for (size_t i = 0; i < inputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(inputs[i]),
+                    subgraph_->ins_[i]));
+        }
+
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
+        }
+
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
+
+        return impl::status::success;
+    }
+};
+
+struct convtranspose_bwd_weights : public conv_base_t {
+public:
+    impl::status_t compile_impl(const dnnl_partition_impl_t *part,
+            const impl::engine_t *g_engine,
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) override {
+        p_engine_ = make_dnnl_engine(*g_engine);
+        g_alloc_ = g_engine->get_allocator();
+
+        // get subgraph from the deep copied partition
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_);
+        BACKEND_DNNL_CHECK(
+                set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline(vis);
+
+        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+
+        // TODO(dszwicht): fix conv_bwd_weights_canonicalization pass.
+        // Currently cases with groups > 1 are not supported
+        BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_weights_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+
+        pipeline.reset_visualize_arg(true, false);
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
+        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
+
+        // bind the memory for each op
+        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
+            return memory_planner_.run(sg);
+        };
+        pipeline.reset_visualize_arg(true, true);
+        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
+        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
+
+        // Run the added passes
+        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
+
+        // fill information for inputs logical tensors
+        for (size_t i = 0; i < inputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(inputs[i]),
+                    subgraph_->ins_[i]));
+        }
+
+        // fill information for outputs logical tensors
+        for (size_t i = 0; i < outputs.size(); i++) {
+            BACKEND_DNNL_CHECK(set_shape_and_layout(
+                    const_cast<impl::logical_tensor_t &>(outputs[i]),
+                    subgraph_->outs_[i]));
+        }
+
+        resource_ctor_ = [this]() {
+            return this->memory_planner_.get_exec_args_set().clone();
+        };
+
+        return impl::status::success;
+    }
+};
 
 } // namespace dnnl_impl
 } // namespace impl

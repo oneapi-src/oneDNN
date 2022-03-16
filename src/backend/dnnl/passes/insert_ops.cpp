@@ -39,7 +39,8 @@ using value_ptr = std::shared_ptr<impl::value_t>;
 static bool need_insert_permute(op_kind_t kind) {
     static const std::set<op_kind_t> ops {op_kind::dnnl_convolution,
             op_kind::dnnl_conv_depthwise, op_kind::dnnl_convtranspose,
-            op_kind::dnnl_pool, op_kind::dnnl_batchnorm, op_kind::dnnl_prelu,
+            op_kind::dnnl_convtranspose_bwd_data, op_kind::dnnl_pool,
+            op_kind::dnnl_batchnorm, op_kind::dnnl_prelu,
             op_kind::dnnl_prelu_bwd, op_kind::dnnl_resampling,
             op_kind::dnnl_resampling_bwd};
     return ops.count(kind) != 0;
@@ -178,7 +179,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         bool require_output_permute = false;
         if (cur_op->get_kind() == op_kind::dnnl_convolution
                 || cur_op->get_kind() == op_kind::dnnl_conv_depthwise
-                || cur_op->get_kind() == op_kind::dnnl_convtranspose) {
+                || cur_op->get_kind() == op_kind::dnnl_convtranspose
+                || cur_op->get_kind() == op_kind::dnnl_convtranspose_bwd_data) {
             require_output_permute = insert_permute_for_conv_or_deconv(cur_op);
         } else {
             require_output_permute
@@ -270,7 +272,8 @@ impl::status_t insert_to_group_for_conv_or_deconv(
         insert_op_before(to_group_op, op, offset);
         to_be_inserted_ops.emplace_back(to_group_op);
 
-        if (op->get_kind() == op_kind::dnnl_convtranspose)
+        if (op->get_kind() == op_kind::dnnl_convtranspose
+                || op->get_kind() == op_kind::dnnl_convtranspose_bwd_data)
             to_group_op->set_attr<bool>("is_convtranspose", true);
 
         return true;
@@ -279,6 +282,7 @@ impl::status_t insert_to_group_for_conv_or_deconv(
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != op_kind::dnnl_convolution
                 && cur_op->get_kind() != op_kind::dnnl_convtranspose
+                && cur_op->get_kind() != op_kind::dnnl_convtranspose_bwd_data
                 && cur_op->get_kind() != op_kind::dnnl_conv_depthwise)
             continue;
 

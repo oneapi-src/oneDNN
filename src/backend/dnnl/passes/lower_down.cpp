@@ -1856,7 +1856,10 @@ impl::status_t conv_bwd_weights_canonicalization(
     std::vector<op_ptr> to_be_removed_ops;
 
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_conv_bwd_weights) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_conv_bwd_weights
+                && cur_op->get_kind()
+                        != op_kind::dnnl_convtranspose_bwd_weights)
+            continue;
 
         // insert permute
         bool need_permute_0 = cur_op->has_attr("data_format")
@@ -1914,6 +1917,9 @@ impl::status_t conv_bwd_weights_canonicalization(
             insert_op_before(to_group_op, cur_op, 1);
             to_be_inserted_ops.emplace_back(to_group_op);
             cur_op->set_attr<int64_t>("groups", 1);
+
+            if (cur_op->get_kind() == op_kind::dnnl_convtranspose_bwd_weights)
+                to_group_op->set_attr<bool>("is_convtranspose", true);
         }
     }
 
@@ -3296,6 +3302,14 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_convolution);
         } else if (cur_op->get_kind() == impl::op_kind::ConvTranspose) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_convtranspose);
+        } else if (cur_op->get_kind()
+                == impl::op_kind::ConvTransposeBackpropData) {
+            new_op = std::make_shared<op_t>(
+                    op_kind::dnnl_convtranspose_bwd_data);
+        } else if (cur_op->get_kind()
+                == impl::op_kind::ConvTransposeBackpropFilters) {
+            new_op = std::make_shared<op_t>(
+                    op_kind::dnnl_convtranspose_bwd_weights);
         } else if (cur_op->get_kind()
                 == impl::op_kind::ConvolutionBackpropData) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_conv_bwd_data);
