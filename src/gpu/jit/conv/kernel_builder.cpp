@@ -2687,6 +2687,26 @@ public:
     }
     bool is_last_mul() const { return riter == 0; }
 
+    bool is_last_g2s_store() const {
+        if (!do_g2s_store()) return false;
+        return riter == slm_bufs() - 1;
+    }
+
+    bool is_last_preload() const {
+        if (!do_preload()) return false;
+        return riter == (preload_bufs() - 1) + std::max(0, gmem_bufs() - 1);
+    }
+
+    bool is_last_g2s_load() const {
+        if (!do_g2s_load()) return false;
+        return is_last_preload();
+    }
+
+    bool is_last_prefetch() const {
+        if (!do_prefetch()) return false;
+        return is_last_preload();
+    }
+
     bool do_preload() const {
         if (preload_bufs() == 0) return false;
         return riter >= (preload_bufs() - 1) + std::max(0, gmem_bufs() - 1);
@@ -2702,7 +2722,7 @@ public:
         return do_preload();
     }
 
-    bool do_s2r_load() const {
+    bool do_g2s_store() const {
         if (!params.use_slm) return false;
         ir_assert(gmem_bufs() >= 1);
         return iter >= (gmem_bufs() - 1) && riter >= (slm_bufs() - 1);
@@ -2714,7 +2734,7 @@ public:
     }
 
     int gmem_read_buf_index() const {
-        ir_assert(do_s2r_load());
+        ir_assert(do_g2s_store());
         return (iter - (gmem_bufs() - 1)) % gmem_bufs();
     }
 
@@ -2732,7 +2752,7 @@ public:
 
     int slm_write_offset_update() const {
         ir_assert(params.use_slm);
-        ir_assert(do_s2r_load());
+        ir_assert(do_g2s_store());
 
         int slm_iter = iter - (gmem_bufs() - 1);
         int cur_slm_idx = slm_iter % slm_bufs();
@@ -3431,6 +3451,17 @@ private:
             }
         }
 
+        if (it.is_last_g2s_store())
+            g2s_store = remove_post_inc_stores(g2s_store);
+        if (it.is_last_g2s_load()) g2s_load = remove_post_inc_stores(g2s_load);
+        if (it.is_last_prefetch()) prefetch = remove_post_inc_stores(prefetch);
+        if (it.is_last_mul()) {
+            for (auto &s : s2r_load)
+                s = remove_post_inc_stores(s);
+            for (auto &s : g2r_load)
+                s = remove_post_inc_stores(s);
+        }
+
         stmt_t iter_stmt;
         if (it.slm_bufs() == 3 && it.do_mul()) {
             iter_stmt = iter_stmt.append(funcs::barrier_wait());
@@ -3443,7 +3474,7 @@ private:
             iter_stmt = iter_stmt.append(funcs::signal());
         }
 
-        if (it.do_s2r_load() && it.slm_bufs() == 1) {
+        if (it.do_g2s_store() && it.slm_bufs() == 1) {
             iter_stmt = iter_stmt.append(funcs::barrier());
             iter_stmt = iter_stmt.append(g2s_store);
             iter_stmt = iter_stmt.append(funcs::barrier());
@@ -3461,7 +3492,7 @@ private:
                 iter_stmt = iter_stmt.append(funcs::signal());
             }
         }
-        if (it.do_s2r_load() && it.slm_bufs() >= 2) {
+        if (it.do_g2s_store() && it.slm_bufs() >= 2) {
             iter_stmt = iter_stmt.append(g2s_store);
             if (it.slm_bufs() == 2) {
                 iter_stmt = iter_stmt.append(funcs::barrier());
@@ -3479,7 +3510,7 @@ private:
     stmt_t sub_gmem_bufs(const stmt_t &stmt, const compute_iterator_t &it,
             bool is_read) const {
         if (it.slm_bufs() == 0) return stmt;
-        if (is_read && !it.do_s2r_load()) return stmt;
+        if (is_read && !it.do_g2s_store()) return stmt;
         if (!is_read && !it.do_g2s_load()) return stmt;
 
         int buf_idx = (is_read ? it.gmem_read_buf_index()
@@ -3497,7 +3528,7 @@ private:
             bool is_read) const {
         if (it.slm_bufs() <= 1) return stmt;
         if (is_read && !it.do_mul()) return stmt;
-        if (!is_read && !it.do_s2r_load()) return stmt;
+        if (!is_read && !it.do_g2s_store()) return stmt;
 
         int upd = (is_read ? it.slm_read_offset_update()
                            : it.slm_write_offset_update());
@@ -3601,6 +3632,17 @@ private:
             auto local_var = var_t::make(
                     var.type, var.name + "_" + std::to_string(id));
             s = substitute(s, let.var, local_var);
+        }
+        return s;
+    }
+
+    static stmt_t remove_post_inc_stores(const stmt_t &_s) {
+        auto stores = find_objects<store_t>(_s);
+        auto s = _s;
+        for (auto &_store : stores) {
+            auto &store = _store.as<store_t>();
+            if (!contains_object(store.value, store.buf)) continue;
+            s = substitute(s, store, stmt_t());
         }
         return s;
     }
