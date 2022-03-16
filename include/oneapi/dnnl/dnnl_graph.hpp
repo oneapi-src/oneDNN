@@ -798,6 +798,8 @@ public:
         ConvolutionBackpropData = kConvolutionBackpropData,
         ConvolutionBackpropFilters = kConvolutionBackpropFilters,
         ConvTranspose = kConvTranspose,
+        ConvTransposeBackpropData = kConvTransposeBackpropData,
+        ConvTransposeBackpropFilters = kConvTransposeBackpropFilters,
         Dequantize = kDequantize,
         Divide = kDivide,
         DynamicDequantize = kDynamicDequantize,

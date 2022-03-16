@@ -42,6 +42,8 @@
     _(ConvolutionBackpropData) \
     _(ConvolutionBackpropFilters) \
     _(ConvTranspose) \
+    _(ConvTransposeBackpropData) \
+    _(ConvTransposeBackpropFilters) \
     _(Divide) \
     _(Elu) \
     _(EluBackprop) \

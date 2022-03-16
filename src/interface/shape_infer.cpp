@@ -371,12 +371,97 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
     return status::success;
 }
 
-status_t infer_conv_bprop_filters_output_shape(op_t *n,
+/// This function assumes the size of all vectors are correct. Eg. size of
+/// strides/dilations/pads should be the same as spatial size of src_dims and
+/// fil_dims. Size of output_dims should be the same as size of src_dims.
+inline void infer_convtranspose_ncx_oix(const dims &src_dims,
+        const dims &fil_dims, const dims &strides, const dims &dilations,
+        const dims &pads_begin, const dims &pads_end, dims &output_dims) {
+    output_dims[0] = src_dims[0]; // n
+    output_dims[1] = fil_dims[1]; // ic
+    for (size_t i = 2; i < src_dims.size(); ++i) {
+        dim_t padded = src_dims[i] + pads_begin[i - 2] + pads_end[i - 2];
+        dim_t dilated = dilations[i - 2] * (fil_dims[i] - 1) + 1;
+        output_dims[i] = ((padded - dilated) / strides[i - 2]) + 1;
+    }
+}
+
+status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     auto in0 = logical_tensor_wrapper_t(inputs[0]); // src
-    auto out = logical_tensor_wrapper_t(outputs[0]); // dst
-    dims filter_shape(in0.ndims());
+    auto in1 = logical_tensor_wrapper_t(inputs[1]); // filter
+    auto out0 = logical_tensor_wrapper_t(outputs[0]); // output
+
+    // get attr value
+    const dim_t g = n->get_attr<dim_t>("groups");
+    const auto &strides = n->get_attr<dims>("strides");
+    const auto &dilations = n->get_attr<dims>("dilations");
+    const auto &pads_begin = n->get_attr<dims>("pads_begin");
+    const auto &pads_end = n->get_attr<dims>("pads_end");
+    std::string fil_fmt = n->get_attr<std::string>("filter_format");
+    std::string src_fmt = n->get_attr<std::string>("data_format");
+
+    // check if src channel / groups == weight output channel
+    if (in0.get_src_c(src_fmt) / g != in1.get_weight_o(fil_fmt)) {
+        return status::invalid_shape;
+    }
+
+    // spatial dims
+    dims src_sp = in0.get_src_spatial_dims(src_fmt);
+    dims fil_sp = in1.get_weight_spatial_dims(fil_fmt);
+
+    // if paddings are empty vectors?
+    dims new_pads_begin(pads_begin);
+    if (new_pads_begin.empty()) { new_pads_begin.assign(src_sp.size(), 0); }
+    dims new_pads_end(pads_end);
+    if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
+
+    // strides and dilations are required and should be correctly provided.
+    if (strides.size() != src_sp.size() || dilations.size() != fil_sp.size()
+            || new_pads_begin.size() != src_sp.size()
+            || new_pads_end.size() != src_sp.size()) {
+        return status::invalid_shape;
+    }
+
+    if (n->has_attr("auto_pad")
+            && n->get_attr<std::string>("auto_pad") != "None") {
+        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+        // infer auto padding sizes
+        for (size_t i = 0; i < src_sp.size(); ++i) {
+            infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
+                    auto_pad, new_pads_begin[i], new_pads_end[i]);
+        }
+
+        n->set_attr("pads_begin", new_pads_begin);
+        n->set_attr("pads_end", new_pads_end);
+    }
+
+    // infer output shape
+    dims output_dims(in0.vdims());
+    infer_convtranspose_ncx_oix(canonicalize(in0.vdims(), src_fmt),
+            canonicalize(in1.vdims(), fil_fmt), strides, dilations,
+            new_pads_begin, new_pads_end, output_dims);
+    // output shape should have the same format as input data
+    if ("NXC" == src_fmt) { output_dims = ncx2nxc(output_dims); }
+
+    if (out0.ndims() != -1) {
+        if (!validate(output_dims, out0.vdims())) {
+            return status::invalid_shape;
+        }
+    }
+
+    set_shape_and_strides(*outputs[0], output_dims);
+    return status::success;
+}
+
+status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs, const size_t in_num) {
+    // src for conov and diff_dst for convtranspose
+    auto in = logical_tensor_wrapper_t(inputs[in_num]);
+    auto out = logical_tensor_wrapper_t(outputs[0]); // diff_wei
+    dims filter_shape(in.ndims());
     if (!out.is_shape_unknown()) {
         // use output shape if known
         filter_shape = out.vdims();
@@ -396,7 +481,7 @@ status_t infer_conv_bprop_filters_output_shape(op_t *n,
     std::string src_fmt = n->get_attr<std::string>("data_format");
 
     // spatial dims
-    dims src_sp = in0.get_src_spatial_dims(src_fmt);
+    dims src_sp = in.get_src_spatial_dims(src_fmt);
     dims fil_sp = filter_shape;
     if (fil_fmt == "OIX") {
         fil_sp.erase(fil_sp.begin(), fil_sp.begin() + 2);
@@ -435,6 +520,22 @@ status_t infer_conv_bprop_filters_output_shape(op_t *n,
     set_shape_and_strides(*outputs[0], filter_shape);
 
     return status::success;
+}
+
+status_t infer_convtranspose_bprop_filters_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    const size_t diff_dst_in_num = 1;
+    return infer_conv_bprop_filters_output_shape_common(
+            n, inputs, outputs, diff_dst_in_num);
+}
+
+status_t infer_conv_bprop_filters_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    const size_t src_in_num = 0;
+    return infer_conv_bprop_filters_output_shape_common(
+            n, inputs, outputs, src_in_num);
 }
 
 status_t infer_convtranspose_output_shape(op_t *n,
