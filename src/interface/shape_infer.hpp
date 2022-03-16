@@ -100,6 +100,25 @@ status_t infer_convtranspose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
+/// This function assumes the size of all vectors are correct. Eg. size of
+/// strides/dilations/pads should be the same as spatial size of src_dims and
+/// fil_dims. Size of output_dims should be the same as size of src_dims.
+inline void infer_convtranspose_ncx_oix(const dims &src_dims,
+        const dims &fil_dims, const dims &strides, const dims &dilations,
+        const dims &pads_begin, const dims &pads_end, dims &output_dims);
+
+status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
+status_t infer_convtranspose_bprop_filters_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
+status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs, const size_t in_num);
+
 // check if output shape is already known
 // if shape is unknown, infer output shape (change output lt)
 // otherwise infer pad (change op attrs)

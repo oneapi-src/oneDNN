@@ -392,6 +392,48 @@ DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
                 .set_shape_inference_function(infer_convtranspose_output_shape)
                 .SET_CONV_COMMON_ATTRS)
 
+DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackpropData, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "output_delta",
+                        "gradients tensor with respect to the output of the "
+                        "ConvTranspose",
+                        "T")
+                .set_input(1, "filter", "filter tensor", "T")
+                .set_output(0, "input_delta", "output tensor", "T")
+                .set_type_constraints(
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(
+                        infer_convtranspose_bprop_data_output_shape)
+                .SET_CONV_COMMON_ATTRS)
+
+DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackpropFilters, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T1")
+                .set_input(1, "output_delta",
+                        "gradients tensor with respect to the output of the "
+                        "ConvTranspose",
+                        "T1")
+                .set_input(2, "filter_shape",
+                        "tensor, that specifies shape of filter", "T2")
+                .set_output(0, "filter_delta",
+                        "gradient tensor with respect to the weight of the "
+                        "ConvTranspose",
+                        "T1")
+                .set_attr("filter_shape", "describing filter shape", false,
+                        attribute_kind::is,
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
+                .set_shape_inference_function(
+                        infer_convtranspose_bprop_filters_output_shape)
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .SET_CONV_COMMON_ATTRS)
+
 DNNL_GRAPH_OP_SCHEMA(Divide, 1,
         op_schema_t()
                 .set_num_inputs(2)
