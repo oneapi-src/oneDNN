@@ -120,11 +120,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return;
 
-    if (prb->alg == alg_t::DIV) {
-        check_binary_post_ops(prb->attr, res);
-        if (res->state == SKIPPED) return;
-    }
-
     const bool is_sum = prb->attr.post_ops.find(alg_t::SUM) >= 0;
     bool bcast_src0 = false;
     for (int d = 0; d < prb->ndims; ++d)

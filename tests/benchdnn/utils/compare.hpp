@@ -48,6 +48,7 @@ struct compare_t {
     void set_threshold(float trh) { trh_ = trh; }
     void set_zero_trust_percent(float ztp) { zero_trust_percent_ = ztp; }
     void set_data_kind(data_kind_t dk) { kind_ = dk; }
+    void set_op_output_has_nans(bool ohn) { op_output_has_nans_ = ohn; }
 
     // @param idx The index of compared element. Helps to obtain any element
     //     from any reference memory since it's in abx format.
@@ -76,6 +77,10 @@ private:
     // Driver-specific function that adds additional criteria for a test case to
     // pass.
     driver_check_func_t driver_check_func_;
+    // Some operators may legally return NaNs. This member allows to work around
+    // issues involving comparison with NaNs in the op output if additional
+    // post-ops are involved.
+    bool op_output_has_nans_ = false;
 
     // Internal validation methods under `compare` interface.
     int compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
