@@ -4913,6 +4913,280 @@ INSTANTIATE_TEST_SUITE_P(Execute, Convtranspose4D5D,
                         {0.0, 3.5, 0.0, 3.5, 6.0, 1.5, 8.5, 2.5, 0.0, 8.5, 1.5,
                                 3.5, 6.0, 2.5, 6.0, 2.5}}));
 
+struct dnnl_graph_test_convtranspose_bwd_params {
+    std::vector<int64_t> src_dims;
+    std::vector<int64_t> wei_dims;
+    std::vector<int64_t> dst_dims;
+    test::vector<float> src0_data;
+    test::vector<float> src1_data;
+    test::vector<float> ref_dst_data;
+    impl::dnnl_impl::dims strides;
+    impl::dnnl_impl::dims pads_begin;
+    impl::dnnl_impl::dims pads_end;
+    impl::dnnl_impl::dims dilations;
+    std::string data_format;
+    std::string filter_format;
+};
+
+class ConvTransposeBackpropData
+    : public ::testing::TestWithParam<
+              dnnl_graph_test_convtranspose_bwd_params> {
+public:
+    void TestConvTransposeBackpropData() {
+        using dims = impl::dnnl_impl::dims;
+
+        auto params = ::testing::TestWithParam<
+                dnnl_graph_test_convtranspose_bwd_params>::GetParam();
+
+        // default engine kind is cpu.
+        impl::engine_t &eng = get_engine();
+        test::vector<float> diff_dst = params.src0_data;
+        test::vector<float> weight = params.src1_data;
+        test::vector<float> ref_diff_src = params.ref_dst_data;
+        test::vector<float> diff_src(ref_diff_src.size(), 0.0);
+        impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropData);
+        deconv_op.set_attr<dims>("strides", params.strides);
+        deconv_op.set_attr<dims>("dilations", params.dilations);
+        deconv_op.set_attr<dims>("pads_begin", params.pads_begin);
+        deconv_op.set_attr<dims>("pads_end", params.pads_end);
+        deconv_op.set_attr<int64_t>("groups", 1);
+        deconv_op.set_attr<std::string>("data_format", params.data_format);
+        deconv_op.set_attr<std::string>("filter_format", params.filter_format);
+
+        // prepare logical tensor
+        impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+                0, params.dst_dims, impl::data_type::f32);
+        impl::logical_tensor_t weight_lt = utils::logical_tensor_init(
+                1, params.wei_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
+                2, params.src_dims, impl::data_type::f32);
+
+        deconv_op.add_input(diff_dst_lt);
+        deconv_op.add_input(weight_lt);
+        deconv_op.add_output(diff_src_lt);
+
+        impl::graph_t g(eng.kind());
+        g.add_op(&deconv_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass
+                = get_pass("convtranspose_data_bwd_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &diff_dst_lt, &weight_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(diff_src_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+        impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+        impl::tensor_t diff_src_ts(diff_src_lt, &eng, diff_src.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {diff_dst_ts, weight_ts}, {diff_src_ts});
+        strm.wait();
+        for (size_t i = 0; i < diff_src.size(); ++i) {
+            ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
+        }
+    }
+};
+
+TEST_P(ConvTransposeBackpropData, TestConvTransposeBackpropData) {
+    TestConvTransposeBackpropData();
+}
+
+INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropData,
+        ::testing::Values(
+                // NCX, OIX
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
+                        {1, 1, 3, 3}, {1, 1, 4, 4},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, 5.0, 1.5}, {1, 1}, {0, 0}, {0, 0}, {1, 1},
+                        "NCX", "OIX"},
+                // 3d, NCX, IOX
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
+                        {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, 5.0, 1.5}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NCX", "OIX"},
+                // NCX, XIO
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
+                        {3, 3, 1, 1}, {1, 1, 4, 4},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, 5.0, 1.5}, {1, 1}, {0, 0}, {0, 0}, {1, 1},
+                        "NCX", "XIO"},
+                // 3d, NCX, XIO
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
+                        {1, 3, 3, 1, 1}, {1, 1, 1, 4, 4},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, 5.0, 1.5}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NCX", "XIO"},
+                // NXC, XIO
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1},
+                        {3, 4, 1, 1}, {1, 3, 4, 1},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+                                0.0},
+                        {0.5}, {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NXC", "XIO"},
+                // 3d, NXC, XIO
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1, 1},
+                        {1, 3, 4, 1, 1}, {1, 1, 3, 4, 1},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+                                0.0},
+                        {0.5}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1, 1},
+                        "NXC", "XIO"},
+                // NXC, OIX
+                dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
+                        {1, 1, 3, 3}, {1, 4, 4, 1},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, 5.0, 1.5}, {1, 1}, {0, 0}, {0, 0}, {1, 1},
+                        "NXC", "OIX"},
+                // 3d, NXC, OIX
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
+                        {1, 1, 1, 3, 3}, {1, 1, 4, 4, 1},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0, 3.0, -2.0, -1.0, 4.0},
+                        {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0},
+                        {-1.0, 2.5, 5.0, 1.5}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0},
+                        {1, 1, 1}, "NXC", "OIX"}));
+
+class ConvTransposeBackpropFilters
+    : public ::testing::TestWithParam<
+              dnnl_graph_test_convtranspose_bwd_params> {
+public:
+    void TestConvTransposeBackpropFilters() {
+        using dims = impl::dnnl_impl::dims;
+
+        auto params = ::testing::TestWithParam<
+                dnnl_graph_test_convtranspose_bwd_params>::GetParam();
+
+        impl::engine_t &eng = get_engine();
+        test::vector<float> src = params.src0_data;
+        test::vector<float> diff_dst = params.src1_data;
+        test::vector<float> ref_diff_wei = params.ref_dst_data;
+        test::vector<float> diff_wei(ref_diff_wei.size(), 0.0);
+        impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropFilters);
+        deconv_op.set_attr<dims>("strides", params.strides);
+        deconv_op.set_attr<dims>("dilations", params.dilations);
+        deconv_op.set_attr<dims>("pads_begin", params.pads_begin);
+        deconv_op.set_attr<dims>("pads_end", params.pads_end);
+        deconv_op.set_attr<dims>("filter_shape", params.wei_dims);
+        deconv_op.set_attr<int64_t>("groups", 1);
+        deconv_op.set_attr<std::string>("data_format", params.data_format);
+        deconv_op.set_attr<std::string>("filter_format", params.filter_format);
+
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                0, params.src_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+                1, params.dst_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
+                2, params.wei_dims, impl::data_type::f32);
+
+        deconv_op.add_input(src_lt);
+        deconv_op.add_input(diff_dst_lt);
+        deconv_op.add_output(diff_wei_lt);
+
+        impl::graph_t g(eng.kind());
+        g.add_op(&deconv_op);
+        g.build_graph();
+
+        impl::pass::pass_base_ptr apass
+                = get_pass("convtranspose_filter_bwd_pass");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> inputs {
+                &src_lt, &diff_dst_lt};
+        std::vector<const impl::logical_tensor_t *> outputs {&diff_wei_lt};
+
+        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+        impl::logical_tensor_t lt;
+        cp.query_logical_tensor(diff_wei_lt.id, &lt);
+        ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+        impl::tensor_t src_ts(src_lt, &eng, src.data());
+        impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+        impl::tensor_t diff_wei_ts(diff_wei_lt, &eng, diff_wei.data());
+
+        impl::stream_t &strm = get_stream();
+        cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_wei_ts});
+        strm.wait();
+        for (size_t i = 0; i < diff_wei.size(); ++i) {
+            ASSERT_FLOAT_EQ(diff_wei[i], ref_diff_wei[i]);
+        }
+    }
+};
+
+TEST_P(ConvTransposeBackpropFilters, TestConvTransposeBackpropFilters) {
+    TestConvTransposeBackpropFilters();
+}
+
+INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropFilters,
+        ::testing::Values(
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
+                        {1, 1, 3, 3}, {1, 1, 4, 4}, {-1.0, 2.5, 5, 1.5},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0.0, 3.0, -2.0, -1.0, 4.0},
+                        {-4.75, 3.0, 6.5, 11.75, 14.5, -2.25, 16.25, -16.5,
+                                2.0},
+                        {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NCX", "OIX"},
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
+                        {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4}, {-1.0, 2.5, 5, 1.5},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0.0, 3.0, -2.0, -1.0, 4.0},
+                        {-4.75, 3.0, 6.5, 11.75, 14.5, -2.25, 16.25, -16.5,
+                                2.0},
+                        {1, 1, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1, 1}, "NCX",
+                        "OIX"},
+                dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
+                        {3, 3, 1, 1}, {1, 4, 4, 1}, {-1.0, 2.5, 5, 1.5},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0.0, 3.0, -2.0, -1.0, 4.0},
+                        {-4.75, 3.0, 6.5, 11.75, 14.5, -2.25, 16.25, -16.5,
+                                2.0},
+                        {1, 1}, {0, 0}, {0, 0}, {1, 1}, "NXC", "XIO"},
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
+                        {1, 3, 3, 1, 1}, {1, 1, 4, 4, 1}, {-1.0, 2.5, 5, 1.5},
+                        {-3.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0, 2.5,
+                                -1.0, 0.0, 3.0, -2.0, -1.0, 4.0},
+                        {-4.75, 3.0, 6.5, 11.75, 14.5, -2.25, 16.25, -16.5,
+                                2.0},
+                        {1, 1, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1, 1}, "NXC",
+                        "XIO"}));
+
 TEST(Execute, Convolution3DNcxOix) {
     using dims = std::vector<int64_t>;
 
