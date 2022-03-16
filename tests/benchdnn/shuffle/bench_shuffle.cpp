@@ -46,14 +46,10 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        const int status = [&prb, &res](api_mode_t mode) {
-            if (mode == PRIMITIVE)
-                return doit(&prb, &res);
-            else if (mode == GRAPH)
-                return benchdnnext::shuffle::doit(&prb, &res);
-            else
-                return FAIL;
-        }(api_mode);
+        if (api_mode == GRAPH)
+            benchdnnext::shuffle::doit(&prb, &res);
+        else
+            doit(&prb, &res);
 
         parse_result(res, pstr);
 

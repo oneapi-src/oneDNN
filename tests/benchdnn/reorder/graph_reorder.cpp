@@ -258,7 +258,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     if (is_bench_mode(CORR)) {
         compare::compare_t cmp;
-        cmp.set_data_kind(DATA);
+        cmp.set_data_kind(DST);
         const bool has_s32 = spec.src_dt == dt::s32 || spec.dst_dt == dt::s32;
         const bool has_s8 = spec.src_dt == dt::s8 || spec.dst_dt == dt::s8;
         const bool has_u8 = spec.src_dt == dt::u8 || spec.dst_dt == dt::u8;

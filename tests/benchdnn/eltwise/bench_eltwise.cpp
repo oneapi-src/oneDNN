@@ -96,14 +96,10 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        const int status = [&prb, &res](api_mode_t mode) {
-            if (api_mode == PRIMITIVE)
-                return doit(&prb, &res);
-            else if (api_mode == GRAPH)
-                return benchdnnext::eltwise::doit(&prb, &res);
-            else
-                return FAIL;
-        }(api_mode);
+        if (api_mode == GRAPH)
+            benchdnnext::eltwise::doit(&prb, &res);
+        else
+            doit(&prb, &res);
 
         parse_result(res, pstr);
 

@@ -60,24 +60,17 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        if (attr.post_ops.convolution_index() != -1)
-            status = [&prb, &res](api_mode_t mode) {
-                if (mode == PRIMITIVE)
-                    return conv_dw_fusion::doit(&prb, &res);
-                else if (mode == GRAPH)
-                    return benchdnnext::conv_dw_fusion::doit(&prb, &res);
-                else
-                    return FAIL;
-            }(api_mode);
-        else
-            status = [&prb, &res](api_mode_t mode) {
-                if (mode == PRIMITIVE)
-                    return doit(&prb, &res);
-                else if (mode == GRAPH)
-                    return benchdnnext::conv::doit(&prb, &res);
-                else
-                    return FAIL;
-            }(api_mode);
+        if (attr.post_ops.convolution_index() != -1) {
+            if (api_mode == GRAPH)
+                benchdnnext::conv_dw_fusion::doit(&prb, &res);
+            else
+                conv_dw_fusion::doit(&prb, &res);
+        } else {
+            if (api_mode == GRAPH)
+                benchdnnext::conv::doit(&prb, &res);
+            else
+                doit(&prb, &res);
+        }
 
         parse_result(res, pstr);
 

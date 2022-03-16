@@ -223,7 +223,8 @@ int doit(const prb_t *prb, res_t *res) {
                  binary_po_fp, binary_po_only_positive_vals),
             WARN);
 
-    args_t args;
+    args_t args, ref_args;
+
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(binary_po_args, binary_po_dt);

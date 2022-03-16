@@ -20,10 +20,10 @@
 #include "dnnl_common.hpp"
 #include "dnnl_graph_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/norm.hpp"
 
 #include "bnorm/bnorm.hpp"
 #include "bnorm/graph_bnorm.hpp"
-#include "norm.hpp"
 
 #include <string>
 #include <vector>
@@ -223,7 +223,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
             static const engine_t cpu_engine(dnnl_cpu);
             dnn_mem_t dst(dst_dt, dnnl_f32, tag::abx, cpu_engine);
             SAFE(::bnorm::compare(
-                         prb, DATA, dst_fp, dst, res, &scale_fp, &shift_fp),
+                         prb, DST, dst_fp, dst, res, &scale_fp, &shift_fp),
                     WARN);
         }
     }

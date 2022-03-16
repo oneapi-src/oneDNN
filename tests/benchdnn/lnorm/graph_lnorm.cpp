@@ -335,7 +335,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             const int digits_f32 = 24;
             const float eps = (1 << (digits_f32 - digits_dt(prb->dt))) * 5e-7;
             cmp.set_threshold(eps);
-            cmp.set_data_kind(DATA);
+            cmp.set_data_kind(DST);
             // TODO: improve bf16 filling
             if (prb->dt == dnnl_bf16) cmp.set_zero_trust_percent(100.f);
 
@@ -457,7 +457,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             const int digits_f32 = 24;
             const float eps = (1 << (digits_f32 - digits_dt(prb->dt))) * 2e-7;
             cmp_data.set_threshold(eps);
-            cmp_data.set_data_kind(DATA);
+            cmp_data.set_data_kind(SRC);
             cmp_data.set_zero_trust_percent(70.f);
             SAFE(cmp_data.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
 
