@@ -219,7 +219,7 @@ protected:
                         // states_t_l = states_tm1_l * (1 - G01) + G01 * G2
                         const Xmm tmp2s_vmm(tmp2_vmm.getIdx());
                         to_float(tmp2s_vmm, ptr[addr_attn_reg], src_data_t,
-                                hstate_dt_size);
+                                scratch_dt_size);
                         uni_vbroadcastss(tmp2_vmm, tmp2s_vmm);
                         // G01 = a * G0
                         compute_vmulps(G0(loop_ur_idx), G0(loop_ur_idx),
