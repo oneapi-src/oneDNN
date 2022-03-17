@@ -210,11 +210,14 @@ bool jit_uni_binary_t::pd_t::is_format_non_blocked(
             = IMPLICATION(strides[0] != 0,
                       strides[0] >= utils::array_product(dims + 1, ndims - 1))
             && IMPLICATION(ndims >= 3 && strides[2] != 0,
-                    strides[2] >= dims[1]*utils::array_product(dims + 3, ndims - 3))
+                    strides[2] >= dims[1]
+                                    * utils::array_product(dims + 3, ndims - 3))
             && IMPLICATION(ndims >= 4 && strides[3] != 0,
-                    strides[3] >= dims[1]*utils::array_product(dims + 4, ndims - 4))
+                    strides[3] >= dims[1]
+                                    * utils::array_product(dims + 4, ndims - 4))
             && IMPLICATION(ndims >= 5 && strides[4] != 0,
-                    strides[4] >= dims[1]*utils::array_product(dims + 5, ndims - 5))
+                    strides[4] >= dims[1]
+                                    * utils::array_product(dims + 5, ndims - 5))
             && IMPLICATION(strides[1] != 0, strides[1] == 1);
     return is_nxc || is_ncx;
 }
