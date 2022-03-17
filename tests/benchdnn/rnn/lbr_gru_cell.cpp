@@ -120,7 +120,8 @@ void lbr_gru_bwd_pregemm(const prb_t &prb, const float *src_iter_,
     // do = (1 - u) * dh; do^ = one_m_square(o) * do;
     // du = (h - o) * dh; du^ = x_m_square(u) * du;
     // dr = (Wh + b) * do^; dr^ = x_m_square(r) * dr;
-    for (int64_t ib = 0; ib < prb.mb; ib++)
+    for (int64_t ib = 0; ib < prb.mb; ib++) {
+        if (prb.alg == LBR_AUGRU) diff_src_layer_attention(ib) = 0.0f;
         for (int64_t ih = 0; ih < prb.dhc; ih++) {
             float h = src_iter(ib, ih);
             float dh = diff_dst_layer(ib, ih) + diff_dst_iter(ib, ih);
@@ -130,7 +131,7 @@ void lbr_gru_bwd_pregemm(const prb_t &prb, const float *src_iter_,
             float du = (h - o) * dh * x_m_square(u);
             float dO = (1.0f - u) * dh;
             if (prb.alg == LBR_AUGRU) {
-                diff_src_layer_attention(ib) = du * u;
+                diff_src_layer_attention(ib) += du * u;
                 du *= src_layer_attention(ib);
             }
 
@@ -145,6 +146,7 @@ void lbr_gru_bwd_pregemm(const prb_t &prb, const float *src_iter_,
             b_gates_r(ib, GRU_O, ih) = b_gates(ib, GRU_O, ih) * r;
             diff_src_iter(ib, ih) = dh * u;
         }
+    }
 }
 
 void lbr_gru_bwd(const prb_t &prb, float *diff_src_layer_,

@@ -140,7 +140,8 @@ void gru_bwd_pregemm_part1(const prb_t &prb, const float *src_iter_,
 
     // do = (1 - u) * dh; do^ = one_m_square(o) * do;
     // du = (h - u) * dh; du^ = x_m_square(u) * du;
-    for (int64_t ib = 0; ib < prb.mb; ib++)
+    for (int64_t ib = 0; ib < prb.mb; ib++) {
+        if (prb.alg == VANILLA_AUGRU) diff_src_layer_attention(ib) = 0.0f;
         for (int64_t ih = 0; ih < prb.dhc; ih++) {
             float h = src_iter(ib, ih);
             float o = gates(ib, GRU_O, ih);
@@ -149,13 +150,14 @@ void gru_bwd_pregemm_part1(const prb_t &prb, const float *src_iter_,
             float du = (h - o) * dh * x_m_square(u);
             float dO = (1.0f - u) * dh * one_m_square(o);
             if (prb.alg == VANILLA_AUGRU) {
-                diff_src_layer_attention(ib) = du * u;
+                diff_src_layer_attention(ib) += du * u;
                 du *= src_layer_attention(ib);
             }
             b_gates(ib, GRU_U, ih) = du;
             b_gates(ib, GRU_O, ih) = dO;
             diff_src_iter(ib, ih) = dh * u;
         }
+    }
 }
 
 void gru_bwd_pregemm_part2(const prb_t &prb, const float *src_iter_,
