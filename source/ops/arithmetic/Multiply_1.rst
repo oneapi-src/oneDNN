@@ -14,7 +14,7 @@ Multiply
 with two given tensors applying multi-directional broadcast rules.
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_arithmetic_Multiply_1.html>`__
+<https://docs.openvino.ai/2021.1/openvino_docs_ops_arithmetic_Multiply_1.html>`__
 
 **Attributes**:
 

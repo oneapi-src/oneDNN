@@ -13,7 +13,7 @@ Elu
 **Short description**: Exponential linear unit element-wise activation function.
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_activation_Elu_1.html>`__
+<https://docs.openvino.ai/2021.1/openvino_docs_ops_activation_Elu_1.html>`__
 
 **Detailed Description**
 

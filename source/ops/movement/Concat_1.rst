@@ -14,7 +14,7 @@ Concat
 <http://caffe.berkeleyvision.org/tutorial/layers/concat.html>`__
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_movement_Concat_1.html>`__
+<https://docs.openvino.ai/2021.1/openvino_docs_ops_movement_Concat_1.html>`__
 
 **Attributes**:
 

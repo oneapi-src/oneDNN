@@ -14,7 +14,7 @@ Subtract
 given tensors applying multi-directional broadcast rules.
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/latest/openvino_docs_ops_arithmetic_Subtract_1.html>`__
+<https://docs.openvino.ai/latest/openvino_docs_ops_arithmetic_Subtract_1.html>`__
 
 **Attributes**:
 

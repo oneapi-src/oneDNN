@@ -13,7 +13,7 @@ HardSwish
 **Short description**: *HardSwish* element-wise activation function.
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.4/openvino_docs_ops_activation_HSwish_4.html>`__
+<https://docs.openvino.ai/2021.4/openvino_docs_ops_activation_HSwish_4.html>`__
 
 **Detailed description**: For each element from the input tensor, calculates
 corresponding element in the output tensor with the following formula:

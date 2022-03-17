@@ -14,7 +14,7 @@ GELU
 `Reference <https://pytorch.org/docs/stable/nn.functional.html#gelu>`__
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_activation_GELU_2.html>`__
+<https://docs.openvino.ai/2021.1/openvino_docs_ops_activation_GELU_2.html>`__
 
 **Detailed description**:
 `Reference <https://arxiv.org/abs/1606.08415>`__

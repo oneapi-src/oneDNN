@@ -14,7 +14,7 @@ Sqrt
 given tensor.
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_arithmetic_Sqrt_1.html>`__
+<https://docs.openvino.ai/2021.1/openvino_docs_ops_arithmetic_Sqrt_1.html>`__
 
 **Inputs**:
 

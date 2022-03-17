@@ -14,7 +14,7 @@ SoftMax
 `Reference <https://github.com/Kulbear/deep-learning-nano-foundation/wiki/ReLU-and-Softmax-Activation-Functions#softmax>`__
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_activation_SoftMax_1.html>`__
+<https://docs.openvino.ai/2021.1/openvino_docs_ops_activation_SoftMax_1.html>`__
 
 **Detailed description**:
 `Reference <http://cs231n.github.io/linear-classify/#softmax>`__

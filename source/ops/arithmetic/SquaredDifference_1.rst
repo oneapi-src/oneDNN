@@ -15,7 +15,7 @@ given tensors applying multi-directional broadcast rules, after that each result
 subtraction is squared.
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/latest/openvino_docs_ops_arithmetic_SquaredDifference_1.html>`__
+<https://docs.openvino.ai/latest/openvino_docs_ops_arithmetic_SquaredDifference_1.html>`__
 
 **Attributes**:
 

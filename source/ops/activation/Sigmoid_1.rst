@@ -13,7 +13,7 @@ Sigmoid
 **Short description**: Sigmoid element-wise activation function.
 
 **OpenVINO description**: This OP is as same as `OpenVINO OP
-<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_activation_Sigmoid_1.html>`__
+<https://docs.openvino.ai/2021.1/openvino_docs_ops_activation_Sigmoid_1.html>`__
 
 **Attributes**: operations has no attributes.
 
