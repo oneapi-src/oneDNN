@@ -1,3 +1,4 @@
 # main op
 --reset
+--dir=FWD_D,FWD_I,BWD_D,BWD_DW
 --dt=bf16 --inplace=false,true --attr-post-ops=,relu mb96_ic192_ih71iw71_n

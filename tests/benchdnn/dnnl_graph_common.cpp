@@ -517,7 +517,10 @@ int measure_perf(timer::timer_t &t, dnnl::graph::compiled_partition &cp,
 int measure_perf(timer::timer_t &t, dnnl::graph::compiled_partition &cp,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs, res_t *res) {
-    int status = measure_perf(t, cp, inputs, outputs);
+    perf_function_t perf_func
+            = std::bind(&compiled_partition_executor, cp, std::placeholders::_1,
+                    std::placeholders::_2, std::placeholders::_3);
+    int status = measure_perf(t, perf_func, inputs, outputs);
     if (res) res->state = EXECUTED;
 
     return status;
