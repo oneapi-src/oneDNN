@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,8 +64,8 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
                             eltwise_exp_use_dst_for_bwd,
                             eltwise_clip_v2_use_dst_for_bwd)
                     && utils::one_of(desc()->data_desc.data_type,
-                            data_type::f16, data_type::bf16, data_type::s32,
-                            data_type::s8, data_type::u8)
+                            data_type::f32, data_type::f16, data_type::bf16,
+                            data_type::s32, data_type::s8, data_type::u8)
                     && attr()->has_default_values()
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
