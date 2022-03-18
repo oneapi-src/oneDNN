@@ -197,7 +197,8 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // big rdiff errors slip away hoping that absolute error is good
             // enough.
             if (!ok && has_eltwise) {
-                const float experimental_tolerated_trh = 2e-5;
+                const float experimental_tolerated_trh
+                        = std::max(epsilon_dt(dt), 2e-5f);
                 ok = args.diff <= experimental_tolerated_trh;
             }
             // Binary MAX, MIN and comparison operations post-ops may return
