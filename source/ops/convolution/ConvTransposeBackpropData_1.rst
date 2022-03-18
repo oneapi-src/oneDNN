@@ -123,14 +123,10 @@ gradient and computes the gradient of data .
   * **Type**: T
 
 * **2**: ``filter`` --  ConvTranspose filter tensor. The format is specified by
-  *filter_format*. The shape of filter is (out_channels, in_channels // groups,
-  spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
-  out_channels)  for XIO format. ("//" means floor division) **Required.**
-
-  * **Type**: T
-
-* **3**: ``bias`` - a 1D tensor adds to channel dimension of output.
-  **Optional.**
+  *filter_format*. The shape of filter is (out_channels / groups, in_channels,
+  spatial_shape) for OIX format and (spatial_shape, in_channels,
+  out_channels / groups)  for XIO format. In_channels and out_channels must both be
+  divisible by groups. **Required.**
 
   * **Type**: T
 

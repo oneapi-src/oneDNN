@@ -126,12 +126,13 @@ gradient and computes the weights gradient.
 
   * **Type**: T
 
-* **3**: ``filter_shape`` - 1D integer tensor that specifies spatial shape of
-  the filter. The shape of filter is (out_channels, in_channels // groups,
-  spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
-  out_channels) for XIO format. **Optional**. If specified, *filter_shape*
-  attribute will be ignored. If not specified, users should define
-  *filter_shape* through attribute.
+* **3**: ``filter_shape`` - 1D integer tensor that specifies shape of the
+  filter. The shape of filter is (out_channels, in_channels / groups,
+  spatial_shape) for OIX format and (spatial_shape, in_channels / groups,
+  out_channels) for XIO format. In_channels and out_channels must both be
+  divisible by groups. If specified, *filter_shape* attribute will be ignored.
+  If not specified, users should define *filter_shape* through attribute.
+  **Optional**. 
 
   * **Type**: s32
 

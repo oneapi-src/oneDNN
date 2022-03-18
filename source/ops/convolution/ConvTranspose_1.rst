@@ -154,9 +154,10 @@ equations:
   * **Type**: T
 
 * **2**: ``filter`` – convolution kernel tensor. The format is specified by
-  *filter_format*. The shape of filter is (out_channels // groups, in_channels,
+  *filter_format*. The shape of filter is (out_channels / groups, in_channels,
   spatial_shape) for OIX format and (spatial_shape, in_channels,
-  out_channels // groups) for XIO format. **Required.**
+  out_channels / groups) for XIO format. In_channels and out_channels must both
+  be divisible by groups. **Required.**
 
   * **Type**: T
 

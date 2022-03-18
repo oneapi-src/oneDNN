@@ -156,9 +156,10 @@ input and output tensors:
   * **Type**: T
 
 * **2**: ``filter`` --  convolution filter tensor. The format is specified by
-  *filter_format*. The shape of filter is (out_channels, in_channels // groups,
-  spatial_shape) for OIX format and (spatial_shape, in_channels // groups,
-  out_channels)  for XIO format. **Required.**
+  *filter_format*. The shape of filter is (out_channels, in_channels / groups,
+  spatial_shape) for OIX format and (spatial_shape, in_channels / groups,
+  out_channels)  for XIO format. In_channels and out_channels must both be
+  divisible by groups. **Required.**
 
   * **Type**: T
 
