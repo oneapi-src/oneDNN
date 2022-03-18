@@ -76,6 +76,7 @@ void compute_ref(
     const auto nelems_comp = MAX2(nelems_s8_comp, nelems_zp_comp);
     const auto &ndims = src.ndims();
     const auto &src_dims = src.md_.dims;
+    assert(nelems_comp > 0);
     assert(IMPLICATION(
             need_s8_comp && need_zp_comp, nelems_s8_comp == nelems_zp_comp));
 

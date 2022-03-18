@@ -344,7 +344,6 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(bf16bf16bf16);
     CASE(f32bf16bf16);
     CASE(bf16f32bf16);
-    CASE(f32f32u8);
     CASE(f32f32s8);
     CASE(f32f32u8);
     CASE(f16f16f32);
@@ -389,7 +388,6 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(bf16bf16u8);
     CASE(bf16bf16bf16);
     CASE(f32bf16bf16);
-    CASE(f32f32u8);
     CASE(f32f32s8);
     CASE(f32f32u8);
     CASE(bf16f32bf16);
