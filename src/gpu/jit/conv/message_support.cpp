@@ -226,8 +226,24 @@ public:
         int block_idx = get_block_index(cur_off_ + off);
         ir_assert(block_idx >= 0 && block_idx < int(block_offs_.size()));
         base = block_offs_[block_idx];
+        auto prev_base = block_offs_[block_idx == 0 ? 0 : block_idx - 1];
+        auto get_const_summand = [&](expr_t expr) -> int64_t {
+            if (!expr.type().is_int()) return 0;
+            auto binary_op = expr.as_ptr<binary_op_t>();
+            if (binary_op && binary_op->op_kind == op_kind_t::_add
+                    && is_const(binary_op->b))
+                return to_cpp<int64_t>(binary_op->b);
+            return 0;
+        };
+
+        auto const_summand = get_const_summand(base);
+        auto base1 = simplify(base - const_summand);
+        auto base2 = simplify(prev_base - get_const_summand(prev_base));
+        bool same_base = base1.is_equal(base2);
         off_const = (cur_off_ + off) % dense_block_size_;
-        if (off_const == 0) return base;
+        if (!same_base || const_summand == 0) return base + off_const;
+        base = base1;
+        off_const += const_summand;
         return base + off_const;
     }
 
