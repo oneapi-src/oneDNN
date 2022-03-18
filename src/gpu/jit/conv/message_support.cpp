@@ -386,16 +386,23 @@ private:
 access_builder_t::access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
         const constraint_set_t &cset, const view_t &mem_view,
         const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
-        send_address_t send_address)
+        send_address_t send_address, const send_hint_t &send_hint)
     : hw_(hw)
     , mem_view_(mem_view)
     , mem_buf_(mem_buf)
     , reg_buf_(reg_buf)
     , send_op_(send_op)
     , send_address_(send_address)
+    , send_hint_(send_hint)
     , mem_type_(mem_view.type())
     , mem_walker_(utils::make_unique<memory_walker_t>(cset, mem_view)) {
-    build();
+    if (send_hint_.enable_2d) {
+        if (!try_build_2d()) {
+            ir_error_not_expected() << "Can't generate 2D send decomposition.";
+        }
+    } else {
+        build();
+    }
 }
 
 access_builder_t::access_builder_t(access_builder_t &&) = default;
@@ -417,6 +424,96 @@ void access_builder_t::build() {
         return;
     }
     ir_assert(ok) << "Can't generate send decomposition.";
+}
+
+bool access_builder_t::try_build_2d() {
+    auto vlayout = mem_view_.create_pseudo_vlayout();
+    auto blocks = vlayout.blocks();
+    if (blocks.size() < 2) return false;
+
+    // XXX: The logic below is implemented for small and dense 2D blocks (like
+    // 16a16b). In general 2D block messages are used for large 2D surfaces
+    // (not necessarily dense).
+    auto b0 = blocks[0];
+    auto b1 = blocks[1];
+    ir_assert(b0.dim_idx != b1.dim_idx);
+    if (b0.stride != stride_t(1) || b1.stride != stride_t(b0.block))
+        return false;
+
+    int grf_size = ngen::GRF::bytes(hw_);
+    int size = mem_type_.size() * b0.block * b1.block;
+    int b0_size = b0.block * mem_type_.size();
+    int surface_width = b0.block;
+    int surface_height = b1.block;
+    int count = 1;
+    bool vnni = send_hint_.enable_2d_vnni;
+    bool transpose = send_hint_.enable_2d_transpose;
+
+    // Surface width must be >= 64 bytes. For smaller width we can apply
+    // reshape, e.g. [16a] x [16b] -> [8a] x [2a16b] to have block with larger
+    // width.
+    if (b0_size < 64) {
+        if (!vnni) return false;
+        if (64 % b0_size != 0) return false;
+        int factor = 64 / b0_size;
+        if (b1.block % factor != 0) return false;
+        surface_width *= factor;
+        surface_height /= factor;
+        b1.block /= factor;
+        count = factor;
+    }
+
+    auto _send = send_t::make_2d(hw_, send_hint_.convert(send_op_), mem_type_,
+            surface_width, surface_height, surface_width, 0, 0, b0.block,
+            b1.block, count, vnni, transpose);
+    auto &send = _send.as<send_t>();
+
+    std::vector<dim_t> dims(vlayout.ndims(), 1);
+    dims[b0.dim_idx] = blocks[0].block;
+    dims[b1.dim_idx] = blocks[1].block;
+    tensor_t tile(dims);
+
+    reg_layout_
+            = layout_t(mem_type_, 0, std::vector<dim_t>(vlayout.ndims(), 1));
+    int b10 = vnni ? 4 / mem_type_.size() : 1;
+    reg_layout_ = reg_layout_.add_outer_block(blocks[1].dim_idx, b10);
+    reg_layout_
+            = reg_layout_.add_outer_block(blocks[0].dim_idx, blocks[0].block);
+    reg_layout_ = reg_layout_.add_outer_block(
+            blocks[1].dim_idx, blocks[1].block / b10);
+    for (int i = 2; i < (int)blocks.size(); i++)
+        reg_layout_ = reg_layout_.add_outer_block(
+                blocks[i].dim_idx, blocks[i].block);
+
+    stmt_ = stmt_t();
+    mem_walker_->reset();
+    reg_layout_walker_
+            = utils::make_unique<layout_walker_t>(reg_layout_, grf_size);
+    bool ok = true;
+    vlayout.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
+        if (!ok) return;
+
+        // Check if slots are contiguous and aligned.
+        if (!mem_walker_->check_region(0, send.slots, size, send.alignment())) {
+            ok = false;
+            return;
+        }
+
+        // Check mask requirements.
+        if (!mem_walker_->check_mask_size(
+                    0, size, send.mask_size(), send.nmasks())) {
+            ok = false;
+            return;
+        }
+
+        auto send_stmt = create_send_stmt(send);
+        stmt_ = stmt_.append(send_stmt);
+
+        reg_layout_walker_->advance(size / mem_type_.size());
+        mem_walker_->advance(size);
+    });
+
+    return ok;
 }
 
 bool access_builder_t::try_build(const layout_t &try_layout) {
@@ -468,8 +565,8 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
                 continue;
 
             // Check mask requirements.
-            // XXX: Mask is not generated for prefetch to reduce offset
-            // arithmetic.
+            // XXX: Postpone mask check for prefetch until during send call
+            // generation. If the mask cannot be generated, skip the prefetch.
             if (!s.is_prefetch()
                     && !mem_walker_->check_mask_size(
                             0, access_size, s.mask_size(), nmasks))

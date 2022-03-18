@@ -31,8 +31,10 @@ namespace jit {
 enum class send_op_t {
     atomic_fadd,
     load,
+    load_2d,
     prefetch,
     store,
+    store_2d,
 };
 
 // Send address model.
@@ -40,6 +42,40 @@ enum class send_address_t {
     a64,
     bts,
     slm,
+};
+
+struct block_2d_info_t {
+    bool is_empty() const { return surface_width == 0; }
+
+    bool operator==(const block_2d_info_t &other) const {
+        if (is_empty() != other.is_empty()) return false;
+        if (is_empty()) return true;
+        return (surface_width == other.surface_width)
+                && (surface_height == other.surface_height)
+                && (surface_pitch == other.surface_pitch) && x.is_same(other.x)
+                && y.is_same(other.y) && (width == other.width)
+                && (height == other.height) && (count == other.count)
+                && (vnni == other.vnni) && (transpose == other.transpose);
+    }
+
+    size_t get_hash() const {
+        if (is_empty()) return 0;
+        return ir_utils::get_hash(surface_width, surface_height, surface_pitch,
+                x, y, width, height, count, vnni, transpose);
+    }
+
+    // Encoded in header.
+    int surface_width = 0;
+    int surface_height = 0;
+    int surface_pitch = 0;
+    expr_t x;
+    expr_t y;
+    int width = 0;
+    int height = 0;
+    int count = 0;
+    // Part of descriptor.
+    bool vnni = false;
+    bool transpose = false;
 };
 
 // Function representing send messages.
@@ -52,17 +88,36 @@ public:
         return func_t(new send_t(hw, op, address, type, slots));
     }
 
+    static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
+            int surface_width, int surface_height, int surface_pitch,
+            const expr_t &x, const expr_t &y, int width, int height, int count,
+            bool vnni, bool transpose) {
+        block_2d_info_t info;
+        info.surface_width = surface_width;
+        info.surface_height = surface_height;
+        info.surface_pitch = surface_pitch;
+        info.x = x;
+        info.y = y;
+        info.width = width;
+        info.height = height;
+        info.count = count;
+        info.vnni = vnni;
+        info.transpose = transpose;
+        return func_t(new send_t(hw, op, type, info));
+    }
+
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
         return (hw == other.hw) && (op == other.op)
                 && (address == other.address) && (type == other.type)
-                && (slots == other.slots);
+                && (slots == other.slots)
+                && (block_2d_info == other.block_2d_info);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(hw, op, address, type, slots);
+        return ir_utils::get_hash(hw, op, address, type, slots, block_2d_info);
     }
 
     std::string str() const override {
@@ -70,8 +125,10 @@ public:
         switch (op) {
             case send_op_t::atomic_fadd: oss << "atomic_fadd"; break;
             case send_op_t::load: oss << "load"; break;
+            case send_op_t::load_2d: oss << "load_2d"; break;
             case send_op_t::prefetch: oss << "prefetch"; break;
             case send_op_t::store: oss << "store"; break;
+            case send_op_t::store_2d: oss << "store_2d"; break;
             default: ir_error_not_expected();
         }
         oss << ".";
@@ -92,8 +149,11 @@ public:
 
     bool is_atomic() const { return op == send_op_t::atomic_fadd; }
     bool is_load() const { return op == send_op_t::load; }
+    bool is_load_2d() const { return op == send_op_t::load_2d; }
     bool is_prefetch() const { return op == send_op_t::prefetch; }
     bool is_store() const { return op == send_op_t::store; }
+    bool is_store_2d() const { return op == send_op_t::store_2d; }
+    bool is_2d() const { return is_load_2d() || is_store_2d(); }
     bool is_a64() const { return address == send_address_t::a64; }
     bool is_bts() const { return address == send_address_t::bts; }
     bool is_slm() const { return address == send_address_t::slm; }
@@ -103,12 +163,19 @@ public:
                 type.kind(), type_kind_t::oword, type_kind_t::hword);
     }
 
-    bool is_scattered() const { return !is_block(); }
+    bool is_scattered() const { return !is_block() && !is_2d(); }
 
     // Size of memory (global memory or SLM) to access.
-    int access_size() const { return type.size() * slots; }
+    int access_size() const {
+        if (is_2d()) {
+            auto &info = block_2d_info;
+            return type.size() * info.width * info.height * info.count;
+        }
+        return type.size() * slots;
+    }
 
     int payload_type_stride() const {
+        ir_assert(!is_2d());
         if (type.kind() == type_kind_t::byte) return 4;
         return type.size();
     }
@@ -116,16 +183,19 @@ public:
     // Full size of payload GRF buffer for this message. Buffer may be strided
     // and/or require GRF boundary round-up.
     int payload_size() const {
+        if (is_2d()) return utils::rnd_up(access_size(), grf_size());
         int sz = payload_type_stride() * slots;
         return utils::rnd_up(sz, grf_size());
     }
 
     int alignment() const {
+        if (is_2d()) return 128;
         if (is_block()) return type.scalar().size();
         return 1;
     }
 
     int mask_size() const {
+        if (is_2d()) return access_size();
         if (is_block()) {
             // Block messages use SIMT1 execution mask (one mask per message)
             // on XeHPC+.
@@ -140,6 +210,7 @@ public:
     }
 
     int nmasks() const {
+        if (is_2d()) return 1;
         int masks = ir_utils::safe_divide(type.size() * slots, mask_size());
         if (masks > 16) {
             ir_assert(is_block())
@@ -159,6 +230,7 @@ public:
 
     // Size of header in bytes.
     int header_size() const {
+        if (is_2d()) return grf_size();
         return utils::rnd_up(address_size() * slots, grf_size());
     }
 
@@ -178,6 +250,8 @@ public:
     type_t type;
     int slots;
 
+    block_2d_info_t block_2d_info;
+
 private:
     int grf_size() const { return ngen::GRF::bytes(hw); }
 
@@ -186,10 +260,39 @@ private:
     send_t(ngen::HW hw, send_op_t op, send_address_t address,
             const type_t &type, int slots)
         : hw(hw), op(op), address(address), type(type), slots(slots) {}
+
+    send_t(ngen::HW hw, send_op_t op, const type_t &type,
+            const block_2d_info_t &block_2d_info)
+        : hw(hw)
+        , op(op)
+        , address(send_address_t::a64)
+        , type(type)
+        , slots(1)
+        , block_2d_info(block_2d_info) {
+        ir_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d));
+        if (is_store_2d()) {
+            ir_assert(!block_2d_info.vnni);
+            ir_assert(!block_2d_info.transpose);
+        }
+    }
 };
 
 class memory_walker_t;
 class layout_walker_t;
+
+struct send_hint_t {
+    send_op_t convert(const send_op_t &op) const {
+        if (enable_2d) {
+            if (op == send_op_t::load) return send_op_t::load_2d;
+            if (op == send_op_t::store) return send_op_t::store_2d;
+        }
+        return op;
+    }
+
+    bool enable_2d = false;
+    bool enable_2d_vnni = false;
+    bool enable_2d_transpose = false;
+};
 
 // Generates loads or stores to move data between memory (global or SLM) and
 // GRF. Memory view is a parameter. GRF payload layout is deduced
@@ -199,7 +302,7 @@ public:
     access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const view_t &mem_view,
             const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
-            send_address_t send_address);
+            send_address_t send_address, const send_hint_t &send_hint);
     access_builder_t(access_builder_t &&);
     ~access_builder_t();
 
@@ -223,6 +326,7 @@ public:
 private:
     void build();
     bool try_build(const layout_t &try_layout);
+    bool try_build_2d();
     std::vector<layout_t> candidate_payload_layouts() const;
     stmt_t create_send_stmt(const send_t &send);
     int grf_size() const { return ngen::GRF::bytes(hw_); }
@@ -233,6 +337,7 @@ private:
     expr_t reg_buf_;
     send_op_t send_op_;
     send_address_t send_address_;
+    send_hint_t send_hint_;
 
     type_t mem_type_;
 
@@ -246,9 +351,10 @@ private:
 inline access_builder_t make_access_builder(ngen::HW hw, ir_context_t &ir_ctx,
         const constraint_set_t &cset, const view_t &mem_view,
         const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
-        send_address_t send_address) {
+        send_address_t send_address,
+        const send_hint_t &send_hint = send_hint_t()) {
     return access_builder_t(hw, ir_ctx, cset, mem_view, mem_buf, reg_buf,
-            send_op, send_address);
+            send_op, send_address, send_hint);
 }
 
 } // namespace jit

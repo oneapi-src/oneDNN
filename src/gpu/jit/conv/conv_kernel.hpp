@@ -2469,6 +2469,27 @@ public:
             default: ir_error_not_expected();
         }
 
+        if (send_.is_2d()) {
+            auto &info = send_.block_2d_info;
+            ngen::DataSizeLSC data_size = ngen::DataSizeLSC::D8;
+            switch (send_.type.size()) {
+                case 1: data_size = ngen::DataSizeLSC::D8; break;
+                case 2: data_size = ngen::DataSizeLSC::D16; break;
+                case 4: data_size = ngen::DataSizeLSC::D32; break;
+                default: ir_error_not_expected() << send_.type;
+            }
+            ngen::DataSpecLSC data_spec(data_size);
+            if (info.vnni) data_spec |= host->vnni;
+            if (info.transpose) data_spec |= host->transpose;
+            ngen::block_2d spec(data_spec, info.width, info.height, info.count);
+            if (send_.is_load_2d()) {
+                host->load(mod, data, spec, address_base, header);
+            } else {
+                host->store(mod, spec, address_base, header, data);
+            }
+            return;
+        }
+
         int elems = send_.type.elems();
         switch (send_.type.kind()) {
             case type_kind_t::byte:
@@ -4618,7 +4639,7 @@ private:
         if (!mask_op.is_invalid()) mod |= mask_op.flag_register_mod();
 
         // Zero-out inactive channels.
-        if (send_func.is_load() && !send_func.is_prefetch()
+        if ((send_func.is_load() || send_func.is_load_2d())
                 && mod.getPredCtrl() != ngen::PredCtrl::None) {
             zero_out_data_payload(send_func, mod, reg_buf_op.reg_buf_data());
         }
@@ -4638,7 +4659,7 @@ private:
         bool is_dense = buf.is_dense(size);
         if (is_dense) return buf.reg_data();
 
-        if (send_func.is_load()) {
+        if (send_func.is_load() || send_func.is_load_2d()) {
             ir_error_not_expected()
                     << "Expected dense GRF region for load message.";
             return ngen::RegData();

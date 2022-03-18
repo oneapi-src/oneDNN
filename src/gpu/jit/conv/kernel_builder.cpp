@@ -634,6 +634,27 @@ public:
         auto off_store = simplify_store(
                 send->create_offset_store(header_buf, mem_buf, mem_off));
 
+        if (send->is_2d()) {
+            int off = 8;
+            auto emit_store = [&](int value) {
+                auto store = store_t::make(
+                        header_buf, off, cast(value, type_t::s32()));
+                off += 4;
+                off_store = off_store.append(store);
+            };
+            auto &info = send->block_2d_info;
+            int type_size = send->type.size();
+            emit_store(info.surface_width * type_size - 1);
+            emit_store(info.surface_height * type_size - 1);
+            emit_store(info.surface_pitch * type_size - 1);
+            emit_store(to_cpp<int>(info.x));
+            emit_store(to_cpp<int>(info.y));
+            uint32_t w_enc = info.width - 1;
+            uint32_t h_enc = info.height - 1;
+            uint32_t count_enc = info.count - 1;
+            emit_store((count_enc << 16) + (h_enc << 8) + w_enc);
+        }
+
         auto new_call = func_call_t::make(
                 obj.func, {mem_buf, header_buf, reg_buf, mask}, obj.attr);
         auto body = stmt_seq_t::make(off_store, new_call);
@@ -728,6 +749,55 @@ private:
 stmt_t lift_alloc(const stmt_t &s, const conv_config_t &cfg) {
     auto ret = alloc_lifter_t(s, cfg.reuse_headers).mutate(s);
     trace_pass("lift_alloc", ret);
+    return ret;
+}
+
+class send_2d_header_store_lifter_t : public ir_mutator_t {
+public:
+    send_2d_header_store_lifter_t(const stmt_t &root) {
+        auto calls = find_objects<func_call_t>(root);
+        for (auto &c : calls) {
+            if (!is_func_call<send_t>(c)) continue;
+            if (!c.as<func_call_t>().func.as<send_t>().is_2d()) continue;
+            auto header_buf = send_t::arg_mem_off(c);
+            ir_assert(is_var(header_buf)) << header_buf;
+            header_bufs_.insert(header_buf);
+        }
+    }
+
+    object_t _mutate(const alloc_t &obj) override {
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        auto it = stores_.find(obj.buf);
+        if (it == stores_.end()) return new_obj;
+
+        auto &alloc = new_obj.as<alloc_t>();
+        stmt_t header_store;
+        for (auto &s : it->second)
+            header_store = header_store.append(s);
+        it->second.clear();
+
+        auto new_body = header_store.append(alloc.body);
+        return alloc_t::make(
+                alloc.buf, alloc.size, alloc.kind, alloc.attrs, new_body);
+    }
+
+    object_t _mutate(const store_t &obj) override {
+        if (header_bufs_.count(obj.buf) == 0) return obj;
+        // Do not lift address assignments.
+        if (is_zero(obj.off)) return obj;
+        stores_[obj.buf].push_back(obj);
+        return stmt_t();
+    }
+
+private:
+    object_set_t<expr_t> header_bufs_;
+    object_map_t<expr_t, std::vector<stmt_t>> stores_;
+};
+
+// Lifts loop-invariant header assignments related to block 2D messages.
+stmt_t lift_send_2d_header_store(const stmt_t &s) {
+    auto ret = send_2d_header_store_lifter_t(s).mutate(s);
+    trace_pass("lift_send_2d_header_store", ret);
     return ret;
 }
 
@@ -6356,9 +6426,34 @@ private:
 
         if (!load_buffered) mem_view = _mem_view;
 
+        send_op_t send_op = send_op_t::load;
+        // XXX: Enable 2D load messages for bwd_w for 32n16c layout. In the
+        // future we need to add heuristics to determine when 2D block messages
+        // are beneficial to use.
+        auto block_2d_ok = [&](const view_t &view, abc_kind_t abc_kind) {
+            auto inner = view.tlayout().innermost_block_layout();
+            if (view.type() != type_t::bf16()) return false;
+            if (inner.blocks().size() != 2) return false;
+            auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
+            auto &b0 = inner.blocks()[0];
+            auto &b1 = inner.blocks()[1];
+            if (b0.block != 16 || b1.block != 32) return false;
+            bool b1_is_k = (bmnk_mapper.bmnk_kind(abc_kind, b1.dim_idx)
+                    == bmnk_kind_t::k);
+            return b1_is_k;
+        };
+        send_hint_t read_hint;
+        if (!is_slm && cfg_.is_bwd_w && !cfg_.with_bias
+                && cfg_.hw() >= ngen::HW::XeHPC) {
+            if (block_2d_ok(gemm_schedule_.a_view(), abc_kind_t::a)
+                    && block_2d_ok(gemm_schedule_.b_view(), abc_kind_t::b))
+                read_hint.enable_2d = true;
+            read_hint.enable_2d_vnni = true;
+        }
+
         auto read = make_access_builder(cfg_.hw(), ir_ctx_, cset_, mem_view,
-                buf, reg_buf, send_op_t::load,
-                is_slm ? send_address_t::slm : send_address_t::a64);
+                buf, reg_buf, send_op,
+                is_slm ? send_address_t::slm : send_address_t::a64, read_hint);
         ir_trace() << (is_a ? "A" : "B") << " GMEM/SLM to GRF load #"
                    << sub_tile_idx << ":\n"
                    << read.str() << std::endl;
@@ -7112,6 +7207,7 @@ void kernel_builder_t::build() {
     stmt_ = inject_send(stmt_, ir_ctx, init_cset);
     stmt_ = split_wide_stores(cfg_.hw(), stmt_);
     stmt_ = lift_alloc(stmt_, cfg_);
+    stmt_ = lift_send_2d_header_store(stmt_);
     stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false);
     stmt_ = eliminate_common_subexprs(stmt_, ir_ctx);
     stmt_ = hoist_exprs(stmt_, ir_ctx);
