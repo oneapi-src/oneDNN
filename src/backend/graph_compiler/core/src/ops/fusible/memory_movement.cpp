@@ -200,6 +200,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     } else {
         COMPILE_ASSERT(outs.size() == 1, "Wrong op output size.\n");
         info_.outputs_ = outs;
+        format = info_.outputs_[0]->details_.get_format();
         // changed to get dynamically in need.
         // shapes_ = outs[0]->details_.get_blocking_dims();
     }
@@ -209,6 +210,11 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
                         ins[0]->details_.get_plain_dims().size()));
     }
     attrs_["cache_input_format"] = cache_input_format;
+    if (format.is_any()) {
+        format = sc_data_format_t(sc_data_format_kind_t::get_plain_by_dims(
+                info_.outputs_[0]->details_.get_plain_dims().size()));
+    }
+    attrs_["format"] = format;
 }
 
 tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
@@ -332,10 +338,11 @@ void tensor_view_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
     sc_data_format_t output_format;
     // temp workaround
+    assert(!attrs_.get<sc_data_format_t>("format").is_any());
     if (attrs_.get_or_else<bool>("expand_dim", false)
             && info_.inputs_[0]->details_.get_format()
                     == attrs_.get<sc_data_format_t>("cache_input_format")) {
-        out_formats.push_back({info_.outputs_[0]->details_.get_format()});
+        out_formats.push_back({attrs_.get<sc_data_format_t>("format")});
         in_formats.push_back({info_.inputs_[0]->details_.get_format()});
     }
     bool can_penetrate = try_penetrate(output_format);
@@ -343,7 +350,7 @@ void tensor_view_op_t::query_format(context_ptr ctx,
         out_formats.push_back({output_format});
         in_formats.push_back({info_.inputs_[0]->details_.get_format()});
     } else {
-        out_formats.push_back({info_.outputs_[0]->details_.get_format()});
+        out_formats.push_back({attrs_.get<sc_data_format_t>("format")});
         in_formats.push_back(
                 {attrs_.get<sc_data_format_t>("cache_input_format")});
     }
