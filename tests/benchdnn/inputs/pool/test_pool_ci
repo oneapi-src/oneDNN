@@ -9,8 +9,15 @@
 --batch=shapes_basic
 
 # Inference
---cfg=f32,bf16,f16,s32,s8,u8
 --dir=FWD_I
 --tag=axb
---attr-post-ops=,add:f32:per_oc
+
+## All inference configs
+--cfg=f32,bf16,f16,s32,s8,u8, \
+      s8u8,u8s8,s8f32,f32s8,u8f32,f32u8,s8f16,f16s8,u8f16,f16u8
+--batch=shapes_basic
+
+## Attributes
+--cfg=f32,bf16,f16,s32,s8,u8
+--attr-post-ops=add:f32:per_oc
 --batch=shapes_basic
