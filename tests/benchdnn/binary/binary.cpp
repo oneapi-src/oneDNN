@@ -113,13 +113,12 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     return dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, nullptr);
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    std::vector<dnnl_data_type_t> dts = prb->sdt;
-    dts.push_back(prb->ddt);
-    check_known_skipped_case_common(dts, prb->dir, res);
-    check_sum_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return;
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    std::vector<dnnl_data_type_t> dts = {prb->sdt[0], prb->sdt[1], prb->ddt};
+    skip_unimplemented_data_type(dts, prb->dir, res);
+}
 
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
     const bool is_sum = prb->attr.post_ops.find(alg_t::SUM) >= 0;
     bool bcast_src0 = false;
     for (int d = 0; d < prb->ndims; ++d)
@@ -128,15 +127,18 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             break;
         }
 
-    if ((bcast_src0 && (prb->inplace || is_sum))
-            || (prb->inplace && prb->sdt[0] != prb->ddt)) {
+    // In case src0 is broadcasted into src1, it means that src0 has smaller
+    // memory footprint and doing sum post-op or in-place will cause a crash.
+    if (bcast_src0 && (prb->inplace || is_sum)) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
 
-    if (prb->inplace && prb->sdt[0] != prb->ddt) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
+    // See `skip_invalid_inplace` for details.
+    if (prb->inplace) {
+        skip_invalid_inplace(
+                res, prb->sdt[0], prb->ddt, prb->stag[0], prb->dtag);
+        if (res->state == SKIPPED) return;
     }
 }
 
@@ -167,9 +169,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

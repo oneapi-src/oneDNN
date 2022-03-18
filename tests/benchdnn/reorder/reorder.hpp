@@ -168,8 +168,8 @@ private:
     std::string dtag_;
 };
 
-void check_known_skipped_case(const prb_t *prb, res_t *res);
-
+void skip_unimplemented_prb(const prb_t *prb, res_t *res);
+void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 

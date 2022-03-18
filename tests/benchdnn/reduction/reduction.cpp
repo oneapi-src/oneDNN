@@ -130,10 +130,14 @@ int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return fill_mem(prb, mem_dt, mem_fp, 1.0f, false, only_positive_values);
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
-    if (res->state == SKIPPED) return;
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type({prb->sdt, prb->ddt}, prb->dir, res);
+    skip_unimplemented_sum_po(prb->attr, res);
+}
 
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    // Normalization algorithms don't make sense for integer data type.
+    // They also can't have `p` parameter less than one.
     const bool is_invalid = is_norm_alg(prb->alg)
             && (is_integral_dt(prb->sdt) || prb->p < 1.f);
 
@@ -153,10 +157,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

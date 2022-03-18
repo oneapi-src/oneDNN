@@ -35,6 +35,8 @@ int bench(int argc, char **argv);
 int transpose_data_wei(
         const conv::prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr);
 
+void skip_unimplemented_prb(const conv::prb_t *prb, res_t *res);
+void skip_invalid_prb(const conv::prb_t *prb, res_t *res);
 void compute_ref(const conv::prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 

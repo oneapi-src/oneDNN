@@ -106,10 +106,12 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     return dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, hint);
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->sdt, prb->ddt}, prb->dir, res);
-    if (res->state == SKIPPED) return;
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type({prb->sdt, prb->ddt}, prb->dir, res);
+    skip_unimplemented_sum_po(prb->attr, res);
 }
+
+void skip_invalid_prb(const prb_t *prb, res_t *res) {}
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
@@ -158,10 +160,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

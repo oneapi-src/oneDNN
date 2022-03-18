@@ -120,11 +120,12 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp,
         bool only_positive_values = false, bool only_integer_values = false);
 
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &bpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint);
 
-void check_known_skipped_case(const prb_t *prb, res_t *res);
-
+void skip_unimplemented_prb(const prb_t *prb, res_t *res);
+void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 

@@ -170,15 +170,13 @@ int init_prim_ref(
     return OK;
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common(
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type(
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
             res);
-    if (res->state == SKIPPED) return;
+    skip_unimplemented_sum_po(prb->attr, res);
 
-    // GPU:
-    //     * BWD: doesn't support any attributes
-    //     * FWD: support only post ops and all but x8s8bf16 cfg
+    // GPU supports only post ops and all but x8s8bf16 cfg
     if (is_gpu()) {
         const bool only_non_default_post_ops = prb->attr.oscale.is_def()
                 && prb->attr.scales.is_def() && prb->attr.zero_points.is_def();
@@ -187,21 +185,17 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const bool fwd_ok = !is_x8s8bf16_cfg
                 && IMPLICATION(
                         (prb->dir & FLAG_FWD), only_non_default_post_ops);
-        const bool bwd_ok
-                = IMPLICATION((prb->dir & FLAG_BWD), prb->attr.is_def());
-        if (!fwd_ok || !bwd_ok) {
+        if (!fwd_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
     }
 }
 
+void skip_invalid_prb(const prb_t *prb, res_t *res) {}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

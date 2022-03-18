@@ -114,12 +114,14 @@ private:
     std::string dtag_;
 };
 
-void check_known_skipped_case(const prb_t *prb, res_t *res);
 int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp);
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint);
 
+void skip_unimplemented_prb(const prb_t *prb, res_t *res);
+void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 

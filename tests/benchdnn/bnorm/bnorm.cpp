@@ -303,27 +303,34 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     return dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, hint);
 }
 
-void check_post_op_relu_alpha(const prb_t *prb, res_t *res) {
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type({prb->dt}, prb->dir, res);
+    skip_unimplemented_sum_po(prb->attr, res);
+
+    // Non-zero alpha is not supported on GPU and for training in general.
     const auto &po = prb->attr.post_ops;
     const auto relu_idx = po.find(attr_t::post_ops_t::kind_t::RELU);
     if (relu_idx >= 0) {
         const auto &e = po.entry[relu_idx];
         float alpha = e.eltwise.alpha;
-        if (alpha != 0.f && (!(prb->dir & FLAG_INF) || !is_cpu())) {
+        bool alpha_ok
+                = IMPLICATION(alpha != 0.f, (prb->dir & FLAG_INF) && is_cpu());
+        if (!alpha_ok) {
             res->state = SKIPPED;
             res->reason = CASE_NOT_SUPPORTED;
         }
     }
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->dt}, prb->dir, res);
-    check_sum_post_ops(prb->attr, res);
-    check_post_op_relu_alpha(prb, res);
-    if (res->state == SKIPPED) return;
-
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
     if (prb->use_ss() && (prb->use_sc() || prb->use_sh()))
         res->state = SKIPPED, res->reason = INVALID_CASE;
+
+    // See `skip_invalid_inplace` for details.
+    if (prb->inplace) {
+        skip_invalid_inplace(res, prb->dt, prb->dt, prb->tag, prb->tag);
+        if (res->state == SKIPPED) return;
+    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
@@ -410,9 +417,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

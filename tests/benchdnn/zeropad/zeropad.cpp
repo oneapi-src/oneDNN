@@ -117,15 +117,14 @@ static dnnl_status_t perf_func(
     return dnnl_impl_zero_pad(args[0].memory, stream);
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->dt}, FWD_D, res);
-    if (res->state == SKIPPED) return;
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type({prb->dt}, FWD_D, res);
 }
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
-    check_known_skipped_case(prb, res);
+    skip_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return OK;
 
     auto data_md = dnn_mem_t::init_md(
