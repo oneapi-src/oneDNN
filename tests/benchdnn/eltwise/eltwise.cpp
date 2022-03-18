@@ -268,10 +268,12 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common({prb->dt}, prb->dir, res);
-    if (res->state == SKIPPED) return;
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type({prb->dt}, prb->dir, res);
+    skip_unimplemented_sum_po(prb->attr, res);
+}
 
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
     bool is_invalid = false;
     switch (prb->alg) {
         case alg_t::CLIP:
@@ -296,6 +298,12 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     if (is_invalid) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
+    }
+
+    // See `skip_invalid_inplace` for details.
+    if (prb->inplace) {
+        skip_invalid_inplace(res, prb->dt, prb->dt, prb->tag, prb->tag);
+        if (res->state == SKIPPED) return;
     }
 }
 
@@ -329,10 +337,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

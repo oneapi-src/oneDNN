@@ -202,10 +202,11 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
             tag::any, prb->dtag, alg_t::DIRECT, fusion_attr, prb->mb));
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common(
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type(
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
             res);
+    skip_unimplemented_sum_po(prb->attr, res);
 
     // GPU does not support depthwise fusion
     if (is_gpu() && prb->attr.post_ops.convolution_index() != -1) {
@@ -217,8 +218,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res);
+    conv_dw_fusion::skip_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return OK;
 
     // Original problem with fusion attributes

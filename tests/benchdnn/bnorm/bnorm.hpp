@@ -177,6 +177,8 @@ inline void inv_data_off(const prb_t *prb, size_t off, int64_t &mb, int64_t &c,
     assert(off == 0);
 }
 
+void skip_unimplemented_prb(const prb_t *prb, res_t *res);
+void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 

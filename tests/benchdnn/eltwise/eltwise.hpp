@@ -117,6 +117,8 @@ private:
 };
 
 float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd = true);
+void skip_unimplemented_prb(const prb_t *prb, res_t *res);
+void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 

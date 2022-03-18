@@ -447,14 +447,16 @@ bool check_md_consistency_with_tag(
     return dnnl_memory_desc_equal(&md_new_tag, &md);
 }
 
-void check_known_skipped_case_common(
-        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res) {
+void skip_start(res_t *res) {
     if (benchdnn_stat.tests < test_start) {
         res->state = SKIPPED;
         res->reason = SKIP_START;
         return;
     }
+}
 
+void skip_unimplemented_data_type(
+        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res) {
     bool has_bf16_support = is_gpu();
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     using namespace dnnl::impl::cpu::platform;
@@ -481,7 +483,7 @@ void check_known_skipped_case_common(
     }
 }
 
-void check_sum_post_ops(
+void skip_unimplemented_sum_po(
         const attr_t &attr, res_t *res, dnnl_data_type_t dst_dt) {
     const auto &po = attr.post_ops;
     if (po.is_def()) return;
@@ -515,8 +517,9 @@ void check_sum_post_ops(
     }
 }
 
-void check_inplace(res_t *res, dnnl_data_type_t sdt, dnnl_data_type_t ddt,
-        const std::string &stag, const std::string &dtag) {
+void skip_invalid_inplace(res_t *res, dnnl_data_type_t sdt,
+        dnnl_data_type_t ddt, const std::string &stag,
+        const std::string &dtag) {
     // Note: existing implementation of dnn_mem_t doesn't allow to track the
     // fact that two different objects pointing on the same SYCL memory should
     // not map/unmap both objects.

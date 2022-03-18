@@ -192,16 +192,62 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
     return OK;
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common(
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type(
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->bia_dt, prb->cfg[DST].dt},
             prb->dir, res);
-    if (res->state == SKIPPED) return;
+    skip_unimplemented_sum_po(prb->attr, res, prb->cfg[DST].dt);
 
-    check_sum_post_ops(prb->attr, res, prb->cfg[DST].dt);
-    if (res->state == SKIPPED) return;
+    if (is_gpu()) {
+        // GPU supports only single zero-point per tensor.
+        if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
+                || prb->attr.zero_points.get(DNNL_ARG_DST).policy
+                        != policy_t::COMMON) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 
-    // zero points for non-integral data type does not make sense
+        // GPU supports only default sum_dt argument.
+        const auto &po = prb->attr.post_ops;
+        const int sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
+        if (sum_idx != -1 && po.entry[sum_idx].sum.dt != dnnl_data_type_undef) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
+        // GPU for x8s8bf16 doesn't support:
+        // * Destination zero-point.
+        // * Any run-time dimensions.
+        // * Any batch dimensions.
+        const bool is_x8s8bf16
+                = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[DST].dt == dnnl_bf16;
+        const bool rt_dims_are_none = prb->src_runtime_dim_mask().none()
+                && prb->weights_runtime_dim_mask().none()
+                && prb->dst_runtime_dim_mask().none();
+        const bool x8s8bf16_ok = IMPLICATION(is_x8s8bf16,
+                prb->attr.zero_points.get(DNNL_ARG_DST).is_def()
+                        && rt_dims_are_none && prb->ndims <= 2);
+        if (!x8s8bf16_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
+        // GPU supports bf16 bias only for bf16 config, with a single batch dim.
+        const bool is_bf16 = prb->cfg[SRC].dt == dnnl_bf16
+                && prb->cfg[WEI].dt == dnnl_bf16
+                && (prb->cfg[DST].dt == dnnl_bf16
+                        || prb->cfg[DST].dt == dnnl_f32);
+        const bool bf16_bias_ok = IMPLICATION(
+                prb->bia_dt == dnnl_bf16, prb->ndims <= 2 + is_bf16);
+        if (!bf16_bias_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+}
+
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    // Zero-points for non-integral data type does not make sense
     if (!prb->attr.zero_points.is_def() && prb->cfg[WEI].dt != dnnl_s8) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
@@ -211,8 +257,8 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     auto wei_rt_mask = prb->weights_runtime_dim_mask();
     auto dst_rt_mask = prb->dst_runtime_dim_mask();
 
-    // memory layout should be defined when some dimension is unknown in pd
-    // creation time
+    // Memory layouts must be defined when some dimensions are unknown at pd
+    // creation time.
     if ((src_rt_mask.any() && prb->stag == "any")
             || (wei_rt_mask.any() && prb->wtag == "any")
             || (dst_rt_mask.any() && prb->dtag == "any")) {
@@ -220,7 +266,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         return;
     }
 
-    // inconsistent runtime mask for m, k, n are not supported
+    // Runtime masks for `m`, `k`, and `n` dimensions must be consistent.
     const int m_idx = prb->ndims - 2;
     const int k_idx_src = prb->ndims - 1;
     const int k_idx_wei = prb->ndims - 2;
@@ -232,7 +278,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         return;
     }
 
-    // inconsistent runtime masks for batch dims are not supported
+    // Runtime masks for batch dimensions must be consistent.
     if (prb->ndims > 2) {
         dims_mask_t batch_rt_mask;
         for (int i = 0; i < prb->ndims - 2; ++i)
@@ -242,59 +288,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         dst_rt_mask &= batch_rt_mask;
         if (src_rt_mask != wei_rt_mask || src_rt_mask != dst_rt_mask) {
             res->state = SKIPPED, res->reason = INVALID_CASE;
-            return;
-        }
-    }
-
-    // skip gpu testing for zero points policy other than COMMON
-    if (is_gpu()) {
-        if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
-                || prb->attr.zero_points.get(DNNL_ARG_DST).policy
-                        != policy_t::COMMON) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
-
-    // skip gpu testing for non-default sum_dt
-    if (is_gpu()) {
-        const auto &po = prb->attr.post_ops;
-        const int sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
-        if (sum_idx != -1 && po.entry[sum_idx].sum.dt != dnnl_data_type_undef) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
-
-    // skip gpu testing for int8 with bf16 dst_dt with:
-    // * dst zero-point
-    // * any runtime dimensions
-    // * batched problem
-    if (is_gpu()) {
-        const bool is_s8_wei = prb->cfg[WEI].dt == dnnl_s8;
-        const bool is_bf16_dst = prb->cfg[DST].dt == dnnl_bf16;
-        const bool rt_dims_are_none = src_rt_mask.none() && wei_rt_mask.none()
-                && dst_rt_mask.none();
-        if (is_s8_wei && is_bf16_dst
-                && (!prb->attr.zero_points.get(DNNL_ARG_DST).is_def()
-                        || !rt_dims_are_none || prb->ndims > 2)) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
-
-    // skip bf16 bias for:
-    // * any batch and non-bf16 config
-    // * 2+D batch and any config
-    if (is_gpu()) {
-        const bool is_bf16 = prb->cfg[SRC].dt == dnnl_bf16
-                && prb->cfg[WEI].dt == dnnl_bf16
-                && (prb->cfg[DST].dt == dnnl_bf16
-                        || prb->cfg[DST].dt == dnnl_f32);
-        if (prb->bia_dt == dnnl_bf16
-                && ((prb->ndims > 2 && !is_bf16)
-                        || (prb->ndims > 3 && is_bf16))) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
     }
@@ -308,9 +301,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

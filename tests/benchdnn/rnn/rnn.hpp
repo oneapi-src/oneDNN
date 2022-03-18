@@ -471,6 +471,8 @@ void rnn_linear_fwd(const prb_t &prb, const args_t &args,
         const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates,
         const AOC<float> &ws_ht);
 
+void skip_unimplemented_prb(const prb_t *prb, res_t *res);
+void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 void compute_ref_fwd(const prb_t &prb, const args_t &args);

@@ -363,7 +363,24 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
 int check_pd_w_and_wo_attr(
         const_dnnl_primitive_desc_t pd, const attr_t &attr, res_t *res);
 
-inline int check_dnnl_status(dnnl_status_t status, res_t *res) {
+void skip_start(res_t *res);
+void skip_unimplemented_data_type(
+        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res);
+void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
+        dnnl_data_type_t dst_dt = dnnl_data_type_undef);
+void skip_invalid_inplace(res_t *res, dnnl_data_type_t sdt,
+        dnnl_data_type_t ddt, const std::string &stag, const std::string &dtag);
+
+// `check_dnnl_status` function is called to validate the result of primitive
+// descriptor creation. Based on the status, it prodices additional checks:
+// * For `invalid_arguments` it just updates the `res` object with it.
+// * For `unimplemented` it checks whether the lack of support is expected or
+//   not. It relies on `skip_unimplemented_prb` function declared and defined
+//   at every driver and expects it to find in correspondent namespace from
+//   where `prb_t` was picked up. If the case is unknown, `UNIMPLEMENTED` status
+//   will be returned.
+template <typename prb_t>
+int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
     if (!res || status == dnnl_success) return OK;
 
     switch (status) {
@@ -376,6 +393,12 @@ inline int check_dnnl_status(dnnl_status_t status, res_t *res) {
                 res->reason = CASE_NOT_SUPPORTED;
                 return OK;
             }
+
+            // Check driver specific cases of unimplemented functionality.
+            skip_unimplemented_prb(prb, res);
+            if (res->state == SKIPPED) return OK;
+
+            // If the case is not known to be skipped, it is unimplemented.
             res->state = UNIMPLEMENTED;
         } break;
         default: assert(!"unexpected");
@@ -393,9 +416,14 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
 
+    skip_start(res);
+    if (res->state == SKIPPED) return OK;
+    skip_invalid_prb(prb, res);
+    if (res->state == SKIPPED) return OK;
+
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
-    // The first primitive creation using a temporary engine.
+        // The first primitive creation using a temporary engine.
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice using different
     // engines but the same device and context in the case of OpenCL and DPCPP.
@@ -420,7 +448,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
 
     status = init_pd_func(engine, prb, pd_, res, dir, hint);
     pd.reset(pd_);
-    SAFE(check_dnnl_status(status, res), WARN);
+    SAFE(check_dnnl_status(status, prb, res), WARN);
 
     // Skip prim creation for empty `pd_` to keep logic in a single place below.
     if (pd_) DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
@@ -430,7 +458,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     // the global test engine.
     status = init_pd_func(get_test_engine(), prb, pd_, res, dir, hint);
     pd.reset(pd_);
-    SAFE(check_dnnl_status(status, res), WARN);
+    SAFE(check_dnnl_status(status, prb, res), WARN);
 
     // Query impl name, stash it in `res` and apply skip-impl unless this is
     // fwd-for-bwd or cpu-for-gpu primitive.
@@ -587,13 +615,6 @@ std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
 
 bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);
-
-void check_known_skipped_case_common(
-        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res);
-void check_sum_post_ops(const attr_t &attr, res_t *res,
-        dnnl_data_type_t dst_dt = dnnl_data_type_undef);
-void check_inplace(res_t *res, dnnl_data_type_t sdt, dnnl_data_type_t ddt,
-        const std::string &stag, const std::string &dtag);
 
 int check_mem_size(const dnnl_memory_desc_t &md);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd);

@@ -27,10 +27,6 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-#include "tests/test_isa_common.hpp"
-#endif
-
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -38,7 +34,7 @@
 
 #include "binary/binary.hpp"
 #include "conv/conv.hpp"
-#include "eltwise/eltwise.hpp"
+#include "conv/deconv.hpp"
 #include "prelu/prelu.hpp"
 
 #if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
@@ -459,150 +455,63 @@ int init_prim_ref(
     return OK;
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common(
-            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
-            res);
-    if (res->state == SKIPPED) return;
-    // GPU only case
-    bool is_f32_wei = prb->cfg[WEI].dt == dnnl_f32;
-    bool is_f32_src = prb->cfg[SRC].dt == dnnl_f32;
-    bool is_int8_dst = prb->cfg[DST].dt == dnnl_s8;
-    const bool f32_s8_conv = is_f32_src && is_f32_wei && is_int8_dst;
-
-    if (is_cpu() && f32_s8_conv) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    // Since deconv uses conv::prb_t, using a common templated interface for
+    // skipping unimplemented functionality requires the function to be in the
+    // same namespace, thus, we need to dispatch to
+    // `deconv::skip_unimplemented_prb` here. The alternative solution is to
+    // separate deconv and conv drivers completely.
+    if (prb->is_deconv) {
+        deconv::skip_unimplemented_prb(prb, res);
         return;
     }
 
-    // Winograd implementation limitations.
-    if (prb->alg == WINO) {
-        if (is_cpu()) {
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-#if DNNL_AARCH64
-            bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1
-                    && prb->ph_r <= 1;
-            bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
-                    && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
-                    && prb->dh == 0 && prb->dw == 0 && !prb->has_groups
-                    && pad_ok_f32;
+    skip_unimplemented_data_type(
+            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
+            res);
+    skip_unimplemented_sum_po(prb->attr, res, prb->cfg[DST].dt);
 
-            const bool dir_ok = (prb->dir & FLAG_FWD);
+    if (is_cpu()) {
+        // Specific configurations are not supported.
+        const bool is_f32_src = prb->cfg[SRC].dt == dnnl_f32;
+        const bool is_f32_wei = prb->cfg[WEI].dt == dnnl_f32;
+        const bool is_bf16_src = prb->cfg[SRC].dt == dnnl_bf16;
+        const bool is_bf16_wei = prb->cfg[WEI].dt == dnnl_bf16;
+        const bool is_int8_dst
+                = prb->cfg[DST].dt == dnnl_s8 || prb->cfg[DST].dt == dnnl_u8;
+        const bool is_f32f32x8 = is_f32_src && is_f32_wei && is_int8_dst;
+        const bool is_bf16bf16x8 = is_bf16_src && is_bf16_wei && is_int8_dst;
 
-            const auto &po = prb->attr.post_ops;
-
-            // "true" here stands for eltwise.scale == 1.f check
-            const auto is_eltwise
-                    = [&](int idx) { return po.entry[idx].is_eltwise_kind(); };
-            auto is_sum = [&](int idx) { return po.entry[idx].is_sum_kind(); };
-
-            const bool sum_with_eltwise
-                    = (po.len() == 2) && is_sum(0) && is_eltwise(1);
-            const bool eltwise_only = (po.len() == 1) ? is_eltwise(0) : false;
-            bool eltwise_ok = false;
-
-            // Compute Library supports only one eltwise post-op or
-            // sum+eltwise post-ops
-            if (eltwise_only || sum_with_eltwise) {
-                using alg_t = attr_t::post_ops_t::kind_t;
-                const std::vector<alg_t> supported_algs
-                        = {alg_t::RELU, alg_t::TANH, alg_t::ELU, alg_t::SQUARE,
-                                alg_t::ABS, alg_t::SQRT, alg_t::LINEAR,
-                                alg_t::BRELU, alg_t::SRELU, alg_t::LOGISTIC};
-                const auto act_type = po.entry[sum_with_eltwise].kind;
-                eltwise_ok = std::any_of(supported_algs.cbegin(),
-                        supported_algs.cend(),
-                        [&](const alg_t alg) { return act_type == alg; });
-            }
-
-            const bool post_ops_ok = eltwise_ok || (po.len() == 0);
-
-            if (!shape_ok || !dir_ok || !post_ops_ok) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
-            }
-#else
-            static auto isa = dnnl_get_effective_cpu_isa();
-            static bool has_avx512_bw
-                    = dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core);
-
-            bool is_int8 = prb->cfg[WEI].dt == dnnl_s8;
-
-            bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1
-                    && prb->ph_r <= 1;
-            bool pad_ok_int8 = prb->pw <= 1 && prb->ph <= 1
-                    && prb->pw == prb->pw_r && prb->ph == prb->ph_r;
-
-            bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
-                    && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
-                    && prb->dh == 0 && prb->dw == 0
-                    && IMPLICATION(!is_int8, pad_ok_f32)
-                    && IMPLICATION(is_int8,
-                            (prb->ic % 16 == 0) && (prb->oc % 16 == 0)
-                                    && pad_ok_int8);
-            bool bwd_is_syncable = IMPLICATION(
-                    (prb->dir & FLAG_BWD), dnnl::impl::dnnl_thr_syncable());
-
-            const auto stag = normalize_tag(prb->stag, prb->ndims);
-            const bool stag_is_abx
-                    = stag == normalize_tag(tag::abx, prb->ndims);
-            const bool stag_is_axb
-                    = stag == normalize_tag(tag::axb, prb->ndims);
-            const auto dtag = normalize_tag(prb->dtag, prb->ndims);
-            const bool dtag_is_abx
-                    = dtag == normalize_tag(tag::abx, prb->ndims);
-            const bool dtag_is_axb
-                    = dtag == normalize_tag(tag::axb, prb->ndims);
-            const bool is_plain
-                    = stag_is_abx || stag_is_axb || dtag_is_abx || dtag_is_axb;
-            const bool plain_ok = is_int8 && !stag_is_abx && !dtag_is_abx
-                    && (stag_is_axb || dtag_is_axb);
-
-            const auto &po = prb->attr.post_ops;
-            const auto sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
-            const bool sum_post_op_ok
-                    = sum_idx == -1 || po.entry[sum_idx].sum.scale == 1.f;
-
-            if (!has_avx512_bw || !shape_ok || !bwd_is_syncable
-                    || (is_plain && !plain_ok) || !sum_post_op_ok) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
-            }
-#endif
-#endif
-        } else if (is_gpu()) {
-#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
-            if (dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
-                        get_test_engine())) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
-            }
-#endif
-
-            bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
-                    && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
-                    && prb->dh == 0 && prb->dw == 0 && prb->pw < prb->kw
-                    && prb->pw_r < prb->kw && prb->ph < prb->kh
-                    && prb->ph_r < prb->kh;
-            if (!shape_ok) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
-            }
-
-            const auto stag = normalize_tag(prb->stag, prb->ndims);
-            const bool stag_is_axb
-                    = stag == normalize_tag(tag::axb, prb->ndims);
-            bool is_axb_ok = (prb->ic % 16 == 0) && (prb->oc % 16 == 0);
-            if (stag_is_axb && !is_axb_ok) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-                return;
-            }
-
-        } else {
-            assert(!"Unknown Engine");
+        if (is_f32f32x8 || is_bf16bf16x8) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+
+        // Runtime output scale is not supported.
+        if (prb->attr.oscale.runtime) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
+    // Winograd implementation has very limited scope and support. It doesn't
+    // make sense to list all of them, just convert all unimplemented Winograd
+    // problems into not supported.
+    if (prb->alg == WINO) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+}
+
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    // Since deconv uses conv::prb_t, using a common templated interface for
+    // skipping unimplemented functionality requires the function to be in the
+    // same namespace, thus, we need to dispatch to
+    // `deconv::skip_invalid_prb` here. The alternative solution is to separate
+    // deconv and conv drivers completely.
+    if (prb->is_deconv) {
+        deconv::skip_invalid_prb(prb, res);
+        return;
     }
 }
 
@@ -626,10 +535,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res, prb->cfg[DST].dt);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

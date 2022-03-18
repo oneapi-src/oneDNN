@@ -712,38 +712,11 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
     return dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
 }
 
-void check_known_skipped_case(const prb_t &prb, res_t *res) {
+void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
+    const prb_t &prb = *prb_;
     dir_t dir = str2dir(prop2str(prb.prop));
-    check_known_skipped_case_common({prb.cfg[SRC_LAYER].dt}, dir, res);
-    if (res->state == SKIPPED) return;
-
-    bool is_GRU = prb.alg == VANILLA_GRU || prb.alg == LBR_GRU;
-    bool is_AUGRU = prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU;
-
-    // invalid inputs
-    bool consistent_proj
-            = IMPLICATION(!prb.with_projection, prb.dhc == prb.dic);
-    bool consistent_L = IMPLICATION(prb.n_layer > 1, prb.slc == prb.dic);
-    bool consistent_T = IMPLICATION(prb.n_iter > 1, prb.sic == prb.dic);
-    bool consistent_GRU = IMPLICATION(is_GRU, prb.sic == prb.dic);
-    bool consistent_AUGRU = IMPLICATION(is_AUGRU,
-            prb.sic == prb.dic && prb.n_layer == 1
-                    && prb.direction == dnnl_unidirectional_left2right);
-    if (!consistent_proj || !consistent_L || !consistent_T || !consistent_GRU
-            || !consistent_AUGRU) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
-        return;
-    }
-
-    // Only LSTM supports peephole and projection layer
-    bool is_lstm_peephole
-            = IMPLICATION(prb.with_peephole, prb.alg == VANILLA_LSTM);
-    bool is_lstm_projection
-            = IMPLICATION(prb.with_projection, prb.alg == VANILLA_LSTM);
-    if (!is_lstm_peephole || !is_lstm_projection) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
+    skip_unimplemented_data_type({prb.cfg[SRC_LAYER].dt}, dir, res);
+    skip_unimplemented_sum_po(prb.attr, res);
 
 #if !defined(DNNL_X64) || DNNL_X64 == 0 \
         || DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
@@ -789,6 +762,7 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
 
     // GPU limitations for RNN
     if (is_gpu()) {
+        bool is_AUGRU = prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU;
         if (is_AUGRU) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
@@ -807,6 +781,37 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+    }
+}
+
+void skip_invalid_prb(const prb_t *prb_, res_t *res) {
+    const prb_t &prb = *prb_;
+
+    // Consistency validation.
+    bool consistent_proj
+            = IMPLICATION(!prb.with_projection, prb.dhc == prb.dic);
+    bool consistent_L = IMPLICATION(prb.n_layer > 1, prb.slc == prb.dic);
+    bool consistent_T = IMPLICATION(prb.n_iter > 1, prb.sic == prb.dic);
+    bool is_GRU = prb.alg == VANILLA_GRU || prb.alg == LBR_GRU;
+    bool consistent_GRU = IMPLICATION(is_GRU, prb.sic == prb.dic);
+    bool is_AUGRU = prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU;
+    bool consistent_AUGRU = IMPLICATION(is_AUGRU,
+            prb.sic == prb.dic && prb.n_layer == 1
+                    && prb.direction == dnnl_unidirectional_left2right);
+    if (!consistent_proj || !consistent_L || !consistent_T || !consistent_GRU
+            || !consistent_AUGRU) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
+
+    // Only LSTM supports peephole and projection layer.
+    bool is_lstm_peephole
+            = IMPLICATION(prb.with_peephole, prb.alg == VANILLA_LSTM);
+    bool is_lstm_projection
+            = IMPLICATION(prb.with_projection, prb.alg == VANILLA_LSTM);
+    if (!is_lstm_peephole || !is_lstm_projection) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
     }
 }
 
@@ -881,10 +886,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t &prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb.attr, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, &prb, res), WARN);

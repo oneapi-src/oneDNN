@@ -143,11 +143,20 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     return dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, hint);
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common(
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    skip_unimplemented_data_type(
             {prb->cfg[SRC].dt, prb->cfg[DST].dt}, prb->dir, res);
-    if (res->state == SKIPPED) return;
+    skip_unimplemented_sum_po(prb->attr, res);
 
+    if (is_cpu() && prb->cfg[SRC].dt != prb->cfg[DST].dt) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+}
+
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    // Average pooling without padding can't handle cases when kernel window is
+    // applied to padded area only.
     if (prb->alg == avg_np) {
         bool ker_in_pad_d = prb->pd >= prb->kd || prb->pd_r >= prb->kd;
         bool ker_in_pad_h = prb->ph >= prb->kh || prb->ph_r >= prb->kh;
@@ -158,11 +167,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             res->state = SKIPPED, res->reason = INVALID_CASE;
             return;
         }
-    }
-
-    if (is_cpu() && prb->cfg[SRC].dt != prb->cfg[DST].dt) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
     }
 }
 
@@ -186,10 +190,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

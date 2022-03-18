@@ -189,34 +189,20 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
             &rpd, &src_d, src_engine, &dst_d, dst_engine, dnnl_attr);
 }
 
-void check_known_skipped_case(const prb_t *prb, res_t *res) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE \
-        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_NONE
-    auto cross_engine = prb->cross_engine;
-    if (cross_engine == CPU2GPU || cross_engine == GPU2CPU)
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-#endif
-
+void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     const auto sdt = prb->conf_in->dt;
     const auto ddt = prb->conf_out->dt;
-    check_known_skipped_case_common({sdt, ddt}, prb->dir, res);
-    if (res->state == SKIPPED) return;
-
-    // zero points for dst do not support sum by design
-    if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)
-            && prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
+    skip_unimplemented_data_type({sdt, ddt}, prb->dir, res);
+    skip_unimplemented_sum_po(prb->attr, res);
 
     if (prb->is_reorder_with_compensation(FLAG_ANY)) {
-        // compensation is supported for dst_dt = s8 so far
+        // Compensation is supported for s8 dst data type.
         const bool dt_ok = ddt == dnnl_s8;
-        // compensation does not support any attributes but oscale
+        // Compensation can be paired with oscale only.
         const bool attr_ok = prb->attr.scales.is_def()
                 && prb->attr.zero_points.is_def() && prb->attr.post_ops.is_def()
                 && prb->attr.oscale.runtime == false;
-        // compensation does not support runtime dims
+        // Compensation does not support runtime dims.
         const bool rt_ok = prb->runtime_dim_mask == 0;
 
         if (!dt_ok || !attr_ok || !rt_ok) {
@@ -225,16 +211,17 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         }
     }
 
-    // bf16 reorder on cpu supports only bf16/f32 src_dt/dst_dt
-    if (is_cpu()
-            && (!IMPLICATION(sdt == dnnl_bf16,
-                        ddt == dnnl_f32 || ddt == dnnl_bf16 || ddt == dnnl_s8
-                                || ddt == dnnl_u8)
-                    || !IMPLICATION(ddt == dnnl_bf16,
-                            sdt == dnnl_f32 || sdt == dnnl_bf16
-                                    || sdt == dnnl_s8 || sdt == dnnl_u8))) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
+    if (is_cpu()) {
+        // CPU reorder doesn't support bf16<-->s32/f16 combinations.
+        const bool bf16_src_ok = IMPLICATION(
+                sdt == dnnl_bf16, ddt != dnnl_s32 && ddt != dnnl_f16);
+        const bool bf16_dst_ok = IMPLICATION(
+                ddt == dnnl_bf16, sdt != dnnl_s32 && sdt != dnnl_f16);
+
+        if (!bf16_src_ok || !bf16_dst_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 
     if (is_gpu()) {
@@ -247,6 +234,23 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+    }
+}
+
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    // No sense in cross engine reorders when one of devices is switched off.
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_NONE
+    auto cross_engine = prb->cross_engine;
+    if (cross_engine == CPU2GPU || cross_engine == GPU2CPU)
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+#endif
+
+    // Zero-points can't be used with sum post-op.
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)
+            && prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
     }
 }
 
@@ -280,10 +284,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
-
-    check_known_skipped_case(prb, res);
-    check_sum_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prim, init_pd, prb, res), WARN);

@@ -159,6 +159,8 @@ inline void get_sizes(const prb_t *prb, int64_t &outer_size,
     axis_size = prb->dims[prb->axis];
 }
 
+void skip_unimplemented_prb(const prb_t *prb, res_t *res);
+void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 
