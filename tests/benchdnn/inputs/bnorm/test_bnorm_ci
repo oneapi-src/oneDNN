@@ -18,8 +18,9 @@
 
 --dt=f32,bf16,f16
 --flags=,G,S,GS,GH
---attr-post-ops=,relu
+--attr-post-ops=,relu,relu:-1
 --batch=shapes_ci
+--attr-post-ops=
 
 --dt=f16
 --flags=,G,S,R,GS,GR,SR,GSR
