@@ -534,6 +534,12 @@ protected:
         }
 
         if (can_do_zmm_masked_tail_processing(src, in_len)) {
+            if (!write_only) {
+                Xbyak::Zmm srcz(src.getIdx()), tmpz(qd_vmm.getIdx());
+                uni_vmovups(tmpz, zmm_perm_mask_addr);
+                vpermd(srcz, tmpz, srcz);
+            }
+
             Xbyak::Zmm src_masked = Xbyak::Zmm(src.getIdx()) | zmm_tail_k_mask;
             vmovdqu8(dst, src_masked);
             return;
