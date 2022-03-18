@@ -188,11 +188,4 @@ private:
 extern "C" bool DNNL_API dnnl_impl_gpu_mayiuse_ngen_kernels(
         dnnl::impl::engine_t *engine);
 
-// Returns true for GPU architectures where Winograd convolution support
-// depends on specific implementation details. In such cases it's not possible
-// to properly test Winograd convolution coverage, and all the corresponding
-// tests must be skipped. Exported for testing purposes only.
-extern "C" bool DNNL_API dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
-        dnnl::impl::engine_t *engine);
-
 #endif

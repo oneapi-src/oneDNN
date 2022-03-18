@@ -87,26 +87,3 @@ bool dnnl_impl_gpu_mayiuse_ngen_kernels(dnnl::impl::engine_t *engine) {
     auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
     return compute_engine->mayiuse_ngen_kernels();
 }
-
-bool DNNL_API dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
-        dnnl::impl::engine_t *engine) {
-    using namespace dnnl::impl;
-    using namespace dnnl::impl::gpu::compute;
-
-    assert(engine->kind() == engine_kind::gpu);
-
-#ifdef DNNL_SYCL_CUDA
-    UNUSED(engine);
-    return false;
-#else
-    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
-    switch (compute_engine->device_info()->gpu_arch()) {
-        case gpu_arch_t::gen9:
-        case gpu_arch_t::gen11:
-        case gpu_arch_t::xe_lp:
-        case gpu_arch_t::xe_hp:
-        case gpu_arch_t::xe_hpg: return false;
-        default: return true;
-    }
-#endif
-}

@@ -22,12 +22,6 @@
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "tests/test_isa_common.hpp"
 #endif
-
-#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
-extern "C" bool dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
-        dnnl_engine_t engine);
-#endif
-
 namespace dnnl {
 
 // short names for brevity
@@ -37,7 +31,6 @@ using tag = memory::format_tag;
 class wino_conv_test_t : public ::testing::Test {
 protected:
     engine eng = get_test_engine();
-    bool is_enabled = true;
     struct input_data_t {
         data_type dat_dt;
         data_type wei_dt;
@@ -46,13 +39,6 @@ protected:
     } input_f32, input_f16, input_int8;
 
     void SetUp() override {
-#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
-        if (get_test_engine_kind() == engine::kind::gpu) {
-            is_enabled = !dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
-                    eng.get());
-        }
-#endif
-
         input_f32.dat_dt = data_type::f32;
         input_f32.wei_dt = data_type::f32;
 
@@ -87,7 +73,6 @@ protected:
 };
 
 TEST_F(wino_conv_test_t, TestSmallPadding) {
-    SKIP_IF(!is_enabled, "Test is not supported for this GPU architecture.");
     for (const auto &input : {input_f32, input_f16, input_int8}) {
         if (unsupported_data_type(input.dat_dt)
                 || unsupported_data_type(input.wei_dt))
@@ -125,7 +110,6 @@ TEST_F(wino_conv_test_t, TestSmallPadding) {
 }
 
 TEST_F(wino_conv_test_t, TestLargePadding) {
-    SKIP_IF(!is_enabled, "Test is not supported for this GPU architecture.");
     for (const auto &input : {input_f32, input_f16, input_int8}) {
         if (unsupported_data_type(input.dat_dt)
                 || unsupported_data_type(input.wei_dt))
@@ -151,7 +135,6 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
 }
 
 TEST_F(wino_conv_test_t, TestUnsupportedKernel) {
-    SKIP_IF(!is_enabled, "Test is not supported for this GPU architecture.");
     for (const auto &input : {input_f32, input_f16, input_int8}) {
         if (unsupported_data_type(input.dat_dt)
                 || unsupported_data_type(input.wei_dt))

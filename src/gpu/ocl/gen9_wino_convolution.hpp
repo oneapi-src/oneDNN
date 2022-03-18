@@ -78,12 +78,6 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     && post_ops_with_binary_ok(attr(), dst_data_t);
             if (!ok) return status::unimplemented;
 
-            // XeHPC doesn't support subgroup size 8 so disable it completely
-            // due to testing limitations. The reason is that subgroup sizes
-            // selection is implementation details and there is no good way to
-            // distinguish expected vs unexpected 'unimplemented' statuses.
-            if (compute_engine->is_xe_hpc()) return status::unimplemented;
-
             CHECK(init_conf(compute_engine));
 
             int sub_group_size = conf.wino_ic_block / 2; // LWX

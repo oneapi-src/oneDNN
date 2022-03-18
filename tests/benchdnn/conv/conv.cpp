@@ -37,11 +37,6 @@
 #include "conv/deconv.hpp"
 #include "prelu/prelu.hpp"
 
-#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
-extern "C" bool dnnl_impl_gpu_conv_wino_should_silence_unimplemented(
-        dnnl_engine_t engine);
-#endif
-
 namespace conv {
 
 double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
