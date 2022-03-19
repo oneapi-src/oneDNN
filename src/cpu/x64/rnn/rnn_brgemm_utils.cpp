@@ -298,9 +298,20 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.N = rnn.dhc;
     rnn.K1 = rnn.slc;
     rnn.K2 = rnn.sic;
+    const auto is_int8 = rnn.is_int8();
+    const auto is_bf16 = rnn.is_bf16();
+
+    const dim_t padding = (is_int8 ? 4 : (is_bf16 ? 2 : 1));
+    rnn.K1padded = utils::rnd_up(rnn.K1, padding);
+    rnn.K2padded = utils::rnd_up(rnn.K2, padding);
+
+    rnn.brgemm_isa = brgemm_calc_isa(rnn.K1, rnn.K2, is_int8, is_bf16);
 
     rnn.nthr = dnnl_get_max_threads();
-    rnn.n_block = 32;
+    const bool is_amx_isa_selected = rnn.is_int8_amx() || rnn.is_bf16_amx();
+    const bool can_use_block64 = is_amx_isa_selected && rnn.N % 64 == 0
+            && !rnn.is_training && !rnn.is_lstm_projection;
+    rnn.n_block = can_use_block64 ? 64 : 32;
     rnn.N_blocks = utils::div_up(rnn.N, rnn.n_block);
     rnn.n_tail = rnn.N % rnn.n_block;
 
@@ -313,15 +324,6 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
             = src_layer_type_size * (nstl::max(rnn.K1, rnn.K2)) * rnn.n_block;
     const dim_t Cs
             = scratch_type_size * (rnn.n_gates + 1) * (rnn.M * rnn.n_block);
-
-    const auto is_int8 = rnn.is_int8();
-    const auto is_bf16 = rnn.is_bf16();
-
-    const dim_t padding = (is_int8 ? 4 : (is_bf16 ? 2 : 1));
-    rnn.K1padded = utils::rnd_up(rnn.K1, padding);
-    rnn.K2padded = utils::rnd_up(rnn.K2, padding);
-
-    rnn.brgemm_isa = brgemm_calc_isa(rnn.K1, rnn.K2, is_int8, is_bf16);
 
     std::tie(rnn.k1_block, rnn.k2_block) = brgemm_calc_k_block(rnn.K1, rnn.K2,
             rnn.M, rnn.n_block, cell_kind, src_layer_type_size, As, Bs, Cs,

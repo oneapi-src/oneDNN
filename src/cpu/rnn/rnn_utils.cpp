@@ -277,9 +277,13 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                 tag = rnn.is_int8() ? format_tag::ldOI32o4i
                                     : format_tag::ldOi32o;
             } else if (rnn.is_fwd) {
-                tag = rnn.is_int8() ? format_tag::ldgOI32o4i
-                                    : rnn.is_bf16() ? format_tag::ldgOI32o2i
-                                                    : format_tag::ldgOi32o;
+                tag = rnn.is_int8()
+                        ? (rnn.n_block == 64 ? format_tag::ldgOI64o4i
+                                             : format_tag::ldgOI32o4i)
+                        : rnn.is_bf16()
+                                ? (rnn.n_block == 64 ? format_tag::ldgOI64o2i
+                                                     : format_tag::ldgOI32o2i)
+                                : format_tag::ldgOi32o;
             } else {
                 tag = rnn.is_bf16() ? format_tag::ldgIO32i2o
                                     : format_tag::ldgIo32i;
