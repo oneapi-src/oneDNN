@@ -30,10 +30,11 @@ struct jit_uni_lstm_cell_postgemm_t {
     jit_uni_lstm_cell_postgemm_t(
             jit_generator *host, int tmp_id_begin, bool use_bf16_emu)
         : host_(host)
-        , tmp_id_begin_(tmp_id_begin)
-        , current_tmp_id_(tmp_id_begin)
-        , tmp_id_end_(cpu_isa_traits<isa>::n_vregs
-                  - (is_superset(isa, avx512_core) && use_bf16_emu ? 4 : 0)) {}
+        , min_allowed_tmp_vmm_idx_(0)
+        , max_allowed_tmp_vmm_idx_(cpu_isa_traits<isa>::n_vregs - 1
+                  - (is_superset(isa, avx512_core) && use_bf16_emu ? 4 : 0)) {
+        reset_tmp_vmm_idx_range(tmp_id_begin, max_allowed_tmp_vmm_idx_);
+    }
 
 protected:
     using injector_t = typename utils::conditional<isa == avx512_core,
@@ -45,12 +46,26 @@ protected:
     Vmm get_next_tmp_vmm() {
         const Vmm vmm {current_tmp_id_++};
 
-        if (current_tmp_id_ == tmp_id_end_) reset_vmm_cnt();
+        if (current_tmp_id_ > tmp_id_last_) reset_vmm_cnt();
 
         return vmm;
     }
 
-    void reset_vmm_cnt() { current_tmp_id_ = tmp_id_begin_; }
+    void reset_vmm_cnt() { current_tmp_id_ = tmp_id_first_; }
+    int get_min_allowed_tmp_vmm_allowed_idx() const {
+        return min_allowed_tmp_vmm_idx_;
+    }
+    int get_max_allowed_tmp_vmm_allowed_idx() const {
+        return max_allowed_tmp_vmm_idx_;
+    }
+    void reset_tmp_vmm_idx_range(int lower_idx, int upper_idx) {
+        assert(lower_idx >= get_min_allowed_tmp_vmm_allowed_idx()
+                && upper_idx <= get_max_allowed_tmp_vmm_allowed_idx()
+                && lower_idx <= upper_idx);
+        tmp_id_first_ = lower_idx;
+        tmp_id_last_ = upper_idx;
+        reset_vmm_cnt();
+    }
 
     Xbyak::Xmm get_next_tmp_xmm() {
         return Xbyak::Xmm(get_next_tmp_vmm().getIdx());
@@ -148,9 +163,11 @@ protected:
 
 private:
     jit_generator *host_;
-    const int tmp_id_begin_;
+    const int min_allowed_tmp_vmm_idx_;
+    const int max_allowed_tmp_vmm_idx_;
+    int tmp_id_first_;
     int current_tmp_id_;
-    const int tmp_id_end_;
+    int tmp_id_last_;
 };
 
 } // namespace x64
