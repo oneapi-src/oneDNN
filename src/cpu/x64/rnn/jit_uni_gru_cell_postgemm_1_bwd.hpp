@@ -116,7 +116,7 @@ protected:
             uni_vpxor(
                     Vmm(dattn_acc_idx), Vmm(dattn_acc_idx), Vmm(dattn_acc_idx));
             const Xmm attn1s(attn_idx);
-            to_float(attn1s, ptr[addr_attn_reg], src_data_t, scratch_dt_size);
+            to_float(attn1s, ptr[addr_attn_reg], src_data_t, hstate_dt_size);
         }
 
         mov(loop_cnt, rnn_.dhc * scratch_dt_size);
