@@ -110,7 +110,14 @@ struct _ref_rnn_common_t : public primitive_t {
         using base_pd_t::base_pd_t;
 
         const char *impl_name() const {
-            return rnn_.is_brgemm ? "brgemm" : "ref";
+#if DNNL_X64
+            using namespace dnnl::impl::cpu::x64;
+            return rnn_.is_brgemm
+                    ? JIT_IMPL_NAME_HELPER("brgemm:", rnn_.brgemm_isa, "")
+                    : "ref";
+#else
+            return "ref";
+#endif
         }
 
         DECLARE_COMMON_PD_T(impl_name(), class_name, USE_GLOBAL_SCRATCHPAD);
