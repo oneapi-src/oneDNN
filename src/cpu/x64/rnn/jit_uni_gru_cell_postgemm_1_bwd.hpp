@@ -254,7 +254,8 @@ protected:
             if (is_augru) {
                 // compute diff_attention
                 // 1. compute tmp2 = dG0 * G
-                uni_vmulss(tmp2, dG0, G0);
+                uni_vmovss(tmp2, dG0);
+                uni_vmulss(tmp2, tmp2, G0);
                 // 2. Store dAttention
                 uni_vaddss(diff_attn_acc, diff_attn_acc, tmp2);
                 // 4. Compute dG0 *= attention
@@ -287,8 +288,8 @@ protected:
         if (is_augru) {
             // Complete diff attention reduction
             Xmm diff_attn_acc(dattn_acc_idx);
-            vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
-            vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
+            uni_vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
+            uni_vhaddps(diff_attn_acc, diff_attn_acc, diff_attn_acc);
             const auto base_args = get_stack_params_address();
 #ifdef _WIN32
             mov(addr_attn_reg, ptr[base_args + 56]);
