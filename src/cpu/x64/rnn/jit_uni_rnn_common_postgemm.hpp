@@ -45,6 +45,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         , bias_dt_size_(types::data_type_size(rnn.bias_dt))
         , cstate_dt_size_(types::data_type_size(rnn.src_iter_c_dt))
         , is_avx512(mayiuse(avx512_core))
+        , is_avx2(mayiuse(avx2))
         , dscale_off_addr(0)
         , dshift_off_addr(0)
         , ymm_perm_mask_addr(0)
@@ -53,7 +54,11 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         , u8_saturation_addr(0)
         , weights_scales_reg(r13)
         , qtable(r14)
-        , qd_reg_idx(15)
+        // implementations avoids to preserve Vmm(0) because of potential
+        // conflict with required in injectors usage for masks on sse4.1
+        // so it can be used as commong temporal vector register
+        , tmp_vector_register_idx(0)
+        , qd_reg_idx(tmp_vector_register_idx)
         , bf16_reg1(zmm31)
         , bf16_reg2(zmm30)
         , bf16_reg3(zmm29)
@@ -62,7 +67,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         , bf16_k_mask(k2)
         , tmp_reg(bf16_reg4)
         , zmm_tail_k_mask(k3)
-        , bf16_dq_reg_idx(15) {}
+        , bf16_dq_reg_idx(tmp_vector_register_idx) {}
 
     ~jit_uni_rnn_postgemm() {
         if (bf16_emu_) delete bf16_emu_;
@@ -767,6 +772,35 @@ protected:
     }
 
     template <typename Vmm>
+    void compute_vfmadd231ps(const Vmm &v1, const Vmm &v2,
+            const Xbyak::Address &addr, int vlen_bytes,
+            /* required for isa below avx2 only */
+            const Vmm &tmp_vmm_for_address_load) {
+        if (!is_avx2) {
+            // to avoid issues with not 16 bytes aligned memory for sse4.1 or
+            // overriding v2 values for avx load values from memory to provided
+            // tmp_vmm_for_address_load and use variant with vmm arguments only
+            load(tmp_vmm_for_address_load, addr, data_type::f32, vlen_bytes);
+            compute_vfmadd231ps(v1, tmp_vmm_for_address_load, v2, vlen_bytes);
+            return;
+        }
+
+        if (can_do_zmm_masked_tail_processing(v1, vlen_bytes)) {
+            Xbyak::Zmm dst_masked
+                    = Xbyak::Zmm(v1.getIdx()) | zmm_tail_k_mask | T_z;
+            uni_vfmadd231ps(dst_masked, Xbyak::Zmm(v2.getIdx()), addr);
+            return;
+        }
+
+        if (vlen_bytes == 4)
+            // special case for scalar-based tail processing
+            uni_vfmadd231ss(
+                    Xbyak::Xmm(v1.getIdx()), Xbyak::Xmm(v2.getIdx()), addr);
+        else
+            uni_vfmadd231ps(v1, v2, addr);
+    }
+
+    template <typename Vmm>
     void compute_vfmadd213ps(
             const Vmm &v1, const Vmm &v2, const Vmm &v3, int vlen_bytes) {
         if (vlen_bytes == 4)
@@ -802,6 +836,7 @@ protected:
     const size_t bias_dt_size_;
     const size_t cstate_dt_size_;
     const bool is_avx512;
+    const bool is_avx2;
 
 private:
     // registers/Labels used for int8 quantization and conversions
@@ -814,6 +849,7 @@ private:
     Xbyak::Reg64 weights_scales_reg;
     Xbyak::Reg64 qtable;
     Xbyak::Label qlabel;
+    int tmp_vector_register_idx;
     int qd_reg_idx;
 
     // registers used for bf16 conversions
