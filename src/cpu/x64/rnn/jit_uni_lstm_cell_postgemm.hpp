@@ -51,6 +51,12 @@ protected:
         return vmm;
     }
 
+    Vmm maybe_get_next_tmp_vmm_for_below_avx2_isa() {
+        if (!this->avx2_available_) return get_next_tmp_vmm();
+
+        return Vmm(0); // return 0th register as dummy
+    }
+
     void reset_vmm_cnt() { current_tmp_id_ = tmp_id_first_; }
     int get_min_allowed_tmp_vmm_allowed_idx() const {
         return min_allowed_tmp_vmm_idx_;
