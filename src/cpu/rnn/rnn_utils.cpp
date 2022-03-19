@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,7 +75,8 @@ bool rnn_utils::is_ldoi(const memory_desc_wrapper &mdw) {
 
 bool rnn_utils::is_ldigo_blocked(const memory_desc_wrapper &mdw) {
     format_tag_t md_format_tag = mdw.matches_one_of_tag(format_tag::ldgOi32o,
-            format_tag::ldgOI32o2i, format_tag::ldgOI32o4i);
+            format_tag::ldgOI32o2i, format_tag::ldgOI32o4i,
+            format_tag::ldgOI64o2i, format_tag::ldgOI64o4i);
     return md_format_tag != format_tag::undef;
 }
 

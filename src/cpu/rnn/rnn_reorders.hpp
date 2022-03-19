@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -330,6 +330,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
         }
 
         format_tag_t itag_ = format_tag::undef;
+        format_tag_t otag_ = format_tag::undef;
         size_t thr_scratch_comp_sz_ = 0;
         int nthr_; // To not exceed the limit in execute used for set up.
 
@@ -723,6 +724,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                 rnn_brgemm_weights_reorder_s8_t);
 
         format_tag_t itag_;
+        format_tag_t otag_;
         int nthr_; // To not exceed the limit in execute used for set up.
         size_t thr_scratch_comp_sz_ = 0;
 
@@ -795,11 +797,11 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
 
             format_tag_t otag, itag;
 
-            if (((itag = id.matches_one_of_tag(ldigo, ldio))
-                        != format_tag::undef)
-                    && ((otag = od.matches_one_of_tag(ldgOI32o4i, ldOI32o4i))
-                            != format_tag::undef)) {
+            itag = id.matches_one_of_tag(ldigo, ldio);
+            otag = od.matches_one_of_tag(ldgOI64o4i, ldgOI32o4i, ldOI32o4i);
+            if (itag != format_tag::undef && otag != format_tag::undef) {
                 _pd->itag_ = itag;
+                _pd->otag_ = otag;
             } else {
                 delete _pd;
                 return invalid_arguments;
@@ -857,7 +859,7 @@ private:
         const auto &blocked_d = dst_d;
         const auto &pdims = blocked_d.padded_dims();
 
-        static constexpr int o_block = 32;
+        const int o_block = pd()->otag_ == ldgOI64o4i ? 64 : 32;
         static constexpr int i_block = 4;
 
         dim_t L, D, I, G, O;

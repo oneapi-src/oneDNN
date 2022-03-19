@@ -546,6 +546,8 @@ const format_tag_t abCd32c = dnnl_abCd32c;
 const format_tag_t abdEc32e = dnnl_abdEc32e;
 const format_tag_t abdEC32e2c = dnnl_abdEC32e2c;
 const format_tag_t abdEC32e4c = dnnl_abdEC32e4c;
+const format_tag_t abdEC64e2c = dnnl_abdEC64e2c;
+const format_tag_t abdEC64e4c = dnnl_abdEC64e4c;
 const format_tag_t abdCe32c = dnnl_abdCe32c;
 const format_tag_t abdCE32c2e = dnnl_abdCE32c2e;
 const format_tag_t aBCdef16c16b4c = dnnl_aBCdef16c16b4c;
@@ -1011,6 +1013,8 @@ const format_tag_t ldIo32i = dnnl_ldIo32i;
 const format_tag_t ldgOi32o = dnnl_ldgOi32o;
 const format_tag_t ldgOI32o2i = dnnl_ldgOI32o2i;
 const format_tag_t ldgOI32o4i = dnnl_ldgOI32o4i;
+const format_tag_t ldgOI64o2i = dnnl_ldgOI64o2i;
+const format_tag_t ldgOI64o4i = dnnl_ldgOI64o4i;
 const format_tag_t ldgIo32i = dnnl_ldgIo32i;
 const format_tag_t ldgIO32i2o = dnnl_ldgIO32i2o;
 

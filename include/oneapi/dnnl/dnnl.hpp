@@ -2445,6 +2445,10 @@ struct memory : public handle<dnnl_memory_t> {
         aBdfec16b = dnnl_aBdfec16b,
         Odwhi16o = dnnl_Odwhi16o,
         gOdwhi16o = dnnl_gOdwhi16o,
+        abdEC64e2c = dnnl_abdEC64e2c,
+        abdEC64e4c = dnnl_abdEC64e4c,
+        ldgOI64o2i = abdEC64e2c,
+        ldgOI64o4i = abdEC64e4c,
     };
 
     /// A memory descriptor.
