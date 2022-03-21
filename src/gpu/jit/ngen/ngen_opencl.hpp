@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -102,10 +102,10 @@ static inline std::vector<uint8_t> getOpenCLCProgramBinary(cl_context context, c
     return binaries[deviceIdx];
 }
 
-inline bool tryZebin(cl_device_id device)
+inline bool tryZebinFirst(cl_device_id device)
 {
-    // Zebin is not yet supported by the OpenCL RT.
-    // Once it is, check driver version before attempting to pass in zebin.
+    // Future: return true for newer OpenCL runtimes
+    //         with known zebin support.
     return false;
 }
 
@@ -138,11 +138,20 @@ cl_kernel OpenCLCodeGenerator<hw>::getKernel(cl_context context, cl_device_id de
     cl_int status = CL_SUCCESS;
     cl_program program = nullptr;
     bool good = false;
+    bool zebinFirst = detail::tryZebinFirst(device);
+    std::vector<uint8_t> binary;
 
-    for (bool legacy : {false, true}) {
-        if (!legacy && !detail::tryZebin(device))
-            continue;
-        auto binary = legacy ? getBinary(context, device) : super::getBinary();
+    for (bool defaultFormat : {true, false}) {
+        bool legacy = defaultFormat ^ zebinFirst;
+
+        if (legacy) {
+            try {
+                binary = getBinary(context, device);
+            } catch (...) {
+                continue;
+            }
+        } else
+            binary = super::getBinary();
 
         const auto *binaryPtr = binary.data();
         size_t binarySize = binary.size();
