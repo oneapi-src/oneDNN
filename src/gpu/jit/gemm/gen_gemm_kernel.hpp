@@ -21,6 +21,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/device_info.hpp"
+#include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_generator.hpp"
 #include "gpu/jit/gemm/kernel_catalog.hpp"
 #include "gpu/jit/gemm/kernel_evaluator.hpp"
@@ -41,6 +42,23 @@ struct gen_gemm_kernel_desc_t {
 
     const CommonDriverInfo *driver_info() const { return &driver_info_; };
     const EvaluateAuxOutput *aux_params() const { return &aux_params_; };
+
+    compute::scalar_type_t scalar_type() const {
+        switch (problem_.Ts) {
+            case Type::s8: return compute::scalar_type_t::_char;
+            case Type::u8: return compute::scalar_type_t::_uchar;
+            case Type::s16: return compute::scalar_type_t::_short;
+            case Type::u16: return compute::scalar_type_t::_ushort;
+            case Type::s32: return compute::scalar_type_t::_int;
+            case Type::u32: return compute::scalar_type_t::_uint;
+            case Type::s64: return compute::scalar_type_t::_long;
+            case Type::u64: return compute::scalar_type_t::_ulong;
+            case Type::bf16: return compute::scalar_type_t::_bfloat16;
+            case Type::f16: return compute::scalar_type_t::_half;
+            case Type::f32: return compute::scalar_type_t::_float;
+            default: return compute::scalar_type_t::undef;
+        }
+    }
 
 protected:
     static Type convert_dnnl_to_kernel_type(data_type_t type) {

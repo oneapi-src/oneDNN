@@ -368,6 +368,8 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         create_kernel(engine, &nocopy_kernel_, &kernel);
 
+        scalar_type_ = kd->scalar_type();
+
         if (get_verbose() >= 2) {
             auto info = kd->driver_info();
             printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
@@ -396,6 +398,7 @@ private:
     }
 
     compute::kernel_t nocopy_kernel_;
+    compute::scalar_type_t scalar_type_;
 };
 
 } // namespace jit

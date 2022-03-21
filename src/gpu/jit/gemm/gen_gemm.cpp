@@ -74,10 +74,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     arg_list.set(argn++, n);
     arg_list.set(argn++, k);
 
-    set_scalar_arg_cvt(arg_list, argn, alpha, nocopy_kernel_.arg_types()[argn]);
-    argn++;
-    set_scalar_arg_cvt(arg_list, argn, beta, nocopy_kernel_.arg_types()[argn]);
-    argn++;
+    set_scalar_arg_cvt(arg_list, argn++, alpha, scalar_type_);
+    set_scalar_arg_cvt(arg_list, argn++, beta, scalar_type_);
 
     if (pd()->with_ab_zero_points()) {
         uint32_t abo = uint16_t(-ao) | (uint16_t(-bo) << 16);
