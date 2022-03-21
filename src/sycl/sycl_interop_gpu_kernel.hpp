@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,6 +73,10 @@ public:
     }
 
     enum class state_t { binary, kernel };
+
+    const std::vector<gpu::compute::scalar_type_t> &arg_types() const override {
+        return arg_types_;
+    }
 
 protected:
     sycl_interop_gpu_kernel_t(const ::sycl::kernel &sycl_kernel,

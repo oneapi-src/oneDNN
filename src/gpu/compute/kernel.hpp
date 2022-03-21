@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,8 @@ public:
     status_t binary(engine_t *engine, compute::binary_t &binary) const;
     const std::shared_ptr<compute::binary_t> &binary() const;
 
+    const std::vector<scalar_type_t> &arg_types() const;
+
 private:
     std::shared_ptr<kernel_impl_t> impl_;
 };
@@ -89,6 +91,7 @@ public:
         return status::runtime_error;
     }
 
+    virtual const std::vector<scalar_type_t> &arg_types() const = 0;
     virtual const std::shared_ptr<compute::binary_t> &binary() const = 0;
 };
 
@@ -119,6 +122,10 @@ inline status_t kernel_t::binary(
 
 inline const std::shared_ptr<compute::binary_t> &kernel_t::binary() const {
     return impl_->binary();
+}
+
+inline const std::vector<scalar_type_t> &kernel_t::arg_types() const {
+    return impl_->arg_types();
 }
 
 } // namespace compute

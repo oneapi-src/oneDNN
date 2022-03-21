@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -239,6 +239,24 @@ private:
     kernel_arg_list_t &operator=(const kernel_arg_list_t &) = delete;
     kernel_arg_list_t &operator=(kernel_arg_list_t &&) = delete;
 };
+
+template <typename T>
+void set_scalar_arg_cvt(kernel_arg_list_t &arg_list, int index, T scalar,
+        scalar_type_t requested_type) {
+    if (scalar_type_traits<T>::type == requested_type) {
+        arg_list.set(index, scalar);
+        return;
+    }
+
+    switch (requested_type) {
+        case scalar_type_t::_half:
+            arg_list.set(index, (float16_t)scalar);
+            break;
+        case scalar_type_t::_uchar: arg_list.set(index, (uint8_t)scalar); break;
+        case scalar_type_t::_char: arg_list.set(index, (int8_t)scalar); break;
+        default: assert(!"Cannot convert scalar to the requested type.");
+    }
+}
 
 } // namespace compute
 } // namespace gpu

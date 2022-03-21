@@ -69,7 +69,7 @@ public:
 
     status_t binary(engine_t *engine, compute::binary_t &binary) const override;
 
-    const std::vector<gpu::compute::scalar_type_t> &arg_types() const {
+    const std::vector<gpu::compute::scalar_type_t> &arg_types() const override {
         return arg_types_;
     }
 
