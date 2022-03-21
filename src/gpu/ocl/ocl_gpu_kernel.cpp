@@ -85,6 +85,8 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         enqueue_kernel = cloned_kernel.get();
     }
 
+    CHECK(gpu::compute::check_scalar_arguments(arg_list, arg_types_));
+
     for (int i = 0; i < arg_list.nargs(); ++i) {
         auto &arg = arg_list.get(i);
         cl_int set_err = CL_SUCCESS;
@@ -147,14 +149,8 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             return status::runtime_error; // SVM is not supported
 #endif // CL_VERSION_2_0
         } else {
-            // Convert if types do not match.
-            typename std::aligned_storage<sizeof(float), sizeof(float)>::type
-                    tmp_storage;
-            void *cast_storage = &tmp_storage;
-            auto cvt_arg = compute::kernel_arg_t::cast(
-                    arg_types_[i], arg, cast_storage);
             set_err = clSetKernelArg(
-                    enqueue_kernel, i, cvt_arg.size(), cvt_arg.value());
+                    enqueue_kernel, i, arg.size(), arg.value());
         }
         status_t status = convert_to_dnnl(set_err);
         if (status != status::success) return status;

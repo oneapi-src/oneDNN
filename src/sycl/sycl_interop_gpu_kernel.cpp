@@ -135,6 +135,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             }
         }
     }
+    CHECK(gpu::compute::check_scalar_arguments(arg_list, arg_types_));
 
     auto event = queue.submit([&](::sycl::handler &cgh) {
         cgh.depends_on(sycl_stream->get_deps());
@@ -177,15 +178,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                         ::sycl::range<1>(arg.size()), cgh);
                 cgh.set_arg((int)i, acc);
             } else {
-                if (arg_types_[i] == gpu::compute::scalar_type_t::undef) {
-                    assert(!"not expected");
-                }
-                typename std::aligned_storage<sizeof(float),
-                        sizeof(float)>::type tmp_storage;
-                void *cast_storage = &tmp_storage;
-                auto cvt_arg = gpu::compute::kernel_arg_t::cast(
-                        arg_types_[i], arg, cast_storage);
-                set_scalar_arg(cgh, (int)i, cvt_arg.size(), cvt_arg.value());
+                set_scalar_arg(cgh, (int)i, arg.size(), arg.value());
             }
         }
         if (range.local_range()) {

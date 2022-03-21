@@ -25,6 +25,7 @@
 #include "common/float16.hpp"
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
+#include "common/verbose.hpp"
 
 #include "gpu/zero_pad_struct.h"
 
@@ -170,9 +171,6 @@ public:
         return *(const T *)value();
     }
 
-    static kernel_arg_t cast(scalar_type_t other_type,
-            const kernel_arg_t &other, void *&cast_storage);
-
 private:
     kernel_arg_kind_t kind_ = kernel_arg_kind_t::undef;
     scalar_type_t scalar_type_ = scalar_type_t::undef;
@@ -256,6 +254,34 @@ void set_scalar_arg_cvt(kernel_arg_list_t &arg_list, int index, T scalar,
         case scalar_type_t::_char: arg_list.set(index, (int8_t)scalar); break;
         default: assert(!"Cannot convert scalar to the requested type.");
     }
+}
+
+inline status_t check_scalar_arguments(const kernel_arg_list_t &arg_list,
+        const std::vector<scalar_type_t> &arg_types) {
+    for (int i = 0; i < arg_list.nargs(); i++) {
+        auto &arg = arg_list.get(i);
+        auto req_arg_type = arg_types[i];
+
+        if (!arg.is_global() && !arg.is_local() && !arg.is_svm_pointer()) {
+            if (req_arg_type == gpu::compute::scalar_type_t::undef) {
+                // Types of kernel arguments may not be available when zebin
+                // is used.
+                continue;
+            }
+
+            if (req_arg_type != arg.scalar_type()) {
+                if (get_verbose()) {
+                    printf("onednn_verbose,gpu,error,type of a scalar kernel "
+                           "argument #%d is different from the type of the "
+                           "given scalar\n",
+                            i);
+                    fflush(0);
+                }
+                return status::invalid_arguments;
+            }
+        }
+    }
+    return status::success;
 }
 
 } // namespace compute
