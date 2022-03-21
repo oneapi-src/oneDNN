@@ -68,8 +68,8 @@ dt_conf_t::entry_t BF16_ENTRY_BF16 {dnnl_bf16, -f32_max_exact, f32_max_exact,
 dt_conf_t::entry_t BF16_ENTRY_F32 {dnnl_f32, -f32_max_exact, f32_max_exact,
         MIN_F32, MAX_F32, MEAN_F32, STDDEV_F32, EPS_BF16};
 
-CFG(bf16f32bf16bf16bf16f32) {
-    UNUSED_REG_VAR(bf16f32bf16bf16bf16f32);
+CFG(bf16f32) {
+    UNUSED_REG_VAR(bf16f32);
     CASE(SRC_LAYER, BF16_ENTRY_BF16);
     CASE(SRC_ITER, BF16_ENTRY_BF16);
     CASE(WEIGHTS_LAYER, BF16_ENTRY_BF16);
