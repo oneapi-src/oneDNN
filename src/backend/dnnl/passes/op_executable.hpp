@@ -714,13 +714,13 @@ create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
 
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    diff_dst = to_format_any(diff_dst);
+    diff_dst = to_nxc_format(diff_dst);
     auto weight = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
     weight = to_format_any(weight);
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
-    diff_src = to_format_any(diff_src);
+    diff_src = to_nxc_format(diff_src);
 
     auto fwd_hints = dnnl::convolution_forward::primitive_desc(
             {dnnl::prop_kind::forward_training,
@@ -766,10 +766,10 @@ create_conv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    src = to_format_any(src);
+    src = to_nxc_format(src);
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
-    diff_dst = to_format_any(diff_dst);
+    diff_dst = to_nxc_format(diff_dst);
     auto diff_weight = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
     diff_weight = to_format_any(diff_weight);
