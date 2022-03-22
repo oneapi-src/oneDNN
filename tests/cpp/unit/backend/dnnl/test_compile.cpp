@@ -358,6 +358,89 @@ TEST(Compile, ConvolutionBackpropFilterFp32) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 }
 
+TEST(Execute, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
+    using dims = impl::dnnl_impl::dims;
+
+    test::vector<float> src {-32.0, 10.0, 16.0, -7.0, -1.0, -24.0, -18.0, 24.0,
+            12.0, -11.0, -5.0, -28.0, -22.0, 20.0, 26.0, 3.0};
+    test::vector<float> diff_dst {-32.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 32.0, -21.0, 16.0, 28.0, 0.0};
+    test::vector<float> ref_diff_wei {0.0, 1024.0, -320.0, 0.0, -512.0, 224.0,
+            384.0, -352.0, 0.0, -160.0, -896.0, 0.0, -352.0, 782.0, -420.0,
+            416.0, -498.0, -63.0, 0.0, -616.0, 560.0, 0.0, 728.0, 84.0};
+    test::vector<float> diff_wei(ref_diff_wei.size(), 0.0);
+
+    const dims src_dims {2, 4, 2};
+    const dims diff_dst_dims {2, 4, 2};
+    const dims diff_wei_dims {4, 2, 3};
+
+    const dims strides {1};
+    const dims pads_begin {1};
+    const dims pads_end {1};
+    const dims dilations {1};
+    const int64_t groups {2};
+    const std::string auto_pad {"None"};
+    const std::string data_format {"NCX"};
+    const std::string filter_format {"OIX"};
+
+    impl::op_t conv_op(impl::op_kind::ConvolutionBackpropFilters);
+    conv_op.set_attr("strides", strides)
+            .set_attr("pads_begin", pads_begin)
+            .set_attr("pads_end", pads_end)
+            .set_attr("dilations", dilations)
+            .set_attr("groups", groups)
+            .set_attr("auto_pad", auto_pad)
+            .set_attr("data_format", data_format)
+            .set_attr("filter_format", filter_format);
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
+    impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+            1, diff_dst_dims, impl::data_type::f32);
+    impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
+            2, diff_wei_dims, impl::data_type::f32, impl::layout_type::any);
+
+    conv_op.add_input(src_lt);
+    conv_op.add_input(diff_dst_lt);
+    conv_op.add_output(diff_wei_lt);
+
+    impl::engine_t &eng = get_engine();
+    impl::graph_t g(eng.kind());
+    g.add_op(&conv_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &diff_dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_wei_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_wei_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_wei_ts(diff_wei_lt, &eng, diff_wei.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_wei_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < diff_wei.size(); ++i) {
+        ASSERT_FLOAT_EQ(diff_wei[i], ref_diff_wei[i]);
+    }
+}
+
 TEST(Compile, ConvtransposeFp32) {
     using dims = impl::dnnl_impl::dims;
 
@@ -5257,6 +5340,89 @@ INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropFilters,
                                 2.0},
                         {1, 1, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1, 1}, "NXC",
                         "XIO"}));
+
+TEST(Execute, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
+    using dims = impl::dnnl_impl::dims;
+
+    test::vector<float> src {-32.0, 10.0, 16.0, -7.0, -1.0, -24.0, -18.0, 24.0,
+            12.0, -11.0, -5.0, -28.0, -22.0, 20.0, 26.0, 3.0};
+    test::vector<float> diff_dst {-32.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 32.0, -21.0, 16.0, 28.0, 0.0};
+    test::vector<float> ref_diff_wei {-320.0, 1024.0, 0.0, 0.0, -352.0, 384.0,
+            224.0, -512.0, 0.0, 0.0, -896.0, -160.0, -420.0, 782.0, -352.0,
+            560.0, -616.0, 0.0, -63.0, -498.0, 416.0, 84.0, 728.0, 0.0};
+    test::vector<float> diff_wei(ref_diff_wei.size(), 0.0);
+
+    const dims src_dims {2, 4, 2};
+    const dims diff_dst_dims {2, 4, 2};
+    const dims diff_wei_dims {2, 4, 3};
+
+    const dims strides {1};
+    const dims pads_begin {1};
+    const dims pads_end {1};
+    const dims dilations {1};
+    const int64_t groups {2};
+    const std::string auto_pad {"None"};
+    const std::string data_format {"NCX"};
+    const std::string filter_format {"OIX"};
+
+    impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropFilters);
+    deconv_op.set_attr("strides", strides)
+            .set_attr("pads_begin", pads_begin)
+            .set_attr("pads_end", pads_end)
+            .set_attr("dilations", dilations)
+            .set_attr("groups", groups)
+            .set_attr("auto_pad", auto_pad)
+            .set_attr("data_format", data_format)
+            .set_attr("filter_format", filter_format);
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
+    impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
+            1, diff_dst_dims, impl::data_type::f32);
+    impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
+            2, diff_wei_dims, impl::data_type::f32, impl::layout_type::any);
+
+    deconv_op.add_input(src_lt);
+    deconv_op.add_input(diff_dst_lt);
+    deconv_op.add_output(diff_wei_lt);
+
+    impl::engine_t &eng = get_engine();
+    impl::graph_t g(eng.kind());
+    g.add_op(&deconv_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("convtranspose_filter_bwd_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &diff_dst_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&diff_wei_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(diff_wei_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
+    impl::tensor_t diff_wei_ts(diff_wei_lt, &eng, diff_wei.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_wei_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < diff_wei.size(); ++i) {
+        ASSERT_FLOAT_EQ(diff_wei[i], ref_diff_wei[i]);
+    }
+}
 
 TEST(Execute, Convolution3DNcxOix) {
     using dims = std::vector<int64_t>;

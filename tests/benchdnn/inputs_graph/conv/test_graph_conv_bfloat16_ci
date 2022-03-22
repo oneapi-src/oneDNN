@@ -4,6 +4,13 @@
 --cfg=bf16bf16bf16
 mb50ic64ih56oc64oh56kh1ph0
 
+# BWD_W with groups
+--reset
+--dir=BWD_W
+g4oc16ic16_ow5iw5kw3pw1_n"1d_conv:grouped"
+g4oc16ic16_oh5ih5kh3ph1_n"2d_conv:grouped"
+g4oc16ic16_od5id5kd3pd1_n"3d_conv:grouped"
+
 # post bias
 --reset
 --cfg=bf16bf16bf16
