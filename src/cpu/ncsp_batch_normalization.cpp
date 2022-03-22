@@ -415,18 +415,18 @@ status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                     const acc_data_t *_diff_dst;
                     const acc_data_t *_src;
                     dim_t s_off = off * SP + n * C * SP;
-                    if (d_type == bf16) {
-                        // convert diff_dst from bf16 to f32
+                    if (utils::one_of(d_type, bf16, f16)) {
+                        // convert diff_dst to f32
                         acc_data_t *tmp_diff_dst
                                 = tmp_data_ + ithr * SP_cl_align;
-                        cvt_bfloat16_to_float(tmp_diff_dst + S_s,
-                                (bfloat16_t *)diff_dst + s_off + S_s, S_chunk);
+                        types::cvt_to_float(tmp_diff_dst + S_s,
+                                diff_dst + s_off + S_s, S_chunk);
                         _diff_dst = tmp_diff_dst;
-                        // convert src from bf16 to f32
+                        // convert src to f32
                         acc_data_t *tmp_src
                                 = tmp_data_ + (nthr + ithr) * SP_cl_align;
-                        cvt_bfloat16_to_float(tmp_src + S_s,
-                                (bfloat16_t *)src + s_off + S_s, S_chunk);
+                        types::cvt_to_float(
+                                tmp_src + S_s, src + s_off + S_s, S_chunk);
                         _src = tmp_src;
                     } else {
                         _diff_dst = reinterpret_cast<const acc_data_t *>(
@@ -485,21 +485,20 @@ status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                     const acc_data_t *_diff_dst;
                     const acc_data_t *_src;
                     dim_t s_off = off * SP + n * C * SP;
-                    if (d_type == bf16) {
+                    if (utils::one_of(d_type, bf16, f16)) {
                         // store diff_src to f32 buffer
                         _diff_src = tmp_data_ + ithr * SP_cl_align;
-                        // convert diff_dst from bf16 to f32
                         acc_data_t *tmp_diff_dst
                                 = tmp_data_ + ithr * SP_cl_align;
-                        cvt_bfloat16_to_float(tmp_diff_dst + S_s,
-                                (bfloat16_t *)diff_dst + s_off + S_s, S_chunk);
+                        types::cvt_to_float(tmp_diff_dst + S_s,
+                                diff_dst + s_off + S_s, S_chunk);
                         _diff_dst = tmp_diff_dst;
                         if (calculate_diff_stats) {
-                            // convert src from bf16 to f32
+                            // convert src to f32
                             acc_data_t *tmp_src = tmp_data_
                                     + (2 * nthr + ithr) * SP_cl_align;
-                            cvt_bfloat16_to_float(tmp_src + S_s,
-                                    (bfloat16_t *)src + s_off + S_s, S_chunk);
+                            types::cvt_to_float(
+                                    tmp_src + S_s, src + s_off + S_s, S_chunk);
                             _src = tmp_src;
                         } else
                             _src = nullptr; // to avoid compiler warning w/
@@ -530,10 +529,9 @@ status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                         v_diff_src *= gamma * sqrt_variance;
                         _diff_src[sp] = v_diff_src;
                     }
-                    if (d_type == bf16) {
-                        // convert diff_src from f32 to bf16
-                        cvt_float_to_bfloat16(
-                                (bfloat16_t *)diff_src + s_off + S_s,
+                    if (utils::one_of(d_type, bf16, f16)) {
+                        // convert diff_src from f32
+                        types::cvt_from_float(diff_src + s_off + S_s,
                                 _diff_src + S_s, S_chunk);
                     }
                 }
@@ -545,6 +543,7 @@ status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
 
 template struct ncsp_batch_normalization_bwd_t<f32>;
 template struct ncsp_batch_normalization_bwd_t<bf16>;
+template struct ncsp_batch_normalization_bwd_t<f16>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

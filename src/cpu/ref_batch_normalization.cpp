@@ -320,6 +320,7 @@ status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(
 
 template struct ref_batch_normalization_bwd_t<f32>;
 template struct ref_batch_normalization_bwd_t<bf16>;
+template struct ref_batch_normalization_bwd_t<f16>;
 
 } // namespace cpu
 } // namespace impl

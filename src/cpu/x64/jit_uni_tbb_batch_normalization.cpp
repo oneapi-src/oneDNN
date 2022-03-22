@@ -1305,10 +1305,12 @@ struct jit_bnorm_bwd_t : public jit_generator {
 
     void generate() override {
         bool is_bf16 = bdesc_->desc()->data_desc.data_type == data_type::bf16;
+        bool is_f16 = bdesc_->desc()->data_desc.data_type == data_type::f16;
         const bool is_tail_in_nspc_format
                 = tag_kind_ == jit_memory_tag_kind_t::nspc
                 && jit_tail_.tail_ != 0;
-        const bool stream_store_allowed = !is_bf16 && !is_tail_in_nspc_format;
+        const bool stream_store_allowed
+                = !is_bf16 && !is_f16 && !is_tail_in_nspc_format;
 
         preamble();
         if (helper_vmovups_.bf16_emu_)
@@ -2387,9 +2389,16 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
                     everyone_is(
                             f32, src_md()->data_type, diff_src_md()->data_type),
                     everyone_is(bf16, src_md()->data_type,
-                            diff_src_md()->data_type))
+                            diff_src_md()->data_type),
+                    everyone_is(
+                            f16, src_md()->data_type, diff_src_md()->data_type))
             && IMPLICATION(src_md()->data_type == bf16,
                     is_superset(isa, avx512_core) && mayiuse(avx512_core))
+            // Note: re-using avx512_core implementation for f16. This is okay
+            // as currently, we do not support binary post-ops for this
+            // primitive.
+            && IMPLICATION(src_md()->data_type == f16,
+                    is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
             && check_scale_shift_data_type() && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 

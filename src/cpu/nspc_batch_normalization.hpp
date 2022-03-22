@@ -160,13 +160,12 @@ struct nspc_batch_normalization_bwd_t : public primitive_t {
                     key_bnorm_reduction, 2 * C() * nthr_);
             scratchpad.template book<acc_data_t>(
                     key_bnorm_tmp_diff_ss, 2 * C() * (nthr_ + 1));
-            if (d_type == bf16) {
+            if (utils::one_of(d_type, bf16, f16)) {
                 const int simd_w = 16;
                 const int nbufs = 2 + !use_global_stats();
-                const size_t bf16cvt_buf_sz
+                const size_t cvt_buf_sz
                         = nbufs * nthr_ * utils::rnd_up(C(), simd_w);
-                scratchpad.template book<acc_data_t>(
-                        key_bnorm_cvt, bf16cvt_buf_sz);
+                scratchpad.template book<acc_data_t>(key_bnorm_cvt, cvt_buf_sz);
             }
         }
     };

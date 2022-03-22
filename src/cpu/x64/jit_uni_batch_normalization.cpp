@@ -351,7 +351,7 @@ struct jit_bnorm_t : public jit_generator {
     };
 
     bool is_xf16() { return is_bf16_ || is_f16_; }
-    int bit_shift() { return 5 - is_bf16_; }
+    int bit_shift() { return 5 - is_xf16(); }
 
     bool stream_store_supported() {
         // keep original behavior for f32
@@ -1531,10 +1531,10 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_coff_max, reg_coff_max_bwd_copy);
         mov(reg_diff_scale, ptr[rsp + stack_off_diff_scale]);
 
-        if (is_bf16_) shr(reg_coff_max, 1);
+        if (is_xf16()) shr(reg_coff_max, 1);
         sub(reg_src, reg_coff_max);
         sub(reg_diff_dst, reg_coff_max);
-        if (is_bf16_) shl(reg_coff_max, 1);
+        if (is_xf16()) shl(reg_coff_max, 1);
 
         if (with_relu) {
             shr(reg_coff_max, 5);
@@ -1770,11 +1770,11 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_coff_max, reg_coff_max_bwd_copy);
         mov(reg_diff_scale, ptr[rsp + stack_off_diff_scale]);
 
-        if (is_bf16_) shr(reg_coff_max, 1);
+        if (is_xf16()) shr(reg_coff_max, 1);
         sub(reg_diff_dst, reg_coff_max);
         if (!bdesc_->use_global_stats()) sub(reg_src, reg_coff_max);
         sub(reg_diff_src, reg_coff_max);
-        if (is_bf16_) shl(reg_coff_max, 1);
+        if (is_xf16()) shl(reg_coff_max, 1);
 
         shr(reg_coff_max, 5);
         sub(reg_ws, reg_coff_max);
@@ -2340,8 +2340,15 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
                     everyone_is(
                             f32, src_md()->data_type, diff_src_md()->data_type),
                     everyone_is(bf16, src_md()->data_type,
-                            diff_src_md()->data_type))
+                            diff_src_md()->data_type),
+                    everyone_is(
+                            f16, src_md()->data_type, diff_src_md()->data_type))
             && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
+            // Note: re-using avx512_core implementation for f16. This is okay
+            // as currently, we do not support binary post-ops for this
+            // primitive.
+            && IMPLICATION(src_md()->data_type == f16,
+                    is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
             && check_scale_shift_data_type() && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 
