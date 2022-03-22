@@ -1071,3 +1071,7 @@ const char *engine_kind2str(dnnl_engine_kind_t kind) {
 const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode) {
     return dnnl_scratchpad_mode2str(mode);
 }
+
+const char *fpmath_mode2str(dnnl_fpmath_mode_t mode) {
+    return dnnl_fpmath_mode2str(mode);
+}

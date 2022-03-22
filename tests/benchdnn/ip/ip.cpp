@@ -174,7 +174,7 @@ bool need_dst_init(const prb_t *prb) {
 
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const auto &c = prb->cfg[SRC];
+    const auto &c = prb->get_dt_conf(SRC);
     const int range = c.f_max - c.f_min + 1;
 
     benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
@@ -198,7 +198,7 @@ int fill_wei(
     const bool s8_s8
             = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
 
-    const auto &c = prb->cfg[WEI];
+    const auto &c = prb->get_dt_conf(WEI);
     const int range = c.f_max - c.f_min + 1;
 
     benchdnn_parallel_nd(prb->oc, prb->ic, prb->id, prb->ih, prb->iw,
@@ -233,7 +233,7 @@ int fill_bia(
     const size_t nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
-    const auto &c = prb->cfg[BIA];
+    const auto &c = prb->get_dt_conf(BIA);
     const int range = c.f_max - c.f_min + 1;
 
     for (size_t i = 0; i < nelems; ++i) {
@@ -249,7 +249,7 @@ int fill_bia(
 
 int fill_dst(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const auto &c = prb->cfg[DST];
+    const auto &c = prb->get_dt_conf(DST);
     const int range = c.f_max - c.f_min + 1;
 
     benchdnn_parallel_nd(prb->mb, prb->oc, [&](int64_t mb, int64_t oc) {
