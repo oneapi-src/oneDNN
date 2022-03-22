@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,8 @@ status_t cross_engine_reorder_t::pd_t::init(
 
     memory_desc_wrapper src_mdw(src_md());
     memory_desc_wrapper dst_mdw(dst_md());
+
+    if (src_mdw.has_runtime_dims_or_strides()) return status::unimplemented;
 
     bool with_sum_ab = alpha() != 1.0 || beta() != 0.0;
     do_reorder_ = with_sum_ab || src_mdw != dst_mdw;
