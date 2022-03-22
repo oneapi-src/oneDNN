@@ -614,6 +614,167 @@ stmt_t simplify_pass(const stmt_t &s, const constraint_set_t &cset) {
     return ret;
 }
 
+class slm_reorder_injector_t : public ir_mutator_t {
+public:
+    slm_reorder_injector_t(const stmt_t &root, const conv_config_t &cfg,
+            const grid_info_t &tg_grid)
+        : cfg_(cfg), tg_grid_(tg_grid) {
+        alloc_manager_t alloc_mgr(root);
+        auto slm_buffers = alloc_mgr.find_buffers(alloc_kind_t::slm);
+        ir_assert(slm_buffers.size() == 1);
+        slm_base_ = slm_buffers[0];
+        slm_size_ = alloc_mgr.total_size(alloc_kind_t::slm);
+    }
+
+    const expr_t &slm_base() const { return slm_base_; }
+
+    int slm_size() const { return slm_size_; }
+
+    object_t _mutate(const func_call_t &obj) override {
+        if (!is_func_call<reorder_t>(obj)) return obj;
+
+        auto &call = obj.as<func_call_t>();
+
+        auto stmt = create_slm_reorder(call.func.as<reorder_t>(),
+                reorder_t::arg_src_buf(call), reorder_t::arg_dst_buf(call));
+        if (stmt.is_empty()) return obj;
+        return stmt;
+    }
+
+private:
+    stmt_t create_slm_reorder(const reorder_t &reorder, const expr_t &src_buf,
+            const expr_t &dst_buf) {
+        auto src = reorder.src_layout;
+        auto dst = reorder.dst_layout;
+        if (!src.is_dense() || !dst.is_dense()) return stmt_t();
+
+        layout_t::try_reinterpret_to_wider_type(src, dst);
+        if (src.type() != dst.type()) return stmt_t();
+        if (src.type().size() != 4) return stmt_t();
+
+        layout_iterator_t src_it(src);
+        layout_iterator_t dst_it(dst);
+
+        tensor_t max_tile;
+        for (;;) {
+            auto src_tile = src_it.tile();
+            auto dst_tile = dst_it.tile();
+            if (src_tile.is_equal(dst_tile)) {
+                auto s = src.map(src_it.tile());
+                auto d = dst.map(dst_it.tile());
+                if (s.is_dense() && d.is_dense()
+                        && src_it.outer_layout() == dst_it.outer_layout()) {
+                    if (is_slm_reorder_ok(s, d)) { max_tile = src_tile; }
+                }
+                if (!src_it.has_next() || !dst_it.has_next()) break;
+                ++src_it;
+                ++dst_it;
+            } else {
+                if (src_tile.elems() <= dst_tile.elems()) {
+                    if (!src_it.has_next()) break;
+                    ++src_it;
+                } else {
+                    if (!dst_it.has_next()) break;
+                    ++dst_it;
+                }
+            }
+        }
+
+        if (max_tile.is_empty()) return stmt_t();
+
+        return create_slm_reorder(max_tile, src, dst, src_buf, dst_buf);
+    }
+
+    stmt_t create_slm_reorder(const tensor_t &tile, const layout_t &src,
+            const layout_t &dst, const expr_t &src_buf, const expr_t &dst_buf) {
+        auto src_tile = src.map(tile);
+        auto &src_tile_blocks = src_tile.blocks();
+        int simd = src_tile_blocks[0].block;
+        int vect_size = src_tile_blocks[1].block;
+        int tile_size = simd * vect_size * src.type().size();
+        int slm_thr_size = (int)src.size();
+        int dword_size = type_t::dword().size();
+        int hword_size = type_t::hword().size();
+        int hwords = tile_size / hword_size;
+
+        ir_assert(tile_size % hword_size == 0);
+
+        slm_size_ = std::max(slm_size_, slm_thr_size * tg_grid_.elems());
+
+        auto store_send = send_t::make(cfg_.hw(), send_op_t::store,
+                send_address_t::slm, type_t::dword(vect_size), simd);
+        auto load_send = send_t::make(cfg_.hw(), send_op_t::load,
+                send_address_t::slm, type_t::hword(hwords), 1);
+
+        std::vector<expr_t> vec(simd);
+        for (int i = 0; i < simd; i++)
+            vec[i] = expr_t(i * vect_size * dword_size);
+        auto vec_off = shuffle_t::make(vec);
+        auto tid = tg_grid_.idx(1) * tg_grid_.dim(0) + tg_grid_.idx(0);
+        expr_t off0 = tid * slm_thr_size;
+
+        stmt_t store_stmt;
+        stmt_t load_stmt;
+        src.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
+            expr_t off = (int)src.offset_in_bytes(start);
+            auto store = store_send.call({slm_base_,
+                    shuffle_t::make_broadcast(off0 + off, simd) + vec_off,
+                    src_buf + off, expr_t()});
+            auto load = load_send.call(
+                    {slm_base_, off0 + off, dst_buf + off, expr_t()});
+            store_stmt = store_stmt.append(store);
+            load_stmt = load_stmt.append(load);
+        });
+
+        auto ret = store_stmt.append(load_stmt);
+        return ret;
+    }
+
+    bool is_slm_reorder_ok(const layout_t &src, const layout_t &dst) const {
+        auto &src_blocks = src.blocks();
+        auto &dst_blocks = dst.blocks();
+        if (src_blocks.size() != 2 || dst_blocks.size() != 2) return false;
+        auto &s0 = src_blocks[0];
+        auto &s1 = src_blocks[1];
+        auto &d0 = dst_blocks[0];
+        auto &d1 = dst_blocks[1];
+
+        if (s0.dim_idx != d1.dim_idx || s1.dim_idx != d0.dim_idx) return false;
+        ir_assert(s0.block == d1.block);
+        ir_assert(s1.block == d0.block);
+
+        int simd = s0.block;
+        int vec_size = s1.block;
+        if (!utils::one_of(simd, 16)) return false;
+        if (!utils::one_of(vec_size, 8)) return false;
+
+        return true;
+    }
+
+    const conv_config_t &cfg_;
+    grid_info_t tg_grid_;
+
+    expr_t slm_base_;
+    int slm_size_ = 0;
+};
+
+// Replaces some heavy GRF reorders by reorder through SLM (store and load).
+stmt_t inject_slm_reorder(
+        const stmt_t &s, const conv_config_t &cfg, const grid_info_t &tg_grid) {
+    if (cfg.use_a_slm || cfg.use_b_slm) return s;
+    slm_reorder_injector_t injector(s, cfg, tg_grid);
+    stmt_t ret = injector.mutate(s);
+
+    auto &slm_buf = injector.slm_base();
+    int slm_size = injector.slm_size();
+    alloc_updater_t alloc_updater;
+    alloc_updater.resize(slm_buf, slm_size);
+    ret = alloc_updater.update(ret);
+
+    trace_pass("inject_slm_reorder", ret);
+    return ret;
+}
+
 class send_injector_t : public ir_mutator_t {
 public:
     send_injector_t(ir_context_t &ir_ctx, const constraint_set_t &cset)
@@ -3827,6 +3988,8 @@ protected:
         if (cast) {
             if (e.type().is_u64() && cast->expr.type().is_ptr()) {
                 return is_low ? 0 : std::numeric_limits<uint32_t>::max();
+            } else if (e.type().is_u32() && cast->expr.type().is_ptr()) {
+                return is_low ? 0 : std::numeric_limits<uint16_t>::max();
             }
         }
         return bound_finder_base_t::find_bound_impl(e, is_low);
@@ -3844,7 +4007,13 @@ public:
 
     object_t _mutate(const cast_t &obj) override {
         if (obj.is_bool_vec_u16()) return obj;
-        return ir_mutator_t::_mutate(obj);
+        auto type = obj.type;
+        auto expr = mutate(obj.expr);
+        if (!type.is_scalar()) {
+            ir_assert(type.elems() == elems_) << expr;
+            type = type.scalar();
+        }
+        return cast_t::make(type, expr, obj.saturate);
     }
 
     object_t _mutate(const var_t &obj) override {
@@ -7202,6 +7371,7 @@ void kernel_builder_t::build() {
         stmt_ = simplify_pass(stmt_, init_cset);
         stmt_ = inject_prefetch_pipeline(stmt_, cfg_, ir_ctx);
     }
+    stmt_ = inject_slm_reorder(stmt_, cfg_, tg_grid_);
     stmt_ = lift_buffer_offsets_in_send(stmt_);
     stmt_ = simplify_pass(stmt_, init_cset);
     stmt_ = inject_send(stmt_, ir_ctx, init_cset);
