@@ -164,12 +164,17 @@ in the argument with index set to
 
 1. Check @ref dev_guide_data_types.
 
-2. The CPU engine does not support `u8` data type for `weights`.
-
-3. The CPU engine does not support `u8` or `s8` data type for `dst` with `f16` `src` and `weights`. 
-
-4. GPU implementation is limited to 6D and plain memory formats.
-
+2. **GPU**
+   - Supports up to 6 dimensions.
+   - Source zero point mask of `0` is only supported.
+   - Sum post-op doesn't support data type other than destination data type.
+   - Bias of bf16 data type is supported for configuration with bf16 source data
+     type and weights bf16 data type, and up to three dimensional matrices.
+   - Configuration with int8 source data type, s8 weight data type and bf16
+     destination data type don't support:
+     * Destination zero point.
+     * Runtime dimensions.
+     * Three and higher dimensional matrices.
 
 ## Performance Tips
 

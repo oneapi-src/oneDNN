@@ -235,6 +235,8 @@ directly.
 2. For the data types that have forward propagation support only, mean and
    variance must be provided by a user (i.e., #dnnl_use_global_stats is set).
 
+3. **GPU**
+   - ReLU eltwise post-op doesn't support non-zero \alpha parameter.
 
 ## Performance Tips
 

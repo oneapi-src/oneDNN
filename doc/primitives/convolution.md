@@ -211,13 +211,14 @@ primitive by applying the output scale to the result of the primitive and by
 chaining certain operations after the primitive. The following attributes and
 post-ops are supported:
 
-| Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions                        |
-| :--         | :--       | :--                                                          | :--                                                                           | :--                                 |
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only              |
-| forward     | attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)    | Sets zero point(s) for the corresponding tensors                              | int8 convolutions only              |
-| forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
-| forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                     |
-| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
+| Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions                                                           |
+| :--         | :--       | :--                                                          | :--                                                                           | :--                                                                    |
+| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only                                                 |
+| forward     | attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)    | Sets zero point(s) for the corresponding tensors                              | int8 convolutions only                                                 |
+| forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                                                                        |
+| forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                                                        |
+| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions                                    |
+| forward     | post-op   | [Depthwise](@ref dnnl::post_ops::append_dw_k3s1p1)           | Applies a @ref dnnl_api_convolution operation to the result                   | See [a separate section](@ref dev_guide_attributes_post_ops_depthwise) |
 
 To facilitate dynamic quantization, the primitive supports run-time output
 scales. That means a user could configure attributes with output scales set to
@@ -384,6 +385,7 @@ platforms for the following conditions:
 In case any of these constraints are not met, the implementation will silently
 fall back to an explicit GEMM algorithm.
 
+@anchor dg_winograd_conv
 ### Winograd Convolution
 
 oneDNN supports the Winograd convolution algorithm on systems with
@@ -400,9 +402,6 @@ under the following conditions:
   (\f$KH = KW = 3\f$, \f$SH = SW = 1\f$, and \f$DH = DW = 0\f$).
 
 - The data type is either int8 or f32.
-
-In case any of these constraints is not met, the implementation will silently
-fall back to the direct algorithm.
 
 The Winograd convolution algorithm implementation additionally chooses tile
 size based on the problem shape and
@@ -454,13 +453,16 @@ the convolution.)
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
-2. **CPU**
-   - Winograd are implemented only for processors with Intel AVX-512 and
-     Intel DL Boost instruction sets
+2. Check [Winograd Convolution](@ref dg_winograd_conv) section above for its
+   limitations including hardware support.
+
+3. **CPU**
    - Run-time output scales are not supported
    - Integer \dst is not supported for floating point \src and \weights
-   - f16 \dst is not supported for integer \src and \weights
-   - backward convolution with bias is not supported
+   - Backward by data convolution with bias is not supported
+
+4. **GPU**
+   - Depthwise post-op is not supported
 
 ## Performance Tips
 

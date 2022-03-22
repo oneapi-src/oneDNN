@@ -115,8 +115,16 @@ floating point data type.
 
 ## Implementation Limitations
 
-1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
-   limitations related to data types support.
+1. Refer to @ref dev_guide_data_types for limitations related to data types
+   support.
+
+2. **CPU**
+   - Reorders between bf16 and s32 data types are not supported.
+
+3. **GPU**
+   - Runtime dimensions are not supported.
+   - Runtime output scales are not supported.
+   - Zero points are not supported.
 
 ## Performance Tips
 
