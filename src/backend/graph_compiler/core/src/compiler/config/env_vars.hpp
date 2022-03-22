@@ -50,6 +50,7 @@ enum key {
     SC_PRINT_PASS_TIME,
     SC_PRINT_PASS_RESULT,
     SC_JIT_PROFILE,
+    SC_DUMP_GRAPH_JSON,
     NUM_KEYS
 };
 } // namespace env_key

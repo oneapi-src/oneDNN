@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <fstream>
 #include <tuple>
 #include <utility>
 #include "driver.hpp"
@@ -154,6 +155,33 @@ static void run_passes(sc_graph_t &graph, const context_ptr &ctx,
     }
 }
 
+void dump_graph_to_json(const sc_graph_t &graph) {
+    static std::atomic<int> file_counter = {0};
+    static std::string export_path
+            = utils::getenv_string(env_names[env_key::SC_DUMP_GRAPH_JSON]);
+
+    if (!export_path.empty()) {
+        // construct a file name through file_counter
+        bool file_exist = true;
+        std::string filename;
+        while (file_exist) {
+            std::ifstream infile;
+            std::stringstream ss;
+            ss << export_path << '/' << ++file_counter << ".json";
+            filename = ss.str();
+            infile.open(filename);
+            file_exist = infile.good();
+        }
+        // save graph
+        std::ofstream outfile(filename);
+        if (!outfile.good()) {
+            SC_MODULE_WARN << "Could not write to " << export_path
+                           << ", the directory may not exist" << std::endl;
+        }
+        save_graph_to_json(graph, outfile);
+    }
+}
+
 void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         const graph_config *in_cfg, graph_config *out_cfg, int batch_size,
         int repeat, int64_t timeout, tuner_creator *tune_creator,
@@ -168,6 +196,7 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
     // run pre_processing passes
     run_passes(graph, ctx, *prepass);
 
+    dump_graph_to_json(graph);
     // run post tune passes
     run_passes(graph, ctx, *postpass);
 }
