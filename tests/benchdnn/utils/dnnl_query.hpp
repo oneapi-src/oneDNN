@@ -18,13 +18,14 @@
 #define UTILS_DNNL_QUERY_HPP
 
 #include <cstdint>
+#include <string>
 
 #include "oneapi/dnnl/dnnl.h"
 
 dnnl_prop_kind_t query_prop_kind(const_dnnl_primitive_desc_t pd);
 dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd);
 
-const char *query_impl_info(const_dnnl_primitive_desc_t pd);
+std::string query_impl_info(const_dnnl_primitive_desc_t pd);
 
 // General interface of quering memory desc.
 const dnnl_memory_desc_t &query_md(
