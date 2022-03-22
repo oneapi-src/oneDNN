@@ -35,7 +35,7 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("ref_int8:any", ref_convolution_int8_fwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_convolution_int8_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -117,7 +117,7 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
-        DECLARE_COMMON_PD_T("ref_int8:any", ref_convolution_int8_bwd_data_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_convolution_int8_bwd_data_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;

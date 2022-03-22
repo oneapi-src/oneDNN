@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
                 const layer_normalization_fwd_pd_t *hint_fwd_pd)
             : cpu_layer_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_fwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_layer_normalization_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -77,7 +77,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
                 const layer_normalization_fwd_pd_t *hint_fwd_pd)
             : cpu_layer_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_bwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_layer_normalization_bwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ struct ref_matmul_int8_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
-        DECLARE_COMMON_PD_T("ref_int8:any", ref_matmul_int8_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_matmul_int8_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;

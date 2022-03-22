@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ struct ref_lrn_fwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_fwd_pd_t {
         using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("lrn_ref:any", ref_lrn_fwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_lrn_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace format_tag;
@@ -83,7 +83,7 @@ struct ref_lrn_bwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_bwd_pd_t {
         using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T("lrn_ref:any", ref_lrn_bwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_lrn_bwd_t);
 
         status_t init(engine_t *engine) {
             using namespace format_tag;
