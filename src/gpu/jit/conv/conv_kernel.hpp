@@ -2763,75 +2763,6 @@ public:
     static const int max_tile_blocks = 4;
 
 private:
-    // Helper class to incrementally increase a sub-layout of the given layout.
-    // One step - adding the minimal factor of the next remaining block. Used
-    // to find the minimal tile between two layouts that is innermost for both
-    // layouts.
-    struct layout_iterator_t {
-        layout_iterator_t(const layout_t &l) : l(l), block_idx(-1), block(1) {}
-
-        bool has_next() const {
-            dim_t b = block;
-            int b_idx = block_idx;
-            while (b == 1) {
-                b_idx++;
-                if (b_idx >= int(l.blocks().size())) return false;
-                b = int(l.blocks()[b_idx].block);
-            }
-            return true;
-        }
-
-        layout_iterator_t &operator++() {
-            ir_assert(has_next());
-            while (block == 1) {
-                block_idx++;
-                block = int(l.blocks()[block_idx].block);
-            }
-            // Find smallest factor.
-            for (int factor = 2; factor <= int(block); factor++) {
-                if (block % factor == 0) {
-                    block /= factor;
-                    return *this;
-                }
-            }
-
-            ir_error_not_expected();
-            return *this;
-        }
-
-        tensor_t tile() const {
-            std::vector<dim_t> dims(l.ndims(), 1);
-            for (int i = 0; i <= block_idx; i++) {
-                auto &b = l.blocks()[i];
-                int b_block = b.block;
-                if (i == block_idx) b_block /= block;
-                dims[b.dim_idx] *= b_block;
-            }
-            return tensor_t(dims);
-        }
-
-        int nblocks() const { return block_idx + 1; }
-
-        layout_t outer_layout() const {
-            auto &blocks = l.blocks();
-            std::vector<block_t> outer_blocks;
-            if (block > 1) {
-                auto &b = blocks[block_idx];
-                outer_blocks.push_back(b);
-                outer_blocks[0].block = block;
-                outer_blocks[0].stride = b.stride * (b.block / block);
-            }
-            outer_blocks.insert(outer_blocks.end(),
-                    blocks.begin() + block_idx + 1, blocks.end());
-            return layout_t(l.type(), l.ndims(), l.offset(), outer_blocks);
-        }
-
-        const layout_t &l;
-
-        int block_idx;
-        dim_t block;
-    };
-
     // Represents 2D reorder corresponding to (a x b) tile.
     struct edge_t {
         edge_t() = default;
@@ -2868,7 +2799,7 @@ private:
                 auto &e = edges[i];
                 auto tile = e.tile();
                 int max_type_size;
-                bool ok = try_reinterpret_to_wider_type(
+                bool ok = layout_t::try_reinterpret_to_wider_type(
                         layout, layout, tile, false, &max_type_size);
                 if (!ok) max_type_size = type_size;
                 int from = math::ilog2q(type_size);
@@ -3848,7 +3779,7 @@ public:
         : hw_(hw)
         , src_layout_(reorder.src_layout)
         , dst_layout_(reorder.dst_layout) {
-        try_reinterpret_to_wider_type(src_layout_, dst_layout_);
+        layout_t::try_reinterpret_to_wider_type(src_layout_, dst_layout_);
 
         // Pure bf moves are not supported.
         if (utils::everyone_is(
