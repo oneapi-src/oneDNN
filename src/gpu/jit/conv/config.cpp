@@ -381,6 +381,14 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
         }
     }
 
+    // Avoid 2D spatial blocking when possible (when 1D blocking can be
+    // enough). Extra oh/od loops may result in assembly bloat due to pipeline
+    // unroll.
+    if (mb >= 32 && ow >= 16) {
+        bh->set_max_thr_dim("oh", 1);
+        bh->set_max_thr_dim("od", 1);
+    }
+
     bh->set_max_iter_dim("oh", 1);
 
     bh->allow_split({"oc", "ic", "mb", "ow"});

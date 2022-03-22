@@ -529,7 +529,7 @@ void block_helper_t::init_k_blocking() {
         for (char bmnk : {'B', 'M', 'N', 'K'})
             est_threads *= bmnk_dim(bmnk).grid_dim();
         int def_k_thr_dim = utils::div_up(est_threads, 2 * hw_cfg_.eu_count());
-        def_k_thr_dim = std::min(50, def_k_thr_dim);
+        def_k_thr_dim = std::min(100, def_k_thr_dim);
         def_k_thr_dim = std::max(1, def_k_thr_dim);
         int k_thr_dim = def_k_thr_dim;
 #ifdef GEN_CONV_DEBUG

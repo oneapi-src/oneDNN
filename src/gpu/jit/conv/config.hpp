@@ -957,7 +957,7 @@ private:
                         n_tg_blk * k_blk, b_data_type_size);
 
         use_prefetch = (can_split_a && can_split_b);
-        prefetch_bufs = (is_bwd_w || is_f32_conv()) ? 2 : 3;
+        prefetch_bufs = is_f32_conv() ? 2 : 3;
 #ifdef GEN_CONV_DEBUG
         use_prefetch = getenv_bool("use_prefetch", use_prefetch);
         prefetch_bufs = getenv_int("prefetch_bufs", prefetch_bufs);
