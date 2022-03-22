@@ -257,13 +257,14 @@ static sc_data_format_t infer_broadcast_format(
             - target_lt_format_code.norig_dims();
     int target_batch_dim = target_lt.get_plain_dims().size()
             - target_lt_format_code.norig_dims();
-    for (int i = target_lt_format_code.norig_dims();
-            i < target_lt_format_code.ndims(); ++i) {
-        int blocking_axis = target_lt_format_code.get(i);
-        if (bc_plain_dim[target_batch_dim + blocking_axis] == 1
-                && target_plain_dim[target_batch_dim + blocking_axis] != 1) {
+    for (int i = 0; i < target_lt_format_code.norig_dims(); ++i) {
+        if (bc_plain_dim[target_batch_dim + i] == 1
+                && target_plain_dim[target_batch_dim + i] != 1) {
             // if bc_plain_dim is 1 and this axis is with broadcast semantics
-            blocks[i - target_lt_format_code.norig_dims()] = 1;
+            auto axes = target_lt_format_code.collect_blocking_index(i);
+            for (auto axis : axes) {
+                blocks[axis] = 1;
+            }
         }
     }
     // start infer the format code
