@@ -283,6 +283,11 @@ inline dnnl::graph::engine &get_test_engine() {
     return instance;
 }
 
+void compiled_partition_executor(dnnl::graph::compiled_partition &cp,
+        dnnl::graph::stream &stream,
+        const std::vector<dnnl::graph::tensor> &inputs,
+        const std::vector<dnnl::graph::tensor> &outputs);
+
 int measure_cmpl(timer::timer_t &t, const dnnl::graph::engine &engine,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &inputs,

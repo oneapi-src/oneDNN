@@ -154,42 +154,45 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph_fwd(
     build_tensor_desc_fwd(spec);
 
     if (spec.mha_pattern == "v1") {
-        addDequanOp(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QSRC));
-        addDequanOp(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KSRC));
-        addDequanOp(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VSRC));
-        addStaticReshapeOp(spec, STRINGIFY(QSRC), STRINGIFY(QTSRC), qkv_shape);
-        addStaticReshapeOp(spec, STRINGIFY(KSRC), STRINGIFY(KTSRC), qkv_shape);
-        addStaticReshapeOp(spec, STRINGIFY(VSRC), STRINGIFY(VTSRC), qkv_shape);
-        addStaticTransposeOp(
+        add_dequan_op(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QSRC));
+        add_dequan_op(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KSRC));
+        add_dequan_op(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VSRC));
+        add_staticreshape_op(
+                spec, STRINGIFY(QSRC), STRINGIFY(QTSRC), qkv_shape);
+        add_staticreshape_op(
+                spec, STRINGIFY(KSRC), STRINGIFY(KTSRC), qkv_shape);
+        add_staticreshape_op(
+                spec, STRINGIFY(VSRC), STRINGIFY(VTSRC), qkv_shape);
+        add_statictranspose_op(
                 spec, STRINGIFY(QTSRC), STRINGIFY(QDST), qkv_transpose_axis);
-        addStaticTransposeOp(
+        add_statictranspose_op(
                 spec, STRINGIFY(KTSRC), STRINGIFY(KT2SRC), qkv_transpose_axis);
-        addStaticTransposeOp(
+        add_statictranspose_op(
                 spec, STRINGIFY(KT2SRC), STRINGIFY(KDST), k2_transpose_axis);
-        addStaticTransposeOp(
+        add_statictranspose_op(
                 spec, STRINGIFY(VTSRC), STRINGIFY(VDST), qkv_transpose_axis);
     } else if (spec.mha_pattern == "v2") {
-        addDequanOp(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QDST));
-        addDequanOp(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KDST));
-        addDequanOp(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VDST));
+        add_dequan_op(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QDST));
+        add_dequan_op(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KDST));
+        add_dequan_op(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VDST));
         //v3 pattern only s8/u8 so output will be from dequan op
     } else if (spec.mha_pattern == "v3") {
-        addDequanOp(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QSRC));
-        addDequanOp(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KSRC));
-        addDequanOp(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VSRC));
-        addTypecastOp(STRINGIFY(QSRC), STRINGIFY(QDST));
-        addTypecastOp(STRINGIFY(KSRC), STRINGIFY(KDST));
-        addTypecastOp(STRINGIFY(VSRC), STRINGIFY(VDST));
+        add_dequan_op(spec, STRINGIFY(QINT8_SRC), STRINGIFY(QSRC));
+        add_dequan_op(spec, STRINGIFY(KINT8_SRC), STRINGIFY(KSRC));
+        add_dequan_op(spec, STRINGIFY(VINT8_SRC), STRINGIFY(VSRC));
+        add_typecast_op(STRINGIFY(QSRC), STRINGIFY(QDST));
+        add_typecast_op(STRINGIFY(KSRC), STRINGIFY(KDST));
+        add_typecast_op(STRINGIFY(VSRC), STRINGIFY(VDST));
     }
 
     //matmul Q.KT
-    addMatmulOp(false, spec.is_fwd_training, STRINGIFY(QDST), STRINGIFY(KDST),
+    add_matmul_op(false, spec.is_fwd_training, STRINGIFY(QDST), STRINGIFY(KDST),
             STRINGIFY(QKMATMULDST));
     //score
-    addArithOp(true, op::kind::Divide, true, STRINGIFY(QKMATMULDST),
+    add_arith_op(true, op::kind::Divide, true, STRINGIFY(QKMATMULDST),
             STRINGIFY(QKDIVSCALE), STRINGIFY(QKDIVDST));
     //add
-    addArithOp(true, op::kind::Add, true, STRINGIFY(QKDIVDST),
+    add_arith_op(true, op::kind::Add, true, STRINGIFY(QKDIVDST),
             STRINGIFY(QKATTN), STRINGIFY(QKADD));
     //softmax
     new_op_id = ops_.size();
@@ -197,46 +200,49 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph_fwd(
             op(new_op_id, op::kind::SoftMax, {tensor_descs_[STRINGIFY(QKADD)]},
                     {tensor_descs_[STRINGIFY(QKSOFTMAX)]}, "SCORE_softmax"));
     ops_[new_op_id].set_attr("axis", static_cast<int64_t>(3));
+    if (spec.is_fwd_training) add_end_op(STRINGIFY(QKSOFTMAX));
     //For INT8 quantize and dequantize the softmax output.
     //For int8-bf16 there are typecast before and after quantize ops
     std::string quan_tensor = STRINGIFY(QKSOFTMAX);
     if (spec.mha_pattern == "v3") {
-        addTypecastOp(STRINGIFY(QKSOFTMAX), STRINGIFY(QKSOFTMAXQUANCAST));
+        add_typecast_op(STRINGIFY(QKSOFTMAX), STRINGIFY(QKSOFTMAXQUANCAST));
         quan_tensor = STRINGIFY(QKSOFTMAXQUANCAST);
     }
-    addQuanOp(spec, quan_tensor, STRINGIFY(QKSOFTMAXQUAN));
-    addDequanOp(spec, STRINGIFY(QKSOFTMAXQUAN), STRINGIFY(QKSOFTMAXDEQUAN));
+    add_quan_op(spec, quan_tensor, STRINGIFY(QKSOFTMAXQUAN));
+    add_dequan_op(spec, STRINGIFY(QKSOFTMAXQUAN), STRINGIFY(QKSOFTMAXDEQUAN));
     //dropout for training
-    addArithOp(spec.is_fwd_training, op::kind::Multiply, false, quan_tensor,
+    add_arith_op(spec.is_fwd_training, op::kind::Multiply, false, quan_tensor,
             STRINGIFY(QKDROPOUT), STRINGIFY(QKSOFTMAXDEQUAN));
+    if (spec.is_fwd_training) add_end_op(STRINGIFY(QKSOFTMAXDEQUAN));
     std::string matmul_qkvtensor = (spec.MHA_int8 || spec.is_fwd_training)
             ? STRINGIFY(QKSOFTMAXDEQUAN)
             : STRINGIFY(QKSOFTMAX);
     if (spec.mha_pattern == "v3") {
-        addTypecastOp(matmul_qkvtensor, STRINGIFY(QKSOFTMAXDEQUANCAST));
+        add_typecast_op(matmul_qkvtensor, STRINGIFY(QKSOFTMAXDEQUANCAST));
         matmul_qkvtensor = STRINGIFY(QKSOFTMAXDEQUANCAST);
     }
 
     //QKV matmul
-    addMatmulOp(false, false, matmul_qkvtensor, STRINGIFY(VDST),
+    add_matmul_op(false, false, matmul_qkvtensor, STRINGIFY(VDST),
             STRINGIFY(QKVMATMUL));
     //QKV transpose
-    addStaticTransposeOp(
+    add_statictranspose_op(
             spec, STRINGIFY(QKVMATMUL), STRINGIFY(QKVTDST), qkv_transpose_axis);
 
     if (spec.mha_pattern == "v1" || spec.is_fwd_training) {
-        addStaticReshapeOp(
+        add_staticreshape_op(
                 spec, STRINGIFY(QKVTDST), STRINGIFY(QKVDST), spec.dims);
     } else if (spec.mha_pattern == "v2") {
-        addReorderOp(STRINGIFY(QKVTDST), STRINGIFY(QKVDST));
+        add_reorder_op(STRINGIFY(QKVTDST), STRINGIFY(QKVDST));
     } else if (spec.mha_pattern == "v3") {
-        addReorderOp(STRINGIFY(QKVTDST), STRINGIFY(QKVCASTDST));
-        addTypecastOp(STRINGIFY(QKVCASTDST), STRINGIFY(QKVDST));
+        add_reorder_op(STRINGIFY(QKVTDST), STRINGIFY(QKVCASTDST));
+
+        add_typecast_op(STRINGIFY(QKVCASTDST), STRINGIFY(QKVDST));
     } else {
         return fill_status::UNHANDLED_CONFIG_OPTIONS;
     }
 
-    addQuanOp(spec, STRINGIFY(QKVDST), STRINGIFY(QKVINT8DST));
+    add_quan_op(spec, STRINGIFY(QKVDST), STRINGIFY(QKVINT8DST));
     curr_out_map_ids_.assign({TENSOR_ID});
     return fill_status::DONE;
 }
@@ -249,32 +255,33 @@ fill_status_t mha_graph_prb_t::build_mha_subgraph_bwd(
     //attributes
     dims_t qkv_transpose_axis = {0, 2, 1, 3};
     build_tensor_desc_bwd(spec);
-    addStaticReshapeOp(spec, STRINGIFY(GRADIN), STRINGIFY(GRADTIN), qkv_shape);
-    addStaticTransposeOp(
+    add_staticreshape_op(
+            spec, STRINGIFY(GRADIN), STRINGIFY(GRADTIN), qkv_shape);
+    add_statictranspose_op(
             spec, STRINGIFY(GRADTIN), STRINGIFY(GRADTOUT), qkv_transpose_axis);
-    addMatmulOp(true, false, STRINGIFY(QKSOFTMAXDEQUAN), STRINGIFY(GRADTOUT),
+    add_matmul_op(true, false, STRINGIFY(QKSOFTMAXDEQUAN), STRINGIFY(GRADTOUT),
             STRINGIFY(GRADVWEI));
-    addMatmulOp(false, true, STRINGIFY(GRADTOUT), STRINGIFY(VDST),
+    add_matmul_op(false, true, STRINGIFY(GRADTOUT), STRINGIFY(VDST),
             STRINGIFY(GRADVDATA));
-    addArithOp(spec.is_bwd_training, dnnl::graph::op::kind::Multiply, true,
+    add_arith_op(spec.is_bwd_training, dnnl::graph::op::kind::Multiply, true,
             STRINGIFY(GRADVDATA), STRINGIFY(QKDROPOUT),
             STRINGIFY(GRADMUL1DATA));
-    addArithOp(spec.is_bwd_training, dnnl::graph::op::kind::Multiply, true,
+    add_arith_op(spec.is_bwd_training, dnnl::graph::op::kind::Multiply, true,
             STRINGIFY(QKSOFTMAX), STRINGIFY(GRADMUL1DATA),
             STRINGIFY(GRADMUL2DATA));
-    addReduceSumOp(spec, STRINGIFY(GRADMUL2DATA), STRINGIFY(GRADSOFTMAXSUM));
-    addArithOp(spec.is_bwd_training, dnnl::graph::op::kind::Subtract, true,
+    add_reducesum_op(spec, STRINGIFY(GRADMUL2DATA), STRINGIFY(GRADSOFTMAXSUM));
+    add_arith_op(spec.is_bwd_training, dnnl::graph::op::kind::Subtract, true,
             STRINGIFY(GRADMUL1DATA), STRINGIFY(GRADSOFTMAXSUM),
             STRINGIFY(GRADSOFTMAXSUB));
-    addArithOp(spec.is_bwd_training, dnnl::graph::op::kind::Multiply, true,
+    add_arith_op(spec.is_bwd_training, dnnl::graph::op::kind::Multiply, true,
             STRINGIFY(QKSOFTMAX), STRINGIFY(GRADSOFTMAXSUB),
             STRINGIFY(GRADMUL3DATA));
-    addArithOp(spec.is_bwd_training, dnnl::graph::op::kind::Divide, true,
+    add_arith_op(spec.is_bwd_training, dnnl::graph::op::kind::Divide, true,
             STRINGIFY(GRADMUL3DATA), STRINGIFY(QKDIVSCALE),
             STRINGIFY(GRADDIVDATA));
-    addMatmulOp(false, false, STRINGIFY(GRADDIVDATA), STRINGIFY(KDST),
+    add_matmul_op(false, false, STRINGIFY(GRADDIVDATA), STRINGIFY(KDST),
             STRINGIFY(GRADQWEI));
-    addMatmulOp(true, false, STRINGIFY(GRADDIVDATA), STRINGIFY(QDST),
+    add_matmul_op(true, false, STRINGIFY(GRADDIVDATA), STRINGIFY(QDST),
             STRINGIFY(GRADKWEI));
     return fill_status::DONE;
 }
@@ -328,13 +335,21 @@ int doit(const mha_graph_spec_t *spec, res_t *res) {
     const auto partitions = graph_h.get_partitions();
 
     if (partitions.empty()) return res->state = FAILED, FAIL;
+    //this is done to exit for bf16 cases
+    if (spec->mha_inout_dt == graph_dt::bf16) {
+        if ((spec->dir == FWD_I || spec->dir == BWD_DW)
+                && partitions.size() != 1)
+            return res->state = UNIMPLEMENTED, OK;
+        if (spec->dir == FWD_D && partitions.size() > 3)
+            return res->state = UNIMPLEMENTED, OK;
+    }
 
     dnnl::graph::engine &engine = benchdnnext::get_test_engine();
     std::vector<std::vector<dnnl::graph::logical_tensor>> ins_vec, outs_vec;
     std::vector<dnnl::graph::compiled_partition> cp_vec;
     for (int i = 0; i < partitions.size(); i++) {
         const auto par = partitions[i];
-        if (!par.is_supported()) return res->state = UNIMPLEMENTED, OK;
+        if (!par.is_supported()) continue;
 
         ins_vec.push_back(par.get_in_ports());
         outs_vec.push_back(par.get_out_ports());
@@ -353,6 +368,7 @@ int doit(const mha_graph_spec_t *spec, res_t *res) {
         //Compile Partitions.
         cp_vec.push_back(par.compile(ins_vec[i], outs_vec[i], engine));
     }
+
     // prepare memory and physical tensors for each partition
     std::vector<dnn_mem_t> mem_dt, mem_fp;
     std::vector<std::vector<dnnl ::graph::tensor>> tensors_in, tensors_out;
@@ -406,49 +422,11 @@ int doit(const mha_graph_spec_t *spec, res_t *res) {
         tensors_out.emplace_back(tensor_out);
     }
     //execute partitions
-    for (int i = 0; i < partitions.size(); i++) {
-        SAFE(execute_and_wait(cp_vec[i], tensors_in[i], tensors_out[i], res),
-                WARN);
-    }
-
-    double totms = 0;
-    double minms = std::numeric_limits<double>::max();
-    if (is_bench_mode(PERF)) {
-        int totruncnt = fix_times_per_prb;
-        fix_times_per_prb = 1;
-        for (int run = 0; run < totruncnt; run++) {
-            double totms_perrun = 0;
-            for (int i = 0; i < partitions.size(); i++) {
-                timer::timer_t perf_timer;
-                SAFE(measure_perf(perf_timer, cp_vec[i], tensors_in[i],
-                             tensors_out[i]),
-                        WARN);
-                res->timer_map.perf_timer().times_ = perf_timer.times_;
-                for (int tidx = 0; tidx < timer::timer_t::mode_t::n_modes;
-                        tidx++) {
-                    res->timer_map.perf_timer().ms_[tidx]
-                            += perf_timer.ms_[tidx];
-                    res->timer_map.perf_timer().ticks_[tidx]
-                            += perf_timer.ticks_[tidx];
-                }
-                totms_perrun += perf_timer.ms(timer::timer_t::avg);
-                BENCHDNN_PRINT(2,
-                        "RUN: %d - partition : %d time: %f totms: %f\n", run, i,
-                        perf_timer.ms(timer::timer_t::avg), totms_perrun);
-            }
-            totms += totms_perrun;
-            if (totms_perrun < minms) minms = totms_perrun;
-            BENCHDNN_PRINT(1, "RUN: %d - total ms: %f\n", run, totms_perrun);
-        }
-        fix_times_per_prb = totruncnt; // reset
-        BENCHDNN_PRINT(1,
-                "timetaken for %d runs %ld partitions: totalms: %f avg: "
-                "%f\n",
-                totruncnt, partitions.size(), totms, totms / totruncnt);
-    }
-    res->timer_map.perf_timer().ms_[timer::timer_t::mode_t::sum] = totms;
-    res->timer_map.perf_timer().ms_[timer::timer_t::mode_t::min] = minms;
-    res->timer_map.perf_timer().times_ = fix_times_per_prb;
+    assert(cp_vec.size() == 1);
+    SAFE(execute_and_wait(cp_vec[0], tensors_in[0], tensors_out[0], res), WARN);
+    SAFE(measure_perf(res->timer_map.perf_timer(), cp_vec[0], tensors_in[0],
+                 tensors_out[0]),
+            WARN);
     //Check for NaN
     for (auto lt_vec : outs_vec) {
         for (auto lt : lt_vec) {

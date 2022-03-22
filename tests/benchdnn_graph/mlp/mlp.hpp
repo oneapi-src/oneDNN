@@ -180,15 +180,16 @@ struct mlp_graph_prb_t : public ::benchdnnext::graph_prb_t {
     }
 
 private:
-    void addQuanDequanOp(const mlp_graph_spec_t &spec, const std::string src,
+    void add_quan_dequan_op(const mlp_graph_spec_t &spec, const std::string src,
             const std::string dst, std::vector<float> scales,
-            std::vector<int64_t> zps, bool isQuanOp);
-    void addMatmulOp(
+            std::vector<int64_t> zps, bool isquanop);
+    void add_matmul_op(
             const mlp_graph_spec_t &spec, int layer_num, bool is_fwd_pass);
-    void addActFuncOp(
+    void add_actfunc_op(
             const mlp_graph_spec_t &spec, int layer_num, bool is_fwd_pass);
-    void addStaticTransposeOp(const mlp_graph_spec_t &spec, int layer_num);
-    void addReduceSumOp(const mlp_graph_spec_t &spec, int layer_num);
+    void add_statictranspose_op(const mlp_graph_spec_t &spec, int layer_num);
+    void add_reducesum_op(const mlp_graph_spec_t &spec, int layer_num);
+    void add_end_op(const mlp_graph_spec_t &spec, int layer_num);
 
     void build_tensor_desc_fwd(const mlp_graph_spec_t &spec);
     void build_tensor_desc_bwd(const mlp_graph_spec_t &spec);
