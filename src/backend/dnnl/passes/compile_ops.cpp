@@ -97,6 +97,7 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
             exec = std::make_shared<i64vec_to_i32vec_filler>(cur_op, "zps");
         } else if (cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
+                || cur_op->get_kind() == op_kind::from_group
                 || cur_op->get_kind() == op_kind::expand
                 || cur_op->get_kind() == op_kind::squeeze
                 || cur_op->get_kind() == impl::op_kind::StaticReshape

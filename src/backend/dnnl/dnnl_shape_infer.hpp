@@ -41,7 +41,11 @@ status_t infer_dnnl_convtranspose_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
-status_t infer_dnnl_convtranspose_bprop_data_output_shape(op_t *n,
+status_t infer_dnnl_convtranspose_bwd_data_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
+status_t infer_dnnl_convtranspose_bwd_weight_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
@@ -57,6 +61,10 @@ status_t infer_to_group_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 
+status_t infer_from_group_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
 status_t infer_expand_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
@@ -66,6 +74,10 @@ status_t infer_bn_folding_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs);
 
 status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs);
+
+status_t infer_dnnl_conv_bwd_weight_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs);
 

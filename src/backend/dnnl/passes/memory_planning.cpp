@@ -1332,6 +1332,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::dnnl_shuffle
                         || op->get_kind() == op_kind::permute
                         || op->get_kind() == op_kind::to_group
+                        || op->get_kind() == op_kind::from_group
                         || op->get_kind() == op_kind::expand
                         || op->get_kind() == op_kind::squeeze
                         || op->get_kind() == op_kind::dnnl_resampling

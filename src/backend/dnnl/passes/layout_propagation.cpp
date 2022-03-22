@@ -906,6 +906,52 @@ static void layout_propagation_for_to_group(op_ptr &op) {
     }
 }
 
+static void layout_propagation_for_from_group(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        std::vector<op_ptr> &reorder_ops) {
+    const auto get_dst_md
+            = [](const dnnl::memory::desc &src_md,
+                      bool is_convtranspose) -> dnnl::memory::desc {
+        if (is_convtranspose) {
+            auto permuted_dst = transpose(src_md, 1, 2);
+            auto permuted_dst_no_groups = from_grouped(permuted_dst);
+            return transpose(permuted_dst_no_groups, 0, 1);
+        } else {
+            return from_grouped(src_md);
+        }
+    };
+
+    value_ptr src = op->get_input_value(0);
+    value_ptr dst = op->get_output_value(0);
+    auto src_lt = src->get_logical_tensor();
+    auto dst_lt = dst->get_logical_tensor();
+
+    if (ltw(src_lt).is_any()) return;
+
+    const bool is_convtranspose = op->has_attr("is_convtranspose")
+            ? op->get_attr<bool>("is_convtranspose")
+            : false;
+    const auto src_md = make_dnnl_memory_desc(src_lt);
+    dnnl::memory::desc infered_dst_md = get_dst_md(src_md, is_convtranspose);
+    // from_grouped uses the 'allow_empty' option when reshaping, so if
+    // reshape will not succeed (e.g. padding exists inside dims we want
+    // to join), infered_dst_md will be an empty memory descriptor.
+    if (infered_dst_md.is_zero()) {
+        dnnl::memory::desc strided_dst_md(src_md.dims(), src_md.data_type(),
+                get_dense_strides(src_md.dims()));
+        insert_reorder_before(
+                op, 0, strided_dst_md, p_engine, prm_attr_mgr, reorder_ops);
+        infered_dst_md = get_dst_md(strided_dst_md, is_convtranspose);
+    }
+
+    if (ltw(dst_lt).is_any()) {
+        fill_layout_info(dst, infered_dst_md);
+    } else {
+        insert_reorder_after(
+                op, 0, infered_dst_md, p_engine, prm_attr_mgr, reorder_ops);
+    }
+}
+
 static void layout_propagation_for_reshape(op_ptr &op) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
@@ -1556,6 +1602,9 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                         cur_op, p_engine, prm_attr_mgr);
             } else if (cur_op->get_kind() == op_kind::to_group) {
                 layout_propagation_for_to_group(cur_op);
+            } else if (cur_op->get_kind() == op_kind::from_group) {
+                layout_propagation_for_from_group(
+                        cur_op, p_engine, prm_attr_mgr, reorder_ops);
             } else if (cur_op->get_kind() == impl::op_kind::StaticReshape) {
                 layout_propagation_for_reshape(cur_op);
             } else if (cur_op->get_kind() == impl::op_kind::StaticTranspose) {

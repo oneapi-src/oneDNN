@@ -76,6 +76,7 @@ namespace op_kind {
     X(dnnl_constant_zps, Dnnl_constant_zps) \
     X(permute, Permute) \
     X(to_group, To_group) \
+    X(from_group, From_group) \
     X(expand, Expand) \
     X(squeeze, Squeeze) \
     X(dnnl_convolution, Dnnl_convolution) \

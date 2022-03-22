@@ -1861,6 +1861,18 @@ impl::status_t conv_bwd_weights_canonicalization(
                         != op_kind::dnnl_convtranspose_bwd_weights)
             continue;
 
+        const auto filter_shape_attr
+                = cur_op->get_attr<std::vector<int64_t>>("filter_shape");
+        const bool is_filter_shape_default = std::all_of(
+                filter_shape_attr.begin(), filter_shape_attr.end(),
+                [](int64_t d) { return d == 0; });
+        if (is_filter_shape_default) {
+            const std::vector<int64_t> filter_shape
+                    = ltw(cur_op->get_output_value(0)->get_logical_tensor())
+                              .vdims();
+            cur_op->set_attr("filter_shape", filter_shape);
+        }
+
         // insert permute
         bool need_permute_0 = cur_op->has_attr("data_format")
                 ? (cur_op->get_attr<std::string>("data_format") == "NXC")
@@ -1885,41 +1897,36 @@ impl::status_t conv_bwd_weights_canonicalization(
             insert_op_before(in1_perm_op, cur_op, 1);
             to_be_inserted_ops.emplace_back(in1_perm_op);
 
-            // output permute
-            if (need_permute_1) {
-                op_ptr out_perm_op
-                        = std::make_shared<impl::op_t>(op_kind::permute);
-                out_perm_op->set_attr<std::string>("permute_kind", "permute");
-                out_perm_op->set_attr<std::string>("from_format", "OIX");
-                out_perm_op->set_attr<std::string>("to_format", "XIO");
-                insert_op_after(out_perm_op, cur_op, 0);
-                to_be_inserted_ops.emplace_back(out_perm_op);
-
-                if (cur_op->has_attr("filter_shape")) {
-                    auto xio_dst_shape
-                            = cur_op->get_attr<impl::dims>("filter_shape");
-                    auto oix_dst_shape
-                            = impl::canonicalize(xio_dst_shape, "XIO");
-                    cur_op->set_attr<impl::dims>("filter_shape", oix_dst_shape);
-                }
-            }
-
             cur_op->set_attr<std::string>("data_format", "NCX");
+        }
+        // output permute
+        if (need_permute_1) {
+            op_ptr out_perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+            out_perm_op->set_attr<std::string>("permute_kind", "permute");
+            out_perm_op->set_attr<std::string>("from_format", "OIX");
+            out_perm_op->set_attr<std::string>("to_format", "XIO");
+            insert_op_after(out_perm_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(out_perm_op);
+
+            const auto filter_shape_attr
+                    = cur_op->get_attr<std::vector<int64_t>>("filter_shape");
+            const auto filter_shape_as_oix
+                    = impl::canonicalize(filter_shape_attr, "XIO");
+            cur_op->set_attr<impl::dims>("filter_shape", filter_shape_as_oix);
             cur_op->set_attr<std::string>("filter_format", "OIX");
         }
 
-        // insert to_group
+        // insert from_group
         auto groups = cur_op->get_attr<int64_t>("groups");
         if (groups > 1) {
-            op_ptr to_group_op
-                    = std::make_shared<impl::op_t>(op_kind::to_group);
-            to_group_op->set_attr<int64_t>("groups", groups);
-            insert_op_before(to_group_op, cur_op, 1);
-            to_be_inserted_ops.emplace_back(to_group_op);
-            cur_op->set_attr<int64_t>("groups", 1);
+            op_ptr from_group_op
+                    = std::make_shared<impl::op_t>(op_kind::from_group);
+            from_group_op->set_attr<int64_t>("groups", groups);
+            insert_op_after(from_group_op, cur_op, 0);
+            to_be_inserted_ops.emplace_back(from_group_op);
 
             if (cur_op->get_kind() == op_kind::dnnl_convtranspose_bwd_weights)
-                to_group_op->set_attr<bool>("is_convtranspose", true);
+                from_group_op->set_attr<bool>("is_convtranspose", true);
         }
     }
 
