@@ -447,9 +447,10 @@ int init_prim_ref(
 
     dnnl_primitive_t prim_ref_ {};
     if (pd_ref) {
+        if (query_impl_info(pd_ref) == "ref:any") return OK;
         DNN_SAFE(dnnl_primitive_create(&prim_ref_, pd_ref), WARN);
-        BENCHDNN_PRINT(
-                5, "%s\n", "benchdnn: use CPU primitive as the reference");
+        BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
+                query_impl_info(pd_ref).c_str());
     }
     prim_ref.reset(prim_ref_);
     return OK;
