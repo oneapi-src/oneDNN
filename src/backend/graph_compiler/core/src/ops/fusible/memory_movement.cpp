@@ -286,14 +286,16 @@ bool tensor_view_op_t::try_penetrate(
             auto &new_code = new_format.format_code_;
             int out_count[sc_data_format_kind_t::MAX_DIMS] = {0};
             size_t blk_idx = 0;
+            auto remain_blocks = output_plain_shapes;
             for (int i = 0; i < input_code.ndims(); i++) {
-                new_code.set(i, long_to_short[input_code.get(i)]);
+                auto new_idx = long_to_short[input_code.get(i)];
+                new_code.set(i, new_idx);
                 out_count[new_code.get(i)]++;
                 if (out_count[new_code.get(i)] > 1
                         && blk_idx < input_size - output_size) {
-                    new_format.blocks_[blk_idx++]
-                            = input_plain_shapes[input_code.get(i)];
+                    new_format.blocks_[blk_idx++] = remain_blocks[new_idx];
                 }
+                remain_blocks[new_idx] /= input_plain_shapes[input_code.get(i)];
             }
             new_code.set(sc_data_format_kind_t::MAX_DIMS,
                     input_format.format_code_.get(
