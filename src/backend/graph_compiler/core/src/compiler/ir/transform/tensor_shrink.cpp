@@ -200,6 +200,46 @@ public:
             }
             return builder::make_indexing(
                     itr->second, new_idx, v->dtype_.lanes_, v->mask_);
+        } else if (v->ptr_.isa<tensorptr>()) {
+            // transform &A[0 - a, 0 - b][a, b] to &A[0, 0][0, 0] to make index
+            // calculation simpler. Todo: currently we don't support expression
+            // simplify: 0 - a + a => 0
+            auto new_ptr = dispatch(v->ptr_);
+            std::vector<expr> new_idx;
+            bool changed = ir_visitor_t::dispatch_expr_vector(v->idx_, new_idx);
+            changed |= !new_ptr.ptr_same(v->ptr_);
+            auto new_cur_idx = v->idx_;
+            auto new_cld_idx = new_ptr.static_as<tensorptr>()->base_->idx_;
+            if (new_cur_idx.size() == new_cld_idx.size()) {
+                bool idx_changed = false;
+                for (size_t i = 0; i < new_cld_idx.size(); i++) {
+                    if (new_cld_idx[i].isa<sub>()) {
+                        auto &lhs = new_cld_idx[i].static_as<sub>()->l_;
+                        auto &rhs = new_cld_idx[i].static_as<sub>()->r_;
+                        if (rhs.ptr_same(new_cur_idx[i].remove_const())
+                                || (rhs.isa<constant>()
+                                        && new_cur_idx[i].isa<constant>()
+                                        && rhs->equals(new_cur_idx[i]))) {
+                            new_cld_idx[i] = lhs;
+                            new_cur_idx[i] = 0;
+                            changed = true;
+                            idx_changed = true;
+                        }
+                    }
+                }
+                // remake tensorptr
+                if (idx_changed) {
+                    const auto &tptr = new_ptr.static_as<tensorptr>();
+                    new_ptr = builder::tensor_ptr(tptr->base_->ptr_,
+                            new_cld_idx, tptr->shape_, tptr->is_slice_);
+                }
+            }
+            if (changed) {
+                return copy_attr(*v,
+                        builder::make_indexing(new_ptr.remove_const(),
+                                new_cur_idx, v->dtype_.lanes_, v->mask_));
+            }
+            return v;
         }
         return ir_visitor_t::visit(v);
     }
