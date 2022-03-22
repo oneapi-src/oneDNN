@@ -119,11 +119,9 @@ void parse_result(res_t &res, const char *pstr) {
             bs.failed++;
             break;
         case EXECUTED:
-            if (is_bench_mode(PERF)) {
-                bs.passed++;
-            } else if (is_bench_mode(RUN)) {
+            if (is_bench_mode(RUN))
                 BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            }
+            bs.passed++;
             break;
         case FAILED:
             bs.failed++;
