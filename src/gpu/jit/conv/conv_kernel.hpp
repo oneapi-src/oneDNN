@@ -2455,40 +2455,17 @@ public:
             const ngen::InstructionModifier &mod,
             const ngen::RegData &surf_base_addr, int surf_bti,
             const ngen::RegData &header, const T &data) {
-        ngen::AddressBase address_base;
-        switch (send_.address) {
-            case send_address_t::a64:
-                address_base = ngen::AddressBase::createA64(true);
-                break;
-            case send_address_t::bts:
-                address_base = ngen::AddressBase::createBTS(surf_bti);
-                break;
-            case send_address_t::slm:
-                address_base = ngen::AddressBase::createSLM();
-                break;
-            default: ir_error_not_expected();
-        }
-
         if (send_.is_2d()) {
-            auto &info = send_.block_2d_info;
-            ngen::DataSizeLSC data_size = ngen::DataSizeLSC::D8;
-            switch (send_.type.size()) {
-                case 1: data_size = ngen::DataSizeLSC::D8; break;
-                case 2: data_size = ngen::DataSizeLSC::D16; break;
-                case 4: data_size = ngen::DataSizeLSC::D32; break;
-                default: ir_error_not_expected() << send_.type;
-            }
-            ngen::DataSpecLSC data_spec(data_size);
-            if (info.vnni) data_spec |= host->vnni;
-            if (info.transpose) data_spec |= host->transpose;
-            ngen::block_2d spec(data_spec, info.width, info.height, info.count);
-            if (send_.is_load_2d()) {
-                host->load(mod, data, spec, address_base, header);
-            } else {
-                host->store(mod, spec, address_base, header, data);
-            }
+            emit_2d(host, mod, data, header);
             return;
         }
+
+        if (send_.is_lsc) {
+            emit_lsc(host, mod, data, surf_bti, header);
+            return;
+        }
+
+        auto address_base = to_address_base(send_.address, surf_bti);
 
         int elems = send_.type.elems();
         switch (send_.type.kind()) {
@@ -2518,11 +2495,6 @@ private:
             const ngen::InstructionModifier &mod, const DataSpecT &spec,
             ngen::AddressBase base, const ngen::RegData &addr,
             const ngen::RegData &data) {
-        if (hw_ == ngen::HW::XeHPC) {
-            if (maybe_promote_to_lsc(host, mod, data, spec, base, addr)) {
-                return;
-            }
-        }
         if (send_.is_load()) {
             host->load(mod, data, spec, base, addr);
         } else if (send_.is_atomic()) {
@@ -2535,95 +2507,129 @@ private:
         }
     }
 
-    template <typename GeneratorT, typename DataSpecT>
-    bool maybe_promote_to_lsc(GeneratorT *host,
-            const ngen::InstructionModifier &mod, const ngen::RegData &data,
-            const DataSpecT &spec, const ngen::AddressBase &base,
-            const ngen::RegData &addr) {
-        if (send_.is_atomic()) return false;
-        if (!send_.is_a64()) return false;
-        if (!send_.is_block()) return false;
+    template <typename GeneratorT>
+    void emit_lsc(GeneratorT *host, const ngen::InstructionModifier &mod,
+            const ngen::RegData &data, int surf_bti,
+            const ngen::RegData &header) {
 
-        int size = send_.payload_size();
+        auto get_lsc_type = [&](const type_t &type, bool is_block) {
+            if (!send_.is_block()) return type;
+            for (auto &t : {type_t::qword(), type_t::dword()}) {
+                if (type.size() % t.size() == 0) {
+                    int elems = type.size() / t.size();
+                    ir_assert(math::is_pow2(elems));
+                    ir_assert(elems >= 1 && elems <= 64);
+                    return t.with_elems(elems);
+                }
+            }
+            ir_error_not_expected();
+            return type;
+        };
 
-        int lsc_data_size = 4; // Use D32.
-        int lsc_vector_size = size / lsc_data_size;
-        if (lsc_data_size * lsc_vector_size != size) return false;
-
-        if (send_.is_load() || send_.is_prefetch()) {
-            host->load.ugm(1 | mod, data,
-                    ngen::block(ngen::DataSizeLSC::D32, lsc_vector_size)
-                            | ngen::CacheSettingsLSC::L1C_L3C,
-                    host->A64, addr);
-        } else if (send_.is_store()) {
-            host->store.ugm(1 | mod,
-                    ngen::block(ngen::DataSizeLSC::D32, lsc_vector_size)
-                            | ngen::CacheSettingsLSC::L1WB_L3WB,
-                    host->A64, addr, data);
+        std::unique_ptr<ngen::DataSpecLSC> lsc_spec;
+        auto lsc_type = to_data_lsc(get_lsc_type(send_.type, send_.is_block()));
+        if (send_.is_scattered()) {
+            lsc_spec = utils::make_unique<ngen::DataSpecLSC>(
+                    ngen::scattered(lsc_type.first, lsc_type.second));
+        } else if (send_.is_block()) {
+            lsc_spec = utils::make_unique<ngen::DataSpecLSC>(
+                    ngen::block(lsc_type.first, lsc_type.second));
         } else {
             ir_error_not_expected();
         }
 
-        return true;
+        if (send_.is_slm()) {
+            if (send_.is_load()) {
+                host->load.slm(mod, data, *lsc_spec, host->SLM, header);
+            } else if (send_.is_store()) {
+                host->store.slm(mod, *lsc_spec, host->SLM, header, data);
+            } else {
+                ir_error_not_expected();
+            }
+        } else if (send_.is_a64()) {
+            if (send_.is_load() || send_.is_prefetch()) {
+                *lsc_spec |= ngen::CacheSettingsLSC::L1C_L3C;
+                host->load.ugm(mod, data, *lsc_spec, host->A64, header);
+            } else if (send_.is_store()) {
+                *lsc_spec |= ngen::CacheSettingsLSC::L1WB_L3WB,
+                        host->store.ugm(
+                                mod, *lsc_spec, host->A64, header, data);
+            } else if (send_.is_atomic()) {
+                *lsc_spec |= ngen::CacheSettingsLSC::L1UC_L3WB;
+                host->atomic.ugm(ngen::AtomicOp::fadd, mod,
+                        ngen::scattered(ngen::DataSizeLSC::D32, 1),
+                        to_address_base(send_.address, surf_bti), header, data);
+            }
+        } else {
+            ir_error_not_expected();
+        }
+    }
+
+    template <typename GeneratorT>
+    void emit_2d(GeneratorT *host, const ngen::InstructionModifier &mod,
+            const ngen::RegData &data, const ngen::RegData &header) {
+        auto &info = send_.block_2d_info;
+        ngen::DataSizeLSC data_size = ngen::DataSizeLSC::D8;
+        switch (send_.type.size()) {
+            case 1: data_size = ngen::DataSizeLSC::D8; break;
+            case 2: data_size = ngen::DataSizeLSC::D16; break;
+            case 4: data_size = ngen::DataSizeLSC::D32; break;
+            default: ir_error_not_expected();
+        }
+        ngen::DataSpecLSC data_spec(data_size);
+        if (info.vnni) data_spec |= host->vnni;
+        if (info.transpose) data_spec |= host->transpose;
+        ngen::block_2d spec(data_spec, info.width, info.height, info.count);
+        if (send_.is_load_2d()) {
+            host->load(mod, data, spec, host->A64, header);
+        } else if (send_.is_store_2d()) {
+            host->store(mod, spec, host->A64, header, data);
+        } else {
+            ir_error_not_expected();
+        }
+    }
+
+    static std::pair<ngen::DataSizeLSC, int> to_data_lsc(const type_t &type) {
+        switch (type.scalar().size()) {
+            case 1: {
+                if (type.elems() == 1)
+                    return std::make_pair(ngen::DataSizeLSC::D8U32, 1);
+                if (type.elems() == 2)
+                    return std::make_pair(ngen::DataSizeLSC::D16U32, 1);
+                if (type.elems() == 4)
+                    return std::make_pair(ngen::DataSizeLSC::D32, 1);
+                break;
+            }
+            case 2: {
+                if (type.elems() == 1)
+                    return std::make_pair(ngen::DataSizeLSC::D16U32, 1);
+                if (type.elems() == 2)
+                    return std::make_pair(ngen::DataSizeLSC::D32, 1);
+                break;
+            }
+            case 4: return std::make_pair(ngen::DataSizeLSC::D32, type.elems());
+            case 8: return std::make_pair(ngen::DataSizeLSC::D64, type.elems());
+            default: break;
+        }
+        ir_error_not_expected();
+        return std::make_pair(ngen::DataSizeLSC::D8, 1);
+    }
+
+    static ngen::AddressBase to_address_base(
+            send_address_t address, int surf_bti) {
+        switch (address) {
+            case send_address_t::a64: return ngen::AddressBase::createA64(true);
+            case send_address_t::bts:
+                return ngen::AddressBase::createBTS(surf_bti);
+            case send_address_t::slm: return ngen::AddressBase::createSLM();
+            default: ir_error_not_expected();
+        }
+        return ngen::AddressBase();
     }
 
     ngen::HW hw_;
     const send_t &send_;
 };
-
-// Reinterprets layouts to wider data type (up to 4 bytes).
-// Example: 16a16b (s8 type) -> 16a4b (s32 type)
-static bool try_reinterpret_to_wider_type(layout_t &src, layout_t &dst,
-        const tensor_t &tile = {}, bool do_update = true,
-        int *new_size_out = nullptr) {
-    if (src.blocks().empty() || dst.blocks().empty()) return false;
-    if (src.type() != dst.type()) return false;
-
-    auto &s0 = src.blocks()[0];
-    auto &d0 = dst.blocks()[0];
-    if (s0.dim_idx != d0.dim_idx) return false;
-    if (int(s0.stride) != 1) return false;
-    if (int(d0.stride) != 1) return false;
-
-    int old_size = src.type().size();
-    int s0_old_size = int(s0.block) * old_size;
-    int d0_old_size = int(d0.block) * old_size;
-
-    int new_size = math::gcd(s0_old_size, d0_old_size);
-    new_size = math::gcd(new_size, 4); // Try types up to 4 bytes.
-    if (new_size <= old_size) return false;
-
-    auto tile_ok = [&](const layout_t &l) {
-        if (tile.is_empty()) return true;
-        int factor = new_size / old_size;
-        if (tile(l.blocks()[0].dim_idx) % factor != 0) return false;
-        return true;
-    };
-
-    auto strides_ok = [&](const layout_t &l) {
-        for (int i = 1; i < int(l.blocks().size()); i++) {
-            auto &b = l.blocks()[i];
-            if (int(b.stride) * old_size % new_size != 0) return false;
-        }
-        return true;
-    };
-
-    while (new_size > old_size) {
-        bool ok = true;
-        ok &= (tile_ok(src) && tile_ok(dst));
-        ok &= (strides_ok(src) && strides_ok(dst));
-        if (ok) {
-            if (do_update) {
-                src = src.reinterpret(type_t::s(new_size * 8));
-                dst = dst.reinterpret(type_t::s(new_size * 8));
-            }
-            if (new_size_out) *new_size_out = new_size;
-            return true;
-        }
-        new_size /= 2;
-    }
-    return false;
-}
 
 // Implementation of GRF reorder between 2D dense layouts.
 // Requirements for A -> B reorder:

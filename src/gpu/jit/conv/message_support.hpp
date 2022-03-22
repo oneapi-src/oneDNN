@@ -112,12 +112,13 @@ public:
 
         return (hw == other.hw) && (op == other.op)
                 && (address == other.address) && (type == other.type)
-                && (slots == other.slots)
+                && (slots == other.slots) && (is_lsc == other.is_lsc)
                 && (block_2d_info == other.block_2d_info);
     }
 
     size_t get_hash() const override {
-        return ir_utils::get_hash(hw, op, address, type, slots, block_2d_info);
+        return ir_utils::get_hash(
+                hw, op, address, type, slots, is_lsc, block_2d_info);
     }
 
     std::string str() const override {
@@ -249,6 +250,7 @@ public:
     send_address_t address;
     type_t type;
     int slots;
+    bool is_lsc;
 
     block_2d_info_t block_2d_info;
 
@@ -259,7 +261,12 @@ private:
 
     send_t(ngen::HW hw, send_op_t op, send_address_t address,
             const type_t &type, int slots)
-        : hw(hw), op(op), address(address), type(type), slots(slots) {}
+        : hw(hw)
+        , op(op)
+        , address(address)
+        , type(type)
+        , slots(slots)
+        , is_lsc(hw >= ngen::HW::XeHPC) {}
 
     send_t(ngen::HW hw, send_op_t op, const type_t &type,
             const block_2d_info_t &block_2d_info)
@@ -268,6 +275,7 @@ private:
         , address(send_address_t::a64)
         , type(type)
         , slots(1)
+        , is_lsc(true)
         , block_2d_info(block_2d_info) {
         ir_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d));
         if (is_store_2d()) {

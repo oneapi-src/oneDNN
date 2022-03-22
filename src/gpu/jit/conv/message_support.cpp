@@ -22,26 +22,31 @@ namespace gpu {
 namespace jit {
 
 stmt_t send_t::create_offset_store(const expr_t &header_buf,
-        const expr_t &mem_buf, const expr_t &mem_off,
+        const expr_t &mem_buf, const expr_t &_mem_off,
         bool is_signed_offset) const {
-    expr_t header_sub_buf;
-    expr_t off;
-    if (is_block() && (is_slm() || is_bts())) {
+    ir_assert(is_var(mem_buf));
+    int header_off = 0;
+    int unit_size = 1;
+    if (!is_lsc && is_block() && (is_slm() || is_bts())) {
+        header_off = 2 * address_type().size();
         // Convert byte offset to dwords/owords/hwords offset.
-        off = mem_off / type.scalar().size();
-        header_sub_buf = header_buf[2 * sizeof(uint32_t)];
-    } else if (is_a64()) {
-        // Convert buffer to 64-bit integer.
-        off = cast(mem_buf, type_t::u64());
-        if (mem_off.type().is_vector())
+        unit_size = type.scalar().size();
+    }
+
+    expr_t mem_off = _mem_off;
+    if (unit_size != 1) mem_off /= unit_size;
+
+    expr_t header_sub_buf = header_buf[header_off];
+
+    expr_t off;
+    if (is_a64()) {
+        off = cast(mem_buf, address_type());
+        if (mem_off.type().is_vector()) {
             off = shuffle_t::make_broadcast(off, mem_off.type().elems());
+        }
         off += mem_off;
-        header_sub_buf = header_buf[0];
-    } else if (is_bts()) {
-        off = cast(mem_off, type_t::u32(mem_off.type().elems()));
-        header_sub_buf = header_buf[0];
     } else {
-        ir_error_not_expected();
+        off = mem_off;
     }
     off = cast(off, address_type(is_signed_offset, off.type().elems()));
     return store_t::make(header_sub_buf, 0, off);
