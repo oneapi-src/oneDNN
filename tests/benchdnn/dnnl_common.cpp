@@ -569,7 +569,7 @@ void check_inplace(res_t *res, dnnl_data_type_t sdt, dnnl_data_type_t ddt,
 
 // Check ensures that attributes don't cause implementation fallback
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res) {
-    const std::string pd_no_attr_name = query_impl_info(pd_no_attr);
+    const auto pd_no_attr_name = query_impl_info(pd_no_attr);
     if (res->impl_name == pd_no_attr_name) return OK;
 
     res->state = FAILED;

@@ -28,10 +28,11 @@ dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd) {
     return prim_kind;
 }
 
-const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
+std::string query_impl_info(const_dnnl_primitive_desc_t pd) {
     const char *str = nullptr;
     dnnl_primitive_desc_query(pd, dnnl_query_impl_info_str, 0, &str);
-    return str;
+    std::string s(str);
+    return s;
 }
 
 const dnnl_memory_desc_t &query_md(
