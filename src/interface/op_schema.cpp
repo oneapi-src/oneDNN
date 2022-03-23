@@ -176,11 +176,14 @@ bool op_schema_t::verify_param_num(size_t actual_num,
                 return false;
         } break;
         case param_num_option::variadic: {
-            auto lt = expected_num.begin();
-            auto gt = expected_num.upper_bound(actual_num);
-            auto end = expected_num.end();
-            if ((lt != end && *lt > actual_num) || lt == end || gt == end)
-                return false;
+            if (expected_num.size() != 2) return false;
+            auto lower = expected_num.begin();
+            auto upper = lower++;
+            if (*lower > *upper) {
+                upper = expected_num.begin();
+                lower = upper++;
+            }
+            if (*lower > actual_num || *upper < actual_num) return false;
         } break;
         default: return false;
     }
