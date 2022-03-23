@@ -1858,11 +1858,24 @@ static void prb_block_for_cache(tr::prb_t &prb) {
     /* If strides for 0th and 1st nodes are cache friendly
      * then one can altogether do away with blocking ! */
     static constexpr int num_elems_thr = 16;
-    const bool cache_blocking_needed
+    const bool stride_cache_friendly
             = ((prb.nodes[0].is % 64 == 0 && prb.nodes[0].n > num_elems_thr)
                       || (prb.ndims > 1 && prb.nodes[1].is % num_elems_thr == 0
                               && prb.nodes[1].n > num_elems_thr))
             && !prb.is_tail_present;
+
+    // performance improvement for shapes with large inner-most dimension
+    const size_t L1_cache_sz
+            = size_t(3) * platform::get_per_core_cache_size(1) / 4;
+    const size_t itype_sz_ = data_type_size(prb.itype);
+    const size_t inner_block_sz = prb.nodes[0].n * itype_sz_;
+    const bool requires_inner_blocking = inner_block_sz > L1_cache_sz
+            // 'is_tail_present' is not supported for cache_blocking when
+            // asymmetric_comp is executed.
+            && IMPLICATION(prb.req_asymmetric_comp, !prb.is_tail_present);
+
+    const bool cache_blocking_needed
+            = stride_cache_friendly || requires_inner_blocking;
     if (!cache_blocking_needed) return;
 
     int unit_input_stride_idx = -1;
