@@ -378,9 +378,9 @@ protected:
 };
 
 struct low_precision_attr {
-    const dt &src_dt;
-    const dt &wei_dt;
-    const dt &dst_dt;
+    const dt src_dt;
+    const dt wei_dt;
+    const dt dst_dt;
     const std::string &stag;
     const std::string &wtag;
     const std::string &dtag;
@@ -398,8 +398,8 @@ struct low_precision_attr {
     const float dst_scale;
 
     // For matmul, conv and deconv
-    static low_precision_attr lp_attr(const dt &src_dt, const dt &wei_dt,
-            const dt &dst_dt, const std::string &stag, const std::string &wtag,
+    static low_precision_attr lp_attr(const dt src_dt, const dt wei_dt,
+            const dt dst_dt, const std::string &stag, const std::string &wtag,
             const std::string &dtag, const attr_t::policy_t &oscale_policy,
             std::vector<float> *oscales, const float &dst_scale,
             const std::vector<int64_t> *src_zp,
@@ -413,21 +413,21 @@ struct low_precision_attr {
     };
 
     // For op with no additional attributes e.g. pool
-    static low_precision_attr lp_attr(const dt &src_dt, const dt &dst_dt,
-            const std::string &data_format) {
+    static low_precision_attr lp_attr(
+            const dt src_dt, const dt dst_dt, const std::string &data_format) {
         return low_precision_attr(src_dt, dt::undef, dst_dt, data_format,
                 data_format, data_format);
     };
 
     // For op with src and dst data types and src and data formats e.g. concat
-    static low_precision_attr lp_attr(const dt &src_dt, const dt &dst_dt,
+    static low_precision_attr lp_attr(const dt src_dt, const dt dst_dt,
             const std::string &stag, const std::string &dtag) {
         return low_precision_attr(src_dt, dt::undef, dst_dt, stag, "", dtag);
     };
 
     // For op with only one data type e.g. eltwise
     static low_precision_attr lp_attr(
-            const dt &data_type, const std::string &data_format) {
+            const dt data_type, const std::string &data_format) {
         return low_precision_attr(data_type, dt::undef, data_type, data_format,
                 data_format, data_format);
     };
@@ -437,7 +437,7 @@ struct low_precision_attr {
     }
 
 private:
-    low_precision_attr(const dt &src_dt, const dt &wei_dt, const dt &dst_dt,
+    low_precision_attr(const dt src_dt, const dt wei_dt, const dt dst_dt,
             const std::string &stag, const std::string &wtag,
             const std::string &dtag,
             const attr_t::policy_t &oscale_policy = attr_t::policy_t::COMMON,
