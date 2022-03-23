@@ -16442,9 +16442,9 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         if (engine.kind() == impl::engine_kind::gpu && qtype == "asymmetric")
             continue;
 
-        impl::op_kind_t base_op;
+        impl::op_kind_t base_op = impl::op_kind::Wildcard;
         std::string fuse_name;
-        bool per_channel_broadcast;
+        bool per_channel_broadcast = false;
         std::tie(base_op, fuse_name, per_channel_broadcast) = conf;
 
         const std::string data_format {"NCX"};
