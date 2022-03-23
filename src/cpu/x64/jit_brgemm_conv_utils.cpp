@@ -1639,8 +1639,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // TODO: optimize grouped convolutions with small ic
     const bool is_grouped_small_ic = with_groups && jcp.ngroups > 1
             && jcp.ic <= 16
-            // already optimized for amx 1x1 convs
-            && IMPLICATION(is_amx(jcp.isa), !jcp.is_1x1);
+            && IMPLICATION(is_amx(jcp.isa),
+                    jcp.ic < 16
+                            && jcp.oc < 16
+                            // already optimized for amx 1x1 convs
+                            && !jcp.is_1x1);
     if (is_grouped_small_ic) return status::unimplemented;
 
     jcp.s8s8_avx512 = jcp.src_dt == s8 && !is_amx(jcp.isa);
