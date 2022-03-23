@@ -22,7 +22,7 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories_with_host_compiler(${CMAKE_CURRENT_SOURCE_DIR})
 
   
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")
