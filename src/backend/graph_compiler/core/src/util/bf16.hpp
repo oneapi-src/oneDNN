@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ struct bf16_t {
         uint32_t vl;
         float vf;
     };
-    operator float() {
+    operator float() const {
         caster_t val;
         val.vl = uint32_t(storage_) << 16;
         return val.vf;

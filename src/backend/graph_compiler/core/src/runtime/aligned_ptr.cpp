@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,29 +24,7 @@ namespace sc {
 using utils::divide_and_ceil;
 using utils::parallel;
 
-generic_aligned_ptr_t generic_aligned_ptr_t::copy() const {
-    generic_aligned_ptr_t ret;
-    if (ptr_) {
-        size_t alignment = 64;
-        ret.ptr_ = aligned_alloc(alignment,
-                utils::divide_and_ceil(size_, alignment) * alignment);
-        ret.size_ = size_;
-        memcpy(ret.ptr_, ptr_, size_);
-    }
-    return ret;
-}
-
-generic_aligned_ptr_t &generic_aligned_ptr_t::operator=(
-        generic_aligned_ptr_t &&other) {
-    if (ptr_) { aligned_free(ptr_); }
-    ptr_ = other.ptr_;
-    other.ptr_ = nullptr;
-    size_ = other.size_;
-    other.size_ = 0;
-    return *this;
-}
-
-void generic_aligned_ptr_t::zeroout() const {
+void generic_ptr_base_t::zeroout() const {
     static constexpr int page_size = 4096;
     int numthreads = runtime_config_t::get().threads_per_instance_;
     parallel(
@@ -64,7 +42,7 @@ void generic_aligned_ptr_t::zeroout() const {
 /**
  * Flush cache
  * */
-void generic_aligned_ptr_t::flush_cache() const {
+void generic_ptr_base_t::flush_cache() const {
     static constexpr int cache_line_size = 64;
     int numthreads = runtime_config_t::get().threads_per_instance_;
     parallel(

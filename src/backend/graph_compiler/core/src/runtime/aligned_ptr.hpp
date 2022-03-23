@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,30 +29,9 @@ namespace sc {
  * @param sz the memory size, in bytes
  * @param aligment the alignment in bytes
  * */
-struct SC_INTERNAL_API generic_aligned_ptr_t {
+struct SC_INTERNAL_API generic_ptr_base_t {
     void *ptr_;
     size_t size_;
-    generic_aligned_ptr_t(size_t sz, size_t alignment = 64) {
-        ptr_ = aligned_alloc(
-                alignment, utils::divide_and_ceil(sz, alignment) * alignment);
-        size_ = sz;
-    }
-    /**
-     * Move another ptr to this
-     * */
-    generic_aligned_ptr_t(generic_aligned_ptr_t &&other) {
-        ptr_ = other.ptr_;
-        other.ptr_ = nullptr;
-        size_ = other.size_;
-        other.size_ = 0;
-    }
-
-    generic_aligned_ptr_t &operator=(generic_aligned_ptr_t &&other);
-    generic_aligned_ptr_t copy() const;
-    generic_aligned_ptr_t() : ptr_(nullptr), size_(0) {}
-    ~generic_aligned_ptr_t() {
-        if (ptr_) { aligned_free(ptr_); }
-    }
     /**
      * Sets the memory buffer to 0
      * */
@@ -63,25 +42,90 @@ struct SC_INTERNAL_API generic_aligned_ptr_t {
     void flush_cache() const;
 };
 
-template <typename T>
-struct aligned_ptr_t : generic_aligned_ptr_t {
+struct aligned_ptr_policy_t {
+    static void *alloc(size_t sz, size_t alignment) {
+        return aligned_alloc(
+                alignment, utils::divide_and_ceil(sz, alignment) * alignment);
+    }
+
+    static void dealloc(void *ptr, size_t sz) { aligned_free(ptr); }
+};
+
+/**
+ * Allocator and RAII memory manager for aligned memory
+ * @param sz the memory size, in bytes
+ * @param aligment the alignment in bytes
+ * */
+template <typename Policy>
+struct raii_ptr_t : protected generic_ptr_base_t {
+    using generic_ptr_base_t::flush_cache;
+    using generic_ptr_base_t::ptr_;
+    using generic_ptr_base_t::size_;
+    using generic_ptr_base_t::zeroout;
+    raii_ptr_t(size_t sz, size_t alignment = 64) {
+        ptr_ = Policy::alloc(sz, alignment);
+        size_ = sz;
+    }
+
+    raii_ptr_t(void *ptr, size_t sz) : generic_ptr_base_t {ptr, sz} {}
+    /**
+     * Move another ptr to this
+     * */
+    raii_ptr_t(raii_ptr_t &&other) {
+        ptr_ = other.ptr_;
+        other.ptr_ = nullptr;
+        size_ = other.size_;
+        other.size_ = 0;
+    }
+
+    raii_ptr_t &operator=(raii_ptr_t &&other) {
+        if (ptr_) { Policy::dealloc(ptr_, size_); }
+        ptr_ = other.ptr_;
+        other.ptr_ = nullptr;
+        size_ = other.size_;
+        other.size_ = 0;
+        return *this;
+    }
+    raii_ptr_t copy() const {
+        if (ptr_) {
+            size_t alignment = 64;
+            auto newptr = Policy::alloc(size_, alignment);
+            memcpy(newptr, ptr_, size_);
+            return raii_ptr_t {newptr, alignment};
+        }
+        return raii_ptr_t {};
+    }
+    raii_ptr_t() : generic_ptr_base_t {nullptr, 0} {}
+    ~raii_ptr_t() {
+        if (ptr_) { Policy::dealloc(ptr_, size_); }
+    }
+};
+
+using generic_aligned_ptr_t = raii_ptr_t<aligned_ptr_policy_t>;
+
+template <typename T, typename Base = generic_aligned_ptr_t>
+struct aligned_ptr_t : Base {
+    using Base::flush_cache;
+    using Base::ptr_;
+    using Base::size_;
+    using Base::zeroout;
     /**
      * Creates a typed aligned memory buffer
      * @param counts the count of the elements
      * @param aligment the alignment in bytes
      * */
     aligned_ptr_t(size_t counts, size_t alignment = 64)
-        : generic_aligned_ptr_t(counts * sizeof(T), alignment) {}
-    aligned_ptr_t(aligned_ptr_t &&other)
-        : generic_aligned_ptr_t(std::move(other)) {}
-    aligned_ptr_t() : generic_aligned_ptr_t() {}
+        : Base(counts * sizeof(T), alignment) {}
+    aligned_ptr_t(aligned_ptr_t &&other) : Base(std::move(other)) {}
+    aligned_ptr_t() : Base() {}
     aligned_ptr_t &operator=(aligned_ptr_t &&other) {
-        generic_aligned_ptr_t::operator=(std::move(other));
+        Base::operator=(std::move(other));
         return *this;
     }
-    aligned_ptr_t copy() { return generic_aligned_ptr_t::copy(); }
+    aligned_ptr_t copy() { return Base::copy(); }
 
     T *get() { return reinterpret_cast<T *>(ptr_); }
+    const T *get() const { return reinterpret_cast<const T *>(ptr_); }
     T &operator[](size_t index) { return get()[index]; }
 
     size_t size() const { return size_ / sizeof(T); }
@@ -91,6 +135,7 @@ struct aligned_ptr_t : generic_aligned_ptr_t {
     const T *end() const { return get() + size(); }
 
     T *data() { return get(); };
+    const T *data() const { return get(); };
     /**
      * Fills the buffer
      * @param f the functor which generates values for each elements of the
@@ -107,8 +152,7 @@ struct aligned_ptr_t : generic_aligned_ptr_t {
     }
 
 private:
-    aligned_ptr_t(generic_aligned_ptr_t &&other)
-        : generic_aligned_ptr_t(std::move(other)) {}
+    aligned_ptr_t(Base &&other) : Base(std::move(other)) {}
 };
 
 } // namespace sc

@@ -30,6 +30,8 @@ namespace sc {
 
 SC_MODULE(sc_graph);
 
+extern void __dummy_init();
+
 template <typename valT>
 valT &gt_map_t<valT>::get(graph_tensor *v) {
     auto itr = datamap_.find(v);
@@ -369,6 +371,9 @@ void sc_graph_t::add(const sc_op_ptr &ret) {
 std::shared_ptr<sc_op> sc_graph_t::make(const std::string &op_name,
         const std::vector<graph_tensor_ptr> &inputs,
         const std::vector<graph_tensor_ptr> &outputs, const any_map_t &attrs) {
+    // make a reference to all needed ops to prevent them from being removed by
+    // linker
+    __dummy_init();
     std::shared_ptr<sc_op> ret, in_ret;
     // internally create input_op
     // todo: LLGA-sc front end should create input_op first, instead of creating

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,8 @@
 #include <compiler/ir/graph/visitor.hpp>
 #include <util/math_utils.hpp>
 namespace sc {
-extern void __dummy_init();
 namespace quantize {
 void calculate_op_compensation(sc_graph_t &mgr, const context_ptr &ctx) {
-    __dummy_init();
     if (!mgr.attrs_.get_or_else(sc_graph_t::attr_key_t::quantize, false))
         return;
     op_visitor_t vis = op_visitor_t::dfs();
