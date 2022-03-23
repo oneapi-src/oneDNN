@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2459,19 +2459,28 @@ bool gemm_kernel_generator_t<hw>::tryAddMasking(Type T, RegisterBlock &block,
     blockNew.remainderR |= remainderR;
     blockNew.remainderC |= remainderC;
 
-    if (implAccessType(atype, astrategy, block) == AccessType::Block) {
+    auto curAccessType = implAccessType(atype, astrategy, block);
+
+    if (curAccessType == AccessType::Block) {
         if (astrategy.newDP) return false;
         if (hw >= HW::XeHPC) return false;
+    }
 
-        if (block.colMajor ? (remainderR && !block.remainderR)
-                           : (remainderC && !block.remainderC)) {
-            int rblock, cblock;
-            if (!getBlockInfo(T, atype, astrategy, block.nr, block.nc,
-                        blockNew.remainderR, blockNew.remainderC,
-                        block.writable, true, 0, 0, rblock, cblock, blockNew))
-                return false;
-            if (rblock != block.nr || cblock != block.nc) return false;
-            if (implAccessType(atype, astrategy, blockNew) != AccessType::Block)
+    bool remChanged = (block.colMajor ? (remainderR && !block.remainderR)
+                                      : (remainderC && !block.remainderC));
+
+    if (remChanged && !isBlock2D(curAccessType)) {
+        int rblock, cblock;
+        if (!getBlockInfo(T, atype, astrategy, block.nr, block.nc,
+                    blockNew.remainderR, blockNew.remainderC, block.writable,
+                    true, 0, 0, rblock, cblock, blockNew))
+            return false;
+        if (rblock != block.nr || cblock != block.nc) return false;
+        if (implAccessType(atype, astrategy, blockNew) != curAccessType)
+            return false;
+        if (curAccessType != AccessType::Block) {
+            if (blockNew.ebytes != block.ebytes) return false;
+            if (blockNew.ebytes == 1 && blockNew.count != block.count)
                 return false;
         }
     }
