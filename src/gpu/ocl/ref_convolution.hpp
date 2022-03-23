@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -228,9 +228,15 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine) {
+            using namespace data_type;
+
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_weights
                     && desc()->alg_kind == alg_kind::convolution_direct
+                    && utils::one_of(
+                            desc()->diff_weights_desc.data_type, f32, bf16)
+                    && utils::one_of(desc()->src_desc.data_type, f32, bf16)
+                    && utils::one_of(desc()->diff_dst_desc.data_type, f32, bf16)
                     && this->set_default_formats()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
