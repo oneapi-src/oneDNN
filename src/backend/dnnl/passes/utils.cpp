@@ -794,8 +794,8 @@ bool post_depthwise_conv_fusible(
     std::tie(std::ignore, std::ignore, conv_spatial)
             = extract_dims_as_oix(base_conv_op);
 
-    int64_t dw_o;
-    int64_t dw_i;
+    int64_t dw_o = 0;
+    int64_t dw_i = 0;
     spatial_dims_t dw_spatial;
     std::tie(dw_o, dw_i, dw_spatial) = extract_dims_as_oix(post_conv_op);
 
