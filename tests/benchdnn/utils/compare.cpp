@@ -115,6 +115,7 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
     int64_t zeros = 0;
     diff_norm_t diff_norm;
+    const bool need_dump = verbose >= 99;
     for (int64_t i = 0; i < nelems; ++i) {
         driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
 
@@ -133,13 +134,16 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         }
 
         if (fabsf(args.got) == 0) zeros++;
+
+        if (need_dump)
+            dump_point_values(got_mem.md_, kind_, i, args.exp_f32, args.exp,
+                    args.got, args.diff, args.rel_diff);
     }
     diff_norm.done();
 
     bool ok = diff_norm.rel_diff(norm_t::L2) <= trh_;
     if (!ok) res->errors = 1;
 
-    const bool need_dump = verbose >= 99;
     const bool dump = need_dump || !ok;
     if (dump) dump_norm_values(diff_norm, kind_);
 
