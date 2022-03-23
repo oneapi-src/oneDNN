@@ -357,6 +357,9 @@ typedef struct {
 /// OpenMP runtime (CPU only)
 #define DNNL_GRAPH_RUNTIME_OMP 2u
 
+/// TBB runtime (CPU only)
+#define DNNL_GRAPH_RUNTIME_TBB 4u
+
 /// Threadpool runtime (CPU only)
 #define DNNL_GRAPH_RUNTIME_THREADPOOL 8u
 

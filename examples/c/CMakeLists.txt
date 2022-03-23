@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR}/src/ ${src})
     string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})
 
-    set(cpu_rt_pattern "(SEQ|OMP)")
+    set(cpu_rt_pattern "(SEQ|OMP|TBB)")
     set(gpu_rt_pattern "(DPCPP)")
     if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${cpu_rt_pattern})
 	# Adding examples for OMP CPU

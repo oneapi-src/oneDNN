@@ -22,6 +22,11 @@
 inline int dnnl_graph_get_max_threads() {
     return omp_get_max_threads();
 }
+#elif DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_TBB
+#include "tbb/task_arena.h"
+inline int dnnl_graph_get_max_threads() {
+    return tbb::this_task_arena::max_concurrency();
+}
 #else
 // For SEQ, it's expected to use only one thread to compile and execute. For
 // THREADPOOL, usually we don't know the threadpool information at compilation

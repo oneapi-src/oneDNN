@@ -69,7 +69,7 @@ foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${src})
     string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})
 
-    set(cpu_rt_pattern "(SEQ|OMP)")
+    set(cpu_rt_pattern "(SEQ|OMP|TBB)")
     set(sycl_rt_pattern "(DPCPP)")
     if(DNNL_GRAPH_CPU_RUNTIME MATCHES ${cpu_rt_pattern})
 	# Adding examples for OMP CPU
