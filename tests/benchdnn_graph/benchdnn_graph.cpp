@@ -34,9 +34,7 @@ const char *driver_name = "";
 
 double max_ms_per_prb {3e3};
 int min_times_per_prb {5};
-//TODO: replace to zero once support for multiple parition
-//available in performance API
-int fix_times_per_prb {1000};
+int fix_times_per_prb {0};
 int ctimes_per_prb {1000};
 
 bool fast_ref_gpu {DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE};

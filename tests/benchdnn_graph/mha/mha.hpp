@@ -244,24 +244,25 @@ struct mha_graph_prb_t : public ::benchdnnext::graph_prb_t {
     fill_status_t build_mha_subgraph_bwd(const mha_graph_spec_t &spec);
 
 private:
-    void addDequanOp(const mha_graph_spec_t &spec, const std::string src,
+    void add_dequan_op(const mha_graph_spec_t &spec, const std::string src,
             const std::string dst);
-    void addStaticReshapeOp(const mha_graph_spec_t &spec, const std::string src,
-            const std::string dst, const dims_t shape);
-    void addStaticTransposeOp(const mha_graph_spec_t &spec,
+    void add_staticreshape_op(const mha_graph_spec_t &spec,
+            const std::string src, const std::string dst, const dims_t shape);
+    void add_statictranspose_op(const mha_graph_spec_t &spec,
             const std::string src, const std::string, dims_t axis);
-    void addQuanOp(const mha_graph_spec_t &spec, const std::string src,
+    void add_quan_op(const mha_graph_spec_t &spec, const std::string src,
             const std::string dst);
-    void addTypecastOp(const std::string src, const std::string dst);
-    void addReorderOp(const std::string src, const std::string dst);
-    void addArithOp(bool addOp, dnnl::graph::op::kind op_kind,
+    void add_typecast_op(const std::string src, const std::string dst);
+    void add_reorder_op(const std::string src, const std::string dst);
+    void add_arith_op(bool addop, dnnl::graph::op::kind op_kind,
             bool set_broadcast, const std::string src1, const std::string src2,
             const std::string dst);
-    void addMatmulOp(bool is_transpose_a, bool is_transpose_b,
+    void add_matmul_op(bool is_transpose_a, bool is_transpose_b,
             const std::string src1, const std::string src2,
             const std::string dst);
-    void addReduceSumOp(const mha_graph_spec_t &spec, const std::string src,
+    void add_reducesum_op(const mha_graph_spec_t &spec, const std::string src,
             const std::string dst);
+    void add_end_op(const std::string src);
 
 public:
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {

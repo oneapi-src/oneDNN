@@ -19,7 +19,7 @@
 
 #include "tests/test_thread.hpp"
 
-#include "dnnl_graph_common.hpp"
+#include "dnnl_graph_common_ext.hpp"
 #include "utils/compare.hpp"
 
 #include "mlp/mlp.hpp"
@@ -51,25 +51,26 @@ fill_status_t mlp_graph_prb_t::build_mlp_subgraph(
             std::string i_str = std::to_string(i);
             std::string iplus1_str = std::to_string(i + 1);
 
-            addQuanDequanOp(spec, STRINGIFY(DATA_INT8_) + i_str,
+            add_quan_dequan_op(spec, STRINGIFY(DATA_INT8_) + i_str,
                     STRINGIFY(DATA_) + i_str, {1.f},
                     {spec.attr.zero_points.get(DNNL_ARG_SRC).value}, false);
-            addQuanDequanOp(spec, STRINGIFY(WEI_INT8_) + i_str,
+            add_quan_dequan_op(spec, STRINGIFY(WEI_INT8_) + i_str,
                     STRINGIFY(WEI_) + i_str, {spec.attr.oscale.scale},
                     {spec.attr.zero_points.get(DNNL_ARG_WEIGHTS).value}, false);
-            addMatmulOp(spec, i, true);
-            addActFuncOp(spec, i, true);
-            addQuanDequanOp(spec, STRINGIFY(DATA_OUT_) + i_str,
+            add_matmul_op(spec, i, true);
+            add_actfunc_op(spec, i, true);
+            if (spec.is_fwd_training) add_end_op(spec, i);
+            add_quan_dequan_op(spec, STRINGIFY(DATA_OUT_) + i_str,
                     STRINGIFY(DATA_INT8_) + std::to_string(i + 1), {1.f},
                     {spec.attr.zero_points.get(DNNL_ARG_DST).value}, true);
         }
     } else {
         build_tensor_desc_bwd(spec);
         for (int i = spec.num_hidden_layers - 1; i >= 0; i--) {
-            addActFuncOp(spec, i, false);
-            if (spec.use_static_transpose) { addStaticTransposeOp(spec, i); }
-            addMatmulOp(spec, i, false);
-            addReduceSumOp(spec, i);
+            add_actfunc_op(spec, i, false);
+            if (spec.use_static_transpose) { add_statictranspose_op(spec, i); }
+            add_matmul_op(spec, i, false);
+            add_reducesum_op(spec, i);
         }
     }
     curr_out_map_ids_.assign({TENSOR_ID});
@@ -77,8 +78,7 @@ fill_status_t mlp_graph_prb_t::build_mlp_subgraph(
 }
 
 void check_known_skipped_case(const mlp_graph_spec_t *spec, res_t *res) {
-    if (spec->dir == BWD_D || spec->dir == BWD_W || spec->dir == BWD_WB
-            || (spec->dir == FWD_D && is_bench_mode(CORR))) {
+    if (spec->dir == BWD_D || spec->dir == BWD_W || spec->dir == BWD_WB) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
@@ -92,7 +92,8 @@ void check_known_skipped_case(const mlp_graph_spec_t *spec, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-    if (spec->is_bwd_training && (spec->is_mlp_int8 || is_bench_mode(CORR))) {
+    if ((spec->is_bwd_training || spec->is_fwd_training)
+            && (spec->is_mlp_int8 || is_bench_mode(CORR))) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
@@ -185,25 +186,26 @@ int doit(const mlp_graph_spec_t *spec, res_t *res) {
     dnnl::graph::engine &engine = benchdnnext::get_test_engine();
     std::vector<std::vector<dnnl::graph::logical_tensor>> ins_vec, outs_vec;
     std::vector<dnnl::graph::compiled_partition> cp_vec;
+
     for (int i = 0; i < partitions.size(); i++) {
         const auto par = partitions[i];
-        if (!par.is_supported()) return res->state = UNIMPLEMENTED, OK;
+        if (!par.is_supported()) continue;
 
         ins_vec.push_back(par.get_in_ports());
         outs_vec.push_back(par.get_out_ports());
         //sort the in_port based on id
-        std::sort(ins_vec[i].begin(), ins_vec[i].end(),
+        std::sort(ins_vec.back().begin(), ins_vec.back().end(),
                 [](const dnnl::graph::logical_tensor &a,
                         const dnnl::graph::logical_tensor &b) {
                     return a.get_id() < b.get_id();
                 });
-        std::sort(outs_vec[i].begin(), outs_vec[i].end(),
+        std::sort(outs_vec.back().begin(), outs_vec.back().end(),
                 [](const dnnl::graph::logical_tensor &a,
                         const dnnl::graph::logical_tensor &b) {
                     return a.get_id() < b.get_id();
                 });
         //Compile Partitions.
-        cp_vec.push_back(par.compile(ins_vec[i], outs_vec[i], engine));
+        cp_vec.push_back(par.compile(ins_vec.back(), outs_vec.back(), engine));
     }
 
     // prepare memory and physical tensors for each partition
@@ -249,7 +251,7 @@ int doit(const mlp_graph_spec_t *spec, res_t *res) {
         tensors_out.emplace_back(tensor_out);
     }
     //execute partitions
-    for (int i = 0; i < partitions.size(); i++) {
+    for (int i = 0; i < cp_vec.size(); i++) {
         SAFE(execute_and_wait(cp_vec[i], tensors_in[i], tensors_out[i]), WARN);
     }
     if (is_bench_mode(CORR)) {
@@ -319,44 +321,12 @@ int doit(const mlp_graph_spec_t *spec, res_t *res) {
         idx = graph_prb.get_fp_mem_idx(tensor_name);
         SAFE(cmp.compare(mem_fp[idx], mem_dt[idx], spec->attr, res), WARN);
     }
-    double totms = 0;
-    double minms = std::numeric_limits<double>::max();
-    if (is_bench_mode(PERF)) {
-        int totruncnt = fix_times_per_prb;
-        fix_times_per_prb = 1;
-        for (int run = 0; run < totruncnt; run++) {
-            double totms_perrun = 0;
-            for (int i = 0; i < partitions.size(); i++) {
-                timer::timer_t perf_timer;
-                SAFE(measure_perf(perf_timer, cp_vec[i], tensors_in[i],
-                             tensors_out[i]),
-                        WARN);
-                res->timer_map.perf_timer().times_ = perf_timer.times_;
-                for (int tidx = 0; tidx < timer::timer_t::mode_t::n_modes;
-                        tidx++) {
-                    res->timer_map.perf_timer().ms_[tidx]
-                            += perf_timer.ms_[tidx];
-                    res->timer_map.perf_timer().ticks_[tidx]
-                            += perf_timer.ticks_[tidx];
-                }
-                totms_perrun += perf_timer.ms(timer::timer_t::avg);
-                BENCHDNN_PRINT(2,
-                        "RUN: %d - partition : %d time: %f totms: %f\n", run, i,
-                        perf_timer.ms(timer::timer_t::avg), totms_perrun);
-            }
-            BENCHDNN_PRINT(1, "RUN: %d - total ms: %f\n", run, totms_perrun);
-            totms += totms_perrun;
-            if (totms_perrun < minms) minms = totms_perrun;
-        }
-        fix_times_per_prb = totruncnt; //reset
 
-        BENCHDNN_PRINT(1,
-                "timetaken for %d runs %ld partitions: totalms: %f avg: %f\n",
-                totruncnt, partitions.size(), totms, totms / totruncnt);
+    if (is_bench_mode(PERF)) {
+        SAFE(measure_perf(res->timer_map.perf_timer(), cp_vec, tensors_in,
+                     tensors_out, res),
+                WARN);
     }
-    res->timer_map.perf_timer().ms_[timer::timer_t::mode_t::sum] = totms;
-    res->timer_map.perf_timer().ms_[timer::timer_t::mode_t::min] = minms;
-    res->timer_map.perf_timer().times_ = fix_times_per_prb;
 
     //Check for NaN
     for (auto lt_vec : outs_vec) {

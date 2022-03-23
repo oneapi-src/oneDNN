@@ -17,14 +17,14 @@
 #include "mlp.hpp"
 namespace mlp {
 
-void mlp_graph_prb_t::addQuanDequanOp(const mlp_graph_spec_t &spec,
+void mlp_graph_prb_t::add_quan_dequan_op(const mlp_graph_spec_t &spec,
         const std::string src, const std::string dst, std::vector<float> scales,
-        std::vector<int64_t> zps, bool isQuanOp) {
+        std::vector<int64_t> zps, bool isquanop) {
     if (!spec.is_mlp_int8) { return; }
     using op = dnnl::graph::op;
     size_t op_id = ops_.size();
-    auto op_kind = (isQuanOp) ? op::kind::Quantize : op::kind::Dequantize;
-    std::string op_str = (isQuanOp) ? dst + "_quantize" : dst + "_dequantize";
+    auto op_kind = (isquanop) ? op::kind::Quantize : op::kind::Dequantize;
+    std::string op_str = (isquanop) ? dst + "_quantize" : dst + "_dequantize";
     ops_.emplace_back(op(op_id, op_kind, {tensor_descs_[src]},
             {tensor_descs_[dst]}, op_str));
     ops_[op_id].set_attr<std::string>(
@@ -34,7 +34,7 @@ void mlp_graph_prb_t::addQuanDequanOp(const mlp_graph_spec_t &spec,
     ops_[op_id].set_attr("axis", static_cast<int64_t>(0));
 }
 
-void mlp_graph_prb_t::addMatmulOp(
+void mlp_graph_prb_t::add_matmul_op(
         const mlp_graph_spec_t &spec, int layer_num, bool is_fwd_pass) {
     using op = dnnl::graph::op;
     std::string layer_str = std::to_string(layer_num);
@@ -70,7 +70,7 @@ void mlp_graph_prb_t::addMatmulOp(
     }
 }
 
-void mlp_graph_prb_t::addActFuncOp(
+void mlp_graph_prb_t::add_actfunc_op(
         const mlp_graph_spec_t &spec, int layer_num, bool is_fwd_pass) {
     using op = dnnl::graph::op;
     std::string layer_str = std::to_string(layer_num);
@@ -111,7 +111,7 @@ void mlp_graph_prb_t::addActFuncOp(
     }
 }
 
-void mlp_graph_prb_t::addStaticTransposeOp(
+void mlp_graph_prb_t::add_statictranspose_op(
         const mlp_graph_spec_t &spec, int layer_num) {
     using op = dnnl::graph::op;
     std::string layer_str = std::to_string(layer_num);
@@ -129,7 +129,7 @@ void mlp_graph_prb_t::addStaticTransposeOp(
     ops_[op_id].set_attr("order", std::vector<int64_t> {1, 0});
 }
 
-void mlp_graph_prb_t::addReduceSumOp(
+void mlp_graph_prb_t::add_reducesum_op(
         const mlp_graph_spec_t &spec, int layer_num) {
     if (!spec.has_bias || spec.batch_sz == 1) return;
     using op = dnnl::graph::op;
@@ -140,6 +140,16 @@ void mlp_graph_prb_t::addReduceSumOp(
             {tensor_descs_[STRINGIFY(BIA_GRAD_) + layer_str]},
             "ReduceSum" + layer_str));
     ops_[op_id].set_attr("axes", std::vector<int64_t> {0});
+}
+
+void mlp_graph_prb_t::add_end_op(const mlp_graph_spec_t &spec, int layer_num) {
+    std::string tensor_name = (spec.use_dst)
+            ? STRINGIFY(DATA_) + std::to_string(layer_num + 1)
+            : STRINGIFY(MATMUL_) + std::to_string(layer_num);
+
+    using op = dnnl::graph::op;
+    ops_.emplace_back(op(ops_.size(), op::kind::End,
+            {tensor_descs_[tensor_name]}, {}, "end_" + tensor_name));
 }
 
 void mlp_graph_prb_t::build_tensor_desc_fwd(const mlp_graph_spec_t &spec) {

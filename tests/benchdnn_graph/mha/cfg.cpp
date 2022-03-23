@@ -18,7 +18,7 @@
 
 namespace mha {
 
-void mha_graph_prb_t::addDequanOp(const mha_graph_spec_t &spec,
+void mha_graph_prb_t::add_dequan_op(const mha_graph_spec_t &spec,
         const std::string src, const std::string dst) {
     if (!spec.MHA_int8) { return; }
     using op = dnnl::graph::op;
@@ -30,7 +30,7 @@ void mha_graph_prb_t::addDequanOp(const mha_graph_spec_t &spec,
     ops_[op_id].set_attr<std::vector<float>>("scales", spec.dequan_scales);
 }
 
-void mha_graph_prb_t::addStaticReshapeOp(const mha_graph_spec_t &spec,
+void mha_graph_prb_t::add_staticreshape_op(const mha_graph_spec_t &spec,
         const std::string src, const std::string dst, const dims_t shape) {
     using op = dnnl::graph::op;
     size_t op_id = ops_.size();
@@ -40,7 +40,7 @@ void mha_graph_prb_t::addStaticReshapeOp(const mha_graph_spec_t &spec,
     ops_[op_id].set_attr("special_zero", false);
 }
 
-void mha_graph_prb_t::addStaticTransposeOp(const mha_graph_spec_t &spec,
+void mha_graph_prb_t::add_statictranspose_op(const mha_graph_spec_t &spec,
         const std::string src, const std::string dst, dims_t axis) {
     using op = dnnl::graph::op;
     size_t op_id = ops_.size();
@@ -49,7 +49,7 @@ void mha_graph_prb_t::addStaticTransposeOp(const mha_graph_spec_t &spec,
     ops_[op_id].set_attr("order", axis);
 }
 
-void mha_graph_prb_t::addQuanOp(const mha_graph_spec_t &spec,
+void mha_graph_prb_t::add_quan_op(const mha_graph_spec_t &spec,
         const std::string src, const std::string dst) {
     if (!spec.MHA_int8) { return; }
     using op = dnnl::graph::op;
@@ -60,21 +60,21 @@ void mha_graph_prb_t::addQuanOp(const mha_graph_spec_t &spec,
     ops_[op_id].set_attr<std::vector<int64_t>>("zps", spec.quan_zps);
     ops_[op_id].set_attr<std::vector<float>>("scales", spec.quan_scales);
 }
-void mha_graph_prb_t::addTypecastOp(
+void mha_graph_prb_t::add_typecast_op(
         const std::string src, const std::string dst) {
     using op = dnnl::graph::op;
     ops_.emplace_back(op(ops_.size(), op::kind::TypeCast, {tensor_descs_[src]},
             {tensor_descs_[dst]}, dst + "_typecast"));
 }
 
-void mha_graph_prb_t::addReorderOp(
+void mha_graph_prb_t::add_reorder_op(
         const std::string src, const std::string dst) {
     using op = dnnl::graph::op;
     ops_.emplace_back(op(ops_.size(), op::kind::Reorder, {tensor_descs_[src]},
             {tensor_descs_[dst]}, dst + "_reorder"));
 }
 
-void mha_graph_prb_t::addMatmulOp(bool is_transpose_a, bool is_transpose_b,
+void mha_graph_prb_t::add_matmul_op(bool is_transpose_a, bool is_transpose_b,
         const std::string src1, const std::string src2, const std::string dst) {
     using op = dnnl::graph::op;
     auto new_op_id = ops_.size();
@@ -85,7 +85,7 @@ void mha_graph_prb_t::addMatmulOp(bool is_transpose_a, bool is_transpose_b,
     ops_[new_op_id].set_attr("transpose_b", is_transpose_b);
 }
 
-void mha_graph_prb_t::addArithOp(bool add_op, dnnl::graph::op::kind op_kind,
+void mha_graph_prb_t::add_arith_op(bool add_op, dnnl::graph::op::kind op_kind,
         bool set_broadcast, const std::string src1, const std::string src2,
         const std::string dst) {
     using op = dnnl::graph::op;
@@ -98,15 +98,20 @@ void mha_graph_prb_t::addArithOp(bool add_op, dnnl::graph::op::kind op_kind,
         ops_[new_op_id].set_attr("auto_broadcast", std::string("numpy"));
     }
 }
-void mha_graph_prb_t::addReduceSumOp(const mha_graph_spec_t &spec,
+void mha_graph_prb_t::add_reducesum_op(const mha_graph_spec_t &spec,
         const std::string src, const std::string dst) {
-    if (spec.dims[0] == 1) return;
     using op = dnnl::graph::op;
     auto op_id = ops_.size();
     ops_.emplace_back(op(op_id, op::kind::ReduceSum, {tensor_descs_[src]},
             {tensor_descs_[dst]}, dst));
     ops_[op_id].set_attr("axes", std::vector<int64_t> {-1});
     ops_[op_id].set_attr("keep_dims", true);
+}
+
+void mha_graph_prb_t::add_end_op(const std::string src) {
+    using op = dnnl::graph::op;
+    ops_.emplace_back(op(ops_.size(), op::kind::End, {tensor_descs_[src]}, {},
+            "end_" + src));
 }
 
 void mha_graph_prb_t::build_tensor_desc_fwd(const mha_graph_spec_t &spec) {
