@@ -126,6 +126,7 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
     visitor.visit_graph(g, [&](const sc_op_ptr &op) {
         if (op->isa<input_op>() || op->isa<output_op>()
                 || op->attrs_.get_or_else(op_attr_key::bwise_no_fuse, false)
+                || op->attrs_.get_or_else(op_attr_key::bwise_skip_fuse, false)
                 || op_mask[op->logical_op_id_])
             return;
 
@@ -164,7 +165,7 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
     });
 
     auto check_partition = [&bw_map](bw_fusion_partition_t::ptr &parti,
-                                   std::unordered_set<sc_op_ptr> &failed_ops) {
+                                   std::unordered_set<sc_op_ptr> &retry_ops) {
         if (!parti || parti->ops.empty() || parti->ops.size() < 2) return;
         for (auto &op : parti->ops) {
             COMPILE_ASSERT(bw_map.find(op) != bw_map.end(),
@@ -184,8 +185,8 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
                 for (auto &user : op->get_outputs()[0]->uses_) {
                     if (parti->ops.find(user.second.get_shared())
                             == parti->ops.end()) {
-                        op->attrs_[op_attr_key::bwise_no_fuse] = true;
-                        failed_ops.insert(op);
+                        op->attrs_[op_attr_key::bwise_skip_fuse] = true;
+                        retry_ops.insert(op);
                         break;
                     }
                 }
@@ -193,8 +194,8 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
                             op->get_inputs()[0]
                                     ->producer_owner_->shared_from_this())
                         == parti->ops.end()) {
-                    op->attrs_[op_attr_key::bwise_no_fuse] = true;
-                    failed_ops.insert(op);
+                    op->attrs_[op_attr_key::bwise_skip_fuse] = true;
+                    retry_ops.insert(op);
                 }
             } else if (op->isa<reorder_op_t>()
                     && op->attrs_.has_key(op_attr_key::bwise_no_strided_dims)) {
@@ -209,9 +210,9 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
                         op->attrs_.remove(op_attr_key::bwise_break_post_fuse);
                     op->attrs_.remove(op_attr_key::bwise_no_strided_dims);
                 } else {
-                    op->attrs_[op_attr_key::bwise_no_fuse] = true;
+                    op->attrs_[op_attr_key::bwise_skip_fuse] = true;
                 }
-                failed_ops.insert(op);
+                retry_ops.insert(op);
             } else if (op->isa<fused_op_t>()
                     && op->attrs_.has_key(op_attr_key::bwise_no_strided_dims)) {
                 auto no_strided_dims = op->attrs_.get<sc_dims>(
@@ -224,17 +225,17 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
                     if (op->attrs_.has_key(op_attr_key::bwise_break_post_fuse))
                         op->attrs_.remove(op_attr_key::bwise_break_post_fuse);
                     op->attrs_.remove(op_attr_key::bwise_no_strided_dims);
-                    failed_ops.insert(op);
+                    retry_ops.insert(op);
                 }
             }
         }
     };
 
-    std::unordered_set<sc_op_ptr> failed_ops;
+    std::unordered_set<sc_op_ptr> retry_ops;
     for (auto &parti : op_2_partition) {
-        check_partition(parti, failed_ops);
+        check_partition(parti, retry_ops);
     }
-    if (!failed_ops.empty()) return false;
+    if (!retry_ops.empty()) return false;
 
     for (auto &parti : op_2_partition) {
         if (parti) {
@@ -375,6 +376,11 @@ static void do_batchwise_merge(
                 op_mask.begin(), [](const bw_fusion_partition_t::ptr &parti) {
                     return (parti && parti->ops.size() >= 2);
                 });
+        // clear temporarily attr
+        for (auto &op : graph.ops_) {
+            if (op->attrs_.has_key(op_attr_key::bwise_skip_fuse))
+                op->attrs_.remove(op_attr_key::bwise_skip_fuse);
+        }
     }
     // remove unused attr
     for (auto &op : graph.ops_) {

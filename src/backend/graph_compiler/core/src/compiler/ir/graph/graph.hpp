@@ -166,6 +166,9 @@ constexpr const char *inner_anchor = "inner_anchor";
 // Batchwise fused
 constexpr const char *bwise_fuse = "bwise_fuse";
 constexpr const char *bwise_no_fuse = "bwise_no_fuse";
+// `bwise_skip_fuse` differs with `bwise_no_fuse` in that it is often used as
+// temporarily status check
+constexpr const char *bwise_skip_fuse = "bwise_skip_fuse";
 constexpr const char *bwise_break_pre_fuse = "bwise_break_pre_fuse";
 constexpr const char *bwise_break_post_fuse = "bwise_break_post_fuse";
 constexpr const char *bwise_no_strided_dims = "bwise_no_strided_dims";

@@ -188,6 +188,9 @@ struct batchwise_shrinkable_t : public virtual op_base_trait_t {
     static graph_tensor_ptr shrink_gt(
             const graph_tensor_ptr &orig_gt, int shrink_offset);
 
+    static sc_data_format_t shrink_format_by_plain_dims(
+            const graph_tensor_ptr &orig_gt, const sc_dims &plain_dims);
+
     static void record_shrinked_gt(gt2gt_map &bw_lt_map,
             const graph_tensor_ptr &gt, int shrink_offset);
 
@@ -205,7 +208,8 @@ struct batchwise_shrinkable_t : public virtual op_base_trait_t {
      *  1. no padding axis. E.g. [16,15] -> [2,2,8,8]  return 2, due to 2*8!=15
      *  2. only touch block_num, rather than any block_size axis.
      * */
-    static int get_shrinkable_offset(const graph_tensor_ptr &gt);
+    static int get_shrinkable_offset(
+            const graph_tensor_ptr &gt, bool aggresive_mode = true);
 };
 
 struct data_compensation_t : public virtual op_base_trait_t {};

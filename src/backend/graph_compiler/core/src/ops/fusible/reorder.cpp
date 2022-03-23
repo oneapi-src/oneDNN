@@ -104,7 +104,8 @@ sc_dims reorder_op_t::get_bwise_fuse_shrink_dims() {
     bool use_out_loop = use_output_loop();
     // depends on loop mode
     auto gt = use_out_loop ? get_outputs()[0] : get_inputs()[0];
-    int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(gt);
+    int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
+            gt, false);
     auto fmt = gt->details_.get_format();
     int bs_size = gt->details_.get_blocking_dims().size()
             - fmt.format_code_.ndims();

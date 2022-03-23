@@ -102,38 +102,40 @@ graph_tensor_ptr op_traits::batchwise_shrinkable_t::shrink_gt(
         const graph_tensor_ptr &orig_gt, int shrink_offset) {
     auto blocking_fmt = orig_gt->details_.get_format();
     auto blocking_dims = orig_gt->details_.get_blocking_dims();
-    sc_dims new_dims;
+    sc_dims new_plain_dims;
     if (blocking_fmt.is_any()) {
-        new_dims = blocking_dims;
-        std::transform(new_dims.begin(), new_dims.begin() + shrink_offset,
-                new_dims.begin(), [](const sc_dim &d) { return 1; });
+        new_plain_dims = blocking_dims;
+        std::transform(new_plain_dims.begin(),
+                new_plain_dims.begin() + shrink_offset, new_plain_dims.begin(),
+                [](const sc_dim &d) { return 1; });
     } else {
         auto plain_dims = orig_gt->details_.get_plain_dims();
         auto plain_fmt = orig_gt->details_.get_format().to_plain();
-        new_dims = plain_dims;
+        new_plain_dims = plain_dims;
         int real_shrink = shrink_offset;
         int bs_size = 0;
         if (plain_fmt.format_code_.is_batch_format()) {
             bs_size = plain_dims.size() - plain_fmt.format_code_.norig_dims();
-            std::transform(new_dims.begin(),
-                    new_dims.begin() + std::min(shrink_offset, bs_size),
-                    new_dims.begin(), [](const sc_dim &d) { return 1; });
+            std::transform(new_plain_dims.begin(),
+                    new_plain_dims.begin() + std::min(shrink_offset, bs_size),
+                    new_plain_dims.begin(), [](const sc_dim &d) { return 1; });
             real_shrink = std::max(0, shrink_offset - bs_size);
         }
         if (real_shrink) {
             for (int block_i = 0; block_i < real_shrink; block_i++) {
                 sc_dim cur_dim = blocking_dims[bs_size + block_i];
                 int plain_i = blocking_fmt.format_code_.get(block_i);
-                new_dims[bs_size + plain_i] /= cur_dim;
+                new_plain_dims[bs_size + plain_i] /= cur_dim;
             }
         }
     }
-    return std::make_shared<graph_tensor>(nullptr,
-            orig_gt->details_.get_format(), new_dims, orig_gt->details_.dtype_);
+    auto new_fmt = shrink_format_by_plain_dims(orig_gt, new_plain_dims);
+    return std::make_shared<graph_tensor>(
+            nullptr, new_fmt, new_plain_dims, orig_gt->details_.dtype_);
 }
 
 int op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
-        const graph_tensor_ptr &gt) {
+        const graph_tensor_ptr &gt, bool aggresive_mode) {
     auto fmt = gt->details_.get_format();
     auto blocking_dims = gt->details_.get_blocking_dims();
     // if fmt is not blocking, avoid vectorized axis
@@ -152,14 +154,60 @@ int op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
                   }
                   return acc_dim != plain_dims[bs_size + plain_pos];
               };
-    std::vector<bool> mask(fmt.format_code_.norig_dims(), false);
+    std::vector<int> mask(fmt.format_code_.norig_dims(), 0);
     for (; offset < fmt.format_code_.ndims(); offset++) {
         auto plain_pos = fmt.format_code_.get(offset);
-        if (mask[plain_pos] || check_padding(p2b_map[plain_pos], plain_pos))
+        mask[plain_pos]++;
+        // no blocking found in current plain axis, skip.
+        if (p2b_map[plain_pos].size() == 1)
+            continue;
+        else if (mask[plain_pos] > (aggresive_mode ? static_cast<int>(
+                                            p2b_map[plain_pos].size() - 1)
+                                                   : 1)
+                || check_padding(p2b_map[plain_pos], plain_pos))
             break;
-        mask[plain_pos] = true;
     }
     return bs_size + offset;
+}
+
+sc_data_format_t op_traits::batchwise_shrinkable_t::shrink_format_by_plain_dims(
+        const graph_tensor_ptr &orig_gt, const sc_dims &plain_dims) {
+    auto old_plain_dims = orig_gt->details_.get_plain_dims();
+    COMPILE_ASSERT(plain_dims.size() == old_plain_dims.size(),
+            "plain dims size should not be different");
+    auto old_fmt = orig_gt->details_.get_format();
+    if (!old_fmt.is_blocking()) { return old_fmt; }
+    auto old_blocks = old_fmt.blocks_;
+    auto new_blocks = old_blocks;
+    int bs_size = 0;
+    if (old_fmt.format_code_.is_batch_format()) {
+        bs_size = old_plain_dims.size() - old_fmt.format_code_.norig_dims();
+    }
+    for (int i = bs_size; i < static_cast<int>(old_plain_dims.size()); i++) {
+        if (plain_dims[i] != old_plain_dims[i]) {
+            auto old_blocks_i
+                    = old_fmt.format_code_.collect_blocking_index(i - bs_size);
+            std::reverse(old_blocks_i.begin(), old_blocks_i.end());
+            bool reset_new_block = false;
+            for (auto &j : old_blocks_i) {
+                if (reset_new_block) {
+                    new_blocks[j] = plain_dims[i];
+                } else {
+                    if (old_blocks[j] >= plain_dims[i]) {
+                        reset_new_block = true;
+                        new_blocks[j] = plain_dims[i];
+                    } else {
+                        COMPILE_ASSERT(plain_dims[i] % old_blocks[j] == 0,
+                                "Unexpected strided/padding case found, and "
+                                "could "
+                                "not "
+                                "infer new format")
+                    }
+                }
+            }
+        }
+    }
+    return sc_data_format_t(old_fmt.format_code_, new_blocks);
 }
 
 void op_traits::batchwise_shrinkable_t::record_shrinked_gt(
@@ -172,8 +220,9 @@ void op_traits::batchwise_shrinkable_t::record_shrinked_gt(
 void op_traits::batchwise_shrinkable_t::record_shrinked_gt(gt2gt_map &bw_lt_map,
         const graph_tensor_ptr &gt, const sc_dims &plain_dims) {
     if (bw_lt_map.haskey(gt)) return;
-    bw_lt_map.get(gt) = std::make_shared<graph_tensor>(nullptr,
-            gt->details_.get_format(), plain_dims, gt->details_.dtype_);
+    auto new_fmt = shrink_format_by_plain_dims(gt, plain_dims);
+    bw_lt_map.get(gt) = std::make_shared<graph_tensor>(
+            nullptr, new_fmt, plain_dims, gt->details_.dtype_);
 }
 
 void op_traits::batchwise_shrinkable_t::record_shrinked_axes(
