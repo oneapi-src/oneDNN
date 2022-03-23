@@ -92,7 +92,7 @@ GPU engine was validated on Ubuntu* 18.04 with
 To build the library from source code:
 
 ```bash
-git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph --recursive
+git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph-alpha --recursive
 cd oneDNN
 mkdir build && cd build
 cmake .. -DDNNL_GRAPH_BUILD_TESTS=1 -DDNNL_GRAPH_BUILD_EXAMPLES=1
