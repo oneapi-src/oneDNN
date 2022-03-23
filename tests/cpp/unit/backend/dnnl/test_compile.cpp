@@ -1100,6 +1100,79 @@ INSTANTIATE_TEST_SUITE_P(Execute, Concat,
                                 8., 8.},
                         -1, false}));
 
+TEST(Compile, ConcatWithMoreInputs) {
+    size_t num_inputs = 64;
+    const std::vector<impl::dim_t> src_dims = {1, 2, 2, 2};
+    const std::vector<impl::dim_t> dst_dims
+            = {1, 2, 2, 2 * static_cast<impl::dim_t>(num_inputs)};
+    test::vector<float> dst_data(dst_dims.size(), 0.);
+    const auto axis = 3;
+
+    impl::op_t concat_op(impl::op_kind::Concat, "concat");
+    concat_op.set_attr<int64_t>("axis", axis);
+
+    std::vector<impl::logical_tensor_t> input_lts;
+    for (size_t i = 0; i < num_inputs; ++i) {
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                i, src_dims, impl::data_type::f32, impl::layout_type::strided);
+        input_lts.push_back(src_lt);
+        concat_op.add_input(input_lts[i]);
+    }
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(num_inputs,
+            dst_dims, impl::data_type::f32, impl::layout_type::strided);
+    concat_op.add_output(dst_lt);
+
+    auto &eng = get_engine();
+    impl::graph_t g(eng.kind());
+    g.add_op(&concat_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("concat_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs;
+    for (size_t i = 0; i < num_inputs; ++i) {
+        inputs.push_back(&input_lts[i]);
+    }
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    auto ret = p.compile(&cp, inputs, outputs, &eng);
+    ASSERT_EQ(ret, impl::status::success);
+}
+
+TEST(Compile, ConcatWithMoreInputsFail) {
+    size_t num_inputs = 65;
+    const std::vector<impl::dim_t> src_dims = {1, 2, 2, 2};
+    const std::vector<impl::dim_t> dst_dims
+            = {1, 2, 2, 2 * static_cast<impl::dim_t>(num_inputs)};
+    test::vector<float> dst_data(dst_dims.size(), 0.);
+    const auto axis = 3;
+
+    impl::op_t concat_op(impl::op_kind::Concat, "concat");
+    concat_op.set_attr<int64_t>("axis", axis);
+
+    std::vector<impl::logical_tensor_t> input_lts;
+    for (size_t i = 0; i < num_inputs; ++i) {
+        impl::logical_tensor_t src_lt = utils::logical_tensor_init(
+                i, src_dims, impl::data_type::f32, impl::layout_type::strided);
+        input_lts.push_back(src_lt);
+        concat_op.add_input(input_lts[i]);
+    }
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(num_inputs,
+            dst_dims, impl::data_type::f32, impl::layout_type::strided);
+    concat_op.add_output(dst_lt);
+
+    auto &eng = get_engine();
+    impl::graph_t g(eng.kind());
+    ASSERT_EQ(g.add_op(&concat_op), impl::status::invalid_op);
+}
+
 TEST(ExecuteSubgraphInt8, Concat) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();

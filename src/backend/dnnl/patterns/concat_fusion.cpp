@@ -28,7 +28,7 @@ using pb_graph_t = pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
-#define MAX_NUM_OF_CONCAT 32
+#define MAX_NUM_OF_CONCAT 64
 
 namespace {
 bool check_scales_zps_all_equal(op_t *op) {
