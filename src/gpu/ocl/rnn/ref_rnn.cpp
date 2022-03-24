@@ -458,6 +458,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     data_type_t src_layer_dt = this->desc()->src_layer_desc.data_type;
     data_type_t weights_iter_dt = this->desc()->weights_iter_desc.data_type;
     data_type_t weights_layer_dt = this->desc()->weights_layer_desc.data_type;
+    data_type_t bias_dt = this->desc()->bias_desc.data_type;
+
     bool src_is_u8 = src_layer_dt == data_type::u8;
     bool src_is_f16 = src_layer_dt == data_type::f16;
     if (src_is_u8 && !src_is_f16)
@@ -478,6 +480,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                             forward_inference))
             && IMPLICATION(aprop == backward,
                     one_of(this->desc()->prop_kind, backward))
+            && IMPLICATION(
+                    src_type == data_type::bf16, bias_dt == data_type::f32)
             && src_layer_dt == src_type
             && ((aprop == prop_kind::forward && src_layer_dt == data_type::u8
                         && weights_layer_dt == data_type::s8
