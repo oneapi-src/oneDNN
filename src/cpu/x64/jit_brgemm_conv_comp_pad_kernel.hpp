@@ -87,9 +87,9 @@ protected:
 
     const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm31; }
 
-    Xbyak::Zmm accum(const int n_block, const int m, const int n);
-    size_t out_oc_offset(const int m, const int n);
-    size_t inp_ic_offset(const int icb, const int m, const int n);
+    Xbyak::Zmm accum(const int n_block, const int m, const int n) const;
+    size_t out_oc_offset(const int m, const int n) const;
+    size_t inp_ic_offset(const int icb, const int m, const int n) const;
 
     void store_accumulators(const int m_block, const int n_block);
     void zero_accumulators(const int m_block, const int n_block);

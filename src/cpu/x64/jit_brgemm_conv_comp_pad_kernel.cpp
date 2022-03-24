@@ -47,18 +47,18 @@ jit_avx512_core_brgemm_conv_comp_pad_kernel_t::
     , out_ow_sz_(out_dsz_ * jcp_.oc_block) {}
 
 size_t jit_avx512_core_brgemm_conv_comp_pad_kernel_t::out_oc_offset(
-        const int m, const int n) {
+        const int m, const int n) const {
     return static_cast<size_t>(out_dsz_)
             * (n * m_block2_
                     + m * jcp_.ker_ranges_size * jcp_.ow * jcp_.oc_block);
 }
 size_t jit_avx512_core_brgemm_conv_comp_pad_kernel_t::inp_ic_offset(
-        const int icb, const int m, const int n) {
+        const int icb, const int m, const int n) const {
     return static_cast<size_t>(inp_dsz_) * n * m_block2_ * last_ic_block_
             + m * inp_ocb_sz_ + icb * inp_ic_sz_;
 }
 Xbyak::Zmm jit_avx512_core_brgemm_conv_comp_pad_kernel_t::accum(
-        const int n_block, const int m, const int n) {
+        const int n_block, const int m, const int n) const {
     return Xbyak::Zmm(m * n_block + n);
 }
 
