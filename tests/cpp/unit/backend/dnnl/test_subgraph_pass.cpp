@@ -1212,6 +1212,59 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     ASSERT_EQ(subgraph->get_mutable_ops().size(), 1);
 }
 
+TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
+    /*   
+              /\
+        sigmoid \
+              \ /
+             multiply
+                |
+    */
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+
+    std::vector<int64_t> src_shape {1, 16, 4, 4};
+
+    impl::op_t sigmoid {0, impl::op_kind::Sigmoid, "sigmoid"};
+    impl::op_t multiply {1, impl::op_kind::Multiply, "multiply"};
+
+    impl::logical_tensor_t sigmoid_src
+            = logical_tensor_init(0, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t sigmoid_dst
+            = logical_tensor_init(1, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t multiply_dst
+            = logical_tensor_init(2, src_shape, impl::data_type::f32);
+
+    sigmoid.add_input(sigmoid_src);
+    sigmoid.add_output(sigmoid_dst);
+
+    multiply.add_input(sigmoid_src);
+    multiply.add_input(sigmoid_dst);
+    multiply.add_output(multiply_dst);
+
+    impl::graph_t g;
+    g.add_op(&sigmoid);
+    g.add_op(&multiply);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    auto subgraph
+            = std::make_shared<dnnl_impl::subgraph_t>(part->get_ops(), p_eng);
+    ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
+    ASSERT_EQ(dnnl_impl::fuse_mul_sigmoid_to_swish(subgraph),
+            impl::status::success);
+    ASSERT_EQ(subgraph->get_mutable_ops().size(), 1);
+    ASSERT_EQ(subgraph->get_mutable_ops()[0]->get_kind(),
+            dnnl_impl::op_kind::dnnl_eltwise);
+    ASSERT_EQ(static_cast<dnnl::algorithm>(
+                      subgraph->get_mutable_ops()[0]->get_attr<int64_t>(
+                              "alg_kind")),
+            dnnl::algorithm::eltwise_swish);
+}
+
 TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     /*
         | (u8/s8)  | (u8/s8)
