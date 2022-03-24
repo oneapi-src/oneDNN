@@ -866,7 +866,7 @@ status_t conv_config_t::fixup_inference_consistency() {
 
     // Unrolling with mad or dp4a results in too large kernels.
     if (utils::one_of(fma_kind, fma_kind_t::mad, fma_kind_t::dp4a)
-            && (hw_cfg.hw() >= ngen::HW::XeHPG && mb != 1))
+            && (hw_cfg.hw() >= ngen::HW::XeHPG || mb != 1))
         do_pipeline_unroll = false;
 
     // Without unrolling there is no benefit in keeping per-message headers.
