@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,6 +62,8 @@ std::string flag_name2str(flag_bit_t flag) {
 }
 
 std::ostream &operator<<(std::ostream &s, const std::vector<flag_t> &oflag) {
+    if (oflag[0].first == FLAG_NONE) return s;
+
     const char *delim = "";
     for (const auto &i_oflag : oflag) {
         s << delim << flag_name2str(i_oflag.first) << ":" << i_oflag.second;
