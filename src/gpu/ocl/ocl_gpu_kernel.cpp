@@ -50,7 +50,7 @@ struct enqueue_lock_t {
     }
 
     // Unlocks cl_kernel after enqueueing.
-    void unlock() { is_locked->store(false); }
+    void unlock() const { is_locked->store(false); }
 
     std::atomic<bool> *is_locked;
     bool owns_lock = false;
