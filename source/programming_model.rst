@@ -34,9 +34,7 @@ Both OP and logical tensor contains a unique ID, so that the graph knows how to
 connect a producer OP to a consumer OP through a logical tensor. The graph
 constructed is immutable. The purpose of creating the graph object is to get
 partitions. After partitions are created, the graph object is not useful anymore.
-Once users get partitions, users should not add OP to the graph. The
-order of OPs being added to the graph is considered as the order of OP being
-executed.
+Once users get partitions, users should not add OP to the graph.
 
 oneDNN Graph defines operation set. Users should convert their DNN operation
 definition to oneDNN Graph operation for graph construction. For operation
@@ -168,22 +166,29 @@ Graph
 
 *Graph* contains a set of OPs. ``add_op()`` adds an OP and its logical tensors
 to a graph. oneDNN Graph implementation accumulates the OPs and logical tensors
-and constructs and validates the graph as internal state. At the end of graph
-construction, users may call ``get_partitions()`` which returns a set of
-partitions. After ``get_partitions()``, users shall not add ops to the graph.
-The graph doesn't hold any meaning to the user after partitioning. Users should
-free the graph.
+and constructs and validates the graph as internal state. During ``add_op()``,
+the target OP will be validated against its schema. Once the validation fails,
+an exception will be thrown out from the API. When ``allow_exception=false`` is
+specified, ``add_op()`` call returns a status. It is the user’s responsibility
+to handle the error either by checking the return value of the API or handling
+the exception.
 
 A same logical tensor may appear more than twice in ``add_op()`` call, since it
 is passed with the producer OP and consumer OPs. oneDNN Graph validates logical
 tensors with the same id should be identical at the graph construction time.
 
-The order of OP being added to the graph is considered as the order of OP being
-executed. The returned partitions should not contain OP not supported by the
-oneDNN Graph API implementation. Partitions should not form cyclic dependence
-within the graph. If user doesn’t pass a complete graph, it is the user's
-responsibility to detect any dependence cycle between the partitions and
-operations not passing to oneDNN Graph implementation.
+At the end of graph construction, users may call ``get_partitions()`` which
+returns a set of partitions. After ``get_partitions()``, users shall not add ops
+to the graph. The graph doesn’t hold any meaning to the user after partitioning.
+Users should free the graph.
+
+All the OPs added to the graph will be contained in one of the returned
+partitions. If an OP is not supported by the oneDNN Graph API implementation,
+the corresponding partition will be marked as “not supported”. Users can check
+the supporting status of a partition via the API ``is_supported()``. Partitions
+should not form cyclic dependence within the graph. If user doesn’t pass a
+complete graph, it is the user's responsibility to detect any dependence cycle
+between the partitions and operations not passing to oneDNN Graph implementation.
 
 The logical tensor passed at the graph construction stage might contain
 incomplete information, for example, dimension and shape information are
