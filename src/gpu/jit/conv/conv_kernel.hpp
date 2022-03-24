@@ -933,8 +933,10 @@ public:
         uint32_t m = 0, p = 0;
         eidiv_magicgu(y, m, p);
 
-        auto _x = ra_.alloc().ud();
-        auto _qot = ra_.alloc().ud();
+        auto x_tmp = ra_.alloc().ud();
+        auto qot_tmp = ra_.alloc().ud();
+        auto _x = x_tmp[0];
+        auto _qot = qot_tmp[0];
         mov(1, _x, x);
 
         // qot = (x * m) >> p
@@ -960,8 +962,8 @@ public:
             }
         }
 
-        ra_.safeRelease(_x);
-        ra_.safeRelease(_qot);
+        ra_.safeRelease(x_tmp);
+        ra_.safeRelease(qot_tmp);
     }
 
     friend struct dnnl::impl::gpu::jit::EmulationImplementation;
