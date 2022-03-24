@@ -25,8 +25,9 @@
 #include <stdlib.h>
 #include <string>
 #include "utils.hpp"
-#include <compiler/config/env_vars.hpp>
 #include <compiler/ir/sc_data_type.hpp>
+#include <runtime/config.hpp>
+#include <runtime/env_vars.hpp>
 
 namespace sc {
 namespace utils {
@@ -65,54 +66,6 @@ const std::string &get_sc_home_path() {
     return path;
 }
 
-// TODO(xxx): Copied from onednn, should be removed when merge
-int getenv(const char *name, char *buffer, int buffer_size) {
-    if (name == nullptr || buffer_size < 0
-            || (buffer == nullptr && buffer_size > 0))
-        return INT_MIN;
-
-    int result = 0;
-    int term_zero_idx = 0;
-    size_t value_length = 0;
-
-#ifdef _WIN32
-    value_length = GetEnvironmentVariable(name, buffer, buffer_size);
-#else
-    const char *value = ::getenv(name);
-    value_length = value == nullptr ? 0 : strlen(value);
-#endif
-
-    if (value_length > INT_MAX)
-        result = INT_MIN;
-    else {
-        int int_value_length = (int)value_length;
-        if (int_value_length >= buffer_size) {
-#ifdef _WIN32
-            if (int_value_length > 0) int_value_length -= 1;
-#endif
-            result = -int_value_length;
-        } else {
-            term_zero_idx = int_value_length;
-            result = int_value_length;
-#ifndef _WIN32
-            if (value && buffer) strncpy(buffer, value, buffer_size - 1);
-#endif
-        }
-    }
-
-    if (buffer != nullptr) buffer[term_zero_idx] = '\0';
-    return result;
-}
-
-int getenv_int(const char *name, int default_value) {
-    int value = default_value;
-    // # of digits in the longest 32-bit signed int + sign + terminating null
-    const int len = 12;
-    char value_str[len]; // NOLINT
-    if (getenv(name, value_str, len) > 0) value = atoi(value_str);
-    return value;
-}
-
 uint32_t get_sizeof_etype(sc_data_etype etype) {
     switch (etype) {
         case sc_data_etype::S8:
@@ -138,16 +91,6 @@ uint64_t get_sizeof_type(sc_data_type_t dtype) {
     return get_sizeof_etype(dtype.type_code_) * dtype.lanes_;
 }
 
-size_t get_os_page_size() {
-#ifdef _WIN32
-    // fix-me: (win32) impl
-    return 4096;
-#else
-    static size_t v = getpagesize();
-    return v;
-#endif
-}
-
 std::string get_error_msg(int errnum) {
 #if defined(_WIN32) || defined(__APPLE__)
     // fix-me: (win32)
@@ -167,23 +110,6 @@ std::string get_error_msg(int errnum) {
     return std::string(strerror_r(errnum, &buffer[0], buffer.size()));
 #endif
 #endif
-}
-
-std::string getenv_string(const char *name) {
-    assert(name);
-    assert(strlen(name) != 0);
-
-    const int value_strlen = ::sc::utils::getenv(name, nullptr, 0) * -1;
-    assert(value_strlen >= 0);
-
-    if (value_strlen == 0) {
-        return std::string();
-    } else {
-        std::vector<char> buffer(value_strlen + 1);
-        const int rc = ::sc::utils::getenv(name, &buffer[0], buffer.size());
-        assert(rc == value_strlen);
-        return std::string(&buffer[0]);
-    }
 }
 
 compiler_configs_t &compiler_configs_t::get() {
@@ -208,18 +134,11 @@ compiler_configs_t::compiler_configs_t() {
     temp_dir_ = utils::getenv_string(env_names[SC_TEMP_DIR]);
     if (temp_dir_.empty()) { temp_dir_ = "/tmp"; }
 
-    constexpr int default_verbose = 0;
-    int tmp_get_verbose_level
-            = utils::getenv_int(env_names[SC_VERBOSE], default_verbose);
-    if (tmp_get_verbose_level < 0 || tmp_get_verbose_level > 2) {
-        tmp_get_verbose_level = 0;
-    }
-    verbose_level_ = (verbose_level)tmp_get_verbose_level;
-
     print_pass_time_ = utils::getenv_int(env_names[SC_PRINT_PASS_TIME], 0);
     print_pass_result_ = utils::getenv_int(env_names[SC_PRINT_PASS_RESULT], 0);
     jit_profile_ = utils::getenv_int(env_names[SC_JIT_PROFILE], 0);
 }
 
 } // namespace utils
+
 } // namespace sc

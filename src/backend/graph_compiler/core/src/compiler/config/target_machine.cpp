@@ -15,11 +15,11 @@
  *******************************************************************************/
 #include <immintrin.h>
 #include "context.hpp"
-#include "env_vars.hpp"
 #include <compiler/jit/jit.hpp>
 #include <cpu/x64/cpu_isa_traits.hpp>
 #include <runtime/config.hpp>
 #include <runtime/context.hpp>
+#include <runtime/env_vars.hpp>
 #include <unordered_map>
 #include <util/string_utils.hpp>
 #include <util/utils.hpp>
@@ -76,17 +76,6 @@ static void parse_bool(const char *name, bool &v) {
     auto strv = sc::utils::getenv_string(name);
     if (!strv.empty()) { v = bool(std::stoi(strv)); };
 }
-
-const char *env_names[] = {"SC_CPU_JIT", "SC_TRACE", "SC_DUMP_GRAPH",
-        "SC_GRAPH_DUMP_TENSORS", "SC_VALUE_CHECK", "SC_OPT_LEVEL",
-        "SC_BUFFER_SCHEDULE", "SC_KERNEL", "SC_MICRO_KERNEL_OPTIM",
-        "SC_DEAD_WRITE_ELIMINATION", "SC_INDEX2VAR", "SC_PRINT_IR",
-        "SC_BOUNDARY_CHECK", "SC_PRINT_GENCODE", "SC_KEEP_GENCODE",
-        "SC_JIT_CC_OPTIONS_GROUP", "SC_CPU_JIT_FLAGS", "SC_TEMP_DIR",
-        "SC_VERBOSE", "SC_RUN_THREADS", "SC_AMX_EXCLUSIVE", "SC_TRACE_INIT_CAP",
-        "SC_EXECUTION_VERBOSE", "SC_LOGGING_FILTER", "SC_HOME", "SC_SSA_PASSES",
-        "SC_PRINT_PASS_TIME", "SC_PRINT_PASS_RESULT", "SC_JIT_PROFILE",
-        "SC_DUMP_GRAPH_JSON"};
 
 context_ptr get_default_context() {
     static auto v = []() {

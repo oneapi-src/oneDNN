@@ -21,9 +21,9 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <common/generic_val.hpp>
 #include <compiler/ir/sc_function.hpp>
 #include <compiler/jit/jit.hpp>
+#include <runtime/generic_val.hpp>
 
 namespace sc {
 

@@ -23,7 +23,7 @@
 #include <vector>
 #include <compiler/config/context.hpp>
 #include <compiler/ir/sc_function.hpp>
-#include <microkernel/cpu/brgemm_common.hpp>
+#include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <util/utils.hpp>
 
 namespace sc {

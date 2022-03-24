@@ -23,7 +23,7 @@
 #include "brgemm_fusion.hpp"
 #include "fusible_op.hpp"
 #include "fusion_data.hpp"
-#include <microkernel/cpu/brgemm_common.hpp>
+#include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>
 namespace sc {

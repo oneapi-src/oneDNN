@@ -18,7 +18,7 @@
 #include <vector>
 #include "graph.hpp"
 #include <microkernel/builtin.hpp>
-#include <microkernel/cpu/brgemm_common.hpp>
+#include <runtime/microkernel/cpu/brgemm_common.hpp>
 namespace sc {
 // When fusion manager executing `do_compute_blocks` pass, check if it can be
 // registered to brgemm inside fusion, otherwise do trival computation.

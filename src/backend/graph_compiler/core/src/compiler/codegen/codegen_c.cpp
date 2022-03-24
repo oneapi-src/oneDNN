@@ -727,7 +727,7 @@ void codegen_c_vis::view(for_loop_c v) {
 }
 
 static void prepare_include(std::ostream *source) {
-    *source << R"(#include <compiler/codegen/cpu_include.hpp>
+    *source << R"(#include <runtime/kernel_include/cpu_include.hpp>
 
 )";
 }

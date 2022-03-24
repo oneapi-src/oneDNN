@@ -25,7 +25,7 @@
 #include "sc_function.hpp"
 #include "ssa_data.hpp"
 #include "visitable.hpp"
-#include <common/dimensions.hpp>
+#include <compiler/dimensions.hpp>
 #include <util/any_map.hpp>
 namespace sc {
 

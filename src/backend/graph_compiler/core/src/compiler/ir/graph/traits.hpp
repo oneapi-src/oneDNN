@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 #include "graph.hpp"
-#include <microkernel/cpu/brgemm_alg_kind.hpp>
+#include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 namespace sc {
 
 class fusion_manager;

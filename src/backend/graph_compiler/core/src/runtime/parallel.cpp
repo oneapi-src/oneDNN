@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "common/generic_val.hpp"
 #include "config.hpp"
 #include "context.hpp"
+#include <runtime/generic_val.hpp>
 #include <runtime/parallel.hpp>
-#include <util/utils.hpp>
+#include <util/simple_math.hpp>
 
 // todo: handle signed integers
 extern "C" void sc_parallel_call_cpu(void (*pfunc)(int64_t, sc::generic_val *),

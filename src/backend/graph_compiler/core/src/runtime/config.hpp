@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ struct SC_INTERNAL_API runtime_config_t {
     std::string trace_out_path_;
     int trace_initial_cap_;
     bool execution_verbose_;
+    int verbose_level_;
     static runtime_config_t &get();
 
 private:

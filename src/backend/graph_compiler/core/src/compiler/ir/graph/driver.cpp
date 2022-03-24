@@ -21,7 +21,7 @@
 #include <utility>
 #include "driver.hpp"
 #include "pass/pass.hpp"
-#include <compiler/config/env_vars.hpp>
+#include <runtime/env_vars.hpp>
 #include <unordered_map>
 #include <util/scoped_timer.hpp>
 
@@ -146,7 +146,7 @@ static void run_passes(sc_graph_t &graph, const context_ptr &ctx,
                 std::string name
                         = std::string("graph.driver.debug.") + pass->name_;
                 if (auto stream
-                        = ::sc::utils::get_info_logging_stream(name.c_str())) {
+                        = runtime::get_info_logging_stream(name.c_str())) {
                     *stream.stream_ << "IR after this pass:\n";
                     print_graph(graph, *stream.stream_, true, true);
                 }

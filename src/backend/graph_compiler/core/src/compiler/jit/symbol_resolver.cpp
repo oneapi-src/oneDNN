@@ -15,8 +15,8 @@
  *******************************************************************************/
 
 #include "symbol_resolver.hpp"
-#include <common/generic_val.hpp>
-#include <microkernel/cpu/microkernel.hpp>
+#include <runtime/generic_val.hpp>
+#include <runtime/microkernel/cpu/microkernel.hpp>
 #ifdef SC_ENABLE_L0_BACKEND
 #include <runtime/l0_runtime.hpp>
 #endif

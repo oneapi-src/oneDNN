@@ -15,15 +15,15 @@
  *******************************************************************************/
 #include <memory>
 #include <vector>
-#include <common/dimensions.hpp>
+#include <compiler/dimensions.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/sc_data_type.hpp>
-#include <microkernel/cpu/brgemm_common.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
+#include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
 

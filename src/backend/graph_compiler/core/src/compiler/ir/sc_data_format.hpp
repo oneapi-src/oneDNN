@@ -19,7 +19,7 @@
 #include <array>
 #include <ostream>
 #include <vector>
-#include <common/dimensions.hpp>
+#include <compiler/dimensions.hpp>
 #include <unordered_map>
 #include <util/def.hpp>
 #include <util/hash_utils.hpp>

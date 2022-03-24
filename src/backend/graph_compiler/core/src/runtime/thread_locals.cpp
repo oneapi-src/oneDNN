@@ -19,7 +19,6 @@
 #include <mutex>
 #include "config.hpp"
 #include <runtime/context.hpp>
-#include <util/utils.hpp>
 
 namespace sc {
 

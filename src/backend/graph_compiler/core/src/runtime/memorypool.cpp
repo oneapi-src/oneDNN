@@ -20,7 +20,8 @@
 #include "context.hpp"
 #include "memorypool.hpp"
 #include "thread_locals.hpp"
-#include <util/utils.hpp>
+#include <runtime/os.hpp>
+#include <util/simple_math.hpp>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -108,8 +109,8 @@ size_t filo_memory_pool_t::get_block_size(size_t sz) const {
     // the allocated size should include the aligned header size
     sz = sz + header_size;
     if (sz > block_size_) {
-        return divide_and_ceil(sz, utils::get_os_page_size())
-                * utils::get_os_page_size();
+        return divide_and_ceil(sz, runtime::get_os_page_size())
+                * runtime::get_os_page_size();
     } else {
         return block_size_;
     }

@@ -20,8 +20,9 @@
 #include <memory.h>
 #include <stddef.h>
 #include <utility>
+#include <util/def.hpp>
 #include <util/os.hpp>
-#include <util/utils.hpp>
+#include <util/simple_math.hpp>
 
 namespace sc {
 /**

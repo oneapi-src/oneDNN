@@ -28,6 +28,9 @@
 #include "def.hpp"
 #include "fdstream.hpp"
 #include <compiler/ir/sc_data_type.hpp>
+#include <runtime/env_var.hpp>
+#include <runtime/logging.hpp>
+#include <util/simple_math.hpp>
 
 namespace sc {
 namespace utils {
@@ -42,18 +45,6 @@ inline size_t get_index(const std::vector<T> vec, const T &element) {
     } else {
         return std::distance(vec.begin(), pos);
     }
-}
-
-static constexpr size_t divide_and_ceil(size_t x, size_t y) {
-    return (x + y - 1) / y;
-}
-
-static constexpr size_t rnd_up(const size_t a, const size_t b) {
-    return (divide_and_ceil(a, b) * b);
-}
-
-static constexpr size_t rnd_dn(const size_t a, const size_t b) {
-    return (a / b) * b;
 }
 
 template <typename T>
@@ -71,44 +62,6 @@ template <typename T, typename... Args>
 std::unique_ptr<T> make_unique(Args &&... args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
-
-// Reads an environment variable 'name' and stores its string value in the
-// 'buffer' of 'buffer_size' bytes (including the terminating zero) on
-// success.
-//
-// - Returns the length of the environment variable string value (excluding
-// the terminating 0) if it is set and its contents (including the terminating
-// 0) can be stored in the 'buffer' without truncation.
-//
-// - Returns negated length of environment variable string value and writes
-// "\0" to the buffer (if it is not NULL) if the 'buffer_size' is to small to
-// store the value (including the terminating 0) without truncation.
-//
-// - Returns 0 and writes "\0" to the buffer (if not NULL) if the environment
-// variable is not set.
-//
-// - Returns INT_MIN if the 'name' is NULL.
-//
-// - Returns INT_MIN if the 'buffer_size' is negative.
-//
-// - Returns INT_MIN if the 'buffer' is NULL and 'buffer_size' is greater than
-// zero. Passing NULL 'buffer' with 'buffer_size' set to 0 can be used to
-// retrieve the length of the environment variable value string.
-//
-SC_INTERNAL_API int getenv(const char *name, char *buffer, int buffer_size);
-
-// Reads an integer from the environment
-SC_INTERNAL_API int getenv_int(const char *name, int default_value = 0);
-
-// A convenience wrapper for the 'getenv' function defined above.
-//
-// Note: Due to an apparent limitation in the wrapped 'getenv'
-// function, this function makes no distinction between:
-// (a) the environment variable not being defined at all, vs.
-// (b) the environment variable defined, with a value of empty-string.
-//
-// This function's behavior is undefined if 'name' is null or the empty-string.
-SC_INTERNAL_API std::string getenv_string(const char *name);
 
 template <typename TDst, typename TSrc>
 struct bind_assigner_t {
@@ -244,35 +197,11 @@ uint64_t get_sizeof_type(sc_data_type_t dtype);
 SC_INTERNAL_API std::string get_error_msg(int errnum);
 
 /**
- * Gets the size of OS memory page
- * */
-SC_INTERNAL_API size_t get_os_page_size();
-
-/**
  * Gets the file path of a dynamic library
  * @param addr an address of any function in the library
  * @return the library path, or empty if anything goes wrong
  * */
 SC_INTERNAL_API std::string get_dyn_lib_path(void *addr);
-
-struct logging_stream_t {
-    std::ostream *stream_;
-    const char *append_;
-    logging_stream_t(std::ostream *stream, const char *append)
-        : stream_(stream), append_(append) {}
-    ~logging_stream_t() {
-        if (stream_) *stream_ << append_;
-    }
-    operator bool() const { return stream_; };
-};
-
-logging_stream_t get_info_logging_stream(const char *module_name = nullptr);
-logging_stream_t get_warning_logging_stream(const char *module_name = nullptr);
-logging_stream_t get_fatal_logging_stream(const char *module_name = nullptr);
-
-enum verbose_level { FATAL = 0, WARNING, INFO };
-
-void set_logging_stream(std::ostream *s);
 
 struct SC_INTERNAL_API compiler_configs_t {
     bool print_gen_code_;
@@ -280,7 +209,6 @@ struct SC_INTERNAL_API compiler_configs_t {
     std::string jit_cc_options_;
     std::vector<std::string> cpu_jit_flags_;
     std::string temp_dir_;
-    verbose_level verbose_level_;
     bool print_pass_time_;
     bool print_pass_result_;
     bool jit_profile_;
@@ -293,33 +221,5 @@ private:
 
 } // namespace utils
 } // namespace sc
-
-#define SC_INFO \
-    if (auto __sc_stream_temp__ = ::sc::utils::get_info_logging_stream()) \
-    (*__sc_stream_temp__.stream_)
-
-#define SC_MODULE_INFO2(NAME) \
-    if (auto __sc_stream_temp__ = ::sc::utils::get_info_logging_stream(NAME)) \
-    (*__sc_stream_temp__.stream_)
-
-#define SC_MODULE_INFO SC_MODULE_INFO2(__sc_module_name)
-
-#define SC_WARN \
-    if (auto __sc_stream_temp__ = ::sc::utils::get_warning_logging_stream()) \
-    (*__sc_stream_temp__.stream_)
-#define SC_MODULE_WARN \
-    if (auto __sc_stream_temp__ \
-            = ::sc::utils::get_warning_logging_stream(__sc_module_name)) \
-    (*__sc_stream_temp__.stream_)
-
-#define SC_FATAL \
-    if (auto __sc_stream_temp__ = ::sc::utils::get_fatal_logging_stream()) \
-    (*__sc_stream_temp__.stream_)
-#define SC_MODULE_FATAL \
-    if (auto __sc_stream_temp__ \
-            = ::sc::utils::get_fatal_logging_stream(__sc_module_name)) \
-    (*__sc_stream_temp__.stream_)
-
-#define SC_MODULE(NAME) static constexpr const char *__sc_module_name = #NAME;
 
 #endif

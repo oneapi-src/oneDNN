@@ -20,7 +20,7 @@
 #include <ostream>
 #include <string>
 #include "sc_expr.hpp"
-#include <microkernel/cpu/brgemm_common.hpp>
+#include <runtime/microkernel/cpu/brgemm_common.hpp>
 #include <util/any_map.hpp>
 namespace sc {
 class ir_visitor_t;

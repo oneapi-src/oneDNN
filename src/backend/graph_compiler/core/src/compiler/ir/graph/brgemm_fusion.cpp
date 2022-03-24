@@ -20,7 +20,7 @@
 #include "../viewer.hpp"
 #include "fusion_mgr.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
-#include <microkernel/cpu/brgemm_alg_kind.hpp>
+#include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 
 namespace sc {
 void fusion_manager::break_brgemm_fusion() {

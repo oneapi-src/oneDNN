@@ -24,7 +24,7 @@
 #include <compiler/ir/graph/brgemm_fusion.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
-#include <microkernel/cpu/brgemm_alg_kind.hpp>
+#include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 #include <util/utils.hpp>
 
 namespace sc {

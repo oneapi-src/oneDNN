@@ -18,7 +18,7 @@
 #include <immintrin.h>
 #include <runtime/config.hpp>
 #include <util/parallel.hpp>
-#include <util/utils.hpp>
+#include <util/simple_math.hpp>
 namespace sc {
 
 using utils::divide_and_ceil;

@@ -18,7 +18,7 @@
 #include <vector>
 #include "../ir_comparer.hpp"
 #include "../visitor.hpp"
-#include <common/dimensions.hpp>
+#include <compiler/dimensions.hpp>
 #include <compiler/ir/builder.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
