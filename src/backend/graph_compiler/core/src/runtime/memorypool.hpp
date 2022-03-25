@@ -30,10 +30,10 @@ struct engine_t;
 
 namespace memory_pool {
 
-// 8MB
-constexpr size_t threadlocal_chunk_size = 8 * 1024 * 1024;
-// 64MB
-constexpr size_t main_chunk_size = 64 * 1024 * 1024;
+// 4MB
+constexpr size_t threadlocal_chunk_size = 4 * 1024 * 1024;
+// 16MB
+constexpr size_t main_chunk_size = 16 * 1024 * 1024;
 
 // The chunk of memory that is allocated to the user
 struct memory_chunk_t {
