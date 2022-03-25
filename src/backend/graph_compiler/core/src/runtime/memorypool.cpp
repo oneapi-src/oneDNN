@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include <memory.h>
+#include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
 #include "context.hpp"
@@ -69,6 +70,7 @@ void *alloc_by_mmap(runtime::engine_t *eng, size_t sz) {
 memory_block_t *memory_block_t::make(runtime::stream_t *stream, size_t sz,
         memory_block_t *prev, memory_block_t *next) {
     auto ret = stream->engine_->vtable_->temp_alloc(stream->engine_, sz);
+    if (!ret) { throw std::runtime_error("Out of Memory."); }
     memory_block_t *blk = reinterpret_cast<memory_block_t *>(ret);
     blk->size_ = sz;
     blk->allocated_ = sizeof(memory_block_t);
