@@ -316,10 +316,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    if (check_mem_size(const_pd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     dnnl_memory_desc_t src_md {}, dst_md {};
     if (prb->runtime_dim_mask != 0) {
         // re-create memory descriptors with defined dims

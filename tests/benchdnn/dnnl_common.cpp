@@ -813,7 +813,8 @@ static size_t get_gpu_ram_size() {
     return 0;
 }
 
-static int validate_mem_size(size_t total_mem_size) {
+static int check_total_size(
+        size_t total_mem_size, size_t scratchpad_size, res_t *res) {
     static uint64_t cpu_device_capacity = get_cpu_ram_size();
     static uint64_t gpu_device_capacity = get_gpu_ram_size();
 
@@ -829,8 +830,32 @@ static int validate_mem_size(size_t total_mem_size) {
     const bool fits_device_ram = total_mem_size <= benchdnn_limit;
     auto GB = [](double bytes) { return bytes / powf(2, 30); };
 
-    if (!fits_device_ram)
+    if (!fits_device_ram) {
         BENCHDNN_PRINT(2, "%s\n", "benchdnn: not enough RAM for a problem.");
+        if (is_cpu(get_test_engine())) {
+            // Try to catch a huge scratchpad size requested by the library.
+            // Use following logic:
+            //     scratch_size
+            // ---------------------- <= 0.75 (pre-defined threshold).
+            // io_size + scratch_size
+            //
+            // 0.75 value supposed to be experimental and might be adjusted.
+            static constexpr float scratch_trh = 0.75f;
+            if (scratchpad_size > scratch_trh * total_mem_size) {
+                BENCHDNN_PRINT(2, "%s `%ld` %s `%ld`.\n",
+                        "benchdnn: CPU scratchpad size", (long)scratchpad_size,
+                        "exceeded a given threshold",
+                        (long)(scratch_trh * total_mem_size));
+                res->state = FAILED;
+            } else {
+                res->state = SKIPPED;
+            }
+        } else {
+            assert(is_gpu(get_test_engine()));
+            res->state = SKIPPED;
+        }
+        res->reason = NOT_ENOUGH_RAM;
+    }
 
     BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
             "Requested: %g GB, benchdnn limit: %g GB, CPU RAM capacity: %g GB, "
@@ -838,7 +863,7 @@ static int validate_mem_size(size_t total_mem_size) {
             GB(total_mem_size), GB(benchdnn_limit), GB(cpu_device_capacity),
             GB(gpu_device_capacity));
 
-    return fits_device_ram ? OK : FAIL;
+    return res->state == FAILED ? FAIL : OK;
 }
 
 static size_t get_md_size(const dnnl_memory_desc_t *md,
@@ -912,15 +937,15 @@ static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
     return total_mem_size;
 }
 
-int check_mem_size(const dnnl_memory_desc_t &md) {
+int check_mem_size(const dnnl_memory_desc_t &md, res_t *res) {
     if (!mem_check) return OK;
 
     size_t total_mem_size = dnnl_memory_desc_get_size(&md);
 
-    return validate_mem_size(total_mem_size);
+    return check_total_size(total_mem_size, 0, res);
 }
 
-int check_mem_size(const_dnnl_primitive_desc_t const_pd) {
+int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     if (!mem_check) return OK;
 
     bool add_ref_size = true;
@@ -929,11 +954,13 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     size_t total_mem_size = get_memory_bytes(const_pd, inputs, add_ref_size)
             + get_memory_bytes(const_pd, outputs, add_ref_size);
 
+    // Depending on scratchpad mode, either of sizes will be 0.
     const auto &scratchpad = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-    total_mem_size += get_md_size(&scratchpad, add_ref_size);
-    total_mem_size += query_mem_consumption(const_pd);
+    size_t scratchpad_size = get_md_size(&scratchpad, add_ref_size);
+    scratchpad_size += query_mem_consumption(const_pd);
+    total_mem_size += scratchpad_size;
 
-    return validate_mem_size(total_mem_size);
+    return check_total_size(total_mem_size, scratchpad_size, res);
 }
 
 int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {

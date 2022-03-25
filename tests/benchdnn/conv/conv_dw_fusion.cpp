@@ -197,12 +197,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    // Check memory requirements only for original problem though it's broken
-    // due to quering not by arg md.
-    if (check_mem_size(const_pd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     const auto adjust_alg = [](const_dnnl_primitive_desc_t pd, alg_t &alg) {
         if (alg == alg_t::AUTO) {
             dnnl_convolution_desc_t *temp_conv_desc = {nullptr};

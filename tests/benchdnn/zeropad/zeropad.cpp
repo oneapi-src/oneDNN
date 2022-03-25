@@ -131,9 +131,8 @@ int doit(const prb_t *prb, res_t *res) {
             prb->ndims, prb->dims.data(), prb->dt, prb->tag);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    if (check_mem_size(data_md) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
+    SAFE(check_mem_size(data_md, res), WARN);
+    if (res->state == SKIPPED) return OK;
 
     const auto &test_engine = get_test_engine();
 

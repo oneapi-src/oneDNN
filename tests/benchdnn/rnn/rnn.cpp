@@ -900,10 +900,6 @@ int doit(const prb_t &prb, res_t *res) {
 
     auto const_fpd = query_pd(prim);
 
-    if (check_mem_size(const_fpd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     const auto &src_layer_md = query_md(const_fpd, DNNL_ARG_SRC_LAYER);
     const auto &src_layer_attention_md
             = query_md(const_fpd, DNNL_ARG_AUGRU_ATTENTION);
@@ -1059,10 +1055,6 @@ int doit(const prb_t &prb, res_t *res) {
         prim.reset(tmp_prim.release());
 
         auto const_bpd = query_pd(prim);
-
-        if (check_mem_size(const_bpd) != OK) {
-            return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-        }
 
         const auto &bwd_weights_layer_md
                 = query_md(const_bpd, DNNL_ARG_WEIGHTS_LAYER);

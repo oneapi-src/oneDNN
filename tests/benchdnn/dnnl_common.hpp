@@ -419,6 +419,8 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
         const_dnnl_primitive_desc_t pd, res_t *res);
 int check_pd_w_and_wo_attr(
         const_dnnl_primitive_desc_t pd, const attr_t &attr, res_t *res);
+int check_mem_size(const dnnl_memory_desc_t &md, res_t *res);
+int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res);
 
 bool should_stop(const timer::timer_t &t);
 bool should_stop_ctime(const timer::timer_t &ct);
@@ -667,13 +669,16 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
             WARN);
     if (res->state == SKIPPED) return OK;
 
+    auto pd = query_pd(primw);
+    SAFE(check_mem_size(pd, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
     // Further checks are only for tested primitives.
     if (is_service_prim) {
         user_prim.reset(primw.release());
         return OK;
     }
 
-    auto pd = query_pd(primw);
     res->impl_name = query_impl_info(pd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     // Check that adding attributes doesn't cause a fall back to another impl.
@@ -807,9 +812,6 @@ std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
 
 bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);
-
-int check_mem_size(const dnnl_memory_desc_t &md);
-int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 
 memory_kind_ext_t str2memory_kind(const char *str);
 
