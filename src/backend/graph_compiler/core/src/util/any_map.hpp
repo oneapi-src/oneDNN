@@ -158,7 +158,7 @@ struct registry {
     static constexpr any_vtable_t *get_vtable() { return &vtable; }
 };
 
-#if !defined(SC_DLL) || defined(SC_DLL_EXPORTS)
+#if defined(__clang__) || !defined(SC_DLL) || defined(SC_DLL_EXPORTS)
 template <typename T>
 SC_API any_vtable_t registry<T>::vtable(sizeof(T), typeid(T),
         destructor_impl_t<T>::destructor,
