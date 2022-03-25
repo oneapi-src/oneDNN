@@ -178,10 +178,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    if (check_mem_size(const_pd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     const auto &data_md = query_md(const_pd, DNNL_ARG_SRC);
     const auto &weight_md = query_md(const_pd, DNNL_ARG_WEIGHTS);
     const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);

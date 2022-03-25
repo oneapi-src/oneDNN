@@ -446,10 +446,6 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_fpd = query_pd(prim);
 
-    if (check_mem_size(const_fpd) != OK) {
-        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-    }
-
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
@@ -568,9 +564,6 @@ int doit(const prb_t *prb, res_t *res) {
 
         auto const_bpd = query_pd(prim);
 
-        if (check_mem_size(const_bpd) != OK) {
-            return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
-        }
         const auto &d_data_md = query_md(const_bpd, DNNL_ARG_DIFF_DST);
         const auto &d_scratchpad_md = query_md(const_bpd, DNNL_ARG_SCRATCHPAD);
 
