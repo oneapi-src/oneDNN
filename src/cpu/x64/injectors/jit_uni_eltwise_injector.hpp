@@ -151,6 +151,7 @@ private:
     // if only the injector was inherited from jit_generator...
     enum {
         _cmp_eq_oq = jit_generator::_cmp_eq_oq,
+        _cmp_neq_uq = jit_generator::_cmp_neq_uq,
         _cmp_lt_os = jit_generator::_cmp_lt_os,
         _cmp_le_os = jit_generator::_cmp_le_os,
         _cmp_ge_os = jit_generator::_cmp_nlt_us,
@@ -283,6 +284,7 @@ private:
         gelu_erf_one_over_sqrt_two, // 1.f / sqrtf(2.f)
         gelu_erf_one_over_sqrt_pi, // 1.f / sqrtf(pi) = 0.564190f
         gelu_erf_pol, // see correspondent table for float values
+        log_inf, // inf
         log_minus_inf, // -inf
         log_qnan, // qnan
         log_mantissa_mask, // gets mantissa bits

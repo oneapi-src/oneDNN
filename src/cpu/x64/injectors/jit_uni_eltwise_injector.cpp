@@ -842,6 +842,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
     //
     // If (x == 0) result = -inf;
     // If (x < 0) result = qnan;
+    // If (x == inf) result = inf;
+    // If (x == qnan) result = qnan;
 
     // set unused register as tmp for avx
     if (isa == avx) {
@@ -977,10 +979,10 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
     h->uni_vmovups(vmm_aux1, h->ptr[h->rsp]);
     h->add(h->rsp, vlen);
 
-    Xbyak::Label end_log_label;
+    Xbyak::Label end_log_zero_label;
     compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_le_os);
     test_mask();
-    h->jz(end_log_label);
+    h->jz(end_log_zero_label);
 
     // Blend extreme values into src if reach here.
     // First zero for -inf values...
@@ -991,7 +993,23 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::log_compute_vector_fwd(
     compute_cmp_mask(vmm_aux1, table_val(zero), _cmp_lt_os);
     blend_with_mask(vmm_src, table_val(log_qnan));
 
-    h->L(end_log_label);
+    h->L(end_log_zero_label);
+
+    // Leave inf values same as in src.
+    compute_cmp_mask(vmm_aux1, table_val(log_inf), _cmp_eq_oq);
+    Xbyak::Label end_log_inf_label;
+    test_mask();
+    h->jz(end_log_inf_label);
+    blend_with_mask(vmm_src, table_val(log_inf));
+    h->L(end_log_inf_label);
+
+    // Detect qnans if src != src and blend with qnans.
+    compute_cmp_mask(vmm_aux1, vmm_aux1, _cmp_neq_uq);
+    Xbyak::Label end_log_nan_label;
+    test_mask();
+    h->jz(end_log_nan_label);
+    blend_with_mask(vmm_src, table_val(log_qnan));
+    h->L(end_log_nan_label);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -2123,6 +2141,7 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::register_table_entries() {
 
     // log(x) constants
     static const table_t log_consts {
+            {log_inf, {0x7f800000, true}},
             {log_minus_inf, {0xff800000, true}},
             {log_qnan, {0x7fc00000, true}},
             {log_mantissa_mask, {0x007fffff, true}},
