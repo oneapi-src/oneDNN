@@ -1062,10 +1062,11 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         }
 
         // limit oh_block to have good threading
-        auto thr_od_block = div_up(od, div_up(nthr, mb * div_up(oc, oc_block)));
-        auto thr_oh_block = div_up(oh,
-                div_up(nthr,
-                        mb * div_up(oc, oc_block) * div_up(od, thr_od_block)));
+        const auto thr_oc_block = div_up(
+                nthr, mb * div_up((oc > 32 ? ngroups : 1) * oc, oc_block));
+        const auto thr_od_block = div_up(od, thr_oc_block);
+        const auto thr_oh_block
+                = div_up(oh, thr_oc_block * div_up(od, thr_od_block));
         od_block = nstl::min(od_block, thr_od_block);
         oh_block = nstl::min(oh_block, thr_oh_block);
     } else {
