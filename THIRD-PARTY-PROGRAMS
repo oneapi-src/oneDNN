@@ -13,7 +13,7 @@ Third party programs and their corresponding required notices and/or license
 terms are listed below.
 
 -------------------------------------------------------------------------
-1.  XByak (src/cpu/xbyak/)
+1.  XByak (third_party/oneDNN/src/cpu/xbyak/)
 Copyright (c) 2007 MITSUNARI Shigeo
 All rights reserved.
 
@@ -43,7 +43,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------
-2.  Googletest (tests/gtests/gtest/)
+2.  Googletest (tests/gtest/)
 Copyright 2005, Google Inc.
 Copyright 2006, Google Inc.
 Copyright 2007, Google Inc.
