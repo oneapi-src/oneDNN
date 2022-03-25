@@ -3,11 +3,13 @@
 ## Operators
 
 Supported operation refers to operation which can be converted to oneDNN Graph
-OP and thus can be part of oneDNN Graph partition. The preview supports the
+OP and thus can be part of oneDNN Graph partition. The alpha release supports the
 following operations as part of Opset defined in oneDNN Graph Spec. It supports
-FP32/FP16/BF16 data type.  For complete OP definition, please refer to
+FP32/FP16/BF16/S8/U8 data type.  For complete OP definition, please refer to
 [oneDNN Graph Specification](https://spec.oneapi.com/onednn-graph/latest/ops/index.html).
 
+- Abs
+- Add
 - AvgPool
 - AvgPoolBackprop
 - BatchNormForwardTraining
@@ -22,7 +24,11 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - ConvolutionBackpropData
 - ConvolutionBackpropFilters
 - ConvTranspose
+- ConvTransposeBackpropData
+- ConvTransposeBackpropFilters
 - Dequantize
+- DynamicDequantize
+- DynamicQuantize
 - DynamicReshape
 - DynamicTranspose
 - Divide
@@ -35,6 +41,8 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - GELUBackprop
 - HardTanh
 - HardTanhBackprop
+- HardSwish
+- HardSwishBackprop
 - Index
 - Interpolate
 - InterpolateBackprop
@@ -49,10 +57,20 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - Maximum
 - Minimum
 - Multiply
+- Negative
 - Pow
 - PowBackprop
 - PowBackpropExponent
+- PReLU
+- PReLUBackprop
 - Quantize
+- Reciprocal
+- ReduceL1
+- ReduceL2
+- ReduceMax
+- ReduceMean
+- ReduceMin
+- ReduceProd
 - ReduceSum
 - ReLU
 - ReLUBackprop
@@ -60,6 +78,7 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - Round
 - Sigmoid
 - SigmoidBackprop
+- Sign
 - SoftMax
 - SoftMaxBackprop
 - SoftPlus
@@ -69,6 +88,8 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 - StaticReshape
 - StaticTranspose
 - Square
+- SquaredDifference
+- Subtract
 - Tanh
 - TanhBackprop
 - TypeCast
@@ -78,68 +99,377 @@ FP32/FP16/BF16 data type.  For complete OP definition, please refer to
 
 ### oneDNN Primitive Backend
 
-The preview depends on the oneDNN primitive post-ops feature to support fusion.
+The alpha release depends on the oneDNN primitive post-ops feature to support fusion.
 It supports a subset of the pattern capability as listed below.
 
-- Add + Multiply
-- Add + ReLU
-- Add + Sigmoid
-- AvgPool + Add
+#### 1. Floating Point Patterns
+
+- [Abs / Clamp / Elu / Exp / GELU / HardTanh / HardSwish / Log / Sigmoid /
+  Sigmoid + Multiply / SoftPlus / Pow / ReLU / Round / Sqrt / Square / Tanh] +
+  [Add / Divide / Maximum / Minimum / Multiply / Subtract]
+- [Add / Divide / Maximum / Minimum / Multiply / Subtract] + [Abs / Clamp / Elu /
+  Exp / GELU / HardTanh / HardSwish / Log / Sigmoid+Multiply / Sigmoid /
+  SoftPlus / Pow / ReLU / Round / Sqrt / Square / Tanh / Add / Multiply /
+  Maximum / Minimum / Divide / Subtract]
+- [AvgPool / MaxPool] + [Add / Multiply / Maximum / Minimum / Divide / Subtract]
 - BatchNormInference + ReLU
-- Convolution + Add
-- Convolution + Add + ReLU
-- Convolution + Add + HardTanh (ReLU6)
-- Convolution + Add + Elu
-- Convolution + BiasAdd
-- Convolution + BiasAdd + Add
-- Convolution + BiasAdd + Add + ReLU
-- Convolution + BiasAdd + Add + Elu
-- Convolution + BiasAdd + Elu
-- Convolution + BiasAdd + Sigmoid
-- Convolution + BiasAdd + ReLU
-- Convolution + BiasAdd + HardTanh
-- Convolution + BiasAdd + Square
-- Convolution + BiasAdd + Tanh
-- Convolution + BiasAdd + Sqrt
-- Convolution + BiasAdd + BatchNormInference
-- Convolution + BiasAdd + BatchNormInference + Add
-- Convolution + BiasAdd + BatchNormInference + Add + ReLU
-- Convolution + BiasAdd + BatchNormInference + ReLU
-- Convolution + BatchNormInference
-- Convolution + BatchNormInference + Add
-- Convolution + BatchNormInference + Add + ReLU
-- Convolution + BatchNormInference + ReLU
-- Convolution + ReLU
-- ConvTranspose + BiasAdd
-- MatMul + Add
-- MatMul + Add + GELU
-- MatMul + Add + ReLU
-- MatMul + Add + Sigmoid
-- Matmul + ReLU
-- MatMul + Elu
-- MatMul + GELU
-- MatMul + Sigmoid
-- MatMul + HardTanh
-- MatMul + BiasAdd
-- MatMul + BiasAdd + Add
-- MatMul + BiasAdd + Add + ReLU
-- MatMul + BiasAdd + Elu
-- MatMul + BiasAdd + GELU
-- MatMul + BiasAdd + HardTanh
-- MatMul + BiasAdd + ReLU
-- MatMul + BiasAdd + Sigmoid
-- MatMul + BiasAdd + Sigmoid + Multiply (Swish)
-- Maximum + Add
-- Maximum + ReLU
-- Maximum + Sigmoid
-- MaxPool + Add
-- Minimum + Add
-- Minimum + ReLU
-- Minimum + Sigmoid
-- Multiply + Add
-- Multiply + ReLU
-- Multiply + Sigmoid
-- Pow + Multiply + Add + Tanh (GELU)
+- Convolution + [BiasAdd]\* + [BatchNormInference]\* + [Abs / Clamp / Elu / Exp /
+  GELU / HardTanh / HardSwish / Log / Sigmoid+Multiply / Sigmoid / SoftPlus /
+  Pow / ReLU / Round / Sqrt / Square / Tanh / Add / Multiply / Maximum / Minimum
+  / Divide / Subtract]<sup>*[0,3]</sup>
+- Convolution + ReLU + Convolution + ReLU + Convolution + Add + ReLU
+- Convolution (with bias) + ReLU + Convolution (with bias) + ReLU
+- Convolution (with bias) + ReLU + Convolution (with bias) + Add + ReLU
+- Convolution + [BiasAdd]\* + ReLU + Convolution + [BiasAdd]\* + ReLU + Convolution
+  \+ [BiasAdd]\* + Add + ReLU
+- Convolution + [BiasAdd]\* + ReLU + Convolution + [BiasAdd]\*+ ReLU + Convolution
+  \+ [BiasAdd]\* + Convolution + [BiasAdd]\* + Add + ReLU
+- ConvolutionBackpropFilters + BiasAddBackprop
+- ConvTranspose + [BiasAdd]\* + [Abs / Clamp / Elu / Exp / GELU / HardTanh /
+  HardSwish / Log / Sigmoid+Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round /
+  Sqrt / Square / Tanh / Add / Multiply / Maximum / Minimum / Divide / Subtract]<sup>\*[0,3]</sup>
+- Interpolate + [Abs / Clamp / Elu / Exp / GELU / HardTanh / HardSwish / Log /
+  Sigmoid + Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round / Sqrt / Square /
+  Tanh / Add / Multiply / Maximum / Minimum / Divide / Subtract]
+- MatMul + [BiasAdd]\* + [Abs / Clamp / Elu / Exp / GELU / HardTanh / HardSwish /
+  Log / Sigmoid+Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round / Sqrt /
+  Square / Tanh / Add / Multiply / Maximum / Minimum / Divide / Subtract]<sup>\*[0,3]</sup>
+- Reciprocal + Multiply
+- [ReduceL1 / ReduceL2 / ReduceMax / ReduceMean / ReduceMin / ReduceProd /
+  ReduceSum] + [Abs / Clamp / Elu / Exp / GELU / HardTanh / HardSwish / Log /
+  Sigmoid + Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round / Sqrt / Square /
+  Tanh / Add / Multiply / Maximum / Minimum / Divide / Subtract]
+- ReLUBackprop + BatchNormTrainingBackprop
+- Reorder + Add
+
+- ```text
+                      |
+                    StaticReshape
+            |         |
+    StaticReshape   StaticTranspose
+            |         |
+    StaticTranspose StaticTranspose
+              \      /
+               MatMul
+                 \    /
+                 Divide
+                    \   /       |
+                     Add     StaticReshape
+                      |         |
+                   Softmax   StaticTranspose
+                       \       /
+                         MatMul
+                           |
+                    StaticTranspose
+                           |
+
+  ```
+
+- ```text
+   \   /
+    Pow
+      \  /
+    Multiply
+        \__   __/
+           Add
+            \    /
+           Multiply
+              |
+            Tanh
+              \   /
+               Add
+                 \      /
+                 Multiply
+                     \      /
+                     Multiply
+                        |
+  ```
+
+- ```text
+   \   /
+   Divide
+     |
+    Erf
+     \   /
+      Add
+        \    /
+       Multiply
+            \      /
+            Multiply
+                |
+
+  ```
+
+#### 2. Quantized Patterns
+
+- Dequantize + [AvgPool/MaxPool] + Quantize
+- Dequantize + ReLU + Quantize
+- Dequantize + Reorder + Quantize
+- TypeCast + Quantize
+
+- ```text
+            |
+        Dequantize
+            |               |
+      AvgPool/MaxPool   Dequantize
+             \____     ____/
+                   Add
+                    |
+                 Quantize
+                    |
+  ```
+
+- ```text
+    |              |
+  Dequantize   Dequantize
+     \            /
+      Convolution (with bias)
+           |
+          ReLU
+           |
+        Quantize
+           |           |
+      Dequantize    Dequantize
+            \         /
+            Convolution (with bias)
+                |
+               ReLU
+                |
+             Quantize
+                |
+
+  ```
+
+- ```text
+    |             |
+  Dequantize   Dequantize
+     \           /
+      Convolution (with bias or BiasAdd)
+           |
+          ReLU
+           |
+        Quantize
+           |           |
+      Dequantize    Dequantize
+            \         /
+            Convolution (with bias or BiasAdd)
+                |
+               ReLU
+                |
+             Quantize
+                |            |
+            Dequantize    Dequantize
+                 \         /                            |
+                 Convolution (with bias or BiasAdd)   Dequantize
+                                                 \    /
+                                                   Add
+                                                    |
+                                                  ReLU
+                                                    |
+                                                 Quantize
+                                                    |
+  ```
+
+- ```text
+     ______________________________________________________
+    |                                                      |
+    |             |                                        |           |
+  Dequantize   Dequantize                              Dequantize   Dequantize
+     \           /                                          \         /
+      Convolution                                            Convolution
+  (with bias or BiasAdd)                               (with bias or BiasAdd)
+           |                                                     |
+          ReLU                                               Quantize
+           |                                                     |
+        Quantize                                            Dequantize
+           |                                                     |
+      Dequantize    Dequantize                                   |
+            \         /                                         /
+            Convolution (with bias or BiasAdd)                 /
+                |                                             /
+               ReLU                                          /
+                |                                           /
+             Quantize                                      /
+                |                                         /
+            Dequantize    Dequantize                     /
+                 \         /                            /
+                 Convolution (with bias or BiasAdd)    /
+                                                 \    /
+                                                   Add
+                                                    |
+                                                   ReLU
+                                                    |
+                                                 Quantize
+                                                    |
+
+  ```
+
+- ```text
+    |              |
+  Dequantize   Dequantize
+     \___      ___/
+         MatMul
+            \    /
+            Divide
+               \   /
+               [Add]*
+                 |
+  ```
+
+- ```text
+        |
+    Dequantize
+        |        |
+      ReLU   Dequantize
+        \__   __/
+           Add
+            |
+        Quantize
+            |
+
+  ```
+
+- ```text
+                                        |
+                                    [Quantize]*
+               |                        |
+          Dequantize                Dequantize
+               \                      /
+            Convolution/ConvTranspose/MatMul
+                            |
+                        [BiasAdd]*
+                            |
+  [Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
+   Pow/ReLU/Round/Sqrt/Square/Tanh/[Dequantize+Add]*[0,1] ]*[0,3]
+                            |
+                        [Quantize]*
+                            |
+  ```
+
+- ```text
+    |              |
+  Dequantize   Dequantize
+    |              |
+  TypeCast     TypeCast
+     \___      ___/
+         MatMul
+            \      /
+            [Divide]*
+                \     /
+                 [Add]*
+                   |
+
+  ```
+
+- ```text
+    |              |
+  Dequantize   Dequantize
+    |              |
+  TypeCast     TypeCast
+     \___      ___/
+         MatMul
+           |
+         [GeLU]*
+           |
+        TypeCast
+           |
+        Quantize
+           |
+  ```
+
+- ```text
+    |              |
+  Dequantize   Dequantize
+    |              |
+  TypeCast     TypeCast  Dequantize
+     \___      ___/          |
+         MatMul           TypeCast
+            \_____        ___/
+                   [Add]*
+                     |
+
+  ```
+
+- ```text
+      |
+  Dequantize
+      |           |
+    Reorder   Dequantize
+       \__   __/
+          Add
+           |
+        Quantize
+           |
+  ```
+
+- ```text
+                      |
+                    StaticReshape
+            |         |
+    StaticReshape   StaticTranspose
+            |         |
+    StaticTranspose StaticTranspose
+            |         |
+        Quantize    Quantize
+            |         |
+        Dequantize  Dequantize
+              \      /
+               MatMul
+                 \    /
+                 Divide
+                    \   /       |
+                     Add     StaticReshape
+                      |         |
+                   Softmax   StaticTranspose
+                      |         |
+                   Quantize  Quantize
+                      |         |
+                  Dequantize  Dequantize
+                       \       /
+                         MatMul
+                           |
+                    StaticTranspose
+                           |
+
+  ```
+
+- ```text
+                      |
+                    StaticReshape
+            |         |
+    StaticReshape   StaticTranspose
+            |         |
+    StaticTranspose StaticTranspose
+            |         |
+        TypeCast    TypeCast
+            |         |
+        Quantize    Quantize
+            |         |
+        Dequantize  Dequantize
+            |         |
+        TypeCast    TypeCast
+              \      /
+               MatMul
+                 \    /
+                 Divide
+                    \   /       |
+                     Add     StaticReshape
+                      |         |
+                   Softmax   StaticTranspose
+                      |         |
+                   TypeCast  TypeCast
+                      |         |
+                   Quantize  Quantize
+                      |         |
+                  Dequantize Dequantize
+                      |         |
+                   TypeCast  TypeCast
+                       \       /
+                         MatMul
+                           |
+                    StaticTranspose
+                           |
+  ```
 
 ### Graph Compiler Backend
 
