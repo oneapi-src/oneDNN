@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -176,6 +176,12 @@ include_directories(
 ################
 
 set(SC_LLVM_ABS_LIBPATH ${SC_LLVM_LIB_NAME})
+
+#expose the LLVM libraries it depends on when cmake version > 3.0
+if(${CMAKE_VERSION} VERSION_GREATER "3.0.0")
+    add_library(dnnl_graphcompiler_llvm_lib INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET dnnl_graphcompiler_llvm_lib PROPERTY INTERFACE_LINK_LIBRARIES ${SC_LLVM_LIB_NAME})
+endif()
 
 target_link_libraries(${SC_LIB_NAME_STATIC} PRIVATE ${SC_LLVM_ABS_LIBPATH})
 target_link_libraries(${SC_LIB_NAME} PRIVATE ${SC_LLVM_ABS_LIBPATH})
