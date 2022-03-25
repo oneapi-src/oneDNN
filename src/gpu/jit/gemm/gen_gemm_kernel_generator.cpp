@@ -10721,12 +10721,14 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
             }
 
             // Start using k masks.
-            if (A_splitM || B_splitN) {
+            bool A_kMask = A_splitM && !strategy.A.padded;
+            bool B_kMask = B_splitN && !strategy.B.padded;
+            if (A_kMask || B_kMask) {
                 Subregister rems[3] = {state.remainders[LoopM],
                         state.remainders[LoopN], state.K};
                 auto start = masks.size();
 
-                if (A_splitM) {
+                if (A_kMask) {
                     addMasking(Ta, state.Ai_layout, state.Ai_addrs,
                             state.inputs.lda, false, true, state.Ai,
                             state.Ai_strategy, strategy, state);
@@ -10734,7 +10736,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
                                 state.Ai_layout, LoopM, LoopK, masks, state))
                         return false;
                 }
-                if (B_splitN) {
+                if (B_kMask) {
                     addMasking(Tb, state.Bi_layout, state.Bi_addrs,
                             state.inputs.ldb, true, false, state.Bi,
                             state.Bi_strategy, strategy, state);
