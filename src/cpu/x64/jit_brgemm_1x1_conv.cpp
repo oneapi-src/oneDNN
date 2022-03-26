@@ -106,9 +106,13 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         brgattr.max_bs = jcp_.gemm_batch_size;
         brgattr.max_top_vpad = jcp_.max_vpad;
         brgattr.max_bottom_vpad = jcp_.max_vpad;
-        brgattr.hint_expected_A_size = 0;
-        brgattr.hint_expected_B_size = brgattr.max_bs * vK * vN;
-        brgattr.hint_expected_C_size = 0;
+
+        // assuming 2x2 decomposition in amx brgemm kernel
+        const auto bd_blocking = 2 * jcp_.amx_h;
+        brgattr.hint_expected_A_size = bd_blocking * vK;
+        brgattr.hint_expected_B_size = vN * vK;
+        brgattr.hint_expected_C_size = bd_blocking * vN;
+
         brgattr.wary_tail_read = false;
         brgattr.use_uker = jcp_.use_uker;
         brgattr.use_interleave_stores = brgattr.use_uker;
