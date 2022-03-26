@@ -383,6 +383,7 @@ status_t _ref_rnn_common_t<prop_kind::forward>::pd_t::set_default_params() {
 template <>
 status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
     using namespace format_tag;
+    int arch_ld = is_xe_hpc ? 128 : 64;
     if (src_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
     if (weights_layer_md_.format_kind == format_kind::any)
@@ -397,11 +398,13 @@ status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
         CHECK(memory_desc_init_by_tag(diff_src_layer_md_, tnc));
     if (diff_weights_layer_md_.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_weights_layer_md_, ldigo));
-        CHECK(rnn_utils::set_good_strides(diff_weights_layer_md_, ldigo));
+        CHECK(rnn_utils::set_good_strides(
+                arch_ld, diff_weights_layer_md_, ldigo));
     }
     if (diff_weights_iter_md_.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_weights_iter_md_, ldigo));
-        CHECK(rnn_utils::set_good_strides(diff_weights_iter_md_, ldigo));
+        CHECK(rnn_utils::set_good_strides(
+                arch_ld, diff_weights_iter_md_, ldigo));
     }
     if (diff_dst_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(diff_dst_layer_md_, tnc));
@@ -452,6 +455,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     assert(engine->kind() == engine_kind::gpu);
     auto *compute_engine
             = utils::downcast<const compute::compute_engine_t *>(engine);
+
+    is_xe_hpc = compute_engine->is_xe_hpc();
 
     const alg_kind_t cell_kind = this->desc()->cell_kind;
 
@@ -511,7 +516,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     if (!ok) return status::unimplemented;
 
     init_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->src_md(1),
-            this->weights_md(0), this->weights_md(1), this->dst_md(0));
+            this->weights_md(0), this->weights_md(1), this->dst_md(0),
+            is_xe_hpc);
     init_test_mode(rnn_conf, *this->attr());
 
     // Check that only supported attr have been passed.

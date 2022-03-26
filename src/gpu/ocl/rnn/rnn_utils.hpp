@@ -143,7 +143,7 @@ struct conf_t {
     int mb;
     int slc, sic, dhc, dlc;
 
-    int gates_ld, gates_nld, gates_ws_ld;
+    int gates_ld, gates_nld, gates_ws_ld, arch_ld;
 
     int n_parts_weights_layer, parts_weights_layer[DNNL_RNN_MAX_N_PARTS];
     int n_parts_weights_iter, parts_weights_iter[DNNL_RNN_MAX_N_PARTS];
@@ -196,13 +196,13 @@ struct conf_t {
 bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
 
-int get_good_ld(int dim, int sizeof_dt);
+int get_good_ld(int arch_ld, int dim, int sizeof_dt);
 void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d);
+        const memory_desc_wrapper &dst_layer_d, bool is_xe_hpc);
 void init_test_mode(conf_t &rnn, const primitive_attr_t &attr);
 void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
@@ -242,7 +242,7 @@ void get_scratchpad_and_workspace_sizes(
         const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
 status_t set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
-status_t set_good_strides(memory_desc_t &weights_md, format_tag_t tag);
+status_t set_good_strides(int ld_, memory_desc_t &weights_md, format_tag_t tag);
 } // namespace rnn_utils
 
 } // namespace ocl

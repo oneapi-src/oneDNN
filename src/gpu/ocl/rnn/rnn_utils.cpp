@@ -56,7 +56,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d) {
+        const memory_desc_wrapper &dst_layer_d, bool is_xe_hpc) {
 
     rnn = utils::zero<decltype(rnn)>();
     rnn.is_fwd = utils::one_of(rd.prop_kind, prop_kind::forward_training,
@@ -65,6 +65,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
     rnn.is_lbr = rd.cell_kind == dnnl_lbr_gru;
     rnn.is_vanilla_gru = rd.cell_kind == dnnl_vanilla_gru;
+    rnn.arch_ld = is_xe_hpc ? 128 : 64;
 
     switch (rd.direction) {
         case dnnl_unidirectional_left2right: rnn.exec_dir = l2r; break;
@@ -245,13 +246,14 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     // states to copmute a pass
     // diff states to copmute bwd pass (training only)
     // intermediate results from the gates
-    rnn.states_ws_ld = get_good_ld(
+    rnn.states_ws_ld = get_good_ld(rnn.arch_ld,
             nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof_states_dt);
-    rnn.gates_ws_ld = get_good_ld(rnn.gates_ld,
+    rnn.gates_ws_ld = get_good_ld(rnn.arch_ld, rnn.gates_ld,
             rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(cl_float));
-    rnn.scratch_diff_states_ld = get_good_ld(
+    rnn.scratch_diff_states_ld = get_good_ld(rnn.arch_ld,
             nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof(cl_float));
-    rnn.scratch_gates_ld = get_good_ld(rnn.gates_ld, rnn.scratch_gates_elsz);
+    rnn.scratch_gates_ld
+            = get_good_ld(rnn.arch_ld, rnn.gates_ld, rnn.scratch_gates_elsz);
 
     bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
 
@@ -300,11 +302,11 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             * n_dir * rnn.n_iter * rnn.ws_per_cell;
 }
 
-int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
-    // we want matrices leading dimentions to be 64-byte aligned,
-    // and not divisible by 256 to avoid 4K aliasing effects
-    int ld = rnd_up(dim, 64 / sizeof_dt);
-    return (ld % 256 == 0) ? ld + 64 / sizeof_dt : ld;
+int rnn_utils::get_good_ld(int arch_ld, int dim, int sizeof_dt) {
+    // Leading dimension for matrices has 64-byte or 128-byte alignment (PVC-A)
+    int ld = rnd_up(dim, arch_ld / sizeof_dt);
+    // Further alignment is associated with 8-way associativity of L1-cache
+    return (ld % 256 == 0) ? ld + arch_ld / sizeof_dt : ld;
 }
 
 void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
@@ -486,18 +488,18 @@ void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
 }
 
 status_t rnn_utils::set_good_strides(
-        memory_desc_t &weights_md, format_tag_t tag) {
+        int ld_, memory_desc_t &weights_md, format_tag_t tag) {
     auto &strides = weights_md.format_desc.blocking.strides;
     auto dims = weights_md.dims;
     using namespace format_tag;
 
     if (tag == ldigo) {
-        strides[2] = rnn_utils::get_good_ld((int)strides[2],
+        strides[2] = rnn_utils::get_good_ld(ld_, (int)strides[2],
                 (int)types::data_type_size(weights_md.data_type));
         strides[1] = dims[2] * strides[2];
         strides[0] = dims[1] * strides[1];
     } else if (tag == ldgoi) {
-        strides[4] = rnn_utils::get_good_ld((int)strides[4],
+        strides[4] = rnn_utils::get_good_ld(ld_, (int)strides[4],
                 (int)types::data_type_size(weights_md.data_type));
         strides[3] = dims[4] * strides[4];
         strides[1] = dims[3] * strides[3];
@@ -514,7 +516,8 @@ status_t rnn_utils::set_expected_desc(
     CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
 
     // Adjust strides for good leading dimension in GEMM
-    CHECK(set_good_strides(weights_md, rnn.is_fwd ? ldigo : ldgoi));
+    CHECK(set_good_strides(
+            rnn.arch_ld, weights_md, rnn.is_fwd ? ldigo : ldgoi));
 
     // set we need extra memory
     if (rnn.is_fwd && !one_of(rnn.dt_conf, all_f32, all_f16, all_bf16)) {

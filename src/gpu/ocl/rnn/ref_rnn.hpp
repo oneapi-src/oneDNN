@@ -105,6 +105,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         data_type_t acc_data_t;
         data_type_t src_type;
         data_type_t weights_type;
+        bool is_xe_hpc;
 
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;

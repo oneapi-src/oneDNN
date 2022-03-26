@@ -452,6 +452,7 @@ struct rnn_conf_t {
     int dhc;
     int dlc;
     int wic;
+    int arch_ld;
     int n_parts_weights_iter, n_parts_weights_layer;
     int src_layer_ndims;
     int src_iter_ndims;
