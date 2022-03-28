@@ -341,10 +341,9 @@ public:
         });
         pass_pipeline_t pipeline(vis);
 
+        BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
-        // TODO(dszwicht): fix conv_bwd_weights_canonicalization pass.
-        // Currently cases with groups > 1 are not supported
         BACKEND_DNNL_ADD_PASS(pipeline, conv_bwd_weights_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 

@@ -328,6 +328,15 @@ memory::desc to_grouped(const memory::desc &adesc, dim groups) {
     return adesc.reshape(grouped_shape);
 }
 
+memory::desc from_grouped(const memory::desc &adesc) {
+    auto new_dims = adesc.dims();
+    const dim groups = new_dims.front();
+    new_dims.erase(new_dims.begin());
+    new_dims[0] *= groups;
+
+    return adesc.reshape(new_dims, true);
+}
+
 memory::desc to_format_any(const memory::desc &adesc) {
     return memory::desc(
             adesc.dims(), adesc.data_type(), memory::format_tag::any);

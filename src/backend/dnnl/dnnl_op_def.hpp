@@ -602,6 +602,19 @@ DNNL_GRAPH_OP_SCHEMA(to_group, 1,
                         attribute_kind::b, false)
                 .set_shape_inference_function(infer_to_group_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(from_group, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "x", "input tensor")
+                .set_output(0, "y", "output tensor")
+                .set_attr("groups", "the groups", false, attribute_kind::i,
+                        (int64_t)1)
+                .set_attr("is_convtranspose",
+                        "indicate whether this is for convtranspose", false,
+                        attribute_kind::b, false)
+                .set_shape_inference_function(infer_from_group_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(expand, 1,
         op_schema_t()
                 .set_num_inputs(1)
@@ -725,7 +738,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_data, 1,
                         false, attribute_kind::b, false)
                 // Analysis rules
                 .set_shape_inference_function(
-                        infer_dnnl_convtranspose_bprop_data_output_shape))
+                        infer_dnnl_convtranspose_bwd_data_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_weights, 1,
         op_schema_t()
@@ -760,7 +773,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_weights, 1,
                         false, attribute_kind::b, false)
                 // Analysis rules
                 .set_shape_inference_function(
-                        infer_convtranspose_bprop_filters_output_shape))
+                        infer_dnnl_convtranspose_bwd_weight_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
         op_schema_t()
@@ -1027,7 +1040,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_weights, 1,
                         false, attribute_kind::b, false)
                 // Analysis rules
                 .set_shape_inference_function(
-                        infer_conv_bprop_filters_output_shape))
+                        infer_dnnl_conv_bwd_weight_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
         op_schema_t()

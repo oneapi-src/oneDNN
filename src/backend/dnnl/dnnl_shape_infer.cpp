@@ -23,6 +23,27 @@ namespace graph {
 namespace impl {
 namespace dnnl_impl {
 
+static status_t infer_dnnl_conv_common_bwd_weight_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs,
+        const size_t axis_with_groups) {
+    // infer pad and filter shape (groups not included)
+    const auto ret = infer_conv_bprop_filters_output_shape(n, inputs, outputs);
+    if (ret != status::success) return ret;
+
+    const auto groups = n->get_attr<int64_t>("groups");
+    // add groups into weights shape
+    if (groups > 1) {
+        auto out_dims = impl::logical_tensor_wrapper_t(outputs[0]).vdims();
+        out_dims[axis_with_groups] /= groups;
+        out_dims.insert(out_dims.begin(), groups);
+
+        set_shape_and_strides(*outputs[0], out_dims);
+    }
+
+    return status::success;
+}
+
 status_t infer_dnnl_conv_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
@@ -106,7 +127,7 @@ status_t infer_dnnl_convtranspose_output_shape(op_t *n,
     return status::success;
 }
 
-status_t infer_dnnl_convtranspose_bprop_data_output_shape(op_t *n,
+status_t infer_dnnl_convtranspose_bwd_data_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     using ltw = impl::logical_tensor_wrapper_t;
@@ -132,6 +153,14 @@ status_t infer_dnnl_convtranspose_bprop_data_output_shape(op_t *n,
     *inputs[1] = backup_wei_shape;
     n->set_attr<int64_t>("groups", backup_groups);
     return status::success;
+}
+
+status_t infer_dnnl_convtranspose_bwd_weight_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    const size_t axis_with_groups = 1;
+    return infer_dnnl_conv_common_bwd_weight_output_shape(
+            n, inputs, outputs, axis_with_groups);
 }
 
 status_t infer_dnnl_pool_output_shape(op_t *n,
@@ -223,6 +252,27 @@ status_t infer_to_group_output_shape(op_t *n,
     // directly copying input strides to it
     set_shape_and_strides(*outputs[0], in_dims);
     UNUSED(n);
+    return status::success;
+}
+
+status_t infer_from_group_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto out = logical_tensor_wrapper_t(outputs[0]);
+    if (!out.is_shape_unknown()) return status::success;
+
+    const auto groups = n->get_attr<int64_t>("groups");
+    dims inferred_out_dims = logical_tensor_wrapper_t(inputs[0]).vdims();
+    inferred_out_dims.erase(inferred_out_dims.begin());
+    if (n->has_attr("is_convtranspose")
+            && n->get_attr<bool>("is_convtranspose")) {
+        inferred_out_dims[1] *= groups;
+    } else {
+        inferred_out_dims[0] *= groups;
+    }
+
+    set_shape_and_strides(*outputs[0], inferred_out_dims);
+
     return status::success;
 }
 
@@ -379,6 +429,14 @@ status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
     if (ret != status::success) return ret;
     *inputs[1] = backup;
     return status::success;
+}
+
+status_t infer_dnnl_conv_bwd_weight_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    const size_t axis_with_groups = 0;
+    return infer_dnnl_conv_common_bwd_weight_output_shape(
+            n, inputs, outputs, axis_with_groups);
 }
 
 status_t infer_dnnl_batchnorm_output_shape(op_t *n,

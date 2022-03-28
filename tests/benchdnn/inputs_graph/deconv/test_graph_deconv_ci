@@ -22,21 +22,21 @@
 
 # with groups
 --reset
---dir=FWD_D,BWD_D #,BWD_W, BWD_W with groups > 1 is currently not supported
+--dir=FWD_D,BWD_D,BWD_W
 --stag=abc
 --wtag=acbd
 --dtag=abc
 --batch=shapes_1d_groups
 
 --reset
---dir=FWD_D,BWD_D #,BWD_W
+--dir=FWD_D,BWD_D,BWD_W
 --stag=abcd
 --wtag=acbde
 --dtag=abcd
 --batch=shapes_2d_groups
 
 --reset
---dir=FWD_D,BWD_D #,BWD_W
+--dir=FWD_D,BWD_D,BWD_W
 --stag=abcde
 --wtag=acbdef
 --dtag=abcde

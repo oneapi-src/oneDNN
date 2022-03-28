@@ -95,6 +95,8 @@ memory::desc transpose(const memory::desc &adesc, dim dim0, dim dim1);
 
 memory::desc to_grouped(const memory::desc &adesc, dim groups);
 
+memory::desc from_grouped(const memory::desc &adesc);
+
 memory::desc to_format_any(const memory::desc &adesc);
 
 memory::desc permute_NCX2NXC(const memory::desc &adesc);

@@ -17,6 +17,7 @@
 #define BACKEND_DNNL_PASSES_UTILS_HPP
 
 #include <algorithm>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -252,8 +253,9 @@ void set_weight_bias_constant(std::vector<std::shared_ptr<op_t>> &subgraph);
 
 inline bool is_preprocess_op(impl::op_t &op) {
     static const std::set<impl::op_kind_t> preprocess_ops = {op_kind::permute,
-            op_kind::to_group, op_kind::expand, op_kind::squeeze,
-            impl::op_kind::StaticReshape, impl::op_kind::StaticTranspose};
+            op_kind::to_group, op_kind::from_group, op_kind::expand,
+            op_kind::squeeze, impl::op_kind::StaticReshape,
+            impl::op_kind::StaticTranspose};
     return preprocess_ops.count(op.get_kind()) != 0;
 }
 
@@ -412,6 +414,19 @@ std::shared_ptr<impl::value_t> insert_empty_scratchpad(
 // as a TypeCast op. This function will only return true for a dnnl_reorder op
 // which only has different input/output data type.
 bool is_typecast(const impl::op_t *op);
+
+// get the dense strides of a given shape
+// eg. (3, 4, 5) -> (20, 5, 1)
+inline dims get_dense_strides(const dims &shape) {
+    dims strides(shape.size());
+    for (auto it = shape.begin(); it < shape.end(); ++it) {
+        const auto val = std::accumulate(
+                std::next(it), shape.end(), 1, std::multiplies<dim_t>());
+        const auto dist = std::distance(shape.begin(), it);
+        strides[static_cast<size_t>(dist)] = val;
+    }
+    return strides;
+}
 
 } // namespace dnnl_impl
 } // namespace impl

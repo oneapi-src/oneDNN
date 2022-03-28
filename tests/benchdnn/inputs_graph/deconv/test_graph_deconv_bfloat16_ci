@@ -6,7 +6,7 @@
 
 # with groups
 --reset
---dir=FWD_D,BWD_D #,BWD_W BWD_W with groups > 1 is currently not supported
+--dir=FWD_D,BWD_D,BWD_W
 --cfg=bf16bf16bf16
 --stag=abcd
 --wtag=acbde

@@ -86,6 +86,7 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
             } else if (op->get_kind() == op_kind::permute
                     || op->get_kind() == op_kind::dnnl_reorder
                     || op->get_kind() == op_kind::to_group
+                    || op->get_kind() == op_kind::from_group
                     || op->get_kind() == op_kind::expand
                     || op->get_kind() == op_kind::squeeze
                     || op->get_kind() == impl::op_kind::StaticReshape

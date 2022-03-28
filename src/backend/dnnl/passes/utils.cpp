@@ -495,6 +495,7 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
                 op_kind::squeeze,
                 op_kind::expand,
                 op_kind::to_group,
+                op_kind::from_group,
                 op_kind::permute,
                 // frontend ops that need to be lower to dnnl internal ops.
                 // but now, we reuse these frontend ops and set some new attrs
