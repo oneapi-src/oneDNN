@@ -33,8 +33,8 @@ tensor.
 **Outputs**
 
 * **1**: The result of element-wise sign operation. A tensor of type T with
-mapped elements of the input tensor to -1 (if it is negative),
-0 (if it is zero), or 1 (if it is positive).
+  mapped elements of the input tensor to -1 (if it is negative),
+  0 (if it is zero), or 1 (if it is positive).
 
   * **Type**: T
 
