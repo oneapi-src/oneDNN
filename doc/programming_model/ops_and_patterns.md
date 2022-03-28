@@ -120,10 +120,10 @@ It supports a subset of the pattern capability as listed below.
 - Convolution + ReLU + Convolution + ReLU + Convolution + Add + ReLU
 - Convolution (with bias) + ReLU + Convolution (with bias) + ReLU
 - Convolution (with bias) + ReLU + Convolution (with bias) + Add + ReLU
-- Convolution + [BiasAdd]\* + ReLU + Convolution + [BiasAdd]\* + ReLU + Convolution
-  \+ [BiasAdd]\* + Add + ReLU
-- Convolution + [BiasAdd]\* + ReLU + Convolution + [BiasAdd]\*+ ReLU + Convolution
-  \+ [BiasAdd]\* + Convolution + [BiasAdd]\* + Add + ReLU
+- Convolution + [BiasAdd]\* + ReLU + Convolution + [BiasAdd]\* + ReLU +
+  Convolution + [BiasAdd]\* + Add + ReLU
+- Convolution + [BiasAdd]\* + ReLU + Convolution + [BiasAdd]\*+ ReLU +
+  Convolution + [BiasAdd]\* + Convolution + [BiasAdd]\* + Add + ReLU
 - ConvolutionBackpropFilters + BiasAddBackprop
 - ConvTranspose + [BiasAdd]\* + [Abs / Clamp / Elu / Exp / GELU / HardTanh /
   HardSwish / Log / Sigmoid+Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round /
@@ -142,7 +142,9 @@ It supports a subset of the pattern capability as listed below.
 - ReLUBackprop + BatchNormTrainingBackprop
 - Reorder + Add
 
-- ```text
+-
+
+```text
                       |
                     StaticReshape
             |         |
@@ -165,7 +167,9 @@ It supports a subset of the pattern capability as listed below.
 
   ```
 
-- ```text
+-
+
+```text
    \   /
     Pow
       \  /
@@ -185,7 +189,9 @@ It supports a subset of the pattern capability as listed below.
                         |
   ```
 
-- ```text
+-
+
+```text
    \   /
    Divide
      |
@@ -207,7 +213,9 @@ It supports a subset of the pattern capability as listed below.
 - Dequantize + Reorder + Quantize
 - TypeCast + Quantize
 
-- ```text
+-
+
+```text
             |
         Dequantize
             |               |
@@ -219,7 +227,9 @@ It supports a subset of the pattern capability as listed below.
                     |
   ```
 
-- ```text
+-
+
+```text
     |              |
   Dequantize   Dequantize
      \            /
@@ -240,7 +250,9 @@ It supports a subset of the pattern capability as listed below.
 
   ```
 
-- ```text
+-
+
+```text
     |             |
   Dequantize   Dequantize
      \           /
@@ -270,7 +282,9 @@ It supports a subset of the pattern capability as listed below.
                                                     |
   ```
 
-- ```text
+-
+
+```text
      ______________________________________________________
     |                                                      |
     |             |                                        |           |
@@ -304,7 +318,9 @@ It supports a subset of the pattern capability as listed below.
 
   ```
 
-- ```text
+-
+
+```text
     |              |
   Dequantize   Dequantize
      \___      ___/
@@ -316,7 +332,9 @@ It supports a subset of the pattern capability as listed below.
                  |
   ```
 
-- ```text
+-
+
+```text
         |
     Dequantize
         |        |
@@ -329,7 +347,9 @@ It supports a subset of the pattern capability as listed below.
 
   ```
 
-- ```text
+-
+
+```text
                                         |
                                     [Quantize]*
                |                        |
@@ -346,7 +366,9 @@ It supports a subset of the pattern capability as listed below.
                             |
   ```
 
-- ```text
+-
+
+```text
     |              |
   Dequantize   Dequantize
     |              |
@@ -361,7 +383,9 @@ It supports a subset of the pattern capability as listed below.
 
   ```
 
-- ```text
+-
+
+```text
     |              |
   Dequantize   Dequantize
     |              |
@@ -377,7 +401,9 @@ It supports a subset of the pattern capability as listed below.
            |
   ```
 
-- ```text
+-
+
+```text
     |              |
   Dequantize   Dequantize
     |              |
@@ -390,7 +416,9 @@ It supports a subset of the pattern capability as listed below.
 
   ```
 
-- ```text
+-
+
+```text
       |
   Dequantize
       |           |
@@ -402,7 +430,9 @@ It supports a subset of the pattern capability as listed below.
            |
   ```
 
-- ```text
+-
+
+```text
                       |
                     StaticReshape
             |         |
@@ -433,7 +463,9 @@ It supports a subset of the pattern capability as listed below.
 
   ```
 
-- ```text
+-
+
+```text
                       |
                     StaticReshape
             |         |
