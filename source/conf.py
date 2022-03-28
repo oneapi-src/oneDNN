@@ -20,7 +20,7 @@ from common_conf import *
 
 project = 'oneDNN Graph Specification'
 
-copyright = u'2020 - 2021, Intel Corporation'
+copyright = u'2020 - 2022, Intel Corporation'
 author = u'Intel'
 
 version = env['llga_version']
