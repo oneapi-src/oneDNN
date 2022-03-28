@@ -137,8 +137,8 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
                             eltwise_sqrt_use_dst_for_bwd,
                             eltwise_exp_use_dst_for_bwd,
                             eltwise_clip_v2_use_dst_for_bwd)
-                    && utils::one_of(
-                            desc()->data_desc.data_type, data_type::bf16)
+                    && utils::one_of(desc()->data_desc.data_type,
+                            data_type::f32, data_type::bf16)
                     && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
