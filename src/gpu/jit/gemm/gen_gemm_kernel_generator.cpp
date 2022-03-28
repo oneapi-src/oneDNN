@@ -10721,8 +10721,8 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
             }
 
             // Start using k masks.
-            bool A_kMask = A_splitM && !problem.A.padded;
-            bool B_kMask = B_splitN && !problem.B.padded;
+            bool A_kMask = A_splitM && !state.Ai.padded;
+            bool B_kMask = B_splitN && !state.Bi.padded;
             if (A_kMask || B_kMask) {
                 Subregister rems[3] = {state.remainders[LoopM],
                         state.remainders[LoopN], state.K};
