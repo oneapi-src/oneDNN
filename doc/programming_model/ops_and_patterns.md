@@ -339,7 +339,7 @@ It supports a subset of the pattern capability as listed below.
     Dequantize
         |        |
       ReLU   Dequantize
-        \__   __/
+       \___   ___/
            Add
             |
         Quantize
@@ -505,45 +505,248 @@ It supports a subset of the pattern capability as listed below.
 
 ### Graph Compiler Backend
 
-The preview depends on graph compiler to support additional fusion patterns
-listed as below:
+The alpha release depends on graph compiler to support additional fusion
+patterns.
 
-- MHA (Multi-Head Attention)
+#### 1. Compiler Backend Floating Point Patterns
 
-The topology of MHA pattern is listed as below, which supports FP32/BF16 and
-INT8 precision, `Quantize` and `Dequantize` OP are only applicable to INT8
-precision.
+Compiler backend supports floating point patterns for MHA inference and training
+as well as MLP inference and training (2-6 layers).
 
-```plaintext
-                    [Key]
+-
+
+```text
                       |
-        [Query]  (Dequantize)
+                    StaticReshape
             |         |
-      (Dequantize) Reshape
+    StaticReshape   StaticTranspose
             |         |
-        Reshape   Transpose
+    StaticTranspose StaticTranspose
+              \      /
+               MatMul
+                 \     /
+         Multiply/Divide
+                    \    /      |
+                     Add     StaticReshape
+                      |         |
+                   Softmax   StaticTranspose
+                       \       /
+                         MatMul
+                           |
+                    StaticTranspose
+                           |
+                    [StaticReshape]*
+                           |
+
+  ```
+
+-
+
+```text
+              \      /
+               MatMul
+                 \     /
+         Multiply/Divide
+                    \    /
+                     Add
+                      |
+                   Softmax
+                       \       /
+                         MatMul
+                           |
+                    StaticTranspose
+                           |
+                        Reorder
+                           |
+  ```
+
+-
+
+```text
+              \      /
+               MatMul
+                 \     /
+         Multiply/Divide
+                    \    /
+                     Add
+                      |
+                   Softmax
+                ______|______
+               /             \     /
+                             Multiply
+                           _____|______
+                          /            \      /
+                                        MatMul
+                                           |
+                                    StaticTranspose
+                                           |
+                                     StaticReshape
+                                           |
+
+  ```
+
+-
+
+```text
+                        |
+                  StaticReshape
+                        |
+                 StaticTranspose
+           \     /           \    /
+            MatMul           MatMul
+              |                  \     /
+                                Multiply
+                                /    \     /
+                               /     Multiply
+                              |         |
+                               \     ReduceSum
+                                \      /
+                                Subtract
+                                  \       /
+                                   Multiply
+                                       \         /
+                                     Multiply/Divide
+                          ________________|______
+                          \                      \     /
+                           \     /                MatMul
+                            MatMul                  |
+                              |
+  ```
+
+- [MatMul + ReLU/Sigmoid/GELU]<sup>[2,6]</sup>
+
+- [MLP Backprop Unit]<sup>[2,6]</sup>
+
+  in which MLP Backprop Unit is
+
+  ```text
+                                 \                   /
+            |          ReLUBackprop/SigmoidBackprop/GELUBackprop          |
+  [StaticTranspose]* ______________________|______________________  [StaticTranspose]*
+             \      /                      |                      \      /
+              MatMul                  [ReduceSum]*                 MatMul
+                |                          |                         |
+  ```
+
+#### 2. Compiler Backend Quantized Patterns
+
+Compiler backend supports quantized patterns for MHA inference and MLP
+inference (2-6 layers).
+
+-
+
+```text
+                      |
+                    Dequantize
             |         |
-        Transpose Transpose
-              \     /
-               MatMul  [fscore scale]
-                 \    /
-[Attention Mask] Div|Mul
-              \   /
-                Add        [Value]
-                 |           |
-              Softmax   (Dequantize)
-                 |           |
-              (Quantize)   Reshape
-                 |           |
-             (Dequantize) Transpose
-                    \     /
-                     MatMul
+      Dequantize    StaticReshape
+            |         |
+    StaticReshape   StaticTranspose
+            |         |
+    StaticTranspose StaticTranspose
+              \      /
+               MatMul
+                 \     /
+         Multiply/Divide
+                    \    /
+                     Add
+                      |         |
+                   Softmax   Dequantize
+                      |         |
+                  Quantize   StaticReshape
+                      |         |
+                Dequantize   StaticTranspose
+                       \       /
+                         MatMul
+                           |
+                    StaticTranspose
+                           |
+                    [StaticReshape]*
+                           |
+                        Quantize
+                           |
+
+  ```
+
+-
+
+```text
+             |        |
+      Dequantize    Dequantize
+              \      /
+               MatMul
+                 \     /
+         Multiply/Divide
+                    \    /
+                     Add
+                      |
+                   Softmax
+                      |
+                   Quantize
+                      |         |
+                  Dequantize  Dequantize
+                       \       /
+                         MatMul
+                           |
+                    StaticTranspose
+                           |
+                        Reorder
+                           |
+                        Quantize
+                           |
+
+  ```
+
+-
+
+```text
+             |        |
+      Dequantize    Dequantize
+             |        |
+        TypeCast    TypeCast
+              \      /
+               MatMul
+                 \     /
+         Multiply/Divide
+                    \    /
+                     Add
+                      |
+                   Softmax
+                      |
+                   TypeCast
+                      |
+                   Quantize
+                      |         |
+                  Dequantize  Dequantize
+                      |         |
+                  TypeCast    TypeCast
+                       \       /
+                         MatMul
+                           |
+                    StaticTranspose
+                           |
+                        Reorder
+                           |
+                        TypeCast
+                           |
+                        Quantize
+                           |
+  ```
+
+- [Quantized MLP Unit]<sup>[2,6]</sup>
+
+  in which Quantized MLP Unit is:
+
+  ```text
+
+                    |       |
+            Dequantize    Dequantize
+                     \     /
+                      MatMul
                         |
-                    Transpose
+                ReLU/Sigmoid/GELU
                         |
-                  Reshape (optional)
+                     Quantize
                         |
-                    (Quantize)
-                        |
-                     [output]
-```
+
+  ```
