@@ -54,6 +54,7 @@ namespace sc {
     virtual expr visit_impl(intrin_call v) POSTFIX; /* NOLINT*/ \
     virtual expr visit_impl(func_addr v) POSTFIX; /* NOLINT*/ \
     virtual expr visit_impl(ssa_phi v) POSTFIX; /* NOLINT*/ \
+    virtual expr visit_impl(low_level_intrin v) POSTFIX; /* NOLINT*/ \
     virtual stmt visit_impl(assign v) POSTFIX; /* NOLINT*/ \
     virtual stmt visit_impl(stmts v) POSTFIX; /* NOLINT*/ \
     virtual stmt visit_impl(if_else v) POSTFIX; /* NOLINT*/ \
@@ -213,6 +214,7 @@ public:
     virtual expr_c visit(intrin_call_c v);
     virtual expr_c visit(func_addr_c v);
     virtual expr_c visit(ssa_phi_c v);
+    virtual expr_c visit(low_level_intrin_c v);
 
     virtual stmt_c visit(assign_c v);
     virtual stmt_c visit(stmts_c v);

@@ -77,6 +77,7 @@ public:
     virtual void view(intrin_call_c v);
     virtual void view(func_addr_c v);
     virtual void view(ssa_phi_c v);
+    virtual void view(low_level_intrin_c v);
 
     virtual void view(assign_c v);
     virtual void view(stmts_c v);
@@ -119,6 +120,7 @@ private:
     expr_c visit(intrin_call_c v) final;
     expr_c visit(func_addr_c v) final;
     expr_c visit(ssa_phi_c v) final;
+    expr_c visit(low_level_intrin_c v) final;
 
     stmt_c visit(assign_c v) final;
     stmt_c visit(stmts_c v) final;

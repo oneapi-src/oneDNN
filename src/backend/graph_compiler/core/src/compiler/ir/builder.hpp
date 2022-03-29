@@ -831,6 +831,10 @@ expr make_func_addr(func_t v);
  * */
 expr make_phi(const std::vector<expr> &values, bool is_loop_phi = false);
 
+// makes a new low_level_intrin with newargs and type_ copied
+low_level_intrin remake_low_level_intrin(
+        const low_level_intrin_c &v, const std::vector<expr> &newargs);
+
 /**
  * Gets the pointer of an element of the tensor as a view
  * @see tensorptr_node

@@ -77,6 +77,7 @@ enum class sc_expr_type {
     intrin_call,
     ssa_phi,
     func_addr,
+    low_level_intrin,
 };
 
 std::ostream &operator<<(std::ostream &os, sc_expr_type val);
@@ -1396,6 +1397,29 @@ public:
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(func_addr)
+
+/**
+ * The low-level-intrinsic node
+ * @param intrin the intrinsic
+ * @param args the arguments
+ * @note low-level-intrinsics will be used on low level ir for different
+ * backends to express target-specific intrinsic, e.g. operations and
+ * instructions. This node will be visible for normal ir passes but will only be
+ * used by low level passes for CPUs and GPUs.
+ **/
+class low_level_intrin_node
+    : public expr_base,
+      public visitable_t<low_level_intrin_node, expr_base> {
+public:
+    static constexpr sc_expr_type type_code_ = sc_expr_type::low_level_intrin;
+    int64_t type_;
+    std::vector<expr> args_;
+    low_level_intrin_node(int64_t intrin, const std::vector<expr> &args);
+    virtual void to_string(ostream &os) const override;
+    expr remake() const override;
+    bool equals(expr_c other, ir_comparer &ctx) const override;
+};
+SC_DEFINE_EXPR_NODE_PTR(low_level_intrin)
 
 /**
  * Gets the integer from the constant node. Will abort if the dtype

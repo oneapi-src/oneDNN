@@ -688,6 +688,31 @@ bool ssa_phi_node::equals(expr_c v, ir_comparer &ctx) const {
             && ctx.expr_arr_equals(values_, other->values_));
 }
 
+void low_level_intrin_node::to_string(ostream &os) const {
+    os << "low_level_intrin" << '[' << type_ << ']' << '(';
+    if (!args_.empty()) {
+        for (unsigned i = 0; i < args_.size() - 1; i++) {
+            os << args_.at(i) << ", ";
+        }
+        os << args_.back();
+    }
+    os << ')';
+}
+
+low_level_intrin_node::low_level_intrin_node(
+        int64_t intrin, const std::vector<expr> &args)
+    : expr_base(sc_expr_type::low_level_intrin), type_(intrin), args_(args) {}
+
+expr low_level_intrin_node::remake() const {
+    return copy_attr(*this, make_expr<low_level_intrin_node>(type_, args_));
+}
+
+bool low_level_intrin_node::equals(expr_c v, ir_comparer &ctx) const {
+    ASCAST_OR_RETURN(v, other);
+    if (type_ != other->type_) { RETURN(false); }
+    RETURN(ctx.expr_arr_equals(args_, other->args_));
+}
+
 const std::string &get_node_name(const expr &e) {
     tensor t = e.as<tensor>();
     if (t.get() != nullptr) { return t->name_; }

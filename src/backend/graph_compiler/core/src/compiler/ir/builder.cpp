@@ -211,6 +211,11 @@ intrin_call remake_intrin_call(
     return make_expr<intrin_call_node>(v->type_, newargs, *v->intrin_attrs_);
 }
 
+low_level_intrin remake_low_level_intrin(
+        const low_level_intrin_c &v, const std::vector<expr> &newargs) {
+    return make_expr<low_level_intrin_node>(v->type_, newargs);
+}
+
 expr make_reinterpret(const expr_c &v, sc_data_type_t dtype) {
     any_map_t attr;
     attr[intrin_attr::out_dtype] = dtype;

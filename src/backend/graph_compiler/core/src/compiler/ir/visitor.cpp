@@ -286,6 +286,21 @@ expr ir_visitor_base_impl_t<is_inplace>::visit_impl(ssa_phi v) {
 }
 
 template <bool is_inplace>
+expr ir_visitor_base_impl_t<is_inplace>::visit_impl(low_level_intrin v) {
+    std::vector<expr> new_arr;
+    changed_ = dispatch_expr_vector(v->args_, new_arr);
+    if (is_inplace) {
+        return std::move(v);
+    } else {
+        if (changed_) {
+            return copy_attr(*v, builder::remake_low_level_intrin(v, new_arr));
+        } else {
+            return std::move(v);
+        }
+    }
+}
+
+template <bool is_inplace>
 expr ir_visitor_base_impl_t<is_inplace>::visit_impl(call v) {
     std::vector<expr> new_arr;
     changed_ = dispatch_expr_vector(v->args_, new_arr);
@@ -516,6 +531,7 @@ DEFINE_VISITOR_PROXY(tensorptr) // NOLINT
 DEFINE_VISITOR_PROXY(intrin_call) // NOLINT
 DEFINE_VISITOR_PROXY(func_addr) // NOLINT
 DEFINE_VISITOR_PROXY(ssa_phi) // NOLINT
+DEFINE_VISITOR_PROXY(low_level_intrin) // NOLINT
 
 #define DEFINE_VISITOR_PROXY_STMT(TYPE) \
     stmt_c ir_visitor_t::visit(TYPE##_c v) { \

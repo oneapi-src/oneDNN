@@ -104,6 +104,9 @@ void get_direct_dependency_of_expr(
         case sc_expr_type::intrin_call:
             callback(v.static_as<intrin_call>()->args_);
             break;
+        case sc_expr_type::low_level_intrin:
+            callback(v.static_as<low_level_intrin>()->args_);
+            break;
         case sc_expr_type::ssa_phi:
             callback(v.static_as<ssa_phi>()->values_);
             break;
