@@ -69,6 +69,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
 
         auto *dev_info = compute_engine->device_info();
         gpu_arch_ = dev_info->gpu_arch();
+        stepping_id_ = dev_info->stepping_id();
     } else {
         assert(!"not_expected");
     }
