@@ -1,74 +1,194 @@
-# oneDNN Design Document (RFC)
-
-> Please follow the document style requirements listed
-> [here](../README.md#document-style).
+# oneDNN Primitives' Support in cuDNN (RFC)
 
 ## Introduction
-
-Short description of the idea proposed with explained motivation. The
-motivation could be:
-- Widespread usage of the proposed feature in different frameworks or
-  applications. Provide references to support the claim.
-- Improved users experience for API changes and extensions. Code snippets to
-  showcase the benefits would be nice here.
-- Performance improvements with the data, if available.
-- Improved engineering practices.
-
-Introduction may also include any additional information that sheds light on
-the proposal, such as history of the matter, links to relevant issues and
-discussions, etc.
+The idea for this RFC is to make few primitives of oneDNN to be supported by cuDNN
+- This branch contains the support for the primitives that are yet to be supported for CUDA backend.
+- Build process and compilation validation are in progress fpr few of the primitives.
+- Testing and Performance analysis are yet to be done.
 
 ## Proposal
+The primitives are built using oneDNN and are the open-source DNN libraries of Intel.
+- The backend can be exposed to the user via DNNL_GPU_VENDOR=AMD flag used in CMake.
+- This contribution would extend oneDNN's support for primitives and their supported post-ops and Quantization from oneDNN backend to cuDNN backend.
 
-A full and detailed description of the proposal, with highlighted consequences.
+### Since MIOpen backend implementation is heavily inspired by cuDNN backend , the limitations or bugs from there are likely to be inherited here.
 
-Depending on the kind of the proposal, the description should cover:
+## Supported Primitives and Implementation Limitations:
 
-- The expected performance benefit. This usually best presented as a profiling
-  information from a workload showing that a particular operation takes
-  significant percentage of the total time and thus is a good optimization
-  candidate.
 
-- The definition of the operation as a oneDNN primitive including interface
-  and semantics. It is OK to have sketches for the interface, but the
-  semantics should be fairly well defined.
+## Shuffle:
 
-  - If possible, provide information about similar compute operations.
-	Sometimes oneDNN primitives are super-sets of operations available in the
-	deep learning applications for the sake of greater portability across them.
+Shuffle is a primitive to shuffle a 2D tensor data along an axis (C) with the group parameter (G) . The shuffle axis is thought to be a 2D tensor of size (C/G X G ) and it is being transposed to ( G X C/G )
+ 
+### Primitive Signature in oneDNN:
+dnnl_shuffle_desc_t
+dnnl::shuffle_backward
+dnnl::shuffle_forward
 
-A proposal should include the alternatives that were considered with listed
-pros and cons. The alternatives should be clearly separated to make possible
-discussions clear.
+### Propagation: 
+Forward,Backward
 
-Pay close attention to the following aspects of the library:
-- API and ABI backwards compatibility. The library follows semantic versioning
-  so if any of those interfaces are to be broken we need to state that
-  explicitly.
-- Performance implications, as this is one of the main goals of the library.
-- Changes to the build system. While the library's primary building system is
-  CMake, there are some frameworks that may build the library directly from the
-  sources.
-- Dependencies and support matrix: does the proposal brings any new
-  dependencies or affects the supported configurations.
+### Post-ops & Quantization:
+The shuffle primitive does not support any post-ops or attributes.
 
-Some other common subsections here are:
-- Discussion: some people like to list all the options first (as separate
-  subsections), and then have a dedicated section with the discussion/
-- Listing of the proposed API and examples of its usage.
-- Testing aspects.
-- Short explanation and links to the related sub-proposals, if any. Such
-  sub-proposals could be organized as separate standalone RFCs, but this is
-  not mandatory. If the changes is insignificant, or doesn't make any sense
-  without the original proposal it is fine to have it in the RFC. The
-  sub-proposals are typically kept in a separate files. For instance, see
-  the [RFC about Thread-pool](20191119-tf-threading/) and its sub-proposal
-  about changes in `dnnl_memory_set_data_handle()`.
-- Execution plan if approved, aka next steps.
+### Implementation Limitations:
+Exact equivalent to shuffle in cuDNN is not found
+
+
+
+
+
+
+
+Binary primitive in MIOpen library is implemented through miopenOpTensor, 
+MIOpen supports only 4 modes of binary operations via enumerators: miopenTensorOpAdd, miopenTensorOpMul, miopenTensorOpMin, miopenTensorOpMax.
+
+* This implementation keeps the same conditions as CUDA backend for blocking, broadcast and supported datatypes.
+* Testing: This developed backend will be tested after addressing the comments from the oneDNN team and the results will be updated.
+
+Limitations :
+1. We currently do not have much information about blocking, broadcast in MIOpen library documentation.
+
+
+## ETLWISE :
+
+The miopenActivationForward and miopenActivationBackward is the equivalent of eltwise forward and eltwise backward in oneDNN respectively.
+The eltwise primitive works with arbitrary data tensors. There is no special meaning associated with any logical dimensions.
+A primitive to perform elementwise operations such as the rectifier linear unit (ReLU).
+
+Propagation: 
+Forward,Backward
+
+Limitations: 
+ 
+1. Supported Data Types: supports f32, f16 data types. Doesn’t support s8 & bf16.
+2. MIOpen  only supports the following operations - RELU, ELU, TANH, LOGISTIC,  CLIPPEDRELU, ABS, POWER.
+
+
+
+
+## LRN(LOCAL RESPONSE NORMALIZATION) :
+
+The local response normalization primitive in the AMD backend is implemented with the
+hipdnnLRNForward and hipdnnLRNBackward functions for forward and backward propagation respectively.
+
+The implementation of LRNCrossChannelForward and LRNCrossChannelBackward in miopen require workspace creation and miopenOpTensor post operation in addition
+miopenLrnBackward & miopenLrnForward hence we choose straight forward implementation in hipDNN.
+
+Propagation:
+Forward and Backward.
+
+Limitations :
+1. Data Types: 
+supports f32, f16 data types. Doesn’t support bf16.
+
+
+## SOFTMAX :
+
+Softmax implementation algorithms :
+* Softmax has three implementations of its algorithms, these are enumerated upon "miopenSoftmaxAlgorithm_t" varible,
+* Currently MIOpen supports three algorithmic implementations namely:
+   MIOPEN_SOFTMAX_FAST
+   MIOPEN_SOFTMAX_ACCURATE
+   MIOPEN_SOFTMAX_LOG
+* NOTE: The MIOPEN_SOFTMAX_LOG implementation in MIOpen is the direct implementation of logsoftmax in oneDNN.
+
+Modes of Operation :
+MIOPEN_SOFTMAX_MODE_INSTANCE(selected by default)
+MIOPEN_SOFTMAX_MODE_CHANNEL(can be used if there is forwardv2 or backwardv2 implementation)
+
+Propagation:
+Forward and Backward.
+
+Limitations:
+
+1. Datatypes are limited to fp16 and fp32.
+2. Supported Datatypes:
+miopenHalf  - 16-bit floating point(fp16)
+miopenFloat - 32-bit floating point(fp32)
+
+
+
+## BATCH NORMALIZATION :
+
+The equivalent to oneDNN batch normalization are miopenBatchNormalizationForward includes miopenBatchNormalizationForwardTraining,
+miopenBatchNormalizationForwardInference and miopenBatchNormalizationBackward operations.
+
+Propagation:
+Forward and Backward.
+
+LIMITATIONS :
+
+1. Supported Data Types: 
+supports f32, f16 data types. Doesn’t support s8 & bf16.
+
+
+## POOLING :
+
+The pooling primitive in the AMD backend is implemented with the miopenPoolingForward 
+and miopenPoolingBackward functions for forward and backward propagation respectively.
+
+Propagation:
+Forward and Backward.
+
+
+LIMITATIONS :
+1. Supported Data Types: 
+supports f32, f16 ,miopenint8data types. Doesn’t support s8 & bf16,S32.
+
+
+
+
+## CONVOLUTION  : 
+
+1. This convolution primitive in AMD Backend is implemented as miopenConvolutionForward, miopenConvolutionBackward  
+is used to compute forward, backward by data or backward by weights for a convolution operation.
+
+2. As filter algo is implemented in HIPDNN as hipdnnConvolutionBackwardFilter.
+
+The implementation of ConvolutionBackwardFilter in miopen requires additional workspace creation and as well as different implementation
+based on parameter beta hence we choose straight forward implementation in hipDNN.
+
+ 
+PROPOGRATION :
+Forward, BackwardData and BackwardBias.
+
+LIMITATIONS :
+
+1. Supported Data Types:  fp16, fp32, bf16, miopenInt8. Doesn’t support  U8 datatype.
+2. Some of the features of cuDNN backend implementation are not supported in hipDNN Backend because of the missing below 
+* hipdnnConvolutionBiasActivationForward
+* hipdnnTransformTensor
+* hipdnnGetConvolutionForwardAlgorithmMaxCount
+* hipdnnConvolutionFwdAlgoWinograd_NONFUSED
+* hipdnnGetConvolutionBackwardDataAlgorithmMaxCount
+* hipdnnGetConvolutionBackwardFilterAlgorithmMaxCount
+
+## DECONVOLUTION :
+
+Deconvolution primitive is implemented through the convolution with  miopenConvolutionBackwardBias.
+
+Limitations :
+1. Supported Data Types:  fp16, fp32, bf16, miopenInt8
+doesn’t support U8 datatype.
+
+
+
+## Build command
+export CC=/path/to/hip/install/bin/clang    --> hip supported SYCL C compiler
+
+export CXX=/path/to/hip/install/bin/clang++ -->  hip supported SYCL CPP compiler
+
+mkdir build
+
+cd build
+
+cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=SYCL -DDNNL_GPU_VENDOR=AMD ..
+
 
 ## Open Questions
+The implementation is subject to change as we go through the review and the testing phases
 
-List here the significant uncertainties that are relevant to the proposal.
+Currently the HIP support for DPCPP(SYCL) compiler is in experimental stage, and the backend is not completely supported on AMD devices
 
-However, sometimes the answers on these questions won't be found even if the
-proposal is accepted, say, by leaving the current implementation as is.
+Hence this effort will also explore any alternatives for running HIP backend on AMD platforms
