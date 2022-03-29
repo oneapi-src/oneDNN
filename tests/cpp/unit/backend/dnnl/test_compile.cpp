@@ -358,17 +358,8 @@ TEST(Compile, ConvolutionBackpropFilterFp32) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 }
 
-TEST(Execute, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
+TEST(Compile, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     using dims = impl::dnnl_impl::dims;
-
-    test::vector<float> src {-32.0, 10.0, 16.0, -7.0, -1.0, -24.0, -18.0, 24.0,
-            12.0, -11.0, -5.0, -28.0, -22.0, 20.0, 26.0, 3.0};
-    test::vector<float> diff_dst {-32.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 32.0, -21.0, 16.0, 28.0, 0.0};
-    test::vector<float> ref_diff_wei {0.0, 1024.0, -320.0, 0.0, -512.0, 224.0,
-            384.0, -352.0, 0.0, -160.0, -896.0, 0.0, -352.0, 782.0, -420.0,
-            416.0, -498.0, -63.0, 0.0, -616.0, 560.0, 0.0, 728.0, 84.0};
-    test::vector<float> diff_wei(ref_diff_wei.size(), 0.0);
 
     const dims src_dims {2, 4, 2};
     const dims diff_dst_dims {2, 4, 2};
@@ -426,19 +417,10 @@ TEST(Execute, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(diff_wei_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_wei_ts(diff_wei_lt, &eng, diff_wei.data());
-
-    impl::stream_t &strm = get_stream();
-    cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_wei_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < diff_wei.size(); ++i) {
-        ASSERT_FLOAT_EQ(diff_wei[i], ref_diff_wei[i]);
-    }
+    // if layout queried from the primitive will make descriptor impossible
+    // to reshape (with groups -> no groups), we make it strided (via reorder)
+    ASSERT_TRUE(lt.layout_type == impl::layout_type::opaque
+            || lt.layout_type == impl::layout_type::strided);
 }
 
 TEST(Compile, ConvtransposeFp32) {
@@ -5341,17 +5323,8 @@ INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropFilters,
                         {1, 1, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1, 1}, "NXC",
                         "XIO"}));
 
-TEST(Execute, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
+TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     using dims = impl::dnnl_impl::dims;
-
-    test::vector<float> src {-32.0, 10.0, 16.0, -7.0, -1.0, -24.0, -18.0, 24.0,
-            12.0, -11.0, -5.0, -28.0, -22.0, 20.0, 26.0, 3.0};
-    test::vector<float> diff_dst {-32.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 32.0, -21.0, 16.0, 28.0, 0.0};
-    test::vector<float> ref_diff_wei {-320.0, 1024.0, 0.0, 0.0, -352.0, 384.0,
-            224.0, -512.0, 0.0, 0.0, -896.0, -160.0, -420.0, 782.0, -352.0,
-            560.0, -616.0, 0.0, -63.0, -498.0, 416.0, 84.0, 728.0, 0.0};
-    test::vector<float> diff_wei(ref_diff_wei.size(), 0.0);
 
     const dims src_dims {2, 4, 2};
     const dims diff_dst_dims {2, 4, 2};
@@ -5409,19 +5382,10 @@ TEST(Execute, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(diff_wei_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::opaque);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_wei_ts(diff_wei_lt, &eng, diff_wei.data());
-
-    impl::stream_t &strm = get_stream();
-    cp.execute(&strm, {src_ts, diff_dst_ts}, {diff_wei_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < diff_wei.size(); ++i) {
-        ASSERT_FLOAT_EQ(diff_wei[i], ref_diff_wei[i]);
-    }
+    // if layout queried from the primitive will make descriptor impossible
+    // to reshape (with groups -> no groups), we make it strided (via reorder)
+    ASSERT_TRUE(lt.layout_type == impl::layout_type::opaque
+            || lt.layout_type == impl::layout_type::strided);
 }
 
 TEST(Execute, Convolution3DNcxOix) {

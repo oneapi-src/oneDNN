@@ -915,9 +915,23 @@ static void layout_propagation_for_from_group(op_ptr &op,
         if (is_convtranspose) {
             auto permuted_dst = transpose(src_md, 1, 2);
             auto permuted_dst_no_groups = from_grouped(permuted_dst);
-            return transpose(permuted_dst_no_groups, 0, 1);
+            return (permuted_dst_no_groups.is_zero())
+                    ? permuted_dst_no_groups
+                    : transpose(permuted_dst_no_groups, 0, 1);
         } else {
             return from_grouped(src_md);
+        }
+    };
+    const auto get_strides = [](const dnnl::memory::desc &src_md,
+                                     bool is_convtranspose) -> dims {
+        if (is_convtranspose) {
+            // chain of (transpose -> from_grouped -> transpose) requires
+            // such permuted strides, otherwise reshape will fail
+            auto strides = get_dense_strides(transpose(src_md, 0, 1).dims());
+            std::swap(strides[0], strides[1]);
+            return strides;
+        } else {
+            return get_dense_strides(src_md.dims());
         }
     };
 
@@ -938,7 +952,7 @@ static void layout_propagation_for_from_group(op_ptr &op,
     // to join), infered_dst_md will be an empty memory descriptor.
     if (infered_dst_md.is_zero()) {
         dnnl::memory::desc strided_dst_md(src_md.dims(), src_md.data_type(),
-                get_dense_strides(src_md.dims()));
+                get_strides(src_md, is_convtranspose));
         insert_reorder_before(
                 op, 0, strided_dst_md, p_engine, prm_attr_mgr, reorder_ops);
         infered_dst_md = get_dst_md(strided_dst_md, is_convtranspose);
