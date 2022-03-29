@@ -70,8 +70,14 @@ public:
         // Move to the next BMNK tile or next problem dimension (depending on
         // split/fuse settings and remaining sizes).
         if (rem_bmnk_dim_ != 1 && rem_prb_dim_ != 1) {
-            move_to_next_prb_dim();
-            return;
+            if (allow_fuse()) {
+                rem_prb_dim_ = 1;
+            } else if (prb_dims_[prb_dim_idx_]->allow_split()) {
+                rem_bmnk_dim_ = 1;
+            } else {
+                rem_prb_dim_ = 1;
+                rem_bmnk_dim_ = 1;
+            }
         }
 
         if (rem_bmnk_dim_ == 1 && rem_prb_dim_ == 1) {

@@ -922,6 +922,7 @@ const std::unordered_map<std::string, int> &conv_config_t::dim_blocks() const {
 }
 
 bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
+    if (hw() <= ngen::HW::XeHPG) return true;
     if (bh->max_iter_dim("mb") == 1) return true;
     int sp = (kd * kh * kw == 1 && is_fwd) ? (d * h * w) : w;
     int block = 32;
