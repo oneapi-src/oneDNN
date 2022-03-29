@@ -8,7 +8,6 @@ The idea for this RFC is to make few primitives of oneDNN to be supported by cuD
 
 ## Proposal
 The primitives are built using oneDNN and are the open-source DNN libraries of Intel.
-- The backend can be exposed to the user via DNNL_GPU_VENDOR=AMD flag used in CMake.
 - This contribution would extend oneDNN's support for primitives and their supported post-ops and Quantization from oneDNN backend to cuDNN backend.
 
 ## Supported Primitives and Implementation Limitations
