@@ -313,7 +313,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_add_fusion)
               [bias]*                     [dequant_add]
                 |                             /
         [ Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
-          Pow/ReLU/Round/Sqrt/Square/Tanh/ Add*[0,1] ]*[0,3]
+          Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
+          Divide/Subtract]*[0,3]
                 |
             [quant_out]*  
                 |      
@@ -363,28 +364,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_post_ops_fusion)
                     pm::pb_op_t *padd = padd_graph->append_op(
                             impl::op_kind::Add,
                             in_edges_t {in_edge(1, pdequant_add, 0)}, "padd");
-                    padd->append_decision_function(
-                            check_post_ops_only_one_add<impl::op_kind::MatMul>);
                     padd_graph->create_input_port(0, padd, 0);
                     padd_graph->create_input_port(1, pdequant_add, 0);
                     padd_graph->create_output_port(0, padd, 0);
 
-                    // special post op handle: swish is composed
-                    // by sigmoid and multiply
-                    auto swish_graph
-                            = std::make_shared<pb_graph_t>("swish_graph");
-                    auto psigmoid = swish_graph->append_op(
-                            impl::op_kind::Sigmoid, "psigmoid");
-                    auto pmultiply
-                            = swish_graph->append_op(impl::op_kind::Multiply,
-                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
-                    swish_graph->create_input_port(0, psigmoid, 0);
-                    swish_graph->create_input_port(0, pmultiply, 1);
-                    swish_graph->create_output_port(0, pmultiply, 0);
-
-                    auto peltwise_graph
-                            = std::make_shared<pb_graph_t>("peltwise_graph");
-                    pm::pb_op_t *pop = peltwise_graph->append_alternation(
+                    auto postop_graph
+                            = std::make_shared<pb_graph_t>("postop_graph");
+                    pm::pb_op_t *pop = postop_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
@@ -394,17 +380,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_post_ops_fusion)
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,
                                     impl::op_kind::Sqrt, impl::op_kind::Square,
-                                    impl::op_kind::Tanh},
-                            "peltwise");
-                    peltwise_graph->create_input_port(0, pop, 0);
-                    peltwise_graph->create_input_port(1, pop, 1);
-                    peltwise_graph->create_output_port(0, pop, 0);
+                                    impl::op_kind::Tanh,
+                                    impl::op_kind::Multiply,
+                                    impl::op_kind::Maximum,
+                                    impl::op_kind::Minimum,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Subtract},
+                            "postop");
+                    postop_graph->create_input_port(0, pop, 0);
+                    postop_graph->create_input_port(1, pop, 1);
+                    postop_graph->create_output_port(0, pop, 0);
 
                     auto prep_graph
                             = std::make_shared<pb_graph_t>("prep_graph");
                     auto palt = prep_graph->append_alternation(
-                            {padd_graph, swish_graph, peltwise_graph},
-                            "palternation");
+                            {padd_graph, postop_graph}, "palternation");
                     prep_graph->create_input_port(0, palt, 0);
                     prep_graph->create_input_port(1, palt, 1);
                     prep_graph->create_output_port(0, palt, 0);

@@ -396,6 +396,14 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
                         == op_kind::permute) {
             continue;
         }
+
+        const bool with_bias = cur_op->has_attr("with_bias")
+                ? cur_op->get_attr<bool>("with_bias")
+                : false;
+        const size_t expected = with_bias ? 4 : 3;
+        // TODO(xx): handle multiple post-binary case
+        if (cur_op->num_inputs() > expected) { continue; }
+
         int32_t src_ndims
                 = cur_op->get_input_value(0)->get_logical_tensor().ndims;
         int32_t wei_ndims
@@ -420,9 +428,6 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
         to_be_inserted_ops.emplace_back(reshape_op2);
         insert_op_after(reshape_op2, cur_op, 0);
 
-        bool with_bias = cur_op->has_attr("with_bias")
-                ? cur_op->get_attr<bool>("with_bias")
-                : false;
         if (!with_bias && cur_op->num_inputs() == 3) {
             auto post_src_dims = logical_tensor_wrapper_t(
                     cur_op->get_input_value(2)->get_logical_tensor())
