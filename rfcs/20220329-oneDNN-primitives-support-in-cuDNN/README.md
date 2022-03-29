@@ -16,7 +16,7 @@ The primitives are built using oneDNN and are the open-source DNN libraries of I
 ### Reduction
 Reduction primitive in cudDNN library is implemented through cudnnReduceTensor. cuDNN supports only 5 modes of reduction operations via enumerators: CUDNN_REDUCE_TENSOR_MAX, CUDNN_REDUCE_TENSOR_MIN, CUDNN_REDUCE_TENSOR_MUL,CUDNN_REDUCE_TENSOR_ADD,CUDNN_REDUCE_TENSOR_AVG. In oneDNN ,reduction primitive works with arbitrary data tensors,There is no special meaning associated with any of the dimensions of a tensor. In cuDNN,  All tensor formats are supported up to  8 dimensions.
 
-#### Limitations
+#### Implementation Limitations
  Supported Data Types: supports only f32 ,int8 data types. Doesn’t support bf16.
 
 ### Recurrent Neural Networks
