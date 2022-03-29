@@ -24,9 +24,6 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
 namespace pm = impl::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;

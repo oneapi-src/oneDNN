@@ -23,9 +23,11 @@ namespace impl {
 namespace dnnl_impl {
 namespace pass {
 
-using pattern = impl::pass::pattern;
-using FCreatePattern = impl::pass::FCreatePattern;
-using FCreateOptPattern = impl::pass::FCreateOptPattern;
+namespace pm = impl::utils::pm;
+using in_edges_t = pm::in_edges_t;
+using pb_graph_t = pm::pb_graph_t;
+using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
+using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 /*!
  * \brief This provides GELU fusion.
@@ -37,81 +39,41 @@ using FCreateOptPattern = impl::pass::FCreateOptPattern;
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(gelu_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *wildcard_1
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *pow = apattern->create_op(impl::op_kind::Pow);
-                    op_t *wildcard_2
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *multiply_1
-                            = apattern->create_op(impl::op_kind::Multiply);
-                    op_t *wildcard_3
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add_1 = apattern->create_op(impl::op_kind::Add);
-                    op_t *wildcard_4
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *multiply_2
-                            = apattern->create_op(impl::op_kind::Multiply);
-                    op_t *tanh = apattern->create_op(impl::op_kind::Tanh);
-                    op_t *wildcard_5
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add_2 = apattern->create_op(impl::op_kind::Add);
-                    op_t *wildcard_6
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *multiply_3
-                            = apattern->create_op(impl::op_kind::Multiply);
-                    op_t *wildcard_7
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *multiply_4
-                            = apattern->create_op(impl::op_kind::Multiply);
-                    pow->fill_and_connect_input(0, *wildcard_1, 0);
-                    multiply_1->fill_and_connect_input(0, *pow, 0);
-                    multiply_1->fill_and_connect_input(1, *wildcard_2, 0);
-                    add_1->fill_and_connect_input(0, *multiply_1, 0);
-                    add_1->fill_and_connect_input(1, *wildcard_3, 0);
-                    multiply_2->fill_and_connect_input(0, *add_1, 0);
-                    multiply_2->fill_and_connect_input(1, *wildcard_4, 0);
-                    tanh->fill_and_connect_input(0, *multiply_2, 0);
-                    add_2->fill_and_connect_input(0, *tanh, 0);
-                    add_2->fill_and_connect_input(1, *wildcard_5, 0);
-                    multiply_3->fill_and_connect_input(0, *add_2, 0);
-                    multiply_3->fill_and_connect_input(1, *wildcard_6, 0);
-                    multiply_4->fill_and_connect_input(0, *multiply_3, 0);
-                    multiply_4->fill_and_connect_input(1, *wildcard_7, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto pow = pgraph->append_op(impl::op_kind::Pow, "pow");
+                    auto multiply_1 = pgraph->append_op(impl::op_kind::Multiply,
+                            {in_edge(0, pow, 0)}, "multiply_1");
+                    auto add_1 = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, multiply_1, 0)}, "add_1");
+                    auto multiply_2 = pgraph->append_op(impl::op_kind::Multiply,
+                            {in_edge(0, add_1, 0)}, "multiply_2");
+                    auto tanh = pgraph->append_op(impl::op_kind::Tanh,
+                            {in_edge(0, multiply_2, 0)}, "tanh");
+                    auto add_2 = pgraph->append_op(
+                            impl::op_kind::Add, {in_edge(0, tanh, 0)}, "add_2");
+                    auto multiply_3 = pgraph->append_op(impl::op_kind::Multiply,
+                            {in_edge(0, add_2, 0)}, "multiply_3");
+                    pgraph->append_op(impl::op_kind::Multiply,
+                            {in_edge(0, multiply_3, 0)}, "multiply_4");
                 })
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](pattern *apattern) -> void {
-                    op_t *wildcard_1
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *div = apattern->create_op(impl::op_kind::Divide);
-                    op_t *erf = apattern->create_op(impl::op_kind::Erf);
-                    op_t *wildcard_2
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *add = apattern->create_op(impl::op_kind::Add);
-                    op_t *wildcard_3
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *multiply_1
-                            = apattern->create_op(impl::op_kind::Multiply);
-                    op_t *wildcard_4
-                            = apattern->create_op(impl::op_kind::Wildcard);
-                    op_t *multiply_2
-                            = apattern->create_op(impl::op_kind::Multiply);
-                    div->fill_and_connect_input(0, *wildcard_1, 0);
-                    erf->fill_and_connect_input(0, *div, 0);
-                    add->fill_and_connect_input(0, *erf, 0);
-                    add->fill_and_connect_input(1, *wildcard_2, 0);
-                    multiply_1->fill_and_connect_input(0, *add, 0);
-                    multiply_1->fill_and_connect_input(1, *wildcard_3, 0);
-                    multiply_2->fill_and_connect_input(0, *multiply_1, 0);
-                    multiply_2->fill_and_connect_input(1, *wildcard_4, 0);
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto div = pgraph->append_op(impl::op_kind::Divide, "div");
+                    auto erf = pgraph->append_op(
+                            impl::op_kind::Erf, {in_edge(0, div, 0)}, "erf");
+                    auto add = pgraph->append_op(
+                            impl::op_kind::Add, {in_edge(0, erf, 0)}, "add");
+                    auto multiply_1 = pgraph->append_op(impl::op_kind::Multiply,
+                            {in_edge(0, add, 0)}, "multiply_1");
+                    pgraph->append_op(impl::op_kind::Multiply,
+                            {in_edge(0, multiply_1, 0)}, "multiply_2");
                 })
-
-        .set_attr<FCreateOptPattern>(
-                "FCreateOptPattern", [](pattern *optimized_pattern) -> void {
-                    op_t *fused_op
-                            = optimized_pattern->create_op(impl::op_kind::GELU);
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    auto fused_op = std::make_shared<op_t>(impl::op_kind::GELU);
                     fused_op->set_attr("backend", std::string("dnnl"));
+                    return fused_op;
                 });
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
