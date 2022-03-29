@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+
+#include <memory>
+
 #include "dynamic_transpose.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
+#include <compiler/ir/statics_table.hpp>
 
 namespace sc {
 namespace ops {
@@ -22,26 +26,36 @@ dynamic_transpose_op::dynamic_transpose_op(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
     : sc_op("dynamic_transpose_op", ins, outs, attrs) {
-    COMPILE_ASSERT(ins.size() == 2,
-            "Do not use llga transpose workaround if you follow "
-            "traditional sc definition");
-    // Workaround logic for getting transpose axes:
-    // since the value of ins[1] is yet not visible in compile stage, we choose
-    // to infer transpose axes based on the plain dims of ins[0] + outs[0]
-    // Notice: the following logic fails when the swapped dims have the same
-    // dimension size (e.g. we cannot use this logic to infer the swapping of 0
-    // and 1 axis of logical tensor [1024, 1024] )
     COMPILE_ASSERT(
-            !outs.empty(), "transpose's output is not set, cannot infer axes");
-    for (int i = 0; i < (int)ins[0]->details_.get_plain_dims().size(); ++i) {
-        if (ins[0]->details_.get_plain_dims()[i]
-                != outs[0]->details_.get_plain_dims()[i]) {
-            real_axes_.emplace_back(i);
-        }
+            ins.size() == 2, "Dynamic transpose op shall take 2 inputs.");
+    sc_op *order_node = ins[1]->producer_owner_;
+    COMPILE_ASSERT(
+            order_node->isa<input_op>() || order_node->isa<constant_op_t>(),
+            "Dynamic transpose expects input or constant node as the 2nd "
+            "input.");
+    COMPILE_ASSERT(order_node->attrs_.has_key("values"),
+            "Dynamic transpose's 2nd input is expected to have value "
+            "attributes.");
+    int32_t *order_value = reinterpret_cast<int32_t *>(
+            order_node->attrs_.get<std::shared_ptr<static_data_t>>("values")
+                    ->data_);
+    sc_dims outshape(ins[0]->details_.get_plain_dims().size());
+    for (size_t i = 0; i < outshape.size(); ++i) {
+        order_.emplace_back(order_value[i]);
+        assert(order_.back() >= 0 && order_.back() < (int)outshape.size());
+        outshape[i] = ins[0]->details_.get_plain_dims()[order_.back()];
     }
-    COMPILE_ASSERT(real_axes_.size() == 2,
-            "transpose does not support swapping more than 2 axes");
+
+    if (info_.outputs_.empty()) {
+        info_.outputs_.emplace_back(graph_tensor::make(outshape,
+                sc_data_format_t(), get_inputs()[0]->details_.dtype_));
+    } else {
+        COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims() == outshape,
+                "Dynamic transpose's output shape does not confirm with the "
+                "permutation order.")
+    }
 }
+
 void dynamic_transpose_op::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
@@ -54,7 +68,7 @@ sc_op_ptr dynamic_transpose_op::constant_optimize(sc_graph_t &graph) {
     // temporarily use contant optimize pass to do the dynamic_transpose ->
     // transpose replacement
     auto new_input = graph.make(
-            "transpose", {get_inputs()[0]}, {}, {{"axes", real_axes_}});
+            "transpose", {get_inputs()[0]}, {}, {{"order", order_}});
     this->replace_uses_with_and_remove(new_input);
     return new_input;
 }

@@ -18,9 +18,11 @@
 
 #include <algorithm>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
+
 #include "memory_movement.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
@@ -41,24 +43,27 @@ ir_module_ptr reshape_op_t::get_func(context_ptr ctx) {
 
 transpose_op_t::transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-    : axes_(attrs.get<std::vector<int>>("axes")) {
+    : order_(attrs.get<std::vector<int>>("order")) {
     info_.inputs_ = ins;
     info_.outputs_ = outs;
     assert(info_.inputs_.size() == 1);
-    assert(axes_.size() == 2);
+    assert(order_.size() == info_.inputs_[0]->details_.get_plain_dims().size());
     if (info_.outputs_.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
-        auto dims = info_.inputs_[0]->details_.get_plain_dims();
-        std::swap(dims[axes_[0]], dims[axes_[1]]);
-        info_.outputs_[0]->details_.set_plain_dims(dims);
+        auto in_dims = info_.inputs_[0]->details_.get_plain_dims();
+        sc_dims out_dims(in_dims.size());
+        for (size_t i = 0; i < in_dims.size(); ++i) {
+            out_dims[i] = in_dims[order_[i]];
+        }
+        info_.outputs_[0]->details_.set_plain_dims(out_dims);
         info_.outputs_[0]->details_.dtype_ = ins[0]->details_.dtype_;
     }
     attrs_ = attrs;
     op_name_ = "transpose";
 }
 
-transpose_op_t::transpose_op_t(graph_tensor_ptr v, std::vector<int> &axes)
-    : axes_(axes) {
+transpose_op_t::transpose_op_t(graph_tensor_ptr v, std::vector<int> &order)
+    : order_(order) {
     info_.inputs_.emplace_back(std::move(v));
     info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
     op_name_ = "transpose";
@@ -67,58 +72,47 @@ transpose_op_t::transpose_op_t(graph_tensor_ptr v, std::vector<int> &axes)
 void transpose_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<sc_data_format_t>> &in_formats,
         std::vector<std::vector<sc_data_format_t>> &out_formats) {
-    auto axes = attrs_.get<std::vector<int>>("axes");
     COMPILE_ASSERT(!info_.inputs_[0]->details_.get_format().is_any(),
             "cannot infer output format with any input format");
-    std::vector<int> storage_args;
-    bool is_batch = info_.inputs_[0]
-                            ->details_.get_format()
-                            .format_code_.is_batch_format();
-
-    auto in_format_code = info_.inputs_[0]->details_.get_format().format_code_;
-    for (int i = 0; i < sc_data_format_kind_t::MAX_DIMS; ++i) {
-        int axis = in_format_code.get(i);
-        if (axis == axes[0]) {
-            axis = axes[1];
-        } else if (axis == axes[1]) {
-            axis = axes[0];
+    auto in_format = info_.inputs_[0]->details_.get_format();
+    auto in_format_code = in_format.format_code_;
+    int batch_dims = info_.inputs_[0]->details_.get_plain_dims().size()
+            - in_format_code.norig_dims();
+    std::unordered_map<int, int> order_map;
+    for (size_t i = 0; i < order_.size(); ++i) {
+        COMPILE_ASSERT((order_[i] >= batch_dims)
+                        == (static_cast<int>(i) >= batch_dims),
+                "Permutation on batch dims is not supported.")
+        if (order_[i] >= batch_dims && static_cast<int>(i) >= batch_dims) {
+            order_map[order_[i] - batch_dims] = i - batch_dims;
         }
-        storage_args.push_back(axis);
     }
-    sc_data_format_t::blocking_t blocks
-            = info_.inputs_[0]->details_.get_format().blocks_;
 
-    auto output_format = sc_data_format_t(is_batch, storage_args, blocks);
+    std::vector<int> storage_args;
+    for (int i = 0; i < in_format_code.ndims(); ++i) {
+        int axis = in_format_code.get(i);
+        storage_args.push_back(order_map[axis]);
+    }
+    auto out_format = sc_data_format_t(
+            in_format_code.is_batch_format(), storage_args, in_format.blocks_);
 
-    in_formats.push_back(std::vector<sc_data_format_t> {
-            info_.inputs_[0]->details_.get_format()});
-    out_formats.push_back(std::vector<sc_data_format_t> {output_format});
+    in_formats.push_back(std::vector<sc_data_format_t> {in_format});
+    out_formats.push_back(std::vector<sc_data_format_t> {out_format});
 }
 
 void transpose_op_t::prepare_fusion_data(fdata_map &fdmap) {
-    COMPILE_ASSERT(info_.inputs_.size() == 1, "Wrong op input size.\n");
-    COMPILE_ASSERT(info_.outputs_.size() == 1, "Wrong op output size.\n");
-    auto &in_detail0 = fdmap.get(info_.inputs_[0]);
-    in_detail0.use_count_++;
+    throw std::runtime_error("Not implemented");
 }
 
 void transpose_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
-    // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
-    // transpose_op_t need to reorder it to new axes order.
-    size_t slice_size = known_ranges_map[0].size();
-    slice_range_list transpose_ranges_list(slice_size);
-    for (size_t i = 0; i < slice_size; i++) {
-        transpose_ranges_list[i] = known_ranges_map[0][i];
-        std::swap(transpose_ranges_list[i][axes_[0]],
-                transpose_ranges_list[i][axes_[1]]);
-    }
-    fsmap.get(get_outputs()[0]) = std::move(transpose_ranges_list);
+    throw std::runtime_error("Not implemented");
 }
 
 void transpose_op_t::pre_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {}
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    throw std::runtime_error("Not implemented");
+}
 
 void compute_block_transpose(const std::vector<const tensor_slice *> &src,
         const tensor_slice &dst, const std::vector<int> &axes, size_t wkld) {
@@ -152,8 +146,7 @@ void compute_block_transpose(const std::vector<const tensor_slice *> &src,
 void transpose_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
-    size_t wkld = compute_fusible_workload(ctx, dst, inputs);
-    compute_block_transpose(inputs, *dst[0], axes_, wkld);
+    throw std::runtime_error("Not implemented");
 }
 
 size_t transpose_op_t::compute_workload(

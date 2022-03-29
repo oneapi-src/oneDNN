@@ -15,6 +15,7 @@
  ******************************************************************************/
 
 #include "matmul.hpp"
+#include <numeric>
 #include <utility>
 #include "compiler/ir/graph/fusible_op.hpp"
 #include <util/math_utils.hpp>
@@ -48,11 +49,13 @@ static void transed_matmul(const std::shared_ptr<sc_graph_t> &graph,
         sc_dims transed_plain_dims(original_dims.begin(), original_dims.end());
         std::swap(transed_plain_dims[transed_plain_dims.size() - 1],
                 transed_plain_dims[transed_plain_dims.size() - 2]);
-        std::vector<int> axes {(int)transed_plain_dims.size() - 1,
-                (int)transed_plain_dims.size() - 2};
+        std::vector<int> order(transed_plain_dims.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::swap(order[transed_plain_dims.size() - 1],
+                order[transed_plain_dims.size() - 2]);
         auto out = graph_tensor::make(transed_plain_dims,
                 ins0->details_.get_format(), ins0->details_.dtype_);
-        trans0 = graph->make("transpose", {ins0}, {out}, {{"axes", axes}})
+        trans0 = graph->make("transpose", {ins0}, {out}, {{"order", order}})
                          ->get_outputs()[0];
         attrs.set("transpose_a", false);
     } else {
@@ -65,11 +68,13 @@ static void transed_matmul(const std::shared_ptr<sc_graph_t> &graph,
         sc_dims transed_plain_dims(original_dims.begin(), original_dims.end());
         std::swap(transed_plain_dims[transed_plain_dims.size() - 1],
                 transed_plain_dims[transed_plain_dims.size() - 2]);
-        std::vector<int> axes {(int)transed_plain_dims.size() - 1,
-                (int)transed_plain_dims.size() - 2};
+        std::vector<int> order(transed_plain_dims.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::swap(order[transed_plain_dims.size() - 1],
+                order[transed_plain_dims.size() - 2]);
         auto out = graph_tensor::make(transed_plain_dims,
                 ins1->details_.get_format(), ins1->details_.dtype_);
-        trans1 = graph->make("transpose", {ins1}, {out}, {{"axes", axes}})
+        trans1 = graph->make("transpose", {ins1}, {out}, {{"order", order}})
                          ->get_outputs()[0];
         attrs.set("transpose_b", false);
     } else {

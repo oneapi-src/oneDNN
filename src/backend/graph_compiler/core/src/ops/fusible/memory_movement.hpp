@@ -23,13 +23,22 @@
 
 namespace sc {
 
+/**
+ * Transpose the input tensor
+ * Inputs:
+ *  - A single tensor to transpose
+ * Outputs:
+ *  - The transposed tensor
+ * Attrs:
+ *  - order: vector<int> - order of the input axes w.r.t output axes
+ * */
 class transpose_op_t : public movement_op_t, public op_traits::auto_copyable_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
 
     transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    transpose_op_t(graph_tensor_ptr v, std::vector<int> &axes);
+    transpose_op_t(graph_tensor_ptr v, std::vector<int> &order);
 
     void query_format(context_ptr ctx,
             std::vector<std::vector<sc_data_format_t>> &in_formats,
@@ -38,7 +47,7 @@ public:
             const std::vector<shape_dtype_pair> &) override;
 
 private:
-    std::vector<int> axes_;
+    std::vector<int> order_;
 };
 
 /**

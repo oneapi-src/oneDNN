@@ -95,12 +95,14 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
         bool is_transpose = aware_node.second->isa<transpose_op_t>(); // NOLINT
         if (is_transpose && quantize_node->attrs_.has_key("channel_axis")) {
             int channel_axis = quantize_node->attrs_.get<int>("channel_axis");
-            std::vector<int> axes = aware_node.second->isa<transpose_op_t>()
-                    ? aware_node.second->attrs_.get_or_else(
-                            "axes", std::vector<int> {0, 1})
-                    : std::vector<int> {0, 1};
-            channel_axis = axes[0] == channel_axis ? axes[1] : axes[0];
-            aware_node.second->attrs_.set("channel_axis", channel_axis);
+            std::unordered_map<int, int> axes_map;
+            auto order
+                    = aware_node.second->attrs_.get<std::vector<int>>("order");
+            for (size_t i = 0; i < order.size(); ++i) {
+                axes_map[order[i]] = i;
+            }
+            aware_node.second->attrs_.set(
+                    "channel_axis", axes_map[channel_axis]);
         }
         has_key_and_set<bool>(
                 quantize_node->attrs_, "mixed_dtype", aware_node.second);

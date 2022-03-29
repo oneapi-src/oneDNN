@@ -80,21 +80,27 @@ sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
     return backend_attrs;
 }
 
+static int convert_axis(int64_t axis, int64_t dim) {
+    assert(axis < dim && axis >= -dim);
+    return axis < 0 ? dim + axis : axis;
+}
+
 sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         const std::vector<sc::graph_tensor_ptr> &producer_lt,
         const std::vector<sc::graph_tensor_ptr> &consumer_lt) {
     sc::any_map_t backend_attrs;
+    std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
+            = aop->get_attributes();
+    auto input_dim = aop->get_input_value(0)->get_logical_tensor().ndims;
     if (aop->get_kind() == op_kind::Quantize
             || aop->get_kind() == op_kind::Dequantize) {
-        std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
-                = aop->get_attributes();
         if (attrs.find("qtype") != attrs.end()) {
             backend_attrs.set("per_channel",
                     (attrs["qtype"].get<std::string>() == "per_channel"));
         }
         if (attrs.find("axis") != attrs.end()) {
-            backend_attrs.set(
-                    "channel_axis", (int)attrs["axis"].get<int64_t>());
+            backend_attrs.set("channel_axis",
+                    convert_axis(attrs["axis"].get<int64_t>(), input_dim));
         }
         std::vector<float> scales = attrs["scales"].get<std::vector<float>>();
         std::vector<int64_t> zps_int64
@@ -106,55 +112,34 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                 convert_data_type(aop->get_output_value(0)
                                           ->get_logical_tensor()
                                           .data_type));
-        return make(compiler_backend_op.find(aop->get_kind())->second,
-                producer_lt, consumer_lt, backend_attrs);
     } else if (aop->get_kind() == op_kind::SoftMax) {
-        std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
-                = aop->get_attributes();
-        backend_attrs.set(
-                "axis", std::vector<int>(1, (int)attrs["axis"].get<int64_t>()));
-        return make(compiler_backend_op.find(aop->get_kind())->second,
-                producer_lt, consumer_lt, backend_attrs);
+        backend_attrs.set("axis",
+                std::vector<int>(1,
+                        convert_axis(attrs["axis"].get<int64_t>(), input_dim)));
     } else if (aop->get_kind() == op_kind::StaticReshape) {
-        std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
-                = aop->get_attributes();
         backend_attrs.set("shape", attrs["shape"].get<std::vector<int64_t>>());
         backend_attrs.set("special_zero", attrs["special_zero"].get<bool>());
-        return make(compiler_backend_op.find(aop->get_kind())->second,
-                producer_lt, consumer_lt, backend_attrs);
     } else if (aop->get_kind() == op_kind::StaticTranspose) {
-        std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
-                = aop->get_attributes();
-        std::vector<int> axis;
-        std::vector<int64_t> order = attrs["order"].get<std::vector<int64_t>>();
-        for (int i = 0; i < order.size(); ++i) {
-            if (i != order[i]) { axis.push_back(i); }
-        }
-        backend_attrs.set("axes", axis);
-        return make(compiler_backend_op.find(aop->get_kind())->second,
-                producer_lt, consumer_lt, backend_attrs);
+        std::vector<int64_t> order_int64
+                = attrs["order"].get<std::vector<int64_t>>();
+        std::vector<int> order(order_int64.size());
+        std::transform(order_int64.begin(), order_int64.end(), order.begin(),
+                [input_dim](int64_t axis) -> int {
+                    return convert_axis(axis, input_dim);
+                });
+        backend_attrs.set("order", order);
     } else if (aop->get_kind() == op_kind::TypeCast) {
         backend_attrs.set("dtype",
                 convert_data_type(aop->get_output_value(0)
                                           ->get_logical_tensor()
                                           .data_type));
-        return make(compiler_backend_op.find(aop->get_kind())->second,
-                producer_lt, consumer_lt, backend_attrs);
     } else if (aop->get_kind() == op_kind::ReduceSum) {
-        std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
-                = aop->get_attributes();
         assert(attrs.find("axes") != attrs.end());
-        auto dim = aop->get_input_value(0)->get_logical_tensor().ndims;
         std::vector<int64_t> axes = attrs["axes"].get<std::vector<int64_t>>();
         std::vector<int> rd_axis(axes.size());
         std::transform(axes.begin(), axes.end(), rd_axis.begin(),
-                [dim](int64_t axis) -> int {
-                    assert(axis < dim && axis >= -dim);
-                    if (axis < 0) {
-                        return dim + axis;
-                    } else {
-                        return axis;
-                    }
+                [input_dim](int64_t axis) -> int {
+                    return convert_axis(axis, input_dim);
                 });
         backend_attrs.set("rd_axis", rd_axis);
         backend_attrs.set("rd_op", 0);
@@ -163,11 +148,11 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         } else {
             backend_attrs.set("keep_dims", false);
         }
-        return make(compiler_backend_op.find(aop->get_kind())->second,
-                producer_lt, consumer_lt, backend_attrs);
+    } else {
+        backend_attrs = convert_op_attrs(aop->get_attributes());
     }
     return make(compiler_backend_op.find(aop->get_kind())->second, producer_lt,
-            consumer_lt, convert_op_attrs(aop->get_attributes()));
+            consumer_lt, backend_attrs);
 }
 
 sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
