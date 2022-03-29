@@ -1476,8 +1476,11 @@ void brg_blocking_t::calc_blocks_1x1() {
     if (is_os_blocking) {
         ow_block = 0;
 
-        const auto max_os_block_thr = nstl::max(div_up(2048, oc_block),
-                static_cast<int>(div_up(mb * ngroups * os, nthr)));
+        const auto max_os_block_thr
+                = (src_dsz * ic >= 1024 && src_dsz * ic < 4096)
+                ? div_up(os, div_up(nthr, mb * div_up(oc, oc_block)))
+                : nstl::max(div_up(2048, oc_block),
+                        static_cast<int>(div_up(mb * ngroups * os, nthr)));
         const auto max_os_block_L2 = max_sp_block_L2;
 
         auto max_os_block_aliasing = 1000000 / nthr;
