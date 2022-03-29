@@ -292,6 +292,7 @@ void rnn_brgemm_base_t::init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
 status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
         cpu::rnn_utils::rnn_conf_t &rnn, alg_kind_t cell_kind,
         dim_t src_layer_type_size, dim_t scratch_type_size) {
+    using namespace cpu::rnn_utils;
 
     rnn.M = rnn.mb;
     rnn.N = rnn.dhc;
@@ -432,6 +433,12 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
         if (rnn.LDAproj < rnn.kproj_block
                 || rnn.LDBproj < get_dim(n_block, n_tail) || check_LDC)
             return status::unimplemented;
+    }
+
+    if (!rnn.is_orig_gru) {
+        rnn.loop_order = rnn.is_int8_amx() || rnn.is_bf16_amx()
+                ? brgemm_rnn_execute_loop_order_t::mblk_nblk
+                : brgemm_rnn_execute_loop_order_t::nblk_mblk;
     }
     return status::success;
 }

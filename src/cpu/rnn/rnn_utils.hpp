@@ -210,6 +210,15 @@ enum data_type_conf_t {
     f32s8f32s8
 };
 
+enum brgemm_rnn_execute_loop_order_t {
+    // default for kernels w/o loop order choice
+    undefined = 0x0,
+    // m_blocking loop is outermost
+    mblk_nblk = 0x1,
+    // n_blocking loop is outermost
+    nblk_mblk = 0x2
+};
+
 struct diff_src_brgemm_conf_t {
     dim_t M = 0, N = 0, K = 0;
 
@@ -542,6 +551,8 @@ struct rnn_conf_t {
     x64::cpu_isa_t brgemm_isa;
 #endif
     bool unfused_post_gemm;
+    brgemm_rnn_execute_loop_order_t loop_order
+            = brgemm_rnn_execute_loop_order_t::undefined;
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);

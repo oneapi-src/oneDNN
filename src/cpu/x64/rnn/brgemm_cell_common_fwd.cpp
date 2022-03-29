@@ -124,6 +124,7 @@ template <typename src_t, typename weights_t, typename scratch_t,
         typename gemm_acc_t>
 void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
         const int ithr, const int nthr) const {
+    using namespace cpu::rnn_utils;
 
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
@@ -143,7 +144,15 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     const char *pallete_buff_layer_k_tail = nullptr;
 
     dim_t nb_i = 0, mb = 0;
-    nd_iterator_init(start, mb, m_blocking_, nb_i, n_blocking_);
+    switch (rnn_.loop_order) {
+        case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+            nd_iterator_init(start, mb, m_blocking_, nb_i, n_blocking_);
+            break;
+        case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+            nd_iterator_init(start, nb_i, n_blocking_, mb, m_blocking_);
+            break;
+        default: assert(!"unsupported loop order");
+    }
 
     amx_tile_configuration_loader_t load_cfg_if_needed;
 
@@ -252,7 +261,15 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
         }
 
         ++start;
-        nd_iterator_step(mb, m_blocking_, nb_i, n_blocking_);
+        switch (rnn_.loop_order) {
+            case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+                nd_iterator_step(mb, m_blocking_, nb_i, n_blocking_);
+                break;
+            case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+                nd_iterator_step(nb_i, n_blocking_, mb, m_blocking_);
+                break;
+            default: assert(!"unsupported loop order");
+        }
     }
 }
 
@@ -261,6 +278,7 @@ template <typename src_t, typename weights_t, typename scratch_t,
 void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
         gemm_acc_t>::kernel_fused_iter_layer(const int ithr,
         const int nthr) const {
+    using namespace cpu::rnn_utils;
 
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
@@ -279,7 +297,15 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
     const char *pallete_buff_k_tail = nullptr;
 
     dim_t nb_i = 0, mb = 0;
-    nd_iterator_init(start, mb, m_blocking_, nb_i, n_blocking_);
+    switch (rnn_.loop_order) {
+        case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+            nd_iterator_init(start, mb, m_blocking_, nb_i, n_blocking_);
+            break;
+        case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+            nd_iterator_init(start, nb_i, n_blocking_, mb, m_blocking_);
+            break;
+        default: assert(!"unsupported loop order");
+    }
 
     amx_tile_configuration_loader_t load_cfg_if_needed;
     const auto LDA = LDAl_;
@@ -382,7 +408,15 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
         }
 
         ++start;
-        nd_iterator_step(mb, m_blocking_, nb_i, n_blocking_);
+        switch (rnn_.loop_order) {
+            case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+                nd_iterator_step(mb, m_blocking_, nb_i, n_blocking_);
+                break;
+            case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+                nd_iterator_step(nb_i, n_blocking_, mb, m_blocking_);
+                break;
+            default: assert(!"unsupported loop order");
+        }
     }
 }
 
@@ -428,6 +462,7 @@ void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::execute() const {
 template <typename src_t, typename weights_t, typename gemm_acc_t>
 void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::kernel(
         const int ithr, const int nthr) const {
+    using namespace cpu::rnn_utils;
 
     int start = 0, end = 0;
     balance211(work_amount_proj_, nthr, ithr, start, end);
@@ -444,7 +479,16 @@ void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::kernel(
     if (is_amx) load_cfg_if_needed(rnn_brgemm_.pallete_buff_proj_);
 
     int nb = 0, mb = 0;
-    nd_iterator_init(start, mb, rnn_.M_blocks, nb, rnn_.Nproj_blocks);
+    switch (rnn_.loop_order) {
+        case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+            nd_iterator_init(start, mb, rnn_.M_blocks, nb, rnn_.Nproj_blocks);
+            break;
+        case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+            nd_iterator_init(start, nb, rnn_.Nproj_blocks, mb, rnn_.M_blocks);
+            break;
+        default: assert(!"unsupported loop order");
+    }
+
     while (start < end) {
         const int n = nb * rnn_.n_block;
         const int m = mb * rnn_.m_block;
@@ -502,7 +546,15 @@ void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::kernel(
         }
 
         ++start;
-        nd_iterator_step(mb, rnn_.M_blocks, nb, rnn_.Nproj_blocks);
+        switch (rnn_.loop_order) {
+            case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+                nd_iterator_step(mb, rnn_.M_blocks, nb, rnn_.Nproj_blocks);
+                break;
+            case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+                nd_iterator_step(nb, rnn_.Nproj_blocks, mb, rnn_.M_blocks);
+                break;
+            default: assert(!"unsupported loop order");
+        }
     }
 }
 
