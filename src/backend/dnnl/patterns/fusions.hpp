@@ -57,6 +57,14 @@ bool check_producer_input_num(op_t *op) {
     return producer->num_inputs() == N;
 }
 
+template <impl::op_kind_t KIND>
+bool check_successor_op_kind(op_t *op) {
+    auto out_value = op->get_output_value(0);
+    if (out_value->get_consumers().empty()) return false;
+    auto &successor = out_value->get_consumers()[0].get_op();
+    return successor.get_kind() == KIND;
+}
+
 template <impl::op_kind_t OPKIND>
 bool check_post_ops_only_one_add(op_t *op) {
     size_t num_add = 0;

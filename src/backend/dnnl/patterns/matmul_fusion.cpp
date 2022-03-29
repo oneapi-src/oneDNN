@@ -478,11 +478,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    // this pattern requires the weight should be s8
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op *pquant = popt_graph->append_op(
+                            impl::op_kind::Quantize, "pquant");
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
 
                     pm::pb_op *typecast_data
                             = pgraph->append_op(impl::op_kind::TypeCast,
@@ -498,11 +506,27 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
                     pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
                             in_edges_t {in_edge(0, typecast_data, 0),
                                     in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<3>);
+
+                    // Optional bias_add
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op *typecast_bias = popt_bias_graph->append_op(
+                            impl::op_kind::TypeCast, "tc_bias");
+                    typecast_bias->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+                    pm::pb_op *pbias = popt_bias_graph->append_op(
+                            impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
 
                     pm::pb_op *typecast_dst
                             = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, matmul, 0)});
+                                    in_edges_t {in_edge(0, popt_bias, 0)});
                     typecast_dst->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -568,11 +592,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    // this pattern requires the weight should be s8
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op *pquant = popt_graph->append_op(
+                            impl::op_kind::Quantize, "pquant");
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
 
                     pm::pb_op *typecast_data
                             = pgraph->append_op(impl::op_kind::TypeCast,
@@ -588,10 +620,26 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
                     pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
                             in_edges_t {in_edge(0, typecast_data, 0),
                                     in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<3>);
+
+                    // Optional bias_add
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op *typecast_bias = popt_bias_graph->append_op(
+                            impl::op_kind::TypeCast, "tc_bias");
+                    typecast_bias->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+                    pm::pb_op *pbias = popt_bias_graph->append_op(
+                            impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
 
                     pm::pb_op *gelu = pgraph->append_op(impl::op_kind::GELU,
-                            in_edges_t {in_edge(0, matmul, 0)});
+                            in_edges_t {in_edge(0, popt_bias, 0)});
                     pm::pb_op *typecast_gelu
                             = pgraph->append_op(impl::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, gelu, 0)});
@@ -798,16 +846,25 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_add_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        dnnl, x8s8bf16_matmul_bias_add_bf16_fusion)
+        dnnl, x8x8bf16_matmul_bias_add_bf16_fusion)
         .set_priority(10.49f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
                             = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op *pquant = popt_graph->append_op(
+                            impl::op_kind::Quantize, "pquant");
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
 
                     pm::pb_op *typecast_data
                             = pgraph->append_op(impl::op_kind::TypeCast,
@@ -824,10 +881,34 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
                             in_edges_t {in_edge(0, typecast_data, 0),
                                     in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<3>);
+                    matmul->append_decision_function([](op_t *op) -> bool {
+                        // must have bias to be not conflict with
+                        // x8s8bf16_matmul_add_fusion pattern
+                        return check_input_num<3>(op)
+                                || (check_input_num<2>(op)
+                                        && check_successor_op_kind<
+                                                impl::op_kind::BiasAdd>(op));
+                    });
+
+                    // Optional bias_add
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op *typecast_bias = popt_bias_graph->append_op(
+                            impl::op_kind::TypeCast, "tc_bias");
+                    typecast_bias->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+                    pm::pb_op *pbias = popt_bias_graph->append_op(
+                            impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
 
                     pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0)});
+                            in_edges_t {in_edge(0, popt_bias, 0)});
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

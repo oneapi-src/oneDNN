@@ -9448,7 +9448,8 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
     agraph.build_graph();
 
     pass::pass_base_ptr apass
-            = get_pass("x8s8bf16_matmul_bias_add_bf16_fusion");
+            = get_pass("x8x8bf16_matmul_bias_add_bf16_fusion");
+    ASSERT_TRUE(apass);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 

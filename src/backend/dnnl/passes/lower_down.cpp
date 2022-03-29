@@ -2207,9 +2207,8 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
                         == dnnl_impl::op_kind::dnnl_mul_scales) {
             fusion_groups.emplace_back(
                     std::vector<op_t *> {cur_op.get(), &in0});
-        } else if (is_typecast(&in1) && in0.get_kind() == op_kind::dnnl_matmul
-                && in1.get_input_value(0)->get_producer().get_kind()
-                        == dnnl_impl::op_kind::dnnl_mul_scales) {
+        } else if (is_typecast(&in1)
+                && in0.get_kind() == op_kind::dnnl_matmul) {
             fusion_groups.emplace_back(
                     std::vector<op_t *> {cur_op.get(), &in1});
         } else {
