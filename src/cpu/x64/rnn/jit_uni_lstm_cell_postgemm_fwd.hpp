@@ -38,7 +38,13 @@ struct jit_uni_lstm_cell_postgemm_fwd
         : jit_uni_rnn_postgemm(rnn, pd, jit_name())
         , jit_uni_lstm_cell_postgemm_t<isa>(this,
                   get_last_preserved_vmm_idx(1) + 1,
-                  static_cast<bool>(bf16_emu_)) {}
+                  // usage of jit_uni_rnn_postgemm::bf16_emu_ to identify bf16
+                  // emulation case is illegal here, it's created in
+                  // jit_uni_rnn_postgemm::init(), not in constructor, so
+                  // jit_uni_rnn_postgemm::bf16_emu_ = nullptr always on this
+                  // stage
+                  src_data_t == data_type::bf16 && !mayiuse(avx512_core_bf16)) {
+    }
 
     ~jit_uni_lstm_cell_postgemm_fwd() = default;
 
