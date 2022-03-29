@@ -312,10 +312,22 @@ void codegen_c_vis::view(intrin_call_c v) {
             break;
         case intrin_type::fmadd: trinary_func_codegen_c(v, "sc_fmadd"); break;
         case intrin_type::unpack_low:
-            binary_func_codegen_c(v, "sc_unpack_low");
+            *os << "sc_unpack_low(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            dispatch(v->args_[1]);
+            *os << ", ";
+            *os << v->intrin_attrs_->get<int>("elem_bits");
+            *os << ')';
             break;
         case intrin_type::unpack_high:
-            binary_func_codegen_c(v, "sc_unpack_high");
+            *os << "sc_unpack_high(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            dispatch(v->args_[1]);
+            *os << ", ";
+            *os << v->intrin_attrs_->get<int>("elem_bits");
+            *os << ')';
             break;
         case intrin_type::shuffle:
             trinary_func_codegen_c(v, "sc_shuffle");

@@ -18,6 +18,7 @@
 #include <immintrin.h>
 #include <stdint.h>
 #include "common.hpp"
+class vec_u16x8;
 #ifdef __AVX512F__
 class vec_u16x32 {
 public:
@@ -29,7 +30,9 @@ public:
     INLINE vec_u16x32() = default;
     INLINE vec_u16x32(uint16_t f) { v = _mm512_set1_epi16(f); }
     INLINE vec_u16x32(__m512i const &x) { v = x; }
-
+    INLINE vec_u16x32(vec_u16x8 const &x);
+    INLINE vec_u16x32(vec_u16x8 const &x, int mask);
+    INLINE vec_u16x32(vec_u16x8 const &x, int mask, vec_u16x32 const &src);
     static INLINE vec_u16x32 load(const uint16_t *p) {
         return _mm512_loadu_si512((const __m512i *)p);
     }
@@ -115,6 +118,29 @@ INLINE vec_u16x32 sc_max(vec_u16x32 const &a, vec_u16x32 const &b) {
 }
 INLINE vec_u16x32 sc_min(vec_u16x32 const &a, vec_u16x32 const &b) {
     return _mm512_min_epu16(a.v, b.v);
+}
+INLINE vec_u16x32 sc_unpack_low(
+        vec_u16x32 const &a, vec_u16x32 const &b, int lanes) {
+    if (lanes == 16) {
+        return _mm512_unpacklo_epi16(a.v, b.v);
+    } else if (lanes == 32) {
+        return _mm512_unpacklo_epi32(a.v, b.v);
+    } else {
+        // lanes == 64
+        return _mm512_unpacklo_epi64(a.v, b.v);
+    }
+}
+
+INLINE vec_u16x32 sc_unpack_high(
+        vec_u16x32 const &a, vec_u16x32 const &b, int lanes) {
+    if (lanes == 16) {
+        return _mm512_unpackhi_epi16(a.v, b.v);
+    } else if (lanes == 32) {
+        return _mm512_unpackhi_epi32(a.v, b.v);
+    } else {
+        // lanes == 64
+        return _mm512_unpackhi_epi64(a.v, b.v);
+    }
 }
 #endif
 #endif

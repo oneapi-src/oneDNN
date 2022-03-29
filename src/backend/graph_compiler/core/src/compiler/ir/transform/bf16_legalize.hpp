@@ -51,6 +51,7 @@ public:
     void view(var_c v) override;
     void view(assign_c v) override;
     void view(define_c v) override;
+    void view(intrin_call_c v) override;
 };
 
 class bf16_cast_elimination_impl_t : public ir_visitor_t {

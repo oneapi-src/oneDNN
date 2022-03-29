@@ -153,11 +153,13 @@ INLINE float sc_reduce_add(vec_f32x8 const &a) {
     return _mm_cvtss_f32(v1);
 }
 
-INLINE vec_f32x8 sc_unpack_low(vec_f32x8 const &a, vec_f32x8 const &b) {
+INLINE vec_f32x8 sc_unpack_low(
+        vec_f32x8 const &a, vec_f32x8 const &b, int elem_step) {
     return _mm256_unpacklo_ps(a.v, b.v);
 }
 
-INLINE vec_f32x8 sc_unpack_high(vec_f32x8 const &a, vec_f32x8 const &b) {
+INLINE vec_f32x8 sc_unpack_high(
+        vec_f32x8 const &a, vec_f32x8 const &b, int elem_step) {
     return _mm256_unpackhi_ps(a.v, b.v);
 }
 

@@ -88,6 +88,17 @@ INLINE vec_u16x8::operator vec_u32x8() const {
     return _mm256_cvtepu16_epi32(v);
 }
 
+INLINE vec_u16x32::vec_u16x32(vec_u16x8 const &x) {
+    v = _mm512_broadcast_i32x4(x.v);
+}
+INLINE vec_u16x32::vec_u16x32(vec_u16x8 const &x, int mask) {
+    v = _mm512_maskz_broadcast_i32x4(mask, x.v);
+}
+INLINE vec_u16x32::vec_u16x32(
+        vec_u16x8 const &x, int mask, vec_u16x32 const &src) {
+    v = _mm512_mask_broadcast_i32x4(src.v, mask, x.v);
+}
+
 template <>
 INLINE vec_s32x16 sc_round_and_cast(const vec_f32x16 &x) {
     return _mm512_cvtps_epi32(x.v);

@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -813,8 +814,23 @@ public:
                 assert(v->args_.size() == 1);
                 auto inval1 = generate_expr(v->args_[0]);
                 auto lanes = v->dtype_.lanes_;
+                auto in_lanes = v->args_[0]->dtype_.lanes_;
                 if (lanes != 1) {
-                    current_val_ = builder_.CreateVectorSplat(lanes, inval1);
+                    if (in_lanes != 1) {
+                        while (in_lanes < lanes) {
+                            std::vector<shuffle_idx_t> array(in_lanes << 1);
+                            for (uint32_t i = 0; i < (in_lanes << 1); i++) {
+                                array[i] = i;
+                            }
+                            inval1 = builder_.CreateShuffleVector(
+                                    inval1, inval1, array);
+                            in_lanes = in_lanes << 1;
+                        }
+                        current_val_ = inval1;
+                    } else {
+                        current_val_
+                                = builder_.CreateVectorSplat(lanes, inval1);
+                    }
                 } else {
                     current_val_ = inval1;
                 }
@@ -909,14 +925,62 @@ public:
             case intrin_type::unpack_high:
             case intrin_type::unpack_low: {
                 assert(v->args_.size() == 2);
-                COMPILE_ASSERT(v->dtype_.lanes_ == 8,
-                        "Expecting 8-lane for unpack: " << v);
+                COMPILE_ASSERT(v->dtype_.is_etype(sc_data_etype::BF16)
+                                || v->dtype_.is_etype(sc_data_etype::U16)
+                                || v->dtype_.is_etype(sc_data_etype::F32),
+                        "Expecting u16/bf16/f32 for unpack: " << v);
                 auto inval1 = generate_expr(v->args_[0]);
                 auto inval2 = generate_expr(v->args_[1]);
-                static const shuffle_idx_t hi_array[]
-                        = {2, 10, 2 + 1, 10 + 1, 6, 14, 6 + 1, 14 + 1};
-                static const shuffle_idx_t lo_array[]
-                        = {0, 8, 0 + 1, 8 + 1, 4, 12, 4 + 1, 12 + 1};
+                auto elem_bits = v->intrin_attrs_->get<int>("elem_bits");
+                std::vector<shuffle_idx_t> hi_array, lo_array;
+                if (v->dtype_.lanes_ == 8) {
+                    // todo: currently only support f32
+                    assert(elem_bits == 32);
+                    hi_array = std::vector<shuffle_idx_t> {
+                            2, 10, 2 + 1, 10 + 1, 6, 14, 6 + 1, 14 + 1};
+                    lo_array = std::vector<shuffle_idx_t> {
+                            0, 8, 0 + 1, 8 + 1, 4, 12, 4 + 1, 12 + 1};
+                } else {
+                    assert(v->dtype_.lanes_ == 32);
+                    switch (elem_bits) {
+                        case 16:
+                            hi_array = std::vector<shuffle_idx_t> {4, 36, 4 + 1,
+                                    36 + 1, 4 + 2, 36 + 2, 4 + 3, 36 + 3, 12,
+                                    44, 12 + 1, 44 + 1, 12 + 2, 44 + 2, 12 + 3,
+                                    44 + 3, 20, 52, 20 + 1, 52 + 1, 20 + 2,
+                                    52 + 2, 20 + 3, 52 + 3, 28, 60, 28 + 1,
+                                    60 + 1, 28 + 2, 60 + 2, 28 + 3, 60 + 3};
+                            lo_array.resize(32);
+                            std::transform(hi_array.begin(), hi_array.end(),
+                                    lo_array.begin(),
+                                    [](shuffle_idx_t x) { return x - 4; });
+                            break;
+                        case 32:
+                            hi_array = std::vector<shuffle_idx_t> {4, 4 + 1, 36,
+                                    36 + 1, 4 + 2, 4 + 3, 36 + 2, 36 + 3, 12,
+                                    12 + 1, 44, 44 + 1, 12 + 2, 12 + 3, 44 + 2,
+                                    44 + 3, 20, 20 + 1, 52, 52 + 1, 20 + 2,
+                                    20 + 3, 52 + 2, 52 + 3, 28, 28 + 1, 60,
+                                    60 + 1, 28 + 2, 28 + 3, 60 + 2, 60 + 3};
+                            lo_array.resize(32);
+                            std::transform(hi_array.begin(), hi_array.end(),
+                                    lo_array.begin(),
+                                    [](shuffle_idx_t x) { return x - 4; });
+                            break;
+                        case 64:
+                            hi_array = std::vector<shuffle_idx_t> {4, 4 + 1,
+                                    4 + 2, 4 + 3, 36, 36 + 1, 36 + 2, 36 + 3,
+                                    12, 12 + 1, 12 + 2, 12 + 3, 44, 44 + 1,
+                                    44 + 2, 44 + 3, 20, 20 + 1, 20 + 2, 20 + 3,
+                                    52, 52 + 1, 52 + 2, 52 + 3, 28, 28 + 1,
+                                    28 + 2, 28 + 3, 60, 60 + 1, 60 + 2, 60 + 3};
+                            lo_array.resize(32);
+                            std::transform(hi_array.begin(), hi_array.end(),
+                                    lo_array.begin(),
+                                    [](shuffle_idx_t x) { return x - 4; });
+                            break;
+                    }
+                }
                 ArrayRef<shuffle_idx_t> arr
                         = v->type_ == intrin_type::unpack_high ? hi_array
                                                                : lo_array;

@@ -411,7 +411,7 @@ expr make_reduce_mul(const expr_c &v);
 /**
  * Makes a broadcast node
  * @param v the input value
- * @param lanes the lanes of input value
+ * @param lanes the lanes of output value
  * @return the created node
  * */
 expr make_broadcast(const expr_c &v, int lanes);
@@ -444,9 +444,10 @@ expr make_fmadd(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c);
  *
  * @param v_a the first input value
  * @param v_b the second input value
+ * @param elem_bits the bits of unpack element, e.g. f32=>32, s64=>64
  * @return the created node
  * */
-expr make_unpack_low(const expr_c &v_a, const expr_c &v_b);
+expr make_unpack_low(const expr_c &v_a, const expr_c &v_b, int elem_bits = 32);
 
 /**
  * Makes an unpack_high node
@@ -467,9 +468,10 @@ expr make_unpack_low(const expr_c &v_a, const expr_c &v_b);
  *
  * @param v_a the first input value
  * @param v_b the second input value
+ * @param elem_bits the lanes of unpack element, e.g. f32=>32, s64=>64
  * @return the created node
  * */
-expr make_unpack_high(const expr_c &v_a, const expr_c &v_b);
+expr make_unpack_high(const expr_c &v_a, const expr_c &v_b, int elem_bits = 32);
 
 /**
  * Makes a shuffle node

@@ -109,12 +109,7 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::reduce_add:
         case intrin_type::reduce_mul:
         case intrin_type::fmadd:
-        case intrin_type::unpack_low:
-        case intrin_type::unpack_high:
         case intrin_type::isnan:
-        case intrin_type::shuffle:
-        case intrin_type::permute:
-        case intrin_type::broadcast:
             for (size_t i = 0; i < v->args_.size(); i++) {
                 auto in = dispatch(v->args_[i]);
                 changed = changed || !in.ptr_same(v->args_[i]);
@@ -151,6 +146,11 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
                 args.emplace_back(in.remove_const());
             }
             break;
+        case intrin_type::unpack_low:
+        case intrin_type::unpack_high:
+        case intrin_type::shuffle:
+        case intrin_type::permute:
+        case intrin_type::broadcast:
         case intrin_type::reinterpret: break;
         default:
             COMPILE_ASSERT(false, "Unsupport BF16 intrin type: " << v->type_);
@@ -198,6 +198,24 @@ void bf16_elimination_analyzer_t::view(define_c v) {
         // if the var has initial value, increase the count by 1
         if (v->init_.defined()) { count = 1; }
         var_use_cnt_[v->var_] = count;
+    }
+}
+void bf16_elimination_analyzer_t::view(intrin_call_c v) {
+    switch (v->type_) {
+        case intrin_type::unpack_low:
+        case intrin_type::unpack_high:
+        case intrin_type::shuffle:
+        case intrin_type::permute:
+        case intrin_type::broadcast:
+        case intrin_type::reinterpret:
+            // If an arg is not the bf16 var, dispatch it.
+            // If it is, hold its valid usage count.
+            for (size_t i = 0; i < v->args_.size(); i++) {
+                auto it = var_use_cnt_.find(v->args_[i]);
+                if (it == var_use_cnt_.end()) { dispatch(v->args_[i]); }
+            }
+            break;
+        default: ir_viewer_t::view(v); break;
     }
 }
 

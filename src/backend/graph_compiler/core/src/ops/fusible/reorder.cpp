@@ -1332,8 +1332,9 @@ void compute_reorder_block2block(const context_ptr &ctx,
         bld->emit(cur);
     }
 }
-// currently only support f32x8
+// currently only support f32 8x8 and bf16 32x8
 static const int trans_lanes = 8;
+static const int trans_lanes_bf16 = 32;
 // [..., a, ... , b] <=> [..., b, ..., a]
 static bool can_be_fast_transpose(const context_ptr &ctx,
         std::vector<int> &inp_a_axis, std::vector<int> &inp_b_axis,
@@ -1342,7 +1343,10 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
         const sc_data_format_t &output_format, const tensor_slice &src,
         const tensor_slice &dst, const sc_data_type_t &dtype) {
     if (!ctx->machine_.cpu_flags_.fAVX2) { return false; }
-    if (!dtype.is_etype(sc_data_etype::F32)) { return false; }
+    if (!dtype.is_etype(sc_data_etype::F32)
+            && !dtype.is_etype(sc_data_etype::BF16)) {
+        return false;
+    }
     int inp_idx = 0, out_idx = 0;
     auto &inp_code = input_format.format_code_;
     auto &out_code = output_format.format_code_;
@@ -1403,49 +1407,108 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
                     - out_b_axis.size()) {
         return false;
     }
-    return get_expr_as_int(src.shape_[input_blocking_shapes.size() - 1])
-                    % trans_lanes
-            == 0
-            && get_expr_as_int(dst.shape_[output_blocking_shapes.size() - 1])
-                    % trans_lanes
-            == 0;
+    if (dtype == datatypes::f32) {
+        return plain_dims[inp_b_idx] % trans_lanes == 0
+                && plain_dims[out_a_idx] % trans_lanes == 0
+                && get_expr_as_int(
+                           src.shape_[inp_a_axis[inp_a_axis.size() - 1]])
+                        % trans_lanes
+                == 0
+                && get_expr_as_int(
+                           dst.shape_[out_b_axis[out_b_axis.size() - 1]])
+                        % trans_lanes
+                == 0
+                && get_expr_as_int(src.shape_[input_blocking_shapes.size() - 1])
+                        % trans_lanes
+                == 0
+                && get_expr_as_int(
+                           dst.shape_[output_blocking_shapes.size() - 1])
+                        % trans_lanes
+                == 0;
+    } else if (dtype == datatypes::bf16) {
+        return plain_dims[inp_b_idx] % trans_lanes == 0
+                && plain_dims[out_a_idx] % trans_lanes_bf16 == 0
+                && get_expr_as_int(
+                           src.shape_[inp_a_axis[inp_a_axis.size() - 1]])
+                        % trans_lanes_bf16
+                == 0
+                && get_expr_as_int(
+                           dst.shape_[out_b_axis[out_b_axis.size() - 1]])
+                        % trans_lanes
+                == 0
+                && get_expr_as_int(src.shape_[input_blocking_shapes.size() - 1])
+                        % trans_lanes
+                == 0
+                && get_expr_as_int(
+                           dst.shape_[output_blocking_shapes.size() - 1])
+                        % trans_lanes_bf16
+                == 0;
+    }
+    return false;
 }
 
 // unpack and interleave
-#define TRANS2D_UNPACK_ASSIGN(option, dst, src1, src2) \
+#define TRANS2D_UNPACK_ASSIGN(option, dst, src1, src2, elem_bits) \
     cur_list.emplace_back(builder::make_assign_unattached(rows[((dst)-1)], \
             builder::make_unpack_##option( \
-                    rows[((src1)-1)], rows[((src2)-1)])));
-#define TRANS2D_SHUFFLE_PERMUTE_ASSIGN(command, dst, src1, src2, mask, cond) \
+                    rows[((src1)-1)], rows[((src2)-1)], elem_bits)));
+#define TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32( \
+        command, dst, src1, src2, mask, cond) \
     cur_list.emplace_back(builder::make_assign_unattached(rows[((dst)-1)], \
             builder::make_##command( \
                     rows[((src1)-1)], rows[((src2)-1)], expr(mask))));
 
-#define TRANS2D_REG_CALCULATION() \
-    TRANS2D_UNPACK_ASSIGN(low, 9, 1, 2) \
-    TRANS2D_UNPACK_ASSIGN(high, 1, 1, 2) \
-    TRANS2D_UNPACK_ASSIGN(low, 10, 3, 4) \
-    TRANS2D_UNPACK_ASSIGN(high, 2, 3, 4) \
-    TRANS2D_UNPACK_ASSIGN(low, 11, 5, 6) \
-    TRANS2D_UNPACK_ASSIGN(high, 3, 5, 6) \
-    TRANS2D_UNPACK_ASSIGN(low, 12, 7, 8) \
-    TRANS2D_UNPACK_ASSIGN(high, 4, 7, 8) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(shuffle, 5, 9, 10, 68, 0) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(shuffle, 6, 9, 10, 238, 1) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(shuffle, 7, 1, 2, 68, 2) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(shuffle, 8, 1, 2, 238, 3) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(shuffle, 9, 11, 12, 68, 0) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(shuffle, 10, 11, 12, 238, 1) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(shuffle, 11, 3, 4, 68, 2) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(shuffle, 12, 3, 4, 238, 3) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(permute, 1, 5, 9, 32, 0) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(permute, 2, 6, 10, 32, 1) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(permute, 3, 7, 11, 32, 2) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(permute, 4, 8, 12, 32, 3) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(permute, 5, 5, 9, 49, 4) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(permute, 6, 6, 10, 49, 5) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(permute, 7, 7, 11, 49, 6) \
-    TRANS2D_SHUFFLE_PERMUTE_ASSIGN(permute, 8, 8, 12, 49, 7)
+#define TRANS2D_REG_CALCULATION_F32() \
+    TRANS2D_UNPACK_ASSIGN(low, 9, 1, 2, 32) \
+    TRANS2D_UNPACK_ASSIGN(high, 1, 1, 2, 32) \
+    TRANS2D_UNPACK_ASSIGN(low, 10, 3, 4, 32) \
+    TRANS2D_UNPACK_ASSIGN(high, 2, 3, 4, 32) \
+    TRANS2D_UNPACK_ASSIGN(low, 11, 5, 6, 32) \
+    TRANS2D_UNPACK_ASSIGN(high, 3, 5, 6, 32) \
+    TRANS2D_UNPACK_ASSIGN(low, 12, 7, 8, 32) \
+    TRANS2D_UNPACK_ASSIGN(high, 4, 7, 8, 32) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(shuffle, 5, 9, 10, 68, 0) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(shuffle, 6, 9, 10, 238, 1) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(shuffle, 7, 1, 2, 68, 2) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(shuffle, 8, 1, 2, 238, 3) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(shuffle, 9, 11, 12, 68, 0) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(shuffle, 10, 11, 12, 238, 1) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(shuffle, 11, 3, 4, 68, 2) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(shuffle, 12, 3, 4, 238, 3) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(permute, 1, 5, 9, 32, 0) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(permute, 2, 6, 10, 32, 1) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(permute, 3, 7, 11, 32, 2) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(permute, 4, 8, 12, 32, 3) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(permute, 5, 5, 9, 49, 4) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(permute, 6, 6, 10, 49, 5) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(permute, 7, 7, 11, 49, 6) \
+    TRANS2D_SHUFFLE_PERMUTE_ASSIGN_F32(permute, 8, 8, 12, 49, 7)
+
+#define TRANS2D_REG_CALCULATION_BF16() \
+    TRANS2D_UNPACK_ASSIGN(low, 9, 1, 2, 16) \
+    TRANS2D_UNPACK_ASSIGN(high, 10, 1, 2, 16) \
+    TRANS2D_UNPACK_ASSIGN(low, 11, 3, 4, 16) \
+    TRANS2D_UNPACK_ASSIGN(high, 12, 3, 4, 16) \
+    TRANS2D_UNPACK_ASSIGN(low, 13, 5, 6, 16) \
+    TRANS2D_UNPACK_ASSIGN(high, 14, 5, 6, 16) \
+    TRANS2D_UNPACK_ASSIGN(low, 15, 7, 8, 16) \
+    TRANS2D_UNPACK_ASSIGN(high, 16, 7, 8, 16) \
+    TRANS2D_UNPACK_ASSIGN(low, 1, 9, 11, 32) \
+    TRANS2D_UNPACK_ASSIGN(high, 2, 9, 11, 32) \
+    TRANS2D_UNPACK_ASSIGN(low, 3, 10, 12, 32) \
+    TRANS2D_UNPACK_ASSIGN(high, 4, 10, 12, 32) \
+    TRANS2D_UNPACK_ASSIGN(low, 5, 13, 15, 32) \
+    TRANS2D_UNPACK_ASSIGN(high, 6, 13, 15, 32) \
+    TRANS2D_UNPACK_ASSIGN(low, 7, 14, 16, 32) \
+    TRANS2D_UNPACK_ASSIGN(high, 8, 14, 16, 32) \
+    TRANS2D_UNPACK_ASSIGN(low, 9, 1, 5, 64) \
+    TRANS2D_UNPACK_ASSIGN(high, 10, 1, 5, 64) \
+    TRANS2D_UNPACK_ASSIGN(low, 11, 2, 6, 64) \
+    TRANS2D_UNPACK_ASSIGN(high, 12, 2, 6, 64) \
+    TRANS2D_UNPACK_ASSIGN(low, 13, 3, 7, 64) \
+    TRANS2D_UNPACK_ASSIGN(high, 14, 3, 7, 64) \
+    TRANS2D_UNPACK_ASSIGN(low, 15, 4, 8, 64) \
+    TRANS2D_UNPACK_ASSIGN(high, 16, 4, 8, 64)
 
 static void compute_fast_transpose(const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
@@ -1465,13 +1528,186 @@ static void compute_fast_transpose(const context_ptr &ctx,
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
     std::vector<expr> rows;
     std::vector<expr> iter_vars;
-    rows.resize(step + step / 2);
     std::vector<stmt_c> cur_list;
-    for (auto i = 0; i < step + step / 2; i++) {
-        rows[i] = builder::make_var(sc_data_type_t::f32(step),
-                "row" + std::to_string(i + 1) + fusion_create_var_idx());
-        cur_list.emplace_back(builder::make_var_tensor_def_unattached(rows[i]));
+    stmt cur, body;
+    if (dtype == datatypes::f32) {
+        rows.resize(step + step / 2);
+        for (auto i = 0; i < step + step / 2; i++) {
+            rows[i] = builder::make_var(sc_data_type_t::f32(step),
+                    "row" + std::to_string(i + 1) + fusion_create_var_idx());
+            cur_list.emplace_back(
+                    builder::make_var_tensor_def_unattached(rows[i]));
+        }
+    } else if (dtype == datatypes::bf16) {
+        rows.resize(16); // bf16 uses 16 zmms.
+        for (auto i = 0; i < 16; i++) {
+            rows[i] = builder::make_var(sc_data_type_t::bf16(32),
+                    "row" + std::to_string(i + 1) + fusion_create_var_idx());
+            cur_list.emplace_back(
+                    builder::make_var_tensor_def_unattached(rows[i]));
+        }
     }
+    auto compute_transpose_f32 = [&](const std::vector<expr> &in_indexes,
+                                         const std::vector<expr> &out_indexes) {
+        std::vector<int> input_accum_divisors = {1};
+        std::vector<int> output_accum_divisors = {1};
+        for (int axis = inp_a_axis.size() - 1; axis >= 0; axis--) {
+            input_accum_divisors.push_back(input_accum_divisors.back()
+                    * input_blocking_dims[inp_a_axis[axis]]);
+        }
+        for (int axis = out_b_axis.size() - 1; axis >= 0; axis--) {
+            output_accum_divisors.push_back(output_accum_divisors.back()
+                    * output_blocking_dims[out_b_axis[axis]]);
+        }
+        for (int i = 0; i < step; i++) {
+            auto tmp_in_indexes = in_indexes;
+            for (int axis = inp_a_axis.size() - 1; axis >= 0; axis--) {
+                auto in_axis = inp_a_axis[axis];
+                tmp_in_indexes[in_axis] = tmp_in_indexes[in_axis]
+                        + static_cast<uint64_t>(i)
+                                / input_accum_divisors[inp_a_axis.size() - 1
+                                        - axis]
+                                % input_blocking_dims[in_axis];
+            }
+            auto assign = builder::make_assign_unattached(rows[i],
+                    // here, use src.tptr instead of input is aimed to
+                    // avoid input is tensor_view_op. Otherwise, it will
+                    // throw illegal exception in tensor_shrink
+                    builder::make_indexing(src.tptr_, tmp_in_indexes, step));
+            assign->attr()[op_traits::workload_computable_t::workload_number]
+                    = wkld;
+            cur_list.emplace_back(assign);
+        }
+
+        TRANS2D_REG_CALCULATION_F32();
+        for (int i = 0; i < step; i++) {
+            auto tmp_out_indexes = out_indexes;
+            for (int axis = out_b_axis.size() - 1; axis >= 0; axis--) {
+                auto out_axis = out_b_axis[axis];
+                tmp_out_indexes[out_axis] = tmp_out_indexes[out_axis]
+                        + static_cast<uint64_t>(i)
+                                / output_accum_divisors[out_b_axis.size() - 1
+                                        - axis]
+                                % output_blocking_dims[out_axis];
+            }
+            auto assign = builder::make_assign_unattached(
+                    builder::make_indexing(output, tmp_out_indexes, step),
+                    rows[i]);
+            assign->attr()[op_traits::workload_computable_t::workload_number]
+                    = wkld;
+            cur_list.emplace_back(assign);
+        }
+    };
+
+    auto compute_transpose_bf16 = [&](const std::vector<expr> &in_indexes,
+                                          const std::vector<expr>
+                                                  &out_indexes) {
+        std::vector<int> input_accum_divisors = {1};
+        std::vector<int> output_accum_divisors = {1};
+
+        for (int axis = inp_a_axis.size() - 1; axis >= 0; axis--) {
+            input_accum_divisors.push_back(input_accum_divisors.back()
+                    * input_blocking_dims[inp_a_axis[axis]]);
+        }
+        for (int axis = out_b_axis.size() - 1; axis >= 0; axis--) {
+            output_accum_divisors.push_back(output_accum_divisors.back()
+                    * output_blocking_dims[out_b_axis[axis]]);
+        }
+        for (int i = 0; i < step; i++) {
+            for (int p = 0; p < 4; p++) {
+                auto tmp_in_indexes = in_indexes;
+                for (int axis = inp_a_axis.size() - 1; axis >= 0; axis--) {
+                    auto in_axis = inp_a_axis[axis];
+                    tmp_in_indexes[in_axis] = tmp_in_indexes[in_axis]
+                            + (static_cast<uint64_t>(i) + p * 8)
+                                    / input_accum_divisors[inp_a_axis.size() - 1
+                                            - axis]
+                                    % input_blocking_dims[in_axis];
+                }
+                auto brct_src = builder::make_broadcast(
+                        builder::make_indexing(src.tptr_, tmp_in_indexes, step),
+                        trans_lanes_bf16);
+                auto assign = builder::make_assign_unattached(rows[i],
+                        // here, use src.tptr instead of input is aimed
+                        // to avoid input is tensor_view_op. Otherwise,
+                        // it will throw illegal exception in
+                        // tensor_shrink
+                        p > 0 ? builder::make_select(
+                                0xff << (p * step), brct_src, rows[i])
+                              : brct_src);
+                assign->attr()
+                        [op_traits::workload_computable_t::workload_number]
+                        = wkld;
+                cur_list.emplace_back(assign);
+            }
+        }
+
+        TRANS2D_REG_CALCULATION_BF16();
+        for (int i = 0; i < step; i++) {
+            auto tmp_out_indexes = out_indexes;
+            for (int axis = out_b_axis.size() - 1; axis >= 0; axis--) {
+                auto out_axis = out_b_axis[axis];
+                tmp_out_indexes[out_axis] = tmp_out_indexes[out_axis]
+                        + static_cast<uint64_t>(i)
+                                / output_accum_divisors[out_b_axis.size() - 1
+                                        - axis]
+                                % output_blocking_dims[out_axis];
+            }
+            auto assign = builder::make_assign_unattached(
+                    builder::make_indexing(
+                            output, tmp_out_indexes, trans_lanes_bf16),
+                    rows[i + 8]);
+            assign->attr()[op_traits::workload_computable_t::workload_number]
+                    = wkld;
+            cur_list.emplace_back(assign);
+        }
+    };
+
+    auto compute_loops = [&](const sc_dims &blocking_dims,
+                                 const std::vector<int> &a_axis,
+                                 const std::vector<int> &b_axis,
+                                 const tensor_slice &tsr) {
+        int remain_a_step = dtype == datatypes::bf16 ? trans_lanes_bf16 : step;
+        int remain_b_step = step;
+        for (int i = static_cast<int>(blocking_dims.size()) - 1; i >= 0; i--) {
+            auto it_a = std::find(a_axis.begin(), a_axis.end(), i);
+            auto it_b = std::find(b_axis.begin(), b_axis.end(), i);
+            if ((remain_b_step > 1 && it_b != b_axis.end())
+                    || (remain_a_step > 1 && it_a != a_axis.end())) {
+                body = cur.isa<stmts>()
+                        ? cur
+                        : make_stmt<stmts_node_t>(
+                                std::vector<stmt> {std::move(cur)});
+                int cur_step;
+                int upper_bound
+                        = static_cast<int>(get_expr_as_int(tsr.get_shape()[i]));
+                if (it_a != a_axis.end()) {
+                    cur_step = std::min(
+                            static_cast<int>(remain_a_step), upper_bound);
+                    remain_a_step /= cur_step;
+                } else {
+                    cur_step = std::min(
+                            static_cast<int>(remain_b_step), upper_bound);
+                    remain_b_step /= cur_step;
+                }
+                cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
+                        expr(0), tsr.get_shape()[i], expr(cur_step),
+                        std::move(body), true, for_type::NORMAL);
+            }
+        }
+        for (int i = static_cast<int>(blocking_dims.size()) - 1; i >= 0; i--) {
+            if (!utils::is_one_of(i, a_axis[a_axis.size() - 1],
+                        b_axis[b_axis.size() - 1])) {
+                body = cur.isa<stmts>()
+                        ? cur
+                        : make_stmt<stmts_node_t>(
+                                std::vector<stmt> {std::move(cur)});
+                cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
+                        expr(0), tsr.get_shape()[i], expr(1), std::move(body),
+                        true, for_type::NORMAL);
+            }
+        }
+    };
     if (!output_loop) {
         std::vector<expr> in_indexes, loop_indexes;
         for (size_t i = 0; i < input_blocking_dims.size(); i++) {
@@ -1485,63 +1721,13 @@ static void compute_fast_transpose(const context_ptr &ctx,
                 in_indexes, input_format, plain_dims, condition);
         std::vector<expr> out_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
-        for (int i = 0; i < step; i++) {
-            auto tmp_in_indexes = loop_indexes;
-            tmp_in_indexes[inp_a_axis[inp_a_axis.size() - 1]]
-                    = tmp_in_indexes[inp_a_axis[inp_a_axis.size() - 1]]
-                    + static_cast<uint64_t>(i);
-            auto assign = builder::make_assign_unattached(rows[i],
-                    // here, use src.tptr instead of input is aimed to
-                    // avoid input is tensor_view_op. Otherwise, it will
-                    // throw illegal exception in tensor_shrink
-                    builder::make_indexing(src.tptr_, tmp_in_indexes, step));
-            assign->attr()[op_traits::workload_computable_t::workload_number]
-                    = wkld;
-            cur_list.emplace_back(assign);
+        if (dtype == datatypes::f32) {
+            compute_transpose_f32(loop_indexes, out_indexes);
+        } else {
+            compute_transpose_bf16(loop_indexes, out_indexes);
         }
-        TRANS2D_REG_CALCULATION();
-
-        for (int i = 0; i < step; i++) {
-            auto tmp_out_indexes = out_indexes;
-            tmp_out_indexes[out_b_axis[out_b_axis.size() - 1]]
-                    = tmp_out_indexes[out_b_axis[out_b_axis.size() - 1]]
-                    + static_cast<uint64_t>(i);
-            auto assign = builder::make_assign_unattached(
-                    builder::make_indexing(output, tmp_out_indexes, step),
-                    rows[i]);
-            assign->attr()[op_traits::workload_computable_t::workload_number]
-                    = wkld;
-            cur_list.emplace_back(assign);
-        }
-        stmt cur = builder::make_stmts_unattached(cur_list);
-        stmt body;
-        for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
-                i--) {
-            if (utils::is_one_of(i, inp_a_axis[inp_a_axis.size() - 1],
-                        inp_b_axis[inp_b_axis.size() - 1])) {
-                body = cur.isa<stmts>()
-                        ? cur
-                        : make_stmt<stmts_node_t>(
-                                std::vector<stmt> {std::move(cur)});
-                cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                        expr(0), src.get_shape()[i],
-                        expr(static_cast<int>(step)), std::move(body), true,
-                        for_type::NORMAL);
-            }
-        }
-        for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
-                i--) {
-            if (!utils::is_one_of(i, inp_a_axis[inp_a_axis.size() - 1],
-                        inp_b_axis[inp_b_axis.size() - 1])) {
-                body = cur.isa<stmts>()
-                        ? cur
-                        : make_stmt<stmts_node_t>(
-                                std::vector<stmt> {std::move(cur)});
-                cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                        expr(0), src.get_shape()[i], expr(1), std::move(body),
-                        true, for_type::NORMAL);
-            }
-        }
+        cur = builder::make_stmts_unattached(cur_list);
+        compute_loops(input_blocking_dims, inp_a_axis, inp_b_axis, src);
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
     } else {
@@ -1556,62 +1742,13 @@ static void compute_fast_transpose(const context_ptr &ctx,
                 out_indexes, output_format, plain_dims, condition);
         std::vector<expr> in_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
-        for (int i = 0; i < step; i++) {
-            auto tmp_in_indexes = in_indexes;
-            tmp_in_indexes[inp_a_axis[inp_a_axis.size() - 1]]
-                    = tmp_in_indexes[inp_a_axis[inp_a_axis.size() - 1]]
-                    + static_cast<uint64_t>(i);
-            auto assign = builder::make_assign_unattached(rows[i],
-                    // here, use src.tptr instead of input is aimed to
-                    // avoid input is tensor_view_op. Otherwise, it will
-                    // throw illegal exception in tensor_shrink
-                    builder::make_indexing(src.tptr_, tmp_in_indexes, step));
-            assign->attr()[op_traits::workload_computable_t::workload_number]
-                    = wkld;
-            cur_list.emplace_back(assign);
+        if (dtype == datatypes::f32) {
+            compute_transpose_f32(in_indexes, out_indexes);
+        } else {
+            compute_transpose_bf16(in_indexes, out_indexes);
         }
-        TRANS2D_REG_CALCULATION();
-        for (int i = 0; i < step; i++) {
-            auto tmp_out_indexes = out_indexes;
-            tmp_out_indexes[out_b_axis[out_b_axis.size() - 1]]
-                    = tmp_out_indexes[out_b_axis[out_b_axis.size() - 1]]
-                    + static_cast<uint64_t>(i);
-            auto assign = builder::make_assign_unattached(
-                    builder::make_indexing(output, tmp_out_indexes, step),
-                    rows[i]);
-            assign->attr()[op_traits::workload_computable_t::workload_number]
-                    = wkld;
-            cur_list.emplace_back(assign);
-        }
-        stmt cur = builder::make_stmts_unattached(cur_list);
-        stmt body;
-        for (int i = static_cast<int>(output_blocking_dims.size()) - 1; i >= 0;
-                i--) {
-            if (utils::is_one_of(i, out_a_axis[out_a_axis.size() - 1],
-                        out_b_axis[out_b_axis.size() - 1])) {
-                body = cur.isa<stmts>()
-                        ? cur
-                        : make_stmt<stmts_node_t>(
-                                std::vector<stmt> {std::move(cur)});
-                cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                        expr(0), dst.get_shape()[i],
-                        expr(static_cast<int>(step)), std::move(body), true,
-                        for_type::NORMAL);
-            }
-        }
-        for (int i = static_cast<int>(output_blocking_dims.size()) - 1; i >= 0;
-                i--) {
-            if (!utils::is_one_of(i, out_a_axis[out_a_axis.size() - 1],
-                        out_b_axis[out_b_axis.size() - 1])) {
-                body = cur.isa<stmts>()
-                        ? cur
-                        : make_stmt<stmts_node_t>(
-                                std::vector<stmt> {std::move(cur)});
-                cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                        expr(0), dst.get_shape()[i], expr(1), std::move(body),
-                        true, for_type::NORMAL);
-            }
-        }
+        cur = builder::make_stmts_unattached(cur_list);
+        compute_loops(output_blocking_dims, out_a_axis, out_b_axis, dst);
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
     }
