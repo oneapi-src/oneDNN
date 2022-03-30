@@ -79,6 +79,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.do_post_ops = 0;
     brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
+    assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -107,6 +108,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.a_zp_compensations = post_ops_data.a_zp_compensations;
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
+    assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -133,7 +135,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.data_C_ptr_ = post_ops_data.data_C_ptr_;
     brgemm_p.dst_row_logical_off = post_ops_data.dst_row_logical_off;
     brgemm_p.first_mb_matrix_addr_off = post_ops_data.first_mb_matrix_addr_off;
-
+    assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
 
