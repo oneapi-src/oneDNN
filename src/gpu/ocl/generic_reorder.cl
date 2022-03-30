@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,12 +44,12 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
     // sg_off = offset into 'cache' local mem for given subgroup.
     // Local memory will be split by subgroups so that given address in local
     // can only be accessed by single subgroup. This lets us avoid barriers.
-    const uint sg_off = get_sub_group_id() * D_BLK_SIZE_0 * D_BLK_SIZE_1
-            * D_BLK_SIZE_2 * D_BLK_SIZE_3 * VECT_SIZE;
+    const uint cache_size_per_sg = D_BLK_SIZE_0 * D_BLK_SIZE_1 * D_BLK_SIZE_2
+            * D_BLK_SIZE_3 * VECT_SIZE;
+    const uint sg_off = get_sub_group_id() * cache_size_per_sg;
 
     // TODO: decide whether to store cache as SRC_DATA_T or DST_DATA_T
-    __local SRC_DATA_T cache[SG_PER_WG * D_BLK_SIZE_0 * D_BLK_SIZE_1
-            * D_BLK_SIZE_2 * D_BLK_SIZE_3 * VECT_SIZE];
+    __local SRC_DATA_T cache[SG_PER_WG * cache_size_per_sg];
     uint iter[LOOP_NEST_LEVEL] = {0, 0, 0, 0};
 
 // Loop across dimensions described in src_block.
@@ -109,22 +109,19 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         const int pad_d3 = NDIMS > 3 && d[3] + b[3] >= SRC_D3;
         const int pad_d4 = NDIMS > 4 && d[4] + b[4] >= SRC_D4;
         const int pad_d5 = NDIMS > 5 && d[5] + b[5] >= SRC_D5;
-        const bool pad_sgid = sgId > LIMIT_SSGID;
+        const int out_of_bounds = sgId >= LIMIT_SSGID;
         const int pad
                 = pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5;
-        const int out_of_bounds = pad_sgid;
-        if (!pad) {
-            // src_off is based on coordinates of blocks and returns same result
-            // for each workitem in subgroup. This is to make sure offset
-            // calculation is simple enough that compiler won't split this burst
-            // into single bytes accesses. Yet each workitem will read different
-            // address thanks to "+sgID" statement
+        if (pad && !out_of_bounds) {
+            cache[cache_idx] = 0;
+        } else if (!out_of_bounds) {
+            // src_off is based on coordinates of blocks and returns same
+            // result for each workitem in subgroup. This is to make sure
+            // offset calculation is simple enough that compiler won't split
+            // this burst into single bytes accesses. Yet each workitem will
+            // read different address thanks to "+sgID" statement
             SRC_DATA_T src_tmp = src[src_off + sgId];
             cache[cache_idx] = src_tmp;
-        } else {
-            if (!out_of_bounds) {
-                cache[cache_idx] = 0;
-            } // else do nothing, don't clobber cache
         }
     }
     for (uint i = 0; i < LOOP_NEST_LEVEL; i++) {

@@ -34,7 +34,7 @@
   To fill cache line kernel must load 16 consecutive items (16c) and
   store 16 consecutive items (16a). So it needs to operate on a matrix of
   16a x 16c.
-  It will load 16 non-adjacent (strided by A) sets of 16 adjacent data 
+  It will load 16 non-adjacent (strided by A) sets of 16 adjacent data
   (strided by C, src' innermost dimension), perform internal transposition,
    then store 16 non-adjacent (strided by C) sets of 16 adjacent data (strided
    by A, dst's innermost dimension).
@@ -56,10 +56,10 @@ namespace ocl {
 
 using namespace dnnl::impl::memory_tracking::names;
 
-struct dimension_t {
-    int size = 0;
-    int step = 0;
-    int idx = 0;
+using dimension_t = struct {
+    int size;
+    int step;
+    int idx;
 };
 
 using dimensions_t = std::vector<dimension_t>;
@@ -143,16 +143,33 @@ dimensions_t query_dims_and_blocks(const memory_desc_t &m, int distance = 0) {
     return query_dims_and_blocks(mdw, distance);
 }
 
+void fix_steps(dimensions_t &blk, dimensions_t pkt) {
+    int steps[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
+    for (size_t i = 0; i < pkt.size(); i++) {
+        steps[pkt[i].idx] *= pkt[i].size;
+    }
+    for (size_t i = 0; i < blk.size(); i++) {
+        blk[i].step = steps[blk[i].idx];
+        steps[blk[i].idx] *= blk[i].size;
+    }
+}
+
 // Returns vector of blocks that were present in a but missing from b
-dimensions_t find_missing_blocks(dimensions_t all, dimensions_t subset) {
+dimensions_t find_missing_blocks(
+        dimensions_t all, dimensions_t subset, bool round_up) {
     dimensions_t ret;
     for (size_t ia = 0; ia < all.size(); ia++) {
         dimension_t from_a = all[ia];
         for (size_t ib = 0; ib < subset.size(); ib++) {
             if (subset[ib].idx == from_a.idx) {
                 auto smaller = std::min(from_a.size, subset[ib].size);
-                from_a.size /= smaller;
-                subset[ib].size /= smaller;
+                if (round_up) {
+                    from_a.size = utils::div_up(from_a.size, smaller);
+                    subset[ib].size = utils::div_up(subset[ib].size, smaller);
+                } else {
+                    from_a.size /= smaller;
+                    subset[ib].size /= smaller;
+                }
             }
         }
         if (from_a.size > 1) { ret.push_back(from_a); }
@@ -366,8 +383,8 @@ bool split_into_blocks_and_packets(size_t vect, size_t optimal_burst_bytes,
     dimensions_t dremainder = remainder(dst, dst_packet);
     // 3. The same amount of data will be read and written. So, every dimension
     // that's in src packet and not in dst packet must be in dst block.
-    src_block = find_missing_blocks(dst_packet, src_packet);
-    dst_block = find_missing_blocks(src_packet, dst_packet);
+    src_block = find_missing_blocks(dst_packet, src_packet, true);
+    dst_block = find_missing_blocks(src_packet, dst_packet, false);
     // 4a. Check how much continuous data will be read/written...
     size_t burst_size_src
             = vect * sizeof_src * check_burst_length(sremainder, src_block);
@@ -399,6 +416,8 @@ bool split_into_blocks_and_packets(size_t vect, size_t optimal_burst_bytes,
     // possible continuous memory accesses.
     src_block = fix_order_to(src_block, sremainder);
     dst_block = fix_order_to(dst_block, dremainder);
+    fix_steps(src_block, src_packet);
+    fix_steps(dst_block, dst_packet);
     return true;
 }
 
@@ -460,12 +479,12 @@ bool fill_conf_vld(const memory_desc_wrapper &src,
         cfg.dst_blk[i].blk_size = dst_block[i].size;
         cfg.dst_blk[i].step_size = dst_block[i].step;
     }
-    cfg.vector_dim = src_packet[0].idx;
-    vect_dim = src_packet[0].idx;
+    cfg.vector_dim = dst_packet[0].idx;
+    vect_dim = dst_packet[0].idx;
     vect_size = 16;
     for (int i = 0; i < LOOP_NEST_LEVEL; i++) {
-        if (cfg.src_blk[i].blk_size != 1) {
-            blocks[cfg.src_blk[i].dim_idx] *= cfg.src_blk[i].blk_size;
+        if (cfg.dst_blk[i].blk_size != 1) {
+            blocks[cfg.dst_blk[i].dim_idx] *= cfg.dst_blk[i].blk_size;
         }
     }
     // Multiply by 16 the size of the dimension that will be vectorized.
@@ -480,8 +499,8 @@ bool fill_conf_vld(const memory_desc_wrapper &src,
     cfg.rescale_coeff = 16;
 
     for (int i = 0; i < LOOP_NEST_LEVEL; i++) {
-        auto sb = cfg.src_vct[i];
-        blocks[sb.dim_idx] *= sb.blk_size;
+        auto db = cfg.dst_vct[i];
+        blocks[db.dim_idx] *= db.blk_size;
     }
 
     return true;
@@ -701,6 +720,9 @@ bool try_combine_dims(
     const dimensions_t a_dims = query_dims_and_blocks(a);
     const dimensions_t b_dims = query_dims_and_blocks(b);
     int padded_strides = is_padded_by_strides(a) | is_padded_by_strides(b);
+
+    if (mask != 0) return false;
+
     for (int i = 0; i < a.ndims; i++) {
         for (int j = i + 1; j < b.ndims; j++) {
             if ((mask >> i) & 0x1) { continue; }
