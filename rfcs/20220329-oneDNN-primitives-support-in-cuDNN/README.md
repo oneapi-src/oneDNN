@@ -1,58 +1,178 @@
-# oneDNN Primitives' Support in cuDNN (RFC)
+# Extending CUDA backend of oneDNN - Primitives (RFC) 
 
-## Introduction
-The idea for this RFC is to make few primitives of oneDNN to be supported by cuDNN
-- This branch contains the support for the primitives that are yet to be supported for CUDA backend.
-- Build process and compilation validation are in progress for few of the primitives.
-- Testing and Performance analysis are yet to be done.
-
-## Proposal
-The primitives are built using oneDNN and are the open-source DNN libraries of Intel.
-- This contribution would extend oneDNN's support for primitives and their supported post-ops and Quantization from oneDNN backend to cuDNN backend.
-
-## Supported Primitives and Implementation Limitations
-
-### Reduction
-Reduction primitive in cudDNN library is implemented through cudnnReduceTensor. cuDNN supports only 5 modes of reduction operations via enumerators: CUDNN_REDUCE_TENSOR_MAX, CUDNN_REDUCE_TENSOR_MIN, CUDNN_REDUCE_TENSOR_MUL,CUDNN_REDUCE_TENSOR_ADD,CUDNN_REDUCE_TENSOR_AVG. In oneDNN ,reduction primitive works with arbitrary data tensors,There is no special meaning associated with any of the dimensions of a tensor. In cuDNN,  All tensor formats are supported up to  8 dimensions.
-
-#### Implementation Limitations
- Supported Data Types: supports only f32 ,int8 data types. Doesn’t support bf16.
-
-### Recurrent Neural Networks
-RNN primitive in cuDNN library is implemented through cudnnRNNForward, cudnnRNNBackward is used to compute forward, backward by data or backward by weights for a RNN operation.
-Currently cuDNN supports two algorithmic implementations namely: CUDNN_LSTM, CUDNN_GRU
-
-#### Propagation 
-Forward, BackwardData and BackwardWeights.
-
-#### Implementation Limitations
-
-1. Supported Data Types: f16, f32. Doesn’t support U8,bf16 datatype.
-2. Some of the RNN algorithms in oneDNN  are not supported in cuDNN which are mentioned below
- - augru
- - lbr_augru
- - lbr_gru
- - vanilla_rnn
-
-### PRelu
-PRelu primitive in cuDNN library is implemented through cudnnActivationMode_t. cudnnActivationMode_t type uses two
-activation function i.e cudnnActivationForward(), cudnnActivationBackward().
-
-#### Propagation 
-Forward,Backward
-#### Implementation Limitations
-1. Supported Data Types in cudnnOpTensor(): Supports FLOAT, INT8 ,BFLOAT16 data types. Doesn’t support u8 & s32.
-2. cuDNN only supports following operations: CUDNN_ACTIVATION_RELU, cudnnOpTensor().
-
-### Shuffle
-
-Shuffle is a primitive to shuffle a 2D tensor data along an axis (C) with the group parameter (G) . The shuffle axis is thought to be a 2D tensor of size (C/G X G ) and it is being transposed to ( G X C/G )
  
-#### Propagation
-Forward,Backward
 
-#### Implementation Limitations
-Exact equivalent to shuffle in cuDNN is not found
+## Introduction 
+
+The idea of this RFC is to make few primitives of oneDNN to be supported by cuDNN 
+
+- This branch contains the support for primitives that are yet to be supported for CUDA backend. 
+
+- Build process and compilation validation are in progress for one primitive. 
+
+ 
+
+## Proposal 
+
+The primitives are built using oneDNN and are the open-source DNN libraries of Intel. 
+
+- The backend can be exposed to the user via DNNL_GPU_VENDOR=NVIDIA flag used in CMake. 
+
+- This contribution would extend oneDNN's support for primitives and their supported post-ops and Quantization from oneDNN backend to cuDNN backend. 
+
+ 
+
+## Supported Primitives and Implementation Limitations 
+
+ 
+
+### Reduction 
+
+Reduction primitive in cuDNN library can be implemented using cudnnReduceTensor. CuDNN currently supports only five modes of reduction operations via enumerators which are CUDNN_REDUCE_TENSOR_MAX, CUDNN_REDUCE_TENSOR_MIN, CUDNN_REDUCE_TENSOR_MUL, CUDNN_REDUCE_TENSOR_ADD, CUDNN_REDUCE_TENSOR_AVG 
+
+Supported Data Types:  f32, s8 
+
+ 
+
+#### Implementation Limitations 
+
+No support for bf16 
+
+Unsupported Modes: reduction_norm_lp_max, reduction_norm_lp_sum, reduction_norm_lp_power_p_max, reduction_norm_lp_power_p_sum 
+
+ 
+
+#### Solution 
+
+To achieve reduction_norm_lp_power_p_max, reduction_norm_lp_power_p_sum operations in cuDNN. Call CUDNN_REDUCE_TENSOR_NORM1 and give its output to CUDNN_REDUCE_TENSOR_MAX or CUDNN_REDUCE_TENSOR_ADD accordingly. 
+
+Similarly, for reduction_norm_lp_max, reduction_norm_lp_sum  operations in cuDNN, Call CUDNN_REDUCE_TENSOR_NORM2 and give its output to CUDNN_REDUCE_TENSOR_MAX or CUDNN_REDUCE_TENSOR_ADD accordingly. 
+
+ 
+
+### Recurrent Neural Networks 
+
+RNN primitive in cuDNN library can be implemented using cudnnRNNForward, cudnnRNNBackward. These are used to compute forward and backward by data/weights for an RNN operation. 
+
+Currently cuDNN supports two algorithms: CUDNN_LSTM, CUDNN_GRU. 
+
+Supported Data Types: f16, f32 
+
+ 
+
+#### Propagation 
+
+Forward, BackwardData and BackwardWeights. 
+
+ 
+
+#### Implementation Limitations 
+
+1. No support for U8, bf16 
+
+No support for the following algorithms in cuDNN 
+
+- augru 
+
+- lbr_augru 
+
+- lbr_gru 
+
+- vanilla_rnn 
+
+ 
+
+#### Solution 
+
+The algorithms,  augru, lbr_augru, lbr_gru, vaniila_rnn in cuDNN can be implemented using custom kernels based on the mathematical expression of the algorithm 
+
+ 
+
+### PRelu 
+
+PRelu primitive in cuDNN library can be implemented using cudnnActivationMode_t and  cudnnOpTensor(). 
+
+cudnnActivationForward(), cudnnActivationBackward() is used to compute forward, backward for a  PRelu operation. 
+
+Supported Data Types in cudnnOpTensor(): f32, s8, bf16 
+
+ 
+
+#### Propagation 
+
+Forward, Backward 
+
+ 
+
+#### Implementation Limitations 
+
+No support for u8, s32 
+
+Exact mapping of the primitive not found in cuDNN 
+
+ 
+
+#### Solution 
+
+cuDNN supports RELU and Leaky RELU. In Leaky RELU, alpha is scalar (double) but the required alpha is tensor. Hence LEAKY RELU can be implemented but not PRelu. However, this can be accomplished using existing RELU (CUDNN_ACTIVATION_RELU) and cudnnTensorOp (CUDNN_OP_TENSOR_MUL).  
+
+Alternatively, custom kernels implementation can be done to support the PRelu operation i.e. If tensor holds positive values, the values can be passed directly to the output tensor without any extra operations but if tensor holds negative values, tensor multiplication will be performed. 
+
+ 
+
+### Layer Normalization : 
+
+Layer Normalization primitive in cuDNN library  can be implemented using one of the modes in cudnnBatchNormMode_t 
+
+cudnnBatchNormalizationForwardInference, cudnnBatchNormalizationForwardTraining, cudnnBatchNormalizationBackward is used to compute forward inference, forward training and backward for Layer Normalization. 
+
+ Supported Data Types: f16, f32 
+
+ 
+
+#### Propagation 
+
+forward inference, forward training and backward 
+
+ 
+
+#### Implementation Limitations 
+
+Exact mapping of the primitive not found in cuDNN 
+
+ 
+
+#### Solution 
+
+To implement Layer Normalization in cuDNN, batch normalization can be used with batch size =1. 
+
+The other approach is to implement custom kernels where the kernel performs normalization over the last logical axis of the data tensor. 
+
+ 
+
+### Shuffle 
+
+Equivalent to shuffle in cuDNN is not found. 
+
+ 
+
+#### Propagation 
+
+Forward, Backward 
+
+ 
+
+#### Implementation Limitations 
+
+Exact mapping of the primitive not found in cuDNN 
+
+ 
+
+#### Solution 
+
+Shuffle can be implemented using custom kernels with transpose operation on tensors. 
+
+ 
 
 
 ## Open Questions
