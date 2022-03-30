@@ -5,7 +5,7 @@ The idea of this RFC is to extend the current CUDA backend of oneDNN library wit
 
 - This branch contains the support for primitives that are yet to be supported for CUDA backend. 
 
-- Compilation and functional validation is yet to be concluded  
+- Compilation and functional validation is yet to be concluded.  
 
 ## Proposal 
 
@@ -24,7 +24,7 @@ The primitives are built using oneDNN and are the open-source DNN libraries of I
 ### Reduction 
 
 - Reduction primitive in CUDA backend can be implemented using cudnnReduceTensor primitive of cuDNN.
-- cudnnReduceTensor supports only five modes of reduction operations via enumerators which are  
+- cudnnReduceTensor supports only five modes of reduction operations via enumerators which are as follows.  
     - `CUDNN_REDUCE_TENSOR_MAX` 
     - `CUDNN_REDUCE_TENSOR_MIN` 
     - `CUDNN_REDUCE_TENSOR_MUL`
@@ -47,7 +47,7 @@ The primitives are built using oneDNN and are the open-source DNN libraries of I
 
     - `reduction_norm_lp_power_p_sum` 
 
-- No support for bf16 datatype 
+- No support for bf16 datatype. 
 
  
 
@@ -55,13 +55,13 @@ The primitives are built using oneDNN and are the open-source DNN libraries of I
 
 - To achieve the functionality of `reduction_norm_lp_power_p_max` and `reduction_norm_lp_power_p_sum` algorithms in cuDNN, `CUDNN_REDUCE_TENSOR_NORM1` algorithm mode of `cudnnReduceTensor` can be used in combination with `CUDNN_REDUCE_TENSOR_MAX` and `CUDNN_REDUCE_TENSOR_ADD` respectively. 
 
-    - However, this workaround doesn't provide the flexibility to use arbitrary value for power `p` other than 1  
+    - However, this workaround doesn't provide the flexibility to use arbitrary value for power `p` other than 1.  
 
 - Similarly, the functionality of `reduction_norm_lp_max` and `reduction_norm_lp_sum` algortihms can be implemented using `CUDNN_REDUCE_TENSOR_NORM1` algorithm mode of `cudnnReduceTensor` in combination with `CUDNN_REDUCE_TENSOR_MAX` and `CUDNN_REDUCE_TENSOR_ADD` respectively. 
 
-    - However, this workaround doesn't provide the flexibility to use arbitrary value for power `p` other than 2  
+    - However, this workaround doesn't provide the flexibility to use arbitrary value for power `p` other than 2.  
 
-- As an alternative to the above workarounds, the functionality of the above algorithms can be implemented through a custom kernel in SYCL 
+- As an alternative to the above workarounds, the functionality of the above algorithms can be implemented through a custom kernel in SYCL. 
 
  
 
@@ -69,7 +69,7 @@ The primitives are built using oneDNN and are the open-source DNN libraries of I
 
 - RNN primitive in CUDA backend can be implemented using `cudnnRNNForward` and `cudnnRNNBackward` primitives of cuDNN. 
 
-- cuDNN's primitives only support two algorithm of RNN 
+- cuDNN's primitives only support two algorithm of RNN. 
 
     - `CUDNN_LSTM` 
 
@@ -87,7 +87,7 @@ Supported propagation kinds: Forward Training/Inference and Backward
 
 #### Implementation Limitations 
 
-- No support for following algorithms in cuDNN 
+- No support for following algorithms in cuDNN. 
 
     - `augru` 
 
@@ -97,7 +97,7 @@ Supported propagation kinds: Forward Training/Inference and Backward
 
     - `vanilla_rnn` 
 
-- No support for U8, bf16 datatypes 
+- No support for U8, bf16 datatypes. 
 
  
 
@@ -131,7 +131,7 @@ Lack of equivalent support for PRelu primitive in cuDNN.
 
     - Using `CUDNN_ACTIVATION_RELU` algorithm mode, it is possible to implement LEAKY RELU with a constant scalar alpha value, but not PRelu with a tensor alpha value. 
 
-    - However, the functionality of PRelu can be accomplished using `CUDNN_ACTIVATION_RELU` algorithm mode in combination with `cudnnOpTensor()`
+    - However, the functionality of PRelu can be accomplished using `CUDNN_ACTIVATION_RELU` algorithm mode in combination with `cudnnOpTensor()`.
 
 - As a better efficient alternative, the primitive could be implemented using custom kernel, emulating the mathematical functionality of PRelu. 
 
@@ -157,7 +157,7 @@ Lack of equivalent support for Layer Normalization primitive in cuDNN.
 
 #### Proposed Solution 
 
-- Layer Normalization primitive can be implemented using cuDNN with `cudnnBatchNormalizationForwardInference`, `cudnnBatchNormalizationForwardTraining` and `cudnnBatchNormalizationBackward` primitive APIs  
+- Layer Normalization primitive can be implemented using cuDNN with `cudnnBatchNormalizationForwardInference`, `cudnnBatchNormalizationForwardTraining` and `cudnnBatchNormalizationBackward` primitive APIs.  
 
     - This can be achieved with the algorithm mode of `CUDNN_BATCHNORM_PER_ACTIVATION` and by limiting the batch size to 1. 
 
@@ -167,7 +167,7 @@ Lack of equivalent support for Layer Normalization primitive in cuDNN.
 
 ### Shuffle 
 
-There is no equivalent primitive API In cuDNN for Shuffle. 
+There is no equivalent primitive API in cuDNN for Shuffle. 
 
  
 
