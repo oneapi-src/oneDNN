@@ -182,6 +182,49 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
+dims_t desc_t::src_dims() const {
+    dims_t src_dims {mb, ic, id, ih, iw};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        src_dims.erase(src_dims.begin() + 2);
+    }
+
+    return src_dims;
+}
+
+dims_t desc_t::dst_dims() const {
+    dims_t dst_dims {mb, ic, od, oh, ow};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        dst_dims.erase(dst_dims.begin() + 2);
+    }
+
+    return dst_dims;
+}
+
+dims_t desc_t::strides() const {
+    dims_t strides {sd, sh, sw};
+    return dims_t(strides.begin() + (5 - ndims), strides.end());
+}
+
+dims_t desc_t::kernel() const {
+    dims_t kernel {kd, kh, kw};
+    return dims_t(kernel.begin() + (5 - ndims), kernel.end());
+}
+
+dims_t desc_t::dilations() const {
+    dims_t dilations {dd, dh, dw};
+    return dims_t(dilations.begin() + (5 - ndims), dilations.end());
+}
+
+dims_t desc_t::padding() const {
+    dims_t padding {pd, ph, pw};
+    return dims_t(padding.begin() + (5 - ndims), padding.end());
+}
+
+dims_t desc_t::padding_r() const {
+    dims_t padding_r {pd_r, ph_r, pw_r};
+    return dims_t(padding_r.begin() + (5 - ndims), padding_r.end());
+}
+
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     bool print_d = true, print_h = true, print_w = true;
     print_dhw(print_d, print_h, print_w, d.ndims,

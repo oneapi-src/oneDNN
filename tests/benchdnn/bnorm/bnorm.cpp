@@ -270,17 +270,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         const_dnnl_primitive_desc_t hint) {
     dnnl_batch_normalization_desc_t bd;
 
-    dnnl_dims_t data_dims_0d = {prb->mb, prb->ic};
-    dnnl_dims_t data_dims_1d = {prb->mb, prb->ic, prb->iw};
-    dnnl_dims_t data_dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
-    dnnl_dims_t data_dims_3d = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
-
-    dnnl_dim_t *data_dims = prb->ndims == 5
-            ? data_dims_3d
-            : prb->ndims == 4 ? data_dims_2d
-                              : prb->ndims == 3 ? data_dims_1d : data_dims_0d;
-
-    auto data_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, prb->tag);
+    auto data_d = dnn_mem_t::init_md(
+            prb->ndims, prb->data_dims().data(), prb->dt, prb->tag);
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (dir & FLAG_FWD) {
@@ -290,8 +281,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
                 &bd, prop, &data_d, prb->eps, flags));
 
     } else {
-        auto diff_data_d
-                = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
+        auto diff_data_d = dnn_mem_t::init_md(
+                prb->ndims, prb->data_dims().data(), prb->dt, tag::any);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
         DNN_SAFE_STATUS(dnnl_batch_normalization_backward_desc_init(
                 &bd, prop, &diff_data_d, &data_d, prb->eps, flags));

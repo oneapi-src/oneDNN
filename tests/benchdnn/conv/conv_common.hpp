@@ -69,6 +69,15 @@ struct desc_t {
 
     int64_t desc_nelems(int arg, int mask) const;
 
+    dims_t src_dims() const;
+    dims_t wei_dims() const;
+    dims_t bia_dims() const;
+    dims_t dst_dims() const;
+    dims_t strides() const;
+    dims_t dilations() const;
+    dims_t padding() const;
+    dims_t padding_r() const;
+
 private:
     int64_t opp_pad(bool is_deconv, int64_t i, int64_t o, int64_t k, int64_t s,
             int64_t p, int64_t d) const {

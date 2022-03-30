@@ -231,25 +231,65 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     return s;
 }
 
-int64_t desc_t::desc_nelems(int arg, int mask) const {
-    std::vector<int64_t> src {mb, ic, id, ih, iw};
-    std::vector<int64_t> wei {g, oc, ic, kd, kh, kw};
-    std::vector<int64_t> dst {mb, oc, od, oh, ow};
-    std::vector<int64_t> dummy;
-
-    if (!has_groups) wei.erase(wei.begin());
-
-    for (int d = 0; d < 5 - ndims; d++) {
-        src.erase(src.begin() + 2);
-        wei.erase(wei.begin() + 2);
-        dst.erase(dst.begin() + 2);
+dims_t desc_t::src_dims() const {
+    dims_t src_dims {mb, ic, id, ih, iw};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        src_dims.erase(src_dims.begin() + 2);
     }
 
-    std::vector<int64_t> &dims = dummy;
+    return src_dims;
+}
+
+dims_t desc_t::wei_dims() const {
+    dims_t wei_dims {g, oc / g, ic / g, kd, kh, kw};
+    if (!has_groups) { wei_dims.erase(wei_dims.begin()); }
+    for (int d = 0; d < 5 - ndims; ++d) {
+        wei_dims.erase(wei_dims.begin() + 2 + has_groups);
+    }
+
+    return wei_dims;
+}
+
+dims_t desc_t::bia_dims() const {
+    dims_t bia_dims {oc};
+    return bia_dims;
+}
+
+dims_t desc_t::dst_dims() const {
+    dims_t dst_dims {mb, oc, od, oh, ow};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        dst_dims.erase(dst_dims.begin() + 2);
+    }
+
+    return dst_dims;
+}
+
+dims_t desc_t::strides() const {
+    dims_t strides {sd, sh, sw};
+    return dims_t(strides.begin() + (5 - ndims), strides.end());
+}
+
+dims_t desc_t::dilations() const {
+    dims_t dilations {dd, dh, dw};
+    return dims_t(dilations.begin() + (5 - ndims), dilations.end());
+}
+
+dims_t desc_t::padding() const {
+    dims_t padding {pd, ph, pw};
+    return dims_t(padding.begin() + (5 - ndims), padding.end());
+}
+
+dims_t desc_t::padding_r() const {
+    dims_t padding_r {pd_r, ph_r, pw_r};
+    return dims_t(padding_r.begin() + (5 - ndims), padding_r.end());
+}
+
+int64_t desc_t::desc_nelems(int arg, int mask) const {
+    dims_t dims;
     switch (arg) {
-        case DNNL_ARG_SRC: dims = src; break;
-        case DNNL_ARG_WEIGHTS: dims = wei; break;
-        case DNNL_ARG_DST: dims = dst; break;
+        case DNNL_ARG_SRC: dims = src_dims(); break;
+        case DNNL_ARG_WEIGHTS: dims = wei_dims(); break;
+        case DNNL_ARG_DST: dims = dst_dims(); break;
         default: assert(!"unsupported arg");
     }
 

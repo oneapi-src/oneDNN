@@ -65,25 +65,13 @@ int fill_dst(
 dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &rpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
-    dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
-    dnnl_dims_t src_2d_dims = {prb->mb, prb->ic, prb->ih, prb->iw};
-    dnnl_dims_t src_3d_dims = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
-    dnnl_dim_t *src_dims = prb->ndims == 5
-            ? src_3d_dims
-            : prb->ndims == 4 ? src_2d_dims : src_1d_dims;
-
-    dnnl_dims_t dst_1d_dims = {prb->mb, prb->ic, prb->ow};
-    dnnl_dims_t dst_2d_dims = {prb->mb, prb->ic, prb->oh, prb->ow};
-    dnnl_dims_t dst_3d_dims = {prb->mb, prb->ic, prb->od, prb->oh, prb->ow};
-    dnnl_dim_t *dst_dims = prb->ndims == 5
-            ? dst_3d_dims
-            : prb->ndims == 4 ? dst_2d_dims : dst_1d_dims;
-
     std::string src_tag = (prb->dir & FLAG_FWD) ? prb->tag : tag::any;
     std::string dst_tag = (prb->dir & FLAG_BWD) ? prb->tag : tag::any;
 
-    auto src_d = dnn_mem_t::init_md(prb->ndims, src_dims, prb->sdt, src_tag);
-    auto dst_d = dnn_mem_t::init_md(prb->ndims, dst_dims, prb->ddt, dst_tag);
+    auto src_d = dnn_mem_t::init_md(
+            prb->ndims, prb->src_dims().data(), prb->sdt, src_tag);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, prb->dst_dims().data(), prb->ddt, dst_tag);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
     dnnl_resampling_desc_t rd;
@@ -99,7 +87,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     }
 
     attr_args_t attr_args;
-    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
+    attr_args.prepare_post_ops_mds(
+            prb->attr, prb->ndims, prb->dst_dims().data());
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

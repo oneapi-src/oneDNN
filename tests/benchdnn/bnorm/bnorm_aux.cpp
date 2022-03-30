@@ -118,6 +118,15 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
+dims_t desc_t::data_dims() const {
+    dims_t data_dims {mb, ic, id, ih, iw};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        data_dims.erase(data_dims.begin() + 2);
+    }
+
+    return data_dims;
+}
+
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     bool print_d = true, print_h = true, print_w = true;
     print_dhw(print_d, print_h, print_w, d.ndims, {d.id}, {d.ih}, {d.iw});

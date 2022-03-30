@@ -65,6 +65,14 @@ struct desc_t {
         pd_r = opp_pad(id, od, kd, dd, sd, pd);
     }
 
+    dims_t src_dims() const;
+    dims_t dst_dims() const;
+    dims_t strides() const;
+    dims_t kernel() const;
+    dims_t dilations() const;
+    dims_t padding() const;
+    dims_t padding_r() const;
+
 private:
     int64_t opp_pad(
             int64_t i, int64_t o, int64_t k, int64_t d, int64_t s, int64_t p) {
