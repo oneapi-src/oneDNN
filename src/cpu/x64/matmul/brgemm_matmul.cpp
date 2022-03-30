@@ -695,6 +695,12 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                                     + s8s8_buffer_sz]));
         }
 
+        // Set last_chunk_brgemm_batch_size_ to brgemm_batch_size
+        // when K_tail = 0 and brgemm_batch_tail_size = 0
+        last_chunk_brgemm_batch_size_ = bgmmc.brgemm_batch_tail_size;
+        if (bgmmc.K_tail == 0 && last_chunk_brgemm_batch_size_ == 0)
+            last_chunk_brgemm_batch_size_ = bgmmc.brgemm_batch_size;
+
         // parallelization
         parallel_work_amount_ = bgmmc.batch * bgmmc.M_chunks * bgmmc.N_chunks;
 
@@ -1011,11 +1017,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     }
 
     int get_brgemm_batch_size(int k_chunk_idx) const {
-        const int last_brgemm_batch_size
-                = (nstl::max(bgmmc_.K, bgmmc_.K_blk)
-                          - k_chunk_idx * bgmmc_.K_chunk_elems)
-                / bgmmc_.K_blk;
-        return is_last_K_chunk(k_chunk_idx) ? last_brgemm_batch_size
+        return is_last_K_chunk(k_chunk_idx) ? last_chunk_brgemm_batch_size_
                                             : bgmmc_.brgemm_batch_size;
     }
 
@@ -1071,6 +1073,7 @@ private:
     // parallelization parameters
     int parallel_work_amount_;
     int nthr_, nthr_k_, nthr_bmn_, num_threads_used_;
+    int last_chunk_brgemm_batch_size_;
 };
 
 template struct brgemm_matmul_t<avx512_core_bf16_amx_int8>;

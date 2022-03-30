@@ -915,6 +915,12 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     bgmmc.K_chunks = div_up(bgmmc.K, bgmmc.K_chunk_elems);
     bgmmc.num_M_blocks = div_up(bgmmc.M, bgmmc.M_blk);
     bgmmc.num_N_blocks = div_up(bgmmc.N, bgmmc.N_blk);
+    const int last_chunck_batch_size
+            = (nstl::max(bgmmc.K, bgmmc.K_blk)
+                      - (bgmmc.K_chunks - 1) * bgmmc.K_chunk_elems)
+            / bgmmc.K_blk;
+    bgmmc.brgemm_batch_tail_size
+            = last_chunck_batch_size % bgmmc.brgemm_batch_size;
 
     bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz * bgmmc.LDC
             * (bgmmc.nthr_k > 1 ? bgmmc.M : bgmmc.M_blk);
