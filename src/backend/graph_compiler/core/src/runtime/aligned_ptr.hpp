@@ -92,7 +92,7 @@ struct raii_ptr_t : protected generic_ptr_base_t {
             size_t alignment = 64;
             auto newptr = Policy::alloc(size_, alignment);
             memcpy(newptr, ptr_, size_);
-            return raii_ptr_t {newptr, alignment};
+            return raii_ptr_t {newptr, size_};
         }
         return raii_ptr_t {};
     }
