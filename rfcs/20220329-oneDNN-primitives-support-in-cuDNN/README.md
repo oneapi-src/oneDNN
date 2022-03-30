@@ -1,183 +1,64 @@
 # Extending CUDA backend of oneDNN - Primitives (RFC) 
 
- 
-
 ## Introduction 
-
-The idea of this RFC is to make few primitives of oneDNN to be supported by cuDNN 
-
-- This branch contains the support for primitives that are yet to be supported for CUDA backend. 
-
-- Build process and compilation validation are in progress for one primitive. 
-
- 
+The idea of this RFC is to make few primitives of oneDNN to be supported by cuDNN.
+- This branch contains the support for primitives that are yet to be supported for CUDA backend.
+- Build process and compilation validation are yet to be done. 
 
 ## Proposal 
-
 The primitives are built using oneDNN and are the open-source DNN libraries of Intel. 
+ - The backend can be exposed to the user via `DNNL_GPU_VENDOR=NVIDIA` flag used in CMake.
+ - This contribution would extend oneDNN's support for primitives from oneDNN backend to cuDNN backend.
+ - Wherever direct mapping of primitives from oneDNN to cuDNN is not possible, custom kernels will be created for extending CUDA backend of oneDNN.  
 
-- The backend can be exposed to the user via DNNL_GPU_VENDOR=NVIDIA flag used in CMake. 
+## Supported Primitives, Implementation Limitations and Proposed Solutions 
 
-- This contribution would extend oneDNN's support for primitives and their supported post-ops and Quantization from oneDNN backend to cuDNN backend. 
+### Reduction
+Reduction primitive in cuDNN library can be implemented using cudnnReduceTensor. CuDNN currently supports only five modes of reduction operations via enumerators which are `CUDNN_REDUCE_TENSOR_MAX`, `CUDNN_REDUCE_TENSOR_MIN`, `CUDNN_REDUCE_TENSOR_MUL`, `CUDNN_REDUCE_TENSOR_ADD` and `CUDNN_REDUCE_TENSOR_AVG`.
 
- 
-
-## Supported Primitives and Implementation Limitations 
-
- 
-
-### Reduction 
-
-Reduction primitive in cuDNN library can be implemented using cudnnReduceTensor. CuDNN currently supports only five modes of reduction operations via enumerators which are CUDNN_REDUCE_TENSOR_MAX, CUDNN_REDUCE_TENSOR_MIN, CUDNN_REDUCE_TENSOR_MUL, CUDNN_REDUCE_TENSOR_ADD, CUDNN_REDUCE_TENSOR_AVG 
-
-Supported Data Types:  f32, s8 
-
- 
-
+Supported Data Types:  f32, s8
 #### Implementation Limitations 
-
-No support for bf16 
-
-Unsupported Modes: reduction_norm_lp_max, reduction_norm_lp_sum, reduction_norm_lp_power_p_max, reduction_norm_lp_power_p_sum 
-
- 
-
+- No support for bf16 
+- Unsupported Modes: `reduction_norm_lp_max`, `reduction_norm_lp_sum`, `reduction_norm_lp_power_p_max`, `reduction_norm_lp_power_p_sum`
 #### Solution 
-
-To achieve reduction_norm_lp_power_p_max, reduction_norm_lp_power_p_sum operations in cuDNN. Call CUDNN_REDUCE_TENSOR_NORM1 and give its output to CUDNN_REDUCE_TENSOR_MAX or CUDNN_REDUCE_TENSOR_ADD accordingly. 
-
-Similarly, for reduction_norm_lp_max, reduction_norm_lp_sum  operations in cuDNN, Call CUDNN_REDUCE_TENSOR_NORM2 and give its output to CUDNN_REDUCE_TENSOR_MAX or CUDNN_REDUCE_TENSOR_ADD accordingly. 
-
- 
+- To achieve `reduction_norm_lp_power_p_max`, `reduction_norm_lp_power_p_sum` operations in cuDNN, Call CUDNN_REDUCE_TENSOR_NORM1 and give its output to `CUDNN_REDUCE_TENSOR_MAX` or `CUDNN_REDUCE_TENSOR_ADD` accordingly. This solution works only if power `p = 1`. 
+- Similarly, for `reduction_norm_lp_max`, `reduction_norm_lp_sum`  operations in cuDNN, Call `CUDNN_REDUCE_TENSOR_NORM2` and give its output to `CUDNN_REDUCE_TENSOR_MAX` or `CUDNN_REDUCE_TENSOR_ADD` accordingly. This solution works only if power `p = 2`.  
 
 ### Recurrent Neural Networks 
-
-RNN primitive in cuDNN library can be implemented using cudnnRNNForward, cudnnRNNBackward. These are used to compute forward and backward by data/weights for an RNN operation. 
-
-Currently cuDNN supports two algorithms: CUDNN_LSTM, CUDNN_GRU. 
+RNN primitive in cuDNN library can be implemented using `cudnnRNNForward` and `cudnnRNNBackward`. These are used to compute Forward, BackwardData and BackwardWeights for an RNN operation. Currently cuDNN supports two algorithms: `CUDNN_LSTM` and `CUDNN_GRU`. 
 
 Supported Data Types: f16, f32 
-
- 
-
 #### Propagation 
-
-Forward, BackwardData and BackwardWeights. 
-
- 
-
+Forward, BackwardData and BackwardWeights 
 #### Implementation Limitations 
-
-1. No support for U8, bf16 
-
-No support for the following algorithms in cuDNN 
-
-- augru 
-
-- lbr_augru 
-
-- lbr_gru 
-
-- vanilla_rnn 
-
- 
-
+- No support for U8, bf16 
+- No support for `augru`, `lbr_augru`, `lbr_gru`and `vanilla_rnn` algorithms in cuDNN 
 #### Solution 
+The algorithms,  `augru`, `lbr_augru`, `lbr_gru`and `vanilla_rnn` in cuDNN can be implemented using custom kernels based on the mathematical expression of the algorithm. 
 
-The algorithms,  augru, lbr_augru, lbr_gru, vaniila_rnn in cuDNN can be implemented using custom kernels based on the mathematical expression of the algorithm 
-
- 
-
-### PRelu 
-
-PRelu primitive in cuDNN library can be implemented using cudnnActivationMode_t and  cudnnOpTensor(). 
-
-cudnnActivationForward(), cudnnActivationBackward() is used to compute forward, backward for a  PRelu operation. 
-
-Supported Data Types in cudnnOpTensor(): f32, s8, bf16 
-
- 
-
-#### Propagation 
-
-Forward, Backward 
-
- 
-
+### PRelu  
+Equivalent to PRelu in cuDNN is not found. 
 #### Implementation Limitations 
-
-No support for u8, s32 
-
-Exact mapping of the primitive not found in cuDNN 
-
- 
-
+Exact mapping of this primitive is not found in cuDNN. 
 #### Solution 
-
-cuDNN supports RELU and Leaky RELU. In Leaky RELU, alpha is scalar (double) but the required alpha is tensor. Hence LEAKY RELU can be implemented but not PRelu. However, this can be accomplished using existing RELU (CUDNN_ACTIVATION_RELU) and cudnnTensorOp (CUDNN_OP_TENSOR_MUL).  
-
-Alternatively, custom kernels implementation can be done to support the PRelu operation i.e. If tensor holds positive values, the values can be passed directly to the output tensor without any extra operations but if tensor holds negative values, tensor multiplication will be performed. 
-
- 
+- PRelu primitive in cuDNN library can be implemented using `cudnnActivationForward()`, `cudnnActivationBackward()` along with `cudnnOpTensor()`. But only LEAKY RELU is possible as alpha is a scalar (double) and not a tensor as required. Hence LEAKY RELU can be implemented but not PRelu. However, this can be accomplished using existing RELU (`CUDNN_ACTIVATION_RELU`) and `cudnnOpTensor()` (which is `CUDNN_OP_TENSOR_MUL`).  
+- Alternatively, custom kernels implementation can be done to support the PRelu operation i.e., if tensor holds positive values, the values can be passed directly to the output tensor without any extra operations but if it holds negative values, tensor multiplication will be performed.  
 
 ### Layer Normalization : 
-
-Layer Normalization primitive in cuDNN library  can be implemented using one of the modes in cudnnBatchNormMode_t 
-
-cudnnBatchNormalizationForwardInference, cudnnBatchNormalizationForwardTraining, cudnnBatchNormalizationBackward is used to compute forward inference, forward training and backward for Layer Normalization. 
-
- Supported Data Types: f16, f32 
-
- 
-
-#### Propagation 
-
-forward inference, forward training and backward 
-
- 
-
+Equivalent to Layer Normalization in cuDNN is not found. 
 #### Implementation Limitations 
-
-Exact mapping of the primitive not found in cuDNN 
-
- 
-
+Exact mapping of this primitive is not found in cuDNN.
 #### Solution 
-
-To implement Layer Normalization in cuDNN, batch normalization can be used with batch size =1. 
-
-The other approach is to implement custom kernels where the kernel performs normalization over the last logical axis of the data tensor. 
-
- 
+- Layer Normalization primitive in cuDNN library  can be implemented using one of the modes in `cudnnBatchNormMode_t`, `cudnnBatchNormalizationForwardInference`, `cudnnBatchNormalizationForwardTraining` and `cudnnBatchNormalizationBackward` with batch size = 1.
+- The other approach is to implement custom kernels where the kernel performs normalization over the last logical axis of the data tensor.  
 
 ### Shuffle 
-
-Equivalent to shuffle in cuDNN is not found. 
-
- 
-
-#### Propagation 
-
-Forward, Backward 
-
- 
-
+Equivalent to Shuffle in cuDNN is not found.
 #### Implementation Limitations 
-
-Exact mapping of the primitive not found in cuDNN 
-
- 
-
+Exact mapping of this primitive is not found in cuDNN.
 #### Solution 
-
 Shuffle can be implemented using custom kernels with transpose operation on tensors. 
 
- 
-
-
 ## Open Questions
-The implementation is subject to change as we go through the review and the testing phases
-
-Currently the HIP support for DPCPP(SYCL) compiler is in experimental stage, and the backend is not completely supported on AMD devices
-
-Hence this effort will also explore any alternatives for running HIP backend on AMD platforms
+- For any of the above solution, if a better approach is available, please comment. Open to suggestions.
+- The implementation is subject to change as we go through the reviews and results.
