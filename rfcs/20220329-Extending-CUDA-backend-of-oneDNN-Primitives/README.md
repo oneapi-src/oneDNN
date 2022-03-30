@@ -14,7 +14,7 @@ The primitives are built using oneDNN and are the open-source DNN libraries of I
 ## Supported Primitives, Implementation Limitations and Proposed Solutions 
 
 ### Reduction
-Reduction primitive in cuDNN library can be implemented using cudnnReduceTensor. CuDNN currently supports only five modes of reduction operations via enumerators which are `CUDNN_REDUCE_TENSOR_MAX`, `CUDNN_REDUCE_TENSOR_MIN`, `CUDNN_REDUCE_TENSOR_MUL`, `CUDNN_REDUCE_TENSOR_ADD` and `CUDNN_REDUCE_TENSOR_AVG`.
+Reduction primitive in cuDNN library can be implemented using cudnnReduceTensor. cuDNN currently supports only five modes of reduction operations via enumerators which are `CUDNN_REDUCE_TENSOR_MAX`, `CUDNN_REDUCE_TENSOR_MIN`, `CUDNN_REDUCE_TENSOR_MUL`, `CUDNN_REDUCE_TENSOR_ADD` and `CUDNN_REDUCE_TENSOR_AVG`.
 
 Supported Data Types:  f32, s8
 #### Implementation Limitations 
