@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include "lowering.hpp"
+#include <algorithm>
 #include <limits>
 #include <list>
 #include <memory>
@@ -169,15 +170,26 @@ struct lowering_visitor_state_t {
     std::unordered_map<graph_tensor_ptr, size_t> tensor_pending_refcount_;
     op_visitor_t::updater_func topo_sorter_;
     std::vector<size_t> op_exec_tick_;
+    std::vector<bool> op_visited_;
     //  need to visit the input outs in reversed order to align to old lowering
     //  input argument order (like pop_back_selector). Our visitor must visit
     //  the input ops first
     std::list<sc_op_ptr>::iterator input_op_itr;
     size_t cur_tick_ = 0;
+    size_t max_tensor_size_;
 
     lowering_visitor_state_t(sc_graph_t &g)
         : topo_sorter_ {op_visitor_t::create_DAG_updater(g.ops_.size())}
-        , op_exec_tick_(g.ops_.size()) {}
+        , op_exec_tick_(g.ops_.size())
+        , op_visited_(g.ops_.size()) {
+        max_tensor_size_ = 0;
+        for (auto &op : g.ops_) {
+            for (auto &tsr : op->get_outputs()) {
+                max_tensor_size_
+                        = std::max(max_tensor_size_, tsr->details_.size());
+            }
+        }
+    }
 
     size_t &get_tensor_pending_refcount(const graph_tensor_ptr &p) {
         auto itr = tensor_pending_refcount_.find(p);
@@ -201,8 +213,88 @@ struct lowering_visitor_state_t {
             } else {
                 ths->op_exec_tick_[op->logical_op_id_] = tick;
             }
+            ths->op_visited_[op->logical_op_id_] = true;
             ths->topo_sorter_(vis, op);
         };
+    }
+
+    // find the distance of an op to the visited ops
+    int get_op_distance_to_visited_set(sc_op *op, std::vector<int> &d) {
+        auto id = op->logical_op_id_;
+        if (op_visited_[id]) { return 0; }
+        if (d[id] != 0) { return d[id]; }
+        if (op->isa<output_op>()) {
+            d[id] = 0;
+            return 0;
+        }
+        int ret = -1;
+        for (auto &v : op->get_inputs()) {
+            int cur_d
+                    = get_op_distance_to_visited_set(v->producer_owner_, d) + 1;
+            ret = std::max(ret, cur_d);
+        }
+        d[id] = ret;
+        return ret;
+    }
+
+    static constexpr float distance_factor = 2.0f;
+    // for each input tensor, check if the refcount=1. If so, it means that
+    // after the Op is visited, the input tensor is no longer needed compute the
+    // score of each visitable candidate op. the score is "SUM_{each input
+    // tensor}(normalized_sizeof(tensor)/ref_count_modifier*heat_modifier) -
+    // SUM_{each output tensor}(normalized_sizeof(tensor)+ distance_modifier)"
+    float evaluate_op_score(sc_op *op, std::vector<int> &distance_to_visited) {
+        float cur_score = 0;
+
+        for (auto &in : op->get_inputs()) {
+            // if the input tensor is input_op, there is no temp buffer to be
+            // free'd
+            if (!in->producer_owner_->isa<input_op>()) {
+                // compute the heat modifier of the tensor. The hotter
+                // the tensor is (computed lately), the larger the
+                // modifier.
+                auto owner = in->producer_owner_;
+                auto tick_diff
+                        = cur_tick_ - op_exec_tick_[owner->logical_op_id_];
+                assert(cur_tick_ > op_exec_tick_[owner->logical_op_id_]);
+                float heat_modifier;
+                switch (tick_diff) {
+                    case 0:
+                    case 1: heat_modifier = 2.5f; break;
+                    case 2: heat_modifier = 1.5f; break;
+                    default: heat_modifier = 1.0f;
+                }
+                // if it is last use, ref_count_modifier=1. If not,
+                // ref_count_modifier=number of uses
+                size_t ref_count_modifier;
+                if (this->get_tensor_pending_refcount(in) == 1) {
+                    ref_count_modifier = 1;
+                } else {
+                    ref_count_modifier = in->uses_.size();
+                }
+                float cur_tsr = float(in->details_.size()) / ref_count_modifier
+                        / max_tensor_size_ * heat_modifier;
+                cur_score += cur_tsr;
+            }
+        }
+        for (auto &out : op->get_outputs()) {
+            // if this output is connected to output op, it is not a temp
+            // buffer, and we don't need to count its size
+            if (out->uses_.size() == 1UL
+                    && out->uses_[0].second->isa<output_op>()) {
+                continue;
+            }
+            int distance = 1;
+            for (auto &use : out->uses_) {
+                distance = std::max(distance,
+                        get_op_distance_to_visited_set(
+                                use.second.get(), distance_to_visited));
+            }
+            float cur_tsr = (distance - 1) * distance_factor
+                    + float(out->details_.size()) / max_tensor_size_;
+            cur_score -= cur_tsr;
+        }
+        return cur_score;
     }
 
     using queue_iterator_t = std::list<sc_op_ptr>::iterator;
@@ -238,46 +330,14 @@ struct lowering_visitor_state_t {
             float best_score = std::numeric_limits<float>::lowest();
             std::list<sc_op_ptr>::reverse_iterator to_remove;
 
+            std::vector<int> distance(ths->op_visited_.size());
             // visit the queue in reversed order to align to old lowering input
             // argument order (like pop_back_selector)
             for (auto itr = vis->to_visit_.rbegin();
                     itr != vis->to_visit_.rend(); ++itr) {
-                auto op = *itr;
+                auto &op = *itr;
                 assert(!op->isa<input_op>() && !op->isa<constant_op_t>());
-                float cur_score = 0;
-
-                // for each input tensor, check if the refcount=1. If so, it
-                // means that after the Op is visited, the input tensor is no
-                // longer needed
-                // compute the score of each visitable candidate op.
-                // the score is "SUM_{each input
-                // tensor}(sizeof(tensor)*heat_modifier) - SUM_{each output
-                // tensor}(sizeof(tensor))"
-                for (auto &in : op->get_inputs()) {
-                    if (ths->get_tensor_pending_refcount(in) == 1) {
-                        // compute the heat modifier of the tensor. The hotter
-                        // the tensor is (computed lately), the larger the
-                        // modifier.
-                        auto owner = in->producer_owner_;
-                        auto tick_diff = ths->cur_tick_
-                                - ths->op_exec_tick_[owner->logical_op_id_];
-                        assert(ths->cur_tick_
-                                > ths->op_exec_tick_[owner->logical_op_id_]);
-                        float heat_modifier;
-                        switch (tick_diff) {
-                            case 0:
-                            case 1: heat_modifier = 1.1f; break;
-                            case 2: heat_modifier = 1.05f; break;
-                            default: heat_modifier = 1.0f;
-                        }
-                        float cur_tsr = in->details_.size() * heat_modifier;
-                        cur_score += cur_tsr;
-                    }
-                }
-                for (auto &out : op->get_outputs()) {
-                    float cur_tsr = out->details_.size();
-                    cur_score -= cur_tsr;
-                }
+                float cur_score = ths->evaluate_op_score(op.get(), distance);
                 SC_MODULE_INFO << "Scheduling score: iter " << ths->cur_tick_
                                << ", Op " << op->op_name_ << "_"
                                << op->logical_op_id_ << " = " << cur_score;
