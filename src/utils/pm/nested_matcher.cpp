@@ -284,6 +284,8 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     if (b.bind_node == nullptr) return false;
     if (b.bind_op->get_partition() != nullptr) return false;
     if (b.bind_op->has_attr("matched_pattern")) return false;
+    if (!has_commutative_inputs(b.bind_op) && b.bind_op_port != b.bind_port)
+        return false;
 
     if (!match_node_attributes(b.bind_op, b.bind_node)) return false;
 
@@ -597,6 +599,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             if (cons.size() == 1) {
                 op_t *next_op = &(cons[0].get_op());
                 temp_bind.bind_op = next_op;
+                temp_bind.bind_op_port = oport;
             } else {
                 // More than 1 consumers. In this case, needs to check
                 // if the last node of previous match accepts external
@@ -624,6 +627,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
                 }
                 if (!next_op) break;
                 temp_bind.bind_op = next_op;
+                temp_bind.bind_op_port = oport;
             }
         } else { // backward matching
             iport_t iport = pmap.second;
@@ -633,6 +637,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
                     = &(current_op->get_input_value(static_cast<size_t>(iport))
                                     ->get_producer());
             temp_bind.bind_op = next_op;
+            temp_bind.bind_op_port = iport;
         }
     }
 
