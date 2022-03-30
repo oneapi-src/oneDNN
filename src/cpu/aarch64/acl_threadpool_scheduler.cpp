@@ -13,9 +13,11 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
 #include "cpu/aarch64/acl_threadpool_scheduler.hpp"
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+
 #include "cpu/aarch64/acl_thread.hpp"
 
 #include "common/counting_barrier.hpp"
