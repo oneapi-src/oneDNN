@@ -82,7 +82,7 @@ struct brgemm_matmul_conf_t {
     dim_t M_blk, N_blk, K_blk, M_tail, N_tail, K_tail;
     int M_chunk_size, N_chunk_size;
     dim_t LDA, LDB, LDC, LDD;
-    int brgemm_batch_size;
+    int brgemm_batch_size, brgemm_batch_tail_size;
     int wei_n_blk, wei_k_blk;
     brgemm_batch_kind_t brg_type;
 

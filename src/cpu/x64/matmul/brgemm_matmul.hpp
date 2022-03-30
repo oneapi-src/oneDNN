@@ -56,14 +56,9 @@ inline int get_brg_kernel_index(const brgemm_matmul_conf_t &bgmmc,
 
 inline int get_brg_batchsize(
         const brgemm_matmul_conf_t &bgmmc, bool is_bs_tail, bool is_K_tail) {
-    auto adj_k_a = bgmmc.use_buffer_a ? utils::rnd_up(bgmmc.K, bgmmc.K_blk)
-                                      : bgmmc.K;
-    auto adj_k_b = utils::rnd_up<decltype(bgmmc.K)>(bgmmc.wei_k_blk, bgmmc.K);
-    auto adj_k = nstl::min(adj_k_a, adj_k_b);
-    auto bs = (is_K_tail)
-            ? 1
-            : ((is_bs_tail) ? (adj_k / bgmmc.K_blk) % bgmmc.brgemm_batch_size
-                            : bgmmc.brgemm_batch_size);
+    auto bs = (is_K_tail) ? 1
+                          : ((is_bs_tail) ? bgmmc.brgemm_batch_tail_size
+                                          : bgmmc.brgemm_batch_size);
     return bs;
 }
 } // namespace
