@@ -13,10 +13,13 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
 #ifndef CPU_AARCH64_ACL_THREADPOOL_SCHEDULER_HPP
 #define CPU_AARCH64_ACL_THREADPOOL_SCHEDULER_HPP
+
+#include "oneapi/dnnl/dnnl_config.h"
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
 #include "arm_compute/runtime/IScheduler.h"
 #include "support/Mutex.h"
