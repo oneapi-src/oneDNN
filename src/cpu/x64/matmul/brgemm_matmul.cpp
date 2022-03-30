@@ -280,7 +280,6 @@ void brgemm_matmul_t<isa>::compute_kernel(
     auto is_bs_tail = (gemm_batch != bgmmc.brgemm_batch_size);
     const int brg_ker_idx = pd()->get_brg_kernel_idx(
             is_bs_tail, do_init, is_M_tail, is_N_tail, false);
-    const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
     const auto ptr_bias = brgmm_ctx.get_bias_ptr(n);
     auto ptr_D = brgmm_ctx.get_data_C_ptr(b_idx, m, n);
     auto ptr_C = (bgmmc.use_buffer_c)
@@ -296,7 +295,10 @@ void brgemm_matmul_t<isa>::compute_kernel(
     const bool post_ops_applicable = bgmmc.post_ops_applicable
             && (bgmmc.nthr_k <= 1 || bgmmc.K_chunks == 1);
 
-    if (gemm_batch > 0 && brg_kernel != nullptr) {
+    if (gemm_batch > 0 && brg_ker_idx >= 0) {
+        const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
+        assert(brg_kernel != nullptr);
+
         const bool is_tile_reconf_required = is_amx && (is_M_tail || is_N_tail);
         if (is_tile_reconf_required)
             amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
