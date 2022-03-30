@@ -341,51 +341,15 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         const_dnnl_primitive_desc_t hint) {
     dnnl_convolution_desc_t cd;
 
-    dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
-    dnnl_dims_t src_2d_dims = {prb->mb, prb->ic, prb->ih, prb->iw};
-    dnnl_dims_t src_3d_dims = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
-    dnnl_dim_t *src_dims = prb->ndims == 5
-            ? src_3d_dims
-            : prb->ndims == 4 ? src_2d_dims : src_1d_dims;
-
-    dnnl_dims_t wei_1d_dims
-            = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kw};
-    dnnl_dims_t wei_2d_dims
-            = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kh, prb->kw};
-    dnnl_dims_t wei_3d_dims = {prb->g, prb->oc / prb->g, prb->ic / prb->g,
-            prb->kd, prb->kh, prb->kw};
-    dnnl_dim_t *wei_dims = prb->ndims == 5
-            ? &wei_3d_dims[!prb->has_groups]
-            : prb->ndims == 4 ? &wei_2d_dims[!prb->has_groups]
-                              : &wei_1d_dims[!prb->has_groups];
-
-    dnnl_dims_t bia_dims = {prb->oc};
-
-    dnnl_dims_t dst_1d_dims = {prb->mb, prb->oc, prb->ow};
-    dnnl_dims_t dst_2d_dims = {prb->mb, prb->oc, prb->oh, prb->ow};
-    dnnl_dims_t dst_3d_dims = {prb->mb, prb->oc, prb->od, prb->oh, prb->ow};
-    dnnl_dim_t *dst_dims = prb->ndims == 5
-            ? dst_3d_dims
-            : prb->ndims == 4 ? dst_2d_dims : dst_1d_dims;
-
-    auto src_d = dnn_mem_t::init_md(prb->ndims, src_dims, prb->cfg[SRC].dt,
-            normalize_tag(prb->stag, prb->ndims));
-    auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups, wei_dims,
-            prb->cfg[WEI].dt,
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
+            prb->cfg[SRC].dt, normalize_tag(prb->stag, prb->ndims));
+    auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
+            prb->wei_dims().data(), prb->cfg[WEI].dt,
             normalize_tag(prb->wtag, prb->ndims + prb->has_groups));
-    auto bia_d = dnn_mem_t::init_md(1, bia_dims, prb->cfg[BIA].dt, tag::any);
-    auto dst_d = dnn_mem_t::init_md(prb->ndims, dst_dims, prb->cfg[DST].dt,
-            normalize_tag(prb->dtag, prb->ndims));
-
-    dnnl_dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
-    dnnl_dim_t dilates_nd[] = {prb->dd, prb->dh, prb->dw};
-    dnnl_dim_t padding_nd[] = {prb->pd, prb->ph, prb->pw};
-    dnnl_dim_t padding_r_nd[] = {prb->pd_r, prb->ph_r, prb->pw_r};
-
-    dnnl_dim_t *strides = strides_nd + (5 - prb->ndims);
-    dnnl_dim_t *dilates = dilates_nd + (5 - prb->ndims);
-    dnnl_dim_t *padding = padding_nd + (5 - prb->ndims);
-    dnnl_dim_t *padding_r = padding_r_nd + (5 - prb->ndims);
+    auto bia_d = dnn_mem_t::init_md(
+            1, prb->bia_dims().data(), prb->cfg[BIA].dt, tag::any);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
+            prb->cfg[DST].dt, normalize_tag(prb->dtag, prb->ndims));
 
     dnnl_alg_kind_t alg = dnnl_convolution_direct;
     if (prb->alg == WINO) alg = dnnl_convolution_winograd;
@@ -399,19 +363,22 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
                     prb->dir == FWD_I ? dnnl_forward_inference
                                       : dnnl_forward_training,
                     alg, &src_d, &wei_d, prb->dir == FWD_B ? &bia_d : nullptr,
-                    &dst_d, strides, dilates, padding, padding_r));
+                    &dst_d, prb->strides().data(), prb->dilations().data(),
+                    prb->padding().data(), prb->padding_r().data()));
             break;
         case BWD_D:
             DNN_SAFE_STATUS(dnnl_dilated_convolution_backward_data_desc_init(
-                    &cd, alg, &src_d, &wei_d, &dst_d, strides, dilates, padding,
-                    padding_r));
+                    &cd, alg, &src_d, &wei_d, &dst_d, prb->strides().data(),
+                    prb->dilations().data(), prb->padding().data(),
+                    prb->padding_r().data()));
             break;
         case BWD_W:
         case BWD_WB:
             DNN_SAFE_STATUS(dnnl_dilated_convolution_backward_weights_desc_init(
                     &cd, alg, &src_d, &wei_d,
-                    prb->dir == BWD_W ? nullptr : &bia_d, &dst_d, strides,
-                    dilates, padding, padding_r));
+                    prb->dir == BWD_W ? nullptr : &bia_d, &dst_d,
+                    prb->strides().data(), prb->dilations().data(),
+                    prb->padding().data(), prb->padding_r().data()));
             break;
         default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
     }
@@ -422,7 +389,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
-    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, dst_dims);
+    attr_args.prepare_post_ops_mds(
+            prb->attr, prb->ndims, prb->dst_dims().data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

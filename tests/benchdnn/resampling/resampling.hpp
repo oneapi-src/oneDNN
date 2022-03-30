@@ -48,6 +48,9 @@ struct desc_t {
     int64_t od, oh, ow;
     std::string name;
     int ndims;
+
+    dims_t src_dims() const;
+    dims_t dst_dims() const;
 };
 
 int str2desc(desc_t *desc, const char *str);

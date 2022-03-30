@@ -120,6 +120,24 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
+dims_t desc_t::src_dims() const {
+    dims_t src_dims {mb, ic, id, ih, iw};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        src_dims.erase(src_dims.begin() + 2);
+    }
+
+    return src_dims;
+}
+
+dims_t desc_t::dst_dims() const {
+    dims_t dst_dims {mb, ic, od, oh, ow};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        dst_dims.erase(dst_dims.begin() + 2);
+    }
+
+    return dst_dims;
+}
+
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     bool print_d = true, print_h = true, print_w = true;
     print_dhw(print_d, print_h, print_w, d.ndims, {d.od, d.id}, {d.oh, d.ih},

@@ -56,6 +56,8 @@ struct desc_t {
     float eps;
     std::string name;
     int ndims;
+
+    dims_t data_dims() const;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
