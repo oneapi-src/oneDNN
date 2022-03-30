@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ namespace sc {
 namespace utils {
 template <typename F>
 void parallel(F f, int64_t begin, int64_t end, int64_t step = 1,
-        int numthreads = runtime_config_t::get().threads_per_instance_) {
+        int numthreads = runtime_config_t::get().get_num_threads()) {
 #ifdef SC_OMP_ENABLED
 #pragma omp parallel for num_threads(numthreads)
 #endif

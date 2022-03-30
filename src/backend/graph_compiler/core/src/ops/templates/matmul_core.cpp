@@ -134,7 +134,7 @@ std::shared_ptr<void> gen_matmul_core_t::get_default_config(
       if (K > 1500 || in_tensors_[0].dtype_ == datatypes::f32) thresh = 32;
       cfg.N_block = get_X_cfg(N, thresh);
       if (M < 16) cfg.M_block = M;
-      const int nthreads = runtime_config_t::get().threads_per_instance_;
+      const int nthreads = runtime_config_t::get().get_num_threads();
       // refine Blk info by thread info
       if (nthreads == 1) {
         cfg.M_block = std::min(64, M);
@@ -703,7 +703,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
       // this is the gemm output
       if (fusion
         && (bwise_fusion_
-          || M_num_blocks >= runtime_config_t::get().threads_per_instance_)) {
+          || M_num_blocks >= runtime_config_t::get().get_num_threads())) {
         fusion->create_output_fusion_anchor({tensor_slice(C,
           !out_tensors_[0].get_format().is_blocking()
             ? std::vector<std::pair<expr, expr>> {{m_o * M_block, M_block},

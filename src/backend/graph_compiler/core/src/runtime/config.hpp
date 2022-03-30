@@ -24,7 +24,7 @@ namespace sc {
 
 struct SC_INTERNAL_API runtime_config_t {
     // if in muti-instance simulation, the number of threads per instance.
-    int threads_per_instance_;
+    int get_num_threads();
     bool amx_exclusive_;
     std::string trace_out_path_;
     int trace_initial_cap_;

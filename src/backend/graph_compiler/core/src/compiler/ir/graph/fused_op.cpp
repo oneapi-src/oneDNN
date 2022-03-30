@@ -1059,7 +1059,7 @@ void batchwise_fused_op_t::schedule_loops(const stmt &body) {
     for_loop outer_most_loop = body.checked_as<for_loop>();
     outer_most_loop->kind_ = for_type::PARALLEL;
     assert(outer_most_loop.defined());
-    const int run_threads = runtime_config_t::get().threads_per_instance_;
+    const int run_threads = runtime_config_t::get().get_num_threads();
     for_loop cur_loop = outer_most_loop;
     std::vector<for_loop> loops;
     auto fused_number = 1;

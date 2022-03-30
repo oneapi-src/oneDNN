@@ -55,8 +55,7 @@ static int64_t get_loop_range(const for_loop &loop) {
 
 static void fuse_outer_loops(for_loop outer_loop) {
     assert(outer_loop.defined());
-    const int max_fused_number
-            = runtime_config_t::get().threads_per_instance_ * 10;
+    const int max_fused_number = runtime_config_t::get().get_num_threads() * 10;
     for_loop cur_loop = std::move(outer_loop);
     std::vector<for_loop> loops;
     while (cur_loop.defined()) {
@@ -139,7 +138,7 @@ static std::vector<int> move_reduce_axis_to_inner(
             for (int i = 0; i < *reduce_axis.begin(); i++) {
                 parallel_num *= shape[i];
             }
-            auto run_threads = runtime_config_t::get().threads_per_instance_;
+            auto run_threads = runtime_config_t::get().get_num_threads();
             /* Due to loop order not only affect outer-loop parallelism,
              * but also inner-loop fusion, which will affect local buffer size(
              * sensitive to cache line size). Further, more performance data

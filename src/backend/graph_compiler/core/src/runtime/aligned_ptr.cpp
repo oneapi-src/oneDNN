@@ -26,7 +26,7 @@ using utils::parallel;
 
 void generic_ptr_base_t::zeroout() const {
     static constexpr int page_size = 4096;
-    int numthreads = runtime_config_t::get().threads_per_instance_;
+    int numthreads = runtime_config_t::get().get_num_threads();
     parallel(
             [&](uint64_t i, uint64_t n) {
                 if (i != n - 1) {
@@ -44,7 +44,7 @@ void generic_ptr_base_t::zeroout() const {
  * */
 void generic_ptr_base_t::flush_cache() const {
     static constexpr int cache_line_size = 64;
-    int numthreads = runtime_config_t::get().threads_per_instance_;
+    int numthreads = runtime_config_t::get().get_num_threads();
     parallel(
             [&](uint64_t i, uint64_t n) {
                 _mm_clflush(static_cast<const void *>(

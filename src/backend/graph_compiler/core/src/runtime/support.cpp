@@ -93,25 +93,25 @@ runtime_config_t &runtime_config_t::get() {
     return cfg;
 }
 
+#ifdef SC_OMP_ENABLED
+int runtime_config_t::get_num_threads() {
+    return omp_get_max_threads();
+}
+#else
+int runtime_config_t::get_num_threads() {
+    return 1;
+}
+#endif
+
 using namespace env_key;
 runtime_config_t::runtime_config_t() {
-    int ompmaxthreads = 1;
-#ifdef SC_OMP_ENABLED
-    ompmaxthreads = omp_get_max_threads();
-#endif
-    threads_per_instance_
-            = utils::getenv_int(env_names[SC_RUN_THREADS], ompmaxthreads);
-    amx_exclusive_ = static_cast<bool>(
-            utils::getenv_int(env_names[SC_AMX_EXCLUSIVE], 0));
-    if (threads_per_instance_ <= 0) {
-        SC_WARN << "thread_pool_num_threads_per_instance <= 0";
-        threads_per_instance_ = ompmaxthreads;
-    }
     trace_initial_cap_ = 2048 * 1024;
     trace_out_path_ = utils::getenv_string(env_names[SC_TRACE]);
     execution_verbose_
             = (utils::getenv_int(env_names[SC_EXECUTION_VERBOSE], 0) == 1);
 
+    amx_exclusive_ = static_cast<bool>(
+            utils::getenv_int(env_names[SC_AMX_EXCLUSIVE], 0));
     constexpr int default_verbose = 0;
     int tmp_get_verbose_level
             = utils::getenv_int(env_names[SC_VERBOSE], default_verbose);

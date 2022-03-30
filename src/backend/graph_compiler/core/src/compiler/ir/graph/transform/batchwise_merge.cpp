@@ -95,7 +95,7 @@ struct bw_fusion_partition_t : fusion_partition_t {
         if (static_cast<int>(new_dims.size()) < least_shrink_ndim) return false;
         sc_dim prod = get_dims_product(new_dims);
         if (prod == 1) return false;
-        const int run_threads = runtime_config_t::get().threads_per_instance_;
+        const int run_threads = runtime_config_t::get().get_num_threads();
         bool parallelism = (prod / run_threads > 8
                 || (prod % run_threads == 0 && prod >= run_threads));
         if (!parallelism)
