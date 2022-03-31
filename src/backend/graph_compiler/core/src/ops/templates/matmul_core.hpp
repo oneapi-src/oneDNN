@@ -88,7 +88,7 @@ public:
     fusion_manager *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
-  std::shared_ptr<void> get_default_config(context_ptr ctx) const override;
+  config_ptr get_default_config(context_ptr ctx) const override;
 
   void schedule_loops(context_ptr ctx, const matmul_core_config_t &config,
     stmt body, std::vector<for_loop> &fors) const override;

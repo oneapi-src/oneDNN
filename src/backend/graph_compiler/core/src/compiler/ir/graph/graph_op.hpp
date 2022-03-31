@@ -50,9 +50,12 @@ class configurable_graph_op_t : public graph_op_t,
 public:
     std::shared_ptr<sc_graph_t> get_graph() override;
 
-    std::shared_ptr<void> get_config() override;
+    config_ptr get_config() override;
 
-    void set_config(const std::shared_ptr<void> &config) override;
+    void set_config(const config_ptr &config) override;
+
+    reflection::shared_general_object_t get_default_config(
+            context_ptr ctx) override;
 
 protected:
     sc::graph_config config_data_;

@@ -714,8 +714,8 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
         }
     }
     std::vector<for_loop> loops;
-    bool status = gen_ptr->generate(ctx, mainop->get_config().get(), mgr_.get(),
-            origin_ins, outs, loops);
+    bool status = gen_ptr->generate(ctx, mainop->get_config().data_.get(),
+            mgr_.get(), origin_ins, outs, loops);
     assert(status);
     bld.push_returns(true);
     auto body = bld.pop_scope();
@@ -750,7 +750,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     }
     func->body_ = std::move(body);
     gen_ptr->schedule_loops(
-            ctx, mainop->get_config().get(), func->body_, loops);
+            ctx, mainop->get_config().data_.get(), func->body_, loops);
     modu->add_func({func});
     modu->set_entry_func_idx(0);
     return modu;

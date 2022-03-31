@@ -34,10 +34,10 @@ struct config_space;
 } // namespace tuner
 
 namespace graph {
-SC_INTERNAL_API std::unique_ptr<tuner::config_space>
-extract_tuning_space_from_graph(context_ptr ctx, const sc_graph_t &g,
-        std::string space_name = "op_configs");
-
+SC_INTERNAL_API graph_config get_graph_default_config(
+        context_ptr ctx, const sc_graph_t &g);
+SC_INTERNAL_API void set_graph_config(
+        sc_graph_t &g, const graph_config &config);
 } // namespace graph
 } // namespace sc
 

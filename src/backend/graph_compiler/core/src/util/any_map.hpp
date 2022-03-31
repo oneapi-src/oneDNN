@@ -408,6 +408,8 @@ public:
         return vtable_ ? &vtable_->typeinfo_ : nullptr;
     }
 
+    const any_detail::any_vtable_t *vtable() const { return vtable_; }
+
     // returns true if there is any value in this `any_t`
     bool empty() const { return !vtable_; }
 

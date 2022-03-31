@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,10 @@
 #include <compiler/config/context.hpp>
 #include <compiler/ir/graph/tensor_detail.hpp>
 #include <compiler/ir/sc_stmt.hpp>
+#include <util/general_object.hpp>
 namespace sc {
 
+using config_ptr = reflection::shared_general_object_t;
 class fusion_manager;
 struct graph_tensor;
 
@@ -31,9 +33,6 @@ namespace tuner {
 struct config_space;
 using config_space_ptr = std::unique_ptr<tuner::config_space>;
 } // namespace tuner
-
-// fix-me: (lowering) change to config_ptr
-using config_ptr2 = std::shared_ptr<void>;
 
 /**
  * The generator base class to generate IR for the body of an Op
@@ -89,7 +88,7 @@ struct body_generator_base_t {
      * Returns the type-erased default config. You can use `get()` method in
      * the returned object to get the pointer, which can be used in `generate`
      * */
-    virtual std::shared_ptr<void> get_default_config(context_ptr ctx) const = 0;
+    virtual config_ptr get_default_config(context_ptr ctx) const = 0;
 
     virtual void schedule_loops(context_ptr ctx, const void *config, stmt body,
             std::vector<for_loop> &fors) const = 0;

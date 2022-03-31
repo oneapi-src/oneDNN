@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ private:
 
 public:
     outer_loop_generator_t(size_t base_inp_idx = 0);
-    std::shared_ptr<void> get_default_config(context_ptr ctx) const override {
+    config_ptr get_default_config(context_ptr ctx) const override {
         return nullptr;
     }
 

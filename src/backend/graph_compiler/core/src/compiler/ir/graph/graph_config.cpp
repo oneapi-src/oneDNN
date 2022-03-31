@@ -21,8 +21,15 @@
 #include "tunable_op.hpp"
 #include "util/utils.hpp"
 #include "visitor.hpp"
+#include <util/reflection.hpp>
 
 namespace sc {
+
+// clang-format off
+SC_CLASS(graph_config)
+  SC_FIELD(op_cfgs_)
+SC_CLASS_END();
+// clang-format on
 
 namespace graph {
 
@@ -33,9 +40,22 @@ void set_graph_config(sc_graph_t &g, const graph_config &tcfg) {
     vis.visit_graph(g, [&](const sc_op_ptr &op) {
         // avoid out of range error due to some intunable graph op
         if (auto tune_op = op->dyn_cast<op_traits::configurable_t>()) {
-            tune_op->set_config(tcfg.op_cfgs_.at(visited_num++).data_);
+            tune_op->set_config(tcfg.op_cfgs_.at(visited_num++));
         }
     });
+}
+
+graph_config get_graph_default_config(context_ptr ctx, const sc_graph_t &g) {
+    graph_config cfg;
+    op_visitor_t vis(op_visitor_t::dequeue_selector,
+            op_visitor_t::create_DAG_updater(g.ops_.size()));
+    vis.visit_graph(g, [&](const sc_op_ptr &op) {
+        if (auto tune_op = op->dyn_cast<op_traits::configurable_t>()) {
+            auto obj = tune_op->get_default_config(ctx);
+            cfg.op_cfgs_.emplace_back(std::move(obj));
+        }
+    });
+    return cfg;
 }
 } // namespace graph
 

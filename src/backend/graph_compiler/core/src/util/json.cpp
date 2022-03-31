@@ -67,6 +67,8 @@ void handler<any_t>::read(json_reader *reader, any_t *data) {
 using stdanymap = std::unordered_map<std::string, any_t>;
 static reflection::type general_obj_type
         = reflection::type_registry<reflection::general_object_t>::type_;
+static reflection::type general_shared_obj_type
+        = reflection::type_registry<reflection::shared_general_object_t>::type_;
 static reflection::type std_anymap_type
         = reflection::type_registry<stdanymap>::type_;
 
@@ -100,6 +102,12 @@ struct jsonwrite_visitor_t : public reflection::visitor_t {
         } else if (v1->type_ == general_obj_type) {
             auto &obj = *reinterpret_cast<reflection::general_object_t *>(
                     v1->data_);
+            write_object(writer, &obj.vtable_->name_, obj.data_.get(),
+                    obj.vtable_.get());
+        } else if (v1->type_ == general_shared_obj_type) {
+            auto &obj
+                    = *reinterpret_cast<reflection::shared_general_object_t *>(
+                            v1->data_);
             write_object(writer, &obj.vtable_->name_, obj.data_.get(),
                     obj.vtable_.get());
         } else {
@@ -215,6 +223,11 @@ void handler<reflection::general_ref_t>::read(
         auto &obj = *reinterpret_cast<reflection::general_object_t *>(
                 data->data_);
         obj = read_tagged_object(reader);
+    } else if (data->type_ == general_shared_obj_type) {
+        auto &target = *reinterpret_cast<reflection::shared_general_object_t *>(
+                data->data_);
+        reflection::general_object_t obj = read_tagged_object(reader);
+        target = std::move(obj);
     } else if (data->type_.array_depth_ >= 1) {
         assert(data->type_.meta_
                 && data->type_.meta_->vector_kind_

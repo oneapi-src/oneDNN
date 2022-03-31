@@ -29,9 +29,20 @@
 #include <runtime/parallel.hpp>
 #include <util/any_map.hpp>
 #include <util/math_utils.hpp>
+#include <util/reflection.hpp>
 
 using namespace sc::builder;
 namespace sc {
+
+using ops::matmul_core_config_t;
+// clang-format off
+SC_CLASS(matmul_core_config_t)
+  SC_FIELD(M_block)
+  SC_FIELD(N_block)
+  SC_FIELD(K_block)
+SC_CLASS_END();
+// clang-format on
+
 namespace ops {
 
 template <typename T>
@@ -84,18 +95,17 @@ static inline int get_X_cfg(const int size, int thresh = 64) {
 // to 16x for f32/s32, and should be close to M_blk, rnd_dn(M_blk, 16) is fine
 // 3. smaller M*K should use 32 as k_blk, threshold is still testing
 
-std::shared_ptr<void> gen_matmul_core_t::get_default_config(
-  context_ptr ctx) const {
+config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
   // todo:(xianhang) take into consideration num thread information from
   // threadpool
-  auto ret = std::make_shared<matmul_core_config_t>();
+  auto ret = reflection::general_object_t::make<matmul_core_config_t>();
   const bool is_amx = is_use_amx(ctx);
   const bool is_int8
     = utils::is_one_of(get_in_dtypes(0), datatypes::u8, datatypes::s8);
   const bool is_bf16 = get_in_dtypes(0) == datatypes::bf16;
   const int max_block = 64;
   const int min_block = 32;
-  matmul_core_config_t &cfg = *ret;
+  matmul_core_config_t &cfg = *ret.unchecked_get_as<matmul_core_config_t>();
   const auto A_plain_dims = get_mma_plain_dims();
   const auto B_plain_dims = get_mmb_plain_dims();
   std::vector<int> possible_blks;
@@ -109,7 +119,7 @@ std::shared_ptr<void> gen_matmul_core_t::get_default_config(
       cfg.N_block = 64;
       // Safe Guard: avoid K_block % rbd != 0
       validate_cfg(cfg, is_amx, get_in_dtypes(0));
-      return ret;
+      return std::move(ret);
     }
   } else {
     is_cfg_set = true;
@@ -227,7 +237,7 @@ std::shared_ptr<void> gen_matmul_core_t::get_default_config(
     }
   }
   validate_cfg(cfg, is_amx, get_in_dtypes(0));
-  return ret;
+  return std::move(ret);
 }
 
 gen_matmul_core_t::gen_matmul_core_t(

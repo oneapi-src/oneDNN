@@ -24,9 +24,13 @@
 namespace sc {
 namespace op_traits {
 struct configurable_t : public virtual op_base_trait_t {
-    virtual std::shared_ptr<void> get_config() = 0;
+    virtual reflection::shared_general_object_t get_config() = 0;
 
-    virtual void set_config(const std::shared_ptr<void> &config) = 0;
+    virtual void set_config(const reflection::shared_general_object_t &config)
+            = 0;
+    virtual reflection::shared_general_object_t get_default_config(
+            context_ptr ctx)
+            = 0;
 };
 
 } // namespace op_traits

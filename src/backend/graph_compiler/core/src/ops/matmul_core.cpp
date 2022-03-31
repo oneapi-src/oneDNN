@@ -25,6 +25,7 @@
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <util/reflection.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
@@ -114,7 +115,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     const sc_dim N = B_dims.back();
 
     const matmul_core_config_t &tcfg
-            = *reinterpret_cast<matmul_core_config_t *>(config_data_.get());
+            = *config_data_.get_as<matmul_core_config_t>();
     int M_block = tcfg.M_block, N_block = tcfg.N_block, K_block = tcfg.K_block;
     //     bool is_train = attrs_.get_or_else("temp.train", false);
     in_formats.reserve(2);

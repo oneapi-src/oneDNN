@@ -51,16 +51,17 @@ public:
     }
     ir_module_ptr get_func(context_ptr ctx) override;
 
-    std::shared_ptr<void> get_config() override { return config_data_; }
+    config_ptr get_config() override { return config_data_; }
 
-    void set_config(const std::shared_ptr<void> &config) override;
-
+    void set_config(const config_ptr &config) override;
     void set_config_if_empty(context_ptr ctx, body_generator_base_t *p);
+
+    config_ptr get_default_config(context_ptr ctx) override;
 
     virtual body_generator_ptr create_generator() = 0;
 
 protected:
-    std::shared_ptr<void> config_data_;
+    config_ptr config_data_;
 };
 
 } // namespace sc

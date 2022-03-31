@@ -47,14 +47,18 @@ std::shared_ptr<sc_graph_t> configurable_graph_op_t::get_graph() {
     return g;
 }
 
-std::shared_ptr<void> configurable_graph_op_t::get_config() {
-    auto cfg = std::make_shared<graph_config>();
-    *cfg = config_data_;
-    return cfg;
+config_ptr configurable_graph_op_t::get_config() {
+    return reflection::general_object_t::make(config_data_);
 }
 
-void configurable_graph_op_t::set_config(const std::shared_ptr<void> &config) {
-    config_data_ = *reinterpret_cast<graph_config *>(config.get());
+void configurable_graph_op_t::set_config(const config_ptr &config) {
+    config_data_ = *config.get_as<graph_config>();
+}
+
+config_ptr configurable_graph_op_t::get_default_config(context_ptr ctx) {
+    auto op_graph = this->get_graph();
+    return reflection::general_object_t::make(
+            sc::graph::get_graph_default_config(ctx, *op_graph));
 }
 
 } // namespace sc

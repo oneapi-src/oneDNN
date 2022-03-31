@@ -1,6 +1,6 @@
 
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,13 +104,28 @@ struct SC_INTERNAL_API general_object_t {
     std::unique_ptr<void, void (*)(void *)> move_to_unique_ptr();
 
     template <typename T>
-    T *get_as() {
+    static general_object_t make() {
+        static_assert(std::is_class<T>::value,
+                "general_object_t::make must be applied on a class");
+        return type_registry<T>::metadata()->make_instance();
+    }
+
+    template <typename T>
+    static general_object_t make(T &&v) {
+        using decay_t = typename std::decay<T>::type;
+        auto ret = make<decay_t>();
+        *ret.template unchecked_get_as<decay_t>() = std::forward<T>(v);
+        return ret;
+    }
+
+    template <typename T>
+    T *get_as() const {
         assert(type_registry<T>::metadata() == vtable_.get());
         return reinterpret_cast<T *>(data_.get());
     }
 
     template <typename T>
-    T *unchecked_get_as() {
+    T *unchecked_get_as() const {
         return reinterpret_cast<T *>(data_.get());
     }
 
@@ -130,6 +145,8 @@ struct SC_INTERNAL_API general_object_t {
             class_metadata *vtable);
     static void copy_to_any_map(std::unordered_map<std::string, any_t> &m,
             void *object, class_metadata *vtable);
+
+    void *get() const { return data_.get(); }
 };
 
 /**
@@ -142,6 +159,7 @@ struct SC_INTERNAL_API shared_general_object_t {
     // the function table of a user-defined class
     std::shared_ptr<class_metadata> vtable_;
 
+    shared_general_object_t(std::nullptr_t) {};
     shared_general_object_t() = default;
     shared_general_object_t(const shared_general_object_t &) = default;
     shared_general_object_t(shared_general_object_t &&) = default;
@@ -169,15 +187,19 @@ struct SC_INTERNAL_API shared_general_object_t {
     }
 
     template <typename T>
-    T *get_as() {
+    T *get_as() const {
         assert(type_registry<T>::metadata() == vtable_.get());
         return reinterpret_cast<T *>(data_.get());
     }
 
     template <typename T>
-    T *unchecked_get_as() {
+    T *unchecked_get_as() const {
         return reinterpret_cast<T *>(data_.get());
     }
+
+    operator bool() const { return bool(data_); }
+
+    void *get() const { return data_.get(); };
 };
 
 // General reference. Similar to general_object_t, except that this is a borrow

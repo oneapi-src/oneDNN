@@ -39,7 +39,8 @@ sc_op_ptr tunable_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
 
 bool tunable_op_t::is_valid(const context_ptr &ctx) {
     if (!config_data_
-            || !create_generator()->is_valid_config(ctx, config_data_.get())) {
+            || !create_generator()->is_valid_config(
+                    ctx, config_data_.data_.get())) {
         return false;
     }
     return true;
@@ -57,11 +58,11 @@ ir_module_ptr tunable_op_t::get_func(context_ptr ctx) {
     bld.push_scope();
     std::vector<for_loop> loops;
     bool status = gen_ptr->generate(
-            ctx, config_data_.get(), nullptr, ins, outs, loops);
+            ctx, config_data_.data_.get(), nullptr, ins, outs, loops);
     assert(status);
     bld.push_returns(true);
     auto body = bld.pop_scope();
-    gen_ptr->schedule_loops(ctx, config_data_.get(), body, loops);
+    gen_ptr->schedule_loops(ctx, config_data_.data_.get(), body, loops);
     auto args = outs;
     args.insert(args.end(), ins.begin(), ins.end());
 
@@ -71,13 +72,18 @@ ir_module_ptr tunable_op_t::get_func(context_ptr ctx) {
     return ret;
 }
 
-void tunable_op_t::set_config(const std::shared_ptr<void> &config) {
+void tunable_op_t::set_config(const config_ptr &config) {
     config_data_ = config;
 }
 
 void tunable_op_t::set_config_if_empty(
         context_ptr ctx, body_generator_base_t *p) {
     if (!config_data_) { set_config(p->get_default_config(std::move(ctx))); }
+}
+
+config_ptr tunable_op_t::get_default_config(context_ptr ctx) {
+    auto gen = this->create_generator();
+    return gen->get_default_config(ctx);
 }
 
 } // namespace sc
