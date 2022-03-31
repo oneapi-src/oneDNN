@@ -89,7 +89,7 @@ public:
             std::shared_ptr<fusion_manager> fuse_mgr,
             const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph() override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
     ir_module_ptr get_func(context_ptr ctx) override;
     bool is_valid(const context_ptr &) override;
     bool compare_contents(const sc_op *other) const override;
@@ -118,7 +118,7 @@ public:
 
     std::vector<sc_op_ptr> ops_to_merge_;
     ir_module_ptr get_func(context_ptr ctx) override;
-    std::shared_ptr<sc_graph_t> get_graph() override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
     void schedule_loops(const stmt &body);
 };
 
@@ -131,7 +131,7 @@ public:
     sc_dims bw_dims_;
     sc_graph_t bw_graph_;
     ir_module_ptr get_func(context_ptr ctx) override;
-    std::shared_ptr<sc_graph_t> get_graph() override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
     void schedule_loops(const stmt &body);
 };
 } // namespace sc

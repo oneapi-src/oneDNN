@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     quantize_op_t(const std::vector<graph_tensor_ptr> &ins,
             const any_map_t &attrs = any_map_t());
-    std::shared_ptr<sc_graph_t> get_graph() override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<sc_data_format_t>> &in_formats,
             std::vector<std::vector<sc_data_format_t>> &out_formats) override;
@@ -48,7 +48,7 @@ public:
     dequantize_op_t(const std::vector<graph_tensor_ptr> &ins,
             const any_map_t &attrs = any_map_t());
 
-    std::shared_ptr<sc_graph_t> get_graph() override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<sc_data_format_t>> &in_formats,
             std::vector<std::vector<sc_data_format_t>> &out_formats) override;

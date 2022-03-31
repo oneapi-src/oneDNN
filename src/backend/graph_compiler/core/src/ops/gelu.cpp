@@ -46,7 +46,7 @@ gelu_backprop_op::gelu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
     op_name_ = "gelu_backprop";
 }
 
-std::shared_ptr<sc_graph_t> gelu_op::get_graph() {
+std::shared_ptr<sc_graph_t> gelu_op::get_graph_impl() {
     auto graph = std::make_shared<sc_graph_t>();
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
@@ -99,7 +99,7 @@ std::shared_ptr<sc_graph_t> gelu_op::get_graph() {
     return graph;
 }
 
-std::shared_ptr<sc_graph_t> gelu_backprop_op::get_graph() {
+std::shared_ptr<sc_graph_t> gelu_backprop_op::get_graph_impl() {
     auto graph = std::make_shared<sc_graph_t>();
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;

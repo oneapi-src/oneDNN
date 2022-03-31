@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,9 +61,7 @@ basic_graph_pass_ptr create_graph_pass(const std::string &name, pass_func func,
 // enabled_ is true. If pass has dependencies and executed by sepcial situations
 // like: assuming having analaysis_xxx pass return tue, a pass will be opened
 // (enabled_ sets true) and the passes it depends on also need to be opened.
-SC_API const std::tuple<std::vector<basic_graph_pass_ptr>,
-        std::vector<basic_graph_pass_ptr>> &
-get_graph_passes();
+SC_API const std::vector<basic_graph_pass_ptr> &get_graph_passes();
 
 /**
  * @param graph orginal graph
@@ -107,8 +105,7 @@ SC_API void graph_driver(sc_graph_t &graph,
         const graph_config *in_cfg = nullptr, graph_config *out_cfg = nullptr,
         int tuner_batch = 0, int repeat = 0, int64_t timeout = 0,
         tuner_creator *tune_creator = nullptr,
-        std::vector<basic_graph_pass_ptr> *pre_tune_pass = nullptr,
-        std::vector<basic_graph_pass_ptr> *post_tune_pass = nullptr);
+        std::vector<basic_graph_pass_ptr> *passes = nullptr);
 
 } // namespace sc
 

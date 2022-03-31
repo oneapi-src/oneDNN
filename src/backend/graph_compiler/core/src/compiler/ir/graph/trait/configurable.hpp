@@ -13,27 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_SIGMOID_BACKPROP_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_SIGMOID_BACKPROP_HPP
+
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_TRAIT_CONFIGURABLE_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_TRAIT_CONFIGURABLE_HPP
 
 #include <memory>
-#include <vector>
-#include <compiler/ir/graph/graph_op.hpp>
+#include <compiler/ir/graph/traits.hpp>
+#include <util/general_object.hpp>
 
 namespace sc {
-namespace ops {
+namespace op_traits {
+struct configurable_t : public virtual op_base_trait_t {
+    virtual std::shared_ptr<void> get_config() = 0;
 
-class sigmoid_backprop_op : public graph_op_t,
-                            public op_traits::auto_copyable_t {
-public:
-    sigmoid_backprop_op(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+    virtual void set_config(const std::shared_ptr<void> &config) = 0;
 };
-} // namespace ops
+
+} // namespace op_traits
 } // namespace sc
 
 #endif

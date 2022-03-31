@@ -27,7 +27,7 @@ class gelu_op : public graph_op_t, public op_traits::auto_copyable_t {
 public:
     gelu_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph() override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<sc_data_format_t>> &in_formats,
             std::vector<std::vector<sc_data_format_t>> &out_formats) override;
@@ -37,7 +37,7 @@ class gelu_backprop_op : public graph_op_t, public op_traits::auto_copyable_t {
 public:
     gelu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph() override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<sc_data_format_t>> &in_formats,
             std::vector<std::vector<sc_data_format_t>> &out_formats) override;

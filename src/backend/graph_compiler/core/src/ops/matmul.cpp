@@ -82,7 +82,7 @@ static void transed_matmul(const std::shared_ptr<sc_graph_t> &graph,
     }
 }
 
-std::shared_ptr<sc_graph_t> matmul_op::get_graph() {
+std::shared_ptr<sc_graph_t> matmul_op::get_graph_impl() {
     auto graph = std::make_shared<sc_graph_t>();
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;

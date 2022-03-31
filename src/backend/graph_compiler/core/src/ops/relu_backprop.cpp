@@ -33,7 +33,7 @@ relu_backprop_op::relu_backprop_op(const std::vector<graph_tensor_ptr> &ins,
     op_name_ = "relu_backprop";
 }
 
-std::shared_ptr<sc_graph_t> relu_backprop_op::get_graph() {
+std::shared_ptr<sc_graph_t> relu_backprop_op::get_graph_impl() {
     auto graph = std::make_shared<sc_graph_t>();
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;

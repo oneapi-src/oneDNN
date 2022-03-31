@@ -44,68 +44,61 @@ basic_graph_pass_ptr create_graph_pass(const std::string &name,
             func_t, name, requires, type, enabled);
 }
 
-static std::tuple<std::vector<basic_graph_pass_ptr>,
-        std::vector<basic_graph_pass_ptr>>
-create_default_graph_flow() {
-    std::vector<basic_graph_pass_ptr> pre_tune_passes, post_tune_passes;
-    pre_tune_passes.push_back(create_graph_pass("analysis_quantized",
-            analysis_quantized, {}, pass_type::analysis, true));
-    pre_tune_passes.push_back(create_graph_pass(
+static std::vector<basic_graph_pass_ptr> create_default_graph_flow() {
+    std::vector<basic_graph_pass_ptr> passes;
+    passes.push_back(create_graph_pass("analysis_quantized", analysis_quantized,
+            {}, pass_type::analysis, true));
+    passes.push_back(create_graph_pass(
             "graph_inline", graph_inline, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("constant_optimization",
+    passes.push_back(create_graph_pass("constant_optimization",
             constant_optimization, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("quantized_info_propagation",
+    passes.push_back(create_graph_pass("quantized_info_propagation",
             quantize::quantize_info_propagation, {}, pass_type::pre_tune,
             true));
-    pre_tune_passes.push_back(create_graph_pass("quantized_graph_reschedule",
+    passes.push_back(create_graph_pass("quantized_graph_reschedule",
             quantize::graph_reschedule, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("quantize_inline",
+    passes.push_back(create_graph_pass("quantize_inline",
             quantize::quantize_inline, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("elemtwise_bcast_swap",
+    passes.push_back(create_graph_pass("elemtwise_bcast_swap",
             elemwise_bcast_swap, {}, pass_type::pre_tune, true));
-    pre_tune_passes.push_back(create_graph_pass("permute_propagation",
+    passes.push_back(create_graph_pass("permute_propagation",
             permute_propagation, {}, pass_type::pre_tune, true));
 
     // ------------------ post_tune -------------------------------------------
-    post_tune_passes.push_back(create_graph_pass("quantize_op_compensation",
+    passes.push_back(create_graph_pass("quantize_op_compensation",
             quantize::calculate_op_compensation, {}, pass_type::post_tune,
             true));
-    post_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
+    passes.push_back(create_graph_pass("elemwise_dimension_alignment",
             elemwise_dimension_alignment, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("layout_propagation",
-            layout_propagation, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("tensor_view_transform",
+    passes.push_back(create_graph_pass("layout_propagation", layout_propagation,
+            {}, pass_type::post_tune, true));
+    passes.push_back(create_graph_pass("tensor_view_transform",
             tensor_view_transform, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass(
+    passes.push_back(create_graph_pass(
             "graph_simplify", graph_simplify, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("global_reschedule",
-            global_reschedule, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("const_folding",
+    passes.push_back(create_graph_pass("global_reschedule", global_reschedule,
+            {}, pass_type::post_tune, true));
+    passes.push_back(create_graph_pass("const_folding",
             graph_constant_input_folding, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass(
+    passes.push_back(create_graph_pass(
             "fuse_ops", fuse_ops, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("horizontal_merge",
-            horizontal_merge, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("const_folding",
+    passes.push_back(create_graph_pass("horizontal_merge", horizontal_merge, {},
+            pass_type::post_tune, true));
+    passes.push_back(create_graph_pass("const_folding",
             graph_constant_input_folding, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("inplace_transform",
-            inplace_transform, {}, pass_type::post_tune, true));
-    post_tune_passes.push_back(create_graph_pass("batchwise_merge",
-            batchwise_merge, {}, pass_type::post_tune, true));
+    passes.push_back(create_graph_pass("inplace_transform", inplace_transform,
+            {}, pass_type::post_tune, true));
+    passes.push_back(create_graph_pass("batchwise_merge", batchwise_merge, {},
+            pass_type::post_tune, true));
 
     // get passes map
     std::unordered_map<std::string, basic_graph_pass_ptr> passes_map;
-    std::transform(pre_tune_passes.begin(), pre_tune_passes.end(),
+    std::transform(passes.begin(), passes.end(),
             std::inserter(passes_map, passes_map.end()),
             [](const basic_graph_pass_ptr &pass) {
                 return std::make_pair(pass->name_, pass);
             });
 
-    std::transform(post_tune_passes.begin(), post_tune_passes.end(),
-            std::inserter(passes_map, passes_map.end()),
-            [](const basic_graph_pass_ptr &pass) {
-                return std::make_pair(pass->name_, pass);
-            });
     // get pass's dependies and reset enabled_.
     for (auto &kv : passes_map) {
         if (kv.second->enabled_) {
@@ -114,12 +107,10 @@ create_default_graph_flow() {
             }
         }
     }
-    return std::make_tuple(pre_tune_passes, post_tune_passes);
+    return passes;
 }
 
-const std::tuple<std::vector<basic_graph_pass_ptr>,
-        std::vector<basic_graph_pass_ptr>> &
-get_graph_passes() {
+const std::vector<basic_graph_pass_ptr> &get_graph_passes() {
     static auto passes = create_default_graph_flow();
     return passes;
 }
@@ -185,20 +176,12 @@ void dump_graph_to_json(const sc_graph_t &graph) {
 void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         const graph_config *in_cfg, graph_config *out_cfg, int batch_size,
         int repeat, int64_t timeout, tuner_creator *tune_creator,
-        std::vector<basic_graph_pass_ptr> *pre_tune_pass,
-        std::vector<basic_graph_pass_ptr> *post_tune_pass) {
-    auto &passes_tuple = get_graph_passes();
-
-    const std::vector<basic_graph_pass_ptr> *prepass
-            = pre_tune_pass ? pre_tune_pass : &std::get<0>(passes_tuple);
-    const std::vector<basic_graph_pass_ptr> *postpass
-            = post_tune_pass ? post_tune_pass : &std::get<1>(passes_tuple);
-    // run pre_processing passes
-    run_passes(graph, ctx, *prepass);
+        std::vector<basic_graph_pass_ptr> *passes) {
+    auto all_pass = passes ? passes : &get_graph_passes();
 
     dump_graph_to_json(graph);
-    // run post tune passes
-    run_passes(graph, ctx, *postpass);
+    // run passes
+    run_passes(graph, ctx, *all_pass);
 }
 
 void graph_driver(

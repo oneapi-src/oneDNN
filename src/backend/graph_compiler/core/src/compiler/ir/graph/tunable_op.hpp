@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,16 +22,17 @@
 #include <string>
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
+#include <compiler/ir/graph/trait/configurable.hpp>
 #include <compiler/ir/graph/traits.hpp>
 #include <ops/body_generator.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
-class SC_INTERNAL_API tunable_op_t
-    : public sc_op,
-      public op_traits::copyable_t,
-      public op_traits::may_quantize_t,
-      public op_traits::post_fusion_acceptable_t {
+class SC_INTERNAL_API tunable_op_t : public sc_op,
+                                     public op_traits::copyable_t,
+                                     public op_traits::may_quantize_t,
+                                     public op_traits::post_fusion_acceptable_t,
+                                     public op_traits::configurable_t {
 public:
     tunable_op_t(const std::string &op_name,
             const std::vector<graph_tensor_ptr> &ins,
@@ -50,9 +51,10 @@ public:
     }
     ir_module_ptr get_func(context_ptr ctx) override;
 
-    std::shared_ptr<void> get_config() { return config_data_; }
+    std::shared_ptr<void> get_config() override { return config_data_; }
 
-    void set_config(const std::shared_ptr<void> &config);
+    void set_config(const std::shared_ptr<void> &config) override;
+
     void set_config_if_empty(context_ptr ctx, body_generator_base_t *p);
 
     virtual body_generator_ptr create_generator() = 0;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ class softmax_op : public graph_op_t, public op_traits::auto_copyable_t {
 public:
     softmax_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph() override;
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
     void query_format(context_ptr ctx,
             std::vector<std::vector<sc_data_format_t>> &in_formats,
             std::vector<std::vector<sc_data_format_t>> &out_formats) override;

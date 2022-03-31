@@ -70,7 +70,7 @@ quantize_op_t::quantize_op_t(
         const std::vector<graph_tensor_ptr> &ins, const any_map_t &attrs)
     : quantize_op_t(ins, std::vector<graph_tensor_ptr>(), attrs) {}
 
-std::shared_ptr<sc_graph_t> quantize_op_t::get_graph() {
+std::shared_ptr<sc_graph_t> quantize_op_t::get_graph_impl() {
     auto graph = std::make_shared<sc_graph_t>();
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
@@ -168,7 +168,7 @@ dequantize_op_t::dequantize_op_t(
         const std::vector<graph_tensor_ptr> &ins, const any_map_t &attrs)
     : dequantize_op_t(ins, std::vector<graph_tensor_ptr>(), attrs) {}
 
-std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph() {
+std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph_impl() {
     auto graph = std::make_shared<sc_graph_t>();
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;

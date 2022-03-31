@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,17 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_OP_HPP
 
 #include <memory>
+#include <utility>
 #include <vector>
 #include "graph.hpp"
-#include "traits.hpp"
+#include "util/general_object.hpp"
+#include <compiler/ir/graph/graph_config.hpp>
+#include <compiler/ir/graph/trait/configurable.hpp>
+#include <compiler/ir/graph/tunable_op.hpp>
+#include <util/reflection.hpp>
+#include <util/utils.hpp>
 
 namespace sc {
-
 class fusion_manager;
 
 class graph_op_t : public sc_op {
@@ -32,11 +37,27 @@ public:
             std::vector<std::vector<sc_data_format_t>> &in_formats,
             std::vector<std::vector<sc_data_format_t>> &out_formats)
             override {};
-    virtual std::shared_ptr<sc_graph_t> get_graph() = 0;
+    virtual std::shared_ptr<sc_graph_t> get_graph_impl() = 0;
+
+    virtual std::shared_ptr<sc_graph_t> get_graph();
 
     static std::vector<graph_tensor_ptr> remake_logical_tensors(
             const std::vector<graph_tensor_ptr> &flts);
 };
+
+class configurable_graph_op_t : public graph_op_t,
+                                public op_traits::configurable_t {
+public:
+    std::shared_ptr<sc_graph_t> get_graph() override;
+
+    std::shared_ptr<void> get_config() override;
+
+    void set_config(const std::shared_ptr<void> &config) override;
+
+protected:
+    sc::graph_config config_data_;
+};
+
 } // namespace sc
 
 #endif

@@ -216,7 +216,7 @@ bool fused_op_t::is_valid(const context_ptr &ctx) {
     return main_op_.ops_[1]->is_valid(ctx);
 }
 
-std::shared_ptr<sc_graph_t> fused_op_t::get_graph() {
+std::shared_ptr<sc_graph_t> fused_op_t::get_graph_impl() {
     throw std::runtime_error("fused_op_t::get_graph Not implemented");
     return nullptr;
 }
@@ -756,7 +756,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     return modu;
 }
 
-std::shared_ptr<sc_graph_t> horizontal_fused_op_t::get_graph() {
+std::shared_ptr<sc_graph_t> horizontal_fused_op_t::get_graph_impl() {
     throw std::runtime_error("horiaontal_fused_op::get_graph Not implemented");
     return nullptr;
 }
@@ -1076,7 +1076,7 @@ void batchwise_fused_op_t::schedule_loops(const stmt &body) {
     }
 }
 
-std::shared_ptr<sc_graph_t> batchwise_fused_op_t::get_graph() {
+std::shared_ptr<sc_graph_t> batchwise_fused_op_t::get_graph_impl() {
     throw std::runtime_error("batchwise_fused_op_t::get_graph Not implemented");
     return nullptr;
 }

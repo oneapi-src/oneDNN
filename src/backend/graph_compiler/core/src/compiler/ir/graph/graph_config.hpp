@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,27 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_SIGMOID_BACKPROP_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_SIGMOID_BACKPROP_HPP
+
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_CONFIG_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_CONFIG_HPP
 
 #include <memory>
+#include <string>
 #include <vector>
-#include <compiler/ir/graph/graph_op.hpp>
+#include "graph.hpp"
+#include "util/general_object.hpp"
 
 namespace sc {
-namespace ops {
-
-class sigmoid_backprop_op : public graph_op_t,
-                            public op_traits::auto_copyable_t {
-public:
-    sigmoid_backprop_op(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    std::shared_ptr<sc_graph_t> get_graph_impl() override;
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+// todo(zhichen): replaced by any map
+struct graph_config {
+    std::vector<reflection::shared_general_object_t> op_cfgs_;
+    // maybe anther config item in the future
 };
-} // namespace ops
+namespace tuner {
+struct config_space;
+} // namespace tuner
+
+namespace graph {
+SC_INTERNAL_API std::unique_ptr<tuner::config_space>
+extract_tuning_space_from_graph(context_ptr ctx, const sc_graph_t &g,
+        std::string space_name = "op_configs");
+
+} // namespace graph
 } // namespace sc
 
 #endif

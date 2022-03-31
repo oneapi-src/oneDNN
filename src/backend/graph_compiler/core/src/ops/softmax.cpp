@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ softmax_op::softmax_op(const std::vector<graph_tensor_ptr> &ins,
     op_name_ = "softmax";
 }
 
-std::shared_ptr<sc_graph_t> softmax_op::get_graph() {
+std::shared_ptr<sc_graph_t> softmax_op::get_graph_impl() {
     auto graph = std::make_shared<sc_graph_t>();
     // create new input logical tensors
     std::vector<graph_tensor_ptr> inputs, outputs;
