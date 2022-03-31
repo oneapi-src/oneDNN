@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,9 @@ struct generic_reorder_t : public gpu_primitive_t {
                     && src_engine->kind() == engine_kind::gpu && attr_ok()
                     && extra_ok();
             if (!ok) return status::unimplemented;
+
+            if (memory_desc_wrapper(src_md()).has_runtime_dims_or_strides())
+                return status::unimplemented;
 
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine->kind() == engine_kind::gpu ? dst_engine
