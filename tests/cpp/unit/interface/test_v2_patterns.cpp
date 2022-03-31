@@ -1384,3 +1384,182 @@ TEST(PatternMatcherV2, NestedRepetitionOptional) {
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
     ASSERT_EQ(fusion_ops.size(), 3);
 }
+
+TEST(PatternMatcherV2, RepetitionExternalOutput) {
+    /*
+    pattern:
+          matmul                    \
+         |      \(external_output)   |
+      activation                     |  * [1,10)
+         |      \(external_output)   /
+
+    graph:
+         matmul
+          |    \
+          relu  ext0
+          |   \
+         matmul ext1
+          |    \
+          relu  ext2
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
+    auto matmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
+    matmul->allow_external_output(0);
+    auto activation = fwd_mlp_layer->append_alternation(
+            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
+            {in_edge(0, matmul, 0)}, "activation");
+    activation->allow_external_output(0);
+    fwd_mlp_layer->create_input_port(0, matmul, 0);
+    fwd_mlp_layer->create_output_port(0, activation, 0);
+
+    // repeat layer for [1, 10) times
+    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10, "rep_unit");
+
+    graph_t agraph;
+    op_t matmul0 {0, MatMul, "matmul0"};
+    op_t relu0 {1, ReLU, "relu0"};
+    op_t matmul1 {2, MatMul, "matmul1"};
+    op_t relu1 {3, ReLU, "relu1"};
+
+    op_t ext0 {4, StaticTranspose, "ext0"};
+    ext0.set_attr("order", std::vector<int64_t> {0, 1});
+    op_t ext1 {5, StaticTranspose, "ext1"};
+    ext1.set_attr("order", std::vector<int64_t> {0, 1});
+    op_t ext2 {6, StaticTranspose, "ext2"};
+    ext2.set_attr("order", std::vector<int64_t> {0, 1});
+
+    auto lt0 = logical_tensor_init(0, impl::data_type::f32);
+    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
+    auto lt2 = logical_tensor_init(2, impl::data_type::f32);
+    matmul0.add_input(lt0);
+    matmul0.add_input(lt1);
+    matmul0.add_output(lt2);
+    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    relu0.add_input(lt2);
+    relu0.add_output(lt3);
+    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
+    auto lt5 = logical_tensor_init(5, impl::data_type::f32);
+    matmul1.add_input(lt3);
+    matmul1.add_input(lt4);
+    matmul1.add_output(lt5);
+    auto lt6 = logical_tensor_init(6, impl::data_type::f32);
+    relu1.add_input(lt5);
+    relu1.add_output(lt6);
+    auto lt7 = logical_tensor_init(7, impl::data_type::f32);
+    auto lt8 = logical_tensor_init(8, impl::data_type::f32);
+    auto lt9 = logical_tensor_init(9, impl::data_type::f32);
+    ext0.add_input(lt2);
+    ext0.add_output(lt7);
+    ext1.add_input(lt3);
+    ext1.add_output(lt8);
+    ext2.add_input(lt5);
+    ext2.add_output(lt9);
+
+    ASSERT_EQ(agraph.add_op(&matmul0), status::success);
+    ASSERT_EQ(agraph.add_op(&relu0), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu1), status::success);
+    ASSERT_EQ(agraph.add_op(&ext0), status::success);
+    ASSERT_EQ(agraph.add_op(&ext1), status::success);
+    ASSERT_EQ(agraph.add_op(&ext2), status::success);
+    agraph.build_graph();
+    dnnl_graph_graph_visualize(&agraph, 1);
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 4);
+}
+
+TEST(PatternMatcherV2, RepetitionExternalOutputSwapOrder) {
+    /*
+    pattern:
+          matmul                    \
+         |      \(external_output)   |
+      activation                     |  * [1,10)
+         |      \(external_output)   /
+
+    graph:
+         matmul
+        /    |
+      ext0  relu
+           / |
+       ext1 matmul
+            /  |
+          ext2 relu
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
+    auto matmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "matmul");
+    matmul->allow_external_output(0);
+    auto activation = fwd_mlp_layer->append_alternation(
+            {impl::op_kind::ReLU, impl::op_kind::Sigmoid, impl::op_kind::Tanh},
+            {in_edge(0, matmul, 0)}, "activation");
+    activation->allow_external_output(0);
+    fwd_mlp_layer->create_input_port(0, matmul, 0);
+    fwd_mlp_layer->create_output_port(0, activation, 0);
+
+    // repeat layer for [1, 10) times
+    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10, "rep_unit");
+
+    graph_t agraph;
+    op_t matmul0 {0, MatMul, "matmul0"};
+    op_t relu0 {1, ReLU, "relu0"};
+    op_t matmul1 {2, MatMul, "matmul1"};
+    op_t relu1 {3, ReLU, "relu1"};
+
+    op_t ext0 {4, StaticTranspose, "ext0"};
+    ext0.set_attr("order", std::vector<int64_t> {0, 1});
+    op_t ext1 {5, StaticTranspose, "ext1"};
+    ext1.set_attr("order", std::vector<int64_t> {0, 1});
+    op_t ext2 {6, StaticTranspose, "ext2"};
+    ext2.set_attr("order", std::vector<int64_t> {0, 1});
+
+    auto lt0 = logical_tensor_init(0, impl::data_type::f32);
+    auto lt1 = logical_tensor_init(1, impl::data_type::f32);
+    auto lt2 = logical_tensor_init(2, impl::data_type::f32);
+    matmul0.add_input(lt0);
+    matmul0.add_input(lt1);
+    matmul0.add_output(lt2);
+
+    auto lt7 = logical_tensor_init(7, impl::data_type::f32);
+    ext0.add_input(lt2);
+    ext0.add_output(lt7);
+
+    auto lt3 = logical_tensor_init(3, impl::data_type::f32);
+    relu0.add_input(lt2);
+    relu0.add_output(lt3);
+
+    auto lt8 = logical_tensor_init(8, impl::data_type::f32);
+    ext1.add_input(lt3);
+    ext1.add_output(lt8);
+
+    auto lt4 = logical_tensor_init(4, impl::data_type::f32);
+    auto lt5 = logical_tensor_init(5, impl::data_type::f32);
+    matmul1.add_input(lt3);
+    matmul1.add_input(lt4);
+    matmul1.add_output(lt5);
+
+    auto lt9 = logical_tensor_init(9, impl::data_type::f32);
+    ext2.add_input(lt5);
+    ext2.add_output(lt9);
+
+    auto lt6 = logical_tensor_init(6, impl::data_type::f32);
+    relu1.add_input(lt5);
+    relu1.add_output(lt6);
+
+    ASSERT_EQ(agraph.add_op(&ext0), status::success);
+    ASSERT_EQ(agraph.add_op(&ext1), status::success);
+    ASSERT_EQ(agraph.add_op(&ext2), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul0), status::success);
+    ASSERT_EQ(agraph.add_op(&relu0), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu1), status::success);
+
+    agraph.build_graph();
+    dnnl_graph_graph_visualize(&agraph, 1);
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[3].get(), graphp, fusion_ops));
+    ASSERT_EQ(fusion_ops.size(), 4);
+}

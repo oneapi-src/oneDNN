@@ -624,10 +624,38 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             if (oport >= current_op->num_outputs()) break;
             auto cons = current_op->get_output_value(static_cast<size_t>(oport))
                                 ->get_consumers();
-            if (cons.size() != 1) break;
-            op_t *next_op = &(cons[0].get_op());
-            temp_bind.bind_op = next_op;
-
+            if (cons.empty()) break;
+            if (cons.size() == 1) {
+                op_t *next_op = &(cons[0].get_op());
+                temp_bind.bind_op = next_op;
+            } else {
+                // More than 1 consumers. In this case, needs to check
+                // if the last node of previous match accepts external
+                // output. If no, break
+                pb_op *current_pb_op = temp_op_map[current_op];
+                std::unordered_set<oport_t> external_outputs
+                        = current_pb_op->get_allowed_external_outputs();
+                if (external_outputs.empty()
+                        || external_outputs.find(oport)
+                                == external_outputs.end()) {
+                    break;
+                }
+                // If yes, decide which one of the consumers will be used
+                // for next round's match
+                iport_t iport = pmap.second;
+                // start op for last round's match
+                op_t *start_op = temp_ctx.in_port_map[iport].first;
+                pb_op *start_pb_op = temp_op_map[start_op];
+                op_t *next_op = nullptr;
+                for (auto &con : cons) {
+                    if (match_node_attributes(&con.get_op(), start_pb_op)) {
+                        next_op = &con.get_op();
+                        break;
+                    }
+                }
+                if (!next_op) break;
+                temp_bind.bind_op = next_op;
+            }
         } else { // backward matching
             iport_t iport = pmap.second;
             op_t *current_op = temp_ctx.in_port_map[iport].first;
