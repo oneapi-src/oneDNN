@@ -2165,6 +2165,13 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     return status::success;
 }
 
+void set_amx_wsp_per_thread(jit_brgemm_conv_conf_t &jcp) {
+    // ensure buffers for individual threads do not lie on same page and also
+    // they are not contiguous.
+    jcp.amx_buf_size_per_thread
+            = utils::rnd_up(jcp.amx_buf_size_per_thread + 1, P4K);
+}
+
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp) {
     if (jcp.brg_type == brgemm_addr || jcp.brg_type == brgemm_offs
@@ -2187,8 +2194,8 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 jcp.acc_dsz, 0, P4K);
     }
     if (is_amx(jcp.isa)) {
-        scratchpad.book(key_conv_amx_tile_buffer, jcp.nthr * 2 * P4K,
-                sizeof(char), 0, P4K);
+        scratchpad.book(key_conv_amx_tile_buffer,
+                jcp.nthr * jcp.amx_buf_size_per_thread, sizeof(char), 0, P4K);
     }
     if (jcp.s8s8_avx512 && jcp.comp_with_vpads) {
         scratchpad.book(key_brgemm_primitive_buffer_comp,

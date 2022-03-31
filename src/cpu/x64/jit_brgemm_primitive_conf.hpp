@@ -79,7 +79,7 @@ struct jit_brgemm_primitive_conf_t {
     bool ip_bwd_d_global_b_transpose;
     bool use_uker;
     bool use_interleave_stores;
-    static constexpr int tile_wsp_per_thread = 4096;
+    int amx_buf_size_per_thread;
     brgemm_kernel_prefetching_t hint_prefetching
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
 };

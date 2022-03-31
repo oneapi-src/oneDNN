@@ -122,8 +122,11 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         brg.with_sum = with_sum;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
+        jcp_.amx_buf_size_per_thread = nstl::max(
+                brg.get_wsp_buffer_size(), jcp_.amx_buf_size_per_thread);
     }
 
+    brgemm_convolution_utils::set_amx_wsp_per_thread(jcp_);
     auto scratchpad = scratchpad_registry().registrar();
     brgemm_convolution_utils::init_scratchpad(scratchpad, jcp_);
 
@@ -327,8 +330,9 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
     auto ndims = pd()->ndims();
 
     const bool is_amx = brgemm_convolution_utils::is_amx(isa);
-    char *const wsp_tile
-            = is_amx ? brgemm_ctx.wsp_tile + ithr * 4 * 1024 : nullptr;
+    char *const wsp_tile = is_amx
+            ? brgemm_ctx.wsp_tile + ithr * jcp.amx_buf_size_per_thread
+            : nullptr;
 
     const int id = ndims_pick(od * SD, 0, 0);
     const int ih = ndims_pick(oh * SH, oh * SH, 0);

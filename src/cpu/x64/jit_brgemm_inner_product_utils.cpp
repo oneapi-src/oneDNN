@@ -1042,9 +1042,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (jbgp.isa == avx512_core_bf16_amx_int8
             || jbgp.isa == avx512_core_bf16_amx_bf16)
         scratchpad.book(key_conv_amx_tile_buffer,
-                (size_t)jbgp.nthr
-                        * jit_brgemm_primitive_conf_t::tile_wsp_per_thread,
-                sizeof(char));
+                (size_t)jbgp.nthr * jbgp.amx_buf_size_per_thread, sizeof(char));
 }
 
 } // namespace brgemm_inner_product_utils

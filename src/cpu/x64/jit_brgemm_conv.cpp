@@ -262,10 +262,14 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                 brg->with_sum = with_sum;
                 CHECK(brgemm_desc_set_postops(
                         brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
+                jcp_.amx_buf_size_per_thread
+                        = nstl::max(brg->get_wsp_buffer_size(),
+                                jcp_.amx_buf_size_per_thread);
             }
         }
     }
 
+    brgemm_convolution_utils::set_amx_wsp_per_thread(jcp_);
     auto scratchpad = scratchpad_registry().registrar();
     brgemm_convolution_utils::init_scratchpad(scratchpad, jcp_);
 
@@ -878,7 +882,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
                 : nullptr;
 
         char *const wsp_tile = is_amx
-                ? wsp_tile_global + ithr * 2 * brgemm_convolution_utils::P4K
+                ? wsp_tile_global + ithr * jcp.amx_buf_size_per_thread
                 : nullptr;
         dim_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);

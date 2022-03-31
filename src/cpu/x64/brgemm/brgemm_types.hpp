@@ -211,6 +211,15 @@ struct brgemm_t {
     int get_B_tensor(int n) const noexcept {
         return (get_num_C_tiles() + get_num_A_tiles() + n);
     }
+
+    int get_wsp_buffer_size() const noexcept {
+        int sz = 0;
+        if (is_amx) {
+            constexpr int tilesize = 1024;
+            sz = get_num_C_tiles() * tilesize; // postops buffer
+        }
+        return sz;
+    }
 };
 
 struct brgemm_kernel_params_t {

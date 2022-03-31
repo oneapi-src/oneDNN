@@ -132,6 +132,9 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                    jbgp_.amx_buf_size_per_thread
+                            = nstl::max(brg.get_wsp_buffer_size(),
+                                    jbgp_.amx_buf_size_per_thread);
                 }
             }
 
@@ -289,6 +292,9 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                    jbgp_.amx_buf_size_per_thread
+                            = nstl::max(brg.get_wsp_buffer_size(),
+                                    jbgp_.amx_buf_size_per_thread);
                 }
             }
 
@@ -447,6 +453,9 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                    jbgp_.amx_buf_size_per_thread
+                            = nstl::max(brg.get_wsp_buffer_size(),
+                                    jbgp_.amx_buf_size_per_thread);
                 }
             }
 

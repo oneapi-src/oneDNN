@@ -153,11 +153,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             c_buffer = c_buffer_global + c_buffer_off;
         }
 
-        char *wsp_tile = is_amx ? wsp_tile_base
-                        + ithr
-                                * jit_brgemm_primitive_conf_t::
-                                        tile_wsp_per_thread
-                                : nullptr;
+        char *wsp_tile = is_amx
+                ? wsp_tile_base + ithr * jbgp.amx_buf_size_per_thread
+                : nullptr;
         int icb = icc * jbgp.nb_ic_blocking;
         int ic = icb * jbgp.ic_block;
 
@@ -434,9 +432,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                                     + get_dst_reduced_off(0, osb, ocb);
 
                             char *wsp_tile = is_amx ? wsp_tile_base
-                                            + ithr
-                                                    * jit_brgemm_primitive_conf_t::
-                                                            tile_wsp_per_thread
+                                            + ithr * jbgp.amx_buf_size_per_thread
                                                     : nullptr;
 
                             void *scratch = is_amx
@@ -626,11 +622,9 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         char *a_buffer = jbgp.use_buffer_a
                 ? a_buffer_global + ithr * a_buffer_size_per_thr
                 : diff_dst;
-        char *wsp_tile = is_amx ? wsp_tile_base
-                        + ithr
-                                * jit_brgemm_primitive_conf_t::
-                                        tile_wsp_per_thread
-                                : nullptr;
+        char *wsp_tile = is_amx
+                ? wsp_tile_base + ithr * jbgp.amx_buf_size_per_thread
+                : nullptr;
 
         bool kernel_init = do_init;
 
@@ -1166,8 +1160,6 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                 + icb_l_idx;
         int b_buf_idx = osc_l_idx;
 
-        constexpr int tile_size = 1024;
-
         brgemm_batch_element_t *addr_batch
                 = addr_batch_global + ti->ithr * jbgp.adjusted_batch_size;
         const int size_A = jbgp.LDA * jbgp.M;
@@ -1189,7 +1181,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                                          : nullptr;
 
         char *wsp_tile = is_amx_bf16
-                ? wsp_tile_global + ti->ithr * 4 * tile_size
+                ? wsp_tile_global + ti->ithr * jbgp.amx_buf_size_per_thread
                 : nullptr;
         int ic = icb * jbgp.ic_block;
         int oc = ocb * jbgp.oc_block;
