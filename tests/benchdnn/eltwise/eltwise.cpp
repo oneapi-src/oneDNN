@@ -218,6 +218,7 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
+    const bool is_log = prb->alg == alg_t::LOG;
 
     dnnl::impl::parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
@@ -241,7 +242,8 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         std::uniform_real_distribution<> fgen(0.f, 0.09f);
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            static constexpr int64_t num_of_generation_variants = 13;
+            const int64_t num_of_generation_variants
+                    = 13 + (2 * static_cast<int64_t>(is_log));
             float value = FLT_MAX;
             switch (idx % num_of_generation_variants) {
                 case 0: value = (float)igen(msr); break; // [0-10] pos
@@ -263,6 +265,8 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
                     break; // values close to logf(FLT_MAX)/2.0 for fwd mish alg testing
                 case 11: value = prb->alpha; break; // `x = alpha` corner cases
                 case 12: value = prb->beta; break; // `x = beta` corner cases
+                case 13: value = INFINITY; break; // used in LOG alg only
+                case 14: value = -INFINITY; break; // used in LOG alg only
             }
             value = round_to_nearest_representable(prb->dt, value);
 
