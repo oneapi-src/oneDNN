@@ -119,27 +119,15 @@ public:
     // like is_commutative by callback
     bool append_decision_function(const decision_function &p_fn);
 
-    // mark pattern node can only match ops with specific attrs
-    template <typename T>
-    void set_attr(std::string attr_name, T value) {
-        this->append_decision_function([=](op_t *op) -> bool {
-            if (op->has_attr(attr_name)) {
-                return op->get_attr<T>(attr_name) == value;
-            }
-            return false;
-        });
-    }
-
     // For overriding default side output control
     void allow_external_output(oport_t);
     // For overriding default unmatched input control
     void allow_internal_input(iport_t);
-    void allow_internal_inputs(const std::vector<iport_t> &p_ports);
 
-    std::unordered_set<oport_t> get_allowed_external_outputs() {
+    const std::unordered_set<oport_t> &get_allowed_external_outputs() {
         return m_external_outputs;
     };
-    std::unordered_set<oport_t> get_allowed_internal_inputs() {
+    const std::unordered_set<oport_t> &get_allowed_internal_inputs() {
         return m_internal_inputs;
     };
 
@@ -229,15 +217,13 @@ protected:
 class pb_graph_t : public pb_node {
 public:
     pb_graph_t(std::string name = "");
+
     // Restrict "pb_op" create to a pb_graph_t to avoid dangling "pb_op"s
-    pb_op *append_op(const decision_function &type_checker,
-            const in_edges_t &p_in_edges, std::string name = "");
-    pb_op *append_op(
-            const decision_function &type_checker, std::string name = "");
     pb_op *append_op(dnnl::graph::impl::op_kind_t p_kind,
             const in_edges_t &p_in_edges, std::string name = "");
     pb_op *append_op(
             dnnl::graph::impl::op_kind_t p_kind, std::string name = "");
+
     pb_op *append_alternation(
             const std::vector<dnnl::graph::impl::op_kind_t> &p_kind,
             const in_edges_t &p_in_edges, std::string name = "");
@@ -251,33 +237,42 @@ public:
     alternation_t *append_alternation(
             std::vector<std::shared_ptr<pb_graph_t>> p_nodes,
             std::string name = "");
+
     repetition_t *append_repetition(std::shared_ptr<pb_graph_t> p_node,
             port_map p_map, int64_t min_rep, int64_t max_rep,
             const in_edges_t &p_in_edges, std::string name = "");
     repetition_t *append_repetition(std::shared_ptr<pb_graph_t> p_node,
             port_map p_map, int64_t min_rep, int64_t max_rep,
             std::string name = "");
+
     repetition_t *append_optional(std::shared_ptr<pb_graph_t> p_node,
             const in_edges_t &p_in_edges, std::string name = "");
     repetition_t *append_optional(
             std::shared_ptr<pb_graph_t> p_node, std::string name = "");
-    bool set_edge(const std::shared_ptr<consumer_t> &,
-            const std::shared_ptr<producer_t> &);
-    bool has_edge(const std::shared_ptr<consumer_t> &,
-            const std::shared_ptr<producer_t> &);
-    bool connect_edges(pb_node *p_node, const in_edges_t &p_in_edges);
+
     std::vector<std::pair<oport_t, consumers_t>> get_inner_consumers();
     std::vector<std::pair<iport_t, producer_t>> get_inner_producers();
     std::shared_ptr<consumers_t> get_inner_consumer(iport_t);
     std::shared_ptr<producer_t> get_inner_producer(oport_t);
-    bool create_input_port(iport_t, const std::shared_ptr<consumer_t> &);
-    bool create_output_port(oport_t, std::shared_ptr<producer_t>);
+
     bool create_input_port(iport_t, pb_node *, iport_t);
     bool create_output_port(oport_t, pb_node *, oport_t);
 
     std::vector<pb_node *> get_nodes();
 
 protected:
+    pb_op *append_op(const decision_function &type_checker,
+            const in_edges_t &p_in_edges, std::string name = "");
+    pb_op *append_op(
+            const decision_function &type_checker, std::string name = "");
+
+    bool set_edge(const std::shared_ptr<consumer_t> &,
+            const std::shared_ptr<producer_t> &);
+    bool connect_edges(pb_node *p_node, const in_edges_t &p_in_edges);
+
+    bool create_input_port(iport_t, const std::shared_ptr<consumer_t> &);
+    bool create_output_port(oport_t, std::shared_ptr<producer_t>);
+
     // Reference to all internal pb_nodes
     std::vector<std::shared_ptr<pb_node>> m_nodes;
     std::unordered_set<oport_t> m_output_ports;

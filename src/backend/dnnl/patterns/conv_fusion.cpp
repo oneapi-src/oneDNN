@@ -106,7 +106,6 @@ pm::pb_op *conv_bias_add_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     in_edges_t add_in_edges = in_edges_t {in_edge(0, conv_bias_dst, 0)};
     if (post_src) { add_in_edges.emplace_back(in_edge(1, post_src, 0)); }
     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add, add_in_edges);
-    add->allow_internal_inputs({0, 1});
 
     pm::pb_op *relu = pgraph->append_op(
             impl::op_kind::ReLU, in_edges_t {in_edge(0, add, 0)});
@@ -222,7 +221,6 @@ pm::pb_op *int8_conv_bias_add_relu(const std::shared_ptr<pb_graph_t> &pgraph,
     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
             in_edges_t {in_edge(0, conv_bias_dst, 0),
                     in_edge(1, dequant_other, 0)});
-    add->allow_internal_inputs({0, 1});
     pm::pb_op *relu = pgraph->append_op(
             impl::op_kind::ReLU, in_edges_t {in_edge(0, add, 0)});
     if (f32_output) {
@@ -508,7 +506,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_simple_resblock_fusion)
 
                     pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
                             in_edges_t {in_edge(0, conv2, 0)});
-                    add->allow_internal_inputs({0, 1});
 
                     pgraph->append_op(impl::op_kind::ReLU,
                             in_edges_t {in_edge(0, add, 0)});

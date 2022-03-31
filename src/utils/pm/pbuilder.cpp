@@ -150,11 +150,6 @@ void pb_op::allow_internal_input(iport_t p_port) {
     m_internal_inputs.insert(p_port);
 }
 
-void pb_op::allow_internal_inputs(const std::vector<iport_t> &p_ports) {
-    for (auto &port : p_ports)
-        allow_internal_input(port);
-}
-
 std::vector<std::pair<oport_t, consumers_t>> pb_graph_t::get_inner_consumers() {
     std::vector<std::pair<oport_t, consumers_t>> consumers;
     size_t s = m_inner_consumers.size();
@@ -243,6 +238,15 @@ bool pb_graph_t::connect_edges(pb_node *p_node, const in_edges_t &p_in_edges) {
             set_edge(con, i->second);
         }
     }
+    return true;
+}
+
+bool pb_graph_t::set_edge(const std::shared_ptr<consumer_t> &p_consumer,
+        const std::shared_ptr<producer_t> &p_producer) {
+    auto con = p_consumer->first;
+    con->set_producer(p_consumer->second, p_producer);
+    auto pro = p_producer->first;
+    pro->add_consumer(p_producer->second, p_consumer);
     return true;
 }
 
@@ -339,31 +343,6 @@ repetition_t *pb_graph_t::append_optional(std::shared_ptr<pb_graph_t> p_node,
 repetition_t *pb_graph_t::append_optional(
         std::shared_ptr<pb_graph_t> p_node, std::string name) {
     return append_optional(move(p_node), {}, move(name));
-}
-
-bool pb_graph_t::set_edge(const std::shared_ptr<consumer_t> &p_consumer,
-        const std::shared_ptr<producer_t> &p_producer) {
-    auto con = p_consumer->first;
-    con->set_producer(p_consumer->second, p_producer);
-    auto pro = p_producer->first;
-    pro->add_consumer(p_producer->second, p_consumer);
-    return true;
-}
-
-bool pb_graph_t::has_edge(const std::shared_ptr<consumer_t> &p_consumer,
-        const std::shared_ptr<producer_t> &p_producer) {
-    bool retval = true;
-    auto con = p_consumer->first;
-    auto prod1 = con->get_producer(p_consumer->second);
-    retval = retval && (prod1 == p_producer);
-    auto prod2 = p_producer->first;
-    auto cons = prod2->get_consumers(p_producer->second);
-    bool has_con_match = false;
-    for (auto const &icon : *cons) {
-        has_con_match = has_con_match || (icon == p_consumer);
-    }
-    retval = retval && has_con_match;
-    return retval;
 }
 
 alternation_t::alternation_t(std::vector<std::shared_ptr<pb_graph_t>> p_nodes)
