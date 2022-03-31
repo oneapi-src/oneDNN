@@ -43,6 +43,7 @@ typedef struct dt_conf_t {
 
 typedef std::bitset<DNNL_MAX_NDIMS> dims_mask_t;
 extern const _dt_conf_t conf_f32;
+extern const _dt_conf_t conf_bf16bf16f32;
 
 const int64_t LD_GOOD = INT64_MAX;
 const int64_t LD_NONE = INT64_MAX - 1;
@@ -147,6 +148,12 @@ struct prb_t : public prb_vdims_t {
     void generate_oscales();
     int32_t *generate_zero_points(
             int arg, const attr_t::zero_points_t &zero_points, int N);
+
+    const dt_conf_t &get_dt_conf(data_kind_t dk) const {
+        return (attr.fpmath_mode == dnnl_fpmath_mode_bf16 && cfg == conf_f32)
+                ? conf_bf16bf16f32[dk]
+                : cfg[dk];
+    }
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 

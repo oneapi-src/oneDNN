@@ -136,7 +136,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 
     assert(mem_dt.nelems() == mem_fp.nelems());
 
-    const auto &c = prb->cfg[kind];
+    const auto &c = prb->get_dt_conf(kind);
     float c_f_min = c.f_min, c_f_max = c.f_max, c_f_scale = c.f_scale;
 
     if (kind == BIA && mem_dt.dt() == dnnl_u8) c_f_min = 0;

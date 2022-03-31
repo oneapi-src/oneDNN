@@ -656,6 +656,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                                         reinterpret_cast<const int32_t *>(
                                                 &data_B_ptr_[comp_offset])))
                 : nullptr;
+        assert(IMPLICATION(bgmmc.s8s8_compensation_required,
+                bgmmc_.b_dt_sz == bgmmc_.tr_b_dt_sz));
 
         zero_point_a_compensations_ptr_ = bgmmc.has_zero_point_a
                 ? scratchpad.template get<int32_t>(

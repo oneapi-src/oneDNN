@@ -119,6 +119,11 @@ struct brgemm_matmul_conf_t {
     // Auxiliary values for init_config() and execute()
     dim_t a_dt_sz, b_dt_sz, c_dt_sz, acc_dt_sz, bias_dt_sz;
 
+    // used for transposed buffer datatype when different from x_dt_sz
+    // (e.g. used in BF32 implementations having to down-convert to BF16
+    // from FP32 implementation)
+    dim_t tr_a_dt_sz, tr_b_dt_sz;
+
     int M_chunks;
     int N_chunks;
     int K_chunks;
@@ -168,12 +173,14 @@ struct brgemm_matmul_conf_t {
     bool is_amx;
 
     int required_k_granularity;
+    bool is_bf32;
 };
 
 struct brgemm_matmul_conf_utils_t {
 
-    brgemm_matmul_conf_utils_t(brgemm_matmul_conf_t &bgmmc, bool A_any_layout,
-            bool B_any_layout, bool C_any_layout, bool bias_any_layout);
+    brgemm_matmul_conf_utils_t(brgemm_matmul_conf_t &bgmmc, const cpu_isa_t isa,
+            const primitive_attr_t &attr, bool A_any_layout, bool B_any_layout,
+            bool C_any_layout, bool bias_any_layout);
 
     inline bool check_b_layout_blocked_by_n(format_tag_t matrix_b_tag) const {
         return blocked_B_layouts_allowed
@@ -203,8 +210,10 @@ struct brgemm_matmul_conf_utils_t {
     }
 
     inline dim_t get_actual_LDB() const {
-        if (bgmmc.wei_tag == format_tag::acbd && !bgmmc.use_buffer_b)
+        if (bgmmc.wei_tag == format_tag::acbd && !bgmmc.use_buffer_b) {
+            assert(bgmmc.b_dt_sz == bgmmc.tr_b_dt_sz);
             return bgmmc.B_strides[1] / bgmmc.b_dt_sz;
+        }
         bool use_blocked_LDB = bgmmc.is_amx || bgmmc.use_buffer_b
                 || bgmmc.wei_tag != plain_tensor_layout_tag;
         return use_blocked_LDB ? bgmmc.wei_n_blk : bgmmc.N;
@@ -226,6 +235,8 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_int8() const { return int8_dt; }
 
+    inline bool is_bf32() const { return bf32_dt; }
+
     inline bool is_int8_with_bf16_dst() const {
         return this->is_int8() && bgmmc.dst_dt == data_type::bf16;
     }
@@ -241,7 +252,7 @@ struct brgemm_matmul_conf_utils_t {
 private:
     brgemm_matmul_conf_t &bgmmc;
 
-    const bool f32_dt, bf16_dt, int8_dt;
+    const bool f32_dt, bf16_dt, int8_dt, bf32_dt;
     const bool A_any_layout;
     const bool B_any_layout;
     const bool C_any_layout;
