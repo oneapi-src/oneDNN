@@ -222,6 +222,11 @@ struct acl_inner_product_fwd_t : public primitive_t {
             if (is_2d && wei_tag != src_tag) {
                 // weights are already transposed
                 aip.fc_info.transpose_weights = false;
+
+                if (ipd.prop_kind == dnnl_forward_training) {
+                    aip.wei_info.set_are_values_constant(false);
+                    aip.fc_info.are_weights_reshaped = true;
+                }
             }
 
             // Either activation or sum is supported as post-op at the moment
