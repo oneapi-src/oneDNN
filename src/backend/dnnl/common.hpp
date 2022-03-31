@@ -18,6 +18,7 @@
 #define BACKEND_DNNL_COMMON_HPP
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 #include <unordered_map>
@@ -61,9 +62,9 @@ struct dnnl_allocator_t {
             const impl::allocator_t *alc);
 };
 
-format_tag get_default_format(size_t ndim);
+format_tag get_ncx_format(size_t ndim);
 
-format_tag get_default_format(const dims &adims);
+format_tag get_ncx_format(const dims &adims);
 
 dims get_compatible_dilates(const dims &dilates, size_t input_size = 4);
 
@@ -102,19 +103,24 @@ memory::desc permute_NCX2NXC(const memory::desc &adesc);
 
 memory::desc permute_OIX2XIO(const memory::desc &adesc);
 
+dims get_ncx_strides(const dims &shape);
+
+dims get_nxc_strides(const dims &shape);
+
+memory::desc to_nxc_format(const memory::desc &adesc);
+
 bool is_format(const memory::desc &adesc, memory::format_tag tag);
+
+bool is_format(const memory::desc &adesc, const std::string &tag);
 
 bool is_4c_blocked(const memory::desc &adesc);
 
-memory::desc to_default_format(const memory::desc &adesc);
+memory::desc to_ncx_format(const memory::desc &adesc);
 
 void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td);
 
 void fill_layout_info(
         const std::shared_ptr<impl::value_t> &val, const memory::desc &td);
-
-impl::status_t set_shape_and_layout(
-        impl::logical_tensor_t &dst, const impl::logical_tensor_t &src);
 
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \

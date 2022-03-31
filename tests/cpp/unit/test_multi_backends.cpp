@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -148,11 +148,7 @@ TEST(Execute, MixUseMultipleBackends) {
 
     impl::logical_tensor_t queried_matmul_output_lt;
     cp0.query_logical_tensor(mha_in_egde.id, &queried_matmul_output_lt);
-#ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
     ASSERT_EQ(queried_matmul_output_lt.layout_type, impl::layout_type::strided);
-#else
-    ASSERT_EQ(queried_matmul_output_lt.layout_type, impl::layout_type::opaque);
-#endif
 
     /*------------ execution stage: single matmul ---------*/
     std::vector<test::vector<float>> matmul_inputs_data, matmul_outputs_data;

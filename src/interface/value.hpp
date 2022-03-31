@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,6 +66,13 @@ public:
     void set_layout_id(size_t layout_id) {
         val_.layout.layout_id = layout_id;
         val_.layout_type = layout_type::opaque;
+    }
+
+    void set_strides(const std::vector<dim_t> &strides) {
+        for (size_t d = 0; d < strides.size(); ++d) {
+            val_.layout.strides[d] = strides[d];
+        }
+        val_.layout_type = layout_type::strided;
     }
 
     void set_property(property_type_t ptype) { val_.property = ptype; }

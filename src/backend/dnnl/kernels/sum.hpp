@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,16 +107,14 @@ public:
 
         // fill information for inputs logical tensors
         for (size_t i = 0; i < inputs.size(); i++) {
-            BACKEND_DNNL_CHECK(set_shape_and_layout(
-                    const_cast<impl::logical_tensor_t &>(inputs[i]),
-                    subgraph_->ins_[i]));
+            auto &in = const_cast<impl::logical_tensor_t &>(inputs[i]);
+            in = subgraph_->ins_[i];
         }
 
         // fill information for outputs logical tensors
         for (size_t i = 0; i < outputs.size(); i++) {
-            BACKEND_DNNL_CHECK(set_shape_and_layout(
-                    const_cast<impl::logical_tensor_t &>(outputs[i]),
-                    subgraph_->outs_[i]));
+            auto &out = const_cast<impl::logical_tensor_t &>(outputs[i]);
+            out = subgraph_->outs_[i];
         }
 
         // generate a hash key for exec_args_mgr

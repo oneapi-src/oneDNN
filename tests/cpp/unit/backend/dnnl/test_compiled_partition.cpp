@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ TEST(CompiledPartition, Relu) {
     impl::status_t status_query
             = cp.query_logical_tensor(lt_out.id, &query_out_lt);
     ASSERT_EQ(status_query, impl::status::success);
-    ASSERT_EQ(query_out_lt.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(query_out_lt.layout_type, impl::layout_type::strided);
 
     size_t size_in = 0, size_out = 0;
     cp.query_logical_tensor(lt_in.id, &query_in_lt);
@@ -167,7 +167,7 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
     impl::logical_tensor_t query_lt_in, query_lt_out;
     ASSERT_EQ(cp.query_logical_tensor(lt_out.id, &query_lt_out),
             impl::status::success);
-    ASSERT_EQ(query_lt_out.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(query_lt_out.layout_type, impl::layout_type::strided);
 
     size_t size_in = 0, size_out = 0;
     cp.query_logical_tensor(lt_in.id, &query_lt_in);
@@ -249,7 +249,7 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
     impl::logical_tensor_t query_lt_out;
     ASSERT_EQ(cp.query_logical_tensor(lt_out.id, &query_lt_out),
             impl::status::success);
-    ASSERT_EQ(query_lt_out.layout_type, impl::layout_type::opaque);
+    ASSERT_EQ(query_lt_out.layout_type, impl::layout_type::strided);
 
     size_t size_in = 0, size_out = 0;
     size_in = impl::logical_tensor_wrapper_t(lt_in1).size();

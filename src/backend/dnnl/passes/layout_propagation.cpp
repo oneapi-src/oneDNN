@@ -483,11 +483,9 @@ static void layout_propagation_for_pool(op_ptr &op,
     if (op->has_attr("is_training") && op->get_attr<bool>("is_training")) {
         value_ptr workspace_val = op->get_output_value(2);
         const memory::desc &ws_md = pd.workspace_desc();
-#ifdef DNNL_GRAPH_LAYOUT_DEBUG
         workspace_val->set_dims(ws_md.dims());
         workspace_val->set_data_type(
                 static_cast<impl::data_type_t>(ws_md.data.data_type));
-#endif
         fill_layout_info(workspace_val, ws_md);
     }
 }
@@ -1704,10 +1702,34 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
         layout_propagation_func(sg, reorder_ops);
     } while (need_prop_once_more(sg));
 
+    remove_optional_conv_dw_output(subgraph, pd_cache);
+
+    // Add check for the layout type of partition outputs to make partition
+    // always output public layouts: abcd or acdb. If non-strided output, we
+    // need insert a reorder to convert to public acdb layout. Currently,
+    // deconvolution primitive still chooses blocked layout for best
+    // performance.
+    for (const auto &out_op : sg->get_output_ops()) {
+        auto out_op_ptr = out_op->shared_from_this();
+        const auto &out_vals = out_op_ptr->get_output_values();
+        for (size_t i = 0; i < out_vals.size(); ++i) {
+            const auto lt = out_vals[i]->get_logical_tensor();
+            if (lt.id != std::numeric_limits<size_t>::max()
+                    && lt.layout_type != impl::layout_type::strided) {
+                auto ori_mem_desc = make_dnnl_memory_desc(lt);
+                auto expect_mem_desc = to_nxc_format(ori_mem_desc);
+                const auto strides
+                        = expect_mem_desc.data.format_desc.blocking.strides;
+                out_vals[i]->set_strides(
+                        {strides, strides + expect_mem_desc.data.ndims});
+                insert_reorder_after(out_op_ptr, i, ori_mem_desc, p_engine,
+                        prm_attr_mgr, reorder_ops);
+            }
+        }
+    }
+
     for (const auto &op : reorder_ops)
         subgraph.emplace_back(op);
-
-    remove_optional_conv_dw_output(subgraph, pd_cache);
 
     // fill layout information for subgraph's inputs
     for (size_t i = 0; i < sg->ins_.size(); i++) {

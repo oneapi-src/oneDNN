@@ -23,6 +23,8 @@
 
 #include "interface/c_types_map.hpp"
 
+#include "backend/dnnl/common.hpp"
+
 #include "insert_ops.hpp"
 #include "utils.hpp"
 
@@ -210,7 +212,7 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         const auto known_strides
                 = (src.is_strided()) ? !src.is_stride_unknown() : false;
         const bool need_permute = axis == src.ndims() - 1 && known_strides
-                && src.vstrides() == get_dense_strides(src.vdims());
+                && src.vstrides() == get_ncx_strides(src.vdims());
         if (!need_permute) continue;
 
         const int64_t new_axis = 1;

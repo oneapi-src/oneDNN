@@ -15,8 +15,10 @@
 *******************************************************************************/
 
 #include <algorithm>
+#include <functional>
 #include <limits>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -83,7 +85,7 @@ void dnnl_allocator_t::free(
     }
 }
 
-format_tag get_default_format(size_t ndim) {
+format_tag get_ncx_format(size_t ndim) {
     switch (ndim) {
         case 1: return format_tag::a;
         case 2: return format_tag::ab;
@@ -95,9 +97,9 @@ format_tag get_default_format(size_t ndim) {
     }
 }
 
-format_tag get_default_format(const dims &adims) {
+format_tag get_ncx_format(const dims &adims) {
     const auto size = adims.size();
-    return get_default_format(size);
+    return get_ncx_format(size);
 }
 
 dims get_compatible_dilates(const dims &dilates, size_t input_size) {
@@ -340,8 +342,89 @@ memory::desc to_format_any(const memory::desc &adesc) {
             adesc.dims(), adesc.data_type(), memory::format_tag::any);
 }
 
+dims get_ncx_strides(const dims &shape) {
+    dims strides(shape.size());
+    for (auto it = shape.begin(); it < shape.end(); ++it) {
+        const auto val = std::accumulate(
+                std::next(it), shape.end(), 1, std::multiplies<dim_t>());
+        const auto dist = std::distance(shape.begin(), it);
+        strides[static_cast<size_t>(dist)] = val;
+    }
+    return strides;
+}
+
+dims get_nxc_strides(const dims &shape) {
+    dims strides(shape.size());
+    dim tmp, tmp1, tmp2;
+    switch (shape.size()) {
+        case 3:
+            strides[0] = shape[1] * shape[2];
+            strides[1] = 1;
+            strides[2] = shape[1];
+            break;
+        case 4:
+            tmp = shape[1] * shape[3];
+            strides[0] = tmp * shape[2];
+            strides[1] = 1;
+            strides[2] = tmp;
+            strides[3] = shape[1];
+            break;
+        case 5:
+            tmp1 = shape[1] * shape[4];
+            tmp2 = tmp1 * shape[3];
+            strides[0] = tmp2 * shape[2];
+            strides[1] = 1;
+            strides[2] = tmp2;
+            strides[3] = tmp1;
+            strides[4] = shape[1];
+            break;
+        case 6:
+            tmp1 = shape[1] * shape[5];
+            tmp2 = tmp1 * shape[3] * shape[4];
+            strides[0] = tmp2 * shape[2];
+            strides[1] = 1;
+            strides[2] = tmp2;
+            strides[3] = tmp1 * shape[4];
+            strides[4] = tmp1;
+            strides[5] = shape[1];
+            break;
+        default: strides = get_ncx_strides(shape);
+    }
+    return strides;
+}
+
+memory::desc to_nxc_format(const memory::desc &adesc) {
+    if (is_format(adesc, "nxc")) return adesc;
+
+    const auto ndims = adesc.data.ndims;
+    const dims shape {adesc.data.dims, adesc.data.dims + ndims};
+
+    dims strides = get_nxc_strides(shape);
+    return {adesc.dims(), adesc.data_type(), strides};
+}
+
 bool is_format(const memory::desc &adesc, memory::format_tag tag) {
     return adesc == memory::desc(adesc.dims(), adesc.data_type(), tag);
+}
+
+// check if format is ncx or nxc
+bool is_format(const memory::desc &adesc, const std::string &tag) {
+    if (!impl::utils::one_of(tag, "ncx", "nxc")) {
+        assertm(false, "wrong tag to check memory format");
+        return false;
+    }
+
+    if (adesc.data.format_kind != dnnl_blocked
+            || adesc.data.format_desc.blocking.inner_nblks != 0)
+        return false;
+
+    auto ndims = adesc.dims().size();
+    const auto &strides = adesc.data.format_desc.blocking.strides;
+    const auto &shape = adesc.dims();
+    std::vector<dim> stride_v {strides, strides + ndims};
+    if ("ncx" == tag) { return stride_v == get_ncx_strides(shape); }
+
+    return stride_v == get_nxc_strides(shape);
 }
 
 bool is_4c_blocked(const memory::desc &adesc) {
@@ -352,9 +435,9 @@ bool is_4c_blocked(const memory::desc &adesc) {
             && blk.inner_blks[0] == 4;
 }
 
-memory::desc to_default_format(const memory::desc &adesc) {
-    return memory::desc(adesc.dims(), adesc.data_type(),
-            get_default_format(adesc.data.ndims));
+memory::desc to_ncx_format(const memory::desc &adesc) {
+    return memory::desc(
+            adesc.dims(), adesc.data_type(), get_ncx_format(adesc.data.ndims));
 }
 
 void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td) {
@@ -370,10 +453,17 @@ void fill_layout_info(impl::logical_tensor_t *lt, const memory::desc &td) {
         }
 #endif // DNNL_GRAPH_LAYOUT_DEBUG
 
-        impl::utils::optional<size_t> layout_id
-                = dnnl_backend::get_singleton().set_mem_desc(td);
-        lt->layout.layout_id = layout_id.value();
-        lt->layout_type = impl::layout_type::opaque;
+        if (lt->id != std::numeric_limits<size_t>::max()
+                && (is_format(td, "ncx") || is_format(td, "nxc"))) {
+            lt->layout_type = impl::layout_type::strided;
+            impl::utils::array_copy(lt->layout.strides,
+                    td.data.format_desc.blocking.strides, td.data.ndims);
+        } else {
+            impl::utils::optional<size_t> layout_id
+                    = dnnl_backend::get_singleton().set_mem_desc(td);
+            lt->layout.layout_id = layout_id.value();
+            lt->layout_type = impl::layout_type::opaque;
+        }
     }
 }
 
@@ -390,26 +480,17 @@ void fill_layout_info(
                     static_cast<impl::data_type_t>(td.data.data_type));
         }
 #endif // DNNL_GRAPH_LAYOUT_DEBUG
-        val->set_layout_id(
-                dnnl_backend::get_singleton().set_mem_desc(td).value());
-    }
-}
 
-impl::status_t set_shape_and_layout(
-        impl::logical_tensor_t &dst, const impl::logical_tensor_t &src) {
-    auto src_ltw = impl::logical_tensor_wrapper_t(src);
-    auto dst_ltw = impl::logical_tensor_wrapper_t(dst);
-    // set the shape and if dst is in strided layout type, we also set the
-    // calculated strides
-    auto shape = src_ltw.vdims();
-    impl::set_shape_and_strides(dst, shape);
-    // if dst is in any layout type, we should copy the layout id of src to it
-    if (dst_ltw.is_any()) {
-        if (src_ltw.is_strided()) return impl::status::invalid_argument;
-        dst.layout.layout_id = src.layout.layout_id;
-        dst.layout_type = src.layout_type;
+        if (ltw.id() != std::numeric_limits<size_t>::max()
+                && (is_format(td, "ncx") || is_format(td, "nxc"))) {
+            const auto ndims = td.data.ndims;
+            const auto &strides = td.data.format_desc.blocking.strides;
+            val->set_strides({strides, strides + ndims});
+        } else {
+            val->set_layout_id(
+                    dnnl_backend::get_singleton().set_mem_desc(td).value());
+        }
     }
-    return impl::status::success;
 }
 
 } // namespace dnnl_impl
