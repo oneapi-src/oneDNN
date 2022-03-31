@@ -140,14 +140,16 @@ fill_status_t resampling_graph_prb_t::handle_sum_() {
 
 void check_known_skipped_case_graph(
         const ::resampling::prb_t *prb, res_t *res) noexcept {
-    ::resampling::check_known_skipped_case(prb, res);
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
+    if (res->state == SKIPPED) return;
+
     //Skip if source and destination datatypes are different.
     if (prb->sdt != prb->ddt) {
-        res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
+        res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
-    check_sum_post_ops(prb->attr, res);
-    if (res->state == SKIPPED) return;
 }
 
 int doit(const ::resampling::prb_t *prb, res_t *res) {

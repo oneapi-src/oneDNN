@@ -47,8 +47,9 @@ reduction_graph_prb_t::spec_t::spec_t(const ::reduction::prb_t *prb) {
 }
 
 void check_known_skipped_case_graph(const ::reduction::prb_t *prb, res_t *res) {
-    ::reduction::check_known_skipped_case(prb, res);
-    if (res->state == SKIPPED) return;
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
 }
 
 fill_status_t reduction_graph_prb_t::handle_main_op_() {

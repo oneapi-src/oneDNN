@@ -118,7 +118,6 @@ private:
 
 int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp);
-void check_known_skipped_case(const prb_t *prb, res_t *res);
 bool check_abs_err(const prb_t *prb, const float &s, const float &trh);
 float get_eltwise_zero_trust_percent(const prb_t *prb);
 float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd = true);

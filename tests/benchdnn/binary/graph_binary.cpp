@@ -136,7 +136,9 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
-    ::binary::check_known_skipped_case(prb, res);
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return OK;
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;

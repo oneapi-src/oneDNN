@@ -39,8 +39,9 @@ prelu_graph_prb_t::spec_t::spec_t(const ::prelu::prb_t *prb) noexcept {
 
 void check_known_skipped_case_graph(
         const ::prelu::prb_t *prb, res_t *res) noexcept {
-    ::prelu::check_known_skipped_case(prb, res);
-    if (res->state == SKIPPED) return;
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
 }
 
 fill_status_t prelu_graph_prb_t::handle_main_op_() {
@@ -104,8 +105,6 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
     check_known_skipped_case_graph(prb, res);
-    if (res->state == SKIPPED) return OK;
-    check_sum_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return OK;
 
     prelu_graph_prb_t graph_prb(prb);

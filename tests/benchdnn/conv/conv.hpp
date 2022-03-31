@@ -41,9 +41,9 @@ int fill_dst(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
 int compare_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res);
-void check_known_skipped_case(const prb_t *prb, res_t *res);
-int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &cpd,
-        res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint);
+dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

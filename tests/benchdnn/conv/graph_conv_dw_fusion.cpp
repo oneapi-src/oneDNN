@@ -25,7 +25,7 @@ namespace graph = dnnl::graph;
 
 void check_known_skipped_case_graph(
         const ::conv_dw_fusion::prb_t *prb, res_t *res) noexcept {
-    ::conv_dw_fusion::check_known_skipped_case(prb, res);
+    skip_invalid_and_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return;
 
     // We do not support backward pass and bias at the moment
@@ -75,13 +75,8 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     const auto ins0 = par0.get_in_ports();
     const auto outs0 = par0.get_out_ports();
 
-    auto init_pd = [&](dnnl_engine_t engine, const ::conv_dw_fusion::prb_t *prb,
-                           dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
-                           const_dnnl_primitive_desc_t hint) {
-        SAFE(::conv_dw_fusion::init_pd(engine, prb, cpd, res, dir, hint), WARN);
-        return OK;
-    };
-    auto cp0 = compile_partition(init_pd, p0.get(), res, par0, ins0, outs0);
+    auto cp0 = compile_partition(
+            ::conv_dw_fusion::init_pd, p0.get(), res, par0, ins0, outs0);
 
     auto src_fp0 = make_dnn_mem(ins0[0], spec_conv.src_dims, dt::f32, tag::abx);
     auto wei_fp0 = make_dnn_mem(ins0[1], spec_conv.wei_dims, dt::f32, tag::abx);
@@ -132,7 +127,8 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     const auto ins1 = par1.get_in_ports();
     const auto outs1 = par1.get_out_ports();
 
-    auto cp1 = compile_partition(init_pd, p1.get(), res, par1, ins1, outs1);
+    auto cp1 = compile_partition(
+            ::conv_dw_fusion::init_pd, p1.get(), res, par1, ins1, outs1);
 
     auto wei_fp1 = make_dnn_mem(ins1[1], spec_dw.wei_dims, dt::f32, tag::abx);
 
@@ -173,7 +169,8 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    auto cp = compile_partition(init_pd, prb, res, par, ins, outs);
+    auto cp = compile_partition(
+            ::conv_dw_fusion::init_pd, prb, res, par, ins, outs);
 
     auto src_fp = make_dnn_mem(ins[0], spec_fused.src_dims, dt::f32, tag::abx);
     auto wei_fp = make_dnn_mem(ins[1], spec_fused.wei_dims, dt::f32, tag::abx);

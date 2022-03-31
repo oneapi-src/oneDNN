@@ -73,7 +73,9 @@ shuffle_graph_prb_t::spec_t::spec_t(const ::shuffle::prb_t *prb) {
 }
 
 void check_known_skipped_case_graph(const ::shuffle::prb_t *prb, res_t *res) {
-    ::shuffle::check_known_skipped_case(prb, res);
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
 }
 
 fill_status_t shuffle_graph_prb_t::handle_reshape_(int id) {

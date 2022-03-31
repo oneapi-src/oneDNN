@@ -32,7 +32,9 @@ namespace deconv {
 
 void check_known_skipped_case_graph(
         const ::conv::prb_t *prb, res_t *res) noexcept {
-    ::deconv::check_known_skipped_case(prb, res);
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return;
 
     const bool with_groups = prb->g > 1;

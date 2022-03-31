@@ -383,8 +383,8 @@ int measure_prim_create(timer::timer_t &ct,
 #else
     engine_t engine(engine_tgt_kind);
 #endif
-    SAFE(init_pd_func(engine, prb, pd_, res, dir, hint), WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    auto status = init_pd_func(engine, prb, pd_, res, dir, hint);
+    SAFE((status == dnnl_success ? OK : FAIL), WARN);
     DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
     pd.reset(pd_);
     prim.reset(prim_);
@@ -395,7 +395,8 @@ int measure_prim_create(timer::timer_t &ct,
         ct.start();
         // The second (if the cache is enabled) primitive creation using
         // the global test engine.
-        SAFE(init_pd_func(get_test_engine(), prb, pd_, res, dir, hint), WARN);
+        status = init_pd_func(get_test_engine(), prb, pd_, res, dir, hint);
+        SAFE((status == dnnl_success ? OK : FAIL), WARN);
 
         // This primitive is expected to come from the cache.
         DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);

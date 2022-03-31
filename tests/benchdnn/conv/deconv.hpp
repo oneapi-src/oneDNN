@@ -28,7 +28,6 @@
 #include "conv/conv_common.hpp"
 
 namespace deconv {
-void check_known_skipped_case(const conv::prb_t *prb, res_t *res);
 int doit(const conv::prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 

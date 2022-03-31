@@ -44,7 +44,9 @@ eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) noexcept {
 
 void check_known_skipped_case_graph(
         const ::eltwise::prb_t *prb, res_t *res) noexcept {
-    ::eltwise::check_known_skipped_case(prb, res);
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return;
 
     check_graph_eltwise_params(res, prb->alg, prb->alpha, prb->beta);

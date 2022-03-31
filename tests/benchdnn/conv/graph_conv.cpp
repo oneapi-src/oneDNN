@@ -34,7 +34,9 @@ namespace graph = dnnl::graph;
 
 void check_known_skipped_case_graph(
         const ::conv::prb_t *prb, res_t *res) noexcept {
-    ::conv::check_known_skipped_case(prb, res);
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return;
 
     check_graph_eltwise_post_ops(prb->attr, res);
@@ -320,13 +322,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
-    auto init_pd = [&](dnnl_engine_t engine, const ::conv::prb_t *prb,
-                           dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
-                           const_dnnl_primitive_desc_t hint) {
-        SAFE(::conv::init_pd(engine, prb, cpd, res, dir, hint), WARN);
-        return OK;
-    };
-    auto cp = compile_partition(init_pd, prb, res, par, ins, outs);
+    auto cp = compile_partition(::conv::init_pd, prb, res, par, ins, outs);
 
     int idx_ins = 0;
     auto src_fp = make_dnn_mem(ins[idx_ins], spec.src_dims, dt::f32, tag::abx);

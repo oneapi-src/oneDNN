@@ -44,17 +44,6 @@ void check_known_skipped_case_graph_common(
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
-
-    // bf16 not supported for now
-    for (const auto &i_dt : v_dt) {
-        if (i_dt == dnnl_bf16 || i_dt == dnnl_f16) {
-            if (strcmp("lnorm", driver_name) != 0
-                    && strcmp("bnorm", driver_name) != 0) {
-                res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
-                break;
-            }
-        }
-    }
 }
 
 void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res) {
@@ -87,13 +76,13 @@ void check_graph_eltwise_params(res_t *res,
     if (alg == alg_t::RELU || alg == alg_t::RELU_DST) {
         const float expected_alpha = 0.0;
         if (std::fabs(expected_alpha - alpha) > eps) {
-            res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
     } else if (alg == alg_t::SWISH) {
         const float expected_alpha = 1.0;
         if (std::fabs(expected_alpha - alpha) > eps) {
-            res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
     }

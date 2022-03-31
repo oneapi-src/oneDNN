@@ -101,7 +101,9 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
 
 void check_known_skipped_case_graph(
         const ::pool::prb_t *prb, res_t *res) noexcept {
-    ::pool::check_known_skipped_case(prb, res);
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return;
 
     for (const auto &po : prb->attr.post_ops.entry) {
