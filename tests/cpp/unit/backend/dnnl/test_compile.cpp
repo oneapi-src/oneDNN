@@ -17900,6 +17900,88 @@ TEST(Execute, MulAddPerChannelBroadcast) {
     }
 }
 
+TEST(Execute, AddAdd) {
+    impl::engine_t &eng = get_engine();
+
+    std::vector<int64_t> src_shape = {8, 128, 768};
+    test::vector<float> src0(product(src_shape));
+    test::vector<float> src1(product(src_shape));
+    test::vector<float> post_src(product(src_shape));
+    test::vector<float> dst(src0.size(), 0.0);
+
+    // random generate src, weight data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(-1.0f, 1.0f);
+    std::generate(src0.begin(), src0.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(src1.begin(), src1.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(post_src.begin(), post_src.end(),
+            [&]() { return f32_distribution(generator); });
+
+    impl::op_t add0_op(0, impl::op_kind::Add, "add0");
+    impl::op_t add1_op(1, impl::op_kind::Add, "add1");
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t add_dst_lt
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t post_src_lt
+            = utils::logical_tensor_init(3, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(4, src_shape, impl::data_type::f32);
+
+    add0_op.add_input(src0_lt);
+    add0_op.add_input(src1_lt);
+    add0_op.add_output(add_dst_lt);
+    add1_op.add_input(add_dst_lt);
+    add1_op.add_input(post_src_lt);
+    add1_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&add0_op);
+    g.add_op(&add1_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src0_lt, &src1_lt, &post_src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
+
+    // inplace
+    auto inplace_pair = cp.get_inplace_pairs();
+    ASSERT_EQ(inplace_pair[0].input, post_src_lt.id);
+    ASSERT_EQ(inplace_pair[0].output, dst_lt.id);
+
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t post_src_ts(post_src_lt, &eng, post_src.data());
+    impl::tensor_t dst_inplace_ts(dst_lt, &eng, post_src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src0_ts, src1_ts, post_src_ts}, {dst_ts});
+    cp.execute(&strm, {src0_ts, src1_ts, post_src_ts}, {dst_inplace_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < src0.size(); ++i) {
+        ASSERT_FLOAT_EQ(post_src[i], dst[i]);
+    }
+}
+
 TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();

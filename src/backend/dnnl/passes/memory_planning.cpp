@@ -73,6 +73,10 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
             index = op.has_attr("with_bias") && op.get_attr<bool>("with_bias")
                     ? 3 // src, wei, bias
                     : 2; // src, wei
+        } else if (op.get_kind() == op_kind::dnnl_binary) {
+            index = 2;
+        } else {
+            // do nothing
         }
 
         std::shared_ptr<value_t> post_sum_input;
