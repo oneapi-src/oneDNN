@@ -18,7 +18,9 @@
 #if SC_CFAKE_JIT_ENABLED
 #include "cfake/cfake_jit.hpp"
 #endif
+#include <atomic>
 #include <chrono>
+#include <stdio.h>
 #include "llvm/llvm_jit.hpp"
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <runtime/config.hpp>
@@ -64,6 +66,12 @@ void jit_engine_t::set_target_machine(jit_kind kind, target_machine_t &tm) {
     }
 }
 
+static std::atomic<size_t> module_id {0};
+
+jit_module::jit_module() : module_id_(module_id++) {}
+jit_module::jit_module(statics_table_t &&globals)
+    : globals_(std::move(globals)), module_id_(module_id++) {}
+
 void general_jit_function_t::call_generic(
         runtime::stream_t *stream, generic_val *args) const {
     assert(wrapper_ && "Trying to call 'call_generic' \
@@ -80,8 +88,8 @@ void general_jit_function_t::call_generic(
                 = static_cast<double>(
                           duration_cast<nanoseconds>(stop - start).count())
                 / 1e6;
-        std::cout << "Entry point: " << fname_ << ". Time elapsed: " << duration
-                  << " ms" << std::endl;
+        printf("Entry point: %s@%zu. Time elapsed: %lf ms\n", fname_.c_str(),
+                module_->module_id_, duration);
     } else {
         f(stream, module_->globals_.data_.data_, args);
     }
@@ -104,8 +112,8 @@ void general_jit_function_t::call_generic(
                 = static_cast<double>(
                           duration_cast<nanoseconds>(stop - start).count())
                 / 1e6;
-        std::cout << "Entry point: " << fname_ << ". Time elapsed: " << duration
-                  << " ms" << std::endl;
+        printf("Entry point: %s@%zu. Time elapsed: %lf ms\n", fname_.c_str(),
+                module_->module_id_, duration);
     } else {
         f(stream, module_data, args);
     }

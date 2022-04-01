@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,8 @@ constexpr int global_const = 2;
 } // namespace const_kind
 
 SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
-        bool print_shape = false, bool print_attr = false);
+        bool print_shape = false, bool print_attr = false,
+        bool print_name = false);
 
 void visualize(const std::string &filename, const sc_graph_t &opmg);
 

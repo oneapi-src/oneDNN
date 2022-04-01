@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,13 @@
 #include "../graph_op.hpp"
 #include "../visitor.hpp"
 #include "pass.hpp"
+#include <compiler/ir/graph/lowering.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
 
 SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
-        bool print_shape, bool print_attr) {
+        bool print_shape, bool print_attr, bool print_name) {
     std::unordered_map<graph_tensor_ptr, int> tsr_idx;
     auto get_tensor_id = [&](const graph_tensor_ptr &t) {
         auto itr = tsr_idx.find(t);
@@ -32,6 +33,23 @@ SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
         int ret = tsr_idx.size();
         tsr_idx[t] = ret;
         return ret;
+    };
+    auto print_tensor_name = [&](const graph_tensor_ptr &t) {
+        if (print_name) {
+            sc_op *linked_output = nullptr;
+            for (auto &use : t->uses_) {
+                if (use.second->isa<output_op>()) {
+                    linked_output = use.second.get();
+                    break;
+                }
+            }
+            auto name = graph::get_tensor_name(t.get(), linked_output);
+            if (!name.empty()) {
+                os << name;
+                return;
+            }
+        }
+        os << 'v' << get_tensor_id(t);
     };
     auto print_tensor_list
             = [&](const std::vector<graph_tensor_ptr> &list, bool p_shape) {
@@ -42,7 +60,7 @@ SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
                       } else {
                           is_first_input = false;
                       }
-                      os << 'v' << get_tensor_id(tsr);
+                      print_tensor_name(tsr);
                       if (p_shape) {
                           os << ": " << tsr->details_.dtype_ << '[';
                           bool is_first_shape = true;
@@ -69,7 +87,13 @@ SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
                     v->get_inputs().end());
         }
     }
-    os << "graph(";
+    std::string graph_name;
+    if (print_name) {
+        graph_name = mgr.attrs_.get_or_else<std::string>("temp.name", "graph");
+    } else {
+        graph_name = "graph";
+    }
+    os << graph_name << '(';
     print_tensor_list(inputs, print_shape);
     os << ") -> [";
     print_tensor_list(outputs, print_shape);

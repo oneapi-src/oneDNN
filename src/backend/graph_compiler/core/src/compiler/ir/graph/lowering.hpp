@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,15 @@
 
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_LOWERING_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_LOWERING_HPP
+#include <string>
 #include <vector>
 #include "graph.hpp"
 
 namespace sc {
+
+namespace graph {
+std::string get_tensor_name(graph_tensor *t, sc_op *linked_output);
+}
 
 /**
  * Generates the ir_module_t from the OP graph

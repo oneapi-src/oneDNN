@@ -96,8 +96,10 @@ public:
 class SC_INTERNAL_API jit_module {
 public:
     statics_table_t globals_;
-    jit_module() = default;
-    jit_module(statics_table_t &&globals) : globals_(std::move(globals)) {}
+    // the unique id for a JIT module in a process scope
+    size_t module_id_;
+    jit_module();
+    jit_module(statics_table_t &&globals);
     virtual void *get_address_of_symbol(const std::string &name) = 0;
     virtual std::shared_ptr<jit_function_t> get_function(
             const std::string &name)

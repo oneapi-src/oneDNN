@@ -356,9 +356,24 @@ struct lowering_visitor_state_t {
     }
 };
 
+namespace graph {
+std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
+    std::string tensor_name;
+    if (t->producer_owner_->get_outputs().size() == 1UL) {
+        tensor_name = t->producer_owner_->attrs_.get_or_else(
+                "temp.name", tensor_name);
+    }
+    if (tensor_name.empty() && linked_output
+            && linked_output->get_inputs().size() == 1UL) {
+        tensor_name
+                = linked_output->attrs_.get_or_else("temp.name", tensor_name);
+    }
+    return tensor_name;
+}
+} // namespace graph
+
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args) {
-    // todo(zhichen): move to drive.
     auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
     if (!ctx->flags_.dump_graph_.empty()) {
         SC_INFO << "visualize graph to a dot file and a json file";
@@ -374,7 +389,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     stmts init_body = make_stmt<stmts_node_t>(std::vector<stmt>());
     // todo: use graph-id to generate name
     auto func = builder::make_func(
-            "main_entry", params, func_body, datatypes::void_t);
+            graph.attrs_.get_or_else<std::string>("temp.name", "main_entry"),
+            params, func_body, datatypes::void_t);
     // todo: logical tensor should also have an unique id
     std::unordered_map<graph_tensor_ptr, expr> ltsr_rtsr;
     std::unordered_map<expr, expr> ltsr_gtsr;
@@ -396,21 +412,29 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                                         int const_type) -> expr {
         auto itr = ltsr_rtsr.find(t);
         if (itr != ltsr_rtsr.end()) { return itr->second; }
-        std::vector<expr> dims = dims_to_expr(t->details_.get_blocking_dims());
-        expr tsr = builder::make_tensor(
-                std::string("buffer_") + std::to_string(tensor_counter), dims,
-                t->details_.dtype_);
-        tensor_counter++;
-        ltsr_rtsr.insert(std::make_pair(t, tsr));
+        sc_op *linked_output = nullptr;
         if (!is_arg) {
             for (auto &use : t->uses_) {
                 // finds if any of the use of the tensor is marked output
                 if (use.second->isa<output_op>()) {
                     is_arg = true;
+                    linked_output = use.second.get();
                     break;
                 }
             }
         }
+
+        std::vector<expr> dims = dims_to_expr(t->details_.get_blocking_dims());
+        std::string tensor_name
+                = graph::get_tensor_name(t.get(), linked_output);
+        if (tensor_name.empty()) {
+            tensor_name
+                    = std::string("buffer_") + std::to_string(tensor_counter);
+        }
+        expr tsr = builder::make_tensor(tensor_name, dims, t->details_.dtype_);
+        tensor_counter++;
+        ltsr_rtsr.insert(std::make_pair(t, tsr));
+
         if (!is_arg) {
             if (const_type != const_kind::not_const) {
                 if (const_type == const_kind::global_const) {
