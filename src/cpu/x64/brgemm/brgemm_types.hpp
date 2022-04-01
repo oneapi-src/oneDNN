@@ -87,7 +87,7 @@ struct DNNL_API brgemm_attr_t {
     bool wary_tail_read;
     bool generate_skip_accumulation;
     // bd_mask is char array in which each element is a boolean value that
-    // determines whether to write this row to the result mastrix or skip
+    // determines whether to write this row to the result matrix or skip
     char *bd_mask;
     // Value of bd_mask_level specifies how bd_mask is used in brgemm kernel
     // 0 – bd_mask is not used
