@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,6 +86,7 @@ public:
             case data_type::bf16: define_int("DT_BF16", 1); break;
             case data_type::f16: define_int("DT_F16", 1); break;
             case data_type::f32: define_int("DT_F32", 1); break;
+            case data_type::f64: define_int("DT_F64", 1); break;
             case data_type::s8: define_int("DT_S8", 1); break;
             case data_type::u8: define_int("DT_U8", 1); break;
             case data_type::s32: define_int("DT_S32", 1); break;
@@ -110,6 +111,8 @@ public:
         if (int_var_map_.count("DT_F16") != 0) return "f16";
 
         if (int_var_map_.count("DT_F32") != 0) return "f32";
+
+        if (int_var_map_.count("DT_F64") != 0) return "f64";
 
         if (int_var_map_.count("DT_S8") != 0) return "s8";
 

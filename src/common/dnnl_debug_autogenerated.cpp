@@ -44,6 +44,7 @@ const char *dnnl_dt2str(dnnl_data_type_t v) {
     if (v == dnnl_s32) return "s32";
     if (v == dnnl_s8) return "s8";
     if (v == dnnl_u8) return "u8";
+    if (v == dnnl_f64) return "f64";
     assert(!"unknown dt");
     return "unknown dt";
 }

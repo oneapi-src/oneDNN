@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,10 @@
 
 #if SRC_DT_F16 || DST_DT_F16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
+
+#if SRC_DT_F64 || DST_DT_F64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
 
 #undef SRC_OFF
@@ -94,6 +98,25 @@
     intel_sub_group_block_write8((__global uint *)(dst), as_uint8(val))
 #endif // SRC_DT_F32
 
+#if SRC_DT_F64
+#define SRC_BLOCK_READ(src) \
+    as_double(intel_sub_group_block_read2((const __global uint *)(src)))
+#define SRC_BLOCK_READ8(src) \
+    (double8)((as_double4(intel_sub_group_block_read8( \
+                      (const __global uint *)(src)))), \
+            (as_double4(intel_sub_group_block_read8( \
+                    (const __global uint *)(src + 8)))))
+#define SRC_BLOCK_WRITE(dst, val) \
+    intel_sub_group_block_write2((__global uint *)(dst), as_uint2(val))
+#define SRC_BLOCK_WRITE8(dst, val) \
+    do { \
+        intel_sub_group_block_write8( \
+                (__global uint *)(dst), as_uint8(val.lo)); \
+        intel_sub_group_block_write8( \
+                (__global uint *)(dst + 8), as_uint8(val.hi)); \
+    } while (0)
+#endif // SRC_DT_F64
+
 #if SRC_DT_BF16
 #define SRC_BLOCK_READ(src) \
     as_ushort(intel_sub_group_block_read_us((const __global ushort *)(src)))
@@ -159,6 +182,25 @@
 #define DST_BLOCK_WRITE8(dst, val) \
     intel_sub_group_block_write8((__global uint *)(dst), as_uint8(val))
 #endif // DST_DT_F32
+
+#if DST_DT_F64
+#define DST_BLOCK_READ(src) \
+    as_double(intel_sub_group_block_read2((const __global uint *)(src)))
+#define DST_BLOCK_READ8(src) \
+    (double8)((as_double4(intel_sub_group_block_read8( \
+                      (const __global uint *)(src)))), \
+            (as_double4(intel_sub_group_block_read8( \
+                    (const __global uint *)(src)))))
+#define DST_BLOCK_WRITE(dst, val) \
+    intel_sub_group_block_write2((__global uint *)(dst), as_uint2(val))
+#define DST_BLOCK_WRITE8(dst, val) \
+    do { \
+        intel_sub_group_block_write8( \
+                (__global uint *)(dst), as_uint8(val.lo)); \
+        intel_sub_group_block_write8( \
+                (__global uint *)(dst + 8), as_uint8(val.hi)); \
+    } while (0)
+#endif // DST_DT_F64
 
 #if DST_DT_BF16
 #define DST_BLOCK_READ(src) \

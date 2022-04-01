@@ -61,6 +61,12 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                                     weights_md_.data_type, dst_md_.data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
+                    && IMPLICATION(
+                            utils::one_of(f64, src_md_.data_type,
+                                    weights_md_.data_type, dst_md_.data_type),
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64)
+                                    && attr()->post_ops_.has_default_values())
                     && this->set_default_formats()
                     && attr()->has_default_values(
                             attr_skip_mask, dst_md_.data_type)

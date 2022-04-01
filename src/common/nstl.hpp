@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -129,6 +129,9 @@ struct numeric_limits;
 
 template <>
 struct numeric_limits<float> : public std::numeric_limits<float> {};
+
+template <>
+struct numeric_limits<double> : public std::numeric_limits<double> {};
 
 template <>
 struct numeric_limits<int32_t> : public std::numeric_limits<int32_t> {};

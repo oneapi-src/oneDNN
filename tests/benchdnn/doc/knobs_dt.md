@@ -12,4 +12,5 @@ The following data types are supported:
 | u8        | standard unsigned char or uint8_t
 | f16       | 2-byte float (1 sign bit, 5 exp bits, 10 mantissa bits)
 | bf16      | 2-byte float (1 sign bit, 8 exp bits, 7 mantissa bits)
+| f64       | double precision float
 

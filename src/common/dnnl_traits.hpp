@@ -54,6 +54,10 @@ struct prec_traits<data_type::f32> {
     typedef float type;
 };
 template <>
+struct prec_traits<data_type::f64> {
+    typedef double type;
+};
+template <>
 struct prec_traits<data_type::s32> {
     typedef int32_t type;
 };

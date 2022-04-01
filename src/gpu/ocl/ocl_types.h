@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,10 @@
         || defined(SRC1_DT_F16) || defined(DST_DT_F16) || defined(WEI_DT_F16) \
         || defined(BIA_DT_F16) || defined(ACC_DT_F16)
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
+
+#if DT_F64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
 
 #if DT_F32 == 1
@@ -93,6 +97,38 @@
 #define MMAD_DATA8_T uint8
 #define MMAD_ACC_DATA4_T float4
 #define MMAD_ACC_DATA8_T float8
+
+#elif DT_F64 == 1
+#define DATA_T double
+#define DATA2_T double2
+#define DATA4_T double4
+#define DATA8_T double8
+#define DATA16_T double16
+#define DATA_MAX DBL_MAX
+#define DATA_MIN -DATA_MAX
+#define DATA_ZERO 0.0d
+#define DATA_ONE 1.0d
+#define DEF_ACC_DATA_T double
+#define DEF_ACC_DATA2_T double2
+#define DEF_ACC_DATA4_T double4
+#define DEF_ACC_DATA8_T double8
+#define POST_OP_DATA_T double
+#define TO_DATA_T(v) (double)(v)
+#define TO_DEF_ACC_DATA_T(v) (double)(v)
+#define DATA_TO_REF convert_float
+#define CONVERT_DATA_T convert_double
+#define CONVERT_DATA2_T convert_double2
+#define CONVERT_DATA4_T convert_double4
+#define CONVERT_DATA8_T convert_double8
+#define CONVERT_FLOAT_T convert_float
+#define CONVERT_FLOAT2_T convert_float2
+#define CONVERT_FLOAT4_T convert_float4
+#define CONVERT_FLOAT8_T convert_float8
+
+#define AS_DATA_T as_double
+#define AS_DATA2_T as_double2
+#define AS_DATA4_T as_double4
+#define AS_DATA8_T as_double8
 
 #elif DT_F16 == 1
 
@@ -877,6 +913,11 @@
 #define TO_DST2(x) convert_float2(x)
 #define TO_DST4(x) convert_float4(x)
 #define TO_DST8(x) convert_float8(x)
+#elif DST_DT_F64
+#define TO_DST(x) convert_double(x)
+#define TO_DST2(x) convert_double2(x)
+#define TO_DST4(x) convert_double4(x)
+#define TO_DST8(x) convert_double8(x)
 #else
 #error "Not expected"
 #endif
@@ -913,6 +954,9 @@
 #elif C_DT_F32
 #define TO_C(x) convert_float(x)
 #define TO_C8(x) convert_float8(x)
+#elif C_DT_F64
+#define TO_C(x) convert_double(x)
+#define TO_C8(x) convert_double8(x)
 #else
 #error "Not expected"
 #endif
@@ -923,6 +967,8 @@
 #define TO_ACC(x) convert_half(x)
 #elif ACC_DT_F32
 #define TO_ACC(x) convert_float(x)
+#elif ACC_DT_F64
+#define TO_ACC(x) convert_double(x)
 #elif ACC_DT_S32
 #define TO_ACC(x) convert_int(x)
 #else

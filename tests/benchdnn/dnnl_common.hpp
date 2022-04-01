@@ -91,6 +91,15 @@ template <>
 struct prec_traits<dnnl_f32> {
     typedef float type;
 };
+
+// XXX: benchdnn infra doesn't support double yet.
+// Use float's max/min/epsilon values to avoid following build warnings:
+// warning C4756: overflow in constant arithmetic.
+// This should be fixed once cpu reference in f64 is added.
+template <>
+struct prec_traits<dnnl_f64> {
+    typedef float type;
+};
 template <>
 struct prec_traits<dnnl_s32> {
     typedef int32_t type;
@@ -109,6 +118,7 @@ struct prec_traits<dnnl_u8> {
         CASE(dnnl_bf16); \
         CASE(dnnl_f16); \
         CASE(dnnl_f32); \
+        CASE(dnnl_f64); \
         CASE(dnnl_s32); \
         CASE(dnnl_s8); \
         CASE(dnnl_u8); \

@@ -152,6 +152,7 @@ const data_type_t undef = dnnl_data_type_undef;
 const data_type_t f16 = dnnl_f16;
 const data_type_t bf16 = dnnl_bf16;
 const data_type_t f32 = dnnl_f32;
+const data_type_t f64 = dnnl_f64;
 const data_type_t s32 = dnnl_s32;
 const data_type_t s8 = dnnl_s8;
 const data_type_t u8 = dnnl_u8;

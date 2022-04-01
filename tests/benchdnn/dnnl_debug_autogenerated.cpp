@@ -40,6 +40,7 @@ dnnl_data_type_t str2dt(const char *str) {
     CASE(s32);
     CASE(s8);
     CASE(u8);
+    CASE(f64);
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_data_type_undef", str))
         return dnnl_data_type_undef;

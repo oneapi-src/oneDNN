@@ -76,6 +76,14 @@ const _dt_conf_t conf_f32_wino = {
         {dnnl_f32},
 };
 
+const _dt_conf_t conf_f64 = {
+        {dnnl_f64, -int_max_exact, int_max_exact, -32, 32, 0, 1, .25, 0.},
+        {dnnl_f64, -int_max_exact, int_max_exact, -32, 32, 0, 1, 1.0, 0.},
+        {dnnl_f64, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
+        {dnnl_f64, -int_max_exact, int_max_exact, -32, 32, 0, 1, .25, 0.},
+        {dnnl_f64},
+};
+
 const _dt_conf_t conf_f16_wino = {
         {dnnl_f16, HALF_MIN, HALF_MAX, -2, 16, 0, 1, .25, 5e-3},
         {dnnl_f16, HALF_MIN, HALF_MAX, 1, 6, -2, 1, .5, 6e-3},
@@ -321,6 +329,7 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(f16);
     CASE(f32);
     CASE(f32_wino);
+    CASE(f64);
     CASE(u8s8f32);
     CASE(u8s8f16);
     CASE(u8s8bf16);
@@ -363,6 +372,7 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(f16);
     CASE(f32);
     CASE(f32_wino);
+    CASE(f64);
     CASE(u8s8f32);
     CASE(u8s8f16);
     CASE(u8s8bf16);

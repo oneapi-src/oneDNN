@@ -958,6 +958,10 @@ inline void def_data_type(
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=float -D%s_DT_F32", str, str));
             break;
+        case data_type::f64:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=double -D%s_DT_F64", str, str));
+            break;
         case data_type::s8:
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=char -D%s_DT_S8", str, str));

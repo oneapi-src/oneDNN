@@ -157,8 +157,10 @@ source, destination, and weights memory objects:
 | forward            | f16       | f16       | f16, f32, u8, s8             | f16, f32                    |
 | forward            | u8, s8    | s8        | u8, s8, s32, f32, f16, bf16  | u8, s8, s32, f32, f16, bf16 |
 | forward            | bf16      | bf16      | f32, bf16                    | f32, bf16                   |
+| forward            | f64       | f64       | f64                          | f64                         |
 | backward           | f32, bf16 | bf16      | bf16                         |                             |
 | backward           | f32       | f32       | f32                          | f32                         |
+| backward           | f64       | f64       | f64                          | f64                         |
 | weights update     | bf16      | f32, bf16 | bf16, s8, u8                 | f32, bf16                   |
 
 @warning
@@ -350,7 +352,7 @@ algorithms:
 
 - _Direct_. The convolution operation is computed directly using SIMD
   instructions. This is the algorithm used for the most shapes and supports
-  int8, f32 and bf16 data types.
+  int8, f32, bf16 and f64 (only on GPU engine) data types.
 
 - _Winograd_. This algorithm reduces computational complexity of convolution
   at the expense of accuracy loss and additional memory operations. The

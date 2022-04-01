@@ -15,19 +15,23 @@ in comparison to fp32.
 | bf16      | [non-IEEE 16-bit floating-point](https://software.intel.com/content/www/us/en/develop/download/bfloat16-hardware-numerics-definition.html)
 | f16       | [IEEE half precision floating-point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)
 | s8/u8     | signed/unsigned 8-bit integer
+| f64       | [IEEE double precision floating-point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#IEEE_754_double-precision_binary_floating-point_format:_binary64)
 
 ## Inference and Training
 
 oneDNN supports training and inference with the following data types:
 
-| Usage mode | CPU                | GPU                     |
-| :---       | :---               | :---                    |
-| Inference  | f32, bf16, s8/u8   | f32, bf16, f16, s8/u8   |
-| Training   | f32, bf16          | f32, bf16               |
+| Usage mode | CPU                | GPU                          |
+| :---       | :---               | :---                         |
+| Inference  | f32, bf16, s8/u8   | f32, bf16, f16, s8/u8, f64   |
+| Training   | f32, bf16          | f32, bf16, f64               |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning
     model implementation.
+
+@note
+    f64 is only supported for convolution primitive, on the GPU engine.
 
 See topics for the corresponding data types details:
  * @ref dev_guide_inference_int8
@@ -44,7 +48,8 @@ During a primitive computation, oneDNN can use different datatypes
 than those of the inputs/outputs. In particular, oneDNN uses wider
 accumulator datatypes (s32 for integral computations, and f32 for
 floating-point computations), and converts intermediate results to f32
-before applying post-ops. The following formula governs the datatypes
+before applying post-ops (f64 configuration does not support post-ops). 
+The following formula governs the datatypes
 dynamic during a primitive computation:
 
 \f[
@@ -130,6 +135,9 @@ types that oneDNN recognizes.
   flag and always round to nearest tie-even and flush denormals to
   zero.
 
+@note 
+  f64 configuration is not available for the CPU engine.
+
 ### Intel(R) Processor Graphics and Xe Architecture graphics
 oneDNN performance optimizations for Intel Processor graphics and
 Xe Architecture graphics are specialized based on device microarchitecture (uArch).
@@ -146,3 +154,7 @@ types that oneDNN recognizes.
 | s8, u8    | Xe-LP
 | bf16      | Xe-HP
 | f16       | GEN9
+
+@note 
+  f64 configurations are only supported on the GPU engines with HW capability 
+  for double-precision floating-point.

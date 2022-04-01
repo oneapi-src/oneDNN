@@ -74,6 +74,8 @@ typedef enum {
     dnnl_s8 = 5,
     /// 8-bit unsigned integer.
     dnnl_u8 = 6,
+    /// 64-bit/double-precision floating point.
+    dnnl_f64 = 7,
 } dnnl_data_type_t;
 
 /// Memory format kind

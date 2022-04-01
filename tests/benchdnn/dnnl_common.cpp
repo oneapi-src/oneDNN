@@ -213,6 +213,7 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
 float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
     switch (dt) {
         case dnnl_f32: break;
+        case dnnl_f64: break;
         case dnnl_bf16: value = (float)dnnl::impl::bfloat16_t(value); break;
         case dnnl_f16: value = (float)dnnl::impl::float16_t(value); break;
         case dnnl_s32:

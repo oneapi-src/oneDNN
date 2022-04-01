@@ -63,7 +63,13 @@ struct ref_reorder_t : public gpu_primitive_t {
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short));
+                                                    intel_subgroups_short))
+                    && IMPLICATION(
+                            utils::one_of(data_type::f64, src_md()->data_type,
+                                    dst_md()->data_type),
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64)
+                                    && attr()->post_ops_.has_default_values());
 
             if (!ok) return status::unimplemented;
 
