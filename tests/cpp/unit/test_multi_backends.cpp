@@ -296,6 +296,8 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
         inputs.emplace_back(&lt);
     }
     for (auto &lt : partition_outputs) {
+        // set any to allow backend to decide the layout
+        lt.layout_type = impl::layout_type::any;
         outputs.emplace_back(&lt);
     }
 
