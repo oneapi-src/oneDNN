@@ -3921,6 +3921,8 @@ private:
                 auto &src1 = dpas_t::arg_src1(s);
                 auto &src2 = dpas_t::arg_src2(s);
 
+                if (!seen_dst.insert(dst).second) continue;
+
                 auto new_call = func_call_t::make(
                         call.func, {dst, src0, src1, src2}, call.attr);
                 ret = substitute(ret, s, new_call, 1);
@@ -6027,8 +6029,8 @@ private:
         for (int i_k = 0; i_k < desc.k(); i_k += k_blk) {
             for (int i_m = 0; i_m < desc.m(); i_m += m_blk) {
                 for (int i_n = 0; i_n < desc.n(); i_n += n_blk) {
-                    std::vector<int> a_args = {i_m, 0};
-                    std::vector<int> b_args = {0, i_n};
+                    std::vector<int> a_args = {i_m, i_k};
+                    std::vector<int> b_args = {i_k, i_n};
                     std::vector<int> c_args = {i_m, i_n};
                     auto a = a_buf[desc.a_layout()(a_args)
                             * desc.a_type().size()];
@@ -6273,11 +6275,14 @@ layout_t get_fma_friendly_layout(abc_kind_t abc_kind, int simd_size,
     auto dpas_layout = (is_a ? dpas.b_layout() : dpas.a_layout());
     dpas_layout = dpas_layout.transpose();
 
-    ir_assert(dpas_layout.dim(k_idx) == k_blk);
-    MAYBE_UNUSED(k_blk);
+    ir_assert(k_blk % dpas_layout.dim(k_idx) == 0);
 
     dim_t dpas_mn_blk = dpas_layout.dim(mn_idx);
-    dpas_layout = dpas_layout.add_outer_block(mn_idx, mn_blk / dpas_mn_blk);
+    dim_t dpas_k_blk = dpas_layout.dim(k_idx);
+    dim_t k_outer = ir_utils::safe_divide(k_blk, dpas_k_blk);
+    dim_t mn_outer = ir_utils::safe_divide(mn_blk, dpas_mn_blk);
+    dpas_layout = dpas_layout.add_outer_block(k_idx, k_outer);
+    dpas_layout = dpas_layout.add_outer_block(mn_idx, mn_outer);
 
     return dpas_layout;
 }
