@@ -214,6 +214,7 @@ int check_s8s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
             benchdnn_parallel_nd(n_chunks, [&](int64_t idx) {
                 quantize(&(prb.data_scale), 1, prb.data_shift, idx);
             });
+            break;
         default: assert(!"unsupported kind");
     }
 
