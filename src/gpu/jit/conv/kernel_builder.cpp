@@ -796,24 +796,28 @@ public:
                 send->create_offset_store(header_buf, mem_buf, mem_off));
 
         if (send->is_2d()) {
-            int off = 8;
-            auto emit_store = [&](int value) {
-                auto store = store_t::make(
-                        header_buf, off, cast(value, type_t::s32()));
-                off += 4;
+            auto emit_store = [&](const expr_t &e, int off) {
+                auto store = store_t::make(header_buf, off, e);
                 off_store = off_store.append(store);
+            };
+            auto emit_store_s32 = [&](int value, int off) {
+                emit_store(cast(value, type_t::s32()), off);
             };
             auto &info = send->block_2d_info;
             int type_size = send->type.size();
-            emit_store(info.surface_width * type_size - 1);
-            emit_store(info.surface_height * type_size - 1);
-            emit_store(info.surface_pitch * type_size - 1);
-            emit_store(to_cpp<int>(info.x));
-            emit_store(to_cpp<int>(info.y));
+            emit_store_s32(info.surface_width * type_size - 1,
+                    send_t::header_2d_off_surface_width());
+            emit_store_s32(info.surface_height - 1,
+                    send_t::header_2d_off_surface_height());
+            emit_store_s32(info.surface_pitch * type_size - 1,
+                    send_t::header_2d_off_surface_pitch());
+            emit_store(send_t::arg_x(obj), send_t::header_2d_off_x());
+            emit_store(send_t::arg_y(obj), send_t::header_2d_off_y());
             uint32_t w_enc = info.width - 1;
             uint32_t h_enc = info.height - 1;
             uint32_t count_enc = info.count - 1;
-            emit_store((count_enc << 16) + (h_enc << 8) + w_enc);
+            emit_store_s32((count_enc << 16) + (h_enc << 8) + w_enc,
+                    send_t::header_2d_off_whc());
         }
 
         auto new_call = func_call_t::make(
@@ -944,8 +948,13 @@ public:
 
     object_t _mutate(const store_t &obj) override {
         if (header_bufs_.count(obj.buf) == 0) return obj;
-        // Do not lift address assignments.
-        if (is_zero(obj.off)) return obj;
+        // Do not lift address assignments and non-const x and y.
+        int off = to_cpp<int>(obj.off);
+        if (off == 0) return obj;
+        if (utils::one_of(
+                    off, send_t::header_2d_off_x(), send_t::header_2d_off_y())
+                && !is_const(obj.value))
+            return obj;
         stores_[obj.buf].push_back(obj);
         return stmt_t();
     }
@@ -3115,7 +3124,9 @@ public:
             auto s = _s;
             if (is_func_call<send_t>(s)) {
                 auto &send = s.as<func_call_t>().func.as<send_t>();
-                int idx = (send.is_prefetch() ? prefetch_idx++ : 0);
+                int idx = (send.is_prefetch() || send.is_prefetch_2d()
+                                ? prefetch_idx++
+                                : 0);
                 auto sbid = get_sbid(send_t::arg_reg_buf(s), idx);
                 s = update_call_with_sbid(s, sbid);
             } else if (is_func_call<dpas_t>(s)) {
@@ -5458,6 +5469,7 @@ public:
         : cfg_(cfg)
         , ir_ctx_(ir_ctx)
         , cset_(cset)
+        , gemm_schedule_(gemm_schedule)
         , post_op_ctx_(post_op_ctx)
         , c_mem_view_(c_mem_view)
         , c_mem_buf_(c_mem_buf)
@@ -5673,11 +5685,13 @@ private:
         }
 
         // S_y -> GMEM.
+        auto send_op = cfg_.do_atomic_update ? send_op_t::atomic_fadd
+                                             : send_op_t::store;
+        auto send_hint = get_send_hint(send_op, abc_kind_t::c, c_mem_tile_view,
+                cfg_.use_2d_send, cfg_.simd_size(), gemm_schedule_);
         auto r2g = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
-                c_mem_tile_view, c_mem_buf_, tmp_reg_buf,
-                cfg_.do_atomic_update ? send_op_t::atomic_fadd
-                                      : send_op_t::store,
-                send_address_t::a64);
+                c_mem_tile_view, c_mem_buf_, tmp_reg_buf, send_op,
+                send_address_t::a64, send_hint);
 
         // Initialize C stages.
         std::vector<c_stage_t> c_stages;
@@ -5816,6 +5830,7 @@ private:
     const conv_config_t &cfg_;
     ir_context_t &ir_ctx_;
     const constraint_set_t &cset_;
+    const gemm_schedule_t &gemm_schedule_;
     const post_op_context_t &post_op_ctx_;
 
     // C view in global memory.
@@ -6697,33 +6712,11 @@ private:
         if (!load_buffered) mem_view = _mem_view;
 
         send_op_t send_op = send_op_t::load;
-        // XXX: Enable 2D load messages for bwd_w for 32n16c layout. In the
-        // future we need to add heuristics to determine when 2D block messages
-        // are beneficial to use.
-        auto block_2d_ok = [&](const view_t &view, abc_kind_t abc_kind) {
-            auto inner = view.tlayout().innermost_block_layout();
-            if (view.type() != type_t::bf16()) return false;
-            if (inner.blocks().size() != 2) return false;
-            auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
-            auto &b0 = inner.blocks()[0];
-            auto &b1 = inner.blocks()[1];
-            if (b0.block != 16 || b1.block != 32) return false;
-            bool b1_is_k = (bmnk_mapper.bmnk_kind(abc_kind, b1.dim_idx)
-                    == bmnk_kind_t::k);
-            return b1_is_k;
-        };
-        send_hint_t read_hint;
-        if (!is_slm && cfg_.is_bwd_w && !cfg_.with_bias
-                && cfg_.hw() >= ngen::HW::XeHPC) {
-            if (block_2d_ok(gemm_schedule_.a_view(), abc_kind_t::a)
-                    && block_2d_ok(gemm_schedule_.b_view(), abc_kind_t::b))
-                read_hint.enable_2d = true;
-            read_hint.enable_2d_vnni = true;
-        }
-
+        auto send_hint = get_send_hint(send_op_t::load, abc_kind, mem_view,
+                can_use_2d_send(), cfg_.simd_size(), gemm_schedule_);
         auto read = make_access_builder(cfg_.hw(), ir_ctx_, cset_, mem_view,
                 buf, reg_buf, send_op,
-                is_slm ? send_address_t::slm : send_address_t::a64, read_hint);
+                is_slm ? send_address_t::slm : send_address_t::a64, send_hint);
         ir_trace() << (is_a ? "A" : "B") << " GMEM/SLM to GRF load #"
                    << sub_tile_idx << ":\n"
                    << read.str() << std::endl;
@@ -6736,6 +6729,28 @@ private:
 
         reg_layout = read.reg_layout();
         stmt = read.stmt();
+    }
+
+    bool can_use_2d_send() const {
+        // Enable 2D load messages for bwd_w for 32n16c layout
+        if (cfg_.is_bwd_w) {
+            auto block_2d_ok = [&](const view_t &view, abc_kind_t abc_kind) {
+                auto inner = view.tlayout().innermost_block_layout();
+                if (view.type() != type_t::bf16()) return false;
+                if (inner.blocks().size() != 2) return false;
+                auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
+                auto &b0 = inner.blocks()[0];
+                auto &b1 = inner.blocks()[1];
+                if (b0.block != 16 || b1.block != 32) return false;
+                bool b1_is_k = (bmnk_mapper.bmnk_kind(abc_kind, b1.dim_idx)
+                        == bmnk_kind_t::k);
+                return b1_is_k;
+            };
+            bool a_ok = block_2d_ok(gemm_schedule_.a_view(), abc_kind_t::a);
+            bool b_ok = block_2d_ok(gemm_schedule_.b_view(), abc_kind_t::b);
+            return a_ok && b_ok;
+        }
+        return false;
     }
 
     void register_buffer(const stmt_t &alloc) {
@@ -7187,10 +7202,14 @@ private:
         // Per-thread view to prefetch from GMEM.
         auto thr_view = x_gmem_view.split(gemm_schedule_.tg_grid());
 
+        auto send_hint = get_send_hint(send_op_t::prefetch,
+                (tag[0] == 'A') ? abc_kind_t::a : abc_kind_t::b, thr_view,
+                false, cfg_.simd_size(), gemm_schedule_);
+
         // GMEM prefetch.
         auto x_prefetch = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
                 thr_view, xp_buf, expr_t(), send_op_t::prefetch,
-                send_address_t::a64);
+                send_address_t::a64, send_hint);
         ir_trace() << tag << " GMEM prefetch:\n"
                    << x_prefetch.str() << std::endl;
 

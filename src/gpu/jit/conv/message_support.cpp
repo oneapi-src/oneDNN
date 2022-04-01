@@ -16,6 +16,8 @@
 
 #include "gpu/jit/conv/message_support.hpp"
 
+#include "gpu/jit/conv/ir.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -393,6 +395,7 @@ access_builder_t::access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
         const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
         send_address_t send_address, const send_hint_t &send_hint)
     : hw_(hw)
+    , cset_(&cset)
     , mem_view_(mem_view)
     , mem_buf_(mem_buf)
     , reg_buf_(reg_buf)
@@ -401,13 +404,13 @@ access_builder_t::access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
     , send_hint_(send_hint)
     , mem_type_(mem_view.type())
     , mem_walker_(utils::make_unique<memory_walker_t>(cset, mem_view)) {
-    if (send_hint_.enable_2d) {
-        if (!try_build_2d()) {
+    if (send_hint_.hint_2d.enable) {
+        if (try_build_2d()) return;
+        if (send_op == send_op_t::load) {
             ir_error_not_expected() << "Can't generate 2D send decomposition.";
         }
-    } else {
-        build();
     }
+    build();
 }
 
 access_builder_t::access_builder_t(access_builder_t &&) = default;
@@ -433,92 +436,236 @@ void access_builder_t::build() {
 
 bool access_builder_t::try_build_2d() {
     auto vlayout = mem_view_.create_pseudo_vlayout();
+    auto &hint = send_hint_.hint_2d;
+    // The data may be loaded in a wider data type to get a proper GRF layout.
+    if (!hint.type.is_undef()) vlayout = vlayout.reinterpret(hint.type);
+
+    auto send_type = type_t::u(vlayout.type().size() * 8);
     auto blocks = vlayout.blocks();
     if (blocks.size() < 2) return false;
 
-    // XXX: The logic below is implemented for small and dense 2D blocks (like
-    // 16a16b). In general 2D block messages are used for large 2D surfaces
-    // (not necessarily dense).
-    auto b0 = blocks[0];
-    auto b1 = blocks[1];
+    auto &b0 = blocks[0];
+    auto &b1 = blocks[1];
     ir_assert(b0.dim_idx != b1.dim_idx);
-    if (b0.stride != stride_t(1) || b1.stride != stride_t(b0.block))
-        return false;
+    if (b0.stride != stride_t(1)) return false;
+    if (!b1.stride.is_fixed()) return false;
+
+    auto get_tdim_idx = [&](int vdim_idx, int &stride) {
+        int ret = -1;
+        for (int i = 0; i < mem_view_.ntdims(); i++) {
+            auto &tdim = mem_view_.tdim(i);
+            for (int j = 0; j < tdim.nvargs(); j++) {
+                if (tdim.vidx(j) == vdim_idx) {
+                    ir_assert(ret == -1);
+                    stride = (int)tdim.vstride(j);
+                    ret = i;
+                }
+            }
+        }
+        return ret;
+    };
+
+    int w_tstride = 0;
+    int h_tstride = 0;
+    int w_dim_idx = get_tdim_idx(b0.dim_idx, w_tstride);
+    int h_dim_idx = get_tdim_idx(b1.dim_idx, h_tstride);
+
+    if (w_tstride != 1) return false;
+
+    auto &tlayout = mem_view_.tlayout();
+    auto get_2d_dim = [&](int tdim_idx) {
+        return tlayout.inner_block(tdim_idx, /*skip_outer=*/false);
+    };
+
+    int surface_width = 0;
+    int surface_height = 0;
+    int surface_pitch = b1.stride;
+    bool is_w_blocked = (get_2d_dim(w_dim_idx) != tlayout.dim(w_dim_idx));
+    bool is_h_blocked = (get_2d_dim(h_dim_idx) != tlayout.dim(h_dim_idx));
+    // Virtual surface means loading from the innermost block of a block layout
+    // which implies no bound checks embedded into 2D block message.
+    bool use_virtual_surface = is_w_blocked || is_h_blocked;
+    if (use_virtual_surface) {
+        surface_width = b0.block;
+        surface_height = b1.block;
+        ir_assert(h_tstride == 1);
+    } else {
+        surface_width = tlayout.dim(w_dim_idx);
+        surface_height = tlayout.dim(h_dim_idx);
+        surface_height = ir_utils::safe_divide(surface_height, h_tstride);
+        surface_pitch *= h_tstride;
+    }
+    int type_factor = ir_utils::safe_divide(send_type.size(), mem_type_.size());
+    surface_width /= type_factor;
 
     int grf_size = ngen::GRF::bytes(hw_);
-    int size = mem_type_.size() * b0.block * b1.block;
-    int b0_size = b0.block * mem_type_.size();
-    int surface_width = b0.block;
-    int surface_height = b1.block;
+    int width = hint.width;
+    int height = hint.height;
     int count = 1;
-    bool vnni = send_hint_.enable_2d_vnni;
-    bool transpose = send_hint_.enable_2d_transpose;
+    bool vnni = hint.vnni;
+    bool transpose = hint.transpose;
+
+    // Try to reduce the number of messages by increasing count per message.
+    int try_count = count * 2;
+    int max_count = transpose ? 1 : 4;
+    while (try_count <= max_count) {
+        if (b0.block % (try_count * width) != 0) break;
+        if (width * try_count * mem_type_.size() > 64) break;
+        count = try_count;
+        try_count *= 2;
+    }
+
+    int W = surface_width;
+    int H = surface_height;
+    int P = surface_pitch;
+    int w = width;
+    int h = height;
+    int c = count;
+    if (!fixup_send_2d_params(send_type, vnni, transpose, W, H, P, w, h, c))
+        return false;
+
+    std::vector<dim_t> dims(vlayout.ndims(), 1);
+    dims[b0.dim_idx] = count * width;
+    dims[b1.dim_idx] = height;
+    tensor_t tile(dims);
+
+    reg_layout_ = layout_t(type_factor == 1 ? mem_type_ : send_type, 0,
+            std::vector<dim_t>(vlayout.ndims(), 1));
+    int h_inner = vnni ? 4 / send_type.size() : 1;
+    int h_outer = ir_utils::safe_divide(height, h_inner);
+    reg_layout_ = reg_layout_.add_outer_block(b1.dim_idx, h_inner);
+    if (transpose) {
+        reg_layout_ = reg_layout_.add_outer_block(b1.dim_idx, h_outer);
+        reg_layout_ = reg_layout_.add_outer_block(b0.dim_idx, width);
+    } else {
+        reg_layout_ = reg_layout_.add_outer_block(b0.dim_idx, width);
+        reg_layout_ = reg_layout_.add_outer_block(b1.dim_idx, h_outer);
+    }
+    reg_layout_ = reg_layout_.add_outer_block(b0.dim_idx, count);
+
+    int w_outermost
+            = ir_utils::safe_divide(vlayout.dim(b0.dim_idx), count * width);
+    int h_outermost = ir_utils::safe_divide(vlayout.dim(b1.dim_idx), height);
+    reg_layout_ = reg_layout_.add_outer_block(b0.dim_idx, w_outermost);
+    reg_layout_ = reg_layout_.add_outer_block(b1.dim_idx, h_outermost);
+
+    if (type_factor != 1) {
+        auto blocks = reg_layout_.blocks();
+        reg_layout_ = layout_t(
+                mem_type_, 0, std::vector<dim_t>(vlayout.ndims(), 1));
+        reg_layout_ = reg_layout_.add_outer_block(b0.dim_idx, type_factor);
+        for (auto &b : blocks)
+            reg_layout_ = reg_layout_.add_outer_block(b.dim_idx, b.block);
+    }
+
+    for (auto &b : blocks) {
+        if (utils::one_of(b.dim_idx, b0.dim_idx, b1.dim_idx)) continue;
+        reg_layout_ = reg_layout_.add_outer_block(b.dim_idx, b.block);
+    }
+
+    reg_layout_walker_
+            = utils::make_unique<layout_walker_t>(reg_layout_, grf_size);
+
+    auto _send = send_t::make_2d(hw_, send_hint_.convert(send_op_), send_type,
+            W, H, P, w, h, c, vnni, transpose);
+    auto &send = _send.as<send_t>();
+
+    stmt_ = stmt_t();
+    bool ok = true;
+    auto vstart0 = mem_view_.vstart();
+    vlayout.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
+        if (!ok) return;
+
+        // Check mask requirements.
+        expr_t mask;
+        if (!check_2d_mask(
+                    tensor_t(tile.dims(), start), w_dim_idx, h_dim_idx, mask)) {
+            ok = false;
+            return;
+        }
+
+        auto vstart = vstart0;
+        for (int i = 0; i < vlayout.ndims(); i++) {
+            if (start[i] == 0) continue;
+            int factor = (i == b0.dim_idx ? type_factor : 1);
+            vstart[i] += factor * start[i];
+        }
+        auto tstart
+                = mem_view_.cvt_vargs_to_targs(vstart, /*ignore_vstart=*/true);
+
+        auto &_x = tstart[w_dim_idx];
+        auto &_y = tstart[h_dim_idx];
+
+        expr_t x(0);
+        expr_t y(0);
+
+        if (!use_virtual_surface) {
+            std::swap(x, _x);
+            std::swap(y, _y);
+            if (type_factor != 1) x /= type_factor;
+        }
+
+        auto off = mem_view_.tlayout().offset_in_bytes(tstart);
+        auto reg_buf = (send.is_prefetch_2d()
+                        ? expr_t()
+                        : reg_buf_ + reg_layout_walker_->offset_bytes());
+        auto send_stmt = send(mem_buf_, off, reg_buf, mask, x, y);
+        stmt_ = stmt_.append(send_stmt);
+
+        reg_layout_walker_->advance(send.access_size() / mem_type_.size());
+    });
+
+    return ok;
+}
+
+bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
+        bool transpose, int &W, int &H, int &P, int &w, int &h, int &c) {
+    int surface_width_size = W * send_type.size();
 
     // Surface width must be >= 64 bytes. For smaller width we can apply
     // reshape, e.g. [16a] x [16b] -> [8a] x [2a16b] to have block with larger
     // width.
-    if (b0_size < 64) {
-        if (!vnni) return false;
-        if (64 % b0_size != 0) return false;
-        int factor = 64 / b0_size;
-        if (b1.block % factor != 0) return false;
-        surface_width *= factor;
-        surface_height /= factor;
-        b1.block /= factor;
-        count = factor;
+    if (surface_width_size >= 64) return surface_width_size % 64 == 0;
+
+    // Reshape is only expected/supported with VNNI.
+    if (!vnni || transpose) return false;
+
+    if (64 % surface_width_size != 0) return false;
+    int factor = 64 / surface_width_size;
+    if (h % factor != 0) return false;
+    W *= factor;
+    P *= factor;
+    H /= factor;
+    h /= factor;
+    c = factor;
+    return true;
+}
+
+bool access_builder_t::check_2d_mask(const tensor_t &tile, int w_dim_idx,
+        int h_dim_idx, expr_t &mask) const {
+    auto sub_view = mem_view_.create_sub_view(tile);
+    auto mask_tensor = sub_view.create_mask_tensor(*cset_);
+    mask = mask_tensor.to_expr(1);
+    if (!mask.is_empty()) return true;
+
+    uint32_t tmask = 0xFFFFFFFF;
+    for (int i = 0; i < sub_view.nvdims(); i++) {
+        if (!utils::one_of(i, w_dim_idx, h_dim_idx)) continue;
+        for (int j = 0; j < sub_view.ntdims(); j++) {
+            auto &tdim = sub_view.tdim(j);
+            for (int k = 0; k < tdim.nvargs(); k++) {
+                if (tdim.vidx(k) == i) {
+                    // TODO: Check if tdim mask is a bound mask.
+                    tmask &= ~(1U << i);
+                }
+            }
+        }
     }
+    mask_tensor = sub_view.create_mask_tensor(*cset_, tmask);
+    mask = mask_tensor.to_expr(1);
+    if (!mask.is_empty()) return true;
 
-    auto _send = send_t::make_2d(hw_, send_hint_.convert(send_op_), mem_type_,
-            surface_width, surface_height, surface_width, 0, 0, b0.block,
-            b1.block, count, vnni, transpose);
-    auto &send = _send.as<send_t>();
-
-    std::vector<dim_t> dims(vlayout.ndims(), 1);
-    dims[b0.dim_idx] = blocks[0].block;
-    dims[b1.dim_idx] = blocks[1].block;
-    tensor_t tile(dims);
-
-    reg_layout_
-            = layout_t(mem_type_, 0, std::vector<dim_t>(vlayout.ndims(), 1));
-    int b10 = vnni ? 4 / mem_type_.size() : 1;
-    reg_layout_ = reg_layout_.add_outer_block(blocks[1].dim_idx, b10);
-    reg_layout_
-            = reg_layout_.add_outer_block(blocks[0].dim_idx, blocks[0].block);
-    reg_layout_ = reg_layout_.add_outer_block(
-            blocks[1].dim_idx, blocks[1].block / b10);
-    for (int i = 2; i < (int)blocks.size(); i++)
-        reg_layout_ = reg_layout_.add_outer_block(
-                blocks[i].dim_idx, blocks[i].block);
-
-    stmt_ = stmt_t();
-    mem_walker_->reset();
-    reg_layout_walker_
-            = utils::make_unique<layout_walker_t>(reg_layout_, grf_size);
-    bool ok = true;
-    vlayout.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
-        if (!ok) return;
-
-        // Check if slots are contiguous and aligned.
-        if (!mem_walker_->check_region(0, send.slots, size, send.alignment())) {
-            ok = false;
-            return;
-        }
-
-        // Check mask requirements.
-        if (!mem_walker_->check_mask_size(
-                    0, size, send.mask_size(), send.nmasks())) {
-            ok = false;
-            return;
-        }
-
-        auto send_stmt = create_send_stmt(send);
-        stmt_ = stmt_.append(send_stmt);
-
-        reg_layout_walker_->advance(size / mem_type_.size());
-        mem_walker_->advance(size);
-    });
-
-    return ok;
+    return false;
 }
 
 bool access_builder_t::try_build(const layout_t &try_layout) {
@@ -682,6 +829,129 @@ stmt_t access_builder_t::create_send_stmt(const send_t &send) {
                     : reg_buf_ + reg_layout_walker_->offset_bytes());
     auto ret = send(mem_buf_, off, _reg_buf, _mask);
     return ret;
+}
+
+send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
+        bool vnni, bool transpose, int w_tile, int h_tile, int w_blk = 0,
+        int h_blk = 0) {
+    auto type = _type;
+    bool orig_vnni = vnni;
+    bool orig_transpose = transpose;
+
+    if (vnni && transpose) {
+        // This combination is not supported but try to replace by upconvert
+        // and transpose.
+        if (type.size() == 2) {
+            type = type_t::u32();
+            w_tile = ir_utils::safe_divide(w_tile, 2);
+            w_blk = ir_utils::safe_divide(w_blk, 2);
+            vnni = false;
+            orig_vnni = false;
+        }
+    }
+
+    // XXX: Convert transpose to VNNI when transpose is not
+    // supported. This will require additional reorder but
+    // reorder from "partially transposed" VNNI transformed
+    // layout is cheaper.
+    if (transpose && type.size() != 4) {
+        vnni = true;
+        transpose = false;
+    }
+
+    bool is_load_or_prefetch
+            = utils::one_of(send_op, send_op_t::load, send_op_t::prefetch);
+    ir_assert(utils::one_of(type.size(), 1, 2, 4))
+            << "Only D8, D16 and D32 are implemented.";
+    ir_assert(!vnni || !transpose)
+            << "VNNI and transpose are mutually exclusive.";
+    if (vnni || transpose)
+        ir_assert(is_load_or_prefetch)
+                << "VNNI and transpose are supported with load only.";
+    if (vnni)
+        ir_assert(utils::one_of(type.size(), 1, 2))
+                << "VNNI is supported with D8 and D16 only.";
+    if (transpose)
+        ir_assert(type.size() == 4) << "Transpose is supported with D32 only.";
+    int w_min = (transpose ? 1 : 4 / type.size());
+    int w_max = (transpose ? 8 : (vnni ? 16 : 64 / type.size()));
+    int h_min = (vnni ? (4 / type.size()) : 1);
+    int h_max = (is_load_or_prefetch ? 32 : 8);
+
+    if (w_blk > 0 && (w_blk < w_min || w_blk > w_max)) return send_2d_hint_t();
+    if (h_blk > 0 && (h_blk < h_min || h_blk > h_max)) return send_2d_hint_t();
+
+    auto find_block = [&](int dim, int min, int max) {
+        for (int b = max; b >= min; b /= 2) {
+            if (dim % b == 0) return b;
+        }
+        return 0;
+    };
+
+    if (w_blk == 0) w_blk = find_block(w_tile, w_min, w_max);
+    if (h_blk == 0) h_blk = find_block(h_tile, h_min, h_max);
+    if (w_blk == 0 || h_blk == 0) return send_2d_hint_t();
+
+    if (orig_vnni && h_blk > 0) h_blk = find_block(h_tile, h_blk, h_max);
+    if (orig_transpose && w_blk > 0) w_blk = find_block(w_tile, w_blk, w_max);
+
+    send_2d_hint_t hint;
+    hint.type = type;
+    hint.enable = true;
+    hint.width = w_blk;
+    hint.height = h_blk;
+    hint.vnni = vnni;
+    hint.transpose = transpose;
+    return hint;
+}
+
+send_hint_t get_send_hint(send_op_t send_op, abc_kind_t abc_kind,
+        const view_t &view, bool allow_2d, int simd_size,
+        const gemm_schedule_t &gemm_schedule) {
+    if (!utils::one_of(send_op, send_op_t::load, send_op_t::prefetch,
+                send_op_t::store))
+        return send_hint_t();
+    if (!allow_2d) return send_hint_t();
+
+    auto vlayout = view.create_pseudo_vlayout();
+    auto blocks = vlayout.blocks();
+    if (blocks.size() < 2) return send_hint_t();
+
+    auto &bmnk_mapper = gemm_schedule.bmnk_mapper();
+    auto &b0 = blocks[0];
+    auto &b1 = blocks[1];
+    ir_assert(b0.dim_idx != b1.dim_idx) << view;
+    if (b0.stride != stride_t(1)) return send_hint_t();
+
+    send_hint_t hint;
+    if (send_op == send_op_t::load
+            && utils::one_of(abc_kind, abc_kind_t::a, abc_kind_t::b)) {
+        bool is_dpas_src1 = (abc_kind == abc_kind_t::b);
+        int mn_blk = (is_dpas_src1 ? simd_size : 8);
+        int k_blk = 32 / view.type().size();
+
+        bool is_b0_k = (bmnk_mapper.bmnk_kind(abc_kind, b0.dim_idx)
+                == bmnk_kind_t::k);
+
+        // Handle 4 cases (consider bf16):
+        // src1, MxK: 16a16b -> 8a16b2a           (VNNI)
+        // src1, KxM: 16a16b -> 16b16a -> 8b16a2b (transpose + VNNI)
+        // src2, KxN: 16a16b -> 16b16a            (transpose)
+        // src2, NxK: 16a16b -> 16a16b            ()
+        bool vnni = is_dpas_src1;
+        bool transpose = (is_dpas_src1 == is_b0_k);
+        int b0_blk = is_b0_k ? k_blk : mn_blk;
+        int b1_blk = !is_b0_k ? k_blk : mn_blk;
+        if (b0.block % b0_blk != 0) return send_hint_t();
+        hint.hint_2d = get_send_2d_hint(send_op, view.type(), vnni, transpose,
+                b0.block, b1.block, b0_blk, b1_blk);
+    } else {
+        if (b0.block >= 128) return hint;
+        hint.hint_2d = get_send_2d_hint(
+                send_op, view.type(), false, false, b0.block, b1.block);
+    }
+
+    return hint;
 }
 
 } // namespace jit

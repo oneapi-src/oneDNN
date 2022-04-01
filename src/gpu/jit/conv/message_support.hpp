@@ -17,6 +17,8 @@
 #ifndef GPU_JIT_CONV_MESSAGE_SUPPORT_HPP
 #define GPU_JIT_CONV_MESSAGE_SUPPORT_HPP
 
+#include "gpu/jit/conv/config.hpp"
+#include "gpu/jit/conv/gemm_schedule.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/tensor.hpp"
 #include "gpu/jit/conv/utils.hpp"
@@ -33,6 +35,7 @@ enum class send_op_t {
     load,
     load_2d,
     prefetch,
+    prefetch_2d,
     store,
     store_2d,
 };
@@ -52,24 +55,35 @@ struct block_2d_info_t {
         if (is_empty()) return true;
         return (surface_width == other.surface_width)
                 && (surface_height == other.surface_height)
-                && (surface_pitch == other.surface_pitch) && x.is_same(other.x)
-                && y.is_same(other.y) && (width == other.width)
-                && (height == other.height) && (count == other.count)
-                && (vnni == other.vnni) && (transpose == other.transpose);
+                && (surface_pitch == other.surface_pitch)
+                && (width == other.width) && (height == other.height)
+                && (count == other.count) && (vnni == other.vnni)
+                && (transpose == other.transpose);
     }
 
     size_t get_hash() const {
         if (is_empty()) return 0;
         return ir_utils::get_hash(surface_width, surface_height, surface_pitch,
-                x, y, width, height, count, vnni, transpose);
+                width, height, count, vnni, transpose);
+    }
+
+    std::string str() const {
+        std::ostringstream oss;
+        oss << count << "x";
+        oss << height << "x";
+        oss << width;
+        if (vnni || transpose) {
+            oss << ".";
+            if (vnni) oss << "v";
+            if (transpose) oss << "t";
+        }
+        return oss.str();
     }
 
     // Encoded in header.
     int surface_width = 0;
     int surface_height = 0;
     int surface_pitch = 0;
-    expr_t x;
-    expr_t y;
     int width = 0;
     int height = 0;
     int count = 0;
@@ -89,15 +103,12 @@ public:
     }
 
     static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
-            int surface_width, int surface_height, int surface_pitch,
-            const expr_t &x, const expr_t &y, int width, int height, int count,
-            bool vnni, bool transpose) {
+            int surface_width, int surface_height, int surface_pitch, int width,
+            int height, int count, bool vnni, bool transpose) {
         block_2d_info_t info;
         info.surface_width = surface_width;
         info.surface_height = surface_height;
         info.surface_pitch = surface_pitch;
-        info.x = x;
-        info.y = y;
         info.width = width;
         info.height = height;
         info.count = count;
@@ -128,6 +139,7 @@ public:
             case send_op_t::load: oss << "load"; break;
             case send_op_t::load_2d: oss << "load_2d"; break;
             case send_op_t::prefetch: oss << "prefetch"; break;
+            case send_op_t::prefetch_2d: oss << "prefetch_2d"; break;
             case send_op_t::store: oss << "store"; break;
             case send_op_t::store_2d: oss << "store_2d"; break;
             default: ir_error_not_expected();
@@ -135,6 +147,7 @@ public:
         oss << ".";
         if (is_scattered()) oss << slots << "x";
         oss << type.str();
+        if (is_2d()) oss << "." << block_2d_info.str();
         return oss.str();
     }
 
@@ -142,19 +155,34 @@ public:
     IR_DEFINE_ARG_GET(mem_off, 1)
     IR_DEFINE_ARG_GET(reg_buf, 2)
     IR_DEFINE_ARG_GET(mask, 3)
+    IR_DEFINE_ARG_GET(x, 4)
+    IR_DEFINE_ARG_GET(y, 5)
+
+    // Header offsets in bytes for 2D block messages.
+    static int header_2d_off_base() { return 0; }
+    static int header_2d_off_surface_width() { return 8; }
+    static int header_2d_off_surface_height() { return 12; }
+    static int header_2d_off_surface_pitch() { return 16; }
+    static int header_2d_off_x() { return 20; }
+    static int header_2d_off_y() { return 24; }
+    static int header_2d_off_whc() { return 28; }
 
     stmt_t operator()(const expr_t &mem_buf, const expr_t &mem_off,
-            const expr_t &reg_buf, const expr_t &mask) const {
-        return call({mem_buf, mem_off, reg_buf, mask});
+            const expr_t &reg_buf, const expr_t &mask,
+            const expr_t &x = expr_t(), const expr_t &y = expr_t()) const {
+        return call({mem_buf, mem_off, reg_buf, mask, x, y});
     }
 
     bool is_atomic() const { return op == send_op_t::atomic_fadd; }
     bool is_load() const { return op == send_op_t::load; }
     bool is_load_2d() const { return op == send_op_t::load_2d; }
     bool is_prefetch() const { return op == send_op_t::prefetch; }
+    bool is_prefetch_2d() const { return op == send_op_t::prefetch_2d; }
     bool is_store() const { return op == send_op_t::store; }
     bool is_store_2d() const { return op == send_op_t::store_2d; }
-    bool is_2d() const { return is_load_2d() || is_store_2d(); }
+    bool is_2d() const {
+        return is_load_2d() || is_store_2d() || is_prefetch_2d();
+    }
     bool is_a64() const { return address == send_address_t::a64; }
     bool is_bts() const { return address == send_address_t::bts; }
     bool is_slm() const { return address == send_address_t::slm; }
@@ -277,7 +305,8 @@ private:
         , slots(1)
         , is_lsc(true)
         , block_2d_info(block_2d_info) {
-        ir_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d));
+        ir_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d,
+                send_op_t::prefetch_2d));
         if (is_store_2d()) {
             ir_assert(!block_2d_info.vnni);
             ir_assert(!block_2d_info.transpose);
@@ -288,18 +317,26 @@ private:
 class memory_walker_t;
 class layout_walker_t;
 
+struct send_2d_hint_t {
+    type_t type;
+    bool enable = false;
+    bool vnni = false;
+    bool transpose = false;
+    int width = 0;
+    int height = 0;
+};
+
 struct send_hint_t {
     send_op_t convert(const send_op_t &op) const {
-        if (enable_2d) {
+        if (hint_2d.enable) {
             if (op == send_op_t::load) return send_op_t::load_2d;
             if (op == send_op_t::store) return send_op_t::store_2d;
+            if (op == send_op_t::prefetch) return send_op_t::prefetch_2d;
         }
         return op;
     }
 
-    bool enable_2d = false;
-    bool enable_2d_vnni = false;
-    bool enable_2d_transpose = false;
+    send_2d_hint_t hint_2d;
 };
 
 // Generates loads or stores to move data between memory (global or SLM) and
@@ -335,11 +372,18 @@ private:
     void build();
     bool try_build(const layout_t &try_layout);
     bool try_build_2d();
+    bool fixup_send_2d_params(const type_t &send_type, bool vnni,
+            bool transpose, int &W, int &H, int &P, int &w, int &h, int &c);
+
+    bool check_2d_mask(
+            const tensor_t &tile, int w_idx, int h_idx, expr_t &mask) const;
+
     std::vector<layout_t> candidate_payload_layouts() const;
     stmt_t create_send_stmt(const send_t &send);
     int grf_size() const { return ngen::GRF::bytes(hw_); }
 
     ngen::HW hw_;
+    const constraint_set_t *cset_ = nullptr;
     view_t mem_view_;
     expr_t mem_buf_;
     expr_t reg_buf_;
@@ -364,6 +408,10 @@ inline access_builder_t make_access_builder(ngen::HW hw, ir_context_t &ir_ctx,
     return access_builder_t(hw, ir_ctx, cset, mem_view, mem_buf, reg_buf,
             send_op, send_address, send_hint);
 }
+
+send_hint_t get_send_hint(send_op_t send_op, abc_kind_t abc_kind,
+        const view_t &view, bool allow_2d, int simd_size,
+        const gemm_schedule_t &gemm_schedule);
 
 } // namespace jit
 } // namespace gpu

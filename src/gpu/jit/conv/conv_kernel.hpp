@@ -2562,9 +2562,8 @@ private:
                 *lsc_spec |= ngen::CacheSettingsLSC::L1C_L3C;
                 host->load.ugm(mod, data, *lsc_spec, host->A64, header);
             } else if (send_.is_store()) {
-                *lsc_spec |= ngen::CacheSettingsLSC::L1WB_L3WB,
-                        host->store.ugm(
-                                mod, *lsc_spec, host->A64, header, data);
+                *lsc_spec |= ngen::CacheSettingsLSC::L1WB_L3WB;
+                host->store.ugm(mod, *lsc_spec, host->A64, header, data);
             } else if (send_.is_atomic()) {
                 *lsc_spec |= ngen::CacheSettingsLSC::L1UC_L3WB;
                 host->atomic.ugm(ngen::AtomicOp::fadd, mod,
@@ -2591,7 +2590,8 @@ private:
         if (info.vnni) data_spec |= host->vnni;
         if (info.transpose) data_spec |= host->transpose;
         ngen::block_2d spec(data_spec, info.width, info.height, info.count);
-        if (send_.is_load_2d()) {
+        if (send_.is_load_2d() || send_.is_prefetch_2d()) {
+            spec |= ngen::CacheSettingsLSC::L1C_L3C;
             host->load(mod, data, spec, host->A64, header);
         } else if (send_.is_store_2d()) {
             host->store(mod, spec, host->A64, header, data);
@@ -4599,7 +4599,8 @@ private:
 
     ngen::RegData send_maybe_make_dense_payload(ngen_register_scope_t &scope,
             const send_t &send_func, const ngen_operand_t &op_buf) const {
-        if (send_func.is_prefetch()) return ngen::RegData(host_->null);
+        if (send_func.is_prefetch() || send_func.is_prefetch_2d())
+            return ngen::RegData(host_->null);
 
         auto &buf = op_buf.reg_buf_data();
         int size = send_func.payload_size();
