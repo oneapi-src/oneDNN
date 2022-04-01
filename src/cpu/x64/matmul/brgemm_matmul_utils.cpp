@@ -671,9 +671,9 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         // AMX BRGEMM kernel requires (K_brgemm % 64 == 0 || K_brgemm < 64)
         // for K_brgemm reduction value to avoid AMX tiles re-configuration.
         // To satisfy this condition K_tail value is fixed to K % wei_k_blk here.
-        const bool fixed_K_tail_size = bgmmc.is_amx
-                && bgmmc.K % bgmmc.wei_k_blk > 0 && bgmmc.K > bgmmc.wei_k_blk;
-        bgmmc.K_blk = IMPLICATION(bgmmc.is_amx, bgmmc.K < bgmmc.wei_k_blk)
+        const bool fixed_K_tail_size
+                = bgmmc.K % bgmmc.wei_k_blk > 0 && bgmmc.K > bgmmc.wei_k_blk;
+        bgmmc.K_blk = bgmmc.K < bgmmc.wei_k_blk
                 ? rnd_up(bgmmc.K, bgmmc.required_k_granularity)
                 : fixed_K_tail_size ? bgmmc.wei_k_blk : bgmmc.K;
         bgmmc.brgemm_batch_size
