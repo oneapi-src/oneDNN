@@ -191,8 +191,6 @@ inline std::ostream &operator<<(std::ostream &out, loop_kind_t kind) {
     return out;
 }
 
-enum class tile_level_t { thread_group, thread };
-
 class loop_t {
 public:
     loop_t() : kind_(loop_kind_t::undef) {}
@@ -688,6 +686,8 @@ public:
     }
 
 private:
+    enum class tile_level_t { thread_group, thread };
+
     // Describes split of a root loop into sub-loops.
     class split_info_t {
     public:
