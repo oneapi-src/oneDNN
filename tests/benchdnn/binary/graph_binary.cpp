@@ -44,7 +44,15 @@ binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
 
     op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
 
-    if (src0_dims == src1_dims) auto_broadcast = "none";
+    // Note:
+    // for binary + sum post op, 'auto_broadcast' should be kept for hitting
+    // binary patterns in graph library to make sure extension has the same
+    // behavior as benchdnn
+    bool has_post_sum = false;
+    for (const auto &po : prb->attr.post_ops.entry) {
+        if (po.is_sum_kind()) { has_post_sum = true; }
+    }
+    if (src0_dims == src1_dims && !has_post_sum) auto_broadcast = "none";
 }
 
 void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
