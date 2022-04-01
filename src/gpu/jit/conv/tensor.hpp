@@ -549,12 +549,13 @@ public:
 
     const std::vector<block_t> &blocks() const { return blocks_; }
 
-    dim_t inner_block(int dim_idx) const {
+    dim_t inner_block(int dim_idx, bool skip_outer = true) const {
         dim_t block0 = -1;
         int nblocks = 0;
         for (auto &b : blocks_) {
             if (b.dim_idx == dim_idx) {
                 nblocks++;
+                if (!skip_outer) return b.block;
                 if (block0 == -1) block0 = b.block;
             }
         }
@@ -1400,6 +1401,8 @@ public:
 
     const std::vector<dim_t> &vdims() const { return vdims_; }
 
+    std::vector<expr_t> vstart() const { return vstart_; }
+
     expr_t vstart(int vidx) const { return vstart_[vidx]; }
 
     const layout_t &tlayout() const { return tlayout_; }
@@ -1657,11 +1660,12 @@ public:
 
     view_t substitute(const expr_t &from, const expr_t &to) const;
 
-    mask_tensor_t create_mask_tensor(const constraint_set_t &cset) const {
+    mask_tensor_t create_mask_tensor(
+            const constraint_set_t &cset, uint32_t tmask = 0xFFFFFFFF) const {
         auto _vlayout = create_dense_vlayout();
         mask_tensor_t mask_tensor(_vlayout);
         std::vector<dim_t> vargs(nvdims());
-        create_mask_tensor(mask_tensor, _vlayout, 0, vargs);
+        create_mask_tensor(mask_tensor, _vlayout, 0, vargs, tmask);
         mask_tensor.simplify(cset);
         return mask_tensor;
     }
@@ -1738,15 +1742,16 @@ public:
 
     static std::vector<expr_t> create_vvars(int nvdims);
 
-private:
     template <typename SrcT = expr_t, typename DstT = SrcT>
-    std::vector<DstT> cvt_vargs_to_targs(
-            const std::vector<SrcT> &_vargs = {}) const {
+    std::vector<DstT> cvt_vargs_to_targs(const std::vector<SrcT> &_vargs = {},
+            bool ignore_vstart = false) const {
         std::vector<expr_t> vargs = expr_cast<expr_t>(_vargs);
         if (vargs.empty()) vargs.resize(nvdims(), 0);
 
-        for (int i = 0; i < nvdims(); i++) {
-            if (!is_zero(vstart_[i])) vargs[i] += vstart_[i];
+        if (!ignore_vstart) {
+            for (int i = 0; i < nvdims(); i++) {
+                if (!is_zero(vstart_[i])) vargs[i] += vstart_[i];
+            }
         }
 
         std::vector<expr_t> targs(ntdims());
@@ -1762,11 +1767,12 @@ private:
         return expr_cast<DstT>(targs);
     }
 
+private:
     layout_t create_pseudo_vlayout(const layout_t &tlayout) const;
 
     void create_mask_tensor(mask_tensor_t &mask_tensor,
-            const layout_t &_vlayout, int vidx,
-            std::vector<dim_t> &vargs) const {
+            const layout_t &_vlayout, int vidx, std::vector<dim_t> &vargs,
+            uint32_t tmask) const {
         if (vidx == _vlayout.ndims()) {
             bool is_init = false;
             std::vector<expr_t> vvalues;
@@ -1774,6 +1780,7 @@ private:
             expr_t mask = bool_imm_t::make(true);
             for (int i = 0; i < ntdims(); i++) {
                 auto &tdim = tdims_[i];
+                if ((tmask & (1 << i)) == 0) continue;
                 if (tdim.mask().is_empty()) continue;
                 if (!is_init) {
                     // Lazily initialize values
@@ -1791,7 +1798,7 @@ private:
 
         for (int i = 0; i < vdims()[vidx]; i++) {
             vargs[vidx] = i;
-            create_mask_tensor(mask_tensor, _vlayout, vidx + 1, vargs);
+            create_mask_tensor(mask_tensor, _vlayout, vidx + 1, vargs, tmask);
         }
     }
 
