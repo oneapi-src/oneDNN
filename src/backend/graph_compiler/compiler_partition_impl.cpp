@@ -79,6 +79,7 @@ impl::status_t compiler_partition_impl_t::infer_shape(
         std::vector<impl::logical_tensor_t *> ordered_inputs;
         ordered_inputs.reserve(ordered_inputs_holder.size());
         for (auto &tsr : ordered_inputs_holder) {
+            assert(tsr.layout_type == impl::layout_type::strided);
             ordered_inputs.emplace_back(&tsr);
         }
         std::vector<impl::logical_tensor_t *> ordered_outputs;
@@ -90,8 +91,19 @@ impl::status_t compiler_partition_impl_t::infer_shape(
                 &temp_node, ordered_inputs, ordered_outputs);
         if (ret != impl::status::success) return ret;
         for (size_t i = 0; i < cur_op->get_output_values().size(); ++i) {
-            cur_op->get_output_values()[i]->set_logical_tensor(
-                    *ordered_outputs[i]);
+            auto output_lt = *ordered_outputs[i];
+            auto cur_val = cur_op->get_output_values()[i];
+            cur_val->set_logical_tensor(output_lt);
+            // TODO(yifei): move the logic into compile() stage
+            // to let compiler backend decide the optimized layout after
+            // layout_propagation
+            if (output_lt.layout_type != impl::layout_type::strided) {
+                // force set strided layout
+                impl::dims shape(
+                        output_lt.dims, output_lt.dims + output_lt.ndims);
+                impl::dims strides = utils::get_dense_strides(shape);
+                cur_val->set_strides(strides);
+            }
         }
         return impl::status::success;
     });

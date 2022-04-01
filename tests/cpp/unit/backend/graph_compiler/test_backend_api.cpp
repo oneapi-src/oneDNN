@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "backend/graph_compiler/compiler_backend.hpp"
 #include "cpp/unit/utils.hpp"
 #include "interface/partition.hpp"
+#include "test_utils.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
@@ -63,4 +64,33 @@ TEST(GCBackendApi, CompilerBackendRegistration) {
             });
     ASSERT_NE(compiler_backend, backends.end());
     EXPECT_FLOAT_EQ((*compiler_backend)->get_priority(), 2.0);
+}
+
+TEST(GCBackendApi, TestRewriteOutputLayout) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_MHA_infer_shape(&agraph);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = impl::compiler_impl::compiler_backend_t::get_singleton();
+    compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
+    auto partitions = agraph.get_partitions();
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+    std::vector<const impl::logical_tensor_t *> inputs;
+    std::vector<impl::logical_tensor_t *> outputs;
+    for (auto &lt : p.get_inputs()) {
+        inputs.push_back(&lt);
+    }
+    for (auto &lt : p.get_outputs()) {
+        outputs.push_back(const_cast<impl::logical_tensor_t *>(&lt));
+    }
+    // replace output node to be unknown shape + any format
+    outputs[0]->layout_type = impl::layout_type::any;
+    outputs[0]->ndims = -1;
+
+    p.infer_shape(inputs, outputs);
+    EXPECT_EQ(outputs[0]->layout_type, impl::layout_type::strided);
 }

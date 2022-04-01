@@ -16,6 +16,7 @@
 #ifndef BACKEND_GRAPH_COMPILER_UTILS_HPP
 #define BACKEND_GRAPH_COMPILER_UTILS_HPP
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -41,6 +42,17 @@ inline auto func_map(const T &inputs, const F &fn)
     for (const auto &input : inputs)
         r.push_back(fn(input));
     return r;
+}
+
+inline dims get_dense_strides(const dims &shape) {
+    dims strides(shape.size());
+    for (auto it = shape.begin(); it < shape.end(); ++it) {
+        const auto val = std::accumulate(
+                std::next(it), shape.end(), 1, std::multiplies<dim_t>());
+        const auto dist = std::distance(shape.begin(), it);
+        strides[static_cast<size_t>(dist)] = val;
+    }
+    return strides;
 }
 
 } // namespace utils
