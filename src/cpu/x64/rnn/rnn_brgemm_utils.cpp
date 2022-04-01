@@ -689,6 +689,7 @@ void rnn_brgemm_t<prop_kind::backward>::init_scratchpad(
 status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
         cpu::rnn_utils::rnn_conf_t &rnn, alg_kind_t cell_kind,
         dim_t src_layer_type_size, dim_t scratch_type_size) {
+    using namespace cpu::rnn_utils;
 
     if (rnn.is_int8()) return status::unimplemented;
 
@@ -771,7 +772,15 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
             ? utils::rnd_up(rnn.mb, 2)
             : rnn.mb;
     diff_wei_conf.Kpadded = utils::rnd_up(diff_wei_conf.K, padding);
-    diff_wei_conf.n_block = 32;
+
+    diff_wei_conf.isa
+            = brgemm_calc_isa(diff_wei_conf.K, diff_wei_conf.K, false, is_bf16);
+
+    const bool is_wei_bf16_amx = rnn.is_bf16()
+            && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16;
+    const bool diff_wei_can_use_nblock64 = is_wei_bf16_amx
+            && diff_wei_conf.N % 64 == 0 && !rnn.is_lstm_peephole;
+    diff_wei_conf.n_block = diff_wei_can_use_nblock64 ? 64 : 32;
     diff_wei_conf.N_blocks
             = utils::div_up(diff_wei_conf.N, diff_wei_conf.n_block);
     diff_wei_conf.n_tail = diff_wei_conf.N % diff_wei_conf.n_block;
@@ -783,9 +792,6 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     const dim_t Cs_wei = scratch_type_size * (rnn.n_gates + 1)
             * (diff_wei_conf.M * diff_wei_conf.n_block);
 
-    diff_wei_conf.isa
-            = brgemm_calc_isa(diff_wei_conf.K, diff_wei_conf.K, false, is_bf16);
-
     std::tie(diff_wei_conf.k_block, std::ignore)
             = brgemm_calc_k_block(diff_wei_conf.K, diff_wei_conf.K,
                     diff_wei_conf.M, diff_wei_conf.n_block, cell_kind,
@@ -795,8 +801,6 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     diff_wei_conf.K_blocks = diff_wei_conf.K / diff_wei_conf.k_block;
     diff_wei_conf.k_tail = diff_wei_conf.K % diff_wei_conf.k_block;
 
-    const bool is_wei_bf16_amx = rnn.is_bf16()
-            && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16;
     if (diff_wei_conf.M_iter != diff_wei_conf.M_layer) {
         diff_wei_conf.m_block = diff_wei_conf.M;
         diff_wei_conf.M_blocks = 1;
@@ -847,6 +851,17 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
         rnn.brgemm_isa = x64::avx512_core_bf16_amx_bf16;
     } else {
         rnn.brgemm_isa = diff_wei_conf.isa;
+    }
+
+    if (!rnn.is_orig_gru) {
+        rnn.diff_src_brgemm.loop_order
+                = is_bf16 && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16
+                ? brgemm_rnn_execute_loop_order_t::mblk_nblk
+                : brgemm_rnn_execute_loop_order_t::nblk_mblk;
+        rnn.diff_wei_brgemm.loop_order
+                = is_bf16 && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16
+                ? brgemm_rnn_execute_loop_order_t::mblk_nblk
+                : brgemm_rnn_execute_loop_order_t::nblk_mblk;
     }
 
     return status::success;

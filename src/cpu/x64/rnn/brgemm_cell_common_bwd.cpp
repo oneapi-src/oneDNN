@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,12 +104,23 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::execute()
 template <typename weights_t, typename scratch_t, typename gemm_acc_t>
 void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel_amx(
         const int ithr, const int nthr) const {
+    using namespace cpu::rnn_utils;
 
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
 
     int n_block_id = 0, m_block_id = 0;
-    nd_iterator_init(start, n_block_id, n_blocking_, m_block_id, m_blocking_);
+    switch (rnn_.diff_src_brgemm.loop_order) {
+        case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+            nd_iterator_init(
+                    start, m_block_id, m_blocking_, n_block_id, n_blocking_);
+            break;
+        case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+            nd_iterator_init(
+                    start, n_block_id, n_blocking_, m_block_id, m_blocking_);
+            break;
+        default: assert(!"unsupported loop order");
+    }
 
     x64::brgemm_batch_element_t *const addr_batch
             = addr_batch_global_ + ithr * (k_blocks_n_gates_ + 1);
@@ -245,7 +256,17 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel_amx(
         }
 
         ++start;
-        nd_iterator_step(n_block_id, n_blocking_, m_block_id, m_blocking_);
+        switch (rnn_.diff_src_brgemm.loop_order) {
+            case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+                nd_iterator_step(
+                        m_block_id, m_blocking_, n_block_id, n_blocking_);
+                break;
+            case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+                nd_iterator_step(
+                        n_block_id, n_blocking_, m_block_id, m_blocking_);
+                break;
+            default: assert(!"unsupported loop order");
+        }
     }
 }
 
@@ -616,6 +637,7 @@ template <typename src_layer_t, typename src_iter_t, typename scratch_t,
         typename gemm_acc_t>
 void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
         gemm_acc_t>::kernel_amx(const int ithr, const int nthr) const {
+    using namespace cpu::rnn_utils;
 
     const bool global_transpose = rnn_.diff_wei_brgemm.global_transpose;
 
@@ -624,7 +646,17 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
 
     int n_block_id = 0, m_block_id = 0, last_n_block_id = -1,
         last_m_block_id = -1;
-    nd_iterator_init(start, n_block_id, n_blocking_, m_block_id, m_blocking_);
+    switch (rnn_.diff_wei_brgemm.loop_order) {
+        case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+            nd_iterator_init(
+                    start, m_block_id, m_blocking_, n_block_id, n_blocking_);
+            break;
+        case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+            nd_iterator_init(
+                    start, n_block_id, n_blocking_, m_block_id, m_blocking_);
+            break;
+        default: assert(!"unsupported loop order");
+    }
 
     x64::brgemm_batch_element_t *const addr_batch
             = addr_batch_global_ + ithr * (k_blocks_ + 1);
@@ -782,7 +814,17 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
         if (should_transpose_src) { last_m_block_id = m_block_id; }
 
         ++start;
-        nd_iterator_step(n_block_id, n_blocking_, m_block_id, m_blocking_);
+        switch (rnn_.diff_wei_brgemm.loop_order) {
+            case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+                nd_iterator_step(
+                        m_block_id, m_blocking_, n_block_id, n_blocking_);
+                break;
+            case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+                nd_iterator_step(
+                        n_block_id, n_blocking_, m_block_id, m_blocking_);
+                break;
+            default: assert(!"unsupported loop order");
+        }
     }
 }
 

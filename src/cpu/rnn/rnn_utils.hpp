@@ -236,6 +236,9 @@ struct diff_src_brgemm_conf_t {
 #if DNNL_X64
     x64::cpu_isa_t isa = x64::isa_any;
 #endif
+
+    brgemm_rnn_execute_loop_order_t loop_order
+            = brgemm_rnn_execute_loop_order_t::undefined;
 };
 
 struct diff_wei_brgemm_conf_t {
@@ -253,6 +256,9 @@ struct diff_wei_brgemm_conf_t {
 #if DNNL_X64
     x64::cpu_isa_t isa = x64::isa_any;
 #endif
+
+    brgemm_rnn_execute_loop_order_t loop_order
+            = brgemm_rnn_execute_loop_order_t::undefined;
 };
 
 struct rnn_conf_t {
