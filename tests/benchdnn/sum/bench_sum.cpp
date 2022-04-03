@@ -42,8 +42,7 @@ void check_correctness(const settings_t &s) {
         if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
             SAFE_V(FAIL);
 
-        attr_t attr;
-        attr.insert(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_scratchpad_mode);
 
         for (const auto &i_input_scales : s.input_scales) {
             // expect either single scale value, or 1:1 match of dt and scale

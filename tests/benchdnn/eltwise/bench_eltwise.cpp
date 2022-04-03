@@ -81,9 +81,7 @@ void check_correctness(const settings_t &s) {
             default:;
         };
 
-        attr_t attr;
-        attr.insert(i_post_ops);
-        attr.insert(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_post_ops, i_scratchpad_mode);
 
         const prb_t prb(s.prb_dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,
                 i_inplace, attr, i_mb);

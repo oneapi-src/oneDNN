@@ -337,6 +337,12 @@ struct attr_t {
         : scratchpad_mode(dnnl_scratchpad_mode_library)
         , fpmath_mode(dnnl_fpmath_mode_strict) {}
 
+    template <typename First, typename... Rest>
+    void insert(const First &first, const Rest &... rest) {
+        this->insert(first);
+        if (sizeof...(rest) > 0) this->insert(rest...);
+    }
+
     void insert(const scale_t &s) { this->oscale = s; }
     void insert(const arg_scales_t &as) { this->scales = as; }
     void insert(const zero_points_t &zp) { this->zero_points = zp; }

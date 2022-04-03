@@ -49,12 +49,8 @@ void check_correctness(const settings_t &s, const settings_t &def) {
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
     for (const auto &i_bia_cfg : bia_cfg) {
-        attr_t attr;
-        attr.insert(i_oscale);
-        attr.insert(i_zero_points);
-        attr.insert(i_post_ops);
-        attr.insert(i_scratchpad_mode);
-        attr.insert(i_fpmath_mode);
+        auto attr = settings_t::get_attr(i_oscale, i_zero_points, i_post_ops,
+                i_scratchpad_mode, i_fpmath_mode);
 
         const bool strided_input = !i_strides[STRIDES_SRC].empty()
                 || !i_strides[STRIDES_WEI].empty()

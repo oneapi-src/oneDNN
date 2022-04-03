@@ -53,11 +53,6 @@ void check_correctness(const settings_t &s) {
             SAFE_V(FAIL);
         }
 
-        attr_t attr;
-        attr.insert(i_zero_points);
-        attr.insert(i_post_ops);
-        attr.insert(i_scratchpad_mode);
-
         // Enable multiple scales in case user requested it via passing `0.f`
         // in output scale attributes.
         const std::vector<float> test_scales = i_oscale.scale == 0
@@ -67,7 +62,8 @@ void check_correctness(const settings_t &s) {
         for (const auto &i_test_scale : test_scales) {
             const attr_t::scale_t test_oscale(
                     i_oscale.policy, i_test_scale, i_oscale.runtime);
-            attr.insert(test_oscale);
+            auto attr = settings_t::get_attr(
+                    test_oscale, i_zero_points, i_post_ops, i_scratchpad_mode);
 
             const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, attr,
                     i_oflag, i_cross_engine, i_runtime_dim_mask);

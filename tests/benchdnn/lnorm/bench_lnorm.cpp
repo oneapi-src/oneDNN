@@ -38,8 +38,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_flags : s.flags)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_inplace : s.inplace) {
-        attr_t attr;
-        attr.insert(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_scratchpad_mode);
 
         const prb_t prb(s.prb_dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags,
                 attr, i_inplace, s.check_alg);

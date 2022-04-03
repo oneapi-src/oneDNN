@@ -31,7 +31,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_alg : s.alg)
     for_(const auto &i_p : s.p)
     for_(const auto &i_eps : s.eps)
-    {
+    for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
         // Expect exactly two inputs for problem dimensions.
         static constexpr int n_inputs = 2;
         if (s.prb_vdims.n_inputs() != n_inputs) {
@@ -42,8 +42,8 @@ void check_correctness(const settings_t &s) {
             SAFE_V(FAIL);
         }
 
-        attr_t attr;
-        attr.insert(i_post_ops);
+        auto attr = settings_t::get_attr(i_post_ops, i_scratchpad_mode);
+
         const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_p,
                 i_eps, attr);
         std::stringstream ss;
