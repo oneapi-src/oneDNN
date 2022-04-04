@@ -42,6 +42,10 @@ cl_context get_ocl_context(engine_t *engine) {
     return utils::downcast<ocl_gpu_engine_t *>(engine)->context();
 }
 
+cl_platform_id get_ocl_platform(engine_t *engine) {
+    return utils::downcast<ocl_gpu_engine_t *>(engine)->platform();
+}
+
 cl_command_queue get_ocl_queue(stream_t *stream) {
     return utils::downcast<ocl_stream_t *>(stream)->queue();
 }
@@ -60,12 +64,7 @@ struct ext_func_t {
     template <typename... Args>
     typename cpp_compat::invoke_result<F, Args...>::type operator()(
             engine_t *engine, Args... args) const {
-        cl_platform_id platform;
-        cl_int err = clGetDeviceInfo(get_ocl_device(engine), CL_DEVICE_PLATFORM,
-                sizeof(platform), &platform, nullptr);
-        assert(err == CL_SUCCESS);
-        MAYBE_UNUSED(err);
-        return ext_func_ptrs_.at(platform)(args...);
+        return ext_func_ptrs_.at(get_ocl_platform(engine))(args...);
     }
 
 private:
