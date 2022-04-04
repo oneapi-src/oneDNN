@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,28 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CONV_DW_FUSION_HPP
-#define CONV_DW_FUSION_HPP
+#ifndef REF_DECONV_HPP
+#define REF_DECONV_HPP
 
-#include <assert.h>
-#include <limits.h>
-#include <stdint.h>
+#include "deconv/deconv.hpp"
 
-#include "common.hpp"
-#include "dnn_types.hpp"
-#include "dnnl_common.hpp"
+namespace deconv {
 
-#include "conv/conv.hpp"
+void compute_ref_bwd_bias(const prb_t *prb, const args_t &args);
 
-namespace conv_dw_fusion {
+void compute_wino_ref_fwd(const prb_t *prb, const args_t &args);
+void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args);
+void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args);
 
-using desc_t = conv::desc_t;
-using prb_t = conv::prb_t;
-using alg_t = conv::alg_t;
-using dt_conf_t = conv::dt_conf_t;
-
-int doit(const prb_t *prb, res_t *res);
-
-} // namespace conv_dw_fusion
+} // namespace deconv
 
 #endif

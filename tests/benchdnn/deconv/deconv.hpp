@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,14 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CONV_COMMON_HPP
-#define CONV_COMMON_HPP
+#ifndef DECONV_HPP
+#define DECONV_HPP
 
 #include <assert.h>
-#include <limits.h>
 #include <stdint.h>
 
 #include <iostream>
+
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -30,16 +31,16 @@
 #include "utils/perf_report.hpp"
 #include "utils/settings.hpp"
 
-namespace conv {
+namespace deconv {
 
 enum alg_t {
     UNDEF,
     DIRECT,
     WINO,
     AUTO,
-    convolution_direct = DIRECT,
-    convolution_wino = WINO,
-    convolution_auto = AUTO,
+    deconvolution_direct = DIRECT,
+    deconvolution_wino = WINO,
+    deconvolution_auto = AUTO,
 };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
@@ -59,12 +60,12 @@ struct desc_t {
     std::string name;
     int ndims;
 
-    // Initialize dependent opposite-side paddings values
-    // from the shape parameters
-    void init_pad_r(bool is_deconv) {
-        pw_r = opp_pad(is_deconv, iw, ow, kw, sw, pw, dw);
-        ph_r = opp_pad(is_deconv, ih, oh, kh, sh, ph, dh);
-        pd_r = opp_pad(is_deconv, id, od, kd, sd, pd, dd);
+    // Initialize dependent opposite-side paddings values from the shape
+    // parameters.
+    void init_pad_r() {
+        pw_r = opp_pad(iw, ow, kw, sw, pw, dw);
+        ph_r = opp_pad(ih, oh, kh, sh, ph, dh);
+        pd_r = opp_pad(id, od, kd, sd, pd, dd);
     }
 
     int64_t desc_nelems(int arg, int mask) const;
@@ -79,19 +80,18 @@ struct desc_t {
     dims_t padding_r() const;
 
 private:
-    int64_t opp_pad(bool is_deconv, int64_t i, int64_t o, int64_t k, int64_t s,
-            int64_t p, int64_t d) const {
-        return is_deconv ? (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - p
-                         : (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
+    int64_t opp_pad(int64_t i, int64_t o, int64_t k, int64_t s, int64_t p,
+            int64_t d) const {
+        return (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - p;
     }
 };
 
-int str2desc(desc_t *desc, const char *str, bool is_deconv);
+int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 /** configuration structure, that controls initial data filling + error check
  *
- * dt defines convolution precision
+ * dt defines deconvolution precision
  *
  * for each type (SRC, WEI, BIA, and DST) the values are filled as follows:
  * if (rand() > f_sparsity) then:
@@ -153,7 +153,7 @@ struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
             const std::string &stag, const std::string &wtag,
             const std::string &dtag, alg_t alg, const attr_t &attr,
-            int64_t mb = 0, bool is_deconv = false)
+            int64_t mb = 0)
         : desc_t(desc)
         , dir(dir)
         , cfg(cfg)
@@ -165,25 +165,16 @@ struct prb_t : public desc_t {
         , user_mb(mb)
         , ops(0)
         , scales(NULL)
-        , scales_dw(NULL)
         , src_zp(NULL)
-        , dst_zp(NULL)
-        , is_deconv(is_deconv) {
+        , dst_zp(NULL) {
         if (mb) this->mb = mb;
         count_ops();
         scales = generate_oscales(attr.oscale, oc);
         src_zp = generate_zero_points(DNNL_ARG_SRC);
         dst_zp = generate_zero_points(DNNL_ARG_DST);
-
-        const int dw_idx = this->attr.post_ops.convolution_index();
-        if (dw_idx != -1) {
-            const auto &e = this->attr.post_ops.entry[dw_idx];
-            scales_dw = generate_oscales(e.convolution.oscale, oc);
-        }
     }
     ~prb_t() {
         if (scales) zfree(scales);
-        if (scales_dw) zfree(scales_dw);
         if (src_zp) zfree(src_zp);
         if (dst_zp) zfree(dst_zp);
     }
@@ -196,9 +187,8 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     double ops;
-    float *scales, *scales_dw;
+    float *scales;
     int32_t *src_zp, *dst_zp;
-    bool is_deconv;
 
     void count_ops();
 
@@ -268,6 +258,9 @@ private:
     std::string wtag_, dtag_;
 };
 
+int transpose_data_wei(
+        const prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr);
+
 inline int64_t src_off_f(const prb_t *prb, int64_t mb, int64_t g, int64_t ic,
         int64_t id, int64_t ih, int64_t iw) {
     return (((mb * prb->ic + g * prb->ic / prb->g + ic) * prb->id + id)
@@ -275,23 +268,6 @@ inline int64_t src_off_f(const prb_t *prb, int64_t mb, int64_t g, int64_t ic,
                    + ih)
             * prb->iw
             + iw;
-}
-
-inline void inv_src_off_f(const prb_t *prb, int64_t off, int64_t &mb,
-        int64_t &g, int64_t &ic, int64_t &id, int64_t &ih, int64_t &iw) {
-    iw = off % prb->iw;
-    off /= prb->iw;
-    ih = off % prb->ih;
-    off /= prb->ih;
-    id = off % prb->id;
-    off /= prb->id;
-    ic = off % (prb->ic / prb->g);
-    off /= (prb->ic / prb->g);
-    g = off % prb->g;
-    off /= prb->g;
-    mb = off % prb->mb;
-    off /= prb->mb;
-    assert(off == 0);
 }
 
 inline int64_t wei_off_f(const prb_t *prb, int64_t g, int64_t oc, int64_t ic,
@@ -303,34 +279,8 @@ inline int64_t wei_off_f(const prb_t *prb, int64_t g, int64_t oc, int64_t ic,
             + kw;
 }
 
-inline void inv_wei_off_f(const prb_t *prb, int64_t off, int64_t &g,
-        int64_t &oc, int64_t &ic, int64_t &kd, int64_t &kh, int64_t &kw) {
-    kw = off % prb->kw;
-    off /= prb->kw;
-    kh = off % prb->kh;
-    off /= prb->kh;
-    kd = off % prb->kd;
-    off /= prb->kd;
-    ic = off % (prb->ic / prb->g);
-    off /= (prb->ic / prb->g);
-    oc = off % (prb->oc / prb->g);
-    off /= (prb->oc / prb->g);
-    g = off % prb->g;
-    off /= prb->g;
-    assert(off == 0);
-}
-
 inline int64_t bia_off_f(const prb_t *prb, int64_t g, int64_t oc) {
     return g * prb->oc / prb->g + oc;
-}
-
-inline void inv_bia_off_f(
-        const prb_t *prb, int64_t off, int64_t &g, int64_t &oc) {
-    oc = off % (prb->oc / prb->g);
-    off /= (prb->oc / prb->g);
-    g = off % prb->g;
-    off /= prb->g;
-    assert(off == 0);
 }
 
 inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t g, int64_t oc,
@@ -342,60 +292,14 @@ inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t g, int64_t oc,
             + ow;
 }
 
-inline void inv_dst_off_f(const prb_t *prb, int64_t off, int64_t &mb,
-        int64_t &g, int64_t &oc, int64_t &od, int64_t &oh, int64_t &ow) {
-    ow = off % prb->ow;
-    off /= prb->ow;
-    oh = off % prb->oh;
-    off /= prb->oh;
-    od = off % prb->od;
-    off /= prb->od;
-    oc = off % (prb->oc / prb->g);
-    off /= (prb->oc / prb->g);
-    g = off % prb->g;
-    off /= prb->g;
-    mb = off % prb->mb;
-    off /= prb->mb;
-    assert(off == 0);
-}
-
-float oscale(const prb_t *prb, int oc);
-
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
+int doit(const prb_t *prb, res_t *res);
+int bench(int argc, char **argv);
 
-void compute_ref_direct_fwd(const prb_t *prb, const args_t &args);
-void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args);
-void compute_ref_bwd_weights(const prb_t *prb, const args_t &args);
-void compute_ref_bwd_bias(const prb_t *prb, const args_t &args);
-void compute_wino_ref_fwd(const prb_t *prb, const args_t &args);
-void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args);
-void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args);
-
-int compare_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res);
-
-bool need_src_init(const prb_t *prb);
-bool need_wei_init(const prb_t *prb);
-bool need_bia_init(const prb_t *prb);
-bool need_dst_init(const prb_t *prb);
-
-int fill_src(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
-int fill_wei(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
-int fill_bia(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
-int fill_dst(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
-double get_trust_nz_level(
-        const prb_t *prb, data_kind_t kind, bool final_compare);
-
-} // namespace conv
+} // namespace deconv
 
 #endif

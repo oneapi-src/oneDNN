@@ -34,7 +34,6 @@
 
 #include "binary/binary.hpp"
 #include "conv/conv.hpp"
-#include "conv/deconv.hpp"
 #include "prelu/prelu.hpp"
 
 namespace conv {
@@ -404,7 +403,7 @@ int init_prim_ref(
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
     prb_t prb_cpu {*prb, prb->dir, conf_f32, tag::abx, tag::abx, tag::abx,
-            DIRECT, cpu_attr, prb->mb, prb->is_deconv};
+            DIRECT, cpu_attr, prb->mb};
     dnnl_primitive_desc_t pd_ref_ {};
     init_pd(get_cpu_engine(), &prb_cpu, pd_ref_, nullptr, prb->dir, nullptr);
     auto pd_ref = make_benchdnn_dnnl_wrapper(pd_ref_);
@@ -421,16 +420,6 @@ int init_prim_ref(
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
-    // Since deconv uses conv::prb_t, using a common templated interface for
-    // skipping unimplemented functionality requires the function to be in the
-    // same namespace, thus, we need to dispatch to
-    // `deconv::skip_unimplemented_prb` here. The alternative solution is to
-    // separate deconv and conv drivers completely.
-    if (prb->is_deconv) {
-        deconv::skip_unimplemented_prb(prb, res);
-        return;
-    }
-
     skip_unimplemented_data_type(
             {prb->get_dt_conf(SRC).dt, prb->get_dt_conf(WEI).dt,
                     prb->get_dt_conf(DST).dt},
@@ -469,17 +458,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 }
 
-void skip_invalid_prb(const prb_t *prb, res_t *res) {
-    // Since deconv uses conv::prb_t, using a common templated interface for
-    // skipping unimplemented functionality requires the function to be in the
-    // same namespace, thus, we need to dispatch to
-    // `deconv::skip_invalid_prb` here. The alternative solution is to separate
-    // deconv and conv drivers completely.
-    if (prb->is_deconv) {
-        deconv::skip_invalid_prb(prb, res);
-        return;
-    }
-}
+void skip_invalid_prb(const prb_t *prb, res_t *res) {}
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {

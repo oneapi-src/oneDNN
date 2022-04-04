@@ -24,12 +24,12 @@
 
 #include "dnnl_common.hpp"
 
-#include "conv/conv.hpp"
+#include "deconv/deconv.hpp"
 
 #define HALF_MAX 65504
 #define HALF_MIN (-65504)
 
-namespace conv {
+namespace deconv {
 
 /* cfgs definition
  * arrays: SRC, WEI, BIA, DST, ACC
@@ -441,4 +441,4 @@ const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg) {
     return cfg;
 }
 
-} // namespace conv
+} // namespace deconv

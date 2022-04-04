@@ -16,9 +16,12 @@
 
 #include "utils/parallel.hpp"
 
-#include "conv/ref_conv.hpp"
+#include "deconv/ref_deconv.hpp"
 
-namespace conv {
+// Copy paste from conv/ref_wino.cpp.
+// TODO: remove the duplication.
+
+namespace deconv {
 
 template <typename Telem, size_t Tdims>
 struct array_offset_calculator_t {
@@ -622,4 +625,4 @@ void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args) {
     if (prb->dir & FLAG_BIA) compute_ref_bwd_bias(prb, args);
 }
 
-} // namespace conv
+} // namespace deconv
