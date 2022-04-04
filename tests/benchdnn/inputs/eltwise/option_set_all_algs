@@ -5,14 +5,14 @@
       tanh_dst
 --batch=shapes_eltwise
 
---alpha= --beta=0
+--alpha=0,0.25,-0.25 --beta=0
 --alg=bounded_relu,elu,elu_dst,relu,relu_dst,soft_relu_v2,swish
 --batch=shapes_eltwise
 
---alpha= --beta=
+--alpha=0,0.25,-0.25 --beta=0,0.25,-0.25
 --alg=clip,clip_v2,clip_v2_dst,linear
 --batch=shapes_eltwise
 
---alpha= --beta=-1,0,0.5,1,1.5,2
+--alpha=0,0.25,-0.25 --beta=-1,0,0.5,1,1.5,2
 --alg=pow
 --batch=shapes_eltwise
