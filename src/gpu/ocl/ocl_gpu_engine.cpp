@@ -37,15 +37,6 @@ namespace ocl {
 
 status_t ocl_gpu_engine_t::init() {
     cl_int err = CL_SUCCESS;
-    err = clGetDeviceInfo(device_, CL_DEVICE_PLATFORM, sizeof(platform_),
-            &platform_, nullptr);
-    if (err != CL_SUCCESS) {
-        device_ = nullptr;
-        context_ = nullptr;
-    }
-
-    OCL_CHECK(err);
-
     err = clRetainDevice(device_);
     if (err != CL_SUCCESS) {
         device_ = nullptr;
@@ -316,13 +307,18 @@ status_t ocl_gpu_engine_t::init_device_info() {
 
 status_t ocl_gpu_engine_t::serialize_device(
         serialization_stream_t &sstream) const {
+    cl_platform_id platform;
+    cl_int err = clGetDeviceInfo(
+            device(), CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr);
+    OCL_CHECK(err);
+
     size_t platform_name_len;
-    cl_int err = clGetPlatformInfo(
-            platform_, CL_PLATFORM_NAME, 0, nullptr, &platform_name_len);
+    err = clGetPlatformInfo(
+            platform, CL_PLATFORM_NAME, 0, nullptr, &platform_name_len);
     OCL_CHECK(err);
 
     std::vector<char> platform_name(platform_name_len);
-    err = clGetPlatformInfo(platform_, CL_PLATFORM_NAME, platform_name.size(),
+    err = clGetPlatformInfo(platform, CL_PLATFORM_NAME, platform_name.size(),
             platform_name.data(), nullptr);
     OCL_CHECK(err);
 
