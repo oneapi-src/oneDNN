@@ -31,7 +31,7 @@
 #include "gpu/compute/device_info.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_compat.hpp"
-#include "sycl/sycl_gpu_engine.hpp"
+#include "sycl/sycl_engine_base.hpp"
 
 #if DNNL_USE_SYCL121_API
 #pragma clang diagnostic push
@@ -54,7 +54,7 @@ namespace {
 status_t get_kernel_from_bundle(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const ::sycl::kernel_bundle<::sycl::bundle_state::executable>
                 &kernel_bundle,
-        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine) {
+        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine) {
 
     auto backend = get_sycl_backend(sycl_engine->device());
 
@@ -159,7 +159,7 @@ void *get_native(const ::sycl::context &ctx) {
 }
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
+        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
         void *native_program_handle, const binary_t *binary,
         program_list_t *programs) {
     auto backend = get_sycl_backend(sycl_engine->device());
@@ -229,7 +229,7 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
 }
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
+        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
         const binary_t *binary, const program_list_t *programs) {
     if (!programs) return status::success;
 

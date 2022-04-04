@@ -48,7 +48,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
 
-#include "sycl/sycl_gpu_engine.hpp"
+#include "sycl/sycl_engine_base.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -177,7 +177,7 @@ device_uuid_t get_device_uuid(const ::sycl::device &dev) {
 
 status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
+        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
         const gpu::compute::binary_t *binary,
         gpu::compute::program_list_t *programs) {
     auto desc = ze_module_desc_t();

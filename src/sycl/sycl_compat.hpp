@@ -24,17 +24,17 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-class sycl_gpu_engine_t;
+class sycl_engine_base_t;
 
 namespace compat {
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
+        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
         void *native_program_handle, const gpu::compute::binary_t *binary,
         gpu::compute::program_list_t *programs);
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
+        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
         const gpu::compute::binary_t *binary,
         const gpu::compute::program_list_t *programs);
 

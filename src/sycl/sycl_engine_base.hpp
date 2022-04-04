@@ -29,8 +29,8 @@
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_compat.hpp"
-#include "sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_utils.hpp"
 
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
@@ -99,8 +99,9 @@ public:
         CHECK(gpu::ocl::get_ocl_program_binary(
                 ocl_kernel.get(), ocl_engine->device(), shared_binary));
 
-        *kernel = gpu::compute::kernel_t(new sycl_interop_gpu_kernel_t(
-                shared_binary, kernel_name, arg_types));
+        *kernel = gpu::compute::kernel_t(
+                new gpu::sycl::sycl_interop_gpu_kernel_t(
+                        shared_binary, kernel_name, arg_types));
         return status::success;
     }
 
@@ -127,8 +128,8 @@ public:
             if (!ocl_kernels[i]) continue;
             auto *k = utils::downcast<gpu::ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());
-            (*kernels)[i]
-                    = gpu::compute::kernel_t(new sycl_interop_gpu_kernel_t(
+            (*kernels)[i] = gpu::compute::kernel_t(
+                    new gpu::sycl::sycl_interop_gpu_kernel_t(
                             k->binary(), k->name(), k->arg_types()));
         }
         return status::success;

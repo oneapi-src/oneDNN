@@ -43,19 +43,19 @@ public:
     sycl_memory_arg_t() = default;
     sycl_memory_arg_t(memory_storage_t *raw_mem, ::sycl::handler &cgh) {
         if (!raw_mem || raw_mem->is_null()) { return; }
-        auto *mem = static_cast<sycl::sycl_memory_storage_base_t *>(raw_mem);
+        auto *mem = static_cast<impl::sycl::sycl_memory_storage_base_t *>(
+                raw_mem);
         switch (mem->memory_kind()) {
-            case sycl::memory_kind::buffer: {
-                auto *buffer_storage
-                        = utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
-                                mem);
+            case impl::sycl::memory_kind::buffer: {
+                auto *buffer_storage = utils::downcast<
+                        impl::sycl::sycl_buffer_memory_storage_t *>(mem);
                 acc_.emplace(buffer_storage->buffer(), cgh);
                 offset_ = buffer_storage->base_offset();
                 break;
             }
-            case sycl::memory_kind::usm: {
+            case impl::sycl::memory_kind::usm: {
                 raw_ptr_ = utils::downcast<
-                        const sycl::sycl_usm_memory_storage_t *>(mem)
+                        const impl::sycl::sycl_usm_memory_storage_t *>(mem)
                                    ->usm_ptr();
                 break;
             }

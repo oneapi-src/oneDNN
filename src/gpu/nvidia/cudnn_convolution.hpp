@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -188,7 +188,7 @@ struct cudnn_convolution_fwd_t : public primitive_t {
 
 private:
     ::sycl::buffer<uint8_t, 1> &buffer(memory_storage_t *mem_storage) const {
-        return utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
+        return utils::downcast<impl::sycl::sycl_buffer_memory_storage_t *>(
                 mem_storage)
                 ->buffer();
     }

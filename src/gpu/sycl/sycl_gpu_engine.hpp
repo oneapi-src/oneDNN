@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_GPU_ENGINE_HPP
-#define SYCL_GPU_ENGINE_HPP
+#ifndef GPU_SYCL_SYCL_GPU_ENGINE_HPP
+#define GPU_SYCL_SYCL_GPU_ENGINE_HPP
 
 #include <CL/sycl.hpp>
 
@@ -27,9 +27,10 @@
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace sycl {
 
-class sycl_gpu_engine_t : public sycl_engine_base_t {
+class sycl_gpu_engine_t : public impl::sycl::sycl_engine_base_t {
 public:
     using sycl_engine_base_t::context;
     using sycl_engine_base_t::create_stream;
@@ -78,6 +79,7 @@ protected:
 };
 
 } // namespace sycl
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

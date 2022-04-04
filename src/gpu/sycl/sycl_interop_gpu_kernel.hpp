@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_SYCL_INTEROP_GPU_KERNEL_HPP
-#define SYCL_SYCL_INTEROP_GPU_KERNEL_HPP
+#ifndef GPU_SYCL_SYCL_OCL_GPU_KERNEL_HPP
+#define GPU_SYCL_SYCL_OCL_GPU_KERNEL_HPP
 
 #include <assert.h>
 #include <string>
@@ -25,6 +25,7 @@
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace sycl {
 
 class sycl_interop_gpu_kernel_t : public gpu::compute::kernel_impl_t {
@@ -94,6 +95,7 @@ protected:
 };
 
 } // namespace sycl
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

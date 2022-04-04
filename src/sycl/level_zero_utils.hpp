@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,12 +33,12 @@ namespace sycl {
 using device_uuid_t = std::tuple<uint64_t, uint64_t>;
 device_uuid_t get_device_uuid(const ::sycl::device &dev);
 
-// including sycl_gpu_engine.hpp leads to circular dependencies, w/a for now.
-class sycl_gpu_engine_t;
+// including sycl_engine_base.hpp leads to circular dependencies, w/a for now.
+class sycl_engine_base_t;
 
 status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name, const sycl_gpu_engine_t *sycl_engine,
+        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
         const gpu::compute::binary_t *binary,
         gpu::compute::program_list_t *programs);
 

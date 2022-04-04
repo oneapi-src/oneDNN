@@ -26,8 +26,8 @@
 #include "gpu/compute/compute_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/profile.hpp"
+#include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "sycl/profile.hpp"
-#include "sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL

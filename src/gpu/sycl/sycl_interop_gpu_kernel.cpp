@@ -20,17 +20,20 @@
 #include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/profile.hpp"
+#include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
 #include "gpu/zero_pad_struct.h"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/profile.hpp"
 #include "sycl/sycl_c_types_map.hpp"
-#include "sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_stream.hpp"
 #include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace sycl {
+
+using namespace impl::sycl;
 
 static void set_scalar_arg(
         ::sycl::handler &cgh, int index, size_t size, const void *value) {
@@ -115,7 +118,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
     assert(state_ == state_t::kernel);
 
     if (range.is_zero()) return status::success;
-    auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(&stream);
+    auto *sycl_stream = utils::downcast<sycl_stream_t *>(&stream);
     auto &queue = sycl_stream->queue();
     sycl_gpu_engine_t *sycl_engine
             = utils::downcast<sycl_gpu_engine_t *>(sycl_stream->engine());
@@ -200,5 +203,6 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
 }
 
 } // namespace sycl
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl

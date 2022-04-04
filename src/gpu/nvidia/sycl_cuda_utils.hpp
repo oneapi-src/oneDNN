@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -319,7 +319,7 @@ template <typename T>
     auto event = q.submit([&, src](::sycl::handler &cgh) {
         // Retrieve a  write accessor to a global buffer
         auto acc = dst.template get_access<::sycl::access::mode::write,
-                sycl::compat::target_device>(cgh);
+                impl::sycl::compat::target_device>(cgh);
         // Copy from the input pointer into the buffer associated with the
         // accessor
         cgh.copy(src, acc);
@@ -333,7 +333,7 @@ template <typename T>
     auto event = q.submit([&, dst](::sycl::handler &cgh) {
         // Retrieve a read accessor to a global buffer
         auto acc = src.template get_access<::sycl::access::mode::read,
-                sycl::compat::target_device>(cgh);
+                impl::sycl::compat::target_device>(cgh);
         // Copy from the buffer associated with the accessor into the output
         // pointer
         cgh.copy(acc, dst);

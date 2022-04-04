@@ -27,7 +27,7 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
-#include "sycl/sycl_gpu_engine.hpp"
+#include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_utils.hpp"
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
