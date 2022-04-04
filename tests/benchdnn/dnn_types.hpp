@@ -330,9 +330,6 @@ struct attr_t {
 
         std::vector<std::pair<int, int>> get_po_masks() const;
 
-        // TODO: remove
-        std::vector<int> get_binary_po_masks() const;
-
         std::vector<entry_t> entry;
     };
 

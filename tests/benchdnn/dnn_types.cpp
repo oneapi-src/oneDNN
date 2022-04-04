@@ -431,19 +431,6 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
     return v_masks;
 }
 
-std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
-    std::vector<int> v_masks;
-    for (int idx = 0; idx < len(); ++idx) {
-        const auto &e = this->entry[idx];
-        if (!e.is_binary_kind()) continue;
-
-        const auto policy = e.binary.policy;
-        const auto mask = attr_t::get_default_mask(policy);
-        v_masks.push_back(mask);
-    }
-    return v_masks;
-}
-
 int attr_t::post_ops_t::from_str(const std::string &s) {
     *this = post_ops_t();
     if (s.empty()) return OK;
