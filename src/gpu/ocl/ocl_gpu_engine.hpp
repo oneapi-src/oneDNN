@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -91,6 +91,7 @@ public:
 
     cl_device_id device() const { return device_; }
     cl_context context() const { return context_; }
+    cl_platform_id platform() const { return platform_; }
 
     device_id_t device_id() const override {
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
@@ -118,6 +119,7 @@ protected:
 private:
     cl_device_id device_;
     cl_context context_;
+    cl_platform_id platform_;
     bool is_user_context_;
 };
 
