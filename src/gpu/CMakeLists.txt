@@ -33,6 +33,11 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
 add_subdirectory(compute)
 add_subdirectory(jit)
 add_subdirectory(ocl)
+
+if(DNNL_WITH_SYCL)
+    add_subdirectory(sycl)
+endif()
+
 if(DNNL_SYCL_CUDA)
     add_subdirectory(nvidia)
     # Pass ${DNNL_LIBRARY_NAME}_INTERFACE to upper level for proper linking
