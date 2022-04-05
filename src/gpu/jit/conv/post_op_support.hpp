@@ -396,7 +396,12 @@ private:
                 if (!eltwise_fwd_pd_t::eltwise_preserves_zero(po.eltwise))
                     return true;
             } else if (po.is_sum(/*require_scale_one=*/false)) {
-                // Preserves zero padding.
+                for (int j = 0; j < cp_ndims(); j++) {
+                    if (!is_cp_dim_zero_padded(j)) continue;
+                    // Size one dimensions are treated as broadcast which does
+                    // not preserve zero padding with block updates.
+                    if (cp_view_.vdims()[j] == 1) return true;
+                }
             } else if (po.is_binary()) {
                 for (int j = 0; j < cp_ndims(); j++) {
                     if (!is_cp_dim_zero_padded(j)) continue;
