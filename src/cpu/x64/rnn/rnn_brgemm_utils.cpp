@@ -690,6 +690,8 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
         cpu::rnn_utils::rnn_conf_t &rnn, alg_kind_t cell_kind,
         dim_t src_layer_type_size, dim_t scratch_type_size) {
 
+    if (rnn.is_int8()) return status::unimplemented;
+
     auto &diff_src_conf = rnn.diff_src_brgemm;
 
     diff_src_conf.M = rnn.mb;
@@ -720,31 +722,28 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     const dim_t Cs = scratch_type_size * (rnn.n_gates + 1)
             * (diff_src_conf.M * diff_src_conf.n_block);
 
-    const auto is_int8 = rnn.is_int8();
     const auto is_bf16 = rnn.is_bf16();
 
-    const dim_t padding = (is_int8 ? 4 : (is_bf16 ? 2 : 1));
+    const dim_t padding = is_bf16 ? 2 : 1;
     diff_src_conf.Kpadded = utils::rnd_up(diff_src_conf.K, padding);
 
-    diff_src_conf.isa = brgemm_calc_isa(
-            diff_src_conf.K, diff_src_conf.K, is_int8, is_bf16);
+    diff_src_conf.isa
+            = brgemm_calc_isa(diff_src_conf.K, diff_src_conf.K, false, is_bf16);
 
     std::tie(diff_src_conf.k_block, std::ignore) = brgemm_calc_k_block(
             diff_src_conf.K, diff_src_conf.K, diff_src_conf.M,
             diff_src_conf.n_block, cell_kind, src_layer_type_size, As, Bs, Cs,
-            l2_cache_size, diff_src_conf.isa, rnn.is_int8(), rnn.is_bf16());
+            l2_cache_size, diff_src_conf.isa, false, rnn.is_bf16());
 
     diff_src_conf.K_blocks = diff_src_conf.K / diff_src_conf.k_block;
     diff_src_conf.K_blocks *= rnn.n_gates;
     diff_src_conf.k_tail = diff_src_conf.K % diff_src_conf.k_block;
 
-    const bool is_int8_amx = rnn.is_int8()
-            && diff_src_conf.isa == x64::avx512_core_bf16_amx_int8;
     const bool is_bf16_amx = rnn.is_bf16()
             && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16;
     diff_src_conf.m_block = brgemm_calc_m_block(cell_kind, prop_kind::backward,
             rnn.nthr, diff_src_conf.M, diff_src_conf.N_blocks, rnn.is_f32(),
-            is_int8_amx, is_bf16_amx, work_by_N, As, Bs, Cs, l2_cache_size);
+            false, is_bf16_amx, work_by_N, As, Bs, Cs, l2_cache_size);
 
     diff_src_conf.M_blocks = diff_src_conf.M / diff_src_conf.m_block;
     diff_src_conf.LDA = rnn.scratch_gates_ld;
@@ -784,20 +783,18 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     const dim_t Cs_wei = scratch_type_size * (rnn.n_gates + 1)
             * (diff_wei_conf.M * diff_wei_conf.n_block);
 
-    diff_wei_conf.isa = brgemm_calc_isa(
-            diff_wei_conf.K, diff_wei_conf.K, is_int8, is_bf16);
+    diff_wei_conf.isa
+            = brgemm_calc_isa(diff_wei_conf.K, diff_wei_conf.K, false, is_bf16);
 
     std::tie(diff_wei_conf.k_block, std::ignore)
             = brgemm_calc_k_block(diff_wei_conf.K, diff_wei_conf.K,
                     diff_wei_conf.M, diff_wei_conf.n_block, cell_kind,
                     src_layer_type_size, As_wei, Bs_wei, Cs_wei, l2_cache_size,
-                    diff_wei_conf.isa, rnn.is_int8(), rnn.is_bf16());
+                    diff_wei_conf.isa, false, rnn.is_bf16());
 
     diff_wei_conf.K_blocks = diff_wei_conf.K / diff_wei_conf.k_block;
     diff_wei_conf.k_tail = diff_wei_conf.K % diff_wei_conf.k_block;
 
-    const bool is_wei_int8_amx = rnn.is_int8()
-            && diff_wei_conf.isa == x64::avx512_core_bf16_amx_int8;
     const bool is_wei_bf16_amx = rnn.is_bf16()
             && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16;
     if (diff_wei_conf.M_iter != diff_wei_conf.M_layer) {
@@ -807,11 +804,10 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
         const float work_by_N_wei = static_cast<float>(diff_wei_conf.N_blocks)
                 / static_cast<float>(rnn.nthr);
 
-        diff_wei_conf.m_block
-                = brgemm_calc_m_block(cell_kind, prop_kind::backward, rnn.nthr,
-                        diff_wei_conf.M, diff_wei_conf.N_blocks, rnn.is_f32(),
-                        is_wei_int8_amx, is_wei_bf16_amx, work_by_N_wei, As_wei,
-                        Bs_wei, Cs_wei, l2_cache_size);
+        diff_wei_conf.m_block = brgemm_calc_m_block(cell_kind,
+                prop_kind::backward, rnn.nthr, diff_wei_conf.M,
+                diff_wei_conf.N_blocks, rnn.is_f32(), false, is_wei_bf16_amx,
+                work_by_N_wei, As_wei, Bs_wei, Cs_wei, l2_cache_size);
         diff_wei_conf.M_blocks = diff_wei_conf.M / diff_wei_conf.m_block;
     }
 
