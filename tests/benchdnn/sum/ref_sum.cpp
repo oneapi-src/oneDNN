@@ -32,7 +32,7 @@ void compute_ref(
         dst_ptr[k] = 0;
         for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
             const dnn_mem_t &src_i = args.find(DNNL_ARG_MULTIPLE_SRC + i_input);
-            dst_ptr[k] += (src_i.get_elem(k) * prb->scales[i_input]);
+            dst_ptr[k] += (src_i.get_elem(k) * prb->input_scales[i_input]);
         }
     });
 }

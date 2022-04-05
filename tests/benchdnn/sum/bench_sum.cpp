@@ -45,13 +45,14 @@ void check_correctness(const settings_t &s) {
         attr_t attr;
         attr.insert(i_scratchpad_mode);
 
-        for (const auto &i_scales : s.scales) {
+        for (const auto &i_input_scales : s.input_scales) {
             // expect either single scale value, or 1:1 match of dt and scale
-            if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
+            if (i_input_scales.size() != 1
+                    && i_input_scales.size() != i_sdt.size())
                 SAFE_V(FAIL);
 
-            const prb_t prb(
-                    s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales, attr);
+            const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag,
+                    i_input_scales, attr);
             std::stringstream ss;
             ss << prb;
             const std::string cpp_pstr = ss.str();
@@ -89,8 +90,8 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_multi_tag(s.stag, def.stag, argv[0])
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-                || parse_multivector_option(s.scales, def.scales, atof, argv[0],
-                        "scales", help_scales)
+                || parse_multivector_option(s.input_scales, def.input_scales,
+                        atof, argv[0], "scales", help_scales)
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

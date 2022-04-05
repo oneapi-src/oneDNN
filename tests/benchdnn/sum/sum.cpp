@@ -52,7 +52,7 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     return dnnl_sum_primitive_desc_create(&spd,
             prb->dtag != tag::undef ? &dst_d : nullptr, prb->n_inputs(),
-            prb->scales.data(), src_d.data(), dnnl_attr, engine);
+            prb->input_scales.data(), src_d.data(), dnnl_attr, engine);
 }
 
 int fill_src(

@@ -43,7 +43,7 @@ struct settings_t : public base_settings_t {
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::vector<std::string>> stag {{tag::abx}};
     std::vector<std::string> dtag {tag::undef};
-    std::vector<std::vector<float>> scales {{1}};
+    std::vector<std::vector<float>> input_scales {{1}};
 
     const char *perf_template_csv() const {
         static const std::string args = "%sdt%,%ddt%,%stag%,%dtag%";
@@ -56,19 +56,20 @@ struct settings_t : public base_settings_t {
 struct prb_t : public prb_dims_t {
     prb_t(const prb_dims_t &prb_dims, const std::vector<dnnl_data_type_t> &sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
-            const std::string &dtag, const std::vector<float> &scales,
+            const std::string &dtag, const std::vector<float> &input_scales,
             const attr_t &attr)
         : prb_dims_t(prb_dims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
-        , scales(sdt.size())
+        , input_scales(sdt.size())
         , attr(attr) {
         // if there is a single scale then broadcast it
         for (int i_input = 0; i_input < n_inputs(); i_input++)
-            this->scales[i_input]
-                    = ((int)scales.size() == 1) ? scales[0] : scales[i_input];
+            this->input_scales[i_input] = ((int)input_scales.size() == 1)
+                    ? input_scales[0]
+                    : input_scales[i_input];
     }
     ~prb_t() {}
 
@@ -77,7 +78,7 @@ struct prb_t : public prb_dims_t {
     dnnl_data_type_t ddt;
     std::vector<std::string> stag;
     std::string dtag;
-    std::vector<float> scales;
+    std::vector<float> input_scales;
     attr_t attr;
 
     int n_inputs() const { return (int)sdt.size(); }
