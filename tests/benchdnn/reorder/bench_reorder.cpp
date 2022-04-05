@@ -37,9 +37,6 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
-        dt_conf_t iconf = dt2cfg(i_sdt);
-        dt_conf_t oconf = dt2cfg(i_ddt);
-
         attr_t attr;
         attr.insert(i_oscale);
         attr.insert(i_zero_points);
@@ -67,7 +64,7 @@ void check_correctness(const settings_t &s) {
         auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
-            const prb_t prb(s.prb_dims, i_stag, i_dtag, iconf, oconf, attr,
+            const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, attr,
                     i_oflag, i_cross_engine, i_runtime_dim_mask, i_scale);
             std::stringstream ss;
             ss << prb;

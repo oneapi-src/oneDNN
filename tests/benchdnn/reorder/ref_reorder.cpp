@@ -29,7 +29,7 @@ void compute_ref(
 
     float *dst_ptr = (float *)dst;
 
-    auto dst_dt = prb->conf_out->dt;
+    const auto dst_dt = prb->ddt;
     const auto nelems = src.nelems();
     const int scale_mask = attr_t::get_default_mask(prb->attr.oscale.policy);
     // This is native to reorder zero point which comes from reorder attributes.
