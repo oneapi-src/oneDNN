@@ -37,13 +37,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
-        attr_t attr;
-        attr.insert(i_oscale);
-        attr.insert(i_zero_points);
-        attr.insert(i_post_ops);
-        attr.insert(i_scratchpad_mode);
-
-        if (attr.oscale.policy == policy_t::PER_OC) {
+        if (i_oscale.policy == policy_t::PER_OC) {
             fprintf(stderr,
                     "ERROR: reorder driver: `per_oc` policy is not supported "
                     "due to potential ambiguity. Please use one of `per_dim_0` "
@@ -59,12 +53,24 @@ void check_correctness(const settings_t &s) {
             SAFE_V(FAIL);
         }
 
-        std::vector<float> attr_scale = {attr.oscale.scale};
-        auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
+        attr_t attr;
+        attr.insert(i_zero_points);
+        attr.insert(i_post_ops);
+        attr.insert(i_scratchpad_mode);
 
-        for (const auto &i_scale : scale) {
+        // Enable multiple scales in case user requested it via passing `0.f`
+        // in output scale attributes.
+        const std::vector<float> test_scales = i_oscale.scale == 0
+                ? s.def_scale
+                : std::vector<float>(1, i_oscale.scale);
+
+        for (const auto &i_test_scale : test_scales) {
+            const attr_t::scale_t test_oscale(
+                    i_oscale.policy, i_test_scale, i_oscale.runtime);
+            attr.insert(test_oscale);
+
             const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, attr,
-                    i_oflag, i_cross_engine, i_runtime_dim_mask, i_scale);
+                    i_oflag, i_cross_engine, i_runtime_dim_mask);
             std::stringstream ss;
             ss << prb;
             const std::string cpp_pstr = ss.str();

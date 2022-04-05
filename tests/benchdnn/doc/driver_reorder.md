@@ -16,16 +16,20 @@ where *reorder-knobs* are:
  - `--dtag={nchw [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
-            set by default. Refer to [attributes](knobs_attr.md) for details.
+            set by default. See `--def-scales` for additional specific reorder
+            mechanics and refer to [attributes](knobs_attr.md) for details.
  - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
             points are set by default. Refer to [attributes](knobs_attr.md)
             for details.
  - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
- - `--def-scales=FLOAT` -- output scale, used to improve testing
-            coverage. If `--attr-oscale` is specified, does not have an effect.
-            Example: --def-scales=0.125,0.25,0.5,1,2,4,8
+ - `--def-scales=FLOAT` -- set of scales used to improve testing coverage.
+            Enabled when `--attr-oscale` value is specified to be `0.f`,
+            otherwise disabled. The default set is `0.125,0.25,0.5,1,2,4,8`.
+            Example: `--def-scales=-3,3` replaces default set from seven entries
+            to two, but to enable it user still require to pass `0.f` in
+            `--attr-oscale`, e.g. `--attr-oscale=per_dim_1:0.`
  - `--oflag=FLAG:MASK[+...]` -- memory descriptor extra field specifier. By
             default `FLAG` is empty and `MASK` is `0`. Possible `FLAG` values
             are:
