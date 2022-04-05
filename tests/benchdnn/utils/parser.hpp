@@ -177,9 +177,6 @@ bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
 bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
         const char *str, const std::string &option_name = "mb");
 
-bool parse_attr(
-        attr_t &attr, const char *str, const std::string &option_name = "attr");
-
 bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,
         const std::string &option_name = "attr-oscale");
 

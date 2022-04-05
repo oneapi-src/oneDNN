@@ -136,24 +136,6 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
     return parse_vector_option(mb, def_mb, atoi, str, option_name, help);
 }
 
-bool parse_attr(attr_t &attr, const char *str,
-        const std::string &option_name /* = "attr"*/) {
-    const std::string pattern = parser_utils::get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) == eol) return false;
-    static bool notice_printed = false;
-    if (!notice_printed) {
-        BENCHDNN_PRINT(0, "%s\n",
-                "WARNING (DEPRECATION NOTICE): `--attr` option is deprecated. "
-                "Please use one of `--attr-oscale`, `--attr-post-ops`, "
-                "`--attr-scales` or `--attr-zero-points` to specify attributes "
-                "specific part for a problem. New options support mixing and "
-                "will iterate over all possible combinations.");
-        notice_printed = true;
-    }
-    SAFE(str2attr(&attr, str + pattern.size()), CRIT);
-    return true;
-}
-
 bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,
         const std::string &option_name /* = "attr-oscale"*/) {
     static const std::string help

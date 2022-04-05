@@ -55,7 +55,6 @@ void check_correctness(const settings_t &s, const settings_t &def) {
         attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
         attr.insert(i_fpmath_mode);
-        handle_legacy_attr(attr, s.attr);
 
         const bool strided_input = !i_strides[STRIDES_SRC].empty()
                 || !i_strides[STRIDES_WEI].empty()
@@ -128,7 +127,6 @@ int bench(int argc, char **argv) {
                 || parse_multivector_option(s.rt_dims_masks, def.rt_dims_masks,
                         atoi, argv[0], "runtime_dims_masks",
                         help_runtime_dims_masks)
-                || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])

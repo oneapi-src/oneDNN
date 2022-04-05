@@ -24,6 +24,8 @@
 
 #include "self/self.hpp"
 
+using namespace parser;
+
 namespace self {
 
 using pk_t = attr_t::post_ops_t::kind_t;
@@ -91,9 +93,7 @@ static int check_attr2str() {
     return OK;
 }
 
-static int check_str2attr() {
-    attr_t attr;
-
+static int check_attr() {
 #define CHECK_OSCALE(os, os_policy, os_scale, os_runtime) \
     do { \
         CHECK_EQ((os).policy, policy_t::os_policy); \
@@ -101,54 +101,61 @@ static int check_str2attr() {
         CHECK_EQ((os).runtime, os_runtime); \
     } while (0)
 
-#define CHECK_ATTR(str, os_policy, os_scale, os_runtime) \
+#define CHECK_ATTR_OSCALE(str, os_policy, os_scale, os_runtime) \
     do { \
-        CHECK_EQ(str2attr(&attr, str), OK); \
-        CHECK_OSCALE(attr.oscale, os_policy, os_scale, os_runtime); \
+        std::vector<attr_t::scale_t> os; \
+        CHECK_EQ(parse_attr_oscale(os, str), true); \
+        CHECK_EQ(os.size(), 1); \
+        CHECK_OSCALE(os[0], os_policy, os_scale, os_runtime); \
     } while (0)
-#define CHECK_ATTR_ZP(arg, zero_points_value, zero_points_runtime) \
+#define CHECK_ATTR_ZP(zp, arg, zero_points_value, zero_points_runtime) \
     do { \
-        const auto entry = attr.zero_points.get(arg); \
+        const auto &entry = (zp).get(arg); \
         CHECK_EQ(entry.value, zero_points_value); \
         CHECK_EQ(entry.runtime, zero_points_runtime); \
     } while (0)
 
-    CHECK_ATTR("", COMMON, 1., false);
-    CHECK_EQ(attr.is_def(), true);
+    CHECK_ATTR_OSCALE("--attr-oscale=", COMMON, 1., false);
+    CHECK_ATTR_OSCALE("--attr-oscale=common:1.0", COMMON, 1., false);
+    CHECK_ATTR_OSCALE("--attr-oscale=common:2.0", COMMON, 2., false);
+    CHECK_ATTR_OSCALE("--attr-oscale=common:2.0*", COMMON, 2., true);
+    CHECK_ATTR_OSCALE("--attr-oscale=per_oc:.5*", PER_OC, .5, true);
 
-    CHECK_ATTR("oscale=common:1.0", COMMON, 1., false);
-    CHECK_EQ(attr.is_def(), true);
+    {
+        std::vector<attr_t::zero_points_t> zp;
+        CHECK_EQ(parse_attr_zero_points(
+                         zp, "--attr-zero-points=src:common:0+dst:common:-2*"),
+                true);
+        CHECK_EQ(zp.size(), 1);
+        CHECK_ATTR_ZP(zp[0], DNNL_ARG_SRC, 0, false);
+        CHECK_ATTR_ZP(zp[0], DNNL_ARG_WEIGHTS, 0, false);
+        CHECK_ATTR_ZP(zp[0], DNNL_ARG_DST, -2, true);
+    }
 
-    CHECK_ATTR(
-            "oscale=common:1.0;zero_points=src:common:0+wei:common:0+dst:"
-            "common:0",
-            COMMON, 1., false);
-    CHECK_EQ(attr.is_def(), true);
+    {
+        std::vector<attr_t::arg_scales_t> sc;
+        CHECK_EQ(parse_attr_scales(sc, "--attr-scales=src1:common:1.5"), true);
+        CHECK_EQ(sc.size(), 1);
+        CHECK_EQ(sc[0].get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
+        CHECK_EQ(sc[0].get(DNNL_ARG_SRC_1).scale, 1.5);
+    }
 
-    CHECK_ATTR("oscale=common:2.0", COMMON, 2., false);
-    CHECK_ATTR("oscale=common:2.0*", COMMON, 2., true);
-    CHECK_ATTR("oscale=per_oc:.5*;", PER_OC, .5, true);
-
-    CHECK_ATTR("oscale=common:2.0*;zero_points=src:common:0+dst:common:-2*",
-            COMMON, 2., true);
-    CHECK_ATTR_ZP(DNNL_ARG_SRC, 0, false);
-    CHECK_ATTR_ZP(DNNL_ARG_WEIGHTS, 0, false);
-    CHECK_ATTR_ZP(DNNL_ARG_DST, -2, true);
-
-    CHECK_EQ(str2attr(&attr, "scales=src1:common:1.5;"), OK);
-    CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
-    CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).scale, 1.5);
-
-    CHECK_EQ(str2attr(&attr, "scales=src:common:2.5+src1:common:1.5;"), OK);
-    CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_0).policy, policy_t::COMMON);
-    CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_0).scale, 2.5);
-    CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
-    CHECK_EQ(attr.scales.get(DNNL_ARG_SRC_1).scale, 1.5);
+    {
+        std::vector<attr_t::arg_scales_t> sc;
+        CHECK_EQ(parse_attr_scales(
+                         sc, "--attr-scales=src:common:2.5+src1:common:1.5"),
+                true);
+        CHECK_EQ(sc.size(), 1);
+        CHECK_EQ(sc[0].get(DNNL_ARG_SRC_0).policy, policy_t::COMMON);
+        CHECK_EQ(sc[0].get(DNNL_ARG_SRC_0).scale, 2.5);
+        CHECK_EQ(sc[0].get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
+        CHECK_EQ(sc[0].get(DNNL_ARG_SRC_1).scale, 1.5);
+    }
 
     // depthwise conv section
     {
         std::vector<attr_t::post_ops_t> po;
-        auto st = parser::parse_attr_post_ops(po, "--attr-post-ops=dw_k3s1p1");
+        auto st = parse_attr_post_ops(po, "--attr-post-ops=dw_k3s1p1");
         CHECK_EQ(st, true);
         CHECK_EQ(po[0].len(), 1);
         const auto &e = po[0].entry[0];
@@ -161,9 +168,8 @@ static int check_str2attr() {
 
     {
         std::vector<attr_t::post_ops_t> po;
-        auto st = parser::parse_attr_post_ops(po,
-                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2.5+linear:2:1:0."
-                "5");
+        auto st = parse_attr_post_ops(po,
+                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2+linear:2:1:3");
         CHECK_EQ(st, true);
         CHECK_EQ(po[0].len(), 3);
         auto &e = po[0].entry[0];
@@ -179,7 +185,7 @@ static int check_str2attr() {
         const auto &ce = e.convolution;
         CHECK_EQ(ce.stride, 2);
         CHECK_EQ(ce.dst_dt, dnnl_s8);
-        CHECK_OSCALE(ce.oscale, PER_OC, 2.5f, false);
+        CHECK_OSCALE(ce.oscale, PER_OC, 2.f, false);
 
         e = po[0].entry[2];
         CHECK_EQ(e.kind, pk_t::LINEAR);
@@ -187,11 +193,11 @@ static int check_str2attr() {
         CHECK_EQ(ee.alg, dnnl_eltwise_linear);
         CHECK_EQ(ee.alpha, 2.f);
         CHECK_EQ(ee.beta, 1.f);
-        CHECK_EQ(ee.scale, 0.5f);
+        CHECK_EQ(ee.scale, 3.f);
     }
 
 #undef CHECK_OSCALE
-#undef CHECK_ATTR
+#undef CHECK_ATTR_OSCALE
 #undef CHECK_ATTR_ZP
 
     return OK;
@@ -391,7 +397,7 @@ static int check_skip_impl() {
 void common() {
     RUN(check_simple_enums());
     RUN(check_attr2str());
-    RUN(check_str2attr());
+    RUN(check_attr());
     RUN(check_post_ops2str());
     RUN(check_str2post_ops());
     RUN(check_tags());

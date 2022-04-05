@@ -68,7 +68,6 @@ void check_correctness(const settings_t &s) {
         attr.insert(i_scales);
         attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
-        handle_legacy_attr(attr, s.attr);
 
         const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_alg,
                 i_inplace, attr);
@@ -105,7 +104,6 @@ int bench(int argc, char **argv) {
                 || parse_alg(
                         s.alg, def.alg, attr_t::post_ops_t::str2kind, argv[0])
                 || parse_inplace(s.inplace, def.inplace, argv[0])
-                || parse_attr(s.attr, argv[0])
                 || parse_attr_scales(s.scales, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(

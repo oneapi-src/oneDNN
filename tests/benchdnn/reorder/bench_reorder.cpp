@@ -42,7 +42,6 @@ void check_correctness(const settings_t &s) {
         attr.insert(i_zero_points);
         attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
-        handle_legacy_attr(attr, s.attr);
 
         if (attr.oscale.policy == policy_t::PER_OC) {
             fprintf(stderr,
@@ -127,7 +126,6 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.cross_engine, def.cross_engine,
                         str2cross_engine, argv[0], "cross-engine",
                         help_cross_engine)
-                || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])

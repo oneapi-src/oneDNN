@@ -395,9 +395,6 @@ struct isa_hints_t {
 
 using policy_t = attr_t::policy_t;
 
-void handle_legacy_attr(attr_t &attr, const attr_t &legacy_attr);
-
-int str2attr(attr_t *attr, const char *str);
 std::ostream &operator<<(std::ostream &s, const policy_t &policy);
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
 std::ostream &operator<<(

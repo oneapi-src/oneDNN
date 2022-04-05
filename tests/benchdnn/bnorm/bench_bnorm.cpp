@@ -39,7 +39,6 @@ void check_correctness(const settings_t &s) {
         attr_t attr;
         attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
-        handle_legacy_attr(attr, s.attr);
 
         const prb_t prb(s.desc, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace,
                 attr, s.check_alg, s.debug_check_ws);
@@ -98,7 +97,6 @@ int bench(int argc, char **argv) {
                 || parse_single_value_option(s.debug_check_ws,
                         def.debug_check_ws, str2bool, argv[0], "debug-check-ws",
                         help_debug_check_ws)
-                || parse_attr(s.attr, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])

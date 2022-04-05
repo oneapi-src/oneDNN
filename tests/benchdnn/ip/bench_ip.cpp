@@ -42,7 +42,6 @@ void check_correctness(const settings_t &s) {
         attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
         attr.insert(i_fpmath_mode);
-        handle_legacy_attr(attr, s.attr);
 
         const prb_t prb(
                 s.desc, i_mb, i_dir, i_cfg, i_stag, i_wtag, i_dtag, attr);
@@ -78,7 +77,6 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_mb(s.mb, def.mb, argv[0])
-                || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(
