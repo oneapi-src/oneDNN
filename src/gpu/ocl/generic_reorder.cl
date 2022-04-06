@@ -191,8 +191,9 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
 #endif
 #if SCALE_QUANT
             // TODO: move to separate loop to enable burst reads from scales?
-            alpha = scales[SCALE_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
-                    d[3] + b[3], d[4] + b[4], d[5] + b[5])];
+            uint scale_idx = SCALE_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                    d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+            alpha = scale_idx < SCALE_S0 ? scales[scale_idx] : 0.0;
 #endif
 
             REORDER(dst_tmp, from_cache, alpha, beta);
