@@ -73,31 +73,26 @@ protected:
                     "Engine does not support this data type.");
         }
 
-        const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
-        if (is_gpu) { // XXX: once implemented, move to SKIP_IF_CUDA macro
-            SKIP_IF(p.src_dt != p.dst_dt && p.src_dt != dt::undef
-                            && p.dst_dt != dt::undef,
-                    "Unsupported different data types for source and "
-                    "destination");
-            SKIP_IF(!is_fwd(p.aprop_kind) && p.src_dt != p.diff_dst_dt
-                            && p.src_dt != dt::undef
-                            && p.diff_dst_dt != dt::undef,
-                    "Unsupported different data types for diff_source and "
-                    "diff_destination");
+        SKIP_IF_CUDA(p.src_dt != p.dst_dt && p.src_dt != dt::undef
+                        && p.dst_dt != dt::undef,
+                "Unsupported different data types for source and "
+                "destination");
+        SKIP_IF_CUDA(!is_fwd(p.aprop_kind) && p.src_dt != p.diff_dst_dt
+                        && p.src_dt != dt::undef && p.diff_dst_dt != dt::undef,
+                "Unsupported different data types for diff_source and "
+                "diff_destination");
 
-            SKIP_IF(p.src_tag != p.dst_tag && p.src_tag != tag::any
-                            && p.dst_tag != tag::any,
-                    "Unsupported different memory formats for source and "
-                    "destination");
-            SKIP_IF(!is_fwd(p.aprop_kind) && p.src_tag != p.diff_dst_tag
-                            && p.src_tag != tag::any
-                            && p.diff_dst_tag != tag::any,
-                    "Unsupported different memory formats for diff_source and "
-                    "diff_destination");
+        SKIP_IF_CUDA(p.src_tag != p.dst_tag && p.src_tag != tag::any
+                        && p.dst_tag != tag::any,
+                "Unsupported different memory formats for source and "
+                "destination");
+        SKIP_IF_CUDA(!is_fwd(p.aprop_kind) && p.src_tag != p.diff_dst_tag
+                        && p.src_tag != tag::any && p.diff_dst_tag != tag::any,
+                "Unsupported different memory formats for diff_source and "
+                "diff_destination");
 
-            SKIP_IF(p.dst_dt == dt::u8 || p.dst_dt == dt::s8,
-                    "Unsupported int8 destination data type");
-        }
+        SKIP_IF_CUDA(p.dst_dt == dt::u8 || p.dst_dt == dt::s8,
+                "Unsupported int8 destination data type");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
@@ -111,9 +106,7 @@ protected:
         // softmax_v2 specific types and values
         using op_desc_t = softmax_v2_forward::desc;
         using pd_t = softmax_v2_forward::primitive_desc;
-        const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
-        allows_attr_t aa {false};
-        if (!is_gpu) aa.oscale = true;
+        allows_attr_t aa {true};
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);

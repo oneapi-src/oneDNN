@@ -24,26 +24,21 @@ namespace ocl {
 status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
 
-    status_t status = status::success;
-
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    CHECK(status);
+    float scale = pd()->attr()->output_scales_.scales_[0];
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
+    arg_list.set(2, scale);
 
     auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);
-
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
-    return status;
+    return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 
 status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
-
-    status_t status = status::success;
 
     auto &dst = CTX_IN_STORAGE(DNNL_ARG_DST);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
@@ -55,10 +50,7 @@ status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
     arg_list.set(2, diff_dst);
 
     auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);
-
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
-
-    return status;
+    return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 
 } // namespace ocl

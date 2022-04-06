@@ -16,13 +16,15 @@
 
 #include "gpu/ocl/ocl_types.h"
 
-#define LOAD_DATA_8x16(ptr) \
-    CONVERT_FLOAT8_T( \
-            AS_DATA8_T(BLOCK_READ8((const __global BLOCK_DATA_T *)(ptr))))
+#define LOAD_FLOAT8(prefix, ptr) \
+    DATA_TO_FLOAT8(prefix, \
+            BLOCK_TO_DATA8(prefix, \
+                    READ_BLOCK8(prefix, \
+                            (__global BLOCK_T(ALIAS(prefix)) *)(ptr))))
 
-#define STORE_DATA_8x16(ptr, val) \
-    BLOCK_WRITE8((__global BLOCK_DATA_T *)ptr, \
-            AS_BLOCK_DATA8_T(CONVERT_DATA8_T(val)))
+#define STORE_FLOAT8(prefix, ptr, val) \
+    WRITE_BLOCK8(prefix, (__global BLOCK_T(ALIAS(prefix)) *)(ptr), \
+            DATA_TO_BLOCK8(prefix, FLOAT_TO_DATA8(prefix, val)))
 
 #define VECT_SIZE 8
 #define NUM_BUF (SOFTMAX_AXIS_SIZE / SUB_GROUP_SIZE / VECT_SIZE)
@@ -31,7 +33,8 @@
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
-gen9_softmax_fwd(__global DATA_T *src, __global DATA_T *dst) {
+gen9_softmax_fwd(
+        __global SRC_DATA_T *src, __global DST_DATA_T *dst, float scale) {
     const int data_off = (get_global_id(0) / GROUP_SIZE) * SOFTMAX_AXIS_SIZE;
 
     float8 d[NUM_BUF];
@@ -42,7 +45,7 @@ gen9_softmax_fwd(__global DATA_T *src, __global DATA_T *dst) {
     src += data_off;
 
     for (int k = 0; k < NUM_BUF; ++k) {
-        d[k] = LOAD_DATA_8x16(&src[k * VECT_SIZE * SUB_GROUP_SIZE]);
+        d[k] = LOAD_FLOAT8(SRC, &src[k * VECT_SIZE * SUB_GROUP_SIZE]);
         for (int i = 0; i < VECT_SIZE; ++i) {
             max_ = max(d[k][i], max_);
         }
@@ -76,7 +79,7 @@ gen9_softmax_fwd(__global DATA_T *src, __global DATA_T *dst) {
 #else
         d[k] = d[k] * denom_;
 #endif
-        STORE_DATA_8x16(&dst[k * VECT_SIZE * SUB_GROUP_SIZE], d[k]);
+        STORE_FLOAT8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE], scale * d[k]);
     }
 }
 
@@ -84,8 +87,8 @@ gen9_softmax_fwd(__global DATA_T *src, __global DATA_T *dst) {
 #if IS_BWD
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
-gen9_softmax_bwd(__global DATA_T *dst, __global DATA_T *diff_src,
-        __global DATA_T *diff_dst) {
+gen9_softmax_bwd(__global DST_DATA_T *dst, __global SRC_DATA_T *diff_src,
+        __global DST_DATA_T *diff_dst) {
 #if IS_NHWC || IS_16C
     const int groups = get_global_id(0) / GROUP_SIZE;
     const int batch = groups / IC_PADDED;
@@ -113,8 +116,8 @@ gen9_softmax_bwd(__global DATA_T *dst, __global DATA_T *diff_src,
 
     for (int i = 0, idx = IC * slice * SOFTMAX_BUF; i < VECT_SIZE;
             ++i, idx += IC) {
-        diff_d[i] = CONVERT_FLOAT_T(diff_dst[idx]);
-        dst_[i] = CONVERT_FLOAT_T(dst[idx]);
+        diff_d[i] = DATA_TO_FLOAT(DST, diff_dst[idx]);
+        dst_[i] = DATA_TO_FLOAT(DST, dst[idx]);
 #if LOGSOFTMAX
         sbr += diff_d[i];
 #else
@@ -135,7 +138,7 @@ gen9_softmax_bwd(__global DATA_T *dst, __global DATA_T *diff_src,
 #else
         diff_d[i] = (diff_d[i] - sbr) * dst_[i];
 #endif
-        diff_src[idx] = TO_DATA_T(diff_d[i]);
+        diff_src[idx] = FLOAT_TO_DATA(SRC, diff_d[i]);
     }
 
 #else
@@ -149,8 +152,8 @@ gen9_softmax_bwd(__global DATA_T *dst, __global DATA_T *diff_src,
     diff_dst += data_off;
     dst += data_off;
     for (int k = 0; k < NUM_BUF; ++k) {
-        diff_d[k] = LOAD_DATA_8x16(&diff_dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
-        dst_[k] = LOAD_DATA_8x16(&dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
+        diff_d[k] = LOAD_FLOAT8(DST, &diff_dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
+        dst_[k] = LOAD_FLOAT8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE]);
         for (int i = 0; i < VECT_SIZE; ++i) {
 #if LOGSOFTMAX
             sbr += diff_d[k][i];
@@ -170,7 +173,7 @@ gen9_softmax_bwd(__global DATA_T *dst, __global DATA_T *diff_src,
 #else
         diff_d[k] = (diff_d[k] - sbr) * dst_[k];
 #endif
-        STORE_DATA_8x16(&diff_src[k * VECT_SIZE * SUB_GROUP_SIZE], diff_d[k]);
+        STORE_FLOAT8(SRC, &diff_src[k * VECT_SIZE * SUB_GROUP_SIZE], diff_d[k]);
     }
 #endif
 }

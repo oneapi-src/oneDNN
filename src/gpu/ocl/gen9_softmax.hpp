@@ -46,17 +46,21 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
 
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
+            const auto src_dt = src_d.data_type();
+            const auto dst_dt = dst_d.data_type();
 
+            using namespace data_type;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
             bool ok = is_fwd() && axis_size() % 128 == 0
                     && axis() == src_d.ndims() - 1 && src_d.is_plain()
-                    && utils::one_of(src_d.data_type(), data_type::f32,
-                            data_type::f16, data_type::bf16)
-                    && IMPLICATION(src_md()->data_type == data_type::f16,
+                    && utils::one_of(src_dt, f32, f16, bf16, u8, s8)
+                    && utils::one_of(dst_dt, f32, f16, bf16, u8, s8)
+                    && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
-                    && attr()->has_default_values()
-                    && set_default_formats() == status::success
-                    && dst_d == src_d;
+                    && attr()->has_default_values(skip_mask_t::oscale)
+                    && attr_oscale_ok()
+                    && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
 
             group_size = 16;
@@ -92,7 +96,13 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
 
-        kernel_ctx.set_data_type(pd()->src_md()->data_type);
+        const memory_desc_wrapper dst_mdw(pd()->dst_md());
+        const memory_desc_wrapper src_mdw(pd()->src_md());
+        const auto dst_md_info = memory_desc_info_t::create(dst_mdw);
+        const auto src_md_info = memory_desc_info_t::create(src_mdw);
+        def_memory_desc_info(kernel_ctx, dst_md_info, "DST");
+        def_memory_desc_info(kernel_ctx, src_md_info, "SRC");
+        kernel_ctx.set_data_type(dst_mdw.data_type());
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
 
         for (int i = 0; i < 3; ++i)
@@ -131,20 +141,21 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
             const memory_desc_wrapper dst_d(dst_md());
 
+            using namespace data_type;
             bool ok = !is_fwd() && axis_size() % 128 == 0
                     && axis() == diff_src_d.ndims() - 1
-                    && utils::one_of(
-                            dst_d.data_type(), data_type::f32, data_type::bf16)
+                    && utils::one_of(diff_src_d.data_type(), f32, bf16)
+                    && utils::one_of(diff_dst_d.data_type(), f32, bf16)
+                    && compute_engine->mayiuse_sub_group(16)
                     && attr()->has_default_values()
                     && set_default_formats() == status::success
-                    && diff_src_d == diff_dst_d && diff_src_d == dst_d
-                    && compute_engine->mayiuse_sub_group((16));
+                    && diff_dst_d.data_type() == dst_d.data_type();
             if (!ok) return status::unimplemented;
 
             is_nhwc = (diff_src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
-                    != undef);
+                    != format_tag::undef);
             is_blk = (diff_src_d.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c)
-                    != undef);
+                    != format_tag::undef);
             if (is_nhwc || is_blk)
                 group_size = 16 * (axis_size() / 128);
             else
@@ -191,6 +202,12 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
 
+        const memory_desc_wrapper diff_src_mdw(pd()->diff_src_md());
+        const memory_desc_wrapper diff_dst_mdw(pd()->diff_dst_md());
+        const auto diff_src_md_info = memory_desc_info_t::create(diff_src_mdw);
+        const auto diff_dst_md_info = memory_desc_info_t::create(diff_dst_mdw);
+        def_memory_desc_info(kernel_ctx, diff_src_md_info, "SRC");
+        def_memory_desc_info(kernel_ctx, diff_dst_md_info, "DST");
         kernel_ctx.set_data_type(pd()->diff_src_md()->data_type);
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
 

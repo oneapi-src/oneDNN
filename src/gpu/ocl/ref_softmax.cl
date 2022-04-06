@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,10 +19,13 @@
 #define CONCAt2(a, b) a##b
 #define CONCAT2(a, b) CONCAt2(a, b)
 
+#define IS_HALF_half 1
+#define IS_HALF(dt) CONCAT2(IS_HALF_, dt)
+
 #if IS_FWD
 #define DD(i) CONCAt2(DST_D, i)
 #elif IS_BWD
-#define DD(i) CONCAt2(DIFF_SRC_D, i)
+#define DD(i) CONCAt2(SRC_D, i)
 #else
 #error unsupported data parameter
 #endif
@@ -82,7 +85,8 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
 __kernel void
-ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
+ref_softmax_fwd_generic(
+        __global SRC_DATA_T *src, __global DATA_T *dst, float scale) {
 
     const int dim[] = {
             (get_global_id(0) / GROUP_SIZE) % BLOCK_0,
@@ -111,16 +115,26 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
     const int buf_size = SOFTMAX_AXIS / GROUP_SIZE;
 #endif
 
-    DEF_ACC_DATA_T d[buf_size];
-    DEF_ACC_DATA_T max_ = -FLT_MAX;
-    DEF_ACC_DATA_T denom_ = DATA_ZERO;
+#if IS_HALF(SRC_DATA_T) == 1 && IS_HALF(DST_DATA_TYPE) == 1
+    typedef half acc_t;
+    const acc_t acc_max = HALF_MAX;
+    const acc_t acc_zero = 0.h;
+#else
+    typedef float acc_t;
+    const acc_t acc_max = FLT_MAX;
+    const acc_t acc_zero = 0.f;
+#endif
+
+    acc_t d[buf_size];
+    acc_t max_ = -acc_max;
+    acc_t denom_ = acc_zero;
 
     // finding max value for each sub_group
     if (!(NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], begin))) {
         for (int i = begin; i < end && i < DD(SOFTMAX_AXIS_IDX); ++i) {
             size_t data_off
                     = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
-            d[i - begin] = TO_DEF_ACC_DATA_T(src[data_off]);
+            d[i - begin] = SRC_TO_REF(src[data_off]);
             max_ = max(max_, d[i - begin]);
         }
     }
@@ -161,12 +175,18 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
 
         if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
-            dst[data_off] = DATA_ZERO;
+            dst[data_off] = REF_TO_DST(acc_zero);
         } else {
+            float unscaled;
 #if LOGSOFTMAX
-            dst[data_off] = TO_DATA_T(d[i - begin] - max_ - denom_);
+            unscaled = d[i - begin] - max_ - denom_;
 #else
-            dst[data_off] = TO_DATA_T(d[i - begin] * denom_);
+            unscaled = d[i - begin] * denom_;
+#endif
+#if DT_S8 == 1 || DT_U8 == 1
+            dst[data_off] = REF_TO_DST(round(scale * unscaled));
+#else
+            dst[data_off] = REF_TO_DST(scale * unscaled);
 #endif
         }
     }
@@ -180,8 +200,8 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
 __kernel void
-ref_softmax_bwd_generic(__global DATA_T *dst, __global DATA_T *diff_src,
-        __global DATA_T *diff_dst) {
+ref_softmax_bwd_generic(__global DST_DATA_T *dst, __global SRC_DATA_T *diff_src,
+        __global DST_DATA_T *diff_dst) {
 
     const int dim[] = {
             (get_global_id(0) / GROUP_SIZE) % BLOCK_0,
@@ -207,15 +227,23 @@ ref_softmax_bwd_generic(__global DATA_T *dst, __global DATA_T *diff_src,
     const int buf_size = SOFTMAX_AXIS / GROUP_SIZE;
 #endif
 
-    DEF_ACC_DATA_T diff_d[buf_size];
-    DEF_ACC_DATA_T d[buf_size];
-    DEF_ACC_DATA_T sbr = 0.f;
+#if IS_HALF(SRC_DATA_T) == 1 && IS_HALF(DST_DATA_TYPE) == 1
+    typedef half acc_t;
+    const acc_t acc_zero = 0.h;
+#else
+    typedef float acc_t;
+    const acc_t acc_zero = 0.f;
+#endif
+
+    acc_t diff_d[buf_size];
+    acc_t d[buf_size];
+    acc_t sbr = acc_zero;
 
     if (!(NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], begin))) {
         for (int i = begin; i < end && i < DD(SOFTMAX_AXIS_IDX); ++i) {
             size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
-            diff_d[i - begin] = TO_DEF_ACC_DATA_T(diff_dst[idx]);
-            d[i - begin] = TO_DEF_ACC_DATA_T(dst[idx]);
+            diff_d[i - begin] = DST_TO_REF(diff_dst[idx]);
+            d[i - begin] = DST_TO_REF(dst[idx]);
 #if LOGSOFTMAX
             sbr += diff_d[i - begin];
 #else
@@ -234,14 +262,14 @@ ref_softmax_bwd_generic(__global DATA_T *dst, __global DATA_T *diff_src,
         size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
 
         if (NEEDS_PADDING(dim[0], dim[1], dim[2], dim[3], dim[4], i)) {
-            diff_src[idx] = DATA_ZERO;
+            diff_src[idx] = REF_TO_SRC(acc_zero);
         } else {
 #if LOGSOFTMAX
             diff_src[idx]
-                    = TO_DATA_T(diff_d[i - begin] - exp(d[i - begin]) * sbr);
+                    = REF_TO_SRC(diff_d[i - begin] - exp(d[i - begin]) * sbr);
 #else
-            DEF_ACC_DATA_T inner_data = diff_d[i - begin] - sbr;
-            diff_src[idx] = TO_DATA_T(d[i - begin] * inner_data);
+            acc_t inner_data = diff_d[i - begin] - sbr;
+            diff_src[idx] = REF_TO_SRC(d[i - begin] * inner_data);
 #endif
         }
     }
