@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,35 +35,35 @@ extern "C" {
 /// Creates an allocator with the given allocation and deallocation call-back
 /// function pointers.
 ///
-/// @param created_allocator Output allocator
+/// @param allocator Output allocator
 /// @param sycl_malloc A pointer to SYCL malloc function
 /// @param sycl_free A pointer to SYCL free function
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
-        dnnl_graph_allocator_t **created_allocator,
+        dnnl_graph_allocator_t **allocator,
         dnnl_graph_sycl_allocate_f sycl_malloc,
         dnnl_graph_sycl_deallocate_f sycl_free);
 
 /// Creates an engine associated sycl device and context.
 ///
-/// @param created_engine The handle of output engine.
+/// @param engine The handle of output engine.
 /// @param dev The sycl device associated to created engine.
 /// @param ctx The sycl context associated to created engine.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
-        dnnl_graph_engine_t **created_engine, const void *dev, const void *ctx);
+        dnnl_graph_engine_t **engine, const void *dev, const void *ctx);
 
 /// Creates a stream for a given engine associated with a SYCL queue.
 ///
-/// @param created_stream The handle of output stream.
+/// @param stream The handle of output stream.
 /// @param engine Engine to create the stream on.
 /// @param queue SYCL queue to use.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
-        dnnl_graph_stream_t **created_stream, const dnnl_graph_engine_t *engine,
+        dnnl_graph_stream_t **stream, const dnnl_graph_engine_t *engine,
         const void *queue);
 
 /// Execute a compiled partition with sycl runtime.

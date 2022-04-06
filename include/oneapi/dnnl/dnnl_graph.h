@@ -35,13 +35,13 @@ extern "C" {
 /// Initializes an allocator with the given allocation and deallocation
 /// call-back function pointers (CPU)
 ///
-/// @param created_allocator Output allocator
+/// @param allocator Output allocator
 /// @param cpu_malloc A pointer to malloc function for CPU
 /// @param cpu_free A pointer to free function for CPU
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_allocator_create(
-        dnnl_graph_allocator_t **created_allocator,
+        dnnl_graph_allocator_t **allocator,
         dnnl_graph_cpu_allocate_f cpu_malloc,
         dnnl_graph_cpu_deallocate_f cpu_free);
 
@@ -61,7 +61,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_allocator_destroy(
 /// Initializes a logical tensor with id, data type, ndims, layout type, and
 /// property.
 ///
-/// @param created_logical_tensor Output logical tensor.
+/// @param logical_tensor Output logical tensor.
 /// @param tid The unique id of output logical tensor.
 /// @param dtype Elements data type.
 /// @param ndims Number of dimensions, -1 means unknown.
@@ -70,7 +70,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_allocator_destroy(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
-        dnnl_graph_logical_tensor_t *created_logical_tensor, size_t tid,
+        dnnl_graph_logical_tensor_t *logical_tensor, size_t tid,
         dnnl_graph_data_type_t dtype, int32_t ndims,
         dnnl_graph_layout_type_t ltype, dnnl_graph_tensor_property_t ptype);
 
@@ -84,7 +84,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
 ///
 ///     Eg. dims (2, 3, 4, 5) will get strides (60, 20, 5, 1)
 ///
-/// @param created_logical_tensor Output logical tensor.
+/// @param logical_tensor Output logical tensor.
 /// @param tid The unique id of output logical tensor.
 /// @param dtype Elements data type.
 /// @param ndims Number of dimensions, -1 means unknown.
@@ -94,7 +94,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
-        dnnl_graph_logical_tensor_t *created_logical_tensor, size_t tid,
+        dnnl_graph_logical_tensor_t *logical_tensor, size_t tid,
         dnnl_graph_data_type_t dtype, int32_t ndims,
         const dnnl_graph_dims_t dims, dnnl_graph_layout_type_t ltype,
         dnnl_graph_tensor_property_t ptype);
@@ -106,7 +106,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
 ///     in dnnl_graph_logical_tensor_t can only be dnnl_graph_strided or
 ///     dnnl_graph_any.
 ///
-/// @param created_logical_tensor Output logical tensor.
+/// @param logical_tensor Output logical tensor.
 /// @param tid The unique id of output logical tensor.
 /// @param dtype Elements data type.
 /// @param ndims Number of dimensions, -1 means unknown.
@@ -116,7 +116,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_strides(
-        dnnl_graph_logical_tensor_t *created_logical_tensor, size_t tid,
+        dnnl_graph_logical_tensor_t *logical_tensor, size_t tid,
         dnnl_graph_data_type_t dtype, int32_t ndims,
         const dnnl_graph_dims_t dims, const dnnl_graph_dims_t strides,
         dnnl_graph_tensor_property_t ptype);
@@ -228,16 +228,15 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_engine(
 
 /// Initializes an op with unique id, kind and debug string
 ///
-/// @param created_op Output op
+/// @param op Output op
 /// @param id The unique id of this op
 /// @param kind The op kind specifies which computation is represented by
 ///     the op, such as Convolution and ReLU.
 /// @param debug_string The string added for debug
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_create(
-        dnnl_graph_op_t **created_op, uint64_t id, dnnl_graph_op_kind_t kind,
-        const char *const debug_string);
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_create(dnnl_graph_op_t **op,
+        uint64_t id, dnnl_graph_op_kind_t kind, const char *const debug_string);
 
 /// Destroys the created op
 ///
@@ -528,14 +527,14 @@ dnnl_graph_compiled_partition_get_inplace_ports(
 
 /// Creates an engine with specified engine kind and device id.
 ///
-/// @param created_engine The handle of output engine.
+/// @param engine The handle of output engine.
 /// @param engine_kind The kind of engine.
 /// @param device_id The device associated to created engine.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create(
-        dnnl_graph_engine_t **created_engine,
-        dnnl_graph_engine_kind_t engine_kind, int32_t device_id);
+        dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t engine_kind,
+        int32_t device_id);
 
 /// Destroy the target engine.
 ///
@@ -588,14 +587,13 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_get_kind(
 
 /// Creates a new empty graph.
 ///
-/// @param created_graph The handle of output graph.
+/// @param graph The handle of output graph.
 /// @param device_type The kind for engine, it can be #dnnl_graph_any_engine,
 ///     #dnnl_graph_cpu and #dnnl_graph_gpu.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_create(
-        dnnl_graph_graph_t **created_graph,
-        dnnl_graph_engine_kind_t device_type);
+        dnnl_graph_graph_t **graph, dnnl_graph_engine_kind_t device_type);
 
 /// Destroy the target graph.
 ///
@@ -661,13 +659,12 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
 
 /// Creates a stream for the specified engine.
 ///
-/// @param created_stream The handle of output stream.
+/// @param stream The handle of output stream.
 /// @param engine Engine to create the stream on.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_create(
-        dnnl_graph_stream_t **created_stream,
-        const dnnl_graph_engine_t *engine);
+        dnnl_graph_stream_t **stream, const dnnl_graph_engine_t *engine);
 
 /// Waits for all compiled partitions executing in the stream to finish.
 ///
