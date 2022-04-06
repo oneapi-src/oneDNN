@@ -30,7 +30,7 @@ std::string skip_impl;
 bench_mode_t bench_mode {CORR};
 api_mode_t api_mode {GRAPH};
 stat_t benchdnn_stat {0};
-const char *driver_name = "";
+std::string driver_name;
 
 double max_ms_per_prb {3e3};
 int min_times_per_prb {5};
