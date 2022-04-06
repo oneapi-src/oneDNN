@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,10 +93,8 @@ DNNL_GRAPH_HANDLE_ALIAS(allocator);
 DNNL_GRAPH_HANDLE_ALIAS(engine);
 DNNL_GRAPH_HANDLE_ALIAS(graph);
 DNNL_GRAPH_HANDLE_ALIAS(op);
-DNNL_GRAPH_HANDLE_ALIAS(stream_attr);
 DNNL_GRAPH_HANDLE_ALIAS(stream);
 DNNL_GRAPH_HANDLE_ALIAS(tensor);
-DNNL_GRAPH_HANDLE_ALIAS(thread_pool);
 DNNL_GRAPH_HANDLE_ALIAS(compiled_partition);
 DNNL_GRAPH_HANDLE_ALIAS(partition);
 

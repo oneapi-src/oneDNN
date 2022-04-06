@@ -219,51 +219,6 @@ public:
 
 /// @} dnnl_graph_api_engine
 
-/// @addtogroup dnnl_graph_api_threadpool Thread pool
-/// Definitions of thread pool
-/// @{
-
-/// Abstract threadpool interface
-class thread_pool : public detail::thread_pool_handle {
-public:
-    /// Constructs a threadpool object
-    ///
-    /// @param num_threads Number of threads in the thread pool
-    thread_pool(int32_t num_threads) {
-        dnnl_graph_thread_pool_t *tp {};
-        error::check_succeed(dnnl_graph_thread_pool_create(&tp, num_threads),
-                "could not create thread pool");
-        reset(tp);
-    };
-};
-
-/// @} dnnl_graph_api_threadpool
-
-/// @addtogroup dnnl_graph_api_stream_attr Stream attr
-/// Definitions of stream attributes
-/// @note Will be deprecated soon
-/// @{
-
-class stream_attr : public detail::stream_attr_handle {
-public:
-    /// Constructs stream attributes
-    ///
-    /// @param pool A thread pool bound to this stream attribute
-    stream_attr(thread_pool &pool) {
-        dnnl_graph_stream_attr_t *sa {};
-        error::check_succeed(dnnl_graph_stream_attr_create(&sa, pool.get()),
-                "could not create stream attributes");
-        reset(sa);
-    };
-
-    /// Returns the threadpool attribute.
-    ///
-    /// @returns A threadpool object bound to the stream
-    thread_pool get_thread_pool();
-};
-
-/// @} dnnl_graph_api_stream_attr
-
 /// @addtogroup dnnl_graph_api_stream Stream
 ///
 /// Stream is the logical abstraction for execution units.
@@ -280,17 +235,9 @@ public:
     /// Constructs a stream for the specified engine
     ///
     /// @param engine Engine to create stream on
-    /// @param attr A stream attribute, defaults to nullptr
-    stream(engine &engine, const stream_attr *attr = nullptr) {
+    stream(const engine &engine) {
         dnnl_graph_stream_t *s {};
-        error::check_succeed(
-                [&] {
-                    if (attr) {
-                        return dnnl_graph_stream_create_with_attr(
-                                &s, engine.get(), attr->get());
-                    };
-                    return dnnl_graph_stream_create(&s, engine.get());
-                }(),
+        error::check_succeed(dnnl_graph_stream_create(&s, engine.get()),
                 "could not create stream");
         reset(s);
     }

@@ -139,32 +139,6 @@ status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_get_threadpool(
 #endif
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_stream_create_with_attr(
-        stream_t **created_stream, const engine_t *engine,
-        const stream_attr_t *attr) {
-    *created_stream = new stream_t {engine, attr};
-    return status::success;
-}
-
-status_t DNNL_GRAPH_API dnnl_graph_stream_create_sycl_with_attr(
-        stream_t **created_stream, const engine_t *engine, const void *queue,
-        const stream_attr_t *attr) {
-#ifdef DNNL_GRAPH_WITH_SYCL
-    if (utils::any_null(created_stream, engine, queue, attr)) {
-        return status::invalid_argument;
-    }
-    auto &sycl_queue = *static_cast<const cl::sycl::queue *>(queue);
-    *created_stream = new stream_t {engine, sycl_queue, attr};
-    return status::success;
-#else
-    UNUSED(created_stream);
-    UNUSED(engine);
-    UNUSED(queue);
-    UNUSED(attr);
-    return status::unsupported;
-#endif
-}
-
 status_t DNNL_GRAPH_API dnnl_graph_stream_wait(stream_t *stream) {
     return stream->wait();
 }

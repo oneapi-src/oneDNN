@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -656,51 +656,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
 
 /// @} dnnl_graph_api_graph
 
-/// @addtogroup dnnl_graph_api_threadpool
-/// @{
-
-/// Creates a thread pool
-///
-/// @param created_thread_pool The handle of output thread pool
-/// @param num_threads Number of threads in this thread pool
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_thread_pool_create(
-        dnnl_graph_thread_pool_t **created_thread_pool, int32_t num_threads);
-
-/// Destroy the target thread pool
-///
-/// @param thread_pool The thread pool to be destroyed
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_thread_pool_destroy(
-        dnnl_graph_thread_pool_t *thread_pool);
-
-/// @} dnnl_graph_api_threadpool
-
-/// @addtogroup dnnl_graph_api_stream_attr
-/// @{
-
-/// Creates a stream attribute with specified thread pool.
-///
-/// @param created_stream_attr The handle of output stream attribute.
-/// @param thread_pool The handle of thread pool to create attribute on.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_attr_create(
-        dnnl_graph_stream_attr_t **created_stream_attr,
-        dnnl_graph_thread_pool_t *thread_pool);
-
-/// Destroy the target stream attribute.
-///
-/// @param stream_attr The target stream attribute.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_attr_destroy(
-        dnnl_graph_stream_attr_t *stream_attr);
-
-/// @} dnnl_graph_api_stream_attr
-
 /// @addtogroup dnnl_graph_api_stream
 /// @{
 
@@ -713,31 +668,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_attr_destroy(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_create(
         dnnl_graph_stream_t **created_stream,
         const dnnl_graph_engine_t *engine);
-
-/// Creates a stream for the specified engine and with behavior controlled by
-/// the stream attribute.
-///
-/// @param created_stream The handle of output stream.
-/// @param engine Engine to create the stream on.
-/// @param attr The stream attribute.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_create_with_attr(
-        dnnl_graph_stream_t **created_stream, const dnnl_graph_engine_t *engine,
-        const dnnl_graph_stream_attr_t *attr);
-
-/// Creates a stream for a given engine associated with a SYCL queue and with
-/// behavior controlled by the stream attribute.
-///
-/// @param created_stream The handle of output stream.
-/// @param engine Engine to create the stream on.
-/// @param queue SYCL queue to use.
-/// @param attr The stream attribute.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_create_sycl_with_attr(
-        dnnl_graph_stream_t **created_stream, const dnnl_graph_engine_t *engine,
-        const void *queue, const dnnl_graph_stream_attr_t *attr);
 
 /// Waits for all compiled partitions executing in the stream to finish.
 ///
