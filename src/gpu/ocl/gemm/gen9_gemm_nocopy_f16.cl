@@ -177,8 +177,8 @@ __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
-        int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta, half eltwise_scale
+        int m, int n, int k, float alpha, float beta, int last_k_block,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -330,8 +330,8 @@ __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
-        int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta, half eltwise_scale
+        int m, int n, int k, float alpha, float beta, int last_k_block,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -475,8 +475,8 @@ __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
-        int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta, half eltwise_scale
+        int m, int n, int k, float alpha, float beta, int last_k_block,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -614,8 +614,8 @@ __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
-        int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta, half eltwise_scale
+        int m, int n, int k, float alpha, float beta, int last_k_block,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {

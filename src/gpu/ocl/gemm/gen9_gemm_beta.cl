@@ -16,7 +16,7 @@
 
 #include "gpu/ocl/ocl_types.h"
 
-__kernel void gen9_gemm_beta(long m, long n, DATA_T alpha,
+__kernel void gen9_gemm_beta(long m, long n, float alpha,
         __global DST_DATA_T *a, long offset, long lda) {
     int idy = get_group_id(1);
     long count = m;
