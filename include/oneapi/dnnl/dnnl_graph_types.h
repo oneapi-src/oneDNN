@@ -20,11 +20,6 @@
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_TYPES_H
 #define ONEAPI_DNNL_DNNL_GRAPH_TYPES_H
 
-#include <stddef.h>
-#include <stdint.h>
-
-#include "oneapi/dnnl/dnnl_graph_buildin_ops.h"
-
 #if defined _WIN32 || defined __CYGWIN__
 #define DNNL_GRAPH_HELPER_DLL_IMPORT __declspec(dllimport)
 #define DNNL_GRAPH_HELPER_DLL_EXPORT __declspec(dllexport)
@@ -51,6 +46,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/// @cond DO_NOT_DOCUMENT_THIS
+#include <stddef.h>
+#include <stdint.h>
+/// @endcond
 
 /// @addtogroup dnnl_graph_api
 /// @{
@@ -159,10 +159,98 @@ typedef enum {
 /// @addtogroup dnnl_graph_api_op
 /// @{
 
+#define DNNL_GRAPH_FORALL_BUILTIN_OPS(_) \
+    _(Abs) \
+    _(Add) \
+    _(AvgPool) \
+    _(AvgPoolBackprop) \
+    _(BatchNormInference) \
+    _(BatchNormForwardTraining) \
+    _(BatchNormTrainingBackprop) \
+    _(BiasAddBackprop) \
+    _(Clamp) \
+    _(ClampBackprop) \
+    _(Concat) \
+    _(Convolution) \
+    _(ConvolutionBackpropData) \
+    _(ConvolutionBackpropFilters) \
+    _(ConvTranspose) \
+    _(ConvTransposeBackpropData) \
+    _(ConvTransposeBackpropFilters) \
+    _(Divide) \
+    _(Elu) \
+    _(EluBackprop) \
+    _(Erf) \
+    _(Exp) \
+    _(GELU) \
+    _(GELUBackprop) \
+    _(HardSwish) \
+    _(HardSwishBackprop) \
+    _(HardTanh) \
+    _(HardTanhBackprop) \
+    _(LayerNorm) \
+    _(LayerNormBackprop) \
+    _(Log) \
+    _(LogSoftmax) \
+    _(LogSoftmaxBackprop) \
+    _(MatMul) \
+    _(Maximum) \
+    _(MaxPool) \
+    _(MaxPoolBackprop) \
+    _(Minimum) \
+    _(Multiply) \
+    _(Pow) \
+    _(PowBackprop) \
+    _(PReLU) \
+    _(PReLUBackprop) \
+    _(ReduceL1) \
+    _(ReduceL2) \
+    _(ReduceMax) \
+    _(ReduceMean) \
+    _(ReduceMin) \
+    _(ReduceProd) \
+    _(ReduceSum) \
+    _(ReLU) \
+    _(ReLUBackprop) \
+    _(Round) \
+    _(Sigmoid) \
+    _(SigmoidBackprop) \
+    _(SoftMax) \
+    _(SoftMaxBackprop) \
+    _(SoftPlus) \
+    _(SoftPlusBackprop) \
+    _(Sqrt) \
+    _(SqrtBackprop) \
+    _(Square) \
+    _(SquaredDifference) \
+    _(Subtract) \
+    _(Tanh) \
+    _(TanhBackprop) \
+    _(Wildcard) \
+    _(BiasAdd) \
+    _(Interpolate) \
+    _(Index) \
+    _(InterpolateBackprop) \
+    _(PowBackpropExponent) \
+    _(End) \
+    _(Quantize) \
+    _(Dequantize) \
+    _(Reorder) \
+    _(TypeCast) \
+    _(StaticReshape) \
+    _(StaticTranspose) \
+    _(DynamicReshape) \
+    _(DynamicTranspose) \
+    _(DynamicQuantize) \
+    _(DynamicDequantize) \
+    _(Sign) \
+    _(Negative) \
+    _(Reciprocal)
+
 /// Enumeration for op kind
 typedef enum {
 #define DEFINE_SYMBOL(s) k##s,
-    DNNL_GRAPH_FORALL_BUILDIN_OPS(DEFINE_SYMBOL)
+    DNNL_GRAPH_FORALL_BUILTIN_OPS(DEFINE_SYMBOL)
 #undef DEFINE_SYMBOL
             kLastSymbol, // where we start counting for new symbols
     kLastOp = 10000,

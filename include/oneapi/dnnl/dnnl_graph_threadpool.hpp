@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #define ONEAPI_DNNL_DNNL_GRAPH_THREADPOOL_HPP
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
-#include "oneapi/dnnl/dnnl_graph_base.hpp"
 #include "oneapi/dnnl/dnnl_graph_threadpool.h"
 #include "oneapi/dnnl/dnnl_graph_threadpool_iface.hpp"
 

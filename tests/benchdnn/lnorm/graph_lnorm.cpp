@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl_graph_buildin_ops.h"
-
 #include "dnnl_graph_common.hpp"
 #include "utils/compare.hpp"
 

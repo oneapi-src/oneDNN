@@ -163,7 +163,7 @@ const op_kind_t LastSymbol = kLastSymbol;
 
 #define REGISTER_SYMBOL(s) #s,
 const std::vector<std::string> op_kind_strings
-        = {DNNL_GRAPH_FORALL_BUILDIN_OPS(REGISTER_SYMBOL) "LastSymbol"};
+        = {DNNL_GRAPH_FORALL_BUILTIN_OPS(REGISTER_SYMBOL) "LastSymbol"};
 #undef REGISTER_SYMBOL
 } // namespace op_kind
 

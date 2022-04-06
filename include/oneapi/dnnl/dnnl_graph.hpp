@@ -18,10 +18,9 @@
 #define ONEAPI_DNNL_DNNL_GRAPH_HPP
 
 #include "oneapi/dnnl/dnnl_graph.h"
-#include "oneapi/dnnl/dnnl_graph_base.hpp"
-#include "oneapi/dnnl/dnnl_graph_detail.hpp"
 
 #include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,6 +30,182 @@
 
 namespace dnnl {
 namespace graph {
+
+/// @addtogroup dnnl_graph_api_utils Utilities
+/// Utility types and definitions
+/// @{
+
+namespace detail {
+
+template <typename T, dnnl_graph_result_t (*del)(T *)>
+class handle {
+public:
+    static constexpr auto default_del = del;
+
+    /// Creates an empty wrapper for underlying C API handle
+    handle() = default;
+    virtual ~handle() = default;
+
+    /// Custom constrcutor
+    ///
+    /// @param t Raw pointer to the C API handle
+    /// @param weak A flag which indicates whether this wrapper
+    ///     is a weak pointer
+    handle(T *t, bool weak = false) { reset(t, weak); }
+
+    /// Copy constructor
+    handle(const handle &) = default;
+    /// Copy assig constructor
+    handle &operator=(const handle &) = default;
+    /// Move constructor
+    handle(handle &&) = default;
+    /// Move assign constructor
+    handle &operator=(handle &&) = default;
+
+    /// Resets the handle wrapper ojects to wrap a new C API handle
+    ///
+    /// @param t The raw pointer of C API handle
+    /// @param weak A flag which indicates whether this wrapper is a
+    ///     weak pointer
+    void reset(T *t, bool weak = false) {
+        data_.reset(t, weak ? dummy_del : default_del);
+    }
+
+    /// Returns the underlying C API handle
+    ///
+    /// @returns The underlying C API handle
+    T *get() const { return data_.get(); }
+
+private:
+    std::shared_ptr<T> data_ {0};
+    /// Dummy destrcutor
+    static dnnl_graph_result_t dummy_del(T *) {
+        return dnnl_graph_result_success;
+    }
+};
+
+#define DNNL_GRAPH_HANDLE_ALIAS(type) \
+    using type##_handle = detail::handle<dnnl_graph_##type##_t, \
+            dnnl_graph_##type##_destroy>
+
+DNNL_GRAPH_HANDLE_ALIAS(allocator);
+DNNL_GRAPH_HANDLE_ALIAS(engine);
+DNNL_GRAPH_HANDLE_ALIAS(graph);
+DNNL_GRAPH_HANDLE_ALIAS(op);
+DNNL_GRAPH_HANDLE_ALIAS(stream);
+DNNL_GRAPH_HANDLE_ALIAS(tensor);
+DNNL_GRAPH_HANDLE_ALIAS(compiled_partition);
+DNNL_GRAPH_HANDLE_ALIAS(partition);
+
+#undef DNNL_GRAPH_HANDLE_ALIAS
+
+#define REGISTER_SYMBOL(s) #s,
+const static std::vector<std::string> op_kind_strings
+        = {DNNL_GRAPH_FORALL_BUILTIN_OPS(REGISTER_SYMBOL) "LastSymbol"};
+
+#undef REGISTER_SYMBOL
+
+} // namespace detail
+
+/// dnnl graph exception class.
+///
+/// This class captures the status returned by a failed C API function and
+/// the error message from the call site.
+struct error : public std::exception {
+    dnnl_graph_result_t result;
+    std::string detailed_message;
+
+    /// Constructs an instance of an exception class.
+    ///
+    /// @param result The error status returned by a C API function.
+    /// @param message The error message.
+    error(dnnl_graph_result_t result, const std::string &message)
+        : result(result)
+        , detailed_message(message + ": " + result2str(result)) {}
+
+    /// Convert dnnl_graph_result_t to string.
+    ///
+    /// @param result The error status returned by a C API function.
+    /// @return A string that describes the error status
+    std::string result2str(dnnl_graph_result_t result) {
+        switch (result) {
+            case dnnl_graph_result_success: return "success";
+            case dnnl_graph_result_not_ready: return "not ready";
+            case dnnl_graph_result_error_device_not_found:
+                return "device not found";
+            case dnnl_graph_result_error_unsupported: return "unsupported";
+            case dnnl_graph_result_error_invalid_argument:
+                return "invalid argument";
+            case dnnl_graph_result_error_compile_fail: return "compile fail";
+            case dnnl_graph_result_error_invalid_index: return "invalid index";
+            case dnnl_graph_result_error_invalid_graph: return "invalid graph";
+            case dnnl_graph_result_error_invalid_shape: return "invalid shape";
+            case dnnl_graph_result_error_invalid_type: return "invalid type";
+            case dnnl_graph_result_error_invalid_op: return "invalid op";
+            case dnnl_graph_result_error_miss_ins_outs:
+                return "miss inputs or outputs";
+            default: return "unknown error";
+        }
+    }
+
+    /// Returns the explanatory string.
+    ///
+    /// @return A const char * that describes the error status
+    const char *what() const noexcept override {
+        return detailed_message.c_str();
+    }
+
+    /// Checks the return status and throws an error in case of failure.
+    ///
+    /// @param result The error status returned by a C API function.
+    /// @param message The error message.
+    static void check_succeed(
+            dnnl_graph_result_t result, const std::string &message) {
+        if (result != dnnl_graph_result_success) throw error(result, message);
+    }
+};
+
+template <bool B>
+using requires = typename std::enable_if<B, bool>::type;
+
+template <typename T, requires<std::is_same<T, float>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_f32;
+}
+
+template <typename T, requires<std::is_same<T, int8_t>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_s8;
+}
+
+template <typename T, requires<std::is_same<T, uint8_t>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_u8;
+}
+
+// TODO(wuxun): now use int16 to simulate float16, need fix in the future
+template <typename T, requires<std::is_same<T, int16_t>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_f16;
+}
+
+// TODO(wuxun): now use uint16 to simulate Bfloat16, need fix in the future
+template <typename T, requires<std::is_same<T, uint16_t>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_bf16;
+}
+
+template <typename T,
+        requires<!std::is_same<T, float>::value
+                && !std::is_same<T, int16_t>::value
+                && !std::is_same<T, uint16_t>::value
+                && !std::is_same<T, int8_t>::value
+                && !std::is_same<T, uint8_t>::value> = true>
+constexpr dnnl_graph_data_type_t get_data_type() {
+    return dnnl_graph_data_type_undef;
+}
+
+/// @} dnnl_graph_api_utils
 
 /// @addtogroup dnnl_graph_api_status
 /// Definitions of status values returned by the library functions.

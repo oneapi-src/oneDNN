@@ -15,7 +15,6 @@
  * *******************************************************************************/
 
 #include "oneapi/dnnl/dnnl.h"
-#include "oneapi/dnnl/dnnl_graph_buildin_ops.h"
 
 #include "dnnl_common.hpp"
 #include "dnnl_graph_common.hpp"
