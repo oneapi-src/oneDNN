@@ -15364,7 +15364,8 @@ void MatrixAddressingStrategy::preflight(HW hw) {
     if (prefetch && newDP && cachingR == CacheSettingsLSC::Default)
         cachingR = CacheSettingsLSC::L1C_L3C;
 
-    if (accessType == AccessType::ChannelScattered && !newDP)
+    if (accessType == AccessType::ChannelScattered && base.isStateless()
+            && !newDP)
         base = AddressBase::createBTS(0);
 }
 
