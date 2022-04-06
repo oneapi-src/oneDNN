@@ -125,8 +125,8 @@
 
 # data types
 --reset
---sdt=f32,s32,s8,u8,f16,bf16
---ddt=f32,s32,s8,u8,f16,bf16
+--sdt=f32,s32,s8,u8,f16,bf16,f64
+--ddt=f32,s32,s8,u8,f16,bf16,f64
 
 --attr-oscale=per_dim_1:0.5
 --stag=abx,xba

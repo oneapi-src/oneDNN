@@ -214,6 +214,7 @@ int check_s8s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
             benchdnn_parallel_nd(n_chunks, [&](int64_t idx) {
                 quantize(&(prb.data_scale), 1, prb.data_shift, idx);
             });
+            break;
         default: assert(!"unsupported kind");
     }
 
@@ -742,18 +743,6 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
         }
     }
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    // only AMX LSTM cell kinds support signed int8 so far;
-    if (prb.is_s8()) {
-        static auto isa = dnnl_get_effective_cpu_isa();
-        if (prb.alg != VANILLA_LSTM
-                || !dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_amx)) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
-#endif
-
     // LSTM w/ projection is not supported for bf16
     if (prb.is_lstm_projection() && prb.cfg[SRC_LAYER].dt == dnnl_bf16) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -786,6 +775,18 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
 
 void skip_invalid_prb(const prb_t *prb_, res_t *res) {
     const prb_t &prb = *prb_;
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    // only AMX LSTM cell kinds support signed int8 so far;
+    if (prb.is_s8()) {
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (prb.alg != VANILLA_LSTM
+                || !dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_amx)) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+#endif
 
     // Consistency validation.
     bool consistent_proj

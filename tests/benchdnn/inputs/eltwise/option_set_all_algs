@@ -4,7 +4,7 @@
 --batch=shapes_eltwise
 
 --alpha= --beta=0
---alg=bounded_relu,elu,elu_dst,relu,relu_dst,swish
+--alg=bounded_relu,elu,elu_dst,relu,relu_dst,soft_relu_v2,swish
 --batch=shapes_eltwise
 
 --alpha= --beta=
