@@ -238,24 +238,53 @@ namespace amx {
 
 int get_max_palette() {
     if (mayiuse(amx_tile)) {
-        unsigned int data[4] = {};
-        const unsigned int &EAX = data[0];
-        Xbyak::util::Cpu::getCpuidEx(0x1D, 0, data);
+        static const unsigned int EAX = []() {
+            unsigned int data[4] = {};
+            Xbyak::util::Cpu::getCpuidEx(0x1D, 0, data);
+            return data[0];
+        }();
         return EAX;
     } else {
         return 0;
     }
 }
 
+namespace {
+enum class info_kind_t { max_tiles, max_column_bytes, max_rows };
+
+std::vector<int> get_palettes_info(info_kind_t info_kind) {
+    std::vector<int> palettes_info;
+    for (int p = 1; p <= get_max_palette(); p++) {
+        unsigned int data[4] = {};
+        const unsigned int &EBX = data[1];
+        const unsigned int &ECX = data[2];
+        Xbyak::util::Cpu::getCpuidEx(0x1D, p, data);
+
+        switch (info_kind) {
+            case info_kind_t::max_tiles:
+                palettes_info.push_back(EBX >> 16);
+                break;
+            case info_kind_t::max_column_bytes:
+                palettes_info.push_back((EBX << 16) >> 16);
+                break;
+            case info_kind_t::max_rows:
+                palettes_info.push_back((ECX << 16) >> 16);
+                break;
+            default: assert(!"unknown info_kind"); break;
+        }
+    }
+    assert((int)palettes_info.size() == get_max_palette());
+    return palettes_info;
+}
+
+} // namespace
+
 int get_max_tiles(int palette) {
     if (mayiuse(amx_tile)) {
         if (palette > get_max_palette() || palette <= 0) return -1;
-
-        unsigned int data[4] = {};
-        const unsigned int &EBX = data[1];
-        Xbyak::util::Cpu::getCpuidEx(0x1D, palette, data);
-
-        return EBX >> 16;
+        static const std::vector<int> palettes
+                = get_palettes_info(info_kind_t::max_tiles);
+        return palettes.at(palette - 1);
     } else {
         return 0;
     }
@@ -264,12 +293,9 @@ int get_max_tiles(int palette) {
 int get_max_column_bytes(int palette) {
     if (mayiuse(amx_tile)) {
         if (palette > get_max_palette() || palette <= 0) return -1;
-
-        unsigned int data[4] = {};
-        const unsigned int &EBX = data[1];
-        Xbyak::util::Cpu::getCpuidEx(0x1D, palette, data);
-
-        return (EBX << 16) >> 16;
+        static const std::vector<int> palettes
+                = get_palettes_info(info_kind_t::max_column_bytes);
+        return palettes.at(palette - 1);
     } else {
         return 0;
     }
@@ -278,12 +304,9 @@ int get_max_column_bytes(int palette) {
 int get_max_rows(int palette) {
     if (mayiuse(amx_tile)) {
         if (palette > get_max_palette() || palette <= 0) return -1;
-
-        unsigned int data[4] = {};
-        const unsigned int &ECX = data[2];
-        Xbyak::util::Cpu::getCpuidEx(0x1D, palette, data);
-
-        return (ECX << 16) >> 16;
+        static const std::vector<int> palettes
+                = get_palettes_info(info_kind_t::max_rows);
+        return palettes.at(palette - 1);
     } else {
         return 0;
     }
