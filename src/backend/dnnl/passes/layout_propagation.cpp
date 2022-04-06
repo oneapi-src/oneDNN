@@ -884,19 +884,70 @@ static void layout_propagation_for_from_group(
     }
 }
 
-static void layout_propagation_for_reshape(op_ptr &op) {
+static void layout_propagation_for_reshape(op_ptr &op,
+        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        std::vector<op_ptr> &reorder_ops) {
     std::shared_ptr<impl::value_t> src, dst;
     src = op->get_input_value(0);
     dst = op->get_output_value(0);
     auto in_lt = src->get_logical_tensor();
     auto out_lt = dst->get_logical_tensor();
+    auto target_dims = make_dnnl_memory_desc(out_lt).dims();
 
-    if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
+    assertm(!ltw(in_lt).is_any(), "input layout must be specified");
+
+    if (ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
-        dnnl::memory::desc out_md = in_md;
-        auto target_dims = make_dnnl_memory_desc(out_lt).dims();
-        out_md = in_md.reshape(target_dims);
+        dnnl::memory::desc out_md
+                = in_md.reshape(target_dims, /* allow empty */ true);
+
+        // out_md will be empty if the in_md is not reshapable. We need to
+        // reorder the in_md first and then reshape the reordered reshapable md.
+        if (out_md.is_zero()) {
+            dnnl::memory::desc reshapable_md(in_md.dims(), in_md.data_type(),
+                    get_default_format(in_md.data.ndims));
+            insert_reorder_before(op, 0, reshapable_md, reorder_ops);
+            out_md = reshapable_md.reshape(target_dims);
+        }
+
         fill_layout_info(dst, out_md);
+    } else if (ltw(out_lt).is_strided()) {
+        dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
+        dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
+        // check if the out_md is reshapable
+        dnnl::memory::desc expected_in_md
+                = out_md.reshape(in_md.dims(), /* allow empty */ true);
+        if (!expected_in_md.is_zero()) {
+            // If the out_md is reshapable, the expected_in_md must be
+            // reshapable too. Then we just need to check if the real in_md has
+            // same layout as the expected_in_md, and insert only one possible
+            // reorder if needed.
+            if (expected_in_md != in_md) {
+                insert_reorder_before(op, 0, expected_in_md, reorder_ops);
+            }
+            // finally, we have a chain of: in_md -> (optional reorder) ->
+            // expected_in_md -> reshape -> out_md
+        } else {
+            // Check if the in_md is reshapable.
+            dnnl::memory::desc reshaped_in_md
+                    = in_md.reshape(target_dims, /* allow empty */ true);
+            if (reshaped_in_md.is_zero()) {
+                dnnl::memory::desc reshapable_md(in_md.dims(),
+                        in_md.data_type(),
+                        get_default_format(in_md.data.ndims));
+                insert_reorder_before(op, 0, reshapable_md, reorder_ops);
+                reshaped_in_md = reshapable_md.reshape(target_dims);
+            }
+            // If the reshaped_in_md is not same as the specified out_md, we
+            // insert reorder
+            if (reshaped_in_md != out_md) {
+                insert_reorder_after(op, 0, reshaped_in_md, reorder_ops);
+            }
+            // finally, we have a chain of: in_md -> (optional reorder) ->
+            // reshapable_md -> reshape -> reshaped_in_md -> (optional reorder)
+            // -> out_md. The optional reorder will only occurs when both in_md
+            // and out_md are not reshapable.
+        }
     }
 }
 
@@ -910,15 +961,35 @@ static void layout_propagation_for_transpose(
 
     assertm(!ltw(in_lt).is_any(), "transpose's src can't be any layout now");
 
-    // calculate the expected transposed layout by permuting the md
-    dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
-    auto order = op->get_attr<std::vector<int64_t>>("order");
-    std::vector<int> axes;
-    axes.reserve(order.size());
-    for (int64_t &x : order) {
-        axes.emplace_back(static_cast<int>(x));
+    std::vector<int64_t> order = op->get_attr<std::vector<int64_t>>("order");
+    // if order < 0, convert it to postive order
+    if (!order.empty()) {
+        for (int64_t &axis : order) {
+            if (axis < 0) axis += ltw(in_lt).ndims();
+        }
+    } else {
+        // FIXME(xx) handle this case
+        assertm(false, "not handled yet");
     }
 
+    /// The order in spec op is used as:
+    /// for (i = 0; i < ndims(); i++)
+    ///     new_shape[i] = org_shape[order[i]];
+    ///
+    /// The axes for permute_axes function is used as:
+    /// for (i = 0; i < ndims(); i++)
+    ///     new_shape[axes[i]] = org_shape[i];
+    ///
+    /// So, we need to convert the order to axes
+    std::vector<int> axes(order.size(), -1);
+    for (size_t i = 0; i < order.size(); i++) {
+        size_t new_shape_idx = i;
+        size_t org_shape_idx = order[i];
+        axes[org_shape_idx] = static_cast<int>(new_shape_idx);
+    }
+
+    // calculate the expected transposed layout by permuting the md
+    dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
     dnnl::memory::desc expected_out_md = in_md.permute_axes(axes);
     if (ltw(out_lt).is_any()) {
         fill_layout_info(dst, expected_out_md);
@@ -1501,7 +1572,8 @@ impl::status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             } else if (cur_op->get_kind() == op_kind::from_group) {
                 layout_propagation_for_from_group(cur_op, reorder_ops);
             } else if (cur_op->get_kind() == impl::op_kind::StaticReshape) {
-                layout_propagation_for_reshape(cur_op);
+                layout_propagation_for_reshape(
+                        cur_op, p_engine, prm_attr_mgr, reorder_ops);
             } else if (cur_op->get_kind() == impl::op_kind::StaticTranspose) {
                 layout_propagation_for_transpose(cur_op, reorder_ops);
             } else if (cur_op->get_kind() == op_kind::expand) {

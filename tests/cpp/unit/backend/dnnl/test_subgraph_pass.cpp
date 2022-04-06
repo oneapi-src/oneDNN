@@ -1483,3 +1483,145 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
                                        .get_mems_use_external_outputs();
     ASSERT_EQ(ext_out_mem_offkeys.size(), 2);
 }
+
+TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+
+    std::vector<int64_t> in_shape {1, 384, 16, 64};
+    std::vector<int64_t> out_shape {1, 384, 1024};
+
+    impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
+    op1.set_attr<std::vector<int64_t>>("shape", out_shape);
+    op1.set_attr<bool>("special_zero", true);
+
+    auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
+    // the output layout is specified to be channel last
+    auto out = logical_tensor_init(1, out_shape,
+            std::vector<int64_t> {384 * 1024, 1, 384}, impl::data_type::f32);
+    op1.add_input(in);
+    op1.add_output(out);
+
+    impl::graph_t g;
+    g.add_op(&op1);
+    g.build_graph();
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, /* reset_layout */ false);
+    ASSERT_EQ(subgraph->get_ops().size(), 1);
+
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+
+    // A reorder should be inserted before reshape op
+    ASSERT_EQ(subgraph->get_ops().size(), 2);
+    std::vector<impl::op_t *> sorted_ops;
+    impl::topo_order_visit(subgraph->get_output_ops(), [&](impl::op_t *op) {
+        sorted_ops.emplace_back(op);
+        return impl::status::success;
+    });
+    ASSERT_EQ(sorted_ops[0]->get_kind(), impl::op_kind::Reorder);
+}
+
+TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+
+    std::vector<int64_t> in_shape {1, 384, 16, 64};
+    std::vector<int64_t> out_shape {384 * 16, 64};
+
+    impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
+    op1.set_attr<std::vector<int64_t>>("shape", out_shape);
+    op1.set_attr<bool>("special_zero", true);
+
+    // the input layout is nhwc, which can't be directly reshaped to out_shape
+    auto in = logical_tensor_init(0, in_shape,
+            std::vector<int64_t> {384 * 16 * 64, 1, 384 * 64, 384},
+            impl::data_type::f32);
+    auto out = logical_tensor_init(
+            1, out_shape, impl::data_type::f32, impl::layout_type::any);
+    op1.add_input(in);
+    op1.add_output(out);
+
+    impl::graph_t g;
+    g.add_op(&op1);
+    g.build_graph();
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, /* reset_layout */ false);
+    ASSERT_EQ(subgraph->get_ops().size(), 1);
+
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+
+    // A reorder should be inserted before reshape op
+    ASSERT_EQ(subgraph->get_ops().size(), 2);
+    std::vector<impl::op_t *> sorted_ops;
+    impl::topo_order_visit(subgraph->get_output_ops(), [&](impl::op_t *op) {
+        sorted_ops.emplace_back(op);
+        return impl::status::success;
+    });
+    ASSERT_EQ(sorted_ops[0]->get_kind(), impl::op_kind::Reorder);
+}
+
+TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+
+    std::vector<int64_t> in_shape {1, 384, 16, 64};
+    std::vector<int64_t> out_shape {384 * 16, 64};
+
+    impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
+    op1.set_attr<std::vector<int64_t>>("shape", out_shape);
+    op1.set_attr<bool>("special_zero", true);
+
+    auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
+    auto out = logical_tensor_init(
+            1, out_shape, impl::data_type::f32, impl::layout_type::any);
+    op1.add_input(in);
+    op1.add_output(out);
+
+    impl::graph_t g;
+    g.add_op(&op1);
+    g.build_graph();
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, /* reset_layout */ false);
+    ASSERT_EQ(subgraph->get_ops().size(), 1);
+
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+
+    // No reorder
+    ASSERT_EQ(subgraph->get_ops().size(), 1);
+}
+
+TEST(LayoutPropagation, Transpose) {
+    dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
+
+    std::vector<int64_t> in_shape {1, 384, 16, 64};
+    std::vector<int64_t> out_shape {1, 16, 64, 384};
+
+    impl::op_t op1(1, impl::op_kind::StaticTranspose, "op1");
+    op1.set_attr<std::vector<int64_t>>(
+            "order", std::vector<int64_t> {0, 2, 3, 1});
+
+    auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
+    // the output layout is specified to be channel last
+    auto out = logical_tensor_init(
+            1, out_shape, impl::data_type::f32, impl::layout_type::any);
+    op1.add_input(in);
+    op1.add_output(out);
+
+    impl::graph_t g;
+    g.add_op(&op1);
+    g.build_graph();
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, /* reset_layout */ false);
+    ASSERT_EQ(subgraph->get_ops().size(), 1);
+
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+
+    // the output value's layout type should be opaque, and the corresponding md
+    // shape should be equal to the out_shape
+    auto out_lt
+            = subgraph->get_ops()[0]->get_output_value(0)->get_logical_tensor();
+    ASSERT_EQ(out_lt.layout_type, impl::layout_type::opaque);
+    auto out_md = dnnl_impl::make_dnnl_memory_desc(out_lt);
+    ASSERT_EQ(out_md.dims(), out_shape);
+}
