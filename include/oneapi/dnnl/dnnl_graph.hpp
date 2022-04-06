@@ -46,7 +46,7 @@ public:
     handle() = default;
     virtual ~handle() = default;
 
-    /// Custom constrcutor
+    /// Custom constructor
     ///
     /// @param t Raw pointer to the C API handle
     /// @param weak A flag which indicates whether this wrapper
@@ -55,14 +55,14 @@ public:
 
     /// Copy constructor
     handle(const handle &) = default;
-    /// Copy assig constructor
+    /// Copy assign constructor
     handle &operator=(const handle &) = default;
     /// Move constructor
     handle(handle &&) = default;
     /// Move assign constructor
     handle &operator=(handle &&) = default;
 
-    /// Resets the handle wrapper ojects to wrap a new C API handle
+    /// Resets the handle wrapper object to wrap a new C API handle
     ///
     /// @param t The raw pointer of C API handle
     /// @param weak A flag which indicates whether this wrapper is a
@@ -78,7 +78,7 @@ public:
 
 private:
     std::shared_ptr<T> data_ {0};
-    /// Dummy destrcutor
+    /// Dummy destructor
     static dnnl_graph_result_t dummy_del(T *) {
         return dnnl_graph_result_success;
     }

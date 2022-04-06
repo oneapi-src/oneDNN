@@ -289,7 +289,7 @@ typedef enum {
 
 /// An attribute struct associated with allocator.
 typedef struct {
-    /// lifetime enumertion
+    /// lifetime enumeration
     dnnl_graph_allocator_lifetime_t type;
     /// alignment value
     size_t alignment;

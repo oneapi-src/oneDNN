@@ -704,7 +704,7 @@ dnnl_graph_get_compiled_partition_cache_capacity(int *capacity);
 /// capacity is 1024. If a new @p capacity is less than a number of compiled
 /// partition that the compiled partition cache already has, then the excess
 /// entries will be evicted. Setting the @p capacity to 0 clears the compiled
-/// partition cache and disables it. Cocurrently modifying @p capacity is safe.
+/// partition cache and disables it. Concurrently modifying @p capacity is safe.
 /// @returns #dnnl_graph_result_error_invalid_argument if the @p capacity value
 /// is invalid, and #dnnl_graph_result_success on success.
 dnnl_graph_result_t DNNL_GRAPH_API
