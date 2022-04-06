@@ -99,9 +99,9 @@ typedef enum {
     /// Best optimization
     dnnl_graph_partition_policy_max = 0,
     /// Have fusion
-    dnnl_graph_partition_policy_fusion,
+    dnnl_graph_partition_policy_fusion = 1,
     /// No optimization
-    dnnl_graph_partition_policy_debug,
+    dnnl_graph_partition_policy_debug = 2,
 } dnnl_graph_partition_policy_t;
 
 /// @} dnnl_graph_api_partition
@@ -112,31 +112,31 @@ typedef enum {
 /// Status values returned by the library functions.
 typedef enum {
     /// The operation was successful
-    dnnl_graph_result_success,
+    dnnl_graph_result_success = 0,
     /// The operation was not ready
-    dnnl_graph_result_not_ready,
+    dnnl_graph_result_not_ready = 1,
     /// The operation failed because device was not found
-    dnnl_graph_result_error_device_not_found,
+    dnnl_graph_result_error_device_not_found = 2,
     /// The operation failed because requested functionality is not implemented.
-    dnnl_graph_result_error_unsupported,
+    dnnl_graph_result_error_unsupported = 3,
     /// The operation failed because of incorrect function arguments
-    dnnl_graph_result_error_invalid_argument,
+    dnnl_graph_result_error_invalid_argument = 4,
     /// The operation failed because of the failed compilation
-    dnnl_graph_result_error_compile_fail,
+    dnnl_graph_result_error_compile_fail = 5,
     /// The operation failed because of incorrect index
-    dnnl_graph_result_error_invalid_index,
+    dnnl_graph_result_error_invalid_index = 6,
     /// The operation failed because of incorrect graph
-    dnnl_graph_result_error_invalid_graph,
+    dnnl_graph_result_error_invalid_graph = 7,
     /// The operation failed because of incorrect shape
-    dnnl_graph_result_error_invalid_shape,
+    dnnl_graph_result_error_invalid_shape = 8,
     /// The operation failed because of incorrect type
-    dnnl_graph_result_error_invalid_type,
+    dnnl_graph_result_error_invalid_type = 9,
     /// The operation failed because of incorrect op
-    dnnl_graph_result_error_invalid_op,
+    dnnl_graph_result_error_invalid_op = 10,
     /// The operation failed because of missing inputs or outputs
-    dnnl_graph_result_error_miss_ins_outs,
+    dnnl_graph_result_error_miss_ins_outs = 11,
     /// Unknown error
-    dnnl_graph_result_error_unknown = 0x7fffffff
+    dnnl_graph_result_error_unknown = 0x7fffffff,
 } dnnl_graph_result_t;
 
 /// @} dnnl_graph_api_utils
@@ -147,11 +147,11 @@ typedef enum {
 /// Kind for engine
 typedef enum {
     /// An unspecified engine
-    dnnl_graph_any_engine,
+    dnnl_graph_any_engine = 0,
     /// CPU engine
-    dnnl_graph_cpu,
+    dnnl_graph_cpu = 1,
     /// GPU engine
-    dnnl_graph_gpu,
+    dnnl_graph_gpu = 2,
 } dnnl_graph_engine_kind_t;
 
 /// @} dnnl_graph_api_engine
@@ -171,17 +171,17 @@ typedef enum {
 /// Kind for op's attributes
 typedef enum {
     /// attributes with float type
-    dnnl_graph_attribute_kind_f,
+    dnnl_graph_attribute_kind_f = 0,
     /// atributes with list of floats
-    dnnl_graph_attribute_kind_fs,
+    dnnl_graph_attribute_kind_fs = 1,
     /// attributes with int64_t type
-    dnnl_graph_attribute_kind_i,
+    dnnl_graph_attribute_kind_i = 2,
     /// atributes with list of int64_t
-    dnnl_graph_attribute_kind_is,
+    dnnl_graph_attribute_kind_is = 3,
     /// attributes with string type
-    dnnl_graph_attribute_kind_s,
+    dnnl_graph_attribute_kind_s = 4,
     /// attributes with bool type
-    dnnl_graph_attribute_kind_b,
+    dnnl_graph_attribute_kind_b = 5,
 } dnnl_graph_attribute_kind_t;
 
 /// @} dnnl_graph_api_op
@@ -194,9 +194,9 @@ typedef enum {
     /// Memory allocation with persistent lifetime, need to be freed manually
     dnnl_graph_allocator_persistent = 0,
     /// Memory allocation for output tensor
-    dnnl_graph_allocator_output,
+    dnnl_graph_allocator_output = 1,
     /// Memory allocation with temporary lifetime
-    dnnl_graph_allocator_temp,
+    dnnl_graph_allocator_temp = 2,
 } dnnl_graph_allocator_lifetime_t;
 
 /// An attribute struct associated with allocator.
