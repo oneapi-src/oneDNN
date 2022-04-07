@@ -176,9 +176,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 = utils::one_of(tag_o, format_tag::dhwio, format_tag::dhwigo);
 
         const auto &dims = input_d.dims();
+        const auto &pdims = input_d.padded_dims();
 
         const dim_t G = w_groups ? dims[0] : 1;
         const dim_t OC = dims[w_groups + 0];
+        const dim_t PADDED_OC = pdims[w_groups + 0];
         const dim_t IC = dims[w_groups + 1];
         const dim_t D = w_depth ? dims[w_groups + 2] : 1;
         const dim_t H = w_height ? dims[w_groups + w_depth + 2] : 1;
@@ -200,8 +202,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : 1.f;
 
         size_t offset = output_d.size() - output_d.additional_buffer_size();
-        size_t zp_offset = offset
-                + (req_comp ? G * dims[w_groups + 0] * sizeof(int32_t) : 0);
+        size_t zp_offset
+                = offset + (req_comp ? G * PADDED_OC * sizeof(int32_t) : 0);
         int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
                                : nullptr;
         int32_t *zp = has_asymmetric_comp
@@ -364,6 +366,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const dim_t G = w_groups ? dims[0] : 1;
         const dim_t OC = dims[w_groups + 0];
+        const dim_t PADDED_OC = pdims[w_groups + 0];
         const dim_t NB_OC = pdims[w_groups + 0] / ocblksize;
         const dim_t IC = dims[w_groups + 1];
         const dim_t NB_IC = pdims[w_groups + 1] / icblksize;
@@ -415,17 +418,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr dim_t i_mult_oc = ocblksize;
         constexpr dim_t o_mult = 1;
 
-        size_t offset
-                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
-        size_t zp_offset = offset
-                + (req_comp ? G * dims[w_groups + 0] * sizeof(int32_t) : 0);
+        size_t offset = G * PADDED_OC * pdims[w_groups + 1] * D * H * W;
+        size_t zp_offset
+                = offset + (req_comp ? G * PADDED_OC * sizeof(int32_t) : 0);
         int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
                                : nullptr;
         int32_t *zp = has_asymmetric_comp
                 ? reinterpret_cast<int32_t *>(output + zp_offset)
                 : nullptr;
 
-        parallel_nd(G * OC, [&](dim_t i) {
+        parallel_nd(G * PADDED_OC, [&](dim_t i) {
             if (req_comp) cp[i] = 0;
             if (has_asymmetric_comp) zp[i] = 0;
         });
