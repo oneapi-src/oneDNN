@@ -535,7 +535,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
     const int num_threads = (work_amount == 1 ? 1 : jbgp.nthr);
 
     const auto get_weights_ptr = [&](int icb, int ocb) {
-        int fwd_ic_block = (is_amx) ? 2 * jbgp.simd_w : jbgp.simd_w;
+        int fwd_ic_block
+                = (is_amx && !jbgp.is_bf32) ? 2 * jbgp.simd_w : jbgp.simd_w;
         int fwd_oc_block = 0;
         switch (jbgp.wei_tag) {
             case OI16i64o:

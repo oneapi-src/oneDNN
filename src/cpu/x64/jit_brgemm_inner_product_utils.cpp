@@ -165,7 +165,7 @@ std::vector<format_tag_t> get_desired_weights_tag(
 int get_oc_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust) {
     const bool amx_bf16_bwd_d_noadjust = !try_to_adjust
             && jbgp.prop_kind == backward_data
-            && jbgp.isa == avx512_core_bf16_amx_bf16;
+            && jbgp.isa == avx512_core_bf16_amx_bf16 && !jbgp.is_bf32;
     if (amx_bf16_bwd_d_noadjust) {
         constexpr int amx_bf16_row = 64;
         return amx_bf16_row;
@@ -221,7 +221,8 @@ bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp) {
 }
 
 int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
-    const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
+    const bool is_amx_bf16
+            = jbgp.isa == avx512_core_bf16_amx_bf16 && !jbgp.is_bf32;
 
     // we can't change block size on forward and weights update (external)
     // if layout is set by user, for backward data it can be choosen different
@@ -457,7 +458,8 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 }
 
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
-    const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
+    const bool is_amx_bf16
+            = jbgp.isa == avx512_core_bf16_amx_bf16 && !jbgp.is_bf32;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_bf16 = everyone_is(bf16, jbgp.wei_dt, jbgp.dst_dt);
@@ -475,10 +477,11 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     //   os <= 128 && max(ic, oc) <= 2048 && min(ic, oc) <= 1000
     //
     // TODO: Will the optimization be useful for bf16 data type
-    const bool avoid_max_ic_block = is_f32 && jbgp.os <= 128
+    const bool avoid_max_ic_block = is_f32 && !jbgp.is_bf32 && jbgp.os <= 128
             && nstl::max(jbgp.ic, jbgp.oc) <= 2048
             && nstl::min(jbgp.ic, jbgp.oc) <= 1000;
-    jbgp.ic_block = !avoid_max_ic_block && jbgp.ic >= (is_f32 ? 512 : 64)
+    jbgp.ic_block = !avoid_max_ic_block
+                    && jbgp.ic >= (is_f32 && !jbgp.is_bf32 ? 512 : 64)
             ? 64
             : jbgp.ic >= 32 ? 32 : 16;
 
@@ -497,7 +500,7 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
             break;
         }
 
-    if (is_amx_bf16) {
+    if (is_amx_bf16 || jbgp.is_bf32) {
         const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
         const int work_amount = jbgp.nb_ic * os_chunks;
         float wb_ratio = (float)work_amount / (float)jbgp.nthr;
@@ -523,7 +526,7 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     //   * very large output channels
     //   * small work amount available to each thread
     if ((num_work_to_parallel < 2 * jbgp.nthr
-                || jbgp.oc > (is_bf16 ? 4096 : 1024))) {
+                || jbgp.oc > (is_bf16 || jbgp.is_bf32 ? 4096 : 1024))) {
         const int min_chunck_sz = (is_avx512_bf16) ? 32 : 16;
         const int num_min_chunk_sz = div_up(jbgp.nb_oc, min_chunck_sz);
         float reduce_work = 0.5f * num_min_chunk_sz * jbgp.nb_os
@@ -531,7 +534,9 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
 
         // optimization for transformer_lt on CPX/SKX
         const int max_nthr_oc_b
-                = (!is_amx_bf16 && jbgp.oc > 32000) ? jbgp.nthr / 2 : 4;
+                = (!is_amx_bf16 && !jbgp.is_bf32 && jbgp.oc > 32000)
+                ? jbgp.nthr / 2
+                : 4;
         jbgp.nthr_oc_b = saturate(1, nstl::min(max_nthr_oc_b, num_min_chunk_sz),
                 int(reduce_work));
         jbgp.nthr_oc_b = nstl::min(jbgp.nthr_oc_b, jbgp.nthr);
@@ -562,6 +567,17 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.LDB = jbgp.N;
     jbgp.LDD = jbgp.ic_without_padding;
     jbgp.LDC = jbgp.use_buffer && jbgp.nthr_oc_b == 1 ? jbgp.N : jbgp.LDD;
+
+    if (jbgp.is_bf32) {
+        const float M = static_cast<float>(jbgp.M);
+        const float N = nstl::min<float>(jbgp.N, jbgp.ic);
+        const float K
+                = nstl::min<float>(jbgp.K * jbgp.gemm_batch_size, jbgp.oc);
+        const float tmul_efficiency = (M / 16) * (N / 16) * (K / 32);
+        // TODO: Adjust blocking such that bigger M, N, K are generated.
+        if (one_of(true, M <= 8, K <= 8, N < 16, tmul_efficiency <= 2.25))
+            return status::unimplemented;
+    }
 
     return status::success;
 }
