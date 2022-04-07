@@ -428,7 +428,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr dim_t i_mult_oc = ocblksize;
         constexpr dim_t o_mult = 1;
 
-        size_t offset = G * PADDED_OC * pdims[w_groups + 1] * D * H * W;
+        size_t offset = output_d.size() - output_d.additional_buffer_size();
         size_t zp_offset
                 = offset + (req_comp ? G * PADDED_OC * sizeof(int32_t) : 0);
         int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
@@ -575,8 +575,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-        size_t offset
-                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
+        size_t offset = output_d.size() - output_d.additional_buffer_size();
         int32_t *zp = has_asymmetric_comp
                 ? reinterpret_cast<int32_t *>(output + offset)
                 : nullptr;
@@ -749,8 +748,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-        size_t offset
-                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
+        size_t offset = output_d.size() - output_d.additional_buffer_size();
         int32_t *zp = has_asymmetric_comp
                 ? reinterpret_cast<int32_t *>(output + offset)
                 : nullptr;
