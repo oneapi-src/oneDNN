@@ -361,6 +361,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const auto &plain_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
+        const int ndims = input_d.ndims();
         const auto &pdims
                 = order_keep ? output_d.padded_dims() : input_d.padded_dims();
 
@@ -374,9 +375,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t H = is_1d || is_0d ? 1 : dims[2 + w_groups + is_3d];
         const dim_t W = is_0d ? 1 : dims[w_groups + is_3d + 3 - is_1d];
 
+        int smask = pd->attr()->output_scales_.mask_;
+        // XXX: Currently user can pass a mask that has non-zero values in
+        // dimensions that do not exist in a md. Since attributes are created
+        // separately mask can't be validated.
+        // This line truncates a given mask in range [0, 1 << ndims - 1]
+        // TODO: Such masks can be either prohibited at pd creation step at
+        // API level or checked by each implementation that relies on it.
+        smask &= (1 << ndims) - 1;
         const float *scales = pd->attr()->output_scales_.scales_;
-        const size_t D_mask = utils::array_product(input_d.dims(),
-                math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
+
+        const size_t D_mask
+                = utils::array_product(input_d.dims(), math::ilog2q(smask + 1));
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
         const bool has_asymmetric_comp = output_d.extra().flags
@@ -2009,6 +2019,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto output_d = ctx.memory_mdw(DNNL_ARG_TO, pd()->dst_md());
 
         const size_t nelems = input_d.nelems();
+        const int ndims = input_d.ndims();
 
         // This kernel is used also for tensors with multiple inner
         // blocks for which generic zero padding must be used.
@@ -2017,6 +2028,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         int ndims_start = 0, ndims_mask = 0;
         int smask = pd()->attr()->output_scales_.mask_;
+        // XXX: Currently user can pass a mask that has non-zero values in
+        // dimensions that do not exist in a md. Since attributes are created
+        // separately mask can't be validated.
+        // This line truncates a given mask in range [0, 1 << ndims - 1]
+        // TODO: Such masks can be either prohibited at pd creation step at
+        // API level or checked by each implementation that relies on it.
+        smask &= (1 << ndims) - 1;
+
         for (; smask > 0 && !(smask & 0x1); smask >>= 1)
             ++ndims_start;
         for (; smask > 0 && smask & 0x1; smask >>= 1)
