@@ -763,6 +763,13 @@ public:
         } else if (hw < ngen::HW::XeLP) {
             mul(mod, dst.reg_data(), src1.reg_data(), src2.immediate());
             add(mod, dst.reg_data(), dst.reg_data(), src0.reg_data());
+        } else if (src0.is_immediate() && ngen_is_dw(src0.type())) {
+            // dword immediate src0 is not supported, move to a register.
+            auto tmp_src0 = ra_.alloc_sub(src0.type());
+            mov(1, tmp_src0, src0.immediate());
+            mad(mod, dst.reg_data(), tmp_src0, src1.reg_data(),
+                    src2.immediate());
+            ra_.safeRelease(tmp_src0);
         } else {
             mad(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
                     src2.immediate());
