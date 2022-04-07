@@ -326,8 +326,8 @@ std::vector<dnnl_graph_graph::op_ptr> dnnl_graph_graph::deep_copy(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_graph_create(
-        graph_t **created_graph, engine_kind_t engine_kind) {
-    *created_graph = new graph_t(engine_kind);
+        graph_t **graph, engine_kind_t engine_kind) {
+    *graph = new graph_t(engine_kind);
     return status::success;
 }
 

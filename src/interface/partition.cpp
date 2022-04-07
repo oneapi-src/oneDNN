@@ -265,13 +265,12 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
 /// dnnl_graph_compiled_partition_t
 ///
 status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_create(
-        compiled_partition_t **created_compiled_partition,
-        partition_t *partition) {
-    if (utils::any_null(created_compiled_partition, partition)) {
+        compiled_partition_t **compiled_partition, partition_t *partition) {
+    if (utils::any_null(compiled_partition, partition)) {
         return status::invalid_argument;
     }
 
-    *created_compiled_partition = new compiled_partition_t {*partition};
+    *compiled_partition = new compiled_partition_t {*partition};
     return status::success;
 }
 

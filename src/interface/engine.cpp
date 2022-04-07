@@ -28,25 +28,23 @@
 using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_engine_create(
-        engine_t **created_engine, engine_kind_t kind, int32_t device_id) {
+        engine_t **engine, engine_kind_t kind, int32_t device_id) {
     if (kind == engine_kind::gpu) { return status::invalid_argument; }
 #ifdef DNNL_GRAPH_CPU_SYCL
-    UNUSED(created_engine);
+    UNUSED(engine);
     UNUSED(kind);
     UNUSED(device_id);
     return status::invalid_argument;
 #else
-    *created_engine = new engine_t {kind, device_id};
+    *engine = new engine_t {kind, device_id};
     return status::success;
 #endif
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
-        engine_t **created_engine, const void *dev, const void *ctx) {
+        engine_t **engine, const void *dev, const void *ctx) {
 #ifdef DNNL_GRAPH_WITH_SYCL
-    if (utils::any_null(created_engine, dev, ctx)) {
-        return status::invalid_argument;
-    }
+    if (utils::any_null(engine, dev, ctx)) { return status::invalid_argument; }
 
     auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
     auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
@@ -68,11 +66,11 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
         return status::invalid_argument;
     }
 
-    *created_engine = new engine_t {kind, sycl_dev, sycl_ctx};
+    *engine = new engine_t {kind, sycl_dev, sycl_ctx};
 
     return status::success;
 #else
-    UNUSED(created_engine);
+    UNUSED(engine);
     UNUSED(dev);
     UNUSED(ctx);
     return status::unsupported;

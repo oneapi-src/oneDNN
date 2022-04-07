@@ -25,36 +25,35 @@
 
 using namespace dnnl::graph::impl;
 
-status_t DNNL_GRAPH_API dnnl_graph_allocator_create(
-        allocator_t **created_allocator, cpu_allocate_f cpu_malloc,
-        cpu_deallocate_f cpu_free) {
+status_t DNNL_GRAPH_API dnnl_graph_allocator_create(allocator_t **allocator,
+        cpu_allocate_f cpu_malloc, cpu_deallocate_f cpu_free) {
 #ifdef DNNL_GRAPH_CPU_SYCL
-    UNUSED(created_allocator);
+    UNUSED(allocator);
     UNUSED(cpu_malloc);
     UNUSED(cpu_free);
     return status::invalid_argument;
 #else
     if (utils::any_null(cpu_malloc, cpu_free)) {
-        *created_allocator = allocator_t::create();
+        *allocator = allocator_t::create();
     } else {
-        *created_allocator = allocator_t::create(cpu_malloc, cpu_free);
+        *allocator = allocator_t::create(cpu_malloc, cpu_free);
     }
     return status::success;
 #endif
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
-        allocator_t **created_allocator, sycl_allocate_f sycl_malloc,
+        allocator_t **allocator, sycl_allocate_f sycl_malloc,
         sycl_deallocate_f sycl_free) {
 #ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(sycl_malloc, sycl_free)) {
-        *created_allocator = allocator_t::create();
+        *allocator = allocator_t::create();
     } else {
-        *created_allocator = allocator_t::create(sycl_malloc, sycl_free);
+        *allocator = allocator_t::create(sycl_malloc, sycl_free);
     }
     return status::success;
 #else
-    UNUSED(created_allocator);
+    UNUSED(allocator);
     UNUSED(sycl_malloc);
     UNUSED(sycl_free);
     return status::unsupported;

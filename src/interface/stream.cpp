@@ -33,22 +33,22 @@
 using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_stream_create(
-        stream_t **created_stream, const engine_t *engine) {
+        stream_t **stream, const engine_t *engine) {
     if (engine->kind() == engine_kind::gpu) { return status::invalid_argument; }
 #ifdef DNNL_GRAPH_CPU_SYCL
-    UNUSED(created_stream);
+    UNUSED(stream);
     UNUSED(engine);
     return status::invalid_argument;
 #else
-    *created_stream = new stream_t {engine};
+    *stream = new stream_t {engine};
     return status::success;
 #endif
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
-        stream_t **created_stream, const engine_t *engine, const void *queue) {
+        stream_t **stream, const engine_t *engine, const void *queue) {
 #ifdef DNNL_GRAPH_WITH_SYCL
-    if (utils::any_null(created_stream, engine, queue)) {
+    if (utils::any_null(stream, engine, queue)) {
         return status::invalid_argument;
     }
     auto &sycl_queue = *static_cast<const cl::sycl::queue *>(queue);
@@ -66,10 +66,10 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 #endif
     }
 
-    *created_stream = new stream_t {engine, sycl_queue};
+    *stream = new stream_t {engine, sycl_queue};
     return status::success;
 #else
-    UNUSED(created_stream);
+    UNUSED(stream);
     UNUSED(engine);
     UNUSED(queue);
     return status::unsupported;
@@ -77,17 +77,17 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
-        stream_t **created_stream, const engine_t *engine, void *threadpool) {
+        stream_t **stream, const engine_t *engine, void *threadpool) {
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
-    if (utils::any_null(created_stream, engine, threadpool)) {
+    if (utils::any_null(stream, engine, threadpool)) {
         return status::invalid_argument;
     }
     auto tp = static_cast<dnnl::graph::threadpool_interop::threadpool_iface *>(
             threadpool);
-    *created_stream = new stream_t {engine, tp};
+    *stream = new stream_t {engine, tp};
     return status::success;
 #else
-    UNUSED(created_stream);
+    UNUSED(stream);
     UNUSED(engine);
     UNUSED(threadpool);
     return status::unsupported;

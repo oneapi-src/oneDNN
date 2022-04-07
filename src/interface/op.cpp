@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,9 +38,9 @@ bool dnnl_graph_op::verify() const {
     return nullptr == schema_ || schema_->verify(this);
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **created_op, uint64_t id,
+status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **op, uint64_t id,
         op_kind_t kind, const char *const debug_string) {
-    *created_op = new op_t {id, kind, debug_string};
+    *op = new op_t {id, kind, debug_string};
     return status::success;
 }
 

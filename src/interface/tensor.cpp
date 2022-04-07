@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@
 
 using namespace dnnl::graph::impl;
 
-status_t DNNL_GRAPH_API dnnl_graph_tensor_create(tensor_t **created_tensor,
+status_t DNNL_GRAPH_API dnnl_graph_tensor_create(tensor_t **tensor,
         const logical_tensor_t *logical_tensor, const engine_t *eng,
         void *data_handle) {
-    *created_tensor = new tensor_t {*logical_tensor, eng, data_handle};
+    *tensor = new tensor_t {*logical_tensor, eng, data_handle};
     return status::success;
 }
 
