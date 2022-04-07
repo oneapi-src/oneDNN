@@ -6737,6 +6737,8 @@ private:
     }
 
     bool can_use_2d_send() const {
+        if (cfg_.use_2d_send) return true;
+
         // Enable 2D load messages for bwd_w for 32n16c layout
         if (cfg_.is_bwd_w) {
             auto block_2d_ok = [&](const view_t &view, abc_kind_t abc_kind) {
@@ -7209,7 +7211,7 @@ private:
 
         auto send_hint = get_send_hint(send_op_t::prefetch,
                 (tag[0] == 'A') ? abc_kind_t::a : abc_kind_t::b, thr_view,
-                false, cfg_.simd_size(), gemm_schedule_);
+                cfg_.use_2d_send, cfg_.simd_size(), gemm_schedule_);
 
         // GMEM prefetch.
         auto x_prefetch = make_access_builder(cfg_.hw(), ir_ctx_, cset_,

@@ -291,6 +291,9 @@ public:
         CHECK(init_abc_data_types());
         CHECK(init_acc_data_type());
         CHECK(init_fma_kind_and_simd_size());
+
+        use_2d_send = false;
+        maybe_set_use_2d_send(conv_pd);
         CHECK(init_data_layouts(conv_pd));
 
         if (!data_types_ok()) return status::unimplemented;
@@ -537,15 +540,15 @@ public:
 
     std::string str() const;
 
-    static bool is_nhwc(const layout_t &layout) {
-        auto nhwc_layout = make_layout(layout.type(), layout.dims(), "axb");
-        if (!layout.is_strictly_equal(nhwc_layout)) return false;
+    static bool matches_tag(const layout_t &layout, const std::string &tag) {
+        auto tag_layout = make_layout(layout.type(), layout.dims(), tag);
+        if (!layout.is_strictly_equal(tag_layout)) return false;
         return true;
     }
 
     bool is_nhwc(const std::string &tag) const {
         auto &layout = tensor_config.user_layout(tag);
-        return is_nhwc(layout);
+        return matches_tag(layout, "axb");
     }
 
     bool not_enough_slm = false;
@@ -648,6 +651,7 @@ public:
     bool fuse_spatial; // Apply blocking to fused spatial (otherwise only `w` is blocked).
     bool hoist_masks_from_compute_loop; // Whether to move send mask initialization out of compute loop.
     bool allow_slm_tg_slicing; // Whether to allow thread group split for SLM load/store.
+    bool use_2d_send; // Whether to use 2D block messages.
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 
@@ -869,6 +873,7 @@ private:
     }
 
     bool should_use_spatial_blocking(int d, int h, int w) const;
+    void maybe_set_use_2d_send(const convolution_pd_t *conv_pd);
     void maybe_set_fuse_spatial();
     void maybe_set_hoist_masks_from_compute_loop();
     void maybe_set_bwd_d_stride_optimization(int iw_thr_blk);
@@ -1137,16 +1142,16 @@ private:
         return post_ops.find(primitive_kind::sum) != -1;
     }
 
-    static bool is_nhwc(const memory_desc_t &md) {
+    static bool matches_tag(const memory_desc_t &md, const std::string &tag) {
         if (md.format_kind == format_kind::any) return false;
-        return is_nhwc(make_layout(md));
+        return matches_tag(make_layout(md), tag);
     }
 
     // Returns true if 1) md has nhwc layout and 2) it can't be treated as
     // blocking layout, and false otherwise.
     static bool is_pure_nhwc(
             const memory_desc_t &md, const std::string &blocking_tag) {
-        if (!is_nhwc(md)) return false;
+        if (!matches_tag(md, "axb")) return false;
         if (make_layout(md) == make_layout(md, blocking_tag)) return false;
         return true;
     }

@@ -164,7 +164,9 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     }
 
     bool use_sp_blocking = false;
-    if (is_nhwc("src")) {
+    if (use_2d_send) {
+        use_sp_blocking = false;
+    } else if (is_nhwc("src")) {
         use_sp_blocking = should_use_spatial_blocking(od, oh, ow);
     } else if (src_layout.inner_block(0) == 1) {
         use_sp_blocking = true;
@@ -183,7 +185,8 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
             bh->set_pref_tg_block(osp_name);
         bh->reorder({"mb", osp_name});
         auto spatial_dim = fuse_spatial ? osp : ow;
-        if (mb >= 128 && (spatial_dim % 4 != 0 || spatial_dim < 64))
+        if (!use_2d_send && mb >= 128
+                && (spatial_dim % 4 != 0 || spatial_dim < 64))
             bh->allow_split({"mb"});
     }
 
@@ -193,6 +196,13 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         bh->set_pref_tg_block(ow > oc ? osp_name : "oc");
 
     bh->reorder({"ic", "kw"});
+
+    if (use_2d_send) {
+        int src_type_size = (int)types::data_type_size(src_data_type);
+        // Use 64-byte reduction step to avoid partial cache line loads.
+        bh->set_base_iter_block("ic", 64 / src_type_size);
+        bh->set_base_iter_block("mb", 32);
+    }
 
     bh->compute();
 
@@ -278,7 +288,9 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     bh->allow_split({"ic"});
 
     bool use_w_blocking = false;
-    if (is_nhwc("dst")) {
+    if (use_2d_send) {
+        use_w_blocking = false;
+    } else if (is_nhwc("dst")) {
         use_w_blocking = should_use_spatial_blocking(id, ih, iw);
     } else if (dst_layout.inner_block(0) == 1) {
         use_w_blocking = true;
@@ -291,7 +303,15 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     } else {
         bh->reorder({"mb", "iw"});
         bh->set_base_iter_block("mb", 8);
-        if (mb >= 128 && (iw % 4 != 0 || iw < 64)) bh->allow_split({"mb"});
+        if (!use_2d_send && mb >= 128 && (iw % 4 != 0 || iw < 64))
+            bh->allow_split({"mb"});
+    }
+
+    if (use_2d_send) {
+        int dst_type_size = (int)types::data_type_size(dst_data_type);
+        bh->set_base_iter_block("oc", 64 / dst_type_size);
+        bh->set_base_iter_block("mb", 32);
+        if (!is_stride1()) bh->allow_split({"mb"});
     }
 
     bh->compute();
@@ -409,6 +429,7 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
             "mb", math::gcd(16, bh->dim("mb").base_iter_block()));
 
     bh->reorder({"mb", "ow", "oh"});
+    if (use_2d_send) bh->set_base_iter_block("ic", 32);
 
     bh->compute();
 
@@ -706,7 +727,7 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     zp_cfg.wei_tag = wei_tag;
 
     // If src/dst is nhwc then set the other one with any to nhwc too.
-    if (is_nhwc(src_md) || is_nhwc(dst_md)) {
+    if (matches_tag(src_md, "axb") || matches_tag(dst_md, "axb")) {
         set_default_format(src_md, "axb");
         set_default_format(dst_md, "axb");
     }
@@ -715,6 +736,19 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
             || is_pure_nhwc(dst_md, user_dst_tag)) {
         src_tag = user_src_tag = "axb";
         dst_tag = user_dst_tag = "axb";
+        bool wei_hwio = false;
+        bool user_wei_hwio = false;
+        if (hw() >= ngen::HW::XeHPC) {
+            if (use_2d_send) {
+                wei_hwio = true;
+                user_wei_hwio = true;
+            }
+        }
+        if (wei_hwio) wei_tag = "xba";
+        if (user_wei_hwio) {
+            set_default_format(wei_md, "xba");
+            user_wei_tag = "xba";
+        }
     }
 
     // Select user layouts.
@@ -952,6 +986,40 @@ bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
     return sp_ratio >= mb_ratio;
 }
 
+void conv_config_t::maybe_set_use_2d_send(const convolution_pd_t *conv_pd) {
+#ifdef GEN_CONV_DEBUG
+    int env_value = getenv_int("use_2d_send", -1);
+    if (env_value != -1) {
+        use_2d_send = (bool)env_value;
+        return;
+    }
+#endif
+    if (!is_dp_fma()) return;
+    if (is_small_ic()) return;
+    if (hw() < ngen::HW::XeHPC) return;
+
+    auto &wei_md = *conv_pd->invariant_wei_md();
+    if (wei_md.format_kind != format_kind::any && !matches_tag(wei_md, "xba"))
+        return;
+
+    if (is_fwd || is_bwd_w) {
+        if (!matches_tag(*conv_pd->invariant_src_md(), "axb")) return;
+    }
+
+    if (is_bwd_d || is_bwd_w) {
+        if (!matches_tag(*conv_pd->invariant_dst_md(), "axb")) return;
+    }
+
+    int a_width = (is_fwd || is_bwd_w) ? ic : oc;
+    int b_width = oc;
+
+    // 2D block message limitations, width must be a multiple of 64 bytes.
+    if (a_width * a_data_type_size % 64 != 0) return;
+    if (b_width * b_data_type_size % 64 != 0) return;
+
+    use_2d_send = true;
+}
+
 void conv_config_t::maybe_set_fuse_spatial() {
 #ifdef GEN_CONV_DEBUG
     int env_value = getenv_int("fuse_spatial", -1);
@@ -980,11 +1048,13 @@ void conv_config_t::maybe_set_hoist_masks_from_compute_loop() {
         return;
     }
 #endif
-    if (!fuse_spatial) return;
+    if (!use_2d_send && !fuse_spatial) return;
 
     // Both nhwc layouts and mask hoisting require extra GRF memory so avoid
     // enabling both.
-    if (!is_nhwc("src")) hoist_masks_from_compute_loop = true;
+    if (!use_2d_send && is_nhwc("src")) return;
+
+    hoist_masks_from_compute_loop = true;
 }
 
 void conv_config_t::maybe_set_bwd_d_stride_optimization(int iw_thr_blk) {
@@ -1090,11 +1160,12 @@ std::string conv_config_t::str() const {
 
 class access_grf_usage_helper_t {
 public:
-    access_grf_usage_helper_t(
-            const layout_t &mem_layout, int elems, int reg_bytes, bool is_slm)
+    access_grf_usage_helper_t(const layout_t &mem_layout, int elems,
+            int reg_bytes, bool is_slm, bool use_2d_send)
         : mem_type_size_(mem_layout.type().size())
         , reg_bytes_(reg_bytes)
-        , is_slm_(is_slm) {
+        , is_slm_(is_slm)
+        , use_2d_send_(use_2d_send) {
         init_message_size(mem_layout);
         init_payload_size(elems);
         init_header_size();
@@ -1133,7 +1204,14 @@ private:
             b0 = mem_blocks[0];
             b0_size = b0.block * mem_type_size_;
         }
-        if (l.size() % block_bytes == 0) {
+        if (use_2d_send_) {
+            is_block_ = true;
+            // It's hard to determine 2D block message decomposition at this
+            // point but in general 2D block messages are larger so use 2x of a
+            // regular block message (empirical estimate).
+            msg_size_ = 2 * max_block_bytes;
+            payload_bytes_per_elem_ = mem_type_size_;
+        } else if (l.size() % block_bytes == 0) {
             is_block_ = true;
             msg_size_ = (l.size() % max_block_bytes == 0) ? max_block_bytes
                                                           : block_bytes;
@@ -1193,6 +1271,7 @@ private:
     int mem_type_size_ = 0;
     int reg_bytes_ = 0;
     bool is_slm_ = false;
+    bool use_2d_send_ = false;
     bool enabled_fused_eus_sharing_ = false;
 
     // Whether message is block or scattered.
@@ -1289,7 +1368,7 @@ public:
         int service_usage = 8;
         // Estimation for let-related usage (when IR expressions are assigned
         // to variables to reuse or precompute them).
-        int let_usage = (is_nhwc ? 16 : 8);
+        int let_usage = (is_nhwc && !cfg_.use_2d_send ? 16 : 8);
 
         regs += service_usage;
         regs += let_usage;
@@ -1311,8 +1390,8 @@ private:
             int load_elems
                     = (use_slm ? per_thr_elems : ab_sub_tile_elems(is_a));
             auto layout = get_gmem_layout(is_a);
-            access_grf_usage_helper_t load(
-                    layout, load_elems, reg_bytes_, /*is_slm=*/false);
+            access_grf_usage_helper_t load(layout, load_elems, reg_bytes_,
+                    /*is_slm=*/false, cfg_.use_2d_send);
             if (is_a && !use_slm && cfg_.fma_kind == fma_kind_t::dpasw)
                 load.enable_fused_eus_sharing();
             int mult = (use_slm ? cfg_.gmem_bufs : 1);
@@ -1326,7 +1405,7 @@ private:
                 regs += mult * load.header_regs();
                 if (cfg_.use_prefetch) {
                     access_grf_usage_helper_t prefetch(layout, per_thr_elems,
-                            reg_bytes_, /*is_slm=*/false);
+                            reg_bytes_, /*is_slm=*/false, cfg_.use_2d_send);
                     regs += prefetch.header_regs();
                 }
             }
@@ -1343,8 +1422,8 @@ private:
             int per_thr_elems = utils::div_up(ab_tg_elems(is_a), tg_size_);
             int bytes = per_thr_elems * ab_type_size(is_a);
             auto slm_layout = dummy_slm_layout(bytes);
-            access_grf_usage_helper_t store(
-                    slm_layout, bytes, reg_bytes_, /*is_slm=*/true);
+            access_grf_usage_helper_t store(slm_layout, bytes, reg_bytes_,
+                    /*is_slm=*/true, /*use_2d_send=*/false);
             int &payload_regs = (is_a ? a_payload_regs : b_payload_regs);
             payload_regs = store.payload_regs();
             if (cfg_.reuse_headers) {
@@ -1364,8 +1443,8 @@ private:
 
             int bytes = ab_sub_tile_elems(is_a) * ab_type_size(is_a);
             auto slm_layout = dummy_slm_layout(bytes);
-            access_grf_usage_helper_t load(
-                    slm_layout, bytes, reg_bytes_, /*is_slm=*/true);
+            access_grf_usage_helper_t load(slm_layout, bytes, reg_bytes_,
+                    /*is_slm=*/true, /*use_2d_send=*/false);
             if (is_a && cfg_.fma_kind == fma_kind_t::dpasw)
                 load.enable_fused_eus_sharing();
             regs += load.payload_regs();
