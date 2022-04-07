@@ -1359,10 +1359,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     for (int c = 0; c < block_i; ++c) {
                         o[o_off + c] = _qz_a1b0<type_i, type_o>()(i[i_off + c]);
                     }
-                    if (order_keep && b + 1 == nb) {
+                    if (b + 1 == nb) {
                         // zero padding
-                        const auto pad_size
-                                = blksize_16 - ((nb - 1) * blksize_i);
+                        const auto pad_size = order_keep
+                                ? blksize_16 - ((nb - 1) * blksize_i)
+                                : blksize_i;
                         const auto pad_start = block_i + o_off;
                         const auto pad_end = pad_size + o_off;
                         PRAGMA_OMP_SIMD()
@@ -1383,10 +1384,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         o[o_off + c] = _qz<type_i, type_o>()(
                                 i[i_off + c], o[o_off + c], alpha, beta);
                     }
-                    if (order_keep && b + 1 == nb) {
+                    if (b + 1 == nb) {
                         // zero padding
-                        const auto pad_size
-                                = blksize_16 - ((nb - 1) * blksize_i);
+                        const auto pad_size = order_keep
+                                ? blksize_16 - ((nb - 1) * blksize_i)
+                                : blksize_i;
                         const auto pad_start = block_i + o_off;
                         const auto pad_end = pad_size + o_off;
                         PRAGMA_OMP_SIMD()
