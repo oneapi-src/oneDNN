@@ -26,42 +26,24 @@
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
 #include "oneapi/dnnl/dnnl_graph_threadpool_iface.hpp"
 #endif
-struct dnnl_graph_thread_pool {
-    int num_threads_ {0};
-    dnnl_graph_thread_pool(int num_threads) : num_threads_(num_threads) {}
-};
-
-struct dnnl_graph_stream_attr {
-    dnnl_graph_stream_attr(dnnl_graph_thread_pool *thread_pool)
-        : thread_pool_ {thread_pool} {}
-    dnnl_graph_thread_pool *thread_pool_ {};
-};
 
 struct dnnl_graph_stream {
 public:
     dnnl_graph_stream() = delete;
-    dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
-            const dnnl::graph::impl::stream_attr_t *attr = nullptr)
-        : engine_ {engine} {
-        UNUSED(attr);
-    }
+    dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine)
+        : engine_ {engine} {}
 
 #ifdef DNNL_GRAPH_WITH_SYCL
     // Create an stream from SYCL queue.
     dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
-            const cl::sycl::queue &queue,
-            const dnnl::graph::impl::stream_attr_t *attr = nullptr)
-        : engine_ {engine}, queue_ {queue} {
-        UNUSED(attr);
-    }
+            const cl::sycl::queue &queue)
+        : engine_ {engine}, queue_ {queue} {}
 #endif // DNNL_GRAPH_WITH_SYCL
 
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
     dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
-            dnnl::graph::threadpool_interop::threadpool_iface *threadpool,
-            const dnnl::graph::impl::stream_attr_t *attr = nullptr)
+            dnnl::graph::threadpool_interop::threadpool_iface *threadpool)
         : dnnl_graph_stream(engine) {
-        UNUSED(attr);
         assert(engine->kind() == dnnl::graph::impl::engine_kind::cpu);
         threadpool_ = threadpool;
     }

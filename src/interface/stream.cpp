@@ -32,36 +32,6 @@
 
 using namespace dnnl::graph::impl;
 
-///
-/// \brief dnnl_graph_thread_pool_t
-///
-status_t DNNL_GRAPH_API dnnl_graph_thread_pool_create(
-        thread_pool_t **created_thread_pool, int32_t num_threads) {
-    *created_thread_pool = new thread_pool_t {num_threads};
-    return status::success;
-}
-
-status_t DNNL_GRAPH_API dnnl_graph_thread_pool_destroy(
-        thread_pool_t *thread_pool) {
-    delete thread_pool;
-    return status::success;
-}
-
-///
-/// \brief dnnl_graph_stream_attr_t
-///
-status_t DNNL_GRAPH_API dnnl_graph_stream_attr_create(
-        stream_attr_t **created_stream_attr, thread_pool_t *thread_pool) {
-    *created_stream_attr = new stream_attr_t {thread_pool};
-    return status::success;
-}
-
-status_t DNNL_GRAPH_API dnnl_graph_stream_attr_destroy(
-        stream_attr_t *stream_attr) {
-    delete stream_attr;
-    return status::success;
-}
-
 status_t DNNL_GRAPH_API dnnl_graph_stream_create(
         stream_t **created_stream, const engine_t *engine) {
     if (engine->kind() == engine_kind::gpu) { return status::invalid_argument; }

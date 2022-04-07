@@ -410,14 +410,6 @@ typedef struct dnnl_graph_graph dnnl_graph_graph_t;
 struct dnnl_graph_engine;
 typedef struct dnnl_graph_engine dnnl_graph_engine_t;
 
-/// @brief A thread pool handle
-struct dnnl_graph_thread_pool;
-typedef struct dnnl_graph_thread_pool dnnl_graph_thread_pool_t;
-
-/// @brief A stream attr handle
-struct dnnl_graph_stream_attr;
-typedef struct dnnl_graph_stream_attr dnnl_graph_stream_attr_t;
-
 /// @brief A stream handle
 struct dnnl_graph_stream;
 typedef struct dnnl_graph_stream dnnl_graph_stream_t;
