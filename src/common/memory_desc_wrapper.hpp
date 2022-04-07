@@ -116,31 +116,43 @@ struct memory_desc_wrapper : public c_compatible {
                         | compensation_conv_asymmetric_src));
     }
 
-    /** returns the size of the appended buffer when the memory descriptor
-     * requires extra space to hold compensation data */
-    size_t additional_buffer_size() const {
+    /** returns the size required for a particular extra memory buffer */
+    size_t additional_buffer_size(memory_extra_flags_t flag) const {
         using namespace memory_extra_flags;
 
         auto calculate_size = [=](int cmask, size_t buff_data_size) {
             assert(utils::one_of(cmask, 1, 2, 3, 13, 27));
             dim_t prod = 1;
             for (int d = 0; d < ndims(); ++d)
-                if (cmask & (1 << d)) prod *= padded_dims()[d];
+                if (cmask & (1 << d)) { prod *= padded_dims()[d]; }
             return (size_t)prod * buff_data_size;
         };
 
-        size_t buff_size = 0;
-        const uint64_t comp_flags
-                = compensation_conv_s8s8 | rnn_u8s8_compensation;
-        if (extra().flags & comp_flags) {
-            buff_size += calculate_size(extra().compensation_mask,
-                    additional_buffer_data_size(comp_flags));
+        if (extra().flags & compensation_conv_s8s8) {
+            return calculate_size(extra().compensation_mask,
+                    additional_buffer_data_size(flag));
+        }
+        if (extra().flags & rnn_u8s8_compensation) {
+            return calculate_size(extra().compensation_mask,
+                    additional_buffer_data_size(flag));
         }
         if (extra().flags & compensation_conv_asymmetric_src) {
-            buff_size += calculate_size(extra().asymm_compensation_mask,
-                    additional_buffer_data_size(
-                            compensation_conv_asymmetric_src));
+            return calculate_size(extra().asymm_compensation_mask,
+                    additional_buffer_data_size(flag));
         }
+
+        return 0;
+    }
+
+    /** returns the size of the appended buffer when the memory descriptor
+     * requires extra space to hold compensation data */
+    size_t additional_buffer_size() const {
+        using namespace memory_extra_flags;
+
+        size_t buff_size = 0;
+        buff_size += additional_buffer_size(compensation_conv_s8s8);
+        buff_size += additional_buffer_size(rnn_u8s8_compensation);
+        buff_size += additional_buffer_size(compensation_conv_asymmetric_src);
         return buff_size;
     }
 
