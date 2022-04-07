@@ -21,8 +21,8 @@
 #define SIMD GWS_SGS_DEFAULT
 
 KERNEL_ATTR
-__kernel void gen9_eltwise_fwd(
-        __global DATA_T *src, __global DATA_T *dst, float alpha, float beta) {
+__kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
+        int nelems, float alpha, float beta) {
     const uint grsize = get_local_size(0);
     const uint grid = get_group_id(0);
     const uint sgid = get_sub_group_id();
@@ -43,13 +43,13 @@ __kernel void gen9_eltwise_fwd(
     const uint nel_per_read = SIMD * VECT_DT_N;
 
     // READ
-    if (offset + nel_per_read < NELEMS) {
+    if (offset + nel_per_read < nelems) {
         val = AS_VECT_DATA_T(VECT_BLOCK_READ(read_pos));
 
     } else {
         // read data in the same access pattern block_reads would
         uint pos = offset + lid;
-        for (int i = 0; i < VECT_DT_N && pos < NELEMS; ++i) {
+        for (int i = 0; i < VECT_DT_N && pos < nelems; ++i) {
             val[i] = src[pos];
             pos += SIMD;
         }
@@ -62,12 +62,12 @@ __kernel void gen9_eltwise_fwd(
     }
 
     // WRITE
-    if (offset + nel_per_read < NELEMS) {
+    if (offset + nel_per_read < nelems) {
         VECT_BLOCK_WRITE(write_pos, AS_VECT_BLOCK_DATA_T(val));
 
     } else {
         uint pos = offset + lid;
-        for (int i = 0; i < VECT_DT_N && pos < NELEMS; ++i) {
+        for (int i = 0; i < VECT_DT_N && pos < nelems; ++i) {
             dst[pos] = val[i];
             pos += SIMD;
         }
@@ -76,7 +76,7 @@ __kernel void gen9_eltwise_fwd(
 
 KERNEL_ATTR
 __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
-        __global DATA_T *diff_dst, float alpha, float beta) {
+        __global DATA_T *diff_dst, int nelems, float alpha, float beta) {
     const uint grsize = get_local_size(0);
     const uint grid = get_group_id(0);
     const uint sgid = get_sub_group_id();
@@ -100,14 +100,14 @@ __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     const uint nel_per_read = SIMD * VECT_DT_N;
 
     // READ
-    if (offset + nel_per_read < NELEMS) {
+    if (offset + nel_per_read < nelems) {
         val_src = AS_VECT_DATA_T(VECT_BLOCK_READ(src_pos));
         val_dd = AS_VECT_DATA_T(VECT_BLOCK_READ(diff_pos));
 
     } else {
         // read data in the same access pattern block_reads would
         uint pos = offset + lid;
-        for (int i = 0; i < VECT_DT_N && pos < NELEMS; ++i) {
+        for (int i = 0; i < VECT_DT_N && pos < nelems; ++i) {
             val_dd[i] = diff_dst[pos];
             val_src[i] = src[pos];
             pos += SIMD;
@@ -121,13 +121,13 @@ __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     }
 
     // WRITE
-    if (offset + nel_per_read < NELEMS) {
+    if (offset + nel_per_read < nelems) {
         VECT_BLOCK_WRITE(write_pos, AS_VECT_BLOCK_DATA_T(val_dd));
 
     } else {
         // write data in the same access pattern block_writes would
         uint pos = offset + lid;
-        for (int i = 0; i < VECT_DT_N && pos < NELEMS; ++i) {
+        for (int i = 0; i < VECT_DT_N && pos < nelems; ++i) {
             diff_src[pos] = val_dd[i];
             pos += SIMD;
         }

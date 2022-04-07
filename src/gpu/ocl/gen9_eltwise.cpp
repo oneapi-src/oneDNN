@@ -31,10 +31,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("WITH_ELTWISE", 1);
     kernel_ctx.define_int("ELTWISE_ALG", pd.desc()->alg_kind);
-    kernel_ctx.define_int("NDIMS", data_d.ndims());
 
     kernel_ctx.define_int("VECT_DT_N", conf.vector_size);
-    kernel_ctx.define_int("NELEMS", data_d.nelems(conf.with_zero_padding));
 
     // attribute for wg-size and subgroup-size
     kernel_ctx.define_int("GWS_WITH_SG_DEFAULT", 1);
@@ -76,19 +74,20 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
+    const memory_desc_wrapper data_d(pd()->data_md());
+    const int nelems = data_d.nelems(pd()->conf.with_zero_padding);
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
-    arg_list.set(2, alpha);
-    arg_list.set(3, beta);
+    arg_list.set(2, nelems);
+    arg_list.set(3, alpha);
+    arg_list.set(4, beta);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
     size_t lws = pd()->conf.work_group_size;
-    size_t total_wi = utils::div_up(data_d.nelems(pd()->conf.with_zero_padding),
-            pd()->conf.vector_size);
+    size_t total_wi = utils::div_up(nelems, pd()->conf.vector_size);
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
 
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
@@ -138,6 +137,8 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
+    const memory_desc_wrapper data_d(pd()->data_md());
+    const int nelems = data_d.nelems(pd()->conf.with_zero_padding);
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
@@ -145,13 +146,12 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
     arg_list.set(0, src);
     arg_list.set(1, diff_src);
     arg_list.set(2, diff_dst);
-    arg_list.set(3, alpha);
-    arg_list.set(4, beta);
+    arg_list.set(3, nelems);
+    arg_list.set(4, alpha);
+    arg_list.set(5, beta);
 
-    const memory_desc_wrapper data_d(pd()->data_md());
     size_t lws = pd()->conf.work_group_size;
-    size_t total_wi = utils::div_up(data_d.nelems(pd()->conf.with_zero_padding),
-            pd()->conf.vector_size);
+    size_t total_wi = utils::div_up(nelems, pd()->conf.vector_size);
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
 
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
