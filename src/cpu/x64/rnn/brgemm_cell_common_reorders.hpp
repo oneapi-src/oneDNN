@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,17 +28,6 @@ namespace rnn_utils {
 struct rnn_conf_t;
 }
 namespace x64 {
-struct scratch_gates_blocked_reorder_t {
-    scratch_gates_blocked_reorder_t(const cpu::rnn_utils::rnn_conf_t &rnn)
-        : rnn_(rnn) {};
-
-    template <typename Dt>
-    void execute(const Dt *src, Dt *dst, const bool n_tail) const;
-
-private:
-    const cpu::rnn_utils::rnn_conf_t &rnn_;
-};
-
 struct src_layer_iter_transpose_t {
     src_layer_iter_transpose_t(const int src_ld, const int dst_ld,
             const int rows, const int cols,

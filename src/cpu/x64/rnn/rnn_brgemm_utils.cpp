@@ -1130,6 +1130,25 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
         }
     }
 
+    // Creating temporary matmul configuration descriptor to use copy_B jit
+    // kernels from brgemm matmul copy routines for reodering scratch gates in
+    // diff_wei rnn brgemm implementation.
+    // TODO: provide unification of jit-based copy routines with implementation
+    // independent interface
+    matmul::brgemm_matmul_conf_t tmp_matmul_conf_for_reorder;
+    tmp_matmul_conf_for_reorder.wei_tag = format_tag::ab;
+    tmp_matmul_conf_for_reorder.N = rnn.scratch_gates_ld;
+    tmp_matmul_conf_for_reorder.K = rnn.mb;
+    tmp_matmul_conf_for_reorder.wei_n_blk = tmp_matmul_conf_for_reorder.N_blk
+            = diff_wei_conf.n_block;
+    tmp_matmul_conf_for_reorder.N_tail = diff_wei_conf.n_tail;
+    tmp_matmul_conf_for_reorder.LDB = diff_wei_conf.LDB;
+    tmp_matmul_conf_for_reorder.src_dt = tmp_matmul_conf_for_reorder.wei_dt
+            = rnn.is_bf16() ? data_type::bf16 : data_type::f32;
+    CHECK(matmul::create_brgemm_matmul_copy_b(
+            diff_wei.srcatch_gates_reorder_kernel_,
+            &tmp_matmul_conf_for_reorder));
+
     return status::success;
 }
 

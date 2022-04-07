@@ -454,6 +454,21 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
 template <typename src_layer_t, typename src_iter_t, typename scratch_t,
         typename gemm_acc_t>
 void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
+        gemm_acc_t>::reorder_scratch_gates(const scratch_t *src, scratch_t *dst,
+        const bool do_n_tail) const {
+    auto ctx = matmul::jit_brgemm_matmul_copy_b_t::ctx_t();
+    ctx.src = (void *)src;
+    ctx.tr_src = (void *)dst;
+    ctx.current_K_start = 0;
+    ctx.current_K_iters = rnn_.mb;
+    ctx.current_N_blk = do_n_tail ? rnn_.diff_wei_brgemm.n_tail
+                                  : rnn_.diff_wei_brgemm.n_block;
+    (*rnn_brgemm_.diff_wei_.srcatch_gates_reorder_kernel_)(&ctx);
+}
+
+template <typename src_layer_t, typename src_iter_t, typename scratch_t,
+        typename gemm_acc_t>
+void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
         gemm_acc_t>::kernel(const int ithr, const int nthr) const {
 
     const bool global_transpose = rnn_.diff_wei_brgemm.global_transpose;
@@ -482,8 +497,6 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
 
     x64::brgemm_batch_element_t *const addr_batch
             = addr_batch_global_ + ithr * (k_blocks_ + 1);
-
-    const scratch_gates_blocked_reorder_t scratch_gates_blocked_reorder {rnn_};
 
     while (start < end) {
         const bool should_reorder_gates = last_n_block_id != n_block_id;
@@ -535,7 +548,8 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
         }
 
         if (should_reorder_gates) {
-            scratch_gates_blocked_reorder.execute(B_n, B_blocked, do_n_tail);
+            reorder_scratch_gates(B_n, B_blocked, do_n_tail);
+
             if (m_block_id == 0) {
                 jit_gates_reduction_t::call_params_t params;
                 params.src = reinterpret_cast<const void *>(B_blocked);
@@ -631,7 +645,6 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
                     * ithr;
     const bool m_equal
             = rnn_.diff_wei_brgemm.M_iter == rnn_.diff_wei_brgemm.M_layer;
-    const scratch_gates_blocked_reorder_t scratch_gates_blocked_reorder {rnn_};
     amx_tile_configuration_loader_t load_cfg_if_needed;
 
     while (start < end) {
@@ -702,7 +715,7 @@ void brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
         }
 
         if (should_reorder_gates) {
-            scratch_gates_blocked_reorder.execute(B_n, B_blocked, do_n_tail);
+            reorder_scratch_gates(B_n, B_blocked, do_n_tail);
 
             if (m_block_id == 0) {
                 jit_gates_reduction_t::call_params_t params;

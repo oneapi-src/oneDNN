@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include "common/bfloat16.hpp"
 #include "cpu/rnn/rnn_utils.hpp"
+#include "cpu/x64/rnn/brgemm_cell_common_reorders.hpp"
 #include "cpu/x64/rnn/jit_diff_weights_peephole.hpp"
 #include "cpu/x64/rnn/jit_gates_reduction.hpp"
 #include "cpu/x64/rnn/rnn_brgemm_utils.hpp"
@@ -149,8 +150,6 @@ public:
             x64::brgemm_batch_element_t *addr_batch_global);
 
     void execute() const;
-    void kernel_amx(const int ithr, const int nthr) const;
-    void kernel(const int ithr, const int nthr) const;
 
 private:
     const ref_rnn_brgemm_t &rnn_brgemm_;
@@ -198,6 +197,11 @@ private:
     const jit_brgemm_transpose_single_row_t *const kernel_transpose_layer_;
     gemm_acc_t *const amx_scratchpad_;
     brgemm_batch_element_t *const addr_batch_global_;
+
+    void kernel_amx(const int ithr, const int nthr) const;
+    void kernel(const int ithr, const int nthr) const;
+    void reorder_scratch_gates(
+            const scratch_t *src, scratch_t *dst, const bool do_n_tail) const;
 };
 
 template <typename scratch_t>

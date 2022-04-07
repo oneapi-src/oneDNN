@@ -22,38 +22,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <typename Dt>
-void scratch_gates_blocked_reorder_t::execute(
-        const Dt *src, Dt *dst, const bool n_tail) const {
-
-    const auto ld_GO = rnn_.scratch_gates_ld;
-    const auto &d_wei = rnn_.diff_wei_brgemm;
-    const auto I = rnn_.mb;
-    const auto O = n_tail ? d_wei.n_tail : d_wei.n_block;
-    const int o_block = 32;
-    const int i_block = 4 / sizeof(Dt);
-
-    for (int ib = 0; ib < I; ib += i_block) {
-        const auto off_plain = ib * ld_GO;
-        const auto off_blk = ib * o_block;
-
-        const Dt *const inp = &src[off_plain];
-        Dt *const out = &dst[off_blk];
-
-        for (int i = 0; i < i_block; i++) {
-            const bool should_fill_ib = ((i + ib) < I);
-            const auto inp_i_off = i * ld_GO;
-            for (int o = 0; o < o_block; o++) {
-                const auto off_inner_blk = o * i_block + i;
-                if (should_fill_ib && (o < O))
-                    out[off_inner_blk] = inp[inp_i_off + o];
-                else
-                    out[off_inner_blk] = 0;
-            }
-        }
-    }
-}
-
 src_layer_iter_transpose_t::src_layer_iter_transpose_t(const int src_ld,
         const int dst_ld, const int rows, const int cols,
         jit_brgemm_trans_src_t *const kernel_transpose)
@@ -89,11 +57,6 @@ void src_layer_iter_transpose_t::execute(const Dt *src, Dt *dst) const {
         (*kernel_transpose_)(&ctx);
     });
 }
-
-template void scratch_gates_blocked_reorder_t::execute<float>(
-        const float *, float *, const bool) const;
-template void scratch_gates_blocked_reorder_t::execute<bfloat16_t>(
-        const bfloat16_t *, bfloat16_t *, const bool) const;
 
 template void src_layer_iter_transpose_t::execute<float>(
         const float *, float *) const;

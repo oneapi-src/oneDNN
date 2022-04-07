@@ -22,6 +22,7 @@
 #include "common/memory_tracking.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/jit_brgemm_transpose_utils.hpp"
+#include "cpu/x64/matmul/brgemm_matmul_copy_utils.hpp"
 #include "cpu/x64/rnn/jit_brgemm_transpose_single_row.hpp"
 #include "cpu/x64/rnn/jit_diff_weights_peephole.hpp"
 #include "cpu/x64/rnn/jit_gates_reduction.hpp"
@@ -42,6 +43,8 @@ namespace rnn_brgemm_utils {
 
 using brgemm_ker_ptr_t = std::unique_ptr<brgemm_kernel_t>;
 using brgemm_pallete_t = char[64];
+using srcatch_gates_reorder_ker_ptr_t
+        = std::unique_ptr<matmul::jit_brgemm_matmul_copy_b_t>;
 
 struct rnn_brgemm_base_t {
     static void init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
@@ -191,6 +194,8 @@ struct rnn_diff_wei_brgemm_t {
     brgemm_pallete_t pallete_buff_layer_nk_tail_ = {};
     brgemm_pallete_t pallete_buff_iter_k_tail_ = {};
     brgemm_pallete_t pallete_buff_layer_k_tail_ = {};
+
+    srcatch_gates_reorder_ker_ptr_t srcatch_gates_reorder_kernel_;
 };
 
 template <>
