@@ -51,6 +51,7 @@ enum key {
     SC_PRINT_PASS_RESULT,
     SC_JIT_PROFILE,
     SC_DUMP_GRAPH_JSON,
+    SC_TUNING_IMPORT,
     NUM_KEYS
 };
 } // namespace env_key

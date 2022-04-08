@@ -23,6 +23,7 @@
 #include "pass/pass.hpp"
 #include <runtime/env_vars.hpp>
 #include <unordered_map>
+#include <util/graph_repository.hpp>
 #include <util/scoped_timer.hpp>
 
 #ifdef _MSC_VER
@@ -178,16 +179,52 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         int repeat, int64_t timeout, tuner_creator *tune_creator,
         std::vector<basic_graph_pass_ptr> *passes) {
     auto all_pass = passes ? passes : &get_graph_passes();
-
     dump_graph_to_json(graph);
     // run passes
     run_passes(graph, ctx, *all_pass);
 }
 
+namespace graph {
+std::unique_ptr<graph::repository> &get_driver_import_repo(
+        const context_ptr &ctx) {
+    auto make_repo = [](const context_ptr &ctx) {
+        std::string import_path
+                = utils::getenv_string(env_names[env_key::SC_TUNING_IMPORT]);
+        if (import_path.empty()) {
+            import_path = "sctune.json";
+            SC_MODULE_WARN << "The environment variable SC_TUNING_IMPORT "
+                              "is not set, using the graph config file in the "
+                              "current dir: sctune.json.";
+        }
+        std::ifstream ifs(import_path);
+        if (!ifs) {
+            SC_MODULE_WARN << "Cannot open graph config file: " << import_path;
+            return std::unique_ptr<graph::repository> {};
+        } else {
+            return utils::make_unique<graph::repository>(
+                    graph::repository::load(ctx, ifs));
+        }
+    };
+    static std::unique_ptr<graph::repository> repo = make_repo(ctx);
+    return repo;
+}
+} // namespace graph
+
 void graph_driver(
         sc_graph_t &graph, int batch_size, int repeat, const context_ptr &ctx) {
     graph_config *pincfg = nullptr;
     graph_config *poutcfg = nullptr;
+    graph_config incfg;
+    auto repo = graph::get_driver_import_repo(ctx).get();
+    if (repo) {
+        auto entry = repo->find(graph);
+        if (!entry) {
+            SC_MODULE_WARN << "Cannot open find the graph in the config file";
+        } else {
+            incfg = entry->config_;
+            pincfg = &incfg;
+        }
+    }
     tuner_creator *ptun_creator = nullptr;
     int64_t real_timeout = 0;
     sc_graph_t orig_graph;

@@ -345,6 +345,15 @@ public:
         return ret;
     }
 
+    /**
+     * Hash the contents. The default implementation only hashs ops and
+     * attrs. The function can be used to make hash map. When hash conflict
+     * happened, we can compare them with `compare_graph`.
+     * @note we ingore the attrs with keys starting with "temp."
+     * @return hash value with size_t datatype.
+     * */
+    size_t hash_contents() const;
+
     // This function removes the Ops with is_removed_=true. And it compresses
     // the ops_ array by removing the holes of removed ops. It finally resets
     // all ids of each ops, to keep the continuity of ids.

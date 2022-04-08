@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
@@ -311,6 +312,16 @@ sc_op::sc_op(const std::string &op_name,
     for (auto &op : info_.outputs_) {
         op->producer_owner_ = this;
     }
+}
+
+size_t sc_graph_t::hash_contents() const {
+    size_t seed = 0;
+    op_visitor_t vis(op_visitor_t::dequeue_selector,
+            op_visitor_t::create_DAG_updater(this->ops_.size()));
+    vis.visit_graph(*this, [&](const sc_op_ptr &op) {
+        hash_combine(seed, op->hash_contents());
+    });
+    return seed;
 }
 
 void sc_graph_t::reset_op_ids() {
