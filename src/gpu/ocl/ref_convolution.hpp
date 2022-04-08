@@ -173,13 +173,20 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
-
+            using namespace data_type;
+            const auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_data
                     && desc()->alg_kind == alg_kind::convolution_direct
                     && this->set_default_formats()
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
+                    && IMPLICATION(utils::one_of(f64, diff_src_md()->data_type,
+                                           dst_md()->data_type),
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64)
+                                    && attr()->post_ops_.has_default_values())
                     && attr_.set_default_formats(diff_src_md(0))
                             == status::success;
             if (!ok) return status::unimplemented;
@@ -235,6 +242,8 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            const auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_weights
@@ -244,7 +253,13 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
                     && utils::one_of(desc()->src_desc.data_type, f32, bf16)
                     && utils::one_of(desc()->diff_dst_desc.data_type, f32, bf16)
                     && this->set_default_formats()
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && IMPLICATION(
+                            utils::one_of(f64, desc()->src_desc.data_type,
+                                    desc()->diff_dst_desc.data_type),
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64)
+                                    && attr()->post_ops_.has_default_values());
             if (!ok) return status::unimplemented;
 
             return init_conf(engine);
