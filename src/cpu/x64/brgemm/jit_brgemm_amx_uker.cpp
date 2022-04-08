@@ -21,6 +21,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
@@ -104,6 +105,12 @@ private:
             postops_injector_;
 
     using reg64_t = const Xbyak::Reg64;
+    enum {
+        simd_w = 16,
+        zmm_width_in_bytes = cpu_isa_traits<avx512_core>::vlen,
+        tile_size = 1024
+    };
+    enum matrix_kind_t { matrix_A, matrix_B };
 
     // Register decomposition
     const reg64_t param1 = abi_param1;
@@ -130,6 +137,7 @@ private:
     const reg64_t reg_zp_comp_b = rbx;
     const reg64_t reg_zp_c_values = rbx;
     const reg64_t reg_ptr_sum_zp = r9;
+    const reg64_t reg_bf32_stride = rsi;
 
     constexpr static int abi_param1_offs_ = 0;
     constexpr static int reg_zp_comp_a_offs_ = 8;
@@ -156,6 +164,11 @@ private:
     size_t *adj_bd_mask_buffer_ptr_ = nullptr;
     std::vector<size_t> skipped_bd_mask_buffer_;
     size_t *skipped_bd_mask_buffer_ptr_ = nullptr;
+    palette_config_t palette_;
+    // used to store offsets within wsp buffer where the data is
+    // transformed(downconverted), to reuse when needed.
+    std::unordered_map<std::string, size_t> transform_buf_map_A_;
+    std::unordered_map<std::string, size_t> transform_buf_map_B_;
 
     size_t LDA_size_;
     size_t LDB_size_;
@@ -192,6 +205,7 @@ private:
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
+    Xbyak::Opmask bf32_col_mask = Xbyak::Opmask(4);
 
     int adjusted_bd_block(int bdb) const noexcept {
         return (brg.is_M_tail && bdb == brg.bd_block2 - 1) ? brg.bdb_tail
@@ -217,6 +231,7 @@ private:
         // zmm9, zmm10, zmm11
         return Xbyak::Zmm(9 + ldb);
     }
+    const Xbyak::Zmm zmm_bf32_pemute = zmm12;
     const Xbyak::Zmm zmm_zp_comp_a = zmm12;
     const Xbyak::Zmm zmm_zp_c = zmm13;
     const Xbyak::Zmm zmm_lbound = zmm14;
@@ -266,7 +281,25 @@ private:
 
     void set_A_B_matrices(int bs);
 
-    void gemm_microkernel_amx(int bd_block2, int ldb_ind, int ld_block2,
+    void bf32_downconvert(int num_rows, int tile_num_col_bytes,
+            reg64_t reg_data, int offset, reg64_t reg_data_stride,
+            reg64_t reg_buf, bool is_rd_tail, bool try_load_nt);
+
+    void bf32_downconvert_to_vnni(int num_rows, int tile_num_col_bytes,
+            reg64_t reg_data, int offset, reg64_t reg_data_stride,
+            reg64_t reg_buf, bool is_rd_tail, bool try_load_nt);
+
+    void maybe_pre_process_data(const Tmm &t1, reg64_t reg_base, size_t offset,
+            reg64_t reg_stride, int bs, int rbd, matrix_kind_t mk,
+            bool is_rd_tail, bool try_load_nt);
+
+    void maybe_tileloadd_nt(matrix_kind_t mk, int bs, int xdb, int rdb,
+            size_t offset, bool is_rd_tail);
+
+    void tdpbxxd(int bdb_idx, int ldb_idx, int bd_block2, int ld_block2,
+            int ldb_ind);
+
+    void gemm_microkernel_amx(int bs, int bd_block2, int ldb_ind, int ld_block2,
             bool is_rd_tail, bool is_ld_tail);
 
     void ldb_loop(int bd_block2, int ld_block, int ldb_loop_length,
@@ -1067,41 +1100,250 @@ void jit_brgemm_amx_uker_base_t::set_A_B_matrices(int bs) {
     }
 }
 
-void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
-        int ldb_ind, int ld_block2, bool is_rd_tail, bool is_ld_tail) {
-    auto tdpbxxd = [=](int bdb_idx, int ldb_idx) {
-        prefetch_output_data(ldb_ind, bd_block2, ld_block2);
-        const Tmm &x1 = Tmm(brg.get_C_tensor(bdb_idx, ldb_idx));
-        const Tmm &x2 = Tmm(brg.get_A_tensor(bdb_idx));
-        const Tmm &x3 = Tmm(brg.get_B_tensor(ldb_idx));
-        if (brg.dt_a == data_type::bf16 && brg.dt_b == data_type::bf16) {
-            tdpbf16ps(x1, x2, x3);
-        } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::u8) {
-            tdpbuud(x1, x2, x3);
-        } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::s8) {
-            tdpbusd(x1, x2, x3);
-        } else if (brg.dt_a == data_type::s8 && brg.dt_b == data_type::u8) {
-            tdpbsud(x1, x2, x3);
-        } else if (brg.dt_a == data_type::s8 && brg.dt_b == data_type::s8) {
-            tdpbssd(x1, x2, x3);
-        } else {
-            assert(!"unsupported combination");
-        }
-        interleave_store(false);
+void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(matrix_kind_t mk, int bs,
+        int xdb, int rdb, size_t offset, bool is_rd_tail) {
+    const bool try_load_nt_A
+            = (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost);
+    const bool try_load_nt_B
+            = (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost);
+    const bool is_A = mk == matrix_kind_t::matrix_A;
+    bool try_load_nt = is_A ? try_load_nt_A : try_load_nt_B;
+    try_load_nt = try_load_nt
+            && (static_cast<size_t>(brg.typesize_A)
+                               * brg.brgattr.hint_expected_A_size
+                       + static_cast<size_t>(brg.typesize_B)
+                               * brg.brgattr.hint_expected_B_size
+                       + static_cast<size_t>(brg.typesize_C)
+                               * brg.brgattr.hint_expected_C_size)
+                    >= platform::get_per_core_cache_size(1);
+
+    auto t1 = Tmm(is_A ? brg.get_A_tensor(xdb) : brg.get_B_tensor(xdb));
+    auto reg_base = is_A ? reg_aux_A : reg_aux_B;
+    auto reg_stride = is_A ? reg_stride_lda : reg_stride_ldb;
+
+    if (brg.is_bf32)
+        maybe_pre_process_data(t1, reg_base, offset, reg_stride, bs, rdb, mk,
+                is_rd_tail, try_load_nt);
+    else if (try_load_nt)
+        tileloaddt1(t1, ptr[reg_base + offset + reg_stride]);
+    else
+        tileloadd(t1, ptr[reg_base + offset + reg_stride]);
+}
+
+void jit_brgemm_amx_uker_base_t::tdpbxxd(
+        int bdb_idx, int ldb_idx, int bd_block2, int ld_block2, int ldb_ind) {
+    prefetch_output_data(ldb_ind, bd_block2, ld_block2);
+    const Tmm &x1 = Tmm(brg.get_C_tensor(bdb_idx, ldb_idx));
+    const Tmm &x2 = Tmm(brg.get_A_tensor(bdb_idx));
+    const Tmm &x3 = Tmm(brg.get_B_tensor(ldb_idx));
+    if (brg.is_bf32
+            || (brg.dt_a == data_type::bf16 && brg.dt_b == data_type::bf16)) {
+        tdpbf16ps(x1, x2, x3);
+    } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::u8) {
+        tdpbuud(x1, x2, x3);
+    } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::s8) {
+        tdpbusd(x1, x2, x3);
+    } else if (brg.dt_a == data_type::s8 && brg.dt_b == data_type::u8) {
+        tdpbsud(x1, x2, x3);
+    } else if (brg.dt_a == data_type::s8 && brg.dt_b == data_type::s8) {
+        tdpbssd(x1, x2, x3);
+    } else {
+        assert(!"unsupported combination");
+    }
+    interleave_store(false);
+}
+
+// This method down-converts the data from f32 to bf16 and saves at reg_buf.
+// Generally used by matrix_A, where no vnni transformation of data is needed.
+void jit_brgemm_amx_uker_base_t::bf32_downconvert(int num_rows,
+        int tile_num_col_bytes, reg64_t reg_data, int offset,
+        reg64_t reg_data_stride, reg64_t reg_buf, bool is_rd_tail,
+        bool try_load_nt) {
+    const int rd_block = is_rd_tail ? brg.rdb_tail : brg.rd_block;
+    const int max_num_cols
+            = nstl::min<int>(tile_num_col_bytes / sizeof(bfloat16_t), rd_block);
+    const int col_tail = max_num_cols % simd_w;
+    const bool try_load_nt_zmm_1 = try_load_nt && max_num_cols >= 16;
+    const bool try_load_nt_zmm_2 = try_load_nt && col_tail == 0;
+    auto zmm_1 = zmm_tmp_1();
+    auto zmm_2 = zmm_tmp_2();
+    auto zmm_2_masked = col_tail ? zmm_2 | bf32_col_mask | T_z : zmm_2;
+
+    assert(max_num_cols > 0);
+
+    auto load = [&](Zmm zmm, Address addr, bool ok_to_nt_load) {
+        if (ok_to_nt_load)
+            vmovntdqa(zmm, addr);
+        else
+            vmovups(zmm, addr);
     };
 
-    auto maybe_tileloadd_nt = [=](const Tmm &t1, reg64_t base, size_t offset,
-                                      reg64_t stride, bool try_load_nt) {
-        if (try_load_nt
-                && static_cast<size_t>(
-                           brg.typesize_A * brg.brgattr.hint_expected_A_size
-                           + brg.typesize_B * brg.brgattr.hint_expected_B_size
-                           + brg.typesize_C * brg.brgattr.hint_expected_C_size)
-                        >= platform::get_per_core_cache_size(1))
-            tileloaddt1(t1, ptr[base + offset + stride]);
+    if (col_tail) {
+        const int tail_mask = (1 << col_tail) - 1;
+        auto reg_tmp_32 = reg_tmp_gpr.cvt32();
+        mov(reg_tmp_32, tail_mask);
+        kmovw(bf32_col_mask, reg_tmp_32);
+    }
+
+    // Note: using the same register used in col_tail, so order is important
+    const auto reg_data_aux = reg_tmp_gpr;
+    lea(reg_data_aux, ptr[reg_data + offset]);
+
+    for (int r = 0; r < num_rows; ++r) {
+        if (max_num_cols > 16) {
+            load(zmm_1, ptr[reg_data_aux], try_load_nt_zmm_1);
+            load(zmm_2_masked, ptr[reg_data_aux + zmm_width_in_bytes],
+                    try_load_nt_zmm_2);
+            vcvtne2ps2bf16(zmm_1, zmm_2, zmm_1);
+            // we assume enough padding space is available.
+            vmovups(ptr[reg_buf + r * zmm_width_in_bytes], zmm_1);
+        } else {
+            auto ymm_1 = Ymm(zmm_1.getIdx());
+            auto ymm_1_masked
+                    = max_num_cols == 16 ? ymm_1 : ymm_1 | bf32_col_mask | T_z;
+            if (try_load_nt_zmm_1) {
+                load(zmm_1, ptr[reg_data_aux], try_load_nt_zmm_1);
+                vcvtneps2bf16(ymm_1, zmm_1);
+            } else {
+                vcvtneps2bf16(ymm_1_masked, ptr[reg_data_aux]);
+            }
+            vmovups(ptr[reg_buf + r * zmm_width_in_bytes], ymm_1);
+        }
+        add(reg_data_aux, reg_data_stride);
+    }
+}
+
+// This method down-converts and transforms the data from f32 to bf16_vnni
+// format. Generally used by matrix_B.
+void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(int num_rows,
+        int tile_num_col_bytes, reg64_t reg_data, int offset,
+        reg64_t reg_data_stride, reg64_t reg_buf, bool is_rd_tail,
+        bool try_load_nt) {
+    const int num_cols_ele = tile_num_col_bytes / sizeof(bfloat16_t);
+    const int num_N = num_cols_ele / sizeof(bfloat16_t);
+    const int col_tail = num_N % simd_w;
+    try_load_nt = try_load_nt && col_tail == 0;
+    const auto zmm_1 = zmm_tmp_1();
+    const auto zmm_2 = zmm_tmp_2();
+
+    assert(num_N > 0);
+
+    auto load = [&](Zmm zmm, Address addr) {
+        if (try_load_nt)
+            vmovntdqa(zmm, addr);
+        else if (col_tail)
+            vmovups(zmm | bf32_col_mask | T_z, addr);
         else
-            tileloadd(t1, ptr[base + offset + stride]);
+            vmovups(zmm, addr);
     };
+
+    if (col_tail) {
+        const int tail_mask = (1 << col_tail) - 1;
+        auto reg_tmp_32 = reg_tmp_gpr.cvt32();
+        mov(reg_tmp_32, tail_mask);
+        kmovw(bf32_col_mask, reg_tmp_32);
+    }
+
+    // Note: using the same register used in col_tail, so order is important
+    const auto reg_data_aux = reg_tmp_gpr;
+    lea(reg_data_aux, ptr[reg_data + offset]);
+
+    const int rd_block = is_rd_tail ? brg.rdb_tail : brg.rd_block;
+    const int vnni_granularity
+            = data_type_vnni_granularity(data_type_t::dnnl_bf16);
+    const int r_end
+            = nstl::min(utils::div_up(rd_block, vnni_granularity), num_rows);
+
+    for (int r = 0; r < r_end; ++r) {
+        load(zmm_1, ptr[reg_data_aux]);
+
+        if (r * vnni_granularity + 1 > rd_block) {
+            vpxord(zmm_2, zmm_2, zmm_2);
+        } else {
+            load(zmm_2, ptr[reg_data_aux + reg_data_stride]);
+        }
+
+        vcvtne2ps2bf16(zmm_1, zmm_2, zmm_1);
+        vpermw(zmm_1, zmm_bf32_pemute, zmm_1);
+        vmovups(ptr[reg_buf + r * zmm_width_in_bytes], zmm_1);
+        lea(reg_data_aux,
+                ptr[reg_data_aux + vnni_granularity * reg_data_stride]);
+    }
+
+    // zero rest of the tile data
+    if (r_end < num_rows) {
+        vpxord(zmm_2, zmm_2, zmm_2);
+        for (int r = r_end; r < num_rows; ++r)
+            vmovups(ptr[reg_buf + r * zmm_width_in_bytes], zmm_2);
+    }
+}
+
+void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(const Tmm &t1,
+        reg64_t reg_base, size_t offset, reg64_t reg_stride, int bs, int rdb,
+        matrix_kind_t mk, bool is_rd_tail, bool try_load_nt) {
+
+    auto should_save_transform = [&](matrix_kind_t mk) {
+        // save if there is a reuse
+        if (mk == matrix_A) {
+            return brg.ldb + (brg.ldb_tail != 0) > brg.ld_block2;
+        } else {
+            return brg.bdb + (brg.bdb_tail != 0) > brg.bd_block2;
+        }
+    };
+
+    const bool is_A = mk == matrix_A;
+    auto &transform_buf = is_A ? transform_buf_map_A_ : transform_buf_map_B_;
+
+    const int transform_offset
+            = use_ils_ ? brg.get_num_C_tiles() * tile_size : 0;
+    const int max_bdb2 = brg.bd_block2;
+    const int max_rdb = brg.rdb + (brg.rdb_tail != 0);
+    const int matrix_a_offset = transform_offset;
+    const int matrix_b_offset = transform_offset
+            + tile_size
+                    * (nstl::max<int>(should_save_transform(mk),
+                            should_save_transform(matrix_A) * brg.brgattr.max_bs
+                                    * max_bdb2 * max_rdb));
+    const int matrix_offset = is_A ? matrix_a_offset : matrix_b_offset;
+    const std::string key = std::to_string(bs) + "_" + std::to_string(offset);
+
+    if (transform_buf.find(key) != transform_buf.end()) {
+        auto buf_idx = transform_buf[key];
+        auto offt = matrix_offset + buf_idx * tile_size;
+        tileloadd(t1, ptr[reg_buf + reg_bf32_stride + offt]);
+        return;
+    }
+
+    int buf_offt = matrix_offset;
+    // save offset of the transformation if required.
+    if (should_save_transform(mk)) {
+        auto buf_idx = transform_buf.size();
+        buf_offt = matrix_offset + buf_idx * tile_size;
+        transform_buf[key] = buf_idx;
+    }
+
+    if (buf_offt) add(reg_buf, buf_offt);
+    mov(reg_bf32_stride, zmm_width_in_bytes);
+
+    const int num_rows = palette_.rows[t1.getIdx()];
+    const int num_col_bytes = palette_.cols[t1.getIdx()];
+    if (is_A) {
+        bf32_downconvert(num_rows, num_col_bytes, reg_base, offset, reg_stride,
+                reg_buf, is_rd_tail, try_load_nt);
+    } else {
+        bf32_downconvert_to_vnni(num_rows, num_col_bytes, reg_base, offset,
+                reg_stride, reg_buf, is_rd_tail, try_load_nt);
+    }
+
+    // load into tmm from the transformed data.
+    tileloadd(t1, ptr[reg_buf + reg_bf32_stride]);
+
+    // reset buf pointer.
+    if (buf_offt) sub(reg_buf, buf_offt);
+}
+
+void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bs, int bd_block2,
+        int ldb_ind, int ld_block2, bool is_rd_tail, bool is_ld_tail) {
 
     int rbd_block = 0;
     size_t a_offset = 0, b_offset = 0;
@@ -1116,11 +1358,6 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
         b_offset = a_offset = 0;
     }
 
-    const bool try_load_nt_A
-            = (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost);
-    const bool try_load_nt_B
-            = (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost);
-
     for (int rdb = 0; rdb < rbd_block; rdb++) {
         int bd_inp_bdb = inp_bd_;
         const size_t rdb_A_off
@@ -1129,30 +1366,29 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
                 + b_offset_ + b_offset;
 
         for (int bdb = 0; bdb < bd_block2; bdb++) {
-            maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_aux_A,
-                    rdb_A_off + A_offset(bd_inp_bdb), reg_stride_lda,
-                    try_load_nt_A);
+            maybe_tileloadd_nt(matrix_kind_t::matrix_A, bs, bdb, rdb,
+                    rdb_A_off + A_offset(bd_inp_bdb), is_rd_tail);
             bd_inp_bdb += brg.bd_block;
             bd_inp_bdb = skipped_bd_mask(bd_inp_bdb);
             for (int ldb = 0; ldb < ld_block2; ldb++) {
                 if (bdb == 0) {
                     const int ldb_idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-                    maybe_tileloadd_nt(Tmm(brg.get_B_tensor(ldb_idx)),
-                            reg_aux_B, rdb_B_off + B_offset(ldb),
-                            reg_stride_ldb, try_load_nt_B);
+                    maybe_tileloadd_nt(matrix_kind_t::matrix_B, bs, ldb_idx,
+                            rdb, rdb_B_off + B_offset(ldb), is_rd_tail);
                 }
                 if (ldb == 0) {
                     if (bdb > 0) {
                         const int ldb_idx
                                 = (is_ld_tail) ? brg.ld_block2 : ld_block2 - 1;
                         const int bdb_idx = bdb - 1;
-                        tdpbxxd(bdb_idx, ldb_idx);
+                        tdpbxxd(bdb_idx, ldb_idx, bd_block2, ld_block2,
+                                ldb_ind);
                     }
                 } else {
                     const int ldb_idx
                             = (is_ld_tail) ? brg.ld_block2 : (ldb - 1);
                     const int bdb_idx = bdb;
-                    tdpbxxd(bdb_idx, ldb_idx);
+                    tdpbxxd(bdb_idx, ldb_idx, bd_block2, ld_block2, ldb_ind);
                 }
             }
         }
@@ -1160,7 +1396,7 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(int bd_block2,
         {
             const int ldb_idx = (is_ld_tail) ? brg.ld_block2 : (ld_block2 - 1);
             const int bdb_idx = bd_block2 - 1;
-            tdpbxxd(bdb_idx, ldb_idx);
+            tdpbxxd(bdb_idx, ldb_idx, bd_block2, ld_block2, ldb_ind);
         }
     }
 }
@@ -1194,11 +1430,11 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
             for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
                 set_A_B_matrices(bs);
                 gemm_microkernel_amx(
-                        bd_block2, ldb_ind, ld_block2, false, is_ld_tail);
+                        bs, bd_block2, ldb_ind, ld_block2, false, is_ld_tail);
 
                 if (brg.rdb_tail != 0) {
-                    gemm_microkernel_amx(
-                            bd_block2, ldb_ind, ld_block2, true, is_ld_tail);
+                    gemm_microkernel_amx(bs, bd_block2, ldb_ind, ld_block2,
+                            true, is_ld_tail);
                 }
             }
         }
@@ -1255,6 +1491,9 @@ void jit_brgemm_amx_uker_base_t::bdb_loop(bool apply_post_ops) {
         size_t c_offset = 0;
         size_t d_offset = 0;
         int ldb_ind = 0;
+        // clear the transform cache for A, as the existing data is invalid as
+        // we move to next bdb2 block.
+        transform_buf_map_A_.clear();
         if (brg.ldb2 > 0) {
             const bool is_ld_reg_tail = false;
             const bool is_ld_tail = false;
@@ -1329,6 +1568,13 @@ void jit_brgemm_amx_uker_base_t::generate() {
             brg.with_scales, brg.with_bias, brg.with_sum, brg.dt_d != brg.dt_c,
             has_zero_points);
 
+    Label permute_index_table;
+    if (brg.is_bf32) {
+        brgemm_init_tiles(brg, (char *)(&palette_));
+        mov(reg_tmp_gpr, permute_index_table);
+        vmovups(zmm_bf32_pemute, ptr[reg_tmp_gpr]);
+    }
+
     reg64_t reg_mask = rax;
 
     mov(reg_mask, full_mask);
@@ -1351,6 +1597,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
         jz(label_store_without_post_ops, T_NEAR);
         bdb_loop(true);
         jmp(label_to_ret, T_NEAR);
+        transform_buf_map_A_.clear();
+        transform_buf_map_B_.clear();
         L(label_store_without_post_ops);
     }
     bdb_loop(false);
@@ -1361,6 +1609,16 @@ void jit_brgemm_amx_uker_base_t::generate() {
     postamble();
 
     if (brg.with_eltwise) postops_injector_->prepare_table();
+
+    if (brg.is_bf32) {
+        align(64);
+        L(permute_index_table);
+        const uint16_t _idx[32] = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6,
+                22, 7, 23, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30,
+                15, 31};
+        for (size_t i = 0; i < 32; ++i)
+            dw(_idx[i]);
+    }
 }
 
 brgemm_amx_uker_t::brgemm_amx_uker_t(const brgemm_t abrd) {

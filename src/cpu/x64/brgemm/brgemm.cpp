@@ -140,8 +140,33 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 }
 
 namespace {
+
+bool can_dispatch_uker(const brgemm_t *brg) {
+    return brg->is_amx && brg->type == brgemm_addr && brg->brgattr.max_bs >= 1
+            && brg->brgattr.use_uker
+            && !brg->brgattr.generate_skip_accumulation;
+}
+
+void maybe_try_bf32(brgemm_t *brg) {
+    const bool try_bf32 = brg->is_f32
+            && brg->brgattr.fpmath_mode == fpmath_mode::bf16
+            && mayiuse(avx512_core_bf16_amx_bf16);
+    if (try_bf32) {
+        const bool is_amx = brg->is_amx;
+        brg->is_amx = true;
+        if (can_dispatch_uker(brg) /*Requires is_amx to be true*/) {
+            brg->is_bf32 = true;
+        } else {
+            brg->is_bf32 = false;
+            //  Restore
+            brg->is_amx = is_amx;
+        }
+    }
+}
+
 status_t brgemm_blocking(brgemm_t *brg) {
-    if (!brg->is_int8_amx && !brg->is_bf16_amx) {
+
+    if (!brg->is_amx) {
         brg->ld_block = 16;
         brg->ldb = brg->load_dim / brg->ld_block;
         brg->ldb_tail = brg->load_dim % brg->ld_block;
@@ -342,13 +367,15 @@ status_t brgemm_blocking(brgemm_t *brg) {
         }
         if (!is_decomposition_defined) try_2x2_decomposition();
 
-        brg->rd_block = brg->is_bf16_amx ? 32 : 64;
+        brg->rd_block = (brg->is_bf16_amx || brg->is_bf32) ? 32 : 64;
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
         // Remove these guard in the future (add tail processing by reduction dimension)
-        if (brg->rdb > 0 && brg->rdb_tail) return status::unimplemented;
-        if (brg->rdb_tail % ((brg->is_bf16_amx) ? 2 : 4))
+        if (!IMPLICATION(brg->rdb > 0 && brg->rdb_tail, brg->is_bf32))
+            return status::unimplemented;
+        if (!IMPLICATION((brg->rdb_tail % ((brg->is_bf16_amx) ? 2 : 4)) != 0,
+                    brg->is_bf32))
             return status::unimplemented;
     }
 
@@ -722,11 +749,6 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
     if (brgattr.max_top_vpad < 0 || brgattr.max_bottom_vpad < 0)
         return status::unimplemented;
 
-    // virtual padding is not supported for "amx"
-    if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
-            && (brg->is_amx))
-        return status::unimplemented;
-
     if (!brg->is_dgmm) {
         // virtual padding size is restricted by MAX_VPAD value
         if (brgattr.max_top_vpad > brgemm_t::MAX_VPAD
@@ -748,7 +770,15 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
 
     brg->brgattr = brgattr;
 
-    if (brgattr.bd_mask_level) brgemm_blocking(brg);
+    if (brgattr.fpmath_mode != fpmath_mode::strict) maybe_try_bf32(brg);
+
+    if (brgattr.bd_mask_level || brgattr.fpmath_mode != fpmath_mode::strict)
+        CHECK(brgemm_blocking(brg));
+
+    // virtual padding is not supported for "amx"
+    if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
+            && (brg->is_amx))
+        return status::unimplemented;
 
     return status::success;
 }
@@ -759,10 +789,7 @@ status_t brgemm_kernel_create(
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brdgmm_kernel_t(brg)));
         return (*brg_kernel)->create_kernel();
-    } else if (brg.is_amx && brg.type == brgemm_addr && brg.brgattr.max_bs >= 1
-            && brg.brgattr.use_uker) {
-        if (brg.brgattr.generate_skip_accumulation)
-            return status::unimplemented;
+    } else if (can_dispatch_uker(&brg)) {
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));
         return (*brg_kernel)->create_kernel();
@@ -784,6 +811,7 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
 
     //TODO: Add support of tail processing by reduction dimension
     int rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;
+    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
 
     palette_config_t *buff = (palette_config_t *)(palette);
 
@@ -791,12 +819,15 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
     for (int i = 0; i < max_palette_size_in_bytes; i++)
         _tc[i] = 0;
 
-    int rd_step = 4 / brg.typesize_A;
+    const int typesize_A = brg.is_bf32 ? sizeof(bfloat16_t) : brg.typesize_A;
+    const int typesize_B = brg.is_bf32 ? sizeof(bfloat16_t) : brg.typesize_B;
 
-    int Ac = brg.typesize_A * rd_block;
+    int rd_step = 4 / typesize_A;
 
-    int Bc = brg.ld_block * brg.typesize_B * rd_step;
-    int Bc_t = brg.ldb_tail * brg.typesize_B * rd_step;
+    int Ac = typesize_A * rd_block;
+
+    int Bc = brg.ld_block * typesize_B * rd_step;
+    int Bc_t = brg.ldb_tail * typesize_B * rd_step;
 
     int Cc = brg.ld_block * brg.typesize_C;
     int Cc_t = brg.ldb_tail * brg.typesize_C;

@@ -100,6 +100,7 @@ struct DNNL_API brgemm_attr_t {
     // use_interleave_stores is a value that determines whether to use the
     // interleave stores or not
     bool use_interleave_stores;
+    impl::fpmath_mode_t fpmath_mode = fpmath_mode::strict;
 };
 
 struct brgemm_batch_element_t {
@@ -164,6 +165,7 @@ struct brgemm_t {
     bool is_bf16 = false, is_bf16_amx = false, is_bf16_emu = false;
     bool is_f32 = false;
     bool is_amx = false;
+    bool is_bf32 = false;
 
     dim_t stride_a = 0; // Offset in bytes
     dim_t stride_b = 0;
@@ -217,6 +219,14 @@ struct brgemm_t {
         if (is_amx) {
             constexpr int tilesize = 1024;
             sz = get_num_C_tiles() * tilesize; // postops buffer
+            if (is_bf32) {
+                const int n_bdb = bd_block2;
+                const int n_rdb = rdb + (rdb_tail != 0);
+                const int n_ldb = ldb + (ldb_tail != 0);
+                const int downcvt_tiles
+                        = brgattr.max_bs * n_rdb * (n_bdb + n_ldb);
+                sz += downcvt_tiles * tilesize;
+            }
         }
         return sz;
     }
