@@ -15,3 +15,6 @@
 
 # bf16
 --batch=test_ip_bfloat16
+
+# bf32
+--batch=test_ip_bf32_bfloat16
