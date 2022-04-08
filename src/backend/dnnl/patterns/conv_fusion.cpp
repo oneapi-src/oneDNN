@@ -482,6 +482,104 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
                     return fused_op;
                 });
 
+/*
+                    [quant_weight]*
+        |                  |
+   dequant_data     dequant_weight
+        |                  |
+    typecast             typecast
+        \_____       _____/
+               conv
+                |
+              [bias]*       
+                |
+              [GeLU]*
+                |
+             typecast
+                |
+            quant_out
+                |
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
+        .set_priority(10.5f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op *pquant = popt_graph->append_op(
+                            impl::op_kind::Quantize, "pquant");
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+
+                    pm::pb_op *typecast_data
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_data, 0)});
+                    typecast_data->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op *typecast_weight
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_weight, 0)});
+                    typecast_weight->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+                    pm::pb_op *convolution
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, typecast_data, 0),
+                                            in_edge(1, typecast_weight, 0)});
+
+                    // Optional bias_add
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op *typecast_bias = popt_bias_graph->append_op(
+                            impl::op_kind::TypeCast, "tc_bias");
+                    typecast_bias->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+                    pm::pb_op *pbias = popt_bias_graph->append_op(
+                            impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, convolution, 0)},
+                            "popt_bias");
+
+                    // optional GELU
+                    auto popt_gelu_graph
+                            = std::make_shared<pb_graph_t>("poptional_gelu");
+                    pm::pb_op *gelu
+                            = popt_gelu_graph->append_op(impl::op_kind::GELU);
+                    popt_gelu_graph->create_input_port(0, gelu, 0);
+                    popt_gelu_graph->create_output_port(0, gelu, 0);
+                    auto popt_gelu = pgraph->append_optional(popt_gelu_graph,
+                            in_edges_t {in_edge(0, popt_bias, 0)}, "popt_gelu");
+
+                    pm::pb_op *typecast_gelu
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, popt_gelu, 0)});
+                    typecast_gelu->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, typecast_gelu, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_conv_post_ops_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_simple_resblock_fusion)
         .set_priority(5.f) // low priority to avoid current functionality
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
