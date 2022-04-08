@@ -39,33 +39,14 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     dnnl_inner_product_desc_t ipd;
 
-    dnnl_dims_t src_dims_0d = {prb->mb, prb->ic};
-    dnnl_dims_t src_dims_1d = {prb->mb, prb->ic, prb->iw};
-    dnnl_dims_t src_dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
-    dnnl_dims_t src_dims_3d = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
-    dnnl_dims_t wei_dims_0d = {prb->oc, prb->ic};
-    dnnl_dims_t wei_dims_1d = {prb->oc, prb->ic, prb->iw};
-    dnnl_dims_t wei_dims_2d = {prb->oc, prb->ic, prb->ih, prb->iw};
-    dnnl_dims_t wei_dims_3d = {prb->oc, prb->ic, prb->id, prb->ih, prb->iw};
-    dnnl_dims_t bia_dims = {prb->oc};
-    dnnl_dims_t dst_dims = {prb->mb, prb->oc};
-
-    dnnl_dim_t *src_dims = prb->ndims == 5
-            ? src_dims_3d
-            : prb->ndims == 4 ? src_dims_2d
-                              : prb->ndims == 3 ? src_dims_1d : src_dims_0d;
-
-    dnnl_dim_t *wei_dims = prb->ndims == 5
-            ? wei_dims_3d
-            : prb->ndims == 4 ? wei_dims_2d
-                              : prb->ndims == 3 ? wei_dims_1d : wei_dims_0d;
-
     auto src_d = dnn_mem_t::init_md(
-            prb->ndims, src_dims, prb->cfg[SRC].dt, prb->stag);
+            prb->ndims, prb->src_dims().data(), prb->cfg[SRC].dt, prb->stag);
     auto wei_d = dnn_mem_t::init_md(
-            prb->ndims, wei_dims, prb->cfg[WEI].dt, prb->wtag);
-    auto bia_d = dnn_mem_t::init_md(1, bia_dims, prb->cfg[BIA].dt, tag::any);
-    auto dst_d = dnn_mem_t::init_md(2, dst_dims, prb->cfg[DST].dt, prb->dtag);
+            prb->ndims, prb->wei_dims().data(), prb->cfg[WEI].dt, prb->wtag);
+    auto bia_d = dnn_mem_t::init_md(
+            1, prb->bia_dims().data(), prb->cfg[BIA].dt, tag::any);
+    auto dst_d = dnn_mem_t::init_md(
+            2, prb->dst_dims().data(), prb->cfg[DST].dt, prb->dtag);
 
     switch (prb->dir) {
         case FWD_D:
@@ -96,7 +77,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
-    attr_args.prepare_post_ops_mds(prb->attr, 2, dst_dims);
+    attr_args.prepare_post_ops_mds(prb->attr, 2, prb->dst_dims().data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

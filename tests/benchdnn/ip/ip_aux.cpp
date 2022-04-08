@@ -147,4 +147,32 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     return s;
 }
 
+dims_t desc_t::src_dims() const {
+    dims_t src_dims {mb, ic, id, ih, iw};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        src_dims.erase(src_dims.begin() + 2);
+    }
+
+    return src_dims;
+}
+
+dims_t desc_t::wei_dims() const {
+    dims_t wei_dims {oc, ic, id, ih, iw};
+    for (int d = 0; d < 5 - ndims; ++d) {
+        wei_dims.erase(wei_dims.begin() + 2);
+    }
+
+    return wei_dims;
+}
+
+dims_t desc_t::bia_dims() const {
+    dims_t bia_dims {oc};
+    return bia_dims;
+}
+
+dims_t desc_t::dst_dims() const {
+    dims_t dst_dims {mb, oc};
+    return dst_dims;
+}
+
 } // namespace ip
