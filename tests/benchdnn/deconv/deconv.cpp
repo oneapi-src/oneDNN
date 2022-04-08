@@ -595,7 +595,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_WEIGHTS_1, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
@@ -615,7 +615,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_WEIGHTS_1, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
 
             check_correctness(
@@ -632,7 +632,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_1, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
