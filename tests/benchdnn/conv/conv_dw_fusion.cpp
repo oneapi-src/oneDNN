@@ -197,13 +197,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    alg_t alg = prb->alg == alg_t::AUTO
-            ? conv::alg_kind2alg(query_conv_alg_kind(const_pd))
-            : prb->alg;
-    auto cfg = auto_cfg(alg, prb->cfg);
-    prb_t p_new((desc_t)*prb, prb->dir, cfg, prb->stag, prb->wtag, prb->dtag,
-            alg, prb->attr, prb->mb);
-    prb = &p_new;
+    if (prb->alg == alg_t::AUTO)
+        prb->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd));
+    prb->cfg = auto_cfg(prb->alg, prb->cfg);
 
     const auto &src_md = prb->dir == BWD_D
             ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
@@ -265,12 +261,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd0 = query_pd(prim0);
 
-    alg = p0->alg == alg_t::AUTO
-            ? conv::alg_kind2alg(query_conv_alg_kind(const_pd0))
-            : p0->alg;
-    cfg = auto_cfg(alg, p0->cfg);
-    p0.reset(new prb_t((desc_t)*p0, p0->dir, cfg, p0->stag, p0->wtag, p0->dtag,
-            alg, p0->attr, p0->mb));
+    if (p0->alg == alg_t::AUTO)
+        p0->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd0));
+    p0->cfg = auto_cfg(p0->alg, p0->cfg);
 
     const auto &src_md0 = p0->dir == BWD_D
             ? query_md(const_pd0, DNNL_ARG_DIFF_SRC)
@@ -320,12 +313,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd1 = query_pd(prim1);
 
-    alg = p1->alg == alg_t::AUTO
-            ? conv::alg_kind2alg(query_conv_alg_kind(const_pd1))
-            : p1->alg;
-    cfg = auto_cfg(alg, p1->cfg);
-    p1.reset(new prb_t((desc_t)*p1, p1->dir, cfg, p1->stag, p1->wtag, p1->dtag,
-            alg, p1->attr, p1->mb));
+    if (p1->alg == alg_t::AUTO)
+        p1->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd1));
+    p1->cfg = auto_cfg(p1->alg, p1->cfg);
 
     const auto &src_md1 = prb->dir == BWD_D
             ? query_md(const_pd1, DNNL_ARG_DIFF_SRC)
