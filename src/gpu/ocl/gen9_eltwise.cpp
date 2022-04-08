@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,11 +39,11 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     // attribute for wg-size and subgroup-size
     kernel_ctx.define_int("GWS_WITH_SG_DEFAULT", 1);
     // wg-size
-    kernel_ctx.define_int("GWS_LWS0_DEFAULT", 256);
+    kernel_ctx.define_int("GWS_LWS0_DEFAULT", conf.work_group_size);
     kernel_ctx.define_int("GWS_LWS1_DEFAULT", 1);
     kernel_ctx.define_int("GWS_LWS2_DEFAULT", 1);
     // subgroup-size
-    kernel_ctx.define_int("GWS_SGS_DEFAULT", 16);
+    kernel_ctx.define_int("GWS_SGS_DEFAULT", conf.sub_group_size);
 
     return status::success;
 }
@@ -52,6 +52,15 @@ status_t gen9_eltwise_fwd_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper data_d(data_md());
     conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
     conf.vector_size = 8;
+    conf.work_group_size = 256;
+    conf.sub_group_size = 16;
+
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    if (compute_engine->is_xe_hpc()) {
+        conf.work_group_size = 1024;
+        conf.sub_group_size = 32;
+    }
+
     return status::success;
 }
 
@@ -77,7 +86,7 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
     arg_list.set(3, beta);
 
     const memory_desc_wrapper data_d(pd()->data_md());
-    size_t lws = 256;
+    size_t lws = pd()->conf.work_group_size;
     size_t total_wi = utils::div_up(data_d.nelems(pd()->conf.with_zero_padding),
             pd()->conf.vector_size);
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
@@ -103,6 +112,14 @@ status_t gen9_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
 
     conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
     conf.vector_size = 8;
+    conf.work_group_size = 256;
+    conf.sub_group_size = 16;
+
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    if (compute_engine->is_xe_hpc()) {
+        conf.work_group_size = 1024;
+        conf.sub_group_size = 32;
+    }
 
     return status::success;
 }
@@ -132,7 +149,7 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
     arg_list.set(4, beta);
 
     const memory_desc_wrapper data_d(pd()->data_md());
-    size_t lws = 256;
+    size_t lws = pd()->conf.work_group_size;
     size_t total_wi = utils::div_up(data_d.nelems(pd()->conf.with_zero_padding),
             pd()->conf.vector_size);
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});

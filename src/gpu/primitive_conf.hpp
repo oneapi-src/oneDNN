@@ -743,6 +743,7 @@ struct eltwise_conf_t {
     data_type_t data_type;
     alg_kind_t alg;
     bool is_forward;
+    int work_group_size;
     int sub_group_size;
     compute::dispatch_t dispatch;
     memory_desc_info_t data_md_info;
