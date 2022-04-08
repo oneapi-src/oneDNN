@@ -51,6 +51,9 @@ public:
     status_t parallel_for(stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list) const;
 
+    status_t parallel_for(
+            stream_t &stream, const std::function<void(void *)> &cgf) const;
+
     status_t realize(kernel_t *kernel, const engine_t *engine,
             program_list_t *programs) const;
 
@@ -75,8 +78,16 @@ public:
     virtual ~kernel_impl_t() = default;
 
     virtual status_t parallel_for(stream_t &stream, const nd_range_t &range,
-            const kernel_arg_list_t &arg_list)
-            = 0;
+            const kernel_arg_list_t &arg_list) {
+        assert(!"unexpected");
+        return status::runtime_error;
+    }
+
+    virtual status_t parallel_for(
+            stream_t &stream, const std::function<void(void *)> &cgf) const {
+        assert(!"unexpected");
+        return status::runtime_error;
+    }
 
     virtual status_t realize(kernel_t *kernel, const engine_t *engine,
             program_list_t *programs) const = 0;
@@ -102,6 +113,11 @@ inline status_t kernel_t::parallel_for(stream_t &stream,
         const nd_range_t &range, const kernel_arg_list_t &arg_list) const {
     return impl_->parallel_for(stream, range, arg_list);
 }
+inline status_t kernel_t::parallel_for(
+        stream_t &stream, const std::function<void(void *)> &cgf) const {
+    return impl_->parallel_for(stream, cgf);
+}
+
 inline status_t kernel_t::realize(kernel_t *kernel, const engine_t *engine,
         program_list_t *programs) const {
     return impl_->realize(kernel, engine, programs);
