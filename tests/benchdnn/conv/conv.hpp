@@ -187,9 +187,9 @@ struct prb_t : public desc_t {
     }
 
     dir_t dir;
-    const dt_conf_t *cfg;
+    mutable const dt_conf_t *cfg; // `mutable` because of `AUTO` and `WINO`.
     std::string stag, wtag, dtag;
-    alg_t alg;
+    mutable alg_t alg; // `mutable` because of `AUTO`.
     attr_t attr;
     int64_t user_mb;
 

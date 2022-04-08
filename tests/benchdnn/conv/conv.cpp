@@ -503,12 +503,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    alg_t alg = prb->alg == AUTO ? alg_kind2alg(query_conv_alg_kind(const_pd))
-                                 : prb->alg;
-    const auto cfg = auto_cfg(alg, prb->cfg);
-    prb_t p_new((desc_t)*prb, prb->dir, cfg, prb->stag, prb->wtag, prb->dtag,
-            alg, prb->attr, prb->mb);
-    prb = &p_new;
+    if (prb->alg == AUTO)
+        prb->alg = alg_kind2alg(query_conv_alg_kind(const_pd));
+    prb->cfg = auto_cfg(prb->alg, prb->cfg);
 
     const auto &src_md = prb->dir == BWD_D
             ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
