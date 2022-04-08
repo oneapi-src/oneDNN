@@ -65,6 +65,7 @@ struct jit_brgemm_primitive_conf_t {
     bool use_buffer;
     bool use_buffer_a;
     bool use_buffer_b;
+    bool is_bf32;
 
     int is_oc_scale;
 

@@ -169,8 +169,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                 = (jbgp.use_buffer_a ? utils::rnd_up(jbgp.ic, jbgp.ic_block)
                                      : jbgp.ic)
                 - ic;
-        const int gemm_batch = nstl::min(
-                jbgp.gemm_batch_size, remaining_ic_blks / jbgp.ic_block);
+        const int gemm_batch
+                = nstl::min(jbgp.gemm_batch_size, remaining_ic_blks / jbgp.K);
 
         auto is_bs_tail = (gemm_batch != jbgp.gemm_batch_size);
         int brg_ker_idx = brgemm_inner_product_utils::get_brg_kernel_index(
@@ -178,6 +178,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
         if (copy_buffer_a) {
+            assert(!jbgp.is_bf32);
             auto src_ptr = src + get_blk_off(src_d, jbgp.src_dt, n, ic);
             copy_data_chunk(copy_src_kernel_, a_buffer, src_ptr,
                     is_os_tail ? jbgp.mb - n : jbgp.os_block, is_last_ic_chunk);
@@ -185,15 +186,17 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         if (gemm_batch > 0 && brg_kernel != nullptr) {
             if (is_amx && (is_os_tail || is_oc_tail))
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
+            const int ic_blocks_per_batch = jbgp.K / jbgp.ic_block;
             for (int b = 0; b < gemm_batch; b++) {
                 auto A_ptr = jbgp.use_buffer_a
-                        ? (a_buffer + src_dt_size * b * jbgp.ic_block)
+                        ? (a_buffer + src_dt_size * b * jbgp.K)
                         : (src
                                 + get_blk_off(src_d, jbgp.src_dt, n,
-                                        ic + b * jbgp.ic_block));
+                                        ic + b * jbgp.K));
                 addr_batch[b].ptr.A = A_ptr;
                 addr_batch[b].ptr.B = weights
-                        + get_blk_off(weights_d, jbgp.wei_dt, ocb, icb + b);
+                        + get_blk_off(weights_d, jbgp.wei_dt, ocb,
+                                icb + b * ic_blocks_per_batch);
             }
 
             auto ptr_D = dst + dst_off;
@@ -324,7 +327,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             int icc = 0, osb = 0, ocb = 0;
 
             // If buffer is required, then inner-most loop will be over icc_work
-            const bool ocb_inner_most = is_f32 && !jbgp.use_buffer;
+            const bool ocb_inner_most
+                    = is_f32 && !(jbgp.is_bf32 || jbgp.use_buffer);
             if (ocb_inner_most)
                 nd_iterator_init(
                         0, icc, icc_work, osb, osb_work, ocb, ocb_work);

@@ -130,6 +130,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     brgattr.use_uker = jbgp_.use_uker;
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
+                    brgattr.fpmath_mode = attr()->fpmath_mode_;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
                     jbgp_.amx_buf_size_per_thread
@@ -164,8 +165,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     : jbgp_.ic;
             auto bs = (is_K_tail)
                     ? 1
-                    : ((is_bs_tail) ? (adj_ic / jbgp_.ic_block)
-                                            % jbgp_.gemm_batch_size
+                    : ((is_bs_tail) ? (adj_ic / jbgp_.K) % jbgp_.gemm_batch_size
                                     : jbgp_.gemm_batch_size);
             return bs;
         }

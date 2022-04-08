@@ -47,6 +47,7 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
     const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    const bool is_bf32 = jbgp.is_bf32;
 
     int max_os_block = 0;
     int min_os_block = 0;
@@ -70,7 +71,7 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
         //
         // For f32 data type our objective is to determine the optimal value
         // of os_block such that the work amount per thread ~ 2
-        if (is_f32) {
+        if (is_f32 && !is_bf32) {
             const bool small_work_amt_per_thread
                     = div_up(jbgp.os, max_os_block) * jbgp.nb_oc
                     < 1.8f * jbgp.nthr;
@@ -228,7 +229,7 @@ int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
     const bool not_adjustable_oc_block_size
             = !jbgp.is_wei_layout_any && jbgp.prop_kind != backward_data;
 
-    if (IMPLICATION(is_amx_bf16, not_adjustable_oc_block_size))
+    if (IMPLICATION(is_amx_bf16 || jbgp.is_bf32, not_adjustable_oc_block_size))
         return get_oc_block(jbgp);
 
     int oc_block = get_oc_block(jbgp, true);
@@ -274,7 +275,8 @@ bool post_ops_ok(jit_brgemm_primitive_conf_t &jbgp,
 status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
     const bool is_amx_int8 = jbgp.isa == avx512_core_bf16_amx_int8;
-    const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
+    const bool is_amx_bf16
+            = jbgp.isa == avx512_core_bf16_amx_bf16 && !jbgp.is_bf32;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
@@ -304,7 +306,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
 
     // gemm-based inner product performs better when oc = 1
-    if (is_f32 && jbgp.oc == 1) return status::unimplemented;
+    if (is_f32 && !jbgp.is_bf32 && jbgp.oc == 1) return status::unimplemented;
 
     jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
@@ -320,7 +322,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     //   * 1 <= nb_os_blocking <= 8 AND nb_os_blocking <= nb_os
     //   * Work amount per thread ~ 2
     //   * NOTE: here nb_oc_blocking = 1 as os is large
-    if (jbgp.os > 256 && is_f32) {
+    if (jbgp.os > 256 && is_f32 && !jbgp.is_bf32) {
         jbgp.nb_os_blocking = saturate(1, nstl::min(8, jbgp.nb_os),
                 nstl::min(nstl::max(jbgp.oc / jbgp.os / 2, 1),
                         div_up(jbgp.nb_os * jbgp.nb_oc, 2 * jbgp.nthr)));
@@ -341,9 +343,9 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     //  * number of threads > 1
     //  * not a "gigantic shape" since it already has a lot of parallelism
     //      in mb and oc dimensions w/o enabling IC parallelism
-    const bool use_parallel_ic_reduction = is_f32 && jbgp.ic > 1024
-            && num_work_to_parallel < jbgp.nb_ic && jbgp.nthr > 1
-            && !is_gigantic_shape;
+    const bool use_parallel_ic_reduction = is_f32 && !jbgp.is_bf32
+            && jbgp.ic > 1024 && num_work_to_parallel < jbgp.nb_ic
+            && jbgp.nthr > 1 && !is_gigantic_shape;
 
     // For os > 256, compute all os blocks as a single chunk when performing
     // IC reduction. Note that this condition is empirical
@@ -352,6 +354,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 
     jbgp.nb_ic_blocking = 1;
     jbgp.nthr_ic_b = 1;
+    const int k_blk = jbgp.is_bf32 ? amx_bf16_row : jbgp.ic_block;
     const int max_nb_ic_blocking = nstl::min(64, jbgp.nb_ic);
     if (IMPLICATION(!is_int8, jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block)
             && everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd)
@@ -360,8 +363,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         // brgemm kernel with K = ic & batch = 1
         // (K = rnd_dn(ic, ic_block), K_tail = ic % ic_block & batch = 1)
         // instead of K = ic_block & batch = nb_ic_blocking
-        jbgp.K = jbgp.ic <= jbgp.ic_block ? jbgp.ic
-                                          : rnd_dn(jbgp.ic, jbgp.ic_block);
+        jbgp.K = jbgp.ic <= jbgp.ic_block ? jbgp.ic : rnd_dn(jbgp.ic, k_blk);
         jbgp.nb_ic_blocking = jbgp.nb_ic;
         jbgp.gemm_batch_size = 1;
     } else if (!jbgp.use_buffer_a && use_parallel_ic_reduction) {
@@ -381,20 +383,25 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         jbgp.gemm_batch_size = jbgp.nb_ic_blocking;
         jbgp.K = jbgp.ic_block;
     } else {
-        jbgp.nb_ic_blocking = max_div(jbgp.nb_ic, max_nb_ic_blocking);
-        const bool small_nb_ic = jbgp.nb_ic <= max_nb_ic_blocking;
-        if (small_nb_ic && jbgp.nb_ic_blocking == 1)
-            jbgp.nb_ic_blocking = max_nb_ic_blocking;
+        // Note: Here, ic divided into K_blocks of gemm_batch
+        const int ic_blks_per_k = div_up(k_blk, jbgp.ic_block);
+        const int nb_k_blk = div_up(jbgp.ic, k_blk);
+        const int max_nb_k_blocking = div_up(max_nb_ic_blocking, ic_blks_per_k);
+        int nb_k_blocking = max_div(nb_k_blk, max_nb_k_blocking);
+        const bool small_nb_k_blk = nb_k_blk <= max_nb_k_blocking;
+        if (small_nb_k_blk && nb_k_blocking == 1)
+            nb_k_blocking = max_nb_k_blocking;
 
         // For non small_nb_ic [i.e. that has nb_ic > 64] shape that has
         // gcd(nb_ic, 64) < 16, we manually set nb_ic_blocking = 64
         // the coefficients 64 [used in max_nb_ic_blocking] and 16 are empirical
-        const int min_nb_ic_blocking = small_nb_ic ? 1 : 16;
-        if (jbgp.nb_ic_blocking < min_nb_ic_blocking)
-            jbgp.nb_ic_blocking = max_nb_ic_blocking;
+        const int min_nb_k_blocking = small_nb_k_blk ? 1 : 16;
+        if (nb_k_blocking < min_nb_k_blocking)
+            nb_k_blocking = max_nb_k_blocking;
 
-        jbgp.gemm_batch_size = jbgp.nb_ic_blocking;
-        jbgp.K = jbgp.ic_block;
+        jbgp.nb_ic_blocking = nb_k_blocking * ic_blks_per_k;
+        jbgp.K = k_blk;
+        jbgp.gemm_batch_size = nb_k_blocking;
     }
 
     // to avoid cache concurrent write access from different threads
@@ -402,7 +409,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     jbgp.adjusted_batch_size
             = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
 
-    if (is_amx_bf16) {
+    if (is_amx_bf16 || jbgp.is_bf32) {
         if (ip_fwd_adjust_thread_balance(jbgp)) {
             // Adjust oc_block to improve thread balancing
             jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
@@ -427,13 +434,24 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 
     jbgp.N = jbgp.oc_block;
     jbgp.N_tail = jbgp.oc % jbgp.oc_block;
-    jbgp.K_tail = jbgp.use_buffer_a ? 0 : jbgp.ic % jbgp.ic_block;
+    jbgp.K_tail = jbgp.use_buffer_a ? 0 : jbgp.ic % jbgp.K;
 
     jbgp.LDA = jbgp.use_buffer_a ? jbgp.K * jbgp.gemm_batch_size
                                  : jbgp.ic_without_padding;
     jbgp.LDB = jbgp.N;
     jbgp.LDD = jbgp.oc_without_padding;
     jbgp.LDC = (jbgp.use_buffer && jbgp.nthr_ic_b == 1) ? jbgp.N : jbgp.LDD;
+
+    if (jbgp.is_bf32) {
+        const float M = static_cast<float>(jbgp.M);
+        const float N = nstl::min<float>(jbgp.N, jbgp.oc);
+        const float K
+                = nstl::min<float>(jbgp.K * jbgp.gemm_batch_size, jbgp.ic);
+        const float tmul_efficiency = (M / 16) * (N / 16) * (K / 32);
+        // TODO: Adjust blocking such that bigger M, N, K are generated.
+        if (one_of(true, M <= 8, K <= 8, N < 16, tmul_efficiency <= 2.25))
+            return status::unimplemented;
+    }
 
     return status::success;
 }
@@ -855,6 +873,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
                     everyone_is(bf16, jbgp.src_dt, jbgp.dst_dt)
                             && jbgp.wei_dt == f32);
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    jbgp.is_bf32 = is_f32 && attr.fpmath_mode_ == fpmath_mode::bf16
+            && isa == avx512_core_bf16_amx_bf16;
 
     if (!IMPLICATION(is_int8,
                 one_of(isa, avx512_core_vnni, avx512_core_bf16,
@@ -863,7 +883,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     if (!IMPLICATION(is_bf16,
                 one_of(isa, avx512_core_bf16, avx512_core_bf16_amx_bf16)))
         return status::unimplemented;
-    if (!IMPLICATION(is_f32, isa == avx512_core)) return status::unimplemented;
+    if (!IMPLICATION(is_f32, jbgp.is_bf32 || (isa == avx512_core)))
+        return status::unimplemented;
 
     if (is_int8) {
         jbgp.acc_dt = s32;
