@@ -28,6 +28,12 @@ dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd) {
     return prim_kind;
 }
 
+dnnl_alg_kind_t query_conv_alg_kind(const_dnnl_primitive_desc_t pd) {
+    dnnl_convolution_desc_t *conv_op_desc = {nullptr};
+    dnnl_primitive_desc_query(pd, dnnl_query_convolution_d, 0, &conv_op_desc);
+    return conv_op_desc ? conv_op_desc->alg_kind : dnnl_alg_kind_undef;
+}
+
 std::string query_impl_info(const_dnnl_primitive_desc_t pd) {
     const char *str = nullptr;
     dnnl_primitive_desc_query(pd, dnnl_query_impl_info_str, 0, &str);

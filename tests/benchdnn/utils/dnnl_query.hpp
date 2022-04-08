@@ -24,6 +24,7 @@
 
 dnnl_prop_kind_t query_prop_kind(const_dnnl_primitive_desc_t pd);
 dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd);
+dnnl_alg_kind_t query_conv_alg_kind(const_dnnl_primitive_desc_t pd);
 
 std::string query_impl_info(const_dnnl_primitive_desc_t pd);
 

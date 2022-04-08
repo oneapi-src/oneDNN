@@ -197,19 +197,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    const auto adjust_alg = [](const_dnnl_primitive_desc_t pd, alg_t &alg) {
-        if (alg == alg_t::AUTO) {
-            dnnl_convolution_desc_t *temp_conv_desc = {nullptr};
-            DNN_SAFE(dnnl_primitive_desc_query(
-                             pd, dnnl_query_convolution_d, 0, &temp_conv_desc),
-                    CRIT);
-            alg = conv::alg_kind2alg(temp_conv_desc->alg_kind);
-        }
-        return OK;
-    };
-
-    alg_t alg = prb->alg;
-    adjust_alg(const_pd, alg);
+    alg_t alg = prb->alg == alg_t::AUTO
+            ? conv::alg_kind2alg(query_conv_alg_kind(const_pd))
+            : prb->alg;
     auto cfg = auto_cfg(alg, prb->cfg);
     prb_t p_new((desc_t)*prb, prb->dir, cfg, prb->stag, prb->wtag, prb->dtag,
             alg, prb->attr, prb->mb);
@@ -275,8 +265,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd0 = query_pd(prim0);
 
-    alg = p0->alg;
-    adjust_alg(const_pd0, alg);
+    alg = p0->alg == alg_t::AUTO
+            ? conv::alg_kind2alg(query_conv_alg_kind(const_pd0))
+            : p0->alg;
     cfg = auto_cfg(alg, p0->cfg);
     p0.reset(new prb_t((desc_t)*p0, p0->dir, cfg, p0->stag, p0->wtag, p0->dtag,
             alg, p0->attr, p0->mb));
@@ -329,8 +320,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd1 = query_pd(prim1);
 
-    alg = p1->alg;
-    adjust_alg(const_pd1, alg);
+    alg = p1->alg == alg_t::AUTO
+            ? conv::alg_kind2alg(query_conv_alg_kind(const_pd1))
+            : p1->alg;
     cfg = auto_cfg(alg, p1->cfg);
     p1.reset(new prb_t((desc_t)*p1, p1->dir, cfg, p1->stag, p1->wtag, p1->dtag,
             alg, p1->attr, p1->mb));
