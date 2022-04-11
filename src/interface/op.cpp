@@ -39,8 +39,8 @@ bool dnnl_graph_op::verify() const {
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **op, uint64_t id,
-        op_kind_t kind, const char *const debug_string) {
-    *op = new op_t {id, kind, debug_string};
+        op_kind_t kind, const char *const verbose_name) {
+    *op = new op_t {id, kind, verbose_name};
     return status::success;
 }
 

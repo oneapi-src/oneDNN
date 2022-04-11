@@ -232,11 +232,11 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_engine(
 /// @param id The unique id of this op
 /// @param kind The op kind specifies which computation is represented by
 ///     the op, such as Convolution and ReLU.
-/// @param debug_string The string added for debug
+/// @param verbose_name The string added as the op name.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_create(dnnl_graph_op_t **op,
-        uint64_t id, dnnl_graph_op_kind_t kind, const char *const debug_string);
+        uint64_t id, dnnl_graph_op_kind_t kind, const char *const verbose_name);
 
 /// Destroys the created op
 ///

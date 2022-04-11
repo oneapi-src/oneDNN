@@ -999,11 +999,11 @@ public:
     /// @param id The unique id of this op
     /// @param akind The op kind specifies which computation is represented by
     ///     the op, such as Convolution and ReLU.
-    /// @param debug_string The string added for debug
-    op(size_t id, kind akind, const std::string &debug_string) {
+    /// @param verbose_name The string added for debug
+    op(size_t id, kind akind, const std::string &verbose_name) {
         dnnl_graph_op_t *op {};
         error::check_succeed(dnnl_graph_op_create(&op, id, convert_to_c(akind),
-                                     debug_string.c_str()),
+                                     verbose_name.c_str()),
                 "could not create op with id and op kind");
         reset(op);
     }
@@ -1015,11 +1015,11 @@ public:
     ///     this op, such as Convolution and ReLU.
     /// @param inputs Input logical tensor to be bound to this op.
     /// @param outputs Output logical tensor to be bound to this op
-    /// @param debug_string The string added for debug
+    /// @param verbose_name The string added as the op name.
     op(size_t id, kind akind, const std::vector<logical_tensor> &inputs,
             const std::vector<logical_tensor> &outputs,
-            const std::string &debug_string)
-        : op(id, akind, debug_string) {
+            const std::string &verbose_name)
+        : op(id, akind, verbose_name) {
         for (const auto &input : inputs) {
             error::check_succeed(dnnl_graph_op_add_input(get(), &(input.data)),
                     "adding input to the op failed");
