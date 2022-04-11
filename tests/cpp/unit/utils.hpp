@@ -1247,8 +1247,8 @@ inline impl::logical_tensor_t create_convolution(id_generator &id_gen,
     conv.set_attr<std::string>("filter_format", filter_format);
 
     impl::dims wei_shape = (filter_format == "OIX")
-            ? impl::dims {oc, ic, ks, ks}
-            : impl::dims {ks, ks, ic, oc};
+            ? impl::dims {oc, ic / groups, ks, ks}
+            : impl::dims {ks, ks, ic / groups, oc};
 
     auto wei = utils::logical_tensor_init(
             id_gen.get_id(), wei_shape, src.data_type);
@@ -1417,8 +1417,8 @@ inline impl::logical_tensor_t create_int8_convolution(id_generator &id_gen,
     conv.set_attr<std::string>("filter_format", filter_format);
 
     impl::dims wei_shape = (filter_format == "OIX")
-            ? impl::dims {oc, ic, ks, ks}
-            : impl::dims {ks, ks, ic, oc};
+            ? impl::dims {oc, ic / groups, ks, ks}
+            : impl::dims {ks, ks, ic / groups, oc};
 
     impl::logical_tensor_t int8_wei;
     if (is_quantize_wei) {
@@ -1783,6 +1783,74 @@ inline void construct_itex_int8_resnet50_stage2_block(
                 true, false, 1e-6f, /*no relu*/ false, scale_src, zp_src,
                 scale_out, zp_out, scale_wei, impl::data_type::u8,
                 /*not quantize dst*/ false, true, true);
+        auto dq3 = create_dequantize(
+                id_gen, *agraph, tmp, "per_tensor", {zp_src}, {scale_src}, 0);
+        auto add0 = create_add(id_gen, *agraph, int8_conv2, dq3);
+        auto relu0 = create_relu(id_gen, *agraph, add0);
+        tmp = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+                "per_tensor", std::vector<int64_t> {zp_out},
+                std::vector<float> {scale_out}, 0);
+    }
+}
+
+inline void construct_int8_resnext101_stage3_block(
+        dnnl::graph::impl::graph_t *agraph, id_generator &id_gen,
+        size_t three_conv_block_num = 22) {
+    int64_t ic = 8, oc = 8, ks = 1;
+    std::vector<int64_t> src_shape {1, ic, 12, 12};
+
+    float scale_src = 1 / 255.f, scale_out = 1;
+    int64_t zp_src = 0, zp_out = 78;
+    std::vector<float> scale_wei(oc, 1 / 127.f);
+
+    auto src = utils::logical_tensor_init(
+            id_gen.get_id(), src_shape, impl::data_type::u8);
+
+    // 4-conv block
+    auto int8_conv0 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+    auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0, ic,
+            ks, oc, 4, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    auto int8_conv2 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
+            1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
+            /*no relu*/ false, scale_src, zp_src, scale_out, zp_out, scale_wei,
+            impl::data_type::u8);
+
+    auto int8_conv3 = create_int8_convolution(id_gen, *agraph, int8_conv1, ic,
+            ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+            false, 1e-6f, /*no relu*/ false, scale_src, zp_src, scale_out,
+            zp_out, scale_wei, impl::data_type::u8,
+            /*not quantize dst*/ false);
+    auto dq3 = create_dequantize(id_gen, *agraph, int8_conv2, "per_tensor",
+            {zp_src}, {scale_src}, 0);
+    auto add0 = create_add(id_gen, *agraph, int8_conv3, dq3);
+    auto relu0 = create_relu(id_gen, *agraph, add0);
+    auto q2 = create_quantize(id_gen, *agraph, relu0, impl::data_type::u8,
+            "per_tensor", std::vector<int64_t> {zp_out},
+            std::vector<float> {scale_out}, 0);
+
+    // 22 3-conv block
+    impl::logical_tensor_t tmp = q2;
+    for (size_t i = 0; i < three_conv_block_num; i++) {
+        auto int8_conv0 = create_int8_convolution(id_gen, *agraph, tmp, ic, ks,
+                oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
+                false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out,
+                scale_wei, impl::data_type::u8);
+        auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0,
+                ic, ks, oc, 4, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX",
+                true, false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out,
+                scale_wei, impl::data_type::u8);
+
+        auto int8_conv2 = create_int8_convolution(id_gen, *agraph, int8_conv1,
+                ic, ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX",
+                true, false, 1e-6f, /*no relu*/ false, scale_src, zp_src,
+                scale_out, zp_out, scale_wei, impl::data_type::u8,
+                /*not quantize dst*/ false);
         auto dq3 = create_dequantize(
                 id_gen, *agraph, tmp, "per_tensor", {zp_src}, {scale_src}, 0);
         auto add0 = create_add(id_gen, *agraph, int8_conv2, dq3);

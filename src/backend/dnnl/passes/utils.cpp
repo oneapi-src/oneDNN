@@ -590,8 +590,8 @@ std::vector<value_t *> get_constant_block_output_values(
         const std::vector<op_ptr> &subgraph) {
     using ltw = impl::logical_tensor_wrapper_t;
     std::vector<value_t *> ret;
-    for (auto &cur_op : subgraph) {
-        auto out_vals = cur_op->get_output_values();
+    auto func = [&](impl::op_t *op) {
+        auto out_vals = op->get_output_values();
         for (auto &val : out_vals) {
             if (!ltw(val->get_logical_tensor()).is_constant()) continue;
             // if a constant value feed into a consumer whose output is not
@@ -605,7 +605,9 @@ std::vector<value_t *> get_constant_block_output_values(
                 }
             }
         }
-    }
+        return impl::status::success;
+    };
+    impl::topo_order_visit(impl::graph_t(subgraph).get_output_ops(), func);
     return ret;
 }
 

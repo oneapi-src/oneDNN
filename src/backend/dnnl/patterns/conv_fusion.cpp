@@ -261,11 +261,11 @@ pm::pb_op *int8_identical_bottleneck_resblock(
         bool grouped = false, bool use_biasadd = false,
         bool use_quant_wei = false, bool f32_output = false) {
     pm::pb_op *quant_dst0 = int8_conv_bias_relu(
-            pgraph, input, grouped, use_biasadd, use_quant_wei);
+            pgraph, input, false, use_biasadd, use_quant_wei);
     pm::pb_op *quant_dst1 = int8_conv_bias_relu(
             pgraph, quant_dst0, grouped, use_biasadd, use_quant_wei);
     pm::pb_op *quant_dst2 = int8_conv_bias_add_relu(pgraph, quant_dst1, input,
-            grouped, use_biasadd, use_quant_wei, f32_output);
+            false, use_biasadd, use_quant_wei, f32_output);
     return quant_dst2;
 };
 
@@ -275,13 +275,13 @@ pm::pb_op *int8_convolutional_bottleneck_resblock(
         bool grouped = false, bool use_biasadd = false,
         bool use_quant_wei = false) {
     pm::pb_op *quant_dst0 = int8_conv_bias_relu(
-            pgraph, input, grouped, use_biasadd, use_quant_wei);
+            pgraph, input, false, use_biasadd, use_quant_wei);
     pm::pb_op *quant_dst1 = int8_conv_bias_relu(
             pgraph, quant_dst0, grouped, use_biasadd, use_quant_wei);
-    pm::pb_op *quant_dst2 = int8_conv_bias(
-            pgraph, input, grouped, use_biasadd, use_quant_wei);
-    pm::pb_op *quant_dst3 = int8_conv_bias_add_relu(pgraph, quant_dst1,
-            quant_dst2, grouped, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst2
+            = int8_conv_bias(pgraph, input, false, use_biasadd, use_quant_wei);
+    pm::pb_op *quant_dst3 = int8_conv_bias_add_relu(
+            pgraph, quant_dst1, quant_dst2, false, use_biasadd, use_quant_wei);
     return quant_dst3;
 };
 
@@ -1309,6 +1309,183 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::dnnl_conv_bwd_weights);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// ResNeXt101 stage 1 and stage 4 have 1 convolutional bottleneck residual block
+// and followed by 2 identical bottleneck blocks. The convolution's bias can be
+// connected to conv op directly as an optional input, or it also can be
+// performed by using a separated biasadd op
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        dnnl, int8_resnext101_stage_1_4_fusion)
+        .set_enable(true)
+        .set_priority(22.f) // high priority to support lz models
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, true);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, true, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, true, true);
+                    output = int8_identical_bottleneck_resblock(
+                            pgraph, output, true, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_conv_post_ops_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// ResNeXt101 stage 2 has 1 convolutional bottleneck residual block and followed
+// by 3 identical bottleneck blocks. The convolution's bias can be connected to
+// conv op directly as an optional input, or it also can be performed by using a
+// separated biasadd op
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_stage_2_fusion)
+        .set_enable(true)
+        .set_priority(22.1f) // high priority to support lz models
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, true);
+                    const size_t identical_residual_block_num = 3;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, true, true);
+                    // 3 F(x)+x blocks
+                    const size_t identical_residual_block_num = 3;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_conv_post_ops_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// ResNeXt101 stage 3 has 1 convolutional bottleneck residual block and followed
+// by 22 identical bottleneck blocks. The convolution's bias can be connected to
+// conv op directly as an optional input, or it also can be performed by using a
+// separated biasadd op
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_stage_3_fusion)
+        .set_enable(true)
+        .set_priority(22.2f) // high priority to support lz models
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, true);
+                    const size_t identical_residual_block_num = 22;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, true, true);
+                    const size_t identical_residual_block_num = 22;
+                    for (size_t i = 0; i < identical_residual_block_num; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_conv_post_ops_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
+// ResNeXt101 backbone is the composition of 4 stages, which has 102 conv inside
+// it. The convolution's bias can be connected to conv op directly as an
+// optional input, or it also can be performed by using a separated biasadd op
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_backbone_fusion)
+        .set_enable(true)
+        .set_priority(23.f) // high priority to support lz models
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    // stage 1
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, true);
+                    for (size_t i = 0; i < 2; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true);
+                    // stage 2
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, output, true);
+                    for (size_t i = 0; i < 3; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true);
+                    // stage 3
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, output, true);
+                    for (size_t i = 0; i < 22; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true);
+                    // stage 4
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, output, true);
+                    for (size_t i = 0; i < 2; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true);
+                })
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op *output = nullptr;
+                    // stage 1
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, nullptr, true, true);
+                    for (size_t i = 0; i < 2; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true, true);
+                    // stage 2
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, output, true, true);
+                    for (size_t i = 0; i < 3; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true, true);
+                    // stage 3
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, output, true, true);
+                    for (size_t i = 0; i < 22; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true, true);
+                    // stage 4
+                    output = int8_convolutional_bottleneck_resblock(
+                            pgraph, output, true, true);
+                    for (size_t i = 0; i < 2; i++)
+                        output = int8_identical_bottleneck_resblock(
+                                pgraph, output, true, true);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_conv_post_ops_fusion);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
