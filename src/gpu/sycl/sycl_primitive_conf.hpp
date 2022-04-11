@@ -17,6 +17,7 @@
 #ifndef GPU_SYCL_SYCL_PRIMITIVE_CONF_HPP
 #define GPU_SYCL_SYCL_PRIMITIVE_CONF_HPP
 
+#include "gpu/sycl/sycl_post_ops.hpp"
 #include "gpu/sycl/sycl_types.hpp"
 
 namespace dnnl {
@@ -40,6 +41,8 @@ struct sycl_binary_conf_t {
 
     int block_size;
     int wg_size;
+
+    sycl_post_ops_t post_ops;
 };
 
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);

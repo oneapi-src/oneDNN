@@ -20,6 +20,7 @@
 #include "gpu/gpu_binary_pd.hpp"
 #include "gpu/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/sycl/sycl_io_helper.hpp"
+#include "gpu/sycl/sycl_post_ops.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
 #include "gpu/sycl/sycl_q10n.hpp"
 #include "gpu/sycl/sycl_types.hpp"
@@ -49,9 +50,10 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
             const bool ok = set_default_params() == status::success
                     && check_data_types(src0_d, src1_d, dst_d)
                     && check_formats(src0_d, src1_d, dst_d) && is_tensor_op()
-                    && attr()->has_default_values(sm::scales)
+                    && attr()->has_default_values(sm::scales | sm::post_ops)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask());
+                            check_scales_mask())
+                    && post_ops_ok();
             if (!ok) return status::unimplemented;
             // TODO: extend sycl device info to check supported sub-group sizes.
             auto *sycl_engine
@@ -79,6 +81,23 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
                 if (s.second.mask_ != 0) return false;
             }
             return true;
+        }
+
+        bool post_ops_ok() const {
+            for (int i = 0; i < attr()->post_ops_.len(); i++) {
+                const auto &e = attr()->post_ops_.entry_[i];
+                if (!IMPLICATION(e.is_eltwise(),
+                            utils::one_of(e.eltwise.alg, alg_kind::eltwise_relu,
+                                    alg_kind::eltwise_linear))) {
+                    return false;
+                }
+            }
+            // Binary, prelu and dw conv post-ops are not supported.
+            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
+                    && attr()->post_ops_.find(primitive_kind::binary) == -1
+                    && attr()->post_ops_.find(primitive_kind::prelu) == -1
+                    && attr()->post_ops_.find(primitive_kind::convolution)
+                    == -1;
         }
 
         static bool check_data_types(const memory_desc_wrapper &src0,

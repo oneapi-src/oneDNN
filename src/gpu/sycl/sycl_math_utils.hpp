@@ -24,8 +24,11 @@
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace sycl {
 namespace math {
+
+// Regular math functions.
 
 // The idea is to reuse functions from common math utils whenever it's possible,
 // usually that's the case when the functions do not use functions from a math
@@ -52,8 +55,72 @@ inline U linear_fwd(T s, A alpha, A beta) {
     return impl::math::linear_fwd(s, alpha, beta);
 }
 
+// Math functions that work with `sycl::vec`.
+template <typename T, int width, bool max>
+inline ::sycl::vec<T, width> min_max_vec_impl(
+        ::sycl::vec<T, width> vec_a, ::sycl::vec<T, width> vec_b) {
+    auto vec_res = [&]() {
+        if constexpr (max) {
+            return vec_a > vec_b;
+        } else {
+            return vec_a < vec_b;
+        }
+    }();
+
+    auto max_mask_a = vec_res * -1;
+    auto max_mask_b = !max_mask_a;
+
+    auto max_vec_a = vec_a * max_mask_a.template convert<T>();
+    auto max_vec_b = vec_b * max_mask_b.template convert<T>();
+
+    return max_vec_a + max_vec_b;
+}
+
+template <typename T, int width>
+inline ::sycl::vec<T, width> max_vec(
+        ::sycl::vec<T, width> vec_a, ::sycl::vec<T, width> vec_b) {
+    return min_max_vec_impl<T, width, true>(vec_a, vec_b);
+}
+
+template <typename T, int width>
+inline ::sycl::vec<T, width> min_vec(
+        ::sycl::vec<T, width> vec_a, ::sycl::vec<T, width> vec_b) {
+    return min_max_vec_impl<T, width, false>(vec_a, vec_b);
+}
+
+template <int width>
+inline ::sycl::vec<float, width> relu_fwd(
+        ::sycl::vec<float, width> src_vec, float alpha) {
+    constexpr ::sycl::vec<float, width> zero_vec(0.0f);
+
+    if (alpha == 0.0f) {
+        return max_vec(src_vec, zero_vec);
+    } else {
+        ::sycl::vec<float, 8> alpha_vec(alpha);
+        auto src_copy_vec = src_vec;
+        // Mask to nullify elements that are greater than 0 in src_vec.
+        auto src_vec_mask = (src_vec < zero_vec) * -1;
+        // Scale all elements in `src_vec`.
+        src_vec *= alpha_vec;
+        // Nullify elements that are greater than 0.
+        src_vec *= src_vec_mask.template convert<float>();
+        // Combine scaled negative elements with the elements that are greater
+        // than 0 in `src_copy_vec`.
+        return src_vec + max_vec(src_copy_vec, zero_vec);
+    }
+}
+
+template <int width>
+inline ::sycl::vec<float, width> linear_fwd(
+        ::sycl::vec<float, width> src_vec, float alpha, float beta) {
+    ::sycl::vec<float, width> alpha_vec(alpha);
+    ::sycl::vec<float, width> beta_vec(beta);
+    return alpha_vec * src_vec + beta_vec;
+}
+
 } // namespace math
-} // namespace sycl
+} // namespace math
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
