@@ -588,12 +588,12 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_get_kind(
 /// Creates a new empty graph.
 ///
 /// @param graph The handle of output graph.
-/// @param device_type The kind for engine, it can be #dnnl_graph_any_engine,
+/// @param engine_kind The kind for engine, it can be #dnnl_graph_any_engine,
 ///     #dnnl_graph_cpu and #dnnl_graph_gpu.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_create(
-        dnnl_graph_graph_t **graph, dnnl_graph_engine_kind_t device_type);
+        dnnl_graph_graph_t **graph, dnnl_graph_engine_kind_t engine_kind);
 
 /// Destroy the target graph.
 ///
