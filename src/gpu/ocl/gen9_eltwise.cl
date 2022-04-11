@@ -43,7 +43,7 @@ __kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
     const uint nel_per_read = SIMD * VECT_DT_N;
 
     // READ
-    if (offset + nel_per_read < nelems) {
+    if (!NELEMS_OVERFLOW || offset + nel_per_read < nelems) {
         val = AS_VECT_DATA_T(VECT_BLOCK_READ(read_pos));
 
     } else {
@@ -62,7 +62,7 @@ __kernel void gen9_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
     }
 
     // WRITE
-    if (offset + nel_per_read < nelems) {
+    if (!NELEMS_OVERFLOW || offset + nel_per_read < nelems) {
         VECT_BLOCK_WRITE(write_pos, AS_VECT_BLOCK_DATA_T(val));
 
     } else {
@@ -100,7 +100,7 @@ __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     const uint nel_per_read = SIMD * VECT_DT_N;
 
     // READ
-    if (offset + nel_per_read < nelems) {
+    if (!NELEMS_OVERFLOW || offset + nel_per_read < nelems) {
         val_src = AS_VECT_DATA_T(VECT_BLOCK_READ(src_pos));
         val_dd = AS_VECT_DATA_T(VECT_BLOCK_READ(diff_pos));
 
@@ -121,7 +121,7 @@ __kernel void gen9_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     }
 
     // WRITE
-    if (offset + nel_per_read < nelems) {
+    if (!NELEMS_OVERFLOW || offset + nel_per_read < nelems) {
         VECT_BLOCK_WRITE(write_pos, AS_VECT_BLOCK_DATA_T(val_dd));
 
     } else {

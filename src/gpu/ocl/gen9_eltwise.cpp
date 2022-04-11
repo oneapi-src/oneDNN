@@ -34,6 +34,10 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("VECT_DT_N", conf.vector_size);
 
+    const int local_block_size = conf.work_group_size * conf.vector_size;
+    kernel_ctx.define_int("NELEMS_OVERFLOW",
+            (data_d.nelems(conf.with_zero_padding) % local_block_size) != 0);
+
     // attribute for wg-size and subgroup-size
     kernel_ctx.define_int("GWS_WITH_SG_DEFAULT", 1);
     // wg-size
