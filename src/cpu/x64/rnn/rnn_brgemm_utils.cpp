@@ -309,8 +309,8 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
 
     rnn.nthr = dnnl_get_max_threads();
     const bool is_amx_isa_selected = rnn.is_int8_amx() || rnn.is_bf16_amx();
-    const bool can_use_block64 = is_amx_isa_selected && rnn.N % 64 == 0
-            && !rnn.is_training && !rnn.is_lstm_projection;
+    const bool can_use_block64
+            = is_amx_isa_selected && rnn.N % 64 == 0 && !rnn.is_lstm_projection;
     rnn.n_block = can_use_block64 ? 64 : 32;
     rnn.N_blocks = utils::div_up(rnn.N, rnn.n_block);
     rnn.n_tail = rnn.N % rnn.n_block;
