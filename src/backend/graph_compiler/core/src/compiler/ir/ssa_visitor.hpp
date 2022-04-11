@@ -39,8 +39,11 @@ protected:
     std::vector<stmt_c> *current_scope_ = nullptr;
     // the stmts to be inserted after visit() of current stmt
     std::vector<stmt_c> stmts_to_insert_after;
+    uint64_t var_def_idx_ = 0;
     expr_c dispatch(expr_c e) override;
     stmt_c dispatch(stmt_c e) override;
+
+    define make_def(const expr_c &v);
 
     // reference root of the expr nodes that has been visited during one call
     // of top_level_dispatch. will be cleared after top_level_dispatch returns

@@ -37,13 +37,13 @@ namespace sc {
  * */
 enum class sc_stmt_type {
     undef = 0,
-    assign,
-    stmts,
-    if_else,
-    evaluate,
-    for_loop,
-    returns,
-    define,
+#define _SC_DEFINE_STMT(t, ...) t,
+    FOR_EACH_STMT_IR_TYPE(_SC_DEFINE_STMT)
+
+#undef _SC_DEFINE_STMT
+    // clang-format off
+    MAX_TYPE = define
+    // clang-format on
 };
 
 namespace stmt_attr_key {

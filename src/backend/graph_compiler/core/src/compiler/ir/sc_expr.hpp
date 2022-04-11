@@ -31,6 +31,7 @@
 #if SC_MEMORY_LEAK_CHECK > 0
 #include <util/leak_detector.hpp>
 #endif
+#include "ir_node_names.hpp"
 #include <util/utils.hpp>
 
 namespace sc {
@@ -52,32 +53,13 @@ extern void print_indents(ostream &os, int indent);
  * */
 enum class sc_expr_type {
     undef = 0,
-    constant,
-    var,
-    cast,
-    add,
-    sub,
-    mul,
-    div,
-    mod,
-    cmp_eq,
-    cmp_ne,
-    cmp_lt,
-    cmp_le,
-    cmp_gt,
-    cmp_ge,
-    logic_and,
-    logic_or,
-    logic_not,
-    select,
-    indexing,
-    call,
-    tensor,
-    tensorptr,
-    intrin_call,
-    ssa_phi,
-    func_addr,
-    low_level_intrin,
+#define _SC_DEFINE_EXPR(t, ...) t,
+    FOR_EACH_EXPR_IR_TYPE(_SC_DEFINE_EXPR)
+
+#undef _SC_DEFINE_EXPR
+    // clang-format off
+    MAX_TYPE = low_level_intrin
+    // clang-format on
 };
 
 std::ostream &operator<<(std::ostream &os, sc_expr_type val);

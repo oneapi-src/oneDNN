@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "ir_utils.hpp"
 #include "ssa_data.hpp"
 #include <compiler/ir/builder.hpp>
 #include <util/array_ref.hpp>
@@ -33,84 +34,6 @@ expr ssa_data_t::get_value_of_var() const {
     COMPILE_ASSERT(owner->node_type_ == sc_stmt_type::define,
             "Expecting define_node for get_value_of_var");
     return static_cast<define_node_t *>(owner.get())->init_;
-}
-
-void get_direct_dependency_of_expr(
-        const expr &v, const std::function<void(array_ref<expr>)> &callback) {
-    switch (v->node_type_) {
-        case sc_expr_type::undef: assert(0 && "Unreachable"); break;
-        case sc_expr_type::constant:
-        case sc_expr_type::func_addr: break;
-        case sc_expr_type::tensor:
-        case sc_expr_type::var: {
-            if (utils::is_uninitialized_weakptr(v->ssa_data_->owner_)) {
-                // a var/tensor can be attached none of the define_node, which
-                // means it is a parameter
-                break;
-            }
-            stmt owner {v->ssa_data_->owner_.lock()};
-            assert(owner.defined());
-            auto init = owner.static_as<define>()->init_;
-            if (owner.isa<define>() && init.defined()) {
-                if (init.isa<var>()) {
-                    callback({init});
-                } else {
-                    get_direct_dependency_of_expr(init, callback);
-                }
-            }
-        } break;
-        case sc_expr_type::cast: callback({v.static_as<cast>()->in_}); break;
-        case sc_expr_type::add:
-        case sc_expr_type::sub:
-        case sc_expr_type::mul:
-        case sc_expr_type::div:
-        case sc_expr_type::mod: {
-            auto val = v.static_as<binary>();
-            callback({val->l_, val->r_});
-        } break;
-        case sc_expr_type::cmp_eq:
-        case sc_expr_type::cmp_ne:
-        case sc_expr_type::cmp_lt:
-        case sc_expr_type::cmp_le:
-        case sc_expr_type::cmp_gt:
-        case sc_expr_type::cmp_ge: {
-            auto val = v.static_as<cmp>();
-            callback({val->l_, val->r_});
-        } break;
-        case sc_expr_type::logic_and:
-        case sc_expr_type::logic_or: {
-            auto val = v.static_as<logic>();
-            callback({val->l_, val->r_});
-        } break;
-        case sc_expr_type::logic_not:
-            callback(&v.static_as<logic_not>()->in_);
-            break;
-        case sc_expr_type::select: {
-            auto val = v.static_as<select>();
-            callback({val->cond_, val->l_, val->r_});
-        } break;
-        case sc_expr_type::indexing: {
-            auto val = v.static_as<indexing>();
-            callback(&val->ptr_);
-            callback(val->idx_);
-            if (val->mask_.defined()) { callback(&val->mask_); }
-        } break;
-        case sc_expr_type::call: callback(v.static_as<call>()->args_); break;
-        case sc_expr_type::tensorptr: {
-            auto val = v.static_as<tensorptr>();
-            callback(&val->base_->ptr_);
-            callback(val->base_->idx_);
-        } break;
-        case sc_expr_type::intrin_call:
-            callback(v.static_as<intrin_call>()->args_);
-            break;
-        case sc_expr_type::low_level_intrin:
-            callback(v.static_as<low_level_intrin>()->args_);
-            break;
-        case sc_expr_type::ssa_phi:
-            callback(v.static_as<ssa_phi>()->values_);
-            break;
-    }
 }
 
 expr_c ssa_visitor_t::dispatch(expr_c e) {
@@ -271,11 +194,9 @@ stmt_c ssa_visitor_t::visit(stmts_c v) {
     }
 }
 
-static std::atomic<uint64_t> var_def_idx = {0};
-
-static define make_def(const expr_c &v) {
+define ssa_visitor_t::make_def(const expr_c &v) {
     auto ret = builder::make_var(
-            v->dtype_, std::string("__tmp") + std::to_string(var_def_idx++));
+            v->dtype_, std::string("__tmp") + std::to_string(var_def_idx_++));
     ret->ssa_data_ = utils::make_unique<ssa_data_t>();
     if (!v->ssa_data_) {
         v.remove_const()->ssa_data_ = utils::make_unique<ssa_data_t>();

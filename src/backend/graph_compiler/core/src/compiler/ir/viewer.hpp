@@ -45,90 +45,19 @@ public:
      * Override the view() functions below to visit the
      * IR that you are interested
      * */
-    virtual void view(constant_c v);
-    virtual void view(var_c v);
-    virtual void view(cast_c v);
 
-    virtual void view(binary_c v);
-    virtual void view(add_c v);
-    virtual void view(sub_c v);
-    virtual void view(mul_c v);
-    virtual void view(div_c v);
-    virtual void view(mod_c v);
+#define SC_VIEWER_METHODS_IMPL(node_type, ...) \
+    virtual void view(node_type##_c v);
 
-    virtual void view(cmp_c v);
-    virtual void view(cmp_eq_c v);
-    virtual void view(cmp_lt_c v);
-    virtual void view(cmp_le_c v);
-    virtual void view(cmp_gt_c v);
-    virtual void view(cmp_ge_c v);
-    virtual void view(cmp_ne_c v);
+#define SC_VIEWER_METHODS() \
+    FOR_EACH_EXPR_IR_TYPE(SC_VIEWER_METHODS_IMPL) \
+    FOR_EACH_STMT_IR_TYPE(SC_VIEWER_METHODS_IMPL) \
+    FOR_EACH_BASE_EXPR_IR_TYPE(SC_VIEWER_METHODS_IMPL)
 
-    virtual void view(logic_c v);
-    virtual void view(logic_and_c v);
-    virtual void view(logic_or_c v);
-
-    virtual void view(logic_not_c v);
-    virtual void view(select_c v);
-    virtual void view(indexing_c v);
-    virtual void view(call_c v);
-    virtual void view(tensor_c v);
-    virtual void view(tensorptr_c v);
-    virtual void view(intrin_call_c v);
-    virtual void view(func_addr_c v);
-    virtual void view(ssa_phi_c v);
-    virtual void view(low_level_intrin_c v);
-
-    virtual void view(assign_c v);
-    virtual void view(stmts_c v);
-    virtual void view(if_else_c v);
-    virtual void view(evaluate_c v);
-    virtual void view(returns_c v);
-    virtual void view(define_c v);
-    virtual void view(for_loop_c v);
+    SC_VIEWER_METHODS()
 
 private:
-    expr_c visit(constant_c v) final;
-    expr_c visit(var_c v) final;
-    expr_c visit(cast_c v) final;
-
-    expr_c visit(binary_c v) final;
-    expr_c visit(add_c v) final;
-    expr_c visit(sub_c v) final;
-    expr_c visit(mul_c v) final;
-    expr_c visit(div_c v) final;
-    expr_c visit(mod_c v) final;
-
-    expr_c visit(cmp_c v) final;
-    expr_c visit(cmp_eq_c v) final;
-    expr_c visit(cmp_lt_c v) final;
-    expr_c visit(cmp_le_c v) final;
-    expr_c visit(cmp_gt_c v) final;
-    expr_c visit(cmp_ge_c v) final;
-    expr_c visit(cmp_ne_c v) final;
-
-    expr_c visit(logic_c v) final;
-    expr_c visit(logic_and_c v) final;
-    expr_c visit(logic_or_c v) final;
-
-    expr_c visit(logic_not_c v) final;
-    expr_c visit(select_c v) final;
-    expr_c visit(indexing_c v) final;
-    expr_c visit(call_c v) final;
-    expr_c visit(tensor_c v) final;
-    expr_c visit(tensorptr_c v) final;
-    expr_c visit(intrin_call_c v) final;
-    expr_c visit(func_addr_c v) final;
-    expr_c visit(ssa_phi_c v) final;
-    expr_c visit(low_level_intrin_c v) final;
-
-    stmt_c visit(assign_c v) final;
-    stmt_c visit(stmts_c v) final;
-    stmt_c visit(if_else_c v) final;
-    stmt_c visit(evaluate_c v) final;
-    stmt_c visit(returns_c v) final;
-    stmt_c visit(define_c v) final;
-    stmt_c visit(for_loop_c v) final;
+    SC_VISITOR_METHODS(final)
 };
 
 } // namespace sc

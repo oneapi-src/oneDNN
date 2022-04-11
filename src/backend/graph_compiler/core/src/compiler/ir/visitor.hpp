@@ -25,43 +25,13 @@ namespace sc {
 // this macro declares visit_impl() on all IR node classes
 // The POSTFIX can be "=0", "final", etc.
 // use NOLINT since POSTFIX should not be enclosed in parentheses
+#define SC_BASE_VISITOR_METHODS_IMPL(node_type, ret_type, POSTFIX) \
+    virtual ret_type visit_impl(node_type v) POSTFIX; /* NOLINT*/
+
 #define SC_BASE_VISITOR_METHODS(POSTFIX) \
-    virtual expr visit_impl(constant v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(var v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(cast v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(binary v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(add v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(sub v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(mul v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(div v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(mod v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(cmp v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(cmp_eq v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(cmp_lt v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(cmp_le v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(cmp_gt v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(cmp_ge v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(cmp_ne v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(logic v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(logic_and v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(logic_or v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(logic_not v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(select v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(indexing v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(call v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(tensor v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(tensorptr v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(intrin_call v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(func_addr v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(ssa_phi v) POSTFIX; /* NOLINT*/ \
-    virtual expr visit_impl(low_level_intrin v) POSTFIX; /* NOLINT*/ \
-    virtual stmt visit_impl(assign v) POSTFIX; /* NOLINT*/ \
-    virtual stmt visit_impl(stmts v) POSTFIX; /* NOLINT*/ \
-    virtual stmt visit_impl(if_else v) POSTFIX; /* NOLINT*/ \
-    virtual stmt visit_impl(evaluate v) POSTFIX; /* NOLINT*/ \
-    virtual stmt visit_impl(returns v) POSTFIX; /* NOLINT*/ \
-    virtual stmt visit_impl(define v) POSTFIX; /* NOLINT*/ \
-    virtual stmt visit_impl(for_loop v) POSTFIX; /* NOLINT*/
+    FOR_EACH_EXPR_IR_TYPE(SC_BASE_VISITOR_METHODS_IMPL, expr, POSTFIX) \
+    FOR_EACH_STMT_IR_TYPE(SC_BASE_VISITOR_METHODS_IMPL, stmt, POSTFIX) \
+    FOR_EACH_BASE_EXPR_IR_TYPE(SC_BASE_VISITOR_METHODS_IMPL, expr, POSTFIX)
 
 // The base interface class for all visitors
 class ir_visitor_base_t {
@@ -116,6 +86,14 @@ public:
     SC_BASE_VISITOR_METHODS()
     bool changed_ = false;
 };
+
+#define SC_VISITOR_METHODS_IMPL(node_type, ret_type, POSTFIX) \
+    virtual ret_type visit(node_type##_c v) POSTFIX; /* NOLINT*/
+
+#define SC_VISITOR_METHODS(POSTFIX) \
+    FOR_EACH_EXPR_IR_TYPE(SC_VISITOR_METHODS_IMPL, expr_c, POSTFIX) \
+    FOR_EACH_STMT_IR_TYPE(SC_VISITOR_METHODS_IMPL, stmt_c, POSTFIX) \
+    FOR_EACH_BASE_EXPR_IR_TYPE(SC_VISITOR_METHODS_IMPL, expr_c, POSTFIX)
 
 /**
  * The base class of copy-on-write IR passes.
@@ -182,47 +160,8 @@ public:
      * @return the IR node replaces the input node
      */
     virtual func_c dispatch(func_c v);
-    virtual expr_c visit(constant_c v);
-    virtual expr_c visit(var_c v);
-    virtual expr_c visit(cast_c v);
 
-    virtual expr_c visit(binary_c v);
-    virtual expr_c visit(add_c v);
-    virtual expr_c visit(sub_c v);
-    virtual expr_c visit(mul_c v);
-    virtual expr_c visit(div_c v);
-    virtual expr_c visit(mod_c v);
-
-    virtual expr_c visit(cmp_c v);
-    virtual expr_c visit(cmp_eq_c v);
-    virtual expr_c visit(cmp_lt_c v);
-    virtual expr_c visit(cmp_le_c v);
-    virtual expr_c visit(cmp_gt_c v);
-    virtual expr_c visit(cmp_ge_c v);
-    virtual expr_c visit(cmp_ne_c v);
-
-    virtual expr_c visit(logic_c v);
-    virtual expr_c visit(logic_and_c v);
-    virtual expr_c visit(logic_or_c v);
-
-    virtual expr_c visit(logic_not_c v);
-    virtual expr_c visit(select_c v);
-    virtual expr_c visit(indexing_c v);
-    virtual expr_c visit(call_c v);
-    virtual expr_c visit(tensor_c v);
-    virtual expr_c visit(tensorptr_c v);
-    virtual expr_c visit(intrin_call_c v);
-    virtual expr_c visit(func_addr_c v);
-    virtual expr_c visit(ssa_phi_c v);
-    virtual expr_c visit(low_level_intrin_c v);
-
-    virtual stmt_c visit(assign_c v);
-    virtual stmt_c visit(stmts_c v);
-    virtual stmt_c visit(if_else_c v);
-    virtual stmt_c visit(evaluate_c v);
-    virtual stmt_c visit(returns_c v);
-    virtual stmt_c visit(define_c v);
-    virtual stmt_c visit(for_loop_c v);
+    SC_VISITOR_METHODS()
 
 private:
     // we want to hide dispatch_impl and prevent it from being overriden
