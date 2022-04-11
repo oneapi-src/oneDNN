@@ -324,15 +324,19 @@ void validate_impl_t::view(intrin_call_c v) {
         case intrin_type::shuffle:
         case intrin_type::permute:
             validate_type(v);
-            COMPILE_ASSERT(v->args_.size() == 3,
-                    "Trinary intrinsics take three parameters. Got " << v);
+            COMPILE_ASSERT(v->args_.size() == 2,
+                    "Shuffle/permute intrinsics take two parameters. Got "
+                            << v);
             COMPILE_ASSERT(v->args_[0]->dtype_ == v->args_[1]->dtype_
-                            && v->args_[2]->dtype_ == sc_data_type_t::s32(),
+                            && (v->intrin_attrs_->get_or_else("shuffle_imm", -1)
+                                            != -1
+                                    || v->intrin_attrs_->get_or_else(
+                                               "permute_imm", -1)
+                                            != -1),
                     "The types of the first two args should be the same and "
-                    "the third arg should be int: "
+                    "the third arg should be valid imm: "
                             << v->args_[0]->dtype_ << " v.s. "
-                            << v->args_[1]->dtype_ << ", "
-                            << v->args_[2]->dtype_ << ", expr = " << v);
+                            << v->args_[1]->dtype_ << ", expr = " << v);
             break;
         case intrin_type::broadcast:
             validate_type(v);

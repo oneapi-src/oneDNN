@@ -1456,7 +1456,7 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
         command, dst, src1, src2, mask, cond) \
     cur_list.emplace_back(builder::make_assign_unattached(rows[((dst)-1)], \
             builder::make_##command( \
-                    rows[((src1)-1)], rows[((src2)-1)], expr(mask))));
+                    rows[((src1)-1)], rows[((src2)-1)], mask)));
 
 #define TRANS2D_REG_CALCULATION_F32() \
     TRANS2D_UNPACK_ASSIGN(low, 9, 1, 2, 32) \

@@ -988,12 +988,12 @@ public:
                         = builder_.CreateShuffleVector(inval1, inval2, arr);
             } break;
             case intrin_type::shuffle: {
-                assert(v->args_.size() == 3);
+                assert(v->args_.size() == 2);
                 COMPILE_ASSERT(v->dtype_.lanes_ == 8,
                         "Expecting 8-lane for shuffle: " << v);
                 auto inval1 = generate_expr(v->args_[0]);
                 auto inval2 = generate_expr(v->args_[1]);
-                auto imm8 = get_expr_as_int(v->args_[2]);
+                auto imm8 = v->intrin_attrs_->get<int>("shuffle_imm");
                 shuffle_idx_t array[8];
                 for (int i = 0; i <= 6; i += 2) {
                     auto arr_idx = i / 2;
@@ -1010,12 +1010,12 @@ public:
                         = builder_.CreateShuffleVector(inval1, inval2, array);
             } break;
             case intrin_type::permute: {
-                assert(v->args_.size() == 3);
+                assert(v->args_.size() == 2);
                 COMPILE_ASSERT(v->dtype_.lanes_ == 8,
                         "Expecting 8-lane for permute: " << v);
                 auto inval1 = generate_expr(v->args_[0]);
                 auto inval2 = generate_expr(v->args_[1]);
-                auto imm8 = get_expr_as_int(v->args_[2]);
+                auto imm8 = v->intrin_attrs_->get<int>("permute_imm");
                 shuffle_idx_t array[8];
                 auto low_idx = 0, high_idx = 0;
                 switch (imm8 % 4) {

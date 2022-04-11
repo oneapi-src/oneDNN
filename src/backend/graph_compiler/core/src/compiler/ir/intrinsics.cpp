@@ -165,12 +165,12 @@ struct unpack_high_handler_t : public binary_intrinsic_handler_t {
     unpack_high_handler_t() : binary_intrinsic_handler_t("unpack_high") {}
 };
 
-struct shuffle_handler_t : public trinary_intrinsic_handler_t {
-    shuffle_handler_t() : trinary_intrinsic_handler_t("shuffle") {}
+struct shuffle_handler_t : public binary_intrinsic_handler_t {
+    shuffle_handler_t() : binary_intrinsic_handler_t("shuffle") {}
 };
 
-struct permute_handler_t : public trinary_intrinsic_handler_t {
-    permute_handler_t() : trinary_intrinsic_handler_t("permute") {}
+struct permute_handler_t : public binary_intrinsic_handler_t {
+    permute_handler_t() : binary_intrinsic_handler_t("permute") {}
 };
 
 struct reinterpret_handler_t : public intrinsic_handler_t {

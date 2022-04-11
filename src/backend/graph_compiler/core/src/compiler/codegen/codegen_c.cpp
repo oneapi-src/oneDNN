@@ -125,6 +125,12 @@ void codegen_c_vis::print_type(sc_data_type_t dtype) {
             case sc_data_type_t::u8(32): *os << "vec_u8x32"; break;
             case sc_data_type_t::u8(64): *os << "vec_u8x64"; break;
 
+            case sc_data_type_t::boolean(4): *os << "uint8_t"; break;
+            case sc_data_type_t::boolean(8): *os << "uint8_t"; break;
+            case sc_data_type_t::boolean(16): *os << "uint16_t"; break;
+            case sc_data_type_t::boolean(32): *os << "uint32_t"; break;
+            case sc_data_type_t::boolean(64): *os << "uint64_t"; break;
+
             default:
                 COMPILE_ASSERT(
                         0, "Cannot generate vector type for C++: " << dtype);
@@ -330,10 +336,22 @@ void codegen_c_vis::view(intrin_call_c v) {
             *os << ')';
             break;
         case intrin_type::shuffle:
-            trinary_func_codegen_c(v, "sc_shuffle");
+            *os << "sc_shuffle(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            dispatch(v->args_[1]);
+            *os << ", ";
+            *os << v->intrin_attrs_->get<int>("shuffle_imm");
+            *os << ')';
             break;
         case intrin_type::permute:
-            trinary_func_codegen_c(v, "sc_permute");
+            *os << "sc_permute(";
+            dispatch(v->args_[0]);
+            *os << ", ";
+            dispatch(v->args_[1]);
+            *os << ", ";
+            *os << v->intrin_attrs_->get<int>("permute_imm");
+            *os << ')';
             break;
         case intrin_type::broadcast:
             print_type(v->dtype_);

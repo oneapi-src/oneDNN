@@ -36,6 +36,7 @@
 #include <compiler/ir/transform/index_flatten.hpp>
 #include <compiler/ir/transform/insert_trace.hpp>
 #include <compiler/ir/transform/interface_generalize.hpp>
+#include <compiler/ir/transform/loop_invariant_code_motion.hpp>
 #include <compiler/ir/transform/loop_merge.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
@@ -96,6 +97,8 @@ sequential_module_pass_t get_default_precodegen_passes(
             module_function_pass_t::make<local_tensor_lowering_cpu_t>(128));
     if (ctx->flags_.ssa_passes_) {
         ret.emplace_back(module_function_pass_t::make<ssa_transform_t>());
+        ret.emplace_back(
+                module_function_pass_t::make<loop_invariant_code_motion_t>());
         ret.emplace_back(module_function_pass_t::make<dessa_transform_t>());
     }
     return sequential_module_pass_t(std::move(ret));

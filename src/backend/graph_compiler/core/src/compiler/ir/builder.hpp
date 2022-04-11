@@ -502,7 +502,7 @@ expr make_unpack_high(const expr_c &v_a, const expr_c &v_b, int elem_bits = 32);
  * @param v_c the third input value
  * @return the created node
  * */
-expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c);
+expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const int &v_c);
 
 /**
  * Makes an permute node
@@ -530,7 +530,7 @@ expr make_shuffle(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c);
  * @param v_c the third input value
  * @return the created node
  * */
-expr make_permute(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c);
+expr make_permute(const expr_c &v_a, const expr_c &v_b, const int &v_c);
 
 /**
  * Makes a cmp_eq (==) node
