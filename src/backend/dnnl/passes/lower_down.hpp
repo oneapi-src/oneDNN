@@ -82,17 +82,17 @@ impl::status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg);
 
-/// translate mixed int8/bf16 matmul subgraph to x8x8bf16 subgraph
+/// translate mixed int8/bf16 matmul/convolution subgraph to x8x8bf16 subgraph
 ///
 ///     | (u8/s8)  | (u8/s8)               | (u8/s8)  | (u8/s8)
 ///  dequant    dequant                 dequant    dequant
 ///     | (f32)    | (f32)                 | (f32)    | (f32)
 ///  typecast  typecast         -->         \        /
-/// (bf16) \     / (bf16)                     matmul
-///        matmul                               | (bf16)
+/// (bf16) \     / (bf16)                     matmul/conv
+///      matmul/conv                             | (bf16)
 ///          | (bf16)
 ///
-impl::status_t fuse_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
+impl::status_t fuse_typecast_to_matmul_or_conv(std::shared_ptr<subgraph_t> &sg);
 
 /// translate mixed int8/bf16 matmul+add subgraph to x8x8bf16 subgraph
 ///
@@ -106,12 +106,12 @@ impl::status_t fuse_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
 ///              | (bf16)
 impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg);
 
-/// translate mixed int8/bf16 matmul(+post_ops) subgraph to int8 subgraph
+/// translate mixed int8/bf16 matmul/conv(+post_ops) subgraph to int8 subgraph
 ///
 ///     | (u8/s8)  | (u8/s8)               | (u8/s8)  | (u8/s8)
 ///  dequant    dequant                 dequant    dequant
 ///     \ (fp32)   / (fp32)     -->         \ (fp32)  / (fp32)
-///        matmul                             matmul
+///      matmul/conv                        matmul/conv
 ///          | (bf16)                           | (f32)
 ///      (post_ops)                         (post_ops)
 ///          | (bf16)                           | (f32)
@@ -119,7 +119,8 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg);
 ///          | (fp32)                           | (u8/s8)
 ///        quant
 ///          | (u8/s8)
-impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg);
+impl::status_t fuse_post_typecast_to_matmul_or_conv(
+        std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg);
 

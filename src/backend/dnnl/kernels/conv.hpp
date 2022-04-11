@@ -185,7 +185,16 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
-        if (!quantized) { BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding); }
+        if (!quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding);
+        } else {
+            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
+            BACKEND_DNNL_ADD_PASS(
+                    pipeline, fuse_post_typecast_to_matmul_or_conv);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
+        }
         BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
 
@@ -198,7 +207,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
 
         if (quantized) {
-            BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_conv_or_deconv);
             BACKEND_DNNL_ADD_PASS(pipeline, folding_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);

@@ -2143,11 +2143,14 @@ impl::status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t fuse_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t fuse_typecast_to_matmul_or_conv(
+        std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_matmul
+                && cur_op->get_kind() != op_kind::dnnl_convolution)
+            continue;
         auto &in0 = cur_op->get_input_value(0)->get_producer();
         auto &in1 = cur_op->get_input_value(1)->get_producer();
         if (is_typecast(&in0) && is_typecast(&in1)
@@ -2163,15 +2166,16 @@ impl::status_t fuse_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg) {
 
     std::vector<op_t *> to_be_removed_ops;
     for (auto &fusion_group : fusion_groups) {
-        op_t *matmul_op = fusion_group[0];
+        op_t *base_op = fusion_group[0];
         op_t *in0 = fusion_group[1];
         op_t *in1 = fusion_group[2];
 
-        // update the connection relationship between matmul and typecast ops
+        // update the connection relationship between matmul/convolution and
+        // typecast ops
         auto in0_value = in0->get_input_value(0);
         auto in1_value = in1->get_input_value(0);
-        matmul_op->connect_input(0, in0_value);
-        matmul_op->connect_input(1, in1_value);
+        base_op->connect_input(0, in0_value);
+        base_op->connect_input(1, in1_value);
         in0_value->remove_consumer(*in0, 0);
         in1_value->remove_consumer(*in1, 0);
 
@@ -2200,15 +2204,19 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
         if (!(cur_op->get_input_value(0)->has_producer()
                     && cur_op->get_input_value(1)->has_producer()))
             continue;
+
         auto &in0 = cur_op->get_input_value(0)->get_producer();
         auto &in1 = cur_op->get_input_value(1)->get_producer();
-        if (is_typecast(&in0) && in1.get_kind() == op_kind::dnnl_matmul
+        if (is_typecast(&in0)
+                && (in1.get_kind() == op_kind::dnnl_matmul
+                        || in1.get_kind() == op_kind::dnnl_convolution)
                 && in0.get_input_value(0)->get_producer().get_kind()
                         == dnnl_impl::op_kind::dnnl_mul_scales) {
             fusion_groups.emplace_back(
                     std::vector<op_t *> {cur_op.get(), &in0});
         } else if (is_typecast(&in1)
-                && in0.get_kind() == op_kind::dnnl_matmul) {
+                && (in0.get_kind() == op_kind::dnnl_matmul
+                        || in0.get_kind() == op_kind::dnnl_convolution)) {
             fusion_groups.emplace_back(
                     std::vector<op_t *> {cur_op.get(), &in1});
         } else {
@@ -2247,7 +2255,7 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
         auto scratchpad_val = add_op->get_output_value(1);
         new_add_op->connect_output(1, scratchpad_val);
 
-        // delete original matmul and typecast ops
+        // delete original matmul/convolution and typecast ops
         for (auto &del_op : fusion_group) {
             auto pos = std::find_if(subgraph.begin(), subgraph.end(),
                     [del_op](const op_ptr &f_op) {
@@ -2261,12 +2269,15 @@ impl::status_t fuse_typecast_to_add(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
-impl::status_t fuse_post_typecast_to_matmul(std::shared_ptr<subgraph_t> &sg) {
+impl::status_t fuse_post_typecast_to_matmul_or_conv(
+        std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
     const std::set<op_kind_t> post_ops_kinds {impl::op_kind::GELU};
     std::vector<std::vector<op_t *>> fusion_groups;
     for (const auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
+        if (cur_op->get_kind() != op_kind::dnnl_matmul
+                && cur_op->get_kind() != op_kind::dnnl_convolution)
+            continue;
         auto out = cur_op->get_output_value(0);
         if (out->get_consumers().size() != 1) continue;
         auto &next_op = out->get_consumers()[0].get_op();

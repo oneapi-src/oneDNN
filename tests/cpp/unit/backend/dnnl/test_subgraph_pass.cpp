@@ -1370,9 +1370,9 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
 
     dnnl_impl::lower_down(subgraph);
     dnnl_impl::split_quant_dequant(subgraph);
-    dnnl_impl::fuse_typecast_to_matmul(subgraph);
+    dnnl_impl::fuse_typecast_to_matmul_or_conv(subgraph);
     dnnl_impl::fuse_typecast_to_add(subgraph);
-    dnnl_impl::fuse_post_typecast_to_matmul(subgraph);
+    dnnl_impl::fuse_post_typecast_to_matmul_or_conv(subgraph);
     dnnl_impl::fuse_typecast_to_mul_scales(subgraph);
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::binary_canonicalization(subgraph);
