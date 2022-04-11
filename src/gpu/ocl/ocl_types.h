@@ -1317,20 +1317,31 @@
 
 #endif
 
-#define SECOND(a, b, ...) b
-#define IS_ONE_TEST(...) SECOND(__VA_ARGS__, 0)
-#define IS_ONE_1 "", 1
-#define IS_ONE(x) IS_ONE_TEST(CONCAT2(IS_ONE_, x))
-#define IF_THEN_1(then) then
-#define IF_THEN_0(then)
-#define IF_THEN(x, then) CONCAT2(IF_THEN_, IS_ONE(x))(then)
+#if SRC_DT_U8 == 1
+#define SRC_DT_ALIAS UCHAR
+#elif SRC_DT_S8 == 1
+#define SRC_DT_ALIAS CHAR
+#elif SRC_DT_F16 == 1
+#define SRC_DT_ALIAS HALF
+#elif SRC_DT_BF16 == 1
+#define SRC_DT_ALIAS BFLOAT
+#elif SRC_DT_F32 == 1
+#define SRC_DT_ALIAS FLOAT
+#endif
 
-#define ALIAS(prefix) \
-    IF_THEN(CONCAT2(prefix, _DT_U8), UCHAR) \
-    IF_THEN(CONCAT2(prefix, _DT_S8), CHAR) \
-    IF_THEN(CONCAT2(prefix, _DT_F16), HALF) \
-    IF_THEN(CONCAT2(prefix, _DT_BF16), BFLOAT) \
-    IF_THEN(CONCAT2(prefix, _DT_F32), FLOAT)
+#if DST_DT_U8 == 1
+#define DST_DT_ALIAS UCHAR
+#elif DST_DT_S8 == 1
+#define DST_DT_ALIAS CHAR
+#elif DST_DT_F16 == 1
+#define DST_DT_ALIAS HALF
+#elif DST_DT_BF16 == 1
+#define DST_DT_ALIAS BFLOAT
+#elif DST_DT_F32 == 1
+#define DST_DT_ALIAS FLOAT
+#endif
+
+#define ALIAS(prefix) CONCAT2(prefix, _DT_ALIAS)
 
 // BLOCK types
 #define BLOCK1_T uchar
