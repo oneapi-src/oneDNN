@@ -408,7 +408,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_WEIGHTS, wei_dt);
     args.set(DNNL_ARG_DST, dst_dt);
-    if (prb->bia_dt != dnnl_data_type_undef) args.set(DNNL_ARG_BIAS, bia_dt);
+    args.set(DNNL_ARG_BIAS, bia_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
@@ -421,8 +421,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (is_bench_mode(CORR)) {
         ref_args.set(DNNL_ARG_SRC, src_fp);
         ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
-        if (prb->bia_dt != dnnl_data_type_undef)
-            ref_args.set(DNNL_ARG_BIAS, bia_fp);
+        ref_args.set(DNNL_ARG_BIAS, bia_fp);
         ref_args.set(DNNL_ARG_DST, dst_fp);
         ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
         ref_args.set(binary_po_args, binary_po_fp);

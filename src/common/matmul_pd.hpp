@@ -50,9 +50,10 @@ struct matmul_pd_t : public primitive_desc_t {
     }
 
     arg_usage_t arg_usage(int arg) const override {
-        const bool input = utils::one_of(
-                arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS);
+        const bool input = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS);
         if (input) return arg_usage_t::input;
+
+        if (arg == DNNL_ARG_BIAS && with_bias()) return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
@@ -74,7 +75,9 @@ struct matmul_pd_t : public primitive_desc_t {
     }
 
     const memory_desc_t *weights_md(int index = 0) const override {
-        return utils::pick(index, &weights_md_, &bias_md_, &glob_zero_md);
+        if (index == 0) return &weights_md_;
+        if (index == 1 && with_bias()) return &bias_md_;
+        return &glob_zero_md;
     }
 
     const memory_desc_t *dst_md(int index = 0) const override {
