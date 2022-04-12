@@ -152,9 +152,6 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         b[D_BLK_IDX_2] += iter[2] * D_BLK_STEP_2;
         b[D_BLK_IDX_3] += iter[3] * D_BLK_STEP_3;
 
-        const uint dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
-                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
-
 #if D_MOD_3 > 1
         b[D_IDX_3] += D_MUL_3 * ((sgId / D_DIV_3) % D_MOD_3);
 #endif
@@ -167,6 +164,9 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
 #if D_MOD_0 > 1
         b[D_IDX_0] += D_MUL_0 * ((sgId / D_DIV_0) % D_MOD_0);
 #endif
+
+        const uint dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
 
         DST_DATA_T dst_tmp;
         uint cache_idx = sg_off + b[5] * CACHE_STRIDE_5 + b[4] * CACHE_STRIDE_4
@@ -187,7 +187,7 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
             SRC_DATA_T from_cache = cache[cache_idx];
 #if WITH_SUM_AB
             // TODO: move to separate loop to enable burst reads from dst?
-            dst_tmp = dst[dst_off + sgId];
+            dst_tmp = dst[dst_off];
 #endif
 #if SCALE_QUANT
             // TODO: move to separate loop to enable burst reads from scales?
@@ -196,7 +196,7 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
 #endif
 
             REORDER(dst_tmp, from_cache, alpha, beta);
-            dst[dst_off + sgId] = dst_tmp;
+            dst[dst_off] = dst_tmp;
         }
     }
 }

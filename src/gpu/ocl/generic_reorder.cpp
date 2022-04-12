@@ -756,14 +756,6 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     memcpy(&new_a, src_md(), sizeof(new_a));
     memcpy(&new_b, dst_md(), sizeof(new_b));
 
-#ifndef PROBLEM_WITH_CONCAT_FIXED
-    // In some configurations concat primitive is implemented as series of
-    // reorders. When this kernel is used, results are wrong.
-    if (new_a.offset0 != 0 || new_b.offset0 != 0) {
-        return status::unimplemented;
-    }
-#endif
-
     while (try_combine_dims(new_a, new_b, conf.scale_mask, adjacent)) {}
 
     const memory_desc_wrapper src_mdw(new_a);
