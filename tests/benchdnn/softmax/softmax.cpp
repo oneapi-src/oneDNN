@@ -183,19 +183,6 @@ int fill_data_bwd(
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->sdt, prb->ddt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res);
-
-    if (is_gpu()) {
-        const bool sdt_is_int8 = prb->sdt == dnnl_s8 || prb->sdt == dnnl_u8;
-        const bool ddt_is_int8 = prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8;
-        const bool dt_ok = prb->sdt == prb->ddt && !sdt_is_int8 && !ddt_is_int8;
-
-        const bool attr_ok = prb->attr.is_def();
-
-        if (!dt_ok || !attr_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
