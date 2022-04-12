@@ -3989,9 +3989,13 @@ public:
 
         std::vector<bool> seen(src_layout_.size() * src_type.size());
 
-        int src_stride = -1;
-        tensor_t tile = find_1d_tile(src_stride);
+        tensor_t tile = find_1d_tile(src_layout_, dst_layout_);
         int tile_elems = (int)tile.elems();
+        auto src_tile_layout = src_layout_.map(tile);
+        auto src_tile_blocks = src_tile_layout.blocks();
+        ir_assert(src_tile_blocks.size() <= 1);
+        int src_stride
+                = src_tile_blocks.empty() ? 1 : (int)src_tile_blocks[0].stride;
         src_layout_.for_each_tile(
                 tile, [&](const std::vector<dim_t> &src_start) {
                     ngen_register_scope_t tile_scope(
@@ -4036,9 +4040,7 @@ public:
     }
 
 private:
-    tensor_t find_1d_tile(int &src_stride) const {
-        auto a = src_layout_;
-        auto b = dst_layout_;
+    tensor_t find_1d_tile(layout_t a, layout_t b) const {
         layout_t::align_layouts(a, b);
 
         ir_assert(!a.blocks().empty());
@@ -4047,10 +4049,18 @@ private:
         auto &a0 = a.blocks()[0];
         auto &b0 = b.blocks()[0];
 
-        ir_assert(a0.dim_idx == b0.dim_idx && a0.block == b0.block)
-                << "Incompatible layouts for reduction.";
+        bool ok = (a0.dim_idx == b0.dim_idx && a0.block == b0.block);
+        if (!ok) {
+            // Try to match strided layout.
+            if (a0.block == 2) {
+                auto a_blocks = a.blocks();
+                a_blocks.erase(a_blocks.begin());
+                a = layout_t(a.type(), a.ndims(), 0, a_blocks);
+                return find_1d_tile(a, b);
+            }
+        }
 
-        src_stride = a0.stride;
+        ir_assert(ok) << "Incompatible layouts for reduction.";
         ir_assert(dim_t(b0.stride) == 1)
                 << "Reduction is not supported for non-unit dst stride.";
 
