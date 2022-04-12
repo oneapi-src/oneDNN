@@ -425,9 +425,11 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
             auto bkd_name = bkd->get_name();
             for (auto &op : p->get_ops()) {
                 auto op_name = op->get_name();
+                const auto &op_kind_name = op_t::kind2str(op->get_kind());
                 auto op_id = op->get_id();
                 out << "\"" << op_name << "_" << op_id << "\"[label=\""
                     << op_name << "_" << op_id << "\\n"
+                    << "opkind: " << op_kind_name << "\\n"
                     << "partition id: " << p->id() << "\\n"
                     << bkd_name << "\"];\n";
             }
