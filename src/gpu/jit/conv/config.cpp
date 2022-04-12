@@ -543,7 +543,7 @@ void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
             src_c_blk = 4 / src_type_size;
             src_n_blk = pick_block(mb, 8);
         }
-    } else if (is_mad) {
+    } else if (is_mad && is_f32_conv()) {
         src_c_blk = (is_src_byte ? 32 : 16);
         src_n_blk = pick_block(mb, 16);
     } else {
@@ -554,7 +554,7 @@ void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
     // Set blocks for destination layout.
     int dst_n_blk = 1;
     int dst_c_blk = 1;
-    if (is_mad) {
+    if (is_mad && is_f32_conv()) {
         dst_c_blk = (is_dst_byte ? 32 : 16);
         dst_n_blk = pick_block(mb, 16);
     } else {
@@ -568,10 +568,13 @@ void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
     }
 
     if (is_mad) {
-        if (src_c_blk / 2 > ic) src_c_blk = 1;
-        if (dst_c_blk / 2 > oc) dst_c_blk = 1;
-        if (is_fwd && vec_size < dst_c_blk && oc <= vec_size) dst_c_blk = 1;
-        if (is_bwd_d && vec_size < src_c_blk && ic <= vec_size) src_c_blk = 1;
+        int i_dim = (is_dw ? g : ic);
+        int o_dim = (is_dw ? g : oc);
+        if (src_c_blk / 2 > i_dim) src_c_blk = 1;
+        if (dst_c_blk / 2 > o_dim) dst_c_blk = 1;
+        if (is_fwd && vec_size < dst_c_blk && o_dim <= vec_size) dst_c_blk = 1;
+        if (is_bwd_d && vec_size < src_c_blk && i_dim <= vec_size)
+            src_c_blk = 1;
     }
 
     if (src_c_blk == 1) src_n_blk = 1;
