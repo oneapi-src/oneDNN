@@ -865,8 +865,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             abcdfe, abcdegf, abcdefhg, abcdefgih, abcdefghji, abcdefghikj,
             abcdefghijlk);
     if (bm_conf_utils.is_bf32()
-            && ((bgmmc.wei_tag != plain_tensor_tag)
-                    || one_of(bgmmc.src_tag, transposed_tag, acbd, adbc)
+            && ((!one_of(bgmmc.wei_tag, plain_tensor_tag, transposed_tag))
+                    || one_of(bgmmc.src_tag, acbd, adbc)
                     || one_of(bgmmc.dst_tag, acbd)))
         return status::unimplemented;
 
