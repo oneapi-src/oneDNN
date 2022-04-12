@@ -138,6 +138,11 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
     // See `skip_invalid_inplace` for details.
     if (prb->inplace) {
+        if (is_sum) {
+            res->state = SKIPPED, res->reason = INVALID_CASE;
+            return;
+        }
+
         skip_invalid_inplace(
                 res, prb->sdt[0], prb->ddt, prb->stag[0], prb->dtag);
         if (res->state == SKIPPED) return;
