@@ -139,8 +139,7 @@ bool dpas_t::matches(const multiply_desc_t &desc) const {
     int n_blk = rcount;
     int k_blk = sdepth * 4 / src1_type.size();
 
-    if (desc.m() % m_blk != 0 || desc.n() % n_blk != 0 || desc.k() % k_blk != 0)
-        return false;
+    if (desc.m() % m_blk != 0 || desc.k() % k_blk != 0) return false;
 
     auto a_blk_layout = desc.a_layout().map(tensor_t({m_blk, k_blk}));
     auto b_blk_layout = desc.b_layout().map(tensor_t({k_blk, n_blk}));

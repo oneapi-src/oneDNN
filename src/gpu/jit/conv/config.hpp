@@ -967,8 +967,11 @@ private:
     void enable_slm_buffering() {
         using namespace ir_utils;
         if (!use_ow_kw_grf_cache) {
-            bool can_split_a = can_split_across_thread_group(
-                    m_tg_blk * k_blk, a_data_type_size);
+            //Check that SLM can be stored with oword messages.
+            int tg_size = tg_grid_dim[0] * tg_grid_dim[1] * tg_grid_dim[2];
+            int bytes_per_tg = (m_tg_blk * k_blk * a_data_type_size);
+            bool can_split_a = bytes_per_tg % 16 == 0
+                    && bytes_per_tg / tg_size >= k_blk && k_blk % 2 == 0;
             use_a_slm = (tg_grid_dim[0] > 1) && can_split_a;
         }
         bool can_split_b = can_split_across_thread_group(

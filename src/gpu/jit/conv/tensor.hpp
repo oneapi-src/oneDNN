@@ -201,6 +201,12 @@ public:
         return ret;
     }
 
+    grid_info_t resize(const std::vector<int> &new_dims) const {
+        grid_info_t ret = *this;
+        ret.dims_ = new_dims;
+        return ret;
+    }
+
     grid_info_t slice(int dim_idx, int new_off, int new_dim,
             const expr_t &new_idx, expr_t &new_idx_value) const {
         ir_assert(dim_idx >= 0 && dim_idx < ndims());
@@ -820,9 +826,28 @@ public:
     tensor_t split_into_max_tile(
             dim_t max_tile_elems, bool is_dense_tile) const;
 
-    tensor_t split(const grid_info_t &grid) const {
+    tensor_t split(const grid_info_t &grid_info) const {
+        tensor_t min_tile;
+        std::vector<int> cur_dims(grid_info.ndims(), 1);
+
+        for (int iter = 0; iter < grid_info.elems(); iter++) {
+            for (int i = 0; i < grid_info.ndims(); i++) {
+                if (++cur_dims[i] <= grid_info.dim(i)) break;
+                cur_dims[i] = 1;
+            }
+            auto sub_grid = grid_info.resize(cur_dims);
+            auto tile = split_exact(sub_grid);
+            if (tile.is_empty()) continue;
+            if (min_tile.is_empty() || tile.elems() < min_tile.elems()) {
+                min_tile = tile;
+            }
+        }
+        return min_tile;
+    }
+
+    tensor_t split_exact(const grid_info_t &grid) const {
         std::vector<dim_t> tile_dims(ndims(), 1);
-        ir_assert(elems() % grid.elems() == 0) << "Can't split across grid.";
+        if (elems() % grid.elems() != 0) return tensor_t();
 
         dim_t cur_elems_per_tile = 1;
         dim_t elems_per_tile = elems() / grid.elems();
@@ -832,8 +857,7 @@ public:
             tile_dims[b.dim_idx] *= block;
             cur_elems_per_tile *= block;
         }
-        ir_assert(cur_elems_per_tile == elems_per_tile)
-                << "Can't split across grid.";
+        if (cur_elems_per_tile != elems_per_tile) return tensor_t();
 
         return split(tensor_t(tile_dims), grid);
     }
@@ -872,7 +896,7 @@ public:
                     auto tmp_layout = split_block(eb, e, b.block / e);
                     return tmp_layout.split(tile, grid, outer_blocks);
                 } else {
-                    ir_error_not_expected() << "Can't split across grid.";
+                    return tensor_t();
                 }
             } else {
                 dim_t next_chunk
@@ -881,12 +905,12 @@ public:
                     auto idx = grid_splitter.pop_block(next_chunk);
                     start[b.dim_idx] += idx * dims[b.dim_idx];
                     if (outer_blocks) outer_blocks->push_back(b);
-                } else if (b.block % next_chunk == 0) {
+                } else if (b.block % next_chunk == 0 && next_chunk != 1) {
                     auto tmp_layout
                             = split_block(eb, next_chunk, b.block / next_chunk);
                     return tmp_layout.split(tile, grid, outer_blocks);
                 } else {
-                    ir_error_not_expected() << "Can't split across grid.";
+                    return tensor_t();
                 }
             }
             dims[b.dim_idx] *= b.block;

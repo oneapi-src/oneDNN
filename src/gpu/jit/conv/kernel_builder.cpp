@@ -4568,7 +4568,7 @@ private:
         }
 
         // Try to transpose and flip: C += A * B -> C^T = B^T * A^T.
-        rcount = std::min(utils::rnd_up_pow2(desc.m()), 8);
+        rcount = std::min(desc.m(), 8);
         desc = multiply_desc_t(
                 b_layout.transpose(), a_layout.transpose(), true);
         _dpas = dpas_t::make(/*is_dpasw=*/false, /*exec_size=*/simd_size_,
@@ -4593,6 +4593,9 @@ private:
         expr_t a_buf = a_buf_;
         expr_t b_buf = b_buf_;
         if (do_transpose_) std::swap(a_buf, b_buf);
+        auto dpas_tail = dpas_t::make(/*is_dpasw=*/false, dpas.exec_size,
+                dpas.sdepth, desc.n() > n_blk ? desc.n() % n_blk : n_blk,
+                dpas.dst_type, dpas.src1_type, dpas.src2_type);
 
         for (int i_k = 0; i_k < desc.k(); i_k += k_blk) {
             for (int i_m = 0; i_m < desc.m(); i_m += m_blk) {
@@ -4605,7 +4608,10 @@ private:
                     auto b = b_buf[desc.b_layout()(b_args)
                             * desc.b_type().size()];
                     auto c = c_buf_[c_layout_(c_args) * desc.c_type().size()];
-                    stmt_ = stmt_.append(dpas(c, c, a, b));
+                    auto &_dpas = (i_n + n_blk > desc.n())
+                            ? dpas_tail.as<dpas_t>()
+                            : dpas;
+                    stmt_ = stmt_.append(_dpas(c, c, a, b));
                 }
             }
         }
@@ -4621,7 +4627,10 @@ private:
     static layout_t compute_dpas_c_layout(int m_blk, int n_blk,
             const layout_t &blk_layout, const multiply_desc_t &desc) {
         auto c_layout = blk_layout;
-        c_layout = c_layout.add_outer_block(1, desc.n() / n_blk);
+        auto new_blocks = c_layout.blocks();
+        if (new_blocks.size() > 1) new_blocks[1].block = desc.n();
+        c_layout = layout_t(c_layout.type(), c_layout.ndims(),
+                c_layout.offset(), new_blocks);
         c_layout = c_layout.add_outer_block(0, desc.m() / m_blk);
         return c_layout;
     }
@@ -4924,7 +4933,7 @@ private:
 
         // Cannot calculate correct r_count when !is_a, but rcount is effectively
         // ignored in that case as rcount mainly effects b_layout.
-        int rcount = is_a && mn_blk < 8 ? utils::rnd_up_pow2(mn_blk) : 8;
+        int rcount = is_a && mn_blk < 8 ? mn_blk : 8;
         auto _dpas = dpas_t::make(/*is_dpasw=*/false, simd_size_, /*sdepth=*/8,
                 rcount, type_t::undef(), b_type_, a_type_);
         auto &dpas = _dpas.as<dpas_t>();
@@ -6136,6 +6145,7 @@ public:
 
         c_zero_out_stmt_ = stmt_group_t::make(stmt_label_t::c_zero_out(),
                 create_zero_out_stmt(cfg_.hw(), c_buf, c_size));
+
         c_store_stmt_ = c_store_stmt_.append(c_m2g_stmt);
 
         if (cfg_.do_b_reduction) {
@@ -6309,6 +6319,26 @@ private:
             x_g2s_view = x_gmem_view.create_sub_view(thr_tile);
         }
 
+        auto bound_cond = expr_t();
+        if (is_a && !cfg_.fuse_spatial) {
+            for (int i = 0; i < x_gmem_view.nvdims(); i++) {
+                if (!x_g2s_view.vstart(i).is_equal(x_gmem_view.vstart(i))) {
+                    auto dim_expr
+                            = x_g2s_view.vstart(i) - x_gmem_view.vstart(i);
+                    if (bound_cond.is_empty())
+                        bound_cond = dim_expr < x_gmem_view.vdims()[i];
+                    else
+                        bound_cond &= dim_expr < x_gmem_view.vdims()[i];
+                }
+            }
+        }
+        if (!bound_cond.is_empty()) {
+            if (!grid_cond.is_empty())
+                grid_cond = grid_cond & bound_cond;
+            else
+                grid_cond = bound_cond;
+        }
+
         auto slm_thr_layout = xp_slm_layout.map(thr_tile);
 
         // Ensure that each thread writes a dense region to SLM. If the layout
@@ -6433,6 +6463,11 @@ private:
         std::vector<dim_t> multi_blocks = {inner_block, tg_dim0};
         auto l = layout.split_into_multi_blocks(multi_blocks);
 
+        if (l.is_empty()) {
+            ir_warning() << "Couldn't split layout for SLM padding."
+                         << std::endl;
+            return layout;
+        }
         auto padded_blocks = l.blocks();
         dim_t stride = -1;
         dim_t remaining_elems = inner_block;

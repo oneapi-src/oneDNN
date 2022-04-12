@@ -162,8 +162,7 @@ private:
 
         bool require_pow_2 = false;
         if (level == tile_level_t::tg) require_pow_2 = true;
-        if (level == tile_level_t::iter
-                && utils::one_of(bmnk_dim_.bmnk(), 'B', 'M', 'N'))
+        if (level == tile_level_t::iter && utils::one_of(bmnk_dim_.bmnk(), 'N'))
             require_pow_2 = true;
 
         int step = 1;
