@@ -107,7 +107,11 @@ compare_t::driver_check_func_args_t::driver_check_func_args_t(
 int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const attr_t &attr, res_t *res) const {
     const auto nelems = got_mem.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
+    if (nelems == 0) {
+        if (res->state == EXECUTED) res->state = PASSED;
+        return OK;
+    }
+
     res->total = nelems;
 
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
@@ -156,7 +160,11 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         const attr_t &attr, res_t *res) const {
     const auto nelems = got_mem.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
+    if (nelems == 0) {
+        if (res->state == EXECUTED) res->state = PASSED;
+        return OK;
+    }
+
     res->total = nelems;
 
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
