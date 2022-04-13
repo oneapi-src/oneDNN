@@ -366,26 +366,38 @@ protected:
                             tmp_c_states(c_states_idx(ur_idx));
                     compute_vmulps(
                             tmp_c_states, tmp_c_states, G3, current_vlen);
-
-                    // downconvert/quantize and write back the state
-                    to_src(ptr[addr_states_t_l_reg + ur_idx * vlen_dst_],
-                            tmp_c_states, src_data_t, current_vlen);
                 }
 
-                // if states_t_l_copy is a non null ptr, we write the output to it too
-                Label loop_inc_regs_label;
+                // downconvert/quantize and write back the state
+                Label loop_inc_regs_label,
+                        update_single_states_tensor_only_label;
                 cmp(addr_states_t_l_copy_reg, 0);
-                je(loop_inc_regs_label);
+                je(update_single_states_tensor_only_label, T_NEAR);
+                // if states_t_l_copy is a non null ptr, we write the output to
+                // both tensors
                 for (int ur_idx = 0; ur_idx < current_unroll_len; ur_idx++) {
+                    const Vmm tmp_c_states(c_states_idx(ur_idx));
+                    to_src(ptr[addr_states_t_l_reg + ur_idx * vlen_dst_],
+                            tmp_c_states, src_data_t, current_vlen);
+                    // As to_src is called with write_only=true it's important
+                    // for bf16 src_dt to execute just after to_src method with
+                    // write_only=false for the same Vmm
                     to_src(ptr[addr_states_t_l_copy_reg + ur_idx * vlen_dst_],
-                            Vmm(c_states_idx(ur_idx)), src_data_t, current_vlen,
-                            true);
+                            tmp_c_states, src_data_t, current_vlen, true);
                 }
                 const size_t hstate_shift = current_vlen < vlen_
                         ? hstate_dt_size_
                         : current_unroll_len * vlen_dst_;
                 if (need_increment_regs)
                     add(addr_states_t_l_copy_reg, hstate_shift);
+                jmp(loop_inc_regs_label, T_NEAR);
+
+                L_aligned(update_single_states_tensor_only_label);
+                for (int ur_idx = 0; ur_idx < current_unroll_len; ur_idx++) {
+                    to_src(ptr[addr_states_t_l_reg + ur_idx * vlen_dst_],
+                            Vmm(c_states_idx(ur_idx)), src_data_t,
+                            current_vlen);
+                }
 
                 // increment address pointers
                 L_aligned(loop_inc_regs_label);

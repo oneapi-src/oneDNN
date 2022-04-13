@@ -678,6 +678,7 @@ protected:
     }
 
     // handles quantization/conversion and write to memory
+    // Note: values in src register might be modified
     // Assumption: write_only = true assumes that
     // 1. to_src was already called with the same source and with
     // write_only = false.

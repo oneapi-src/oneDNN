@@ -203,9 +203,15 @@ protected:
 
             // downconvert and write data
             to_src(sc_addr(0), dG0, scratch_data_t, vlen);
+            // As to_src is called with write_only=true it's important for bf16
+            // src_dt to execute just after to_src method with write_only=false
+            // for the same Vmm
             to_src(sg_addr(0), dG0, scratch_data_t, vlen, true);
 
             to_src(sc_addr(1), dG1, scratch_data_t, vlen);
+            // As to_src is called with write_only=true it's important for bf16
+            // src_dt to execute just after to_src method with write_only=false
+            // for the same Vmm
             to_src(sg_addr(1), dG1, scratch_data_t, vlen, true);
 
             to_src(sc_addr(2), tmp1, scratch_data_t, vlen);
@@ -316,9 +322,15 @@ protected:
 
             // downconvert and write data
             to_src(sc_addr(0), dG0, scratch_data_t, hstate_dt_size);
+            // As to_src is called with write_only=true it's important for bf16
+            // src_dt to execute just after to_src method with write_only=false
+            // for the same Vmm
             to_src(sg_addr(0), dG0, scratch_data_t, hstate_dt_size, true);
 
             to_src(sc_addr(1), dG1, scratch_data_t, hstate_dt_size);
+            // As to_src is called with write_only=true it's important for bf16
+            // src_dt to execute just after to_src method with write_only=false
+            // for the same Vmm
             to_src(sg_addr(1), dG1, scratch_data_t, hstate_dt_size, true);
 
             to_src(sc_addr(2), tmp1, scratch_data_t, hstate_dt_size);

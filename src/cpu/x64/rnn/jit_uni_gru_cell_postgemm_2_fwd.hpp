@@ -252,10 +252,14 @@ protected:
                     }
                     to_src(ptr[addr_states_t_l_reg + loop_ur_idx * vlen_dst],
                             G0(loop_ur_idx), src_data_t, current_vlen);
-                    // if states_t_l_copy is a non null ptr, we write the output to it too
+                    // if states_t_l_copy is a non null ptr, we write the output
+                    // to both tensors
                     Label loop_inc_regs;
                     cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
                     jle(loop_inc_regs);
+                    // As to_src is called with write_only=true it's important
+                    // for bf16 src_dt to execute just after to_src method with
+                    // write_only=false for the same Vmm
                     to_src(ptr[addr_states_t_l_copy_reg
                                    + loop_ur_idx * vlen_dst],
                             G0(loop_ur_idx), src_data_t, current_vlen, true);

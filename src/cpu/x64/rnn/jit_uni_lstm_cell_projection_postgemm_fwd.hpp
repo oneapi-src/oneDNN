@@ -102,9 +102,13 @@ protected:
                     &addr_wcomp_reg);
             to_src(ptr[addr_states_t_l_reg], in, src_data_t, vlen);
 
-            // if states_t_l_copy is a non null ptr, we write the output to it too
+            // if states_t_l_copy is a non null ptr, we write the output to both
+            // tensors
             cmp(addr_states_t_l_copy_reg, 0);
             je(vector_loop_inc_regs);
+            // As to_src is called with write_only=true it's important for bf16
+            // src_dt to execute just after to_src method with write_only=false
+            // for the same Vmm
             to_src(ptr[addr_states_t_l_copy_reg], in, src_data_t, vlen, true);
             add(addr_states_t_l_copy_reg, vlen_dst);
 
@@ -132,9 +136,13 @@ protected:
                     &addr_wcomp_reg);
             to_src(ptr[addr_states_t_l_reg], in, src_data_t, scratch_dt_size);
 
-            // if states_t_l_copy is a non null ptr, we write the output to it too
+            // if states_t_l_copy is a non null ptr, we write the output to both
+            // tensors
             cmp(addr_states_t_l_copy_reg, 0);
             je(rem_loop_inc_regs);
+            // As to_src is called with write_only=true it's important for bf16
+            // src_dt to execute just after to_src method with write_only=false
+            // for the same Vmm
             to_src(ptr[addr_states_t_l_copy_reg], in, src_data_t,
                     scratch_dt_size, true);
             add(addr_states_t_l_copy_reg, hstate_dt_size);
