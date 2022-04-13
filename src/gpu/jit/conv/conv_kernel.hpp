@@ -2448,7 +2448,7 @@ struct atomic_helper_t<DataSpecT,
 // Helper to emit send instructions.
 class send_impl_t {
 public:
-    send_impl_t(ngen::HW hw, const send_t &send) : hw_(hw), send_(send) {}
+    send_impl_t(const send_t &send) : send_(send) {}
 
     template <typename GeneratorT, typename T>
     void emit(GeneratorT *host, ngen_register_scope_t &scope,
@@ -2627,7 +2627,6 @@ private:
         return ngen::AddressBase();
     }
 
-    ngen::HW hw_;
     const send_t &send_;
 };
 
@@ -4548,7 +4547,7 @@ private:
     void send(ngen_register_scope_t &scope, const send_t &send_func,
             const expr_t &mem_buf, const std::vector<ngen_operand_t> &args,
             const func_call_attr_t &attr) {
-        send_impl_t spec_impl(hw, send_func);
+        send_impl_t spec_impl(send_func);
         auto &mem_off_op = send_t::arg_mem_off(args);
         auto &reg_buf_op = send_t::arg_reg_buf(args);
         auto &mask_op = send_t::arg_mask(args);
