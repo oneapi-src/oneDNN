@@ -295,3 +295,12 @@ TEST(Op, OverwriteAttributes) {
     ASSERT_FALSE(matmul.get_attr<bool>("transpose_a"));
     ASSERT_TRUE(matmul.get_attr<bool>("transpose_b"));
 }
+
+TEST(Op, KindString) {
+    using namespace dnnl::graph::impl;
+
+    ASSERT_EQ(op_t::kind2str(op_kind::Abs), "Abs");
+    ASSERT_EQ(op_t::kind2str(op_kind::Convolution), "Convolution");
+    ASSERT_EQ(op_t::kind2str(op_kind::MatMul), "MatMul");
+    ASSERT_EQ(op_t::kind2str(op_kind::LastSymbol), "LastSymbol");
+}
