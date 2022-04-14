@@ -37,7 +37,6 @@ TEST(api_tensor, create_with_shape) {
     void *handle0 = &n0;
     tensor t_0 {lt_0, eng, handle0};
     ASSERT_EQ(t_0.get_data_handle<float>(), handle0);
-    ASSERT_EQ(t_0.get_element_num(), 0);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
     ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
@@ -48,7 +47,6 @@ TEST(api_tensor, create_with_shape) {
     void *handle1 = n1.data();
     tensor t_1 {lt_1, eng, handle1};
     ASSERT_EQ(t_1.get_data_handle<float>(), handle1);
-    ASSERT_EQ(t_1.get_element_num(), 3);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
     ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
@@ -60,7 +58,6 @@ TEST(api_tensor, create_with_shape) {
     void *handle2 = n2.data();
     tensor t_2 {lt_2, eng, handle2};
     ASSERT_EQ(t_2.get_data_handle<float>(), handle2);
-    ASSERT_EQ(t_2.get_element_num(), 3 * 4);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
     ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
@@ -72,7 +69,6 @@ TEST(api_tensor, create_with_shape) {
     void *handle3 = n3.data();
     tensor t_3 {lt_3, eng, handle3};
     ASSERT_EQ(t_3.get_data_handle<float>(), handle3);
-    ASSERT_EQ(t_3.get_element_num(), 3 * 4 * 5);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
     ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
@@ -84,7 +80,6 @@ TEST(api_tensor, create_with_shape) {
     void *handle4 = n4.data();
     tensor t_4 {lt_4, eng, handle4};
     ASSERT_EQ(t_4.get_data_handle<float>(), handle4);
-    ASSERT_EQ(t_4.get_element_num(), 3 * 4 * 5 * 6);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
     ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
@@ -113,7 +108,6 @@ TEST(api_tensor, shallow_copy) {
     tensor t_2(t_1);
 
     ASSERT_EQ(t_2.get_data_handle<float>(), handle);
-    ASSERT_EQ(t_1.get_element_num(), t_2.get_element_num());
 }
 
 TEST(tensor_test, create_with_logical_tensor_f32) {
@@ -124,7 +118,8 @@ TEST(tensor_test, create_with_logical_tensor_f32) {
             logical_tensor::layout_type::any};
     tensor t {lt, eng, nullptr};
 
-    ASSERT_EQ(t.get_element_num(), -1);
+    ASSERT_EQ(t.get_data_handle<float>(), nullptr);
+    ASSERT_EQ(t.get_engine().get_kind(), engine::kind::cpu);
 }
 
 TEST(tensor_test, create_with_logical_tensor_s8) {
@@ -135,5 +130,6 @@ TEST(tensor_test, create_with_logical_tensor_s8) {
             0, logical_tensor::data_type::s8, logical_tensor::layout_type::any};
     tensor t {lt, eng, nullptr};
 
-    ASSERT_EQ(t.get_element_num(), -1);
+    ASSERT_EQ(t.get_data_handle<float>(), nullptr);
+    ASSERT_EQ(t.get_engine().get_kind(), engine::kind::cpu);
 }

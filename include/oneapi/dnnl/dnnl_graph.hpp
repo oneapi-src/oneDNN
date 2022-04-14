@@ -782,16 +782,6 @@ public:
                 "setting data handle to the tensor failed");
     }
 
-    /// Returns the number of elements in the tensor
-    ///
-    /// @returns Number of element
-    int64_t get_element_num() const {
-        int64_t num {};
-        error::check_succeed(dnnl_graph_tensor_get_element_num(get(), &num),
-                "could not get number of elements in the tensor");
-        return num;
-    }
-
     /// Returns the associated engine.
     ///
     /// @returns An engine object

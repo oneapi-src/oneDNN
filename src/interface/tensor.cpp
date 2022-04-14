@@ -46,13 +46,6 @@ status_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_tensor_get_element_num(
-        const tensor_t *tensor, int64_t *num) {
-    auto lt = tensor->get_logical_tensor();
-    *num = logical_tensor_wrapper_t(lt).nelems();
-    return status::success;
-}
-
 status_t DNNL_GRAPH_API dnnl_graph_tensor_get_engine(
         const tensor_t *tensor, engine_t **engine) {
     if (utils::any_null(tensor, engine)) return status::invalid_argument;

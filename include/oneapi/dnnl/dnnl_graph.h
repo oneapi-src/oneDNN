@@ -194,15 +194,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
         dnnl_graph_tensor_t *tensor, void *data_handle);
 
-/// Gets number of elements of the tensor.
-///
-/// @param tensor Input tensor.
-/// @param no The number of elements of the tensor.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_element_num(
-        const dnnl_graph_tensor_t *tensor, int64_t *no);
-
 /// Gets the unique id of the tensor
 ///
 /// @param tensor Input tensor.
