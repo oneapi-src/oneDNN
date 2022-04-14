@@ -1563,3 +1563,296 @@ TEST(PatternMatcherV2, RepetitionExternalOutputSwapOrder) {
     EXPECT_TRUE(match_pattern(agraph.get_ops()[3].get(), graphp, fusion_ops));
     ASSERT_EQ(fusion_ops.size(), 4);
 }
+
+TEST(PatternMatcherV2, CyclicCheck) {
+    /*
+    pattern:
+          matmul
+           /  \(external_output)
+         relu
+           \  /
+            add
+
+
+    graph:
+         matmul
+          /  \
+        relu  sigmoid
+          \  /
+           add
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto pmatmul = graphp->append_op(impl::op_kind::MatMul, "pmatmul");
+    pmatmul->allow_external_output(0);
+    auto prelu = graphp->append_op(
+            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    auto padd = graphp->append_op(
+            impl::op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+    UNUSED(padd);
+
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t relu {1, ReLU, "relu"};
+    op_t add {2, Add, "add"};
+    op_t sigmoid {3, Sigmoid, "sigmoid"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+    sigmoid.add_input(lt_vec[2]);
+    sigmoid.add_output(lt_vec[4]);
+    add.add_input(lt_vec[3]);
+    add.add_input(lt_vec[4]);
+    add.add_output(lt_vec[5]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_FALSE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+}
+
+TEST(PatternMatcherV2, UndirectCyclicCheck) {
+    /*
+    pattern:
+          matmul
+           /  \(external_output)
+         relu
+           \  /
+            add
+
+
+    graph:
+         matmul
+          /  \
+         |    wildcard wildcard
+        relu    |     /
+         |    wildcard
+          \  /
+           add
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto pmatmul = graphp->append_op(impl::op_kind::MatMul, "pmatmul");
+    pmatmul->allow_external_output(0);
+    auto prelu = graphp->append_op(
+            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    auto padd = graphp->append_op(
+            impl::op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+    UNUSED(padd);
+
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t relu {1, ReLU, "relu"};
+    op_t add {2, Add, "add"};
+    op_t wildcard {3, Wildcard, "wildcard"};
+    op_t wildcard2 {4, Wildcard, "wildcard"};
+    op_t wildcard3 {5, Wildcard, "wildcard"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+    wildcard.add_input(lt_vec[2]);
+    wildcard.add_output(lt_vec[4]);
+    wildcard2.add_input(lt_vec[5]);
+    wildcard2.add_output(lt_vec[6]);
+    wildcard3.add_input(lt_vec[4]);
+    wildcard3.add_input(lt_vec[6]);
+    wildcard3.add_output(lt_vec[7]);
+    add.add_input(lt_vec[3]);
+    add.add_input(lt_vec[7]);
+    add.add_output(lt_vec[8]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard2), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard3), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_FALSE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+}
+
+TEST(PatternMatcherV2, ComplexCyclicCheck) {
+    /*
+    pattern:
+          matmul                   \
+           /   \(external_output)   |
+         relu                       |  * [1,10)
+           \  /                     |
+            add                     /
+
+    graph:
+         matmul
+          /   \
+        relu  sigmoid
+          \        |
+           add     |
+            |      |
+           matmul /
+            |    /
+           relu /
+            \  /
+             add
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
+    auto pmatmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    pmatmul->allow_external_output(0);
+    auto prelu = fwd_mlp_layer->append_op(
+            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    auto padd = fwd_mlp_layer->append_op(
+            impl::op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+    fwd_mlp_layer->create_input_port(0, pmatmul, 0);
+    fwd_mlp_layer->create_output_port(0, padd, 0);
+
+    // repeat layer for [1, 10) times
+    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10, "rep_unit");
+
+    graph_t agraph;
+    op_t matmul0 {0, MatMul, "matmu0"};
+    op_t relu0 {1, ReLU, "relu0"};
+    op_t add0 {2, Add, "add0"};
+    op_t sigmoid0 {3, Sigmoid, "sigmoid0"};
+    op_t matmul1 {4, MatMul, "matmul1"};
+    op_t relu1 {5, ReLU, "relu1"};
+    op_t add1 {6, Add, "add1"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(11);
+    matmul0.add_input(lt_vec[0]);
+    matmul0.add_input(lt_vec[1]);
+    matmul0.add_output(lt_vec[2]);
+    relu0.add_input(lt_vec[2]);
+    relu0.add_output(lt_vec[3]);
+    sigmoid0.add_input(lt_vec[2]);
+    sigmoid0.add_output(lt_vec[4]);
+    add0.add_input(lt_vec[3]);
+    add0.add_input(lt_vec[5]);
+    add0.add_output(lt_vec[6]);
+    matmul1.add_input(lt_vec[6]);
+    matmul1.add_input(lt_vec[7]);
+    matmul1.add_output(lt_vec[8]);
+    relu1.add_input(lt_vec[8]);
+    relu1.add_output(lt_vec[9]);
+    add1.add_input(lt_vec[9]);
+    //cycle here
+    add1.add_input(lt_vec[4]);
+    add1.add_output(lt_vec[10]);
+
+    ASSERT_EQ(agraph.add_op(&matmul0), status::success);
+    ASSERT_EQ(agraph.add_op(&relu0), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid0), status::success);
+    ASSERT_EQ(agraph.add_op(&add0), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu1), status::success);
+    ASSERT_EQ(agraph.add_op(&add1), status::success);
+
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    // should match the 1st rep_unit
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    EXPECT_EQ(fusion_ops.size(), 3);
+}
+
+TEST(PatternMatcherV2, ComplexUndirectCyclicCheck) {
+    /*
+    pattern:
+          matmul                   \
+           /   \(external_output)   |
+         relu                       |  * [1,10)
+           \  /                     |
+            add                     /
+
+    graph:
+         matmul
+          /   \
+        relu  wildcard
+          \        |
+           add    wildcard
+            |      |
+           matmul wildcard
+            |    /
+           relu /
+            \  /
+             add
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto fwd_mlp_layer = std::make_shared<pb_graph_t>("fwd_mlp_layer");
+    auto pmatmul = fwd_mlp_layer->append_op(impl::op_kind::MatMul, "pmatmul");
+    pmatmul->allow_external_output(0);
+    auto prelu = fwd_mlp_layer->append_op(
+            impl::op_kind::ReLU, {in_edge(0, pmatmul, 0)}, "prelu");
+    auto padd = fwd_mlp_layer->append_op(
+            impl::op_kind::Add, {in_edge(0, prelu, 0)}, "padd");
+    fwd_mlp_layer->create_input_port(0, pmatmul, 0);
+    fwd_mlp_layer->create_output_port(0, padd, 0);
+
+    // repeat layer for [1, 10) times
+    graphp->append_repetition(fwd_mlp_layer, {0, 0}, 1, 10, "rep_unit");
+
+    graph_t agraph;
+    op_t matmul0 {0, MatMul, "matmu0"};
+    op_t relu0 {1, ReLU, "relu0"};
+    op_t add0 {2, Add, "add0"};
+    op_t wildcard0 {3, Wildcard, "wildcard0"};
+    op_t wildcard1 {4, Wildcard, "wildcard1"};
+    op_t wildcard2 {5, Wildcard, "wildcard2"};
+    op_t matmul1 {6, MatMul, "matmul1"};
+    op_t relu1 {7, ReLU, "relu1"};
+    op_t add1 {8, Add, "add1"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(13);
+    matmul0.add_input(lt_vec[0]);
+    matmul0.add_input(lt_vec[1]);
+    matmul0.add_output(lt_vec[2]);
+    relu0.add_input(lt_vec[2]);
+    relu0.add_output(lt_vec[3]);
+    wildcard0.add_input(lt_vec[2]);
+    wildcard0.add_output(lt_vec[4]);
+    wildcard1.add_input(lt_vec[4]);
+    wildcard1.add_output(lt_vec[5]);
+    wildcard2.add_input(lt_vec[5]);
+    wildcard2.add_output(lt_vec[6]);
+    add0.add_input(lt_vec[3]);
+    add0.add_input(lt_vec[7]);
+    add0.add_output(lt_vec[8]);
+    matmul1.add_input(lt_vec[8]);
+    matmul1.add_input(lt_vec[9]);
+    matmul1.add_output(lt_vec[10]);
+    relu1.add_input(lt_vec[10]);
+    relu1.add_output(lt_vec[11]);
+    add1.add_input(lt_vec[11]);
+    //cycle here
+    add1.add_input(lt_vec[6]);
+    add1.add_output(lt_vec[12]);
+
+    ASSERT_EQ(agraph.add_op(&matmul0), status::success);
+    ASSERT_EQ(agraph.add_op(&relu0), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard0), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard1), status::success);
+    ASSERT_EQ(agraph.add_op(&wildcard2), status::success);
+    ASSERT_EQ(agraph.add_op(&add0), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu1), status::success);
+    ASSERT_EQ(agraph.add_op(&add1), status::success);
+
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    // should match the 1st rep_unit
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    EXPECT_EQ(fusion_ops.size(), 3);
+}

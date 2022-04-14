@@ -131,7 +131,7 @@ bool match_node(const binding_t &b, match_context_t *context,
 // of input nodes and input ops are checked until one pair gets
 // matched or all combination are failed
 //
-bool match_node_inputs(op_t *o, pb_node *node, match_context_t *context,
+bool match_node_inputs(op_t *op, pb_node *node, match_context_t *context,
         std::unordered_map<op_t *, pb_op *> &matched_op_map);
 //
 // pair pattern node output nodes (consumers) with the paired op's
@@ -139,13 +139,21 @@ bool match_node_inputs(op_t *o, pb_node *node, match_context_t *context,
 // of output nodes and output ops are checked until one pair gets matched
 // or all combination are failed
 //
-bool match_node_outputs(op_t *o, pb_node *node, match_context_t *context,
+bool match_node_outputs(op_t *op, pb_node *node, match_context_t *context,
         std::unordered_map<op_t *, pb_op *> &matched_op_map);
-
+//
+// check if the matched graph causes cycles. Basically if one op in the
+// matched graph has an input value produced by an external op, and the
+// external op (or the external op's arbitrary producers) has an input
+// value produced by another op in the matched graph, it causes a cycle,
+// and the match process should not continue.
+//
+bool check_cyclic(
+        op_t *op, const std::unordered_map<op_t *, pb_op *> &matched_op_map);
 //
 // match a graph op's attributes using decision_functions of a pb_op node
 //
-bool match_node_attributes(op_t *o, pb_node *n);
+bool match_node_attributes(op_t *op, pb_node *node);
 
 //
 // Trigger nested matching for non pb_op nodes

@@ -249,6 +249,39 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
     return true;
 }
 
+bool check_cyclic(
+        op_t *op, const std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+    // internal_ops: ops that are in the matched graph
+    std::unordered_set<op_t *> internal_ops;
+    for (const auto &kv : matched_op_map)
+        internal_ops.insert(kv.first);
+
+    for (size_t op_input_offset = 0; op_input_offset < op->num_inputs();
+            ++op_input_offset) {
+        std::shared_ptr<value_t> op_in_value
+                = op->get_input_value(op_input_offset);
+        if (op_in_value->has_producer()) {
+            op_t *in_op = op->get_input_op(op_input_offset);
+            if (internal_ops.find(in_op) == internal_ops.end()) {
+                // in_op is an external_op.
+                // recursively traverse the producers of in_op
+                // check if any producer is among internal_ops
+                // if yes, a cycle exists.
+                status_t ret = topo_order_visit({in_op}, [&](op_t *temp_op) {
+                    if (internal_ops.find(temp_op) != internal_ops.end())
+                        return status::invalid_graph;
+                    return status::success;
+                });
+                // there's a cycle
+                if (ret != status::success) return true;
+            }
+        }
+    }
+
+    // no cycle
+    return false;
+}
+
 bool match_node(const binding_t &b, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op *> &matched_op_map) {
     if (b.bind_op == nullptr) return false;
@@ -260,6 +293,8 @@ bool match_node(const binding_t &b, match_context_t *ctx,
 
     if (!match_node_inputs(b.bind_op, b.bind_node, ctx, matched_op_map))
         return false;
+
+    if (check_cyclic(b.bind_op, matched_op_map)) return false;
 
     if (!match_node_outputs(b.bind_op, b.bind_node, ctx, matched_op_map))
         return false;
