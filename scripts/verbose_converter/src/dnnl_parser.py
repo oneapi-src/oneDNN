@@ -211,7 +211,7 @@ class LogParser:
 
                 def convert_scratchpad_mode(value):
                     return value
-                
+
                 def convert_fpmath_mode(value):
                     return value
 
