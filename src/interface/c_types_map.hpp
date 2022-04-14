@@ -160,11 +160,6 @@ const op_kind_t Sign = kSign;
 const op_kind_t Negative = kNegative;
 const op_kind_t Reciprocal = kReciprocal;
 const op_kind_t LastSymbol = kLastSymbol;
-
-#define REGISTER_SYMBOL(s) #s,
-const std::vector<std::string> op_kind_strings
-        = {DNNL_GRAPH_FORALL_BUILTIN_OPS(REGISTER_SYMBOL) "LastSymbol"};
-#undef REGISTER_SYMBOL
 } // namespace op_kind
 
 using logical_tensor_t = dnnl_graph_logical_tensor_t;

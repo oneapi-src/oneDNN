@@ -281,17 +281,102 @@ public:
                 });
     }
 
-    static const std::string &kind2str(op_kind_t kind) {
-        // 0: Abs, ..., N: LastSymbol, 0x1234: any, ...
-        const size_t k = static_cast<size_t>(kind);
-        const size_t l
-                = static_cast<size_t>(dnnl::graph::impl::op_kind::LastSymbol);
-        if (k <= l) {
-            return dnnl::graph::impl::op_kind::op_kind_strings.at(k);
-        } else {
-            static const std::string internal_str = "internal_op";
-            return internal_str;
+    static std::string kind2str(op_kind_t kind) {
+        using namespace dnnl::graph::impl::op_kind;
+#define CASE(k) \
+    case (k): return #k
+
+        switch (kind) {
+            CASE(Abs);
+            CASE(Add);
+            CASE(AvgPool);
+            CASE(AvgPoolBackprop);
+            CASE(BatchNormInference);
+            CASE(BatchNormForwardTraining);
+            CASE(BatchNormTrainingBackprop);
+            CASE(BiasAddBackprop);
+            CASE(Clamp);
+            CASE(ClampBackprop);
+            CASE(Concat);
+            CASE(Convolution);
+            CASE(ConvolutionBackpropData);
+            CASE(ConvolutionBackpropFilters);
+            CASE(ConvTranspose);
+            CASE(ConvTransposeBackpropData);
+            CASE(ConvTransposeBackpropFilters);
+            CASE(Divide);
+            CASE(Elu);
+            CASE(EluBackprop);
+            CASE(Erf);
+            CASE(Exp);
+            CASE(GELU);
+            CASE(GELUBackprop);
+            CASE(HardSwish);
+            CASE(HardSwishBackprop);
+            CASE(HardTanh);
+            CASE(HardTanhBackprop);
+            CASE(LayerNorm);
+            CASE(LayerNormBackprop);
+            CASE(Log);
+            CASE(LogSoftmax);
+            CASE(LogSoftmaxBackprop);
+            CASE(MatMul);
+            CASE(Maximum);
+            CASE(MaxPool);
+            CASE(MaxPoolBackprop);
+            CASE(Minimum);
+            CASE(Multiply);
+            CASE(Pow);
+            CASE(PowBackprop);
+            CASE(PReLU);
+            CASE(PReLUBackprop);
+            CASE(ReduceL1);
+            CASE(ReduceL2);
+            CASE(ReduceMax);
+            CASE(ReduceMean);
+            CASE(ReduceMin);
+            CASE(ReduceProd);
+            CASE(ReduceSum);
+            CASE(ReLU);
+            CASE(ReLUBackprop);
+            CASE(Round);
+            CASE(Sigmoid);
+            CASE(SigmoidBackprop);
+            CASE(SoftMax);
+            CASE(SoftMaxBackprop);
+            CASE(SoftPlus);
+            CASE(SoftPlusBackprop);
+            CASE(Sqrt);
+            CASE(SqrtBackprop);
+            CASE(Square);
+            CASE(SquaredDifference);
+            CASE(Subtract);
+            CASE(Tanh);
+            CASE(TanhBackprop);
+            CASE(Wildcard);
+            CASE(BiasAdd);
+            CASE(Interpolate);
+            CASE(Index);
+            CASE(InterpolateBackprop);
+            CASE(PowBackpropExponent);
+            CASE(End);
+            CASE(Quantize);
+            CASE(Dequantize);
+            CASE(Reorder);
+            CASE(TypeCast);
+            CASE(StaticReshape);
+            CASE(StaticTranspose);
+            CASE(DynamicReshape);
+            CASE(DynamicTranspose);
+            CASE(DynamicQuantize);
+            CASE(DynamicDequantize);
+            CASE(Sign);
+            CASE(Negative);
+            CASE(Reciprocal);
+            CASE(LastSymbol);
+            default: return "internal_op";
         }
+#undef CASE
     }
 
     ///////////////////////////////////////////////////////////////////////////

@@ -405,7 +405,7 @@ bool post_depthwise_conv_fusible(
 const std::unordered_map<impl::op_kind_t, std::unordered_set<impl::op_kind_t>> &
 get_post_ops_fusible_map();
 
-const std::string &kind2str(impl::op_kind_t kind);
+std::string kind2str(impl::op_kind_t kind);
 
 std::shared_ptr<impl::value_t> insert_empty_scratchpad(
         std::shared_ptr<op_t> &op);

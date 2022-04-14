@@ -277,14 +277,14 @@ void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
     }
 }
 
-const std::string &kind2str(op_kind_t kind) {
+std::string kind2str(op_kind_t kind) {
     // 0: Abs, ..., N: LastSymbol, 0x1234: any, ...
     const size_t k = static_cast<size_t>(kind);
     const size_t l
             = static_cast<size_t>(dnnl::graph::impl::op_kind::LastSymbol);
 
     if (k <= l) {
-        return impl::op_kind::op_kind_strings.at(k);
+        return op_t::kind2str(kind);
     } else {
         return impl::dnnl_impl::op_kind::internal_op_strings.at(k
                 - static_cast<size_t>(op_kind::kDNNL_INTERNAL_OP_STARTER) - 1);
