@@ -24227,3 +24227,132 @@ TEST(Compile, ConvBiasReluAdd) {
     std::vector<const impl::logical_tensor_t *> outputs {&add_dst_lt};
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 }
+
+TEST(ExecuteSubgraphFp32, Binary3Postops) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> binary_src_shape {2, 2, 2, 2};
+    std::vector<int64_t> binary_dst_shape {2, 2, 2, 2};
+
+    test::vector<float> src0_data(product(binary_src_shape));
+    test::vector<float> src1_data(product(binary_src_shape));
+    std::vector<test::vector<float>> src_datas(
+            10, test::vector<float>(product(binary_src_shape)));
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    std::generate(src0_data.begin(), src0_data.end(),
+            [&]() { return f32_distribution(generator); });
+    std::generate(src1_data.begin(), src1_data.end(),
+            [&]() { return f32_distribution(generator); });
+    for (auto &data : src_datas)
+        std::generate(data.begin(), data.end(),
+                [&]() { return f32_distribution(generator); });
+
+    const std::vector<impl::op_kind_t> binary_op_ts {impl::op_kind::Add,
+            impl::op_kind::Divide, impl::op_kind::Maximum,
+            impl::op_kind::Minimum, impl::op_kind::Multiply,
+            impl::op_kind::Subtract};
+    const std::vector<std::vector<impl::op_kind_t>> post_op_t_seqs {
+            {impl::op_kind::Abs, impl::op_kind::Sqrt},
+            {impl::op_kind::ReLU, impl::op_kind::Log, impl::op_kind::Subtract},
+            {impl::op_kind::Multiply, impl::op_kind::HardSwish}};
+
+    std::vector<impl::logical_tensor_t> lt_vec;
+    for (size_t i = 0; i < 9; ++i)
+        lt_vec.emplace_back(utils::logical_tensor_init(
+                i, binary_src_shape, impl::data_type::f32));
+
+    for_(auto &bop_t : binary_op_ts)
+    for (auto &pop_ts : post_op_t_seqs) {
+        impl::op_t binary_op {0, bop_t, "binary op"};
+        size_t lt_idx = 0;
+        std::vector<size_t> input_lts {};
+        std::vector<size_t> output_lts {};
+        binary_op.add_input(lt_vec[lt_idx]);
+        input_lts.push_back(lt_idx);
+        binary_op.add_input(lt_vec[++lt_idx]);
+        input_lts.push_back(lt_idx);
+        binary_op.add_output(lt_vec[++lt_idx]);
+
+        std::vector<impl::op_t> post_ops {};
+        for (size_t i = 0; i < pop_ts.size(); ++i) {
+            auto pop_t = pop_ts[i];
+            post_ops.emplace_back(impl::op_t {i + 1, pop_t, "post op"});
+
+            // set additional parameters for specific ops
+            if (pop_t == impl::op_kind::Elu) {
+                post_ops.back().set_attr<float>("alpha", 1.0f);
+            } else if (pop_t == impl::op_kind::Clamp) {
+                post_ops.back().set_attr<float>("min", 1.0f);
+                post_ops.back().set_attr<float>("max", 3.0f);
+            } else if (pop_t == impl::op_kind::HardTanh) {
+                post_ops.back().set_attr<float>("min", 1.0f);
+                post_ops.back().set_attr<float>("max", 3.0f);
+            }
+
+            post_ops.back().add_input(lt_vec[lt_idx]);
+            if (std::find(binary_op_ts.begin(), binary_op_ts.end(), pop_t)
+                    != binary_op_ts.end()) {
+                post_ops.back().add_input(lt_vec[++lt_idx]);
+                input_lts.push_back(lt_idx);
+            }
+            post_ops.back().add_output(lt_vec[++lt_idx]);
+        }
+
+        output_lts.push_back(lt_idx);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&binary_op);
+        for (const auto &pop : post_ops)
+            g.add_op(&pop);
+        g.build_graph();
+
+        impl::tensor_t binary_src0_ts(lt_vec[0], &engine, src_datas[0].data());
+        impl::tensor_t binary_src1_ts(lt_vec[1], &engine, src_datas[1].data());
+        std::vector<impl::tensor_t> src_tss {};
+        for (size_t i = 0; i < input_lts.size(); ++i)
+            src_tss.emplace_back(impl::tensor_t(
+                    lt_vec[input_lts[i]], &engine, src_datas[i].data()));
+
+        // -------------------------case 1----------------------------------
+        test::vector<float> case1_out_data(product(binary_src_shape));
+        impl::tensor_t case1_dst_ts(
+                lt_vec[lt_idx], &engine, case1_out_data.data());
+
+        ASSERT_EQ(run_graph(g, src_tss, {case1_dst_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins(input_lts.size());
+        std::transform(input_lts.begin(), input_lts.end(), lt_ins.begin(),
+                [&](size_t idx) -> impl::logical_tensor_t * {
+                    return &lt_vec[idx];
+                });
+        std::vector<const impl::logical_tensor_t *> lt_outs {&lt_vec[lt_idx]};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        test::vector<float> case2_out_data(product(binary_dst_shape));
+        impl::tensor_t case2_dst_ts(
+                lt_vec[lt_idx], &engine, case2_out_data.data());
+
+        cp.execute(&strm, src_tss, {case2_dst_ts});
+        strm.wait();
+
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
+        }
+    }
+}

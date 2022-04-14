@@ -13328,10 +13328,10 @@ TEST(Pass, BinaryPostops) {
         }
 
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
-        size_t lt_idx = -1;
+        size_t lt_idx = 0;
         std::vector<size_t> input_lts = {};
         std::vector<size_t> output_lts = {};
-        binary_op.add_input(lt_vec[++lt_idx]);
+        binary_op.add_input(lt_vec[lt_idx]);
         input_lts.push_back(lt_idx);
         binary_op.add_input(lt_vec[++lt_idx]);
         input_lts.push_back(lt_idx);
@@ -13349,6 +13349,102 @@ TEST(Pass, BinaryPostops) {
         ASSERT_EQ(agraph.add_op(&binary_op), status::success);
 
         ASSERT_EQ(agraph.add_op(&post_op), status::success);
+
+        agraph.build_graph();
+
+        pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        auto partition = agraph.get_partitions()[0];
+        ASSERT_EQ(get_fused_op(partition)->get_kind(),
+                dnnl_impl::op_kind::binary_post_ops_fusion);
+
+        ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
+        for (size_t k = 0; k < input_lts.size(); ++k)
+            ASSERT_EQ(partition->get_inputs()[k].id, input_lts[k]);
+        ASSERT_EQ(partition->get_outputs().size(), output_lts.size());
+        for (size_t k = 0; k < output_lts.size(); ++k)
+            ASSERT_EQ(partition->get_outputs()[k].id, output_lts[k]);
+    }
+}
+
+// TODO(zitian): wait for the implementation of comparison ops:
+//      Gt, Ge, Le, Lt, Eq, Ne
+TEST(Pass, Binary3Postops) {
+    /*
+        0       1
+        \       /
+        [Add, Multiply, Maximum, Minimum, Divide, Subtract]
+            |
+        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 3]
+    */
+
+    std::vector<op_kind_t> supported_binary_ops {
+            Add, Divide, Maximum, Minimum, Multiply, Subtract};
+    std::vector<op_kind_t> supported_post_ops {Abs, Add, Clamp, Divide, Elu,
+            Exp, GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU,
+            Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+    std::vector<op_kind_t> supported_binary_post_ops {
+            Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
+
+    // select several combinations of post ops
+    std::vector<std::vector<op_kind_t>> post_op_seqs {{Abs, Subtract, Divide},
+            {Round, Multiply}, {Add, Elu}, {Clamp, Minimum, Pow}};
+    for_(const auto &pop_seq : post_op_seqs)
+    for (const auto &pop : pop_seq)
+        ASSERT_NE(std::find(supported_post_ops.begin(),
+                          supported_post_ops.end(), pop),
+                supported_post_ops.end());
+
+    for_(auto bop : supported_binary_ops)
+    for (const auto &pop_seq : post_op_seqs) {
+        graph_t agraph;
+        std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
+        size_t lt_idx = 0;
+        std::vector<size_t> input_lts = {};
+        std::vector<size_t> output_lts = {};
+
+        op_t binary_op {0, bop, "binary op"};
+        binary_op.add_input(lt_vec[lt_idx]);
+        input_lts.push_back(lt_idx);
+        binary_op.add_input(lt_vec[++lt_idx]);
+        input_lts.push_back(lt_idx);
+        binary_op.add_output(lt_vec[++lt_idx]);
+
+        std::vector<op_t> post_ops {};
+
+        for (size_t i = 0; i < pop_seq.size(); ++i) {
+            auto pop = pop_seq[i];
+            post_ops.emplace_back(op_t {i + 1, pop, "post op"});
+
+            // set additional parameters for specific ops
+            if (pop == Elu) {
+                post_ops.back().set_attr<float>("alpha", 1.0f);
+            } else if (pop == Clamp) {
+                post_ops.back().set_attr<float>("min", 1.0f);
+                post_ops.back().set_attr<float>("max", 3.0f);
+            } else if (pop == HardTanh) {
+                post_ops.back().set_attr<float>("min", 1.0f);
+                post_ops.back().set_attr<float>("max", 3.0f);
+            }
+
+            post_ops.back().add_input(lt_vec[lt_idx]);
+            if (std::find(supported_binary_post_ops.begin(),
+                        supported_binary_post_ops.end(), pop)
+                    != supported_binary_post_ops.end()) {
+                post_ops.back().add_input(lt_vec[++lt_idx]);
+                input_lts.push_back(lt_idx);
+            }
+            post_ops.back().add_output(lt_vec[++lt_idx]);
+        }
+
+        output_lts.push_back(lt_idx);
+
+        ASSERT_EQ(agraph.add_op(&binary_op), status::success);
+
+        for (size_t i = 0; i < post_ops.size(); ++i)
+            ASSERT_EQ(agraph.add_op(&post_ops[i]), status::success);
 
         agraph.build_graph();
 
@@ -13474,10 +13570,10 @@ TEST(Pass, ConvtransposePostops) {
 
                     std::vector<logical_tensor_t> lt_vec
                             = create_logical_tensors(8);
-                    size_t lt_idx = -1;
+                    size_t lt_idx = 0;
                     std::vector<size_t> input_lts = {};
                     std::vector<size_t> output_lts = {};
-                    convtranspose.add_input(lt_vec[++lt_idx]);
+                    convtranspose.add_input(lt_vec[lt_idx]);
                     input_lts.push_back(lt_idx);
                     convtranspose.add_input(lt_vec[++lt_idx]);
                     input_lts.push_back(lt_idx);

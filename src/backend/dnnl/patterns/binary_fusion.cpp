@@ -72,23 +72,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_post_ops_fusion)
                                     impl::op_kind::Subtract},
                             "binary_op");
 
-                    // special post op handle: swish is composed
-                    // by sigmoid and multiply
-                    auto swish_graph
-                            = std::make_shared<pb_graph_t>("swish_graph");
-                    auto psigmoid = swish_graph->append_op(
-                            impl::op_kind::Sigmoid, "psigmoid");
-                    auto pmultiply
-                            = swish_graph->append_op(impl::op_kind::Multiply,
-                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
-                    swish_graph->create_input_port(0, psigmoid, 0);
-                    swish_graph->create_input_port(0, pmultiply, 1);
-                    swish_graph->create_output_port(0, pmultiply, 0);
-
-                    auto optional_post_subgraph = std::make_shared<pb_graph_t>(
-                            "optional_post_subgraph");
+                    auto post_subgraph
+                            = std::make_shared<pb_graph_t>("post_subgraph");
                     auto alternative_post_op
-                            = optional_post_subgraph->append_alternation(
+                            = post_subgraph->append_alternation(
                                     {impl::op_kind::Abs, impl::op_kind::Add,
                                             impl::op_kind::Clamp,
                                             impl::op_kind::Divide,
@@ -110,14 +97,12 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_post_ops_fusion)
                                             impl::op_kind::Subtract,
                                             impl::op_kind::Tanh},
                                     "alternative_post_op");
-                    optional_post_subgraph->create_input_port(
-                            0, alternative_post_op, 0);
-                    optional_post_subgraph->create_output_port(
+                    post_subgraph->create_input_port(0, alternative_post_op, 0);
+                    post_subgraph->create_output_port(
                             0, alternative_post_op, 0);
 
-                    pgraph->append_alternation(
-                            {swish_graph, optional_post_subgraph},
-                            {in_edge(0, binary_op, 0)}, "palt");
+                    pgraph->append_repetition(post_subgraph, {0, 0}, 1,
+                            MAX_REPETITION, {in_edge(0, binary_op, 0)}, "palt");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
