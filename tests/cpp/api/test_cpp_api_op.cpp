@@ -177,9 +177,6 @@ TEST(api_op, set_attr) {
     conv.set_attr<std::string>("auto_pad", "VALID");
     conv.set_attr<std::vector<float>>("float_vec", {1., 1.});
     conv.set_attr<float>("float_val", 1.);
-
-    std::string op_to_string = conv.to_string();
-    ASSERT_EQ(op_to_string, "123 Convolution");
 }
 
 TEST(api_op, shallow_copy) {

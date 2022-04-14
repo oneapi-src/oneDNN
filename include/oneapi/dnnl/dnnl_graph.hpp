@@ -99,12 +99,6 @@ DNNL_GRAPH_HANDLE_ALIAS(partition);
 
 #undef DNNL_GRAPH_HANDLE_ALIAS
 
-#define REGISTER_SYMBOL(s) #s,
-const static std::vector<std::string> op_kind_strings
-        = {DNNL_GRAPH_FORALL_BUILTIN_OPS(REGISTER_SYMBOL) "LastSymbol"};
-
-#undef REGISTER_SYMBOL
-
 } // namespace detail
 
 /// dnnl graph exception class.
@@ -1151,25 +1145,6 @@ public:
                                      a.data(), static_cast<int64_t>(a.size())),
                 "setting attribute to the op failed");
         return *this;
-    }
-
-    // TODO(lvtao): Consider if this method is needed and how to support
-
-    /// Returns the string format of the Op id and kind
-    ///
-    /// @returns Op kind in string format
-    std::string to_string() const {
-        size_t id;
-        error::check_succeed(
-                dnnl_graph_op_get_id(get(), &id), "cannot get the operator id");
-
-        dnnl_graph_op_kind_t akind;
-        error::check_succeed(dnnl_graph_op_get_kind(get(), &akind),
-                "cannot get the operator kind");
-
-        return std::to_string(id) + " "
-                + detail::op_kind_strings.at(
-                        static_cast<std::vector<int64_t>::size_type>(akind));
     }
 
 private:
