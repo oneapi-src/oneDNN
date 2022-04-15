@@ -2598,6 +2598,8 @@ typedef enum {
     dnnl_fpmath_mode_f16,
     /// Implicit f32->f16 or f32->bf16 conversions allowed
     dnnl_fpmath_mode_any,
+    /// Implicit f32->f19 conversions allowed
+    dnnl_fpmath_mode_f19,
 } dnnl_fpmath_mode_t;
 
 /// Scratchpad mode

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -229,6 +229,9 @@ public:
                     break;
                 case dnnl_fpmath_mode_f16:
                     cudnn_math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
+                    break;
+                case dnnl_fpmath_mode_f19:
+                    cudnn_math_type = CUDNN_DEFAULT_MATH;
                     break;
                 case dnnl_fpmath_mode_any:
                     cudnn_math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
