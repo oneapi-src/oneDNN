@@ -534,7 +534,6 @@ TEST(OpSchema, InferConvBnAddOutputShape) {
     EXPECT_EQ(infered_out_strides, expected_out_strides);
 }
 
-
 TEST(OpSchema, InferConvBiasBnAddReluOutputShape) {
     const op_schema_t *a_op_schema = op_schema_registry_t::get_op_schema(
             impl::dnnl_impl::op_kind::conv_bias_post_ops_fusion);
@@ -605,4 +604,27 @@ TEST(OpSchema, DnnlBinary) {
     const size_t expected_in_size_upper = 32;
     verify_op_schema(op_kind, expected_in_size_upper, expected_out_size,
             expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, AllInternalOps) {
+    using namespace dnnl_impl::op_kind;
+    const size_t count = internal_op_strings.size();
+    const size_t start = static_cast<size_t>(kDNNL_INTERNAL_OP_STARTER) + 1;
+    // we have some internal operators which don't have schema.
+    const static std::vector<op_kind_t> no_schema {bn_bwd_relu_bwd,
+            conv_simple_resblock, int8_MHA, f32_MHA, chained_relu,
+            float_conv_fusion};
+
+    for (size_t i = start; i < start + count; i++) {
+        op_kind_t kind = static_cast<op_kind_t>(i);
+        if (std::find(std::begin(no_schema), std::end(no_schema), kind)
+                != std::end(no_schema))
+            continue;
+        const op_schema_t *schema = op_schema_registry_t::get_op_schema(kind);
+        if (!schema) {
+            std::cout << "op: " << internal_op_strings.at(i - start)
+                      << " doesn't exist!" << std::endl;
+            EXPECT_TRUE(schema != nullptr);
+        }
+    }
 }
