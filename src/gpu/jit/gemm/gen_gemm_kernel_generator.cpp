@@ -9641,9 +9641,11 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
 
         if (strategy.slmA) {
             auto &Ai_regs = state.Ai_regs[slmCopyLoad];
+            bool prezero = (problem.abOffset == ABOffset::Calc
+                    || problem.A.crosspack > 1);
+
             if (!A_splitK || hasRemainders(state.Ai_layout, false, true)) {
-                if (problem.abOffset == ABOffset::Calc)
-                    zeroMatrix(Ai_regs, strategy);
+                if (prezero) zeroMatrix(Ai_regs, strategy);
                 doALoadInc(Ai_regs, state.Ai_layout, state.Ai_addrs, state.Ai,
                         state.Ai_strategy, strategy.unrollKSLM, problem,
                         strategy, state);
@@ -9670,8 +9672,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
                 } else
                     add(1 | gt | state.flagAP, temp, state.K, -state.ha0_slm);
 
-                if (problem.A.crosspack > 1
-                        || problem.abOffset == ABOffset::Calc)
+                if (prezero)
                     zeroMatrix(copy ? state.Ao_regs : Ai_regs, strategy);
 
                 for (int hh = 0; hh < state.ka_slm; hh++) {
@@ -9719,9 +9720,11 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
 
         if (strategy.slmB) {
             auto &Bi_regs = state.Bi_regs[slmCopyLoad];
+            bool prezero = (problem.abOffset == ABOffset::Calc
+                    || problem.B.crosspack > 1);
+
             if (!B_splitK || hasRemainders(state.Bi_layout, true, false)) {
-                if (problem.abOffset == ABOffset::Calc)
-                    zeroMatrix(Bi_regs, strategy);
+                if (prezero) zeroMatrix(Bi_regs, strategy);
                 doBLoadInc(Bi_regs, state.Bi_layout, state.Bi_addrs, state.Bi,
                         state.Bi_strategy, strategy.unrollKSLM, problem,
                         strategy, state);
@@ -9748,8 +9751,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
                 } else
                     add(1 | gt | state.flagAP, temp, state.K, -state.hb0_slm);
 
-                if (problem.B.crosspack > 1
-                        || problem.abOffset == ABOffset::Calc)
+                if (prezero)
                     zeroMatrix(copy ? state.Bo_regs : Bi_regs, strategy);
 
                 for (int hh = 0; hh < state.kb_slm; hh++) {
