@@ -844,6 +844,7 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
     CASE(strict);
     CASE(bf16);
     CASE(f16);
+    CASE(f19);
     CASE(any);
 
     assert(!"not expected");
