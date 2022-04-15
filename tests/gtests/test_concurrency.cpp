@@ -266,6 +266,13 @@ private:
 class test_concurrency_t : public ::testing::Test {
 protected:
     void SetUp() override {
+#ifdef _WIN32
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
+                "GPU Windows is temporarily disabled due to long execution "
+                "time.");
+#endif
+        SKIP_IF_CUDA(true, "Concurrent execution is not supported with CUDA.");
+        skipped = false;
         for (int i = 0; i < ntasks; i++) {
             auto task = std::make_shared<conv_fwd_task_t>(i);
 
@@ -280,6 +287,7 @@ protected:
 
     static const int ntasks;
     static const int nthreads;
+    bool skipped = true;
     std::vector<std::shared_ptr<task_t>> tasks_;
     engine eng;
     stream strm;
@@ -289,7 +297,7 @@ const int test_concurrency_t::ntasks = 1000;
 const int test_concurrency_t::nthreads = 100;
 
 TEST_F(test_concurrency_t, Basic) {
-    SKIP_IF_CUDA(true, "Concurrent execution is not supported with CUDA.");
+    if (skipped) return;
     std::vector<std::thread> threads;
     for (int i = 0; i < nthreads; i++) {
         int step = (ntasks + nthreads - 1) / nthreads;
