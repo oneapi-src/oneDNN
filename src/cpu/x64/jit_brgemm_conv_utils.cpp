@@ -1199,8 +1199,16 @@ float brg_blocking_t::est_eff_1x1() {
     const auto M_n_sp_blks = ur_block > 0 ? nstl::max(M, M_tail) / ur_block : 0;
     const auto M_tail_n_sp_blks
             = ur_block_tail > 0 ? M_tail / ur_block_tail : 0;
-    const auto amx_fac = static_cast<float>(div_up(M + M_tail, 16))
-            / (M_n_sp_blks + M_tail_n_sp_blks);
+
+    // heuristic for maskrcnn workaround: use old blocking for some convolutions
+    // TODO: remove this condition
+    const bool maskrcnn_cond = (ic == 1024 && oc == 2048)
+            || (ic == 1024 && oc == 512) || (ic == 256 && oc == 1024)
+            || (ic == 512 && oc == 1024) || (ic == 512 && oc == 2048);
+    const auto amx_fac = maskrcnn_cond
+            ? (div_up(M + M_tail, 16) / (M_n_sp_blks + M_tail_n_sp_blks))
+            : (static_cast<float>(div_up(M + M_tail, 16))
+                    / (M_n_sp_blks + M_tail_n_sp_blks));
 
     const auto brgemm_microkernel_eff = is_amx(isa)
             ? amx_fac * (static_cast<float>(ocb_ave) * spb_ave)
