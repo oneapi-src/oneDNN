@@ -122,6 +122,7 @@ floating point data type.
    - Reorders between bf16 and s32 data types are not supported.
 
 3. **GPU**
+   - Only tensors of 6 or fewer dimensions are supported.
    - Runtime dimensions are not supported.
    - Runtime output scales are not supported.
    - Zero points are not supported.
