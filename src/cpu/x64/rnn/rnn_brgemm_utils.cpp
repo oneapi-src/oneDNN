@@ -340,8 +340,11 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
 
     rnn.brgemm_isa = adjust_isa_by_m_block(
             rnn.brgemm_isa, rnn.m_block, rnn.is_int8_amx());
-    rnn.unfused_post_gemm
-            = cell_kind == alg_kind::vanilla_lstm ? (rnn.M_blocks == 1) : false;
+    // Unfused post-gemm for lstm cell allows to parallelize across gates loop
+    // and reduces brgemm problem size for the single iteration of parallel loop
+    rnn.unfused_post_gemm = cell_kind == alg_kind::vanilla_lstm
+            ? IMPLICATION(rnn.M_blocks > 1, rnn.is_bf16_amx())
+            : false;
 
     rnn.LDA1[0] = rnn.src_layer_ld_;
     rnn.LDA1[1] = rnn.dst_iter_ld_;
