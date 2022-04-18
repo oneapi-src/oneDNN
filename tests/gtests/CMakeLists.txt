@@ -147,6 +147,7 @@ if(DNNL_TARGET_ARCH STREQUAL "X64" AND NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
         )
     foreach(TEST_FILE ${X64_PRIM_TEST_CASES_SRC})
         list(APPEND PRIM_TEST_CASES_SRC "${TEST_FILE}")
+        set_source_files_properties(${TEST_FILE} PROPERTIES NO_ENGINE_PARAM true)
     endforeach()
 endif()
 
