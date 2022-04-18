@@ -452,6 +452,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                     brgattr.use_uker = jbgp_.use_uker;
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
+                    brgattr.fpmath_mode = attr()->fpmath_mode_;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
                     jbgp_.amx_buf_size_per_thread

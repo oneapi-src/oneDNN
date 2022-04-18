@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,8 +69,10 @@ private:
     reg64_t reg_loop_batch = r12;
     reg64_t reg_tr_src_tmp = r13;
     reg32_t regw_tmp = r14d;
+    reg64_t reg_row_loop = r15;
 
-    void transpose_16x16(int nrows, int ncolumns = transpose_size);
+    void transpose_16x16(int nrows, int ncolumns);
+    void transpose(int nrows, int ncolumns);
     void generate() override;
 };
 
@@ -217,11 +219,40 @@ void jit_brgemm_trans_m_k_f32_t::transpose_16x16(int nrows, int ncolumns) {
     fixup16x16();
 }
 
+void jit_brgemm_trans_m_k_f32_t::transpose(int nrows, int ncolumns) {
+
+    Label K_loop, K_tail_or_done, K_done;
+    const int num_nrows_loop = nrows / transpose_size;
+    const int nrows_tail = nrows % transpose_size;
+    const dim_t src_shift = transpose_size * conf_->ic * typesize;
+    const dim_t tr_src_shift = transpose_size * typesize;
+
+    if (num_nrows_loop > 1) mov(reg_row_loop, num_nrows_loop);
+    L(K_loop);
+    if (num_nrows_loop > 0) transpose_16x16(transpose_size, ncolumns);
+    if (num_nrows_loop > 1 || (num_nrows_loop > 0 && nrows_tail > 0)) {
+        add(reg_src, src_shift);
+        add(reg_tr_src, tr_src_shift);
+    }
+    if (num_nrows_loop > 1) {
+        dec(reg_row_loop);
+        jg(K_loop);
+    }
+
+    if (nrows_tail > 0) { transpose_16x16(nrows_tail, ncolumns); }
+
+    if (num_nrows_loop > 1 || nrows_tail > 0) {
+        // reset pointers
+        sub(reg_src, src_shift * num_nrows_loop);
+        sub(reg_tr_src, tr_src_shift * num_nrows_loop);
+    }
+}
+
 void jit_brgemm_trans_m_k_f32_t::generate() {
     preamble();
     assert(conf_->ic_block % transpose_size == 0);
     const int os_block = conf_->os_block;
-    const int last_os_block_tail = conf_->K_tail % transpose_size;
+    const int last_os_block_tail = conf_->K_tail % os_block;
     const int ic_tail = conf_->M_tail % transpose_size;
     src_stride = conf_->ic * typesize;
     tr_src_stride = conf_->LDA * typesize;
@@ -249,7 +280,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
     kmovw(kF0F0, 0xf0f0); // 1111000011110000
 
     auto compute_M = [=](bool is_os_tail) {
-        const auto nrows = is_os_tail ? last_os_block_tail : transpose_size;
+        const auto nrows = is_os_tail ? last_os_block_tail : os_block;
         mov(reg_loop_M, ptr[param1 + GET_OFF(current_M)]);
         mov(reg_src, reg_src_base);
         mov(reg_tr_src, reg_tr_src_base);
@@ -260,7 +291,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
         }
 
         L(M_loop);
-        transpose_16x16(nrows, transpose_size);
+        transpose(nrows, transpose_size);
         if (conf_->ic_block > transpose_size) {
             add(reg_src, m_src_shift);
             add(reg_tr_src, m_tr_src_shift);
@@ -276,7 +307,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
             cmp(reg_loop_M, 0);
             jle(M_done, T_NEAR);
 
-            transpose_16x16(nrows, ic_tail);
+            transpose(nrows, ic_tail);
         }
         L(M_done);
     };
@@ -295,7 +326,7 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
 
     Label K_tail;
     if (last_os_block_tail > 0) {
-        cmp(reg_loop_K, transpose_size);
+        cmp(reg_loop_K, os_block);
         jl(K_tail, T_NEAR);
     }
 

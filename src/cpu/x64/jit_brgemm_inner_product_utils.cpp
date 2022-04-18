@@ -731,7 +731,8 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
 }
 
 status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
-    const bool is_amx_bf16 = jbgp.isa == avx512_core_bf16_amx_bf16;
+    const bool is_amx_bf16
+            = jbgp.isa == avx512_core_bf16_amx_bf16 && !jbgp.is_bf32;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool has_weights_buffer = jbgp.wei_dt != jbgp.acc_dt;
 
@@ -815,6 +816,17 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.LDB = (jbgp.use_buffer_b) ? jbgp.N * jbgp.nb_oc_blocking
                                    : jbgp.oc_without_padding;
     jbgp.LDC = jbgp.LDD = jbgp.N;
+
+    if (jbgp.is_bf32) {
+        const float M = static_cast<float>(jbgp.M);
+        const float N = nstl::min<float>(jbgp.N, jbgp.oc);
+        const float K
+                = nstl::min<float>(jbgp.K * jbgp.gemm_batch_size, jbgp.os);
+        const float tmul_efficiency = (M / 16) * (N / 16) * (K / 32);
+        // TODO: Adjust blocking such that bigger M, N, K are generated.
+        if (one_of(true, M <= 8, K <= 8, N < 16, tmul_efficiency <= 2.25))
+            return status::unimplemented;
+    }
 
     return status::success;
 }
