@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <cstring>
 
 #include <stdlib.h>
@@ -194,6 +195,24 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     const auto ddt = prb->conf_out->dt;
     skip_unimplemented_data_type({sdt, ddt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res);
+
+    bool oscale_ok = true;
+#if !defined(DNNL_X64) || DNNL_X64 == 0
+    {
+        // reference reorder supports only a subset of oscale policies
+        const std::vector<policy_t> supported_policy = {policy_t::PER_OC,
+                policy_t::PER_DIM_0, policy_t::PER_DIM_1, policy_t::PER_DIM_01};
+
+        oscale_ok = std::any_of(supported_policy.cbegin(),
+                supported_policy.cend(), [&](const policy_t policy) {
+                    return prb->attr.oscale.policy == policy;
+                });
+    }
+#endif
+    if (!oscale_ok) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 
     if (prb->is_reorder_with_compensation(FLAG_ANY)) {
         // Compensation is supported for s8 dst data type.
