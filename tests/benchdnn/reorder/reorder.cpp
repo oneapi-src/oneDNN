@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <cstring>
 
 #include <stdlib.h>
@@ -255,6 +256,24 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     // zero points for dst do not support sum by design
     if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)
             && prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
+    bool oscale_ok = true;
+#if !defined(DNNL_X64) || DNNL_X64 == 0
+    {
+        // reference reorder supports only a subset of oscale policies
+        const std::vector<policy_t> supported_policy = {policy_t::PER_OC,
+                policy_t::PER_DIM_0, policy_t::PER_DIM_1, policy_t::PER_DIM_01};
+
+        oscale_ok = std::any_of(supported_policy.cbegin(),
+                supported_policy.cend(), [&](const policy_t policy) {
+                    return prb->attr.oscale.policy == policy;
+                });
+    }
+#endif
+    if (!oscale_ok) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
