@@ -20,6 +20,7 @@
 #include "common/bfloat16.hpp"
 #include "cpu/rnn/rnn_utils.hpp"
 #include "cpu/x64/rnn/brgemm_cell_common_reorders.hpp"
+#include "cpu/x64/rnn/brgemm_cell_common_utils.hpp"
 #include "cpu/x64/rnn/jit_diff_weights_peephole.hpp"
 #include "cpu/x64/rnn/jit_gates_reduction.hpp"
 #include "cpu/x64/rnn/rnn_brgemm_utils.hpp"
@@ -62,7 +63,16 @@ public:
     void execute() const;
 
 private:
+    struct thread_exec_ctx_t {
+        x64::brgemm_batch_element_t *addr_batch;
+        gemm_acc_t *amx_buffer;
+        amx_tile_configuration_loader_t tile_configure_if_needed;
+    };
+
     void kernel_amx(const int ithr, const int nthr) const;
+    void kernel_amx_compute_iter(const int m_block_id, const int n_block_id,
+            const int gates_start, const int gates_end,
+            thread_exec_ctx_t &ctx) const;
     void kernel(const int ithr, const int nthr) const;
 
     const ref_rnn_brgemm_t &rnn_brgemm_;
@@ -91,12 +101,16 @@ private:
     const dim_t max_n_layer_blocks_;
     const dim_t max_n_iter_blocks_;
     const bool gemm_layer_needed_;
-    const brgemm_kernel_t *const kernel_iter_full_blocks_;
-    const brgemm_kernel_t *const kernel_iter_n_tail_;
+    const brgemm_kernel_t *const kernel_iter_full_blocks_b0_;
+    const brgemm_kernel_t *const kernel_iter_full_blocks_b1_;
+    const brgemm_kernel_t *const kernel_iter_n_tail_b0_;
+    const brgemm_kernel_t *const kernel_iter_n_tail_b1_;
     const brgemm_kernel_t *const kernel_iter_k_tail_;
     const brgemm_kernel_t *const kernel_iter_nk_tail_;
-    const brgemm_kernel_t *const kernel_layer_full_blocks_;
-    const brgemm_kernel_t *const kernel_layer_n_tail_;
+    const brgemm_kernel_t *const kernel_layer_full_blocks_b0_;
+    const brgemm_kernel_t *const kernel_layer_full_blocks_b1_;
+    const brgemm_kernel_t *const kernel_layer_n_tail_b0_;
+    const brgemm_kernel_t *const kernel_layer_n_tail_b1_;
     const brgemm_kernel_t *const kernel_layer_k_tail_;
     const brgemm_kernel_t *const kernel_layer_nk_tail_;
     gemm_acc_t *const amx_scratchpad_;

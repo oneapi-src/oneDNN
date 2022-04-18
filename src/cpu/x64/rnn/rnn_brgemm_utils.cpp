@@ -733,6 +733,11 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
 
     diff_src_conf.isa
             = brgemm_calc_isa(diff_src_conf.K, diff_src_conf.K, false, is_bf16);
+    const bool is_bf16_amx
+            = is_bf16 && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16;
+    const bool split_gates_computation = is_bf16_amx && diff_src_conf.K >= 1024
+            && diff_src_conf.n_tail == 0;
+    diff_src_conf.gates_block = split_gates_computation ? 1 : rnn.n_gates;
 
     std::tie(diff_src_conf.k_block, std::ignore) = brgemm_calc_k_block(
             diff_src_conf.K, diff_src_conf.K, diff_src_conf.M,
@@ -743,8 +748,6 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     diff_src_conf.K_blocks *= rnn.n_gates;
     diff_src_conf.k_tail = diff_src_conf.K % diff_src_conf.k_block;
 
-    const bool is_bf16_amx = rnn.is_bf16()
-            && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16;
     diff_src_conf.m_block = brgemm_calc_m_block(cell_kind, prop_kind::backward,
             rnn.nthr, diff_src_conf.M, diff_src_conf.N_blocks, rnn.is_f32(),
             false, is_bf16_amx, work_by_N, As, Bs, Cs, l2_cache_size);
@@ -964,25 +967,46 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
     const int n_diff_src_layer_tail
             = nstl::min(diff_src_conf.N_layer, diff_src_conf.n_layer_tail);
     const auto K_batch_size = rnn.n_gates * diff_src_conf.K_blocks;
-
+    const auto split_gates_computation
+            = diff_src_conf.gates_block != rnn.n_gates;
     init_brgemm_diff_src(&diff_src.desc_iter_layer_beta0_, diff_src_conf.isa,
             diff_src.kernel_iter_layer_beta0_, diff_src_conf.m_block,
             n_diff_src, diff_src_conf.k_block, diff_src_conf.LDA,
             diff_src_conf.LDB, diff_src_conf.LDC, 0.0, K_batch_size);
+    if (split_gates_computation)
+        init_brgemm_diff_src(&diff_src.desc_iter_layer_beta1_,
+                diff_src_conf.isa, diff_src.kernel_iter_layer_beta1_,
+                diff_src_conf.m_block, n_diff_src, diff_src_conf.k_block,
+                diff_src_conf.LDA, diff_src_conf.LDB, diff_src_conf.LDC, 1.0,
+                K_batch_size);
 
-    if (n_diff_src_layer_tail)
+    if (n_diff_src_layer_tail) {
         init_brgemm_diff_src(&diff_src.desc_layer_N_tail_beta0_,
                 diff_src_conf.isa, diff_src.kernel_layer_N_tail_beta0_,
                 diff_src_conf.m_block, n_diff_src_layer_tail,
                 diff_src_conf.k_block, diff_src_conf.LDA, diff_src_conf.LDB,
                 diff_src_conf.LDC, 0.0, K_batch_size);
+        if (split_gates_computation)
+            init_brgemm_diff_src(&diff_src.desc_layer_N_tail_beta1_,
+                    diff_src_conf.isa, diff_src.kernel_layer_N_tail_beta1_,
+                    diff_src_conf.m_block, n_diff_src_layer_tail,
+                    diff_src_conf.k_block, diff_src_conf.LDA, diff_src_conf.LDB,
+                    diff_src_conf.LDC, 1.0, K_batch_size);
+    }
 
-    if (n_diff_src_iter_tail)
+    if (n_diff_src_iter_tail) {
         init_brgemm_diff_src(&diff_src.desc_iter_N_tail_beta0_,
                 diff_src_conf.isa, diff_src.kernel_iter_N_tail_beta0_,
                 diff_src_conf.m_block, n_diff_src_iter_tail,
                 diff_src_conf.k_block, diff_src_conf.LDA, diff_src_conf.LDB,
                 diff_src_conf.LDC, 0.0, K_batch_size);
+        if (split_gates_computation)
+            init_brgemm_diff_src(&diff_src.desc_iter_N_tail_beta1_,
+                    diff_src_conf.isa, diff_src.kernel_iter_N_tail_beta1_,
+                    diff_src_conf.m_block, n_diff_src_iter_tail,
+                    diff_src_conf.k_block, diff_src_conf.LDA, diff_src_conf.LDB,
+                    diff_src_conf.LDC, 1.0, K_batch_size);
+    }
 
     if (diff_src_conf.k_tail) {
         init_brgemm_diff_src(&diff_src.desc_iter_layer_K_tail_beta1_,

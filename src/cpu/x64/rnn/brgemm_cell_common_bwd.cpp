@@ -67,17 +67,27 @@ brgemm_diff_src_layer_iter_t<weights_t, scratch_t,
     , max_n_layer_blocks_(rnn.diff_src_brgemm.N_layer_blocks)
     , max_n_iter_blocks_(rnn.diff_src_brgemm.N_iter_blocks)
     , gemm_layer_needed_(rnn.need_gemm_layer(cell_position))
-    , kernel_iter_full_blocks_(
+    , kernel_iter_full_blocks_b0_(
               rnn_brgemm_.diff_src_.kernel_iter_layer_beta0_.get())
-    , kernel_iter_n_tail_(rnn_brgemm_.diff_src_.kernel_iter_N_tail_beta0_.get())
+    , kernel_iter_full_blocks_b1_(
+              rnn_brgemm_.diff_src_.kernel_iter_layer_beta1_.get())
+
+    , kernel_iter_n_tail_b0_(
+              rnn_brgemm_.diff_src_.kernel_iter_N_tail_beta0_.get())
+    , kernel_iter_n_tail_b1_(
+              rnn_brgemm_.diff_src_.kernel_iter_N_tail_beta1_.get())
     , kernel_iter_k_tail_(
               rnn_brgemm_.diff_src_.kernel_iter_layer_K_tail_beta1_.get())
     , kernel_iter_nk_tail_(
               rnn_brgemm_.diff_src_.kernel_iter_NK_tail_beta1_.get())
-    , kernel_layer_full_blocks_(
+    , kernel_layer_full_blocks_b0_(
               rnn_brgemm_.diff_src_.kernel_iter_layer_beta0_.get())
-    , kernel_layer_n_tail_(
+    , kernel_layer_full_blocks_b1_(
+              rnn_brgemm_.diff_src_.kernel_iter_layer_beta1_.get())
+    , kernel_layer_n_tail_b0_(
               rnn_brgemm_.diff_src_.kernel_layer_N_tail_beta0_.get())
+    , kernel_layer_n_tail_b1_(
+              rnn_brgemm_.diff_src_.kernel_layer_N_tail_beta1_.get())
     , kernel_layer_k_tail_(
               rnn_brgemm_.diff_src_.kernel_iter_layer_K_tail_beta1_.get())
     , kernel_layer_nk_tail_(
@@ -100,6 +110,144 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::execute()
     }
 }
 
+template <typename weights_t, typename scratch_t, typename gemm_acc_t>
+void brgemm_diff_src_layer_iter_t<weights_t, scratch_t,
+        gemm_acc_t>::kernel_amx_compute_iter(const int m_block_id,
+        const int n_block_id, const int gates_start, const int gates_end,
+        thread_exec_ctx_t &ctx) const {
+
+    const int m = m_block_id * rnn_.diff_src_brgemm.m_block;
+    const int n = n_block_id * rnn_.diff_src_brgemm.n_block;
+    const int num_gates = gates_end - gates_start;
+    const scratch_t *const A_m = A_ + m * LDA_;
+    const auto B_n_offset = n_block_id * B_nb_offset_;
+    const weights_t *const B_wei_iter_n = B_wei_iter_ + B_n_offset;
+    const weights_t *const B_wei_layer_n = B_wei_layer_ + B_n_offset;
+    const auto C_offset = m * LDC_ + n;
+    gemm_acc_t *const C_diff_iter_n = C_diff_iter_ + C_offset;
+    gemm_acc_t *const C_diff_layer_n = C_diff_layer_ + C_offset;
+
+    const brgemm_kernel_t *kernel_iter = gates_start == 0
+            ? kernel_iter_full_blocks_b0_
+            : kernel_iter_full_blocks_b1_;
+    const brgemm_kernel_t *kernel_iter_k_tail = kernel_iter_k_tail_;
+    const brgemm_kernel_t *kernel_layer = gates_start == 0
+            ? kernel_layer_full_blocks_b0_
+            : kernel_layer_full_blocks_b1_;
+    const brgemm_kernel_t *kernel_layer_k_tail = kernel_layer_k_tail_;
+
+    const char *kernel_iter_config
+            = rnn_brgemm_.diff_src_.pallete_buff_iter_layer_;
+    const char *kernel_iter_k_tail_config
+            = rnn_brgemm_.diff_src_.pallete_buff_iter_layer_k_tail_;
+    const char *kernel_layer_config
+            = rnn_brgemm_.diff_src_.pallete_buff_iter_layer_;
+    const char *kernel_layer_k_tail_config
+            = rnn_brgemm_.diff_src_.pallete_buff_iter_layer_k_tail_;
+
+    const bool should_calc_diff_src_layer
+            = gemm_layer_needed_ && n_block_id < max_n_layer_blocks_;
+    const bool should_calc_diff_src_iter = n_block_id < max_n_iter_blocks_;
+
+    if (should_calc_diff_src_iter) {
+        const bool do_n_iter_tail = (n + rnn_.diff_src_brgemm.n_block)
+                > rnn_.diff_src_brgemm.N_iter;
+
+        if (do_n_iter_tail) {
+            kernel_iter = gates_start == 0 ? kernel_iter_n_tail_b0_
+                                           : kernel_iter_n_tail_b1_;
+            kernel_iter_k_tail = kernel_iter_nk_tail_;
+            kernel_iter_config
+                    = rnn_brgemm_.diff_src_.pallete_buff_iter_n_tail_;
+            kernel_iter_k_tail_config
+                    = rnn_brgemm_.diff_src_.pallete_buff_iter_nk_tail_;
+        }
+
+        for (int gate_id = gates_start; gate_id < gates_end; gate_id++) {
+            const auto g_block_id = gate_id * k_blocks_;
+            const auto A_gb_offset = gate_id * rnn_.diff_src_brgemm.K;
+            const auto B_g_offset = gate_id * B_gb_iter_offset_;
+            const auto A_gm = A_m + A_gb_offset;
+            const auto B_wei_iter_gn = B_wei_iter_n + B_g_offset;
+            for (int k_block_id = 0; k_block_id < k_blocks_; k_block_id++) {
+                ctx.addr_batch[g_block_id + k_block_id].ptr.A
+                        = A_gm + k_block_id * k_block_;
+                ctx.addr_batch[g_block_id + k_block_id].ptr.B
+                        = B_wei_iter_gn + k_block_id * B_kb_offset_;
+            }
+        }
+
+        ctx.tile_configure_if_needed(kernel_iter_config);
+        brgemm_kernel_execute(kernel_iter, k_blocks_ * num_gates,
+                ctx.addr_batch, reinterpret_cast<void *>(C_diff_iter_n),
+                ctx.amx_buffer);
+    }
+
+    if (should_calc_diff_src_layer) {
+        const bool do_n_layer_tail = (n + rnn_.diff_src_brgemm.n_block)
+                > rnn_.diff_src_brgemm.N_layer;
+
+        if (do_n_layer_tail) {
+            kernel_layer = gates_start == 0 ? kernel_layer_n_tail_b0_
+                                            : kernel_layer_n_tail_b1_;
+            kernel_layer_k_tail = kernel_layer_nk_tail_;
+            kernel_layer_config
+                    = rnn_brgemm_.diff_src_.pallete_buff_layer_n_tail_;
+            kernel_layer_k_tail_config
+                    = rnn_brgemm_.diff_src_.pallete_buff_layer_nk_tail_;
+        }
+
+        for (int gate_id = gates_start; gate_id < gates_end; gate_id++) {
+            const auto g_block_id = gate_id * k_blocks_;
+            const auto A_gb_offset = gate_id * rnn_.diff_src_brgemm.K;
+            const auto B_g_offset = gate_id * B_gb_layer_offset_;
+            const auto A_gm = A_m + A_gb_offset;
+            const auto B_wei_layer_gn = B_wei_layer_n + B_g_offset;
+            for (int k_block_id = 0; k_block_id < k_blocks_; k_block_id++) {
+                ctx.addr_batch[g_block_id + k_block_id].ptr.A
+                        = A_gm + k_block_id * k_block_;
+                ctx.addr_batch[g_block_id + k_block_id].ptr.B
+                        = B_wei_layer_gn + k_block_id * B_kb_offset_;
+            }
+        }
+
+        ctx.tile_configure_if_needed(kernel_layer_config);
+        brgemm_kernel_execute(kernel_layer, k_blocks_ * num_gates,
+                ctx.addr_batch, reinterpret_cast<void *>(C_diff_layer_n),
+                ctx.amx_buffer);
+    }
+
+    if (should_calc_diff_src_iter && k_tail_) {
+        for (int gate_id = gates_start; gate_id < gates_end; gate_id++) {
+            const auto A_gb_offset = gate_id * rnn_.diff_src_brgemm.K;
+            const auto B_gb_offset = gate_id * B_gb_iter_offset_;
+            ctx.addr_batch[gate_id].ptr.A
+                    = A_m + A_gb_offset + A_k_tail_offset_;
+            ctx.addr_batch[gate_id].ptr.B
+                    = B_wei_iter_n + B_gb_offset + B_k_tail_offset_;
+        }
+
+        ctx.tile_configure_if_needed(kernel_iter_k_tail_config);
+        brgemm_kernel_execute(kernel_iter_k_tail, num_gates, ctx.addr_batch,
+                reinterpret_cast<void *>(C_diff_iter_n), ctx.amx_buffer);
+    }
+
+    if (should_calc_diff_src_layer && k_tail_) {
+        for (int gate_id = gates_start; gate_id < gates_end; gate_id++) {
+            const auto A_gb_offset = gate_id * rnn_.diff_src_brgemm.K;
+            const auto B_gb_offset = gate_id * B_gb_layer_offset_;
+            ctx.addr_batch[gate_id].ptr.A
+                    = A_m + A_gb_offset + A_k_tail_offset_;
+            ctx.addr_batch[gate_id].ptr.B
+                    = B_wei_layer_n + B_gb_offset + B_k_tail_offset_;
+        }
+
+        ctx.tile_configure_if_needed(kernel_layer_k_tail_config);
+        brgemm_kernel_execute(kernel_layer_k_tail, num_gates, ctx.addr_batch,
+                reinterpret_cast<void *>(C_diff_layer_n), ctx.amx_buffer);
+    }
+}
+
 // TODO consider merging with kernel - check perf after merge
 template <typename weights_t, typename scratch_t, typename gemm_acc_t>
 void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel_amx(
@@ -110,162 +258,45 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel_amx(
     balance211(work_amount_, nthr, ithr, start, end);
 
     int n_block_id = 0, m_block_id = 0;
-    switch (rnn_.diff_src_brgemm.loop_order) {
-        case brgemm_rnn_execute_loop_order_t::mblk_nblk:
-            nd_iterator_init(
-                    start, m_block_id, m_blocking_, n_block_id, n_blocking_);
-            break;
-        case brgemm_rnn_execute_loop_order_t::nblk_mblk:
-            nd_iterator_init(
-                    start, n_block_id, n_blocking_, m_block_id, m_blocking_);
-            break;
-        default: assert(!"unsupported loop order");
-    }
-
-    x64::brgemm_batch_element_t *const addr_batch
-            = addr_batch_global_ + ithr * (k_blocks_n_gates_ + 1);
-
-    gemm_acc_t *const amx_buffer = amx_scratchpad_
+    const auto n_gates = rnn_.n_gates;
+    const int gates_block_size = rnn_.diff_src_brgemm.gates_block;
+    thread_exec_ctx_t ctx;
+    ctx.addr_batch = addr_batch_global_ + ithr * (k_blocks_n_gates_ + 1);
+    ctx.amx_buffer = amx_scratchpad_
             + rnn_.diff_src_brgemm.m_block * rnn_.diff_src_brgemm.n_block
                     * ithr;
 
-    amx_tile_configuration_loader_t tile_configure_if_needed;
-    const auto n_gates = rnn_.n_gates;
+    for (int gate_idx = 0; gate_idx < n_gates; gate_idx += gates_block_size) {
+        const int gates_start = gate_idx;
+        const int gates_end = nstl::min(gate_idx + gates_block_size, n_gates);
 
-    while (start < end) {
-        const int m = m_block_id * rnn_.diff_src_brgemm.m_block;
-        const int n = n_block_id * rnn_.diff_src_brgemm.n_block;
-        const scratch_t *const A_m = A_ + m * LDA_;
-        const auto B_n_offset = n_block_id * B_nb_offset_;
-        const weights_t *const B_wei_iter_n = B_wei_iter_ + B_n_offset;
-        const weights_t *const B_wei_layer_n = B_wei_layer_ + B_n_offset;
-        const auto C_offset = m * LDC_ + n;
-        gemm_acc_t *const C_diff_iter_n = C_diff_iter_ + C_offset;
-        gemm_acc_t *const C_diff_layer_n = C_diff_layer_ + C_offset;
-
-        const brgemm_kernel_t *kernel_iter = kernel_iter_full_blocks_;
-        const brgemm_kernel_t *kernel_iter_k_tail = kernel_iter_k_tail_;
-        const brgemm_kernel_t *kernel_layer = kernel_layer_full_blocks_;
-        const brgemm_kernel_t *kernel_layer_k_tail = kernel_layer_k_tail_;
-
-        const char *kernel_iter_config
-                = rnn_brgemm_.diff_src_.pallete_buff_iter_layer_;
-        const char *kernel_iter_k_tail_config
-                = rnn_brgemm_.diff_src_.pallete_buff_iter_layer_k_tail_;
-        const char *kernel_layer_config
-                = rnn_brgemm_.diff_src_.pallete_buff_iter_layer_;
-        const char *kernel_layer_k_tail_config
-                = rnn_brgemm_.diff_src_.pallete_buff_iter_layer_k_tail_;
-
-        const bool should_calc_diff_src_layer
-                = gemm_layer_needed_ && n_block_id < max_n_layer_blocks_;
-        const bool should_calc_diff_src_iter = n_block_id < max_n_iter_blocks_;
-
-        if (should_calc_diff_src_iter) {
-            const bool do_n_iter_tail = (n + rnn_.diff_src_brgemm.n_block)
-                    > rnn_.diff_src_brgemm.N_iter;
-
-            if (do_n_iter_tail) {
-                kernel_iter = kernel_iter_n_tail_;
-                kernel_iter_k_tail = kernel_iter_nk_tail_;
-                kernel_iter_config
-                        = rnn_brgemm_.diff_src_.pallete_buff_iter_n_tail_;
-                kernel_iter_k_tail_config
-                        = rnn_brgemm_.diff_src_.pallete_buff_iter_nk_tail_;
-            }
-
-            for (int gate_id = 0; gate_id < n_gates; gate_id++) {
-                const auto g_block_id = gate_id * k_blocks_;
-                const auto A_gb_offset = gate_id * rnn_.diff_src_brgemm.K;
-                const auto B_g_offset = gate_id * B_gb_iter_offset_;
-                const auto A_gm = A_m + A_gb_offset;
-                const auto B_wei_iter_gn = B_wei_iter_n + B_g_offset;
-                for (int k_block_id = 0; k_block_id < k_blocks_; k_block_id++) {
-                    addr_batch[g_block_id + k_block_id].ptr.A
-                            = A_gm + k_block_id * k_block_;
-                    addr_batch[g_block_id + k_block_id].ptr.B
-                            = B_wei_iter_gn + k_block_id * B_kb_offset_;
-                }
-            }
-
-            tile_configure_if_needed(kernel_iter_config);
-            brgemm_kernel_execute(kernel_iter, k_blocks_n_gates_, addr_batch,
-                    reinterpret_cast<void *>(C_diff_iter_n), amx_buffer);
-        }
-
-        if (should_calc_diff_src_layer) {
-            const bool do_n_layer_tail = (n + rnn_.diff_src_brgemm.n_block)
-                    > rnn_.diff_src_brgemm.N_layer;
-
-            if (do_n_layer_tail) {
-                kernel_layer = kernel_layer_n_tail_;
-                kernel_layer_k_tail = kernel_layer_nk_tail_;
-                kernel_layer_config
-                        = rnn_brgemm_.diff_src_.pallete_buff_layer_n_tail_;
-                kernel_layer_k_tail_config
-                        = rnn_brgemm_.diff_src_.pallete_buff_layer_nk_tail_;
-            }
-
-            for (int gate_id = 0; gate_id < n_gates; gate_id++) {
-                const auto g_block_id = gate_id * k_blocks_;
-                const auto A_gb_offset = gate_id * rnn_.diff_src_brgemm.K;
-                const auto B_g_offset = gate_id * B_gb_layer_offset_;
-                const auto A_gm = A_m + A_gb_offset;
-                const auto B_wei_layer_gn = B_wei_layer_n + B_g_offset;
-                for (int k_block_id = 0; k_block_id < k_blocks_; k_block_id++) {
-                    addr_batch[g_block_id + k_block_id].ptr.A
-                            = A_gm + k_block_id * k_block_;
-                    addr_batch[g_block_id + k_block_id].ptr.B
-                            = B_wei_layer_gn + k_block_id * B_kb_offset_;
-                }
-            }
-
-            tile_configure_if_needed(kernel_layer_config);
-            brgemm_kernel_execute(kernel_layer, k_blocks_n_gates_, addr_batch,
-                    reinterpret_cast<void *>(C_diff_layer_n), amx_buffer);
-        }
-
-        if (should_calc_diff_src_iter && k_tail_) {
-            for (int gate_id = 0; gate_id < n_gates; gate_id++) {
-                const auto A_gb_offset = gate_id * rnn_.diff_src_brgemm.K;
-                const auto B_gb_offset = gate_id * B_gb_iter_offset_;
-                addr_batch[gate_id].ptr.A
-                        = A_m + A_gb_offset + A_k_tail_offset_;
-                addr_batch[gate_id].ptr.B
-                        = B_wei_iter_n + B_gb_offset + B_k_tail_offset_;
-            }
-
-            tile_configure_if_needed(kernel_iter_k_tail_config);
-            brgemm_kernel_execute(kernel_iter_k_tail, n_gates, addr_batch,
-                    reinterpret_cast<void *>(C_diff_iter_n), amx_buffer);
-        }
-
-        if (should_calc_diff_src_layer && k_tail_) {
-            for (int gate_id = 0; gate_id < n_gates; gate_id++) {
-                const auto A_gb_offset = gate_id * rnn_.diff_src_brgemm.K;
-                const auto B_gb_offset = gate_id * B_gb_layer_offset_;
-                addr_batch[gate_id].ptr.A
-                        = A_m + A_gb_offset + A_k_tail_offset_;
-                addr_batch[gate_id].ptr.B
-                        = B_wei_layer_n + B_gb_offset + B_k_tail_offset_;
-            }
-
-            tile_configure_if_needed(kernel_layer_k_tail_config);
-            brgemm_kernel_execute(kernel_layer_k_tail, n_gates, addr_batch,
-                    reinterpret_cast<void *>(C_diff_layer_n), amx_buffer);
-        }
-
-        ++start;
         switch (rnn_.diff_src_brgemm.loop_order) {
             case brgemm_rnn_execute_loop_order_t::mblk_nblk:
-                nd_iterator_step(
-                        m_block_id, m_blocking_, n_block_id, n_blocking_);
+                nd_iterator_init(start, m_block_id, m_blocking_, n_block_id,
+                        n_blocking_);
                 break;
             case brgemm_rnn_execute_loop_order_t::nblk_mblk:
-                nd_iterator_step(
-                        n_block_id, n_blocking_, m_block_id, m_blocking_);
+                nd_iterator_init(start, n_block_id, n_blocking_, m_block_id,
+                        m_blocking_);
                 break;
             default: assert(!"unsupported loop order");
+        }
+
+        while (start < end) {
+            kernel_amx_compute_iter(
+                    m_block_id, n_block_id, gates_start, gates_end, ctx);
+            ++start;
+            switch (rnn_.diff_src_brgemm.loop_order) {
+                case brgemm_rnn_execute_loop_order_t::mblk_nblk:
+                    nd_iterator_step(
+                            m_block_id, m_blocking_, n_block_id, n_blocking_);
+                    break;
+                case brgemm_rnn_execute_loop_order_t::nblk_mblk:
+                    nd_iterator_step(
+                            n_block_id, n_blocking_, m_block_id, m_blocking_);
+                    break;
+                default: assert(!"unsupported loop order");
+            }
         }
     }
 }
@@ -293,9 +324,9 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel(
         const auto C_offset = m * LDC_ + n;
         gemm_acc_t *const C_diff_iter_n = C_diff_iter_ + C_offset;
         gemm_acc_t *const C_diff_layer_n = C_diff_layer_ + C_offset;
-        const brgemm_kernel_t *kernel_iter = kernel_iter_full_blocks_;
+        const brgemm_kernel_t *kernel_iter = kernel_iter_full_blocks_b0_;
         const brgemm_kernel_t *kernel_iter_k_tail = kernel_iter_k_tail_;
-        const brgemm_kernel_t *kernel_layer = kernel_layer_full_blocks_;
+        const brgemm_kernel_t *kernel_layer = kernel_layer_full_blocks_b0_;
         const brgemm_kernel_t *kernel_layer_k_tail = kernel_layer_k_tail_;
         const bool should_calc_diff_src_layer
                 = gemm_layer_needed_ && n_block_id < max_n_layer_blocks_;
@@ -306,7 +337,7 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel(
                     > rnn_.diff_src_brgemm.N_iter;
 
             if (do_n_iter_tail) {
-                kernel_iter = kernel_iter_n_tail_;
+                kernel_iter = kernel_iter_n_tail_b0_;
                 kernel_iter_k_tail = kernel_iter_nk_tail_;
             }
 
@@ -333,7 +364,7 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel(
                     > rnn_.diff_src_brgemm.N_layer;
 
             if (do_n_layer_tail) {
-                kernel_layer = kernel_layer_n_tail_;
+                kernel_layer = kernel_layer_n_tail_b0_;
                 kernel_layer_k_tail = kernel_layer_nk_tail_;
             }
 

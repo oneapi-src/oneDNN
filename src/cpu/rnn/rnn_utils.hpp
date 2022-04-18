@@ -239,6 +239,7 @@ struct diff_src_brgemm_conf_t {
 
     brgemm_rnn_execute_loop_order_t loop_order
             = brgemm_rnn_execute_loop_order_t::undefined;
+    int gates_block;
 };
 
 struct diff_wei_brgemm_conf_t {

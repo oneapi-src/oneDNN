@@ -146,15 +146,21 @@ private:
 
 struct rnn_diff_src_brgemm_t {
     brgemm_t desc_iter_layer_beta0_;
+    brgemm_t desc_iter_layer_beta1_;
     brgemm_t desc_layer_N_tail_beta0_;
+    brgemm_t desc_layer_N_tail_beta1_;
     brgemm_t desc_iter_N_tail_beta0_;
+    brgemm_t desc_iter_N_tail_beta1_;
     brgemm_t desc_iter_layer_K_tail_beta1_;
     brgemm_t desc_layer_NK_tail_beta1_;
     brgemm_t desc_iter_NK_tail_beta1_;
 
     brgemm_ker_ptr_t kernel_iter_layer_beta0_ = nullptr;
+    brgemm_ker_ptr_t kernel_iter_layer_beta1_ = nullptr;
     brgemm_ker_ptr_t kernel_layer_N_tail_beta0_ = nullptr;
+    brgemm_ker_ptr_t kernel_layer_N_tail_beta1_ = nullptr;
     brgemm_ker_ptr_t kernel_iter_N_tail_beta0_ = nullptr;
+    brgemm_ker_ptr_t kernel_iter_N_tail_beta1_ = nullptr;
     brgemm_ker_ptr_t kernel_iter_layer_K_tail_beta1_ = nullptr;
     brgemm_ker_ptr_t kernel_layer_NK_tail_beta1_ = nullptr;
     brgemm_ker_ptr_t kernel_iter_NK_tail_beta1_ = nullptr;
