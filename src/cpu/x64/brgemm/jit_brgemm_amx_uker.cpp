@@ -283,15 +283,15 @@ private:
 
     void bf32_downconvert(int num_rows, int tile_num_col_bytes,
             reg64_t reg_data, int offset, reg64_t reg_data_stride,
-            reg64_t reg_buf, bool is_rd_tail, bool try_load_nt);
+            reg64_t reg_buf, bool is_rd_tail);
 
     void bf32_downconvert_to_vnni(int num_rows, int tile_num_col_bytes,
             reg64_t reg_data, int offset, reg64_t reg_data_stride,
-            reg64_t reg_buf, bool is_rd_tail, bool try_load_nt);
+            reg64_t reg_buf, bool is_rd_tail);
 
     void maybe_pre_process_data(const Tmm &t1, reg64_t reg_base, size_t offset,
             reg64_t reg_stride, int bs, int rbd, matrix_kind_t mk,
-            bool is_rd_tail, bool try_load_nt);
+            bool is_rd_tail);
 
     void maybe_tileloadd_nt(matrix_kind_t mk, int bs, int xdb, int rdb,
             size_t offset, bool is_rd_tail);
@@ -318,6 +318,8 @@ private:
     size_t C_offset(int bd, int ldb) const noexcept;
     size_t D_offset(int bd, int ldb) const noexcept;
 
+    size_t lda() const noexcept;
+    size_t ldb() const noexcept;
     size_t rdb_A_offset() const noexcept;
     size_t rdb_B_offset() const noexcept;
 
@@ -380,6 +382,14 @@ size_t jit_brgemm_amx_uker_base_t::C_offset(int bd, int ldb) const noexcept {
 
 size_t jit_brgemm_amx_uker_base_t::D_offset(int bd, int ldb) const noexcept {
     return bd * LDD_size_ + ldb * ld_block_D_size_;
+}
+
+size_t jit_brgemm_amx_uker_base_t::lda() const noexcept {
+    return LDA_size_;
+}
+
+size_t jit_brgemm_amx_uker_base_t::ldb() const noexcept {
+    return LDB_size_ * brg.rd_step;
 }
 
 size_t jit_brgemm_amx_uker_base_t::rdb_A_offset() const noexcept {
@@ -1122,8 +1132,10 @@ void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(matrix_kind_t mk, int bs,
     auto reg_stride = is_A ? reg_stride_lda : reg_stride_ldb;
 
     if (brg.is_bf32)
-        maybe_pre_process_data(t1, reg_base, offset, reg_stride, bs, rdb, mk,
-                is_rd_tail, try_load_nt);
+        // try_load_nt is not supported in maybe_pre_process_data as there is
+        // no guarantee that the data is cacheline aligned.
+        maybe_pre_process_data(
+                t1, reg_base, offset, reg_stride, bs, rdb, mk, is_rd_tail);
     else if (try_load_nt)
         tileloaddt1(t1, ptr[reg_base + offset + reg_stride]);
     else
@@ -1157,26 +1169,16 @@ void jit_brgemm_amx_uker_base_t::tdpbxxd(
 // Generally used by matrix_A, where no vnni transformation of data is needed.
 void jit_brgemm_amx_uker_base_t::bf32_downconvert(int num_rows,
         int tile_num_col_bytes, reg64_t reg_data, int offset,
-        reg64_t reg_data_stride, reg64_t reg_buf, bool is_rd_tail,
-        bool try_load_nt) {
+        reg64_t reg_data_stride, reg64_t reg_buf, bool is_rd_tail) {
     const int rd_block = is_rd_tail ? brg.rdb_tail : brg.rd_block;
     const int max_num_cols
             = nstl::min<int>(tile_num_col_bytes / sizeof(bfloat16_t), rd_block);
     const int col_tail = max_num_cols % simd_w;
-    const bool try_load_nt_zmm_1 = try_load_nt && max_num_cols >= 16;
-    const bool try_load_nt_zmm_2 = try_load_nt && col_tail == 0;
     auto zmm_1 = zmm_tmp_1();
     auto zmm_2 = zmm_tmp_2();
     auto zmm_2_masked = col_tail ? zmm_2 | bf32_col_mask | T_z : zmm_2;
 
     assert(max_num_cols > 0);
-
-    auto load = [&](Zmm zmm, Address addr, bool ok_to_nt_load) {
-        if (ok_to_nt_load)
-            vmovntdqa(zmm, addr);
-        else
-            vmovups(zmm, addr);
-    };
 
     if (col_tail) {
         const int tail_mask = (1 << col_tail) - 1;
@@ -1191,9 +1193,8 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert(int num_rows,
 
     for (int r = 0; r < num_rows; ++r) {
         if (max_num_cols > 16) {
-            load(zmm_1, ptr[reg_data_aux], try_load_nt_zmm_1);
-            load(zmm_2_masked, ptr[reg_data_aux + zmm_width_in_bytes],
-                    try_load_nt_zmm_2);
+            vmovups(zmm_1, ptr[reg_data_aux]);
+            vmovups(zmm_2_masked, ptr[reg_data_aux + zmm_width_in_bytes]);
             vcvtne2ps2bf16(zmm_1, zmm_2, zmm_1);
             // we assume enough padding space is available.
             vmovups(ptr[reg_buf + r * zmm_width_in_bytes], zmm_1);
@@ -1201,12 +1202,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert(int num_rows,
             auto ymm_1 = Ymm(zmm_1.getIdx());
             auto ymm_1_masked
                     = max_num_cols == 16 ? ymm_1 : ymm_1 | bf32_col_mask | T_z;
-            if (try_load_nt_zmm_1) {
-                load(zmm_1, ptr[reg_data_aux], try_load_nt_zmm_1);
-                vcvtneps2bf16(ymm_1, zmm_1);
-            } else {
-                vcvtneps2bf16(ymm_1_masked, ptr[reg_data_aux]);
-            }
+            vcvtneps2bf16(ymm_1_masked, ptr[reg_data_aux]);
             vmovups(ptr[reg_buf + r * zmm_width_in_bytes], ymm_1);
         }
         add(reg_data_aux, reg_data_stride);
@@ -1217,21 +1213,17 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert(int num_rows,
 // format. Generally used by matrix_B.
 void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(int num_rows,
         int tile_num_col_bytes, reg64_t reg_data, int offset,
-        reg64_t reg_data_stride, reg64_t reg_buf, bool is_rd_tail,
-        bool try_load_nt) {
+        reg64_t reg_data_stride, reg64_t reg_buf, bool is_rd_tail) {
     const int num_cols_ele = tile_num_col_bytes / sizeof(bfloat16_t);
     const int num_N = num_cols_ele / sizeof(bfloat16_t);
     const int col_tail = num_N % simd_w;
-    try_load_nt = try_load_nt && col_tail == 0;
     const auto zmm_1 = zmm_tmp_1();
     const auto zmm_2 = zmm_tmp_2();
 
     assert(num_N > 0);
 
     auto load = [&](Zmm zmm, Address addr) {
-        if (try_load_nt)
-            vmovntdqa(zmm, addr);
-        else if (col_tail)
+        if (col_tail)
             vmovups(zmm | bf32_col_mask | T_z, addr);
         else
             vmovups(zmm, addr);
@@ -1257,7 +1249,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(int num_rows,
     for (int r = 0; r < r_end; ++r) {
         load(zmm_1, ptr[reg_data_aux]);
 
-        if (r * vnni_granularity + 1 > rd_block) {
+        if (r * vnni_granularity + 1 >= rd_block) {
             vpxord(zmm_2, zmm_2, zmm_2);
         } else {
             load(zmm_2, ptr[reg_data_aux + reg_data_stride]);
@@ -1280,7 +1272,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(int num_rows,
 
 void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(const Tmm &t1,
         reg64_t reg_base, size_t offset, reg64_t reg_stride, int bs, int rdb,
-        matrix_kind_t mk, bool is_rd_tail, bool try_load_nt) {
+        matrix_kind_t mk, bool is_rd_tail) {
 
     auto should_save_transform = [&](matrix_kind_t mk) {
         // save if there is a reuse
@@ -1329,10 +1321,10 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(const Tmm &t1,
     const int num_col_bytes = palette_.cols[t1.getIdx()];
     if (is_A) {
         bf32_downconvert(num_rows, num_col_bytes, reg_base, offset, reg_stride,
-                reg_buf, is_rd_tail, try_load_nt);
+                reg_buf, is_rd_tail);
     } else {
         bf32_downconvert_to_vnni(num_rows, num_col_bytes, reg_base, offset,
-                reg_stride, reg_buf, is_rd_tail, try_load_nt);
+                reg_stride, reg_buf, is_rd_tail);
     }
 
     // load into tmm from the transformed data.
@@ -1582,8 +1574,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
     mov(reg_mask, tail_mask);
     kmovq(ld_tail_mask, reg_mask);
 
-    mov(reg_stride_lda, LDA_size_);
-    mov(reg_stride_ldb, brg.rd_step * LDB_size_);
+    mov(reg_stride_lda, lda());
+    mov(reg_stride_ldb, ldb());
 
     read_params();
 
