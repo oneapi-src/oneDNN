@@ -65,8 +65,8 @@ private:
         dims_t dims;
         dt eltwise_dt;
         dnnl::graph::op::kind op_kind;
-        std::string data_format;
         std::string raw_data_format;
+        std::string data_format {"NCX"};
         int64_t softplus_beta {0};
         bool is_fwd_pass {true};
         bool use_dst {true};

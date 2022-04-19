@@ -197,7 +197,7 @@ fill_status_t conv_graph_prb_t::handle_dw_(const ::conv::prb_t *prb_) {
 }
 
 fill_status_t conv_graph_prb_t::handle_bia_() {
-    return po_handler.conv.bias_handler(*this, spec_.data_format, spec_.bia_dt);
+    return po_handler.conv.bias_handler(*this, spec_.bia_dt);
 }
 
 fill_status_t conv_graph_prb_t::handle_elt_(
@@ -291,7 +291,7 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
 
 fill_status_t conv_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.conv.bin_handler(*this, spec_.data_format, po_entry);
+    return po_handler.conv.bin_handler(*this, po_entry);
 }
 
 int doit(const ::conv::prb_t *prb, res_t *res) {

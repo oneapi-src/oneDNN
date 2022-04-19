@@ -64,10 +64,10 @@ private:
         dims_t pads_begin;
         dims_t pads_end;
         std::string rounding_type;
-        std::string data_format;
         std::string raw_data_format;
         // auto_pad will always be set to "None" due to benchdnn CLI limitations
         std::string auto_pad {"None"};
+        std::string data_format {"NCX"};
 
         // attributes specific to pooling type
         bool exclude_pad; // AvgPool

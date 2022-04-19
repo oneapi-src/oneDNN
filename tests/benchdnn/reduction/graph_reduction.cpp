@@ -76,7 +76,7 @@ fill_status_t reduction_graph_prb_t::handle_main_op_() {
 
 fill_status_t reduction_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.reduction.bin_handler(*this, spec_.raw_dst_tag, po_entry);
+    return po_handler.reduction.bin_handler(*this, po_entry);
 }
 
 fill_status_t reduction_graph_prb_t::handle_elt_(

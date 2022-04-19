@@ -171,8 +171,7 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
 }
 
 fill_status_t deconv_graph_prb_t::handle_bia_() {
-    return po_handler.deconv.bias_handler(
-            *this, spec_.data_format, spec_.bia_dt);
+    return po_handler.deconv.bias_handler(*this, spec_.bia_dt);
 }
 
 fill_status_t deconv_graph_prb_t::handle_sum_() {
@@ -181,7 +180,7 @@ fill_status_t deconv_graph_prb_t::handle_sum_() {
 
 fill_status_t deconv_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po) {
-    return po_handler.deconv.bin_handler(*this, spec_.data_format, po);
+    return po_handler.deconv.bin_handler(*this, po);
 }
 
 fill_status_t deconv_graph_prb_t::handle_elt_(

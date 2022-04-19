@@ -76,7 +76,6 @@ pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
     pads_end.assign(padding_r_nd + offset, end(padding_r_nd));
 
     rounding_type = "floor";
-    data_format = "NCX";
     raw_data_format = prb->tag;
     is_fwd = prb->dir & FLAG_FWD;
 
@@ -208,7 +207,7 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
 
 fill_status_t pool_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.pool.bin_handler(*this, spec_.data_format, po_entry);
+    return po_handler.pool.bin_handler(*this, po_entry);
 }
 
 fill_status_t pool_graph_prb_t::handle_low_precision_(

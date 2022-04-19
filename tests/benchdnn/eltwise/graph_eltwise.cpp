@@ -25,7 +25,6 @@ namespace eltwise {
 eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) noexcept {
     dims = prb->dims;
     eltwise_dt = convert_dt(prb->dt);
-    data_format = convert_tag(prb->tag);
     raw_data_format = prb->tag;
     is_fwd_pass = prb->dir & FLAG_FWD;
     use_dst = prb->use_dst();
@@ -133,7 +132,7 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_() {
 
 fill_status_t eltwise_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.eltwise.bin_handler(*this, spec_.data_format, po_entry);
+    return po_handler.eltwise.bin_handler(*this, po_entry);
 }
 
 fill_status_t eltwise_graph_prb_t::handle_low_precision_(

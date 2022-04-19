@@ -242,28 +242,15 @@ dnnl::graph::op::kind convert_alg_kind(
     }
 }
 
-std::string convert_tag(const std::string &tag, bool activation_tag) noexcept {
-    if (tag == "abx") return (activation_tag) ? "NCX" : "OIX";
-    if (tag == "axb") return "NXC";
-    if (tag == "xba") return "XIO";
-    // default cases
-    return (activation_tag) ? "NXC" : "XIO";
-}
-
-dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
-        const std::string &data_format) noexcept {
+dims_t convert_bin_policy(
+        const dims_t &lhs_dims, const attr_t::policy_t policy) noexcept {
     using bin_pol = attr_t::policy_t;
 
     auto rhs_dims = dims_t(lhs_dims.size(), 1);
 
     switch (policy) {
         case bin_pol::PER_TENSOR: rhs_dims = lhs_dims; break;
-        case bin_pol::PER_OC:
-            if (data_format == "NCX")
-                rhs_dims[1] = lhs_dims[1];
-            else
-                rhs_dims.back() = lhs_dims.back(); // "NXC" case
-            break;
+        case bin_pol::PER_OC: rhs_dims[1] = lhs_dims[1]; break;
         case bin_pol::PER_DIM_0: rhs_dims[0] = lhs_dims[0]; break;
         case bin_pol::PER_DIM_1: rhs_dims[1] = lhs_dims[1]; break;
         case bin_pol::PER_DIM_01:
@@ -551,16 +538,14 @@ int measure_partition_compl(timer::timer_t &ct,
         return fill_status::UNKNOWN_ERROR; \
     }
 
-fill_status_t po_handlers_t::bias_po_handler_t::operator()(graph_prb_t &p,
-        const std::string &dst_dataf,
-        const dnnl::graph::logical_tensor::data_type bia_dt) {
+fill_status_t po_handlers_t::bias_po_handler_t::operator()(
+        graph_prb_t &p, const dnnl::graph::logical_tensor::data_type bia_dt) {
     using op = dnnl::graph::op;
 
     const auto &dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
-    const dim_t channels = (dst_dataf == "NCX") ? dst_dims[1] : dst_dims.back();
-    const dims_t bia_dims = {channels};
+    const dims_t bia_dims = {dst_dims[1]};
 
     const size_t new_op_id = p.ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
@@ -578,7 +563,7 @@ fill_status_t po_handlers_t::bias_po_handler_t::operator()(graph_prb_t &p,
                     p.tensor_descs_[BIA_SRC]},
             {p.tensor_descs_[BIA_DST]}, "bias");
 
-    bias.set_attr("data_format", dst_dataf);
+    bias.set_attr("data_format", std::string("NCX"));
 
     p.ops_.emplace_back(bias);
     p.curr_out_map_ids_.assign({TENSOR_ID});
@@ -644,9 +629,8 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
     return fill_status::DONE;
 }
 
-fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
-        const std::string &dst_dataf,
-        const attr_t::post_ops_t::entry_t &po_entry) {
+fill_status_t po_handlers_t::binary_po_handler_t::operator()(
+        graph_prb_t &p, const attr_t::post_ops_t::entry_t &po_entry) {
     using op = dnnl::graph::op;
 
     const auto post_op_kind = convert_alg_kind(po_entry.binary.alg);
@@ -657,7 +641,7 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(graph_prb_t &p,
     const auto dst_dims = dst_lt.get_dims();
     const auto dst_dt = dst_lt.get_data_type();
     const auto bin_src_dims
-            = convert_bin_policy(dst_dims, po_entry.binary.policy, dst_dataf);
+            = convert_bin_policy(dst_dims, po_entry.binary.policy);
     const auto bin_src_dt = p.with_quantization()
             ? dt::f32
             : convert_dt(po_entry.binary.src1_dt);

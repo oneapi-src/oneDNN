@@ -84,6 +84,7 @@ private:
 
         bool transpose_a {false};
         bool transpose_b {false};
+        std::string data_format {"NCX"};
 
         dims_t src_dims;
         dims_t wei_dims;
@@ -94,8 +95,6 @@ private:
         dt wei_dt;
         dt dst_dt;
         dt bia_dt;
-
-        std::string data_format;
 
         std::string raw_src_tag;
         std::string raw_wei_tag;

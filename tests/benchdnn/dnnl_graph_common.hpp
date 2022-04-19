@@ -73,11 +73,9 @@ dnnl_data_type_t convert_dt(
         const dnnl::graph::logical_tensor::data_type dt) noexcept;
 dnnl::graph::op::kind convert_alg_kind(
         const dnnl_alg_kind_t kind, bool is_fwd = true) noexcept;
-std::string convert_tag(
-        const std::string &tag, bool activation_tag = true) noexcept;
 std::string convert_attr_policy(const attr_t::policy_t policy) noexcept;
-dims_t convert_bin_policy(const dims_t &lhs_dims, const attr_t::policy_t policy,
-        const std::string &data_format) noexcept;
+dims_t convert_bin_policy(
+        const dims_t &lhs_dims, const attr_t::policy_t policy) noexcept;
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind op_kind,
         const attr_t::post_ops_t::entry_t &entry) noexcept;
@@ -435,9 +433,9 @@ struct low_precision_attr {
 
     // For op with no additional attributes e.g. pool
     static low_precision_attr lp_attr(
-            const dt src_dt, const dt dst_dt, const std::string &data_format) {
-        return low_precision_attr(src_dt, dt::undef, dst_dt, data_format,
-                data_format, data_format);
+            const dt src_dt, const dt dst_dt, const std::string &common_tag) {
+        return low_precision_attr(
+                src_dt, dt::undef, dst_dt, common_tag, common_tag, common_tag);
     };
 
     // For op with src and dst data types and src and data formats e.g. concat
@@ -448,9 +446,9 @@ struct low_precision_attr {
 
     // For op with only one data type e.g. eltwise
     static low_precision_attr lp_attr(
-            const dt data_type, const std::string &data_format) {
-        return low_precision_attr(data_type, dt::undef, data_type, data_format,
-                data_format, data_format);
+            const dt data_type, const std::string &common_tag) {
+        return low_precision_attr(data_type, dt::undef, data_type, common_tag,
+                common_tag, common_tag);
     };
 
     void set_wei_strides(const dims_t &wei_dims) {
@@ -493,7 +491,7 @@ struct po_handlers_t {
 
 private:
     struct bias_po_handler_t {
-        fill_status_t operator()(graph_prb_t &p, const std::string &dst_dataf,
+        fill_status_t operator()(graph_prb_t &p,
                 const dnnl::graph::logical_tensor::data_type bia_dt);
     };
 
@@ -503,8 +501,8 @@ private:
     };
 
     struct binary_po_handler_t {
-        fill_status_t operator()(graph_prb_t &p, const std::string &dst_dataf,
-                const attr_t::post_ops_t::entry_t &po_entry);
+        fill_status_t operator()(
+                graph_prb_t &p, const attr_t::post_ops_t::entry_t &po_entry);
     };
 
     struct sum_po_handler_t {

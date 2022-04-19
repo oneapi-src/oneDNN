@@ -45,8 +45,6 @@ matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) noexcept {
     dst_dt = convert_dt(prb->cfg[DST].dt);
     bia_dt = convert_dt(prb->bia_dt);
 
-    data_format = "NCX";
-
     raw_src_tag = prb->stag;
     raw_wei_tag = prb->wtag;
     raw_dst_tag = prb->dtag;
@@ -120,7 +118,7 @@ fill_status_t matmul_graph_prb_t::handle_elt_(
 
 fill_status_t matmul_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.matmul.bin_handler(*this, spec_.data_format, po_entry);
+    return po_handler.matmul.bin_handler(*this, po_entry);
 }
 
 fill_status_t matmul_graph_prb_t::handle_sum_() {

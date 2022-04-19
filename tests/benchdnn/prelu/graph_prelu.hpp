@@ -48,9 +48,9 @@ private:
 
         dt data_dt;
         dt slope_dt;
-        std::string data_format {"NCX"};
         std::string raw_data_tag;
         std::string raw_slope_tag;
+        std::string data_format {"NCX"};
         bool broadcast_to_channel {false};
     };
 

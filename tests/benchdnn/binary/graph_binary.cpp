@@ -125,7 +125,7 @@ fill_status_t binary_graph_prb_t::handle_elt_(
 
 fill_status_t binary_graph_prb_t::handle_bin_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.binary.bin_handler(*this, spec_.data_format, po_entry);
+    return po_handler.binary.bin_handler(*this, po_entry);
 }
 
 fill_status_t binary_graph_prb_t::handle_sum_() {

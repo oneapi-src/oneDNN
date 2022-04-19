@@ -102,8 +102,6 @@ struct spec_t {
         bia_dt = convert_dt(prb->cfg[BIA].dt);
         dst_dt = convert_dt(prb->cfg[DST].dt);
 
-        data_format = "NCX";
-        filter_format = "OIX";
         raw_src_tag = prb->stag;
         raw_wei_tag = prb->wtag;
         raw_dst_tag = prb->dtag;
