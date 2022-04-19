@@ -1055,7 +1055,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_MHA_fusion)
                 });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
-        .set_priority(5.0f)
+        .set_priority(20.0f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto query_reshape = pgraph->append_op(
@@ -1071,23 +1071,57 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
                             = pgraph->append_op(impl::op_kind::StaticTranspose,
                                     in_edges_t {in_edge(0, key_reshape, 0)},
                                     "key_transpose");
-                    auto key_transpose2
-                            = pgraph->append_op(impl::op_kind::StaticTranspose,
-                                    in_edges_t {in_edge(0, key_transpose, 0)},
-                                    "key_transpose2");
+
+                    // Optional key_transpose
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_transpose");
+                    auto ptranspose = popt_graph->append_op(
+                            impl::op_kind::StaticTranspose, "pkey_transpose");
+                    popt_graph->create_input_port(0, ptranspose, 0);
+                    popt_graph->create_output_port(0, ptranspose, 0);
+                    auto popt = pgraph->append_optional(
+                            popt_graph, {in_edge(0, key_transpose, 0)}, "popt");
+
                     auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
                             in_edges_t {in_edge(0, query_transpose, 0),
-                                    in_edge(1, key_transpose2, 0)},
+                                    in_edge(1, popt, 0)},
                             "matmul_qk");
 
-                    auto fscore_scale = pgraph->append_op(impl::op_kind::Divide,
-                            in_edges_t {in_edge(0, matmul_qk, 0)},
-                            "fscore_scale");
+                    // Optional fscore_scale
+                    auto popt_graph2
+                            = std::make_shared<pb_graph_t>("poptional_scale");
+                    auto pfscore_scale = popt_graph2->append_op(
+                            impl::op_kind::Divide, "pfscore_scale");
+                    popt_graph2->create_input_port(0, pfscore_scale, 0);
+                    popt_graph2->create_output_port(0, pfscore_scale, 0);
+                    auto popt2 = pgraph->append_optional(
+                            popt_graph2, {in_edge(0, matmul_qk, 0)}, "popt2");
+
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, fscore_scale, 0)},
-                            "fscore_add");
+                            in_edges_t {in_edge(0, popt2, 0)}, "fscore_add");
+
+                    // Optional Pre Reshape of SoftMax
+                    auto popt_graph3
+                            = std::make_shared<pb_graph_t>("poptional_reshape");
+                    auto pre_reshape = popt_graph3->append_op(
+                            impl::op_kind::StaticReshape, "pre_reshape");
+                    popt_graph3->create_input_port(0, pre_reshape, 0);
+                    popt_graph3->create_output_port(0, pre_reshape, 0);
+                    auto popt3 = pgraph->append_optional(
+                            popt_graph3, {in_edge(0, fscore_add, 0)}, "popt3");
+
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
-                            in_edges_t {in_edge(0, fscore_add, 0)}, "softmax");
+                            in_edges_t {in_edge(0, popt3, 0)}, "softmax");
+
+                    // Optional Post Reshape of SoftMax
+                    auto popt_graph4
+                            = std::make_shared<pb_graph_t>("poptional_reshape");
+                    auto post_reshape = popt_graph4->append_op(
+                            impl::op_kind::StaticReshape, "post_reshape");
+                    popt_graph4->create_input_port(0, post_reshape, 0);
+                    popt_graph4->create_output_port(0, post_reshape, 0);
+                    auto popt4 = pgraph->append_optional(
+                            popt_graph4, {in_edge(0, softmax, 0)}, "popt3");
 
                     auto value_reshape = pgraph->append_op(
                             impl::op_kind::StaticReshape, "value_reshape");
@@ -1097,12 +1131,24 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
                                     "value_transpose");
 
                     auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, softmax, 0),
+                            in_edges_t {in_edge(0, popt4, 0),
                                     in_edge(1, value_transpose, 0)},
                             "matmul_v");
-                    pgraph->append_op(impl::op_kind::StaticTranspose,
-                            in_edges_t {in_edge(0, matmul_v, 0)},
-                            "transpose_output");
+                    auto post_transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    in_edges_t {in_edge(0, matmul_v, 0)},
+                                    "transpose_output");
+
+                    // Optional Reshape
+                    auto popt_reshape_graph = std::make_shared<pb_graph_t>(
+                            "poptional_reshape_out");
+                    pm::pb_op *preshape_out = popt_reshape_graph->append_op(
+                            impl::op_kind::StaticReshape, "preshape_out");
+                    popt_reshape_graph->create_input_port(0, preshape_out, 0);
+                    popt_reshape_graph->create_output_port(0, preshape_out, 0);
+                    pgraph->append_optional(popt_reshape_graph,
+                            in_edges_t {in_edge(0, post_transpose, 0)},
+                            "popt_reshape_out");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
