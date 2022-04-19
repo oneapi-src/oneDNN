@@ -638,7 +638,7 @@ public:
         auto stmt = create_slm_reorder(call.func.as<reorder_t>(),
                 reorder_t::arg_src_buf(call), reorder_t::arg_dst_buf(call));
         if (stmt.is_empty()) return obj;
-        return stmt;
+        return std::move(stmt);
     }
 
 private:
