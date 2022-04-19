@@ -25,7 +25,6 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
-#include "cpu/cpu_engine.hpp"
 
 #include "arm_compute/runtime/NEON/NEFunctions.h"
 #include "arm_compute/runtime/Scheduler.h"
@@ -41,7 +40,6 @@ arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt);
 arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
 arm_compute::ActivationLayerInfo get_acl_act(const eltwise_desc_t &ed);
 bool acl_act_ok(alg_kind_t eltwise_activation);
-void acl_thread_bind();
 
 // Convert a memory desc to an arm_compute::TensorInfo. Note that memory desc
 // must be blocking format, plain, dense and have no zero dimensions.

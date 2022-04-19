@@ -265,12 +265,6 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
     acl_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t init(engine_t *engine) override {
-        acl_utils::acl_thread_bind();
-
-        return status::success;
-    }
-
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
         if (mapper.has_resource(this)) return status::success;

@@ -107,8 +107,6 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
 
             set_default_alg_kind(alg_kind::convolution_winograd);
 
-            acl_utils::acl_thread_bind();
-
             return status::success;
         }
 

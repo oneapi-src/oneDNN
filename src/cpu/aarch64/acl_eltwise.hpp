@@ -78,8 +78,6 @@ struct acl_eltwise_fwd_t : public primitive_t {
                     aep_, data_md_, *desc(), *attr());
             if (conf_status != status::success) return status::unimplemented;
 
-            acl_utils::acl_thread_bind();
-
             return status::success;
         }
 
