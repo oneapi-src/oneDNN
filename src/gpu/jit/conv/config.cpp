@@ -132,7 +132,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
 
     bh->set_thr_dim("kd", kd);
     bh->set_thr_dim("kh", kh);
-    if (is_small_ic()) {
+    if (is_small_ic() && !is_dw_large_mb()) {
         bh->set_block_dims({"kw"});
     } else {
         bh->set_thr_dim("kw", kw);
@@ -152,10 +152,9 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
 
     int mb_base_iter_blk = bh->dim("mb").base_iter_block();
     // mb blocking is always outer so we can safely use a smaller divisor to
-    // have more flexible blocking.
-    mb_base_iter_blk = math::gcd(8, mb_base_iter_blk);
-    // Avoid extra mb blocking with depthwise.
-    if (is_dw) mb_base_iter_blk = 1;
+    // have more flexible blocking for some cases.
+    int mb_base_iter_divisor = is_dw_large_mb() ? 32 : 8;
+    mb_base_iter_blk = math::gcd(mb_base_iter_divisor, mb_base_iter_blk);
 
     bh->set_base_iter_block("mb", mb_base_iter_blk);
 
@@ -169,7 +168,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         use_sp_blocking = should_use_spatial_blocking(od, oh, ow);
     } else if (src_layout.inner_block(0) == 1) {
         use_sp_blocking = true;
-    } else if (is_dw) {
+    } else if (is_dw && !is_dw_large_mb()) {
         use_sp_blocking = true;
     }
 
@@ -972,7 +971,7 @@ void conv_config_t::maybe_set_bwd_d_stride_optimization(int iw_thr_blk) {
 }
 
 void conv_config_t::maybe_set_ow_kw_grf_cache() {
-    if (!is_fwd || !is_small_ic() || kw < 3) return;
+    if (!is_fwd || !is_small_ic() || kw < 3 || is_dw_large_mb()) return;
     if (is_dp_fma()) return;
     if (fuse_spatial) return;
 
