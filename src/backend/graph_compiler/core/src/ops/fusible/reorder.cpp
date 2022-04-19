@@ -46,19 +46,23 @@ ir_module_ptr reorder_op_t::get_func(context_ptr ctx) {
 }
 
 void reorder_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
     // todo: currently reorder from the frontend is contiguous only, so we
     // penetrate it here. For single internal reorder op test, please mark it as
     // "internal".
-    in_formats.push_back(std::vector<sc_data_format_t> {
-            info_.inputs_[0]->details_.get_format()});
+    supported_ins.push_back(std::vector<format_stride_pair> {
+            std::make_pair(info_.inputs_[0]->details_.get_format(),
+                    info_.inputs_[0]->details_.get_strides())});
+
+    auto out = info_.outputs_[0]->details_;
     if (!attrs_.get_or_else("internal", false)) {
-        out_formats.push_back(std::vector<sc_data_format_t> {
-                info_.inputs_[0]->details_.get_format()});
+        out.set_format(info_.inputs_[0]->details_.get_format());
+        supported_outs.push_back(std::vector<format_stride_pair> {
+                std::make_pair(out.get_format(), out.get_strides())});
     } else {
-        out_formats.push_back(std::vector<sc_data_format_t> {
-                info_.outputs_[0]->details_.get_format()});
+        supported_outs.push_back(std::vector<format_stride_pair> {
+                std::make_pair(out.get_format(), out.get_strides())});
     }
 }
 
@@ -68,10 +72,15 @@ reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
         info_.inputs_.emplace_back(in);
     }
     if (outs.empty()) {
+        auto plain_dims = info_.inputs_[0]->details_.get_plain_dims();
+        auto dtype = info_.inputs_[0]->details_.dtype_;
+        auto format = attrs.get<sc_data_format_t>("out_format");
+        sc_dims strides;
+        if (attrs.has_key("out_stride")) {
+            strides = attrs.get<sc_dims>("out_stride");
+        }
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
-                this, info_.inputs_[0]->details_));
-        info_.outputs_[0]->details_.set_format(
-                attrs.get<sc_data_format_t>("out_format"));
+                this, format, plain_dims, dtype, strides));
     } else {
         info_.outputs_ = outs;
     }
@@ -913,7 +922,8 @@ void compute_reorder_stride2stride(const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
-        const sc_dims &plain_dims, any_map_t &attrs, size_t wkld = 0UL) {
+        const sc_dims &plain_dims, any_map_t &attrs, size_t wkld = 0UL,
+        bool is_innermost_dim_strided = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
@@ -956,7 +966,8 @@ void compute_reorder_block2stride(const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
-        const sc_dims &plain_dims, any_map_t &attrs, size_t wkld = 0UL) {
+        const sc_dims &plain_dims, any_map_t &attrs, size_t wkld = 0UL,
+        bool is_innermost_dim_strided = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
@@ -971,7 +982,7 @@ void compute_reorder_block2stride(const context_ptr &ctx,
             output_format.format_code_.ndims() - 1);
     auto block_axis = input_format.format_code_.collect_blocking_index(
             output_last_origin_axis); // {block_idx1, block_idx2,...}
-    bool can_vectorize = !block_axis.empty()
+    bool can_vectorize = !is_innermost_dim_strided && !block_axis.empty()
             && block_axis.at(block_axis.size() - 1)
                     == input_format.get_blocks_size() - 1
             && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
@@ -1049,7 +1060,7 @@ void compute_reorder_stride2block(const context_ptr &ctx,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
-        size_t wkld = 0UL) {
+        size_t wkld = 0UL, bool is_innermost_dim_strided = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
@@ -1064,7 +1075,7 @@ void compute_reorder_stride2block(const context_ptr &ctx,
             input_format.format_code_.ndims() - 1);
     auto block_axis = output_format.format_code_.collect_blocking_index(
             input_last_origin_axis); // {block_idx1, block_idx2,...}
-    bool can_vectorize = !block_axis.empty()
+    bool can_vectorize = !is_innermost_dim_strided && !block_axis.empty()
             && block_axis.at(block_axis.size() - 1)
                     == output_format.get_blocks_size() - 1
             && output_blocking_dims[output_blocking_dims.size() - 1] % step == 0
@@ -1192,7 +1203,7 @@ void compute_reorder_block2block(const context_ptr &ctx,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims1, bool output_loop, any_map_t &attrs,
-        size_t wkld = 0UL) {
+        size_t wkld = 0UL, bool is_innermost_dim_strided = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
@@ -1222,7 +1233,8 @@ void compute_reorder_block2block(const context_ptr &ctx,
     auto output_block_axis = output_format.format_code_.get(
             output_format.format_code_.ndims() - 1);
     bool no_padding = input_padded_plain_dims == output_padded_plain_dims;
-    bool can_vectorize = input_block_axis == output_block_axis
+    bool can_vectorize = !is_innermost_dim_strided
+            && input_block_axis == output_block_axis
             && output_blocking_dims[output_blocking_dims.size() - 1] % step == 0
             && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
             && no_padding;
@@ -1758,31 +1770,35 @@ void compute_reorder_block(const context_ptr &ctx, const tensor_slice &src,
         tensor_slice &dst, const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
-        size_t wkld = 0UL) {
+        size_t wkld = 0UL, bool is_innermost_dim_strided = false) {
     COMPILE_ASSERT(input_format.is_convertible(output_format),
             "Can not convert input format "
                     << input_format << " to output format " << output_format
                     << ".");
     std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis;
-    if (can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
-                out_b_axis, plain_dims, input_format, output_format, src, dst,
-                dtype)) {
+    if (!is_innermost_dim_strided
+            && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
+                    out_b_axis, plain_dims, input_format, output_format, src,
+                    dst, dtype)) {
         compute_fast_transpose(ctx, src, dst, input_format, output_format,
                 dtype, plain_dims, output_loop, attrs, inp_a_axis, inp_b_axis,
                 out_a_axis, out_b_axis, wkld);
     } else if (is_not_blocking(input_format)
             && is_not_blocking(output_format)) {
         compute_reorder_stride2stride(ctx, src, dst, input_format,
-                output_format, dtype, plain_dims, attrs, wkld);
+                output_format, dtype, plain_dims, attrs, wkld,
+                is_innermost_dim_strided);
     } else if (is_not_blocking(input_format) && output_format.is_blocking()) {
         compute_reorder_stride2block(ctx, src, dst, input_format, output_format,
-                dtype, plain_dims, output_loop, attrs, wkld);
+                dtype, plain_dims, output_loop, attrs, wkld,
+                is_innermost_dim_strided);
     } else if (input_format.is_blocking() && is_not_blocking(output_format)) {
         compute_reorder_block2stride(ctx, src, dst, input_format, output_format,
-                dtype, plain_dims, attrs, wkld);
+                dtype, plain_dims, attrs, wkld, is_innermost_dim_strided);
     } else if (input_format.is_blocking() && output_format.is_blocking()) {
         compute_reorder_block2block(ctx, src, dst, input_format, output_format,
-                dtype, plain_dims, output_loop, attrs, wkld);
+                dtype, plain_dims, output_loop, attrs, wkld,
+                is_innermost_dim_strided);
     } else {
         std::ostringstream ss;
         ss << "Unsupported data format. in = " << input_format
@@ -1837,10 +1853,13 @@ bool reorder_op_t::use_output_loop() const {
 void reorder_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
+    bool is_innermost_dim_strided
+            = info_.inputs_[0]->details_.get_strides().back() != 1
+            || info_.outputs_[0]->details_.get_strides().back() != 1;
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
     compute_reorder_block(ctx, *inputs[0], *dst[0], input_format_,
             output_format_, info_.inputs_[0]->details_.dtype_, plain_dims_,
-            use_output_loop(), attrs_, wkld);
+            use_output_loop(), attrs_, wkld, is_innermost_dim_strided);
 }
 
 } // namespace sc

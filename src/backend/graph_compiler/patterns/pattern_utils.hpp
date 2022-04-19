@@ -63,40 +63,6 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
     });
 }
 
-static bool check_logical_tensor_validity(const impl::logical_tensor_t &lt) {
-    if (lt.layout_type != layout_type::strided) { return false; }
-    if (lt.ndims <= 0) { return false; }
-    std::vector<int64_t> size {lt.dims, lt.dims + lt.ndims};
-    std::vector<int64_t> strides {
-            lt.layout.strides, lt.layout.strides + lt.ndims};
-    std::vector<int> indices(lt.ndims);
-    std::iota(indices.begin(), indices.end(), 0);
-    std::sort(indices.begin(), indices.end(), [&](int i, int j) -> bool {
-        if (strides[i] == strides[j]) { return size[i] < size[j]; }
-        return strides[i] < strides[j];
-    });
-    if (strides[indices[0]] != 1) { return false; }
-    for (int i = 1; i < lt.ndims; ++i) {
-        if (strides[indices[i]]
-                != strides[indices[i - 1]] * size[indices[i - 1]]) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static bool check_inputs_outputs_validity(
-        const std::vector<impl::logical_tensor_t> &inputs,
-        const std::vector<impl::logical_tensor_t> &outputs) {
-    for (auto &lt : inputs) {
-        if (!check_logical_tensor_validity(lt)) { return false; }
-    }
-    for (auto &lt : outputs) {
-        if (!check_logical_tensor_validity(lt)) { return false; }
-    }
-    return true;
-}
-
 inline void pattern_utils_t::set_partitions(
         dnnl::graph::impl::graph_t &backend_graph,
         std::vector<std::vector<op_t *>> &fusion_ops) {
@@ -137,11 +103,6 @@ inline void pattern_utils_t::set_partitions(
                 }
                 if (is_output) { pimpl->add_output_tensor(out_value); }
             }
-        }
-
-        if (!check_inputs_outputs_validity(
-                    pimpl->get_inputs(), pimpl->get_outputs())) {
-            continue;
         }
 
         // transfer the matched op's ownership from graph to partition

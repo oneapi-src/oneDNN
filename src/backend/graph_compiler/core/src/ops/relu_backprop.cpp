@@ -63,8 +63,8 @@ std::shared_ptr<sc_graph_t> relu_backprop_op::get_graph_impl() {
 }
 
 void relu_backprop_op::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {}
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {}
 
 } // namespace ops
 

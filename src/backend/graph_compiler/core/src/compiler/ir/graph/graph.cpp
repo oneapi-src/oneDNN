@@ -196,19 +196,35 @@ graph_tensor::graph_tensor(sc_op *owner, const logical_tensor_t &lt)
     : details_(lt), producer_owner_(owner) {}
 
 graph_tensor::graph_tensor(sc_op *owner, const sc_data_format_t &format,
-        const sc_dims &plain_shape, const sc_data_type_t &type)
-    : details_(format, plain_shape, type), producer_owner_(owner) {}
+        const sc_dims &plain_shape, const sc_data_type_t &type,
+        const sc_dims &stride)
+    : details_(format, plain_shape, type, stride), producer_owner_(owner) {}
 
 const sc_dims &logical_tensor_t::get_blocking_dims() const {
     return dims_;
 }
 
+static bool check_stride_validity(const sc_dims &dims, const sc_dims &strides) {
+    return strides.size() == dims.size()
+            && std::is_sorted(
+                    strides.begin(), strides.end(), std::greater<sc_dim>());
+}
+
 void logical_tensor_t::internal_update() {
     dims_ = sc_data_format_t::get_blocking_shapes(plain_dims_, format_);
+    if (strides_.empty()) {
+        strides_ = compute_dense_stride(dims_);
+    } else {
+        COMPILE_ASSERT(check_stride_validity(dims_, strides_),
+                "Specified strides value invalid or not consistent with "
+                "real(blocking) dims.")
+    }
 }
 
 // sets the logical dims in plain format
 void logical_tensor_t::set_plain_dims(const sc_dims &plain_dims) {
+    COMPILE_ASSERT(is_dense(), "Forbid update format on a strided tensor.");
+    strides_.clear();
     plain_dims_ = plain_dims;
     internal_update();
 }
@@ -216,13 +232,31 @@ void logical_tensor_t::set_plain_dims(const sc_dims &plain_dims) {
 // TODO(xxx): this logic maybe not correct, just distinguish with set_plain_dims
 void logical_tensor_t::set_blocking_dims(const sc_dims &blocking_dims) {
     // assert(format_.format_code_ == format_kinds::any);
+    COMPILE_ASSERT(is_dense(), "Forbid set blocking dims on a strided tensor.");
     format_.format_code_ = format_kinds::any;
     plain_dims_ = blocking_dims;
     dims_ = blocking_dims;
+    strides_ = compute_dense_stride(dims_);
 }
 
 void logical_tensor_t::set_format(const sc_data_format_t &newv) {
+    COMPILE_ASSERT(is_dense(), "Forbid set format on a strided tensor.");
+    strides_.clear();
     format_ = newv;
+    internal_update();
+}
+
+void logical_tensor_t::set_strides(const sc_dims &strides) {
+    COMPILE_ASSERT(check_stride_validity(dims_, strides),
+            "Specified strides value invalid or not consistent with "
+            "real(blocking) dims.")
+    strides_ = strides;
+}
+
+void logical_tensor_t::set_format_and_stride(
+        const sc_data_format_t &newv, const sc_dims &strides) {
+    format_ = newv;
+    strides_ = strides;
     internal_update();
 }
 
@@ -232,6 +266,24 @@ size_t logical_tensor_t::size() const {
         sz *= z;
     }
     return sz;
+}
+
+bool logical_tensor_t::is_dense() {
+    if (strides_.empty()) { return true; }
+    assert(strides_.size() == dims_.size());
+    if (strides_.back() != 1) { return false; }
+    for (int i = dims_.size() - 2; i >= 0; --i) {
+        if (strides_[i] != strides_[i + 1] * dims_[i + 1]) { return false; }
+    }
+    return true;
+}
+
+sc_dims logical_tensor_t::compute_dense_stride(const sc_dims &dims) {
+    sc_dims strides(dims.size(), 1);
+    for (int i = dims.size() - 2; i >= 0; --i) {
+        strides[i] = strides[i + 1] * dims[i + 1];
+    }
+    return strides;
 }
 
 void graph_tensor::attach_use(sc_op_ptr op, int index) {
@@ -311,6 +363,32 @@ sc_op::sc_op(const std::string &op_name,
     info_.outputs_ = consumer_lt;
     for (auto &op : info_.outputs_) {
         op->producer_owner_ = this;
+    }
+}
+
+void sc_op::format_to_dense_format_stride_pair(
+        const std::vector<std::vector<sc_data_format_t>> &in_formats,
+        const std::vector<std::vector<sc_data_format_t>> &out_formats,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    supported_ins.resize(in_formats.size());
+    for (size_t i = 0; i < in_formats.size(); ++i) {
+        for (auto fmt : in_formats[i]) {
+            logical_tensor_t dense_lt(fmt,
+                    info_.inputs_[i]->details_.get_plain_dims(),
+                    info_.inputs_[i]->details_.dtype_);
+            supported_ins[i].emplace_back(
+                    std::make_pair(fmt, dense_lt.get_strides()));
+        }
+    }
+    supported_outs.resize(out_formats.size());
+    for (size_t i = 0; i < out_formats.size(); ++i) {
+        for (auto fmt : out_formats[i]) {
+            logical_tensor_t dense_lt(fmt,
+                    info_.outputs_[i]->details_.get_plain_dims(),
+                    info_.outputs_[i]->details_.dtype_);
+            supported_outs[i].emplace_back(fmt, dense_lt.get_strides());
+        }
     }
 }
 
@@ -536,8 +614,12 @@ void get_logical_tensors(
 
 expr tensor_detail_to_ir_tensor(
         const std::string &name, const logical_tensor_t &tsrd) {
-    return builder::make_tensor(
-            name, dims_to_expr(tsrd.get_blocking_dims()), tsrd.dtype_);
+    auto blocking_dims = tsrd.get_blocking_dims();
+    auto strides = tsrd.get_strides();
+    COMPILE_ASSERT(blocking_dims.size() == strides.size(),
+            "Dims and strides does not match.");
+    return builder::make_stensor(name, dims_to_expr(blocking_dims),
+            dims_to_expr(strides), tsrd.dtype_);
 }
 
 std::vector<expr> tensor_detail_to_ir_tensor(const std::string &name_prefix,

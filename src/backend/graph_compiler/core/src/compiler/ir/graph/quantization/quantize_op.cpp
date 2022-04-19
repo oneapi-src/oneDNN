@@ -139,9 +139,12 @@ std::shared_ptr<sc_graph_t> quantize_op_t::get_graph_impl() {
 }
 
 void quantize_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     out_formats.push_back({info_.inputs_[0]->details_.get_format()});
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 
 dequantize_op_t::dequantize_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -224,9 +227,12 @@ std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph_impl() {
 } // namespace quantize
 
 void dequantize_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     out_formats.push_back({info_.inputs_[0]->details_.get_format()});
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 } // namespace quantize
 

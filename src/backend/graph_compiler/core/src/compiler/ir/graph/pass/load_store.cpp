@@ -25,6 +25,7 @@ SC_CLASS(logical_tensor_t)
     SC_FIELD(format_)
     SC_FIELD(plain_dims_)
     SC_FIELD(dtype_)
+    SC_FIELD(strides_)
     SC_INITIALIZER(internal_update)
 SC_CLASS_END();
 // clang-format on

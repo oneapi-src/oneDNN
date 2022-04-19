@@ -57,8 +57,8 @@ dynamic_transpose_op::dynamic_transpose_op(
 }
 
 void dynamic_transpose_op::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
     throw std::runtime_error("Not implemented");
 }
 ir_module_ptr dynamic_transpose_op::get_func(context_ptr ctx) {

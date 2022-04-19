@@ -160,15 +160,14 @@ sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
     sc::sc_data_format_t lt_format;
     std::vector<bool> visited(lt.ndims);
     if (lt.layout_type == layout_type::strided) {
-        std::vector<int64_t> original_strides {
+        std::vector<int64_t> ordered_strides {
                 lt.layout.strides, lt.layout.strides + lt.ndims};
-        std::sort(original_strides.begin(), original_strides.end(),
+        std::sort(ordered_strides.begin(), ordered_strides.end(),
                 std::greater<int64_t>());
         std::vector<int> storage_args(lt.ndims);
         for (int s = 0; s < lt.ndims; ++s) {
             for (int j = 0; j < lt.ndims; ++j) {
-                if (!visited[j]
-                        && original_strides[s] == lt.layout.strides[j]) {
+                if (!visited[j] && ordered_strides[s] == lt.layout.strides[j]) {
                     storage_args[s] = j;
                     visited[j] = true;
                     break;
@@ -176,6 +175,9 @@ sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
             }
         }
         lt_format = sc::sc_data_format_t(false, storage_args);
+        return std::make_shared<sc::graph_tensor>(nullptr, lt_format,
+                std::vector<int64_t> {lt.dims, lt.dims + lt.ndims},
+                convert_data_type(lt.data_type), ordered_strides);
     }
     return std::make_shared<sc::graph_tensor>(nullptr, lt_format,
             std::vector<int64_t> {lt.dims, lt.dims + lt.ndims},

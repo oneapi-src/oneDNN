@@ -190,10 +190,14 @@ impl::status_t compiler_partition_impl_t::compile(
                     out_ret->attrs_.set("unique_id", id++);
                     sc::sc_data_format_t output_format
                             = out_ret->get_inputs()[0]->details_.get_format();
+                    sc::sc_dims output_strides
+                            = out_ret->get_inputs()[0]->details_.get_strides();
                     if (!output_format.is_any()) {
                         out_ret->attrs_.set("target_formats",
                                 std::vector<sc::sc_data_format_t> {
                                         output_format});
+                        out_ret->attrs_.set("target_strides",
+                                std::vector<sc::sc_dims> {output_strides});
                     }
                     outputs_map[lt.id] = out_ret;
                 }

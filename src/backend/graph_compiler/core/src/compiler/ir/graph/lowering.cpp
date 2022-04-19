@@ -425,24 +425,27 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         }
 
         std::vector<expr> dims = dims_to_expr(t->details_.get_blocking_dims());
+        std::vector<expr> strides = dims_to_expr(t->details_.get_strides());
         std::string tensor_name
                 = graph::get_tensor_name(t.get(), linked_output);
         if (tensor_name.empty()) {
             tensor_name
                     = std::string("buffer_") + std::to_string(tensor_counter);
         }
-        expr tsr = builder::make_tensor(tensor_name, dims, t->details_.dtype_);
+        expr tsr = builder::make_stensor(
+                tensor_name, dims, strides, t->details_.dtype_);
         tensor_counter++;
         ltsr_rtsr.insert(std::make_pair(t, tsr));
 
         if (!is_arg) {
             if (const_type != const_kind::not_const) {
                 if (const_type == const_kind::global_const) {
-                    tsr = ret_mod->make_global_tensor(
+                    tsr = ret_mod->make_global_stensor(
                             tsr.checked_as<tensor>()->elem_dtype_,
                             "folded_const_"
                                     + std::to_string(global_tensor_counter++),
-                            tsr.checked_as<tensor>()->dims_);
+                            tsr.checked_as<tensor>()->dims_,
+                            tsr.checked_as<tensor>()->strides_);
                     if (auto const_node
                             = t->producer_owner_->dyn_cast<constant_op_t>()) {
                         auto const_value = const_node->get_constant_values();

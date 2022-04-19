@@ -477,6 +477,11 @@ void validate_impl_t::view(tensor_c v) {
     for (auto &dim : v->dims_) {
         dispatch(dim);
     }
+    COMPILE_ASSERT(v->dims_.size() == v->strides_.size(),
+            "Expecting dims and strides having same length, but got dims "
+            "length: "
+                    << v->dims_.size()
+                    << " and strides length: " << v->strides_.size());
     int cnt = 0;
     sc_data_type_t idxtype = v->dims_.front()->dtype_;
     for (auto &idx : v->dims_) {

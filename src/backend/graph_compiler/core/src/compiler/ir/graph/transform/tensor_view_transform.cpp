@@ -81,6 +81,11 @@ bool should_transform_reorder(const sc_op_ptr &node) {
             = node->get_inputs()[0]->details_.get_blocking_dims();
     auto output_blocking_shapes
             = node->get_outputs()[0]->details_.get_blocking_dims();
+    // transformation not possible due to stride
+    if (!node->get_inputs()[0]->details_.is_dense()
+            || !node->get_outputs()[0]->details_.is_dense()) {
+        return false;
+    }
     // inp format is equal to out format
     if (input_format == output_format) { return true; }
     // reorder for padding

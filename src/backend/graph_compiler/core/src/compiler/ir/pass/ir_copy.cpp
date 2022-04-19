@@ -154,13 +154,14 @@ void ir_copier_impl_t::view(ssa_phi_c v) {
 
 void ir_copier_impl_t::view(tensor_c v) {
     if (find_and_return(v)) return;
-    std::vector<expr> args;
-    args.reserve(v->dims_.size());
-    for (auto &i : v->dims_) {
-        args.emplace_back(copy(i));
+    std::vector<expr> args(v->dims_.size());
+    std::vector<expr> strides(v->strides_.size());
+    for (size_t i = 0; i < v->dims_.size(); ++i) {
+        args[i] = copy(v->dims_[i]);
+        strides[i] = copy(v->strides_[i]);
     }
-    returned_expr_ = builder::make_tensor(
-            v->name_, args, v->elem_dtype_, v->address_space_, v->init_value_);
+    returned_expr_ = builder::make_stensor(v->name_, args, strides,
+            v->elem_dtype_, v->address_space_, v->init_value_);
     replace_map_.insert(std::make_pair(v, returned_expr_));
 }
 

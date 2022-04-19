@@ -65,8 +65,10 @@ static std::vector<tensor_slice> make_tensor_slice(
     for (size_t i = 0; i < data.size(); ++i) {
         std::vector<expr> dims
                 = dims_to_expr(data[i]->details_.get_blocking_dims());
-        auto aexpr = builder::make_tensor(tensor_name + std::to_string(i), dims,
-                data[i]->details_.dtype_);
+        std::vector<expr> strides
+                = dims_to_expr(data[i]->details_.get_strides());
+        expr aexpr = builder::make_stensor(tensor_name + std::to_string(i),
+                dims, strides, data[i]->details_.dtype_);
         flattened.emplace_back(aexpr);
         expected.emplace_back(tensor_slice(aexpr));
     }

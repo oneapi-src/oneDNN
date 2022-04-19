@@ -934,6 +934,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
         if (strided) {
             auto &tsr_map
                     = is_output ? strided_out_tsr_map : strided_in_tsr_map;
+            // TODO(xxx): consider making a strided tensor here
             auto shrinked_tsr = builder::make_tensor(std::string("strided_")
                             + (is_output ? std::string("out_")
                                          : std::string("in_"))

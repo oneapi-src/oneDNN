@@ -51,8 +51,9 @@ public:
     uint32_t get_lanes() const { return vx_info_.lanes; }
 
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
     bool register_brgemm_fusion(const context_ptr &ctx,
             const std::vector<tensor_slice *> &outputs,
             const std::vector<const tensor_slice *> &inputs,

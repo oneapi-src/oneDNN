@@ -41,8 +41,9 @@ public:
     transpose_op_t(graph_tensor_ptr v, std::vector<int> &order);
 
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
 
@@ -70,8 +71,9 @@ public:
     DECLARE_QUERY_AND_COMPUTE();
 
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
 
     tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes);
     tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -102,8 +104,9 @@ public:
     reshape_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
     ir_module_ptr get_func(context_ptr ctx) override;
 
 private:
@@ -115,8 +118,9 @@ public:
     DECLARE_QUERY_AND_COMPUTE();
 
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
 
     split_op_t(graph_tensor_ptr v, int dim, const sc_dims &shapes);
 
@@ -143,8 +147,9 @@ public:
         return output_format_.format_code_;
     }
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
     const sc_data_format_t &get_output_format() const { return output_format_; }
     const sc_data_format_t &get_input_format() const { return input_format_; }
     size_t compute_workload(const std::vector<shape_dtype_pair> &,

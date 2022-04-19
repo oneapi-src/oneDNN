@@ -73,6 +73,8 @@ void permute_propagation(sc_graph_t &graph, const context_ptr &ctx) {
             } else if (in->details_.get_format().is_plain()
                     && need_to_reorder(in->details_.get_format())) {
                 // todo: should query the Op if it accepts a permuted layout.
+                // TODO(yifei): consider remove this entire pass
+                // since we will not run into this condition
                 insert_reorder_op(graph, in, i,
                         sc_data_format_t::get_plain_by_dims(
                                 (int)in->details_.get_plain_dims().size()),

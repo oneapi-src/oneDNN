@@ -720,18 +720,40 @@ expr remake_call(
  * @param dims the dimensions, should be integers
  * @param dtype the elemente type of the tensor
  * @param addr_space the address space: CPU/Device
+ * @param strides stride info for each dim (optional)
  * @return the created node
  * */
 expr make_tensor(const std::string &name, const std::vector<expr> &dims,
         sc_data_type_t dtype,
         address_space addrspace = address_space::automatic,
-        const std::shared_ptr<static_data_t> &init_value = nullptr);
+        const std::shared_ptr<static_data_t> &init_value = nullptr,
+        const std::vector<expr> &strides = {});
 expr make_tensor(const std::string &name, const std::vector<expr_c> &dims,
         sc_data_type_t dtype,
         address_space addrspace = address_space::automatic,
-        const std::shared_ptr<static_data_t> &init_value = nullptr);
+        const std::shared_ptr<static_data_t> &init_value = nullptr,
+        const std::vector<expr_c> &strides = {});
 expr make_tensor(const std::string &name, std::initializer_list<expr> dims,
         sc_data_type_t dtype,
+        address_space addrspace = address_space::automatic,
+        const std::shared_ptr<static_data_t> &init_value = nullptr,
+        std::initializer_list<expr> strides = std::initializer_list<expr>());
+
+/**
+ * Makes a tensor node with user-defined stride
+ * @param name the name of the tensor
+ * @param dims the dimensions, should be integers
+ * @param strides stride info for each dim
+ * @param dtype the elemente type of the tensor
+ * @param addr_space the address space: CPU/Device
+ * @return the created node
+ * */
+expr make_stensor(const std::string &name, const std::vector<expr> &dims,
+        const std::vector<expr> &strides, sc_data_type_t dtype,
+        address_space addrspace = address_space::automatic,
+        const std::shared_ptr<static_data_t> &init_value = nullptr);
+expr make_stensor(const std::string &name, const std::vector<expr_c> &dims,
+        const std::vector<expr_c> &strides, sc_data_type_t dtype,
         address_space addrspace = address_space::automatic,
         const std::shared_ptr<static_data_t> &init_value = nullptr);
 

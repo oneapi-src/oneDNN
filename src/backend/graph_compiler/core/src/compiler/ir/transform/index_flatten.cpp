@@ -24,19 +24,19 @@
 
 namespace sc {
 static bool process_indexing(ir_visitor_t *ths,
-        const std::vector<expr> &old_dims, const std::vector<expr> &idx,
-        std::vector<expr_c> &newidx) {
+        const std::vector<expr> &old_dims, const std::vector<expr> &old_strides,
+        const std::vector<expr> &idx, std::vector<expr_c> &newidx) {
     bool changed = ths->dispatch_expr_vector(idx, newidx);
     assert(!idx.empty());
     if (idx.size() == 1) {
         return changed;
     } else {
-        expr_c flattened = newidx.back();
-        expr_c dim = old_dims.back();
+        COMPILE_ASSERT(old_strides.size() == old_dims.size(),
+                "Dims and strides shall have same length.");
+        expr_c flattened = builder::make_mul(newidx.back(), old_strides.back());
         for (int64_t i = newidx.size() - 2; i >= 0; i--) {
             flattened = builder::make_add(
-                    builder::make_mul(newidx[i], dim), flattened);
-            dim = builder::make_mul(old_dims[i], dim);
+                    builder::make_mul(newidx[i], old_strides[i]), flattened);
         }
         newidx = std::vector<expr_c> {std::move(flattened)};
         return true;
@@ -52,7 +52,7 @@ static bool process_indexing(ir_visitor_t *ths, tensor_c &tsr,
             "Unmatched dimensions of indexing: tsr= "
                     << tsr << utils::print_vector(old->dims_) << ", indexing on"
                     << utils::print_vector(idx));
-    changed |= process_indexing(ths, old->dims_, idx, newidx);
+    changed |= process_indexing(ths, old->dims_, old->strides_, idx, newidx);
     return changed;
 }
 
@@ -64,6 +64,28 @@ static const std::vector<expr> *get_base_shape(const expr_c &ex) {
         return get_base_shape(tptr->base_->ptr_);
     } else {
         return &tptr->shape_;
+    }
+}
+
+static std::vector<expr> get_dense_stride(const std::vector<expr> &shape) {
+    std::vector<expr> result(shape.size(), 1);
+    for (int i = shape.size() - 2; i >= 0; --i) {
+        result[i] = result[i + 1] * shape[i + 1];
+    }
+    return result;
+}
+
+static std::vector<expr> get_base_stride(const expr_c &ex) {
+    if (ex.isa<tensor>()) { return ex.static_as<tensor>()->strides_; }
+    COMPILE_ASSERT(ex.isa<tensorptr>(), "Expecting tensorptr, got: " << ex);
+    auto tptr = ex.static_as<tensorptr>();
+    if (tptr->is_slice_) {
+        COMPILE_ASSERT(tptr->base_.isa<indexing>(),
+                "tptr's base should be indexing, but got: " << tptr->base_);
+        return get_base_stride(tptr->base_->ptr_);
+    } else {
+        // when is_slice_ == false we create a dense tensor based on new shape
+        return get_dense_stride(tptr->shape_);
     }
 }
 
@@ -93,11 +115,12 @@ public:
             auto ptr = dispatch(v->ptr_).checked_as<tensorptr_c>();
             assert(ptr->base_->idx_.size() == 1);
             const std::vector<expr> *shape = get_base_shape(oldptr);
+            const std::vector<expr> stride = get_base_stride(oldptr);
             // 1D input might not have shape info
             assert(oldptr->base_->idx_.size() == 1 || !shape->empty());
 
             // flatten the indices using the reshaped dimensions
-            process_indexing(this, *shape, v->idx_, newidx);
+            process_indexing(this, *shape, stride, v->idx_, newidx);
 
             return copy_attr(*v,
                     builder::make_indexing(ptr->base_->ptr_,
@@ -107,21 +130,27 @@ public:
     }
 
     expr_c visit(tensor_c v) override {
-        if (v->dims_.size() != 1) {
-            expr flattened;
-            for (auto &e : v->dims_) {
-                if (flattened.defined()) {
-                    flattened = flattened * e;
-                } else {
-                    flattened = e;
-                }
+        COMPILE_ASSERT(v->dims_.size() == v->strides_.size(),
+                "Tensor dims and strides shall have same length.");
+        if (v->dims_.size() == 1 && v->strides_[0].isa<constant>()
+                && get_expr_as_int(v->strides_[0]) == 1) {
+            // if already flattened, return
+            return v;
+        } else {
+            expr range = 1;
+            for (size_t i = 0; i < v->dims_.size(); ++i) {
+                range = builder::make_add(
+                        builder::make_mul(v->dims_[i] - 1, v->strides_[i]),
+                        range);
             }
+            // here stride is {1} since all strided info are compressed into
+            // dims
             auto ret = copy_attr(*v,
-                    builder::make_tensor(v->name_, {flattened}, v->elem_dtype_,
+                    builder::make_stensor(v->name_, {range},
+                            std::vector<expr> {1}, v->elem_dtype_,
                             v->address_space_, v->init_value_));
             return ret;
         }
-        return v;
     }
 
     expr_c visit(tensorptr_c v) override {

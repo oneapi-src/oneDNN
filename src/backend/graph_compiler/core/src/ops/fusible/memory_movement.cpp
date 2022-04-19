@@ -70,8 +70,9 @@ transpose_op_t::transpose_op_t(graph_tensor_ptr v, std::vector<int> &order)
 }
 
 void transpose_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     COMPILE_ASSERT(!info_.inputs_[0]->details_.get_format().is_any(),
             "cannot infer output format with any input format");
     auto in_format = info_.inputs_[0]->details_.get_format();
@@ -98,6 +99,8 @@ void transpose_op_t::query_format(context_ptr ctx,
 
     in_formats.push_back(std::vector<sc_data_format_t> {in_format});
     out_formats.push_back(std::vector<sc_data_format_t> {out_format});
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 
 void transpose_op_t::prepare_fusion_data(fdata_map &fdmap) {
@@ -329,8 +332,9 @@ bool tensor_view_op_t::try_penetrate(
 }
 
 void tensor_view_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     sc_data_format_t output_format;
     // temp workaround
     assert(!attrs_.get<sc_data_format_t>("format").is_any());
@@ -339,16 +343,19 @@ void tensor_view_op_t::query_format(context_ptr ctx,
                     == attrs_.get<sc_data_format_t>("cache_input_format")) {
         out_formats.push_back({attrs_.get<sc_data_format_t>("format")});
         in_formats.push_back({info_.inputs_[0]->details_.get_format()});
-    }
-    bool can_penetrate = try_penetrate(output_format);
-    if (can_penetrate) {
-        out_formats.push_back({output_format});
-        in_formats.push_back({info_.inputs_[0]->details_.get_format()});
     } else {
-        out_formats.push_back({attrs_.get<sc_data_format_t>("format")});
-        in_formats.push_back(
-                {attrs_.get<sc_data_format_t>("cache_input_format")});
+        bool can_penetrate = try_penetrate(output_format);
+        if (can_penetrate) {
+            out_formats.push_back({output_format});
+            in_formats.push_back({info_.inputs_[0]->details_.get_format()});
+        } else {
+            out_formats.push_back({attrs_.get<sc_data_format_t>("format")});
+            in_formats.push_back(
+                    {attrs_.get<sc_data_format_t>("cache_input_format")});
+        }
     }
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 
 void tensor_view_op_t::prepare_fusion_data(fdata_map &fdmap) {
@@ -584,10 +591,13 @@ void reshape_op_t::prepare_fusion_data(fdata_map &fdmap) {
     in_detail0.use_count_++;
 }
 void reshape_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     out_formats.push_back({sc_data_format_kind_t::get_plain_by_dims(
             info_.outputs_[0]->details_.get_plain_dims().size())});
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 void reshape_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dsts,
@@ -664,12 +674,15 @@ split_op_t::split_op_t(graph_tensor_ptr v, int dim, const sc_dims &shapes)
 }
 
 void split_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     out_formats.reserve(info_.outputs_.size());
     for (size_t i = 0; i < out_formats.size(); ++i) {
         out_formats[i].push_back({info_.inputs_[0]->details_.get_format()});
     }
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 
 void split_op_t::prepare_fusion_data(fdata_map &fdmap) {

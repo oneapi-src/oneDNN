@@ -322,8 +322,9 @@ static sc_data_format_t infer_broadcast_format(
 }
 
 void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     auto in0_format = info_.inputs_[0]->details_.get_format();
     auto in1_format = info_.inputs_[1]->details_.get_format();
 
@@ -353,6 +354,8 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
             out_formats.push_back({in0_format});
         }
     }
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 
 void binary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {

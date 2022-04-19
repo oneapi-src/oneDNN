@@ -54,6 +54,7 @@ struct gt_map_t;
 using fdata_map = gt_map_t<fusion_data_t>;
 using gt2gt_map = gt_map_t<graph_tensor_ptr>;
 using gt2axes_map = gt_map_t<std::vector<int>>;
+using format_stride_pair = std::pair<sc_data_format_t, sc_dims>;
 
 /** VConst struct record possible varible in constant value, e.g.
  *
@@ -113,7 +114,8 @@ struct SC_API graph_tensor SC_EXTENDS_LEAK_CHECK(graph_tensor) {
     graph_tensor(sc_op *owner);
     graph_tensor(sc_op *owner, const logical_tensor_t &lt);
     graph_tensor(sc_op *owner, const sc_data_format_t &format,
-            const sc_dims &plain_shape, const sc_data_type_t &type);
+            const sc_dims &plain_shape, const sc_data_type_t &type,
+            const sc_dims &stride = {});
 
     // adds a node to the `uses_` list, given the index of the tensor in the
     // inputs of the op
@@ -132,8 +134,10 @@ struct SC_API graph_tensor SC_EXTENDS_LEAK_CHECK(graph_tensor) {
 
     static graph_tensor_ptr make(const sc_dims &shape,
             const sc_data_format_t &fmt = sc_data_format_t(),
-            sc_data_type_t dtype = sc_data_type_t(sc_data_etype::F32, 1)) {
-        return std::make_shared<graph_tensor>(nullptr, fmt, shape, dtype);
+            sc_data_type_t dtype = sc_data_type_t(sc_data_etype::F32, 1),
+            const sc_dims &stride = {}) {
+        return std::make_shared<graph_tensor>(
+                nullptr, fmt, shape, dtype, stride);
     }
 };
 
@@ -288,9 +292,15 @@ public:
     virtual ir_module_ptr get_func(context_ptr ctx) = 0;
 
     virtual void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats)
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
             = 0;
+    void format_to_dense_format_stride_pair(
+            const std::vector<std::vector<sc_data_format_t>> &in_formats,
+            const std::vector<std::vector<sc_data_format_t>> &out_formats,
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs);
+
     virtual ~sc_op() = default;
     virtual float get_gflop();
 };

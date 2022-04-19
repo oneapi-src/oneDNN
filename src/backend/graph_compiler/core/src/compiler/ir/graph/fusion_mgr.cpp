@@ -196,13 +196,15 @@ void fusion_manager::allocate_tensor(
     fusible_op_t *fop = output->producer_owner_->dyn_cast<fusible_op_t>();
     tensor tsr;
     auto allocate_ =
-            [&](const std::string &name, const std::vector<expr> &shapes,
+            [&](const std::string &name, const logical_tensor_t &lt,
                     sc::address_space addrspace = sc::address_space::automatic,
                     const std::shared_ptr<static_data_t> &init_value = nullptr,
                     bool global = false) {
-                tsr = builder::make_tensor(
+                auto shapes = dims_to_expr(lt.get_blocking_dims());
+                auto strides = dims_to_expr(lt.get_strides());
+                tsr = builder::make_stensor(
                         name + std::to_string(alloc_tensor_count_++), shapes,
-                        output->details_.dtype_, addrspace, init_value)
+                        strides, output->details_.dtype_, addrspace, init_value)
                               .checked_as<tensor>();
                 if (global) {
                     auto def = builder::make_var_tensor_def_unattached(
@@ -218,12 +220,11 @@ void fusion_manager::allocate_tensor(
     // TODO(xxx): remove this reorder judgement
     if (auto const_op = output->producer_owner_->dyn_cast<constant_op_t>()) {
         auto const_value = const_op->get_constant_values();
-        allocate_("_const_buf_",
-                dims_to_expr(output->details_.get_blocking_dims()),
-                address_space::automatic, const_value, true);
+        allocate_("_const_buf_", output->details_, address_space::automatic,
+                const_value, true);
     } else {
         allocate_("_" + output->producer_owner_->op_name_ + "_buf_",
-                dims_to_expr(output->details_.get_blocking_dims()));
+                output->details_);
     }
 }
 
@@ -463,11 +464,13 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 if (!inargs.empty()) {
                     tsr = inargs[arg_idx];
                 } else {
-                    auto arg_tsr = builder::make_tensor(
+                    auto arg_tsr = builder::make_stensor(
                             std::string("arg_tsr_") + std::to_string(arg_idx),
                             dims_to_expr(
                                     input_cur->get_outputs()[0]
                                             ->details_.get_blocking_dims()),
+                            dims_to_expr(input_cur->get_outputs()[0]
+                                                 ->details_.get_strides()),
                             input_cur->get_outputs()[0]->details_.dtype_);
                     tsr = arg_tsr;
                 }
@@ -508,11 +511,13 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                     // Here, it will not be pushed into allocated_tensors_,
                     // because
                     // it will be replaced in final IR generation
-                    auto arg_tsr = builder::make_tensor(
+                    auto arg_tsr = builder::make_stensor(
                             std::string("output") + std::to_string(output_idx),
                             dims_to_expr(
                                     cur->get_inputs()[0]
                                             ->details_.get_blocking_dims()),
+                            dims_to_expr(cur->get_inputs()[0]
+                                                 ->details_.get_strides()),
                             cur->get_inputs()[0]->details_.dtype_);
                     tsr = arg_tsr;
                 }

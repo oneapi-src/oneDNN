@@ -1136,6 +1136,7 @@ enum class address_space {
  * @param dtype the type of the elements of the tensor
  * @param name the name of the tensor
  * @param dims the dimemsions of the tensor, should be integer exprs
+ * @param strides the stride information for each dimension
  *
  * @note at the run time, a function-local tensor's memory buffer will be
  * allocated in three ways:
@@ -1158,14 +1159,8 @@ public:
     tensor_node(sc_data_type_t dtype, const std::string &name,
             const std::vector<expr> &dims,
             address_space address_space = address_space::automatic,
-            const std::shared_ptr<static_data_t> &init_value = nullptr)
-        : expr_base(sc_data_type_t::pointerof(dtype.type_code_),
-                sc_expr_type::tensor)
-        , elem_dtype_(dtype)
-        , dims_(dims)
-        , name_(name)
-        , address_space_(address_space)
-        , init_value_(init_value) {}
+            const std::shared_ptr<static_data_t> &init_value = nullptr,
+            const std::vector<expr> &strides = {});
     // The type of the elements
     sc_data_type_t elem_dtype_;
     std::vector<expr> dims_;
@@ -1174,6 +1169,7 @@ public:
     // the initial raw value of the tensor. Currently this field is valid only
     // when the tensor is defined in a global scope
     std::shared_ptr<static_data_t> init_value_;
+    std::vector<expr> strides_;
     void to_string(ostream &os) const override;
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;

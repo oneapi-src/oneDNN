@@ -42,8 +42,9 @@ public:
     // when fusible_op_t is as a started op in the graph/subgraph, query_format
     // return certain format.
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
     ir_module_ptr get_func(context_ptr ctx) override;
 
     // prepares the Op's anchor-irrelevant internal states for generating IR for
@@ -167,6 +168,8 @@ public:
  *    true. target_formats is the format of the output tensor. They should be
  *    either plain or simply permuted. If the target_formats is set, the
  *    output tensor will be reordered into the specified format.
+ *  - target_strides: std::vector<sc_dims> - default: vector of dense strides
+ *    target_strides is the stride of the output tensor.
  * */
 class output_op : public fusible_op_t {
 public:

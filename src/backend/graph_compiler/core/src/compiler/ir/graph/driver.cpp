@@ -140,7 +140,7 @@ static void run_passes(sc_graph_t &graph, const context_ptr &ctx,
                 if (auto stream
                         = runtime::get_info_logging_stream(name.c_str())) {
                     *stream.stream_ << "IR after this pass:\n";
-                    print_graph(graph, *stream.stream_, true, true);
+                    print_graph(graph, *stream.stream_, true, true, true, true);
                 }
             }
         }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,6 +89,10 @@ public:
             linkage linkage = linkage::private_global, expr init = expr());
     tensor make_global_tensor(sc_data_type_t dtype, const std::string &name,
             const std::vector<expr> &dims,
+            linkage linkage = linkage::private_global);
+    // make a global tensor with strides
+    tensor make_global_stensor(sc_data_type_t dtype, const std::string &name,
+            const std::vector<expr> &dims, const std::vector<expr> &strides,
             linkage linkage = linkage::private_global);
     // adds a global var def, handles renaming
     void add_global_var(define def);

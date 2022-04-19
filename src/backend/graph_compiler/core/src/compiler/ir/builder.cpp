@@ -446,22 +446,44 @@ expr remake_call(const func_c &func, const std::vector<expr_c> &args,
 
 expr make_tensor(const std::string &name, const std::vector<expr> &dims,
         sc_data_type_t dtype, address_space addrspace,
-        const std::shared_ptr<static_data_t> &init_value) {
-    return make_expr<tensor_node>(dtype, name, dims, addrspace, init_value);
+        const std::shared_ptr<static_data_t> &init_value,
+        const std::vector<expr> &strides) {
+    return make_expr<tensor_node>(
+            dtype, name, dims, addrspace, init_value, strides);
 }
 
 expr make_tensor(const std::string &name, const std::vector<expr_c> &dims,
         sc_data_type_t dtype, address_space addrspace,
-        const std::shared_ptr<static_data_t> &init_value) {
-    return make_expr<tensor_node>(
-            dtype, name, vector_remove_const(dims), addrspace, init_value);
+        const std::shared_ptr<static_data_t> &init_value,
+        const std::vector<expr_c> &strides) {
+    return make_expr<tensor_node>(dtype, name, vector_remove_const(dims),
+            addrspace, init_value, vector_remove_const(strides));
 }
 
 expr make_tensor(const std::string &name, std::initializer_list<expr> dims,
         sc_data_type_t dtype, address_space addrspace,
+        const std::shared_ptr<static_data_t> &init_value,
+        std::initializer_list<expr> strides) {
+    return make_tensor(name, std::vector<expr>(dims), dtype, addrspace,
+            init_value, std::vector<expr>(strides));
+}
+
+expr make_stensor(const std::string &name, const std::vector<expr> &dims,
+        const std::vector<expr> &strides, sc_data_type_t dtype,
+        address_space addrspace,
         const std::shared_ptr<static_data_t> &init_value) {
-    return make_tensor(
-            name, std::vector<expr>(dims), dtype, addrspace, init_value);
+    COMPILE_ASSERT(strides.size() == dims.size(),
+            "Dims and strides shall have same length.");
+    return make_tensor(name, dims, dtype, addrspace, init_value, strides);
+}
+
+expr make_stensor(const std::string &name, const std::vector<expr_c> &dims,
+        const std::vector<expr_c> &strides, sc_data_type_t dtype,
+        address_space addrspace,
+        const std::shared_ptr<static_data_t> &init_value) {
+    COMPILE_ASSERT(strides.size() == dims.size(),
+            "Dims and strides shall have same length.");
+    return make_tensor(name, dims, dtype, addrspace, init_value, strides);
 }
 
 void builder_impl_t::basic_block_t::emit(const stmt &stmt) {

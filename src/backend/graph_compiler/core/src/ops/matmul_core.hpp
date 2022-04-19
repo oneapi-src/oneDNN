@@ -32,8 +32,9 @@ public:
             const std::vector<graph_tensor_ptr> &consumer_lt,
             const any_map_t &attrs);
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
     body_generator_ptr create_generator() override;
     float get_gflop() override;
     sc_dims get_batch_dims() const;

@@ -37,7 +37,7 @@ constexpr int global_const = 2;
 
 SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
         bool print_shape = false, bool print_attr = false,
-        bool print_name = false);
+        bool print_name = false, bool print_stride = false);
 
 void visualize(const std::string &filename, const sc_graph_t &opmg);
 

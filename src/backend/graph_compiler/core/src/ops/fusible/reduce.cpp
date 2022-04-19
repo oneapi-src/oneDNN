@@ -159,8 +159,9 @@ reduce_op_t::reduce_op_t(graph_tensor_ptr v, const std::string &rd_name,
 }
 
 void reduce_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     const auto &in_fmt = info_.inputs_[0]->details_.get_format();
     if (keep_dims_) {
         out_formats.push_back({get_reduced_format(in_fmt, plain_rd_axis_)});
@@ -203,6 +204,8 @@ void reduce_op_t::query_format(context_ptr ctx,
             out_formats.push_back({new_format});
         }
     }
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 
 void reduce_op_t::prepare_fusion_data(fdata_map &fdmap) {

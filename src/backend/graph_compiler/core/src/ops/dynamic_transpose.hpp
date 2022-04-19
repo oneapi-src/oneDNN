@@ -31,8 +31,9 @@ public:
     dynamic_transpose_op(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     void query_format(context_ptr ctx,
-            std::vector<std::vector<sc_data_format_t>> &in_formats,
-            std::vector<std::vector<sc_data_format_t>> &out_formats) override;
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
     ir_module_ptr get_func(context_ptr ctx) override;
     sc_op_ptr constant_optimize(sc_graph_t &graph) override;
 

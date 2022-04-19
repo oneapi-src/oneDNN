@@ -138,14 +138,16 @@ expr ir_visitor_base_impl_t<is_inplace>::visit_impl(var v) {
 template <bool is_inplace>
 expr ir_visitor_base_impl_t<is_inplace>::visit_impl(tensor v) {
     std::vector<expr> newdims;
+    std::vector<expr> newstrides;
     changed_ = dispatch_expr_vector(v->dims_, newdims);
+    changed_ |= dispatch_expr_vector(v->strides_, newstrides);
     if (is_inplace) {
         return std::move(v);
     } else {
         if (changed_) {
             return copy_attr(*v,
                     make_expr<tensor_node>(v->elem_dtype_, v->name_, newdims,
-                            v->address_space_, v->init_value_));
+                            v->address_space_, v->init_value_, newstrides));
         } else {
             return std::move(v);
         }

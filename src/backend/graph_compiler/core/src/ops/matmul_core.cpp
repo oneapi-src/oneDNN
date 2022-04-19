@@ -98,8 +98,9 @@ sc_dims matmul_core_op_t::get_batch_dims() const {
 }
 
 void matmul_core_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<sc_data_format_t>> &in_formats,
-        std::vector<std::vector<sc_data_format_t>> &out_formats) {
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     if (!config_data_) {
         config_data_ = create_generator()->get_default_config(ctx);
     }
@@ -386,6 +387,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
             info_.inputs_[0]->details_.get_plain_dims().back(), K_block);
     attrs_["temp.padded_A_K"].get<std::shared_ptr<VConst>>()->var_
             = pad_K_num * K_block;
+    format_to_dense_format_stride_pair(
+            in_formats, out_formats, supported_ins, supported_outs);
 }
 
 sc_op_ptr matmul_core_op_t::do_compensations(

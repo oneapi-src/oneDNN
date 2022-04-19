@@ -31,7 +31,7 @@ using reorder_callback_type = std::function<void(
         const graph_tensor_ptr &in, const sc_data_format_t &target_formats)>;
 
 static void insert_reorder_op(sc_graph_t &graph, const graph_tensor_ptr &in,
-        size_t in_index, const sc_data_format_t &out_format,
+        size_t in_index, const format_stride_pair &out_format_stride,
         const sc_op_ptr &cur_op, bool is_input_plain,
         reorder_callback_type &on_insert_reorder) {
     // if we don't need to keep plain format for input op and input op tensor is
@@ -40,18 +40,21 @@ static void insert_reorder_op(sc_graph_t &graph, const graph_tensor_ptr &in,
             && in->producer_owner_->isa<input_op>()
             && in->details_.get_format().is_plain()
             && !in->producer_owner_->attrs_.get_or_else("keep_plain", false)) {
-        in->details_.set_format(out_format);
+        in->details_.set_format_and_stride(
+                out_format_stride.first, out_format_stride.second);
         return;
     }
 
     // if we are in trying-mode, don't insert an reorder. Instead, notify that
     // there will be a reorder to be inerted
     if (on_insert_reorder) {
-        in->details_.set_format(out_format);
-        on_insert_reorder(in, out_format);
+        in->details_.set_format_and_stride(
+                out_format_stride.first, out_format_stride.second);
+        on_insert_reorder(in, out_format_stride.first);
     } else {
         auto ret = graph.make("reorder", {in}, {},
-                {{"out_format", out_format},
+                {{"out_format", out_format_stride.first},
+                        {"out_stride", out_format_stride.second},
                         {op_attr_key::no_fuse, // work around for conv graph.
                                 // will be dropped after yijie's
                                 // refactor
@@ -62,12 +65,13 @@ static void insert_reorder_op(sc_graph_t &graph, const graph_tensor_ptr &in,
 }
 
 static void update_output_formats(std::vector<graph_tensor_ptr> &outs,
-        const std::vector<std::vector<sc_data_format_t>> &out_supported_format,
+        const std::vector<std::vector<format_stride_pair>> &out_supported_pairs,
         size_t layout_choice) {
     for (size_t i = 0; i < outs.size(); ++i) {
-        if (!out_supported_format.empty()) {
-            outs[i]->details_.set_format(
-                    out_supported_format[i][layout_choice]);
+        if (!out_supported_pairs.empty()) {
+            auto &fs_pair = out_supported_pairs[i][layout_choice];
+            outs[i]->details_.set_format_and_stride(
+                    fs_pair.first, fs_pair.second);
         } else if (outs[i]->details_.get_format().is_any()) {
             outs[i]->details_.set_format(sc_data_format_t::get_plain_by_dims(
                     (int)outs[i]->details_.get_plain_dims().size()));
@@ -95,8 +99,8 @@ SC_INTERNAL_API void layout_propagation(
     size_t total_choices = 1;
     std::vector<size_t> cur_choice;
     cur_choice.resize(graph.ops_.size());
-    // the try-run will reset the input op's format. need to remember them
-    std::vector<std::vector<sc_data_format_t>> format_backup;
+    // the try-run will reset the input op's format and stride. needs cache
+    std::vector<std::vector<format_stride_pair>> format_backup;
     std::vector<sc_op *> input_ops;
 
     op_visitor_t vis {op_visitor_t::pop_back_selector,
@@ -106,25 +110,25 @@ SC_INTERNAL_API void layout_propagation(
         sorted_ops.emplace_back(node);
         if (auto input_node = node->dyn_cast<input_op>()) {
             // backup the input's format
-            std::vector<sc_data_format_t> fmts;
+            std::vector<format_stride_pair> backup_info;
             for (auto &in : input_node->get_outputs()) {
-                fmts.emplace_back(in->details_.get_format());
+                backup_info.emplace_back(std::make_pair(
+                        in->details_.get_format(), in->details_.get_strides()));
             }
-            format_backup.emplace_back(std::move(fmts));
+            format_backup.emplace_back(backup_info);
             input_ops.push_back(input_node);
         }
         if (auto tunable_node = node->dyn_cast<tunable_op_t>()) {
-            std::vector<std::vector<sc_data_format_t>> in_supported_formats,
-                    out_supported_formats;
+            std::vector<std::vector<format_stride_pair>> in_supported_pairs,
+                    out_supported_pairs;
             bool has_config = bool(tunable_node->get_config());
-            node->query_format(
-                    ctx, in_supported_formats, out_supported_formats);
+            node->query_format(ctx, in_supported_pairs, out_supported_pairs);
             if (!has_config) { tunable_node->set_config(nullptr); }
-            if (in_supported_formats.empty()) {
+            if (in_supported_pairs.empty()) {
                 num_choices[node->logical_op_id_] = 1;
             } else {
                 num_choices[node->logical_op_id_]
-                        = in_supported_formats[0].size();
+                        = in_supported_pairs[0].size();
                 if (total_choices <= MAX_LAYOUT_TRIES)
                     total_choices *= num_choices[node->logical_op_id_];
             }
@@ -144,7 +148,8 @@ SC_INTERNAL_API void layout_propagation(
             auto &fmts = format_backup[input_cnt];
             auto &outs = input_node->get_outputs();
             for (size_t i = 0; i < outs.size(); i++) {
-                outs[i]->details_.set_format(fmts[i]);
+                outs[i]->details_.set_format_and_stride(
+                        fmts[i].first, fmts[i].second);
             }
         }
     };
@@ -156,13 +161,20 @@ SC_INTERNAL_API void layout_propagation(
                 // if is not plain format, will insert reorder.
                 std::vector<sc_data_format_t> plain_formats(
                         node->get_inputs().size());
+                std::vector<sc_dims> dense_strides(node->get_inputs().size());
                 for (size_t i = 0; i < node->get_inputs().size(); ++i) {
                     plain_formats[i] = node->get_inputs()[i]
                                                ->details_.get_format()
                                                .to_plain();
+                    // here stride is calculated by plain dims since the format
+                    // is also plain
+                    dense_strides[i] = logical_tensor_t::compute_dense_stride(
+                            node->get_inputs()[i]->details_.get_plain_dims());
                 }
                 const auto &target_formats = node->attrs_.get_or_else(
                         "target_formats", plain_formats);
+                const auto &target_strides = node->attrs_.get_or_else(
+                        "target_strides", dense_strides);
                 COMPILE_ASSERT(
                         target_formats.size() == node->get_inputs().size(),
                         "Output op's target_formats' size should be equal to "
@@ -170,6 +182,7 @@ SC_INTERNAL_API void layout_propagation(
                 for (size_t i = 0; i < node->get_inputs().size(); ++i) {
                     auto in = node->get_inputs()[i];
                     auto target_format = target_formats[i];
+                    auto target_stride = target_strides[i];
                     COMPILE_ASSERT(!in->details_.get_format().is_any(),
                             "output op's input format should have a concrete "
                             "format, instead of any format");
@@ -177,8 +190,12 @@ SC_INTERNAL_API void layout_propagation(
                                     && !target_format.is_blocking(),
                             "output op's target format should be plain or "
                             "permuted.")
-                    if (in->details_.get_format() != target_format) {
-                        insert_reorder_op(graph, in, i, target_format, node,
+                    format_stride_pair in_fs_pair(in->details_.get_format(),
+                            in->details_.get_strides());
+                    format_stride_pair target_fs_pair(
+                            target_format, target_stride);
+                    if (in_fs_pair != target_fs_pair) {
+                        insert_reorder_op(graph, in, i, target_fs_pair, node,
                                 is_input_plain, insert_reorder_callback);
                     }
                 }
@@ -186,8 +203,8 @@ SC_INTERNAL_API void layout_propagation(
         } else if (node->isa<input_op>() || node->isa<constant_op_t>()) {
             update_output_formats(node->info_.outputs_, {}, 0);
         } else {
-            std::vector<std::vector<sc_data_format_t>> in_supported_formats,
-                    out_supported_formats;
+            std::vector<std::vector<format_stride_pair>> in_supported_pairs,
+                    out_supported_pairs;
             // we need to reset the config after query_format if we need to use
             // the default config for tunable_ops
             bool reset_config = false;
@@ -200,8 +217,7 @@ SC_INTERNAL_API void layout_propagation(
                     reset_config = true;
                 }
             }
-            node->query_format(
-                    ctx, in_supported_formats, out_supported_formats);
+            node->query_format(ctx, in_supported_pairs, out_supported_pairs);
             if (reset_config) {
                 node->stc_cast<tunable_op_t>()->set_config(nullptr);
             }
@@ -210,50 +226,39 @@ SC_INTERNAL_API void layout_propagation(
             check_input_format(inputs);
             size_t cur_layout_choice = cur_choice[node->logical_op_id_];
             if (node->isa<binary_elementwise_op_t>()
+                    || node->isa<tensor_view_op_t>()
                     || node->isa<tunable_op_t>()) {
                 // need to unify input formats
                 // todo: should check add_op input shape, output shape size =
                 // max(input size), so need to enhance
-                if (!in_supported_formats.empty()
-                        && !out_supported_formats.empty()) {
+                if (!in_supported_pairs.empty()
+                        && !out_supported_pairs.empty()) {
                     for (size_t i = 0; i < inputs.size(); ++i) {
-                        auto &in_fmt
-                                = in_supported_formats[i][cur_layout_choice];
-                        if (inputs[i]->details_.get_format() != in_fmt) {
-                            insert_reorder_op(graph, inputs[i], i, in_fmt, node,
-                                    is_input_plain, insert_reorder_callback);
+                        auto &target_fs_pair
+                                = in_supported_pairs[i][cur_layout_choice];
+                        format_stride_pair in_fs_pair(
+                                inputs[i]->details_.get_format(),
+                                inputs[i]->details_.get_strides());
+                        if (in_fs_pair != target_fs_pair) {
+                            insert_reorder_op(graph, inputs[i], i,
+                                    target_fs_pair, node, is_input_plain,
+                                    insert_reorder_callback);
                         }
                     }
                     update_output_formats(node->info_.outputs_,
-                            out_supported_formats, cur_layout_choice);
+                            out_supported_pairs, cur_layout_choice);
                 } else {
                     COMPILE_ASSERT(0,
                             "The op must support query_format: "
                                     << node->op_name_);
                 }
-            } else if (node->isa<tensor_view_op_t>()) {
-                auto &input_format = in_supported_formats[0][0];
-                auto &in0_fmt = inputs[0]->details_.get_format();
-                if (input_format.format_code_ != format_kinds::any
-                        && (in0_fmt.get_format_category()
-                                        != input_format.get_format_category()
-                                || ((in0_fmt.format_code_
-                                            == input_format.format_code_)
-                                        && (in0_fmt.blocks_
-                                                != input_format.blocks_)))) {
-                    insert_reorder_op(graph, inputs[0], 0, input_format, node,
-                            is_input_plain, insert_reorder_callback);
-                }
-                update_output_formats(node->info_.outputs_,
-                        out_supported_formats, cur_layout_choice);
-
             } else if (node->isa<fusible_op_t>()) {
                 // split/flatten/reshape/concat/matmul/reduce/reorder/trans2d/transpose
                 // has itself query_format func
                 // relu/exp/tanh/erf/squared_root/triangle has utility
                 // query_format func
-                update_output_formats(node->info_.outputs_,
-                        out_supported_formats, cur_layout_choice);
+                update_output_formats(node->info_.outputs_, out_supported_pairs,
+                        cur_layout_choice);
             } else {
                 COMPILE_ASSERT(0,
                         "Only support fusible op/tunable op/in op/out op in "

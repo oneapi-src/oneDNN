@@ -532,6 +532,29 @@ bool call_node::equals(expr_c v, ir_comparer &ctx) const {
     RETURN(ctx.expr_arr_equals(args_, other->args_));
 }
 
+static std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v) {
+    std::vector<expr> stride(v.size(), 1);
+    for (int i = v.size() - 2; i >= 0; --i) {
+        stride[i] = v[i + 1] * stride[i + 1];
+    }
+    return stride;
+}
+
+tensor_node::tensor_node(sc_data_type_t dtype, const std::string &name,
+        const std::vector<expr> &dims, address_space address_space,
+        const std::shared_ptr<static_data_t> &init_value,
+        const std::vector<expr> &strides)
+    : expr_base(
+            sc_data_type_t::pointerof(dtype.type_code_), sc_expr_type::tensor)
+    , elem_dtype_(dtype)
+    , dims_(dims)
+    , name_(name)
+    , address_space_(address_space)
+    , init_value_(init_value)
+    , strides_(strides) {
+    if (strides_.empty()) { strides_ = dims_to_dense_stride(dims_); }
+}
+
 void tensor_node::to_string(ostream &os) const {
     os << name_;
 }
@@ -556,8 +579,8 @@ void tensor_node::to_string_full(ostream &os) {
 
 expr tensor_node::remake() const {
     return copy_attr(*this,
-            builder::make_tensor(
-                    name_, dims_, elem_dtype_, address_space_, init_value_));
+            builder::make_stensor(name_, dims_, strides_, elem_dtype_,
+                    address_space_, init_value_));
 }
 
 // ignore the names

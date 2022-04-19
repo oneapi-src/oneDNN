@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -138,6 +138,17 @@ tensor ir_module_t::make_global_tensor(sc_data_type_t dtype,
         const std::string &name, const std::vector<expr> &dims,
         linkage linkage) {
     tensor ret = builder::make_tensor(name, dims, dtype).static_as<tensor>();
+    auto def = builder::make_var_tensor_def_unattached(ret, linkage)
+                       .static_as<define>();
+    add_global_var(std::move(def));
+    return ret;
+}
+
+tensor ir_module_t::make_global_stensor(sc_data_type_t dtype,
+        const std::string &name, const std::vector<expr> &dims,
+        const std::vector<expr> &strides, linkage linkage) {
+    tensor ret = builder::make_stensor(name, dims, strides, dtype)
+                         .static_as<tensor>();
     auto def = builder::make_var_tensor_def_unattached(ret, linkage)
                        .static_as<define>();
     add_global_var(std::move(def));
