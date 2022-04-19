@@ -205,7 +205,7 @@ cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=SYCL -DDNNL_GPU_VENDOR=AMD ..
 
     using interop_handle = ::sycl::interop_handler;
     T get_native_mem(const interop_handle &ih, U acc) {
-    //Receives a SYCL accessor that has been defined as a requirement for the command group, and returns the memory object that is used by the         SYCL runtime.
+    //Receives a SYCL accessor that has been defined as a requirement for the command group, and returns the memory object that is used by the SYCL runtime.
     }
 
     void host_task(::sycl::handler &cgh, const T &task) {
