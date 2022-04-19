@@ -109,8 +109,6 @@ struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
                     *attr());
             if (conf_status != status::success) return status::unimplemented;
 
-            acl_utils::acl_thread_bind();
-
             return status::success;
         }
 

@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2021 Intel Corporation
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +28,10 @@
 
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
+#endif
+
+#if DNNL_AARCH64
+#include "cpu/aarch64/cpu_isa_traits.hpp"
 #endif
 
 namespace dnnl {

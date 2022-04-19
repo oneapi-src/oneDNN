@@ -1,5 +1,5 @@
 #*******************************************************************************
-# Copyright 2020 Arm Ltd. and affiliates
+# Copyright 2020-2022 Arm Ltd. and affiliates
 # Copyright 2020-2021 FUJITSU LIMITED
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,6 +32,15 @@ if(NOT DNNL_AARCH64_USE_ACL)
         ${CMAKE_CURRENT_SOURCE_DIR}/acl_*.[ch]pp
         )
     list(REMOVE_ITEM SOURCES ${ACL_FILES})
+endif()
+
+# If the runtime is not THREADPOOL remove threadpool_scheduler sources.
+if(NOT DNNL_CPU_RUNTIME STREQUAL "THREADPOOL")
+    list(APPEND ACL_THREADPOOL_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/acl_threadpool_scheduler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/acl_threadpool_scheduler.hpp
+    )
+    list(REMOVE_ITEM SOURCES ${ACL_THREADPOOL_FILES})
 endif()
 
 set(OBJ_LIB ${DNNL_LIBRARY_NAME}_cpu_aarch64)

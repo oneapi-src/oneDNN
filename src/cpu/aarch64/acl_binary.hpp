@@ -181,9 +181,6 @@ struct acl_binary_t : public primitive_t {
             // Call operator specific validate function to check support
             ACL_CHECK_VALID(validate(asp_));
 
-            // Initialize the ACL threads
-            acl_thread_bind();
-
             return status::success;
         }
 

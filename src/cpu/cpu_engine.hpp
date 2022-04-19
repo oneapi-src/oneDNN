@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2022 Intel Corporation
-* Copyright 2020 Arm Ltd. and affiliates
+* Copyright 2020-2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@
 #include "common/impl_list_item.hpp"
 
 #include "cpu/platform.hpp"
+
+#if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+#include "cpu/aarch64/acl_thread.hpp"
+#endif
 
 #define CPU_INSTANCE(...) \
     impl_list_item_t( \
@@ -163,6 +167,19 @@ public:
     status_t engine_create(engine_t **engine, size_t index) const override {
         assert(index == 0);
         *engine = new cpu_engine_t();
+
+#if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+        // Number of threads in Compute Library is set by OMP_NUM_THREADS
+        // dnnl_get_max_threads() == OMP_NUM_THREADS
+        dnnl::impl::cpu::aarch64::acl_thread_utils::acl_thread_bind();
+#endif
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+        // Set ACL scheduler for threadpool runtime
+        dnnl::impl::cpu::aarch64::acl_thread_utils::acl_set_custom_scheduler();
+#endif
+#endif
         return status::success;
     };
 };

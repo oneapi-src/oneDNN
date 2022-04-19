@@ -85,9 +85,6 @@ struct acl_matmul_t : public primitive_t {
                     weights_md_, dst_md_, bias_md_, *desc(), *attr());
 
             if (conf_status != status::success) return status::unimplemented;
-            // Number of threads in Compute Library is set by OMP_NUM_THREADS
-            // dnnl_get_max_threads() == OMP_NUM_THREADS
-            acl_utils::acl_thread_bind();
 
             return status::success;
         }

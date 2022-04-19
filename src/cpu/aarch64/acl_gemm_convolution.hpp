@@ -108,8 +108,6 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
                     src_md_, weights_md_, dst_md_, bias_md_, *desc(), *attr());
             if (conf_status != status::success) return status::unimplemented;
 
-            acl_utils::acl_thread_bind();
-
             return status::success;
         }
 

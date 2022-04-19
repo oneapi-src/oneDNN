@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2020-2022 Intel Corporation
 * Copyright 2020 FUJITSU LIMITED
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +32,10 @@
 #include "cpu/x64/cpu_isa_traits.hpp"
 #elif DNNL_AARCH64
 #include "cpu/aarch64/cpu_isa_traits.hpp"
+#if DNNL_AARCH64_USE_ACL
+// For setting the number of threads for ACL
+#include "src/common/cpuinfo/CpuInfo.h"
+#endif
 #endif
 
 // For DNNL_X64 build we compute the timestamp using rdtsc. Use std::chrono for
@@ -145,6 +150,8 @@ unsigned get_per_core_cache_size(int level) {
 unsigned get_num_cores() {
 #if DNNL_X64
     return x64::cpu().getNumCores(Xbyak::util::CoreLevel);
+#elif DNNL_AARCH64_USE_ACL
+    return arm_compute::cpuinfo::num_threads_hint();
 #else
     return 1;
 #endif

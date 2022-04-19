@@ -197,8 +197,6 @@ struct acl_softmax_fwd_t : public primitive_t {
                         &asp_.src_info, &asp_.dst_info, asp_.beta, asp_.axis));
             }
 
-            acl_utils::acl_thread_bind();
-
             return status::success;
         }
 
