@@ -898,7 +898,10 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             }
             return b_off + bgmmc_.B_strides[1] * k + bgmmc_.B_strides[0] * n;
         } else {
-            int k_idx = bgmmc_.blocked_B ? k / bgmmc_.wei_k_blk : k;
+            int dt_b_k_blk = bgmmc_.is_bf32
+                    ? data_type_vnni_simd_elems<avx512_core>(f32)
+                    : bgmmc_.wei_k_blk;
+            int k_idx = bgmmc_.blocked_B ? k / dt_b_k_blk : k;
             int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
             return bgmmc_.B_strides[2] * b + bgmmc_.B_strides[1] * k_idx
                     + bgmmc_.B_strides[0] * n_idx

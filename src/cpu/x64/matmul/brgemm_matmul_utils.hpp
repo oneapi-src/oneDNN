@@ -174,6 +174,7 @@ struct brgemm_matmul_conf_t {
 
     int required_k_granularity;
     bool is_bf32;
+    bool req_wei_vnni_downconvert;
 };
 
 struct brgemm_matmul_conf_utils_t {
@@ -195,7 +196,11 @@ struct brgemm_matmul_conf_utils_t {
     }
 
     inline bool use_buffer_b(bool use_heuristic = true) const {
-        if (bgmmc.is_amx) return !bgmmc.blocked_B;
+        if (bgmmc.is_amx)
+            // use b_buffer for AMX when:
+            // - not bf32 && using non-blocked weights
+            // - is bf32
+            return IMPLICATION(!wei_down_convert_to_vnni(), !bgmmc.blocked_B);
 
         // Values based on measured performance difference
         // between plain and copy-to-blocked routine.
@@ -239,6 +244,10 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_int8_with_bf16_dst() const {
         return this->is_int8() && bgmmc.dst_dt == data_type::bf16;
+    }
+
+    inline bool wei_down_convert_to_vnni() const {
+        return bf32_dt && get_blocked_B();
     }
 
     status_t set_or_check_B_tag(

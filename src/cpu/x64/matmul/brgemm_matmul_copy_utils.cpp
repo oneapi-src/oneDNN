@@ -1438,7 +1438,9 @@ struct jit_brgemm_matmul_copy_b_bf16_t : public jit_brgemm_matmul_copy_b_t,
         , tr_typesize(conf->tr_b_dt_sz)
         , src_stride(conf_->wei_tag == format_tag::acbd
                           ? conf->copy_B_wei_stride
-                          : conf_->N * typesize)
+                          : conf->req_wei_vnni_downconvert
+                                  ? conf_->LDB * typesize
+                                  : conf_->N * typesize)
         , tr_src_stride(conf_->LDB * k_blk_step * tr_typesize) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }

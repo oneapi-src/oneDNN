@@ -140,11 +140,9 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , blocked_48n_B_layout_tag(pick_blocked_B_layout(48))
     , blocked_32n_B_layout_tag(pick_blocked_B_layout(32))
     , blocked_16n_B_layout_tag(pick_blocked_B_layout(16))
-    , blocked_B_layouts_allowed(
-              !utils::one_of(format_tag::undef, blocked_64n_B_layout_tag,
-                      blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
-                      blocked_16n_B_layout_tag)
-              && !bf32_dt) // TODO
+    , blocked_B_layouts_allowed(!utils::one_of(format_tag::undef,
+              blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
+              blocked_32n_B_layout_tag, blocked_16n_B_layout_tag))
     , n_blk_fixed((!B_any_layout) && blocked_B_layouts_allowed) {
     assert(int8_dt || bf16_dt || f32_dt || bf32_dt);
 }
@@ -257,14 +255,15 @@ format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
             case 16: return BA16a16b4a;
             default: return format_tag::undef;
         }
-    if (this->is_bf16() || this->is_bf32()) switch (n_blk) {
+    if (this->is_bf16()) switch (n_blk) {
             case 64: return BA16a64b2a;
             case 48: return BA16a48b2a;
             case 32: return BA16a32b2a;
             case 16: return BA16a16b2a;
             default: return format_tag::undef;
         }
-    if (this->is_f32()) switch (n_blk) {
+    // Note: bf32 assumes f32 blocking
+    if (this->is_f32() || this->is_bf32()) switch (n_blk) {
             case 64: return BA16a64b;
             case 48: return BA16a48b;
             case 32: return BA16a32b;
@@ -857,18 +856,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     CHECK(bm_conf_utils.set_or_check_tags(src_md, dst_md, bias_md));
     CHECK(bm_conf_utils.set_or_check_B_tag(weights_md));
 
-    // TODO: enable such formats for bf32
-    auto plain_tensor_tag = utils::pick(bgmmc.ndims - 2, ab, abc, abcd, abcde,
-            abcdef, abcdefg, abcdefgh, abcdefghi, abcdefghij, abcdefghijk,
-            abcdefghijkl);
-    auto transposed_tag = utils::pick(bgmmc.ndims - 2, ba, acb, abdc, abced,
-            abcdfe, abcdegf, abcdefhg, abcdefgih, abcdefghji, abcdefghikj,
-            abcdefghijlk);
-    if (bm_conf_utils.is_bf32()
-            && ((!one_of(bgmmc.wei_tag, plain_tensor_tag, transposed_tag))
-                    || one_of(bgmmc.src_tag, acbd, adbc)
-                    || one_of(bgmmc.dst_tag, acbd)))
-        return status::unimplemented;
+    bgmmc.req_wei_vnni_downconvert = bm_conf_utils.wei_down_convert_to_vnni();
 
     CHECK(attr.set_default_formats(&dst_md));
 
@@ -917,6 +905,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         bgmmc.wei_n_blk = bgmmc.N_blk;
         CHECK(bm_conf_utils.update_and_check_B_tag(
                 weights_md, bgmmc.wei_n_blk));
+
+        bgmmc.req_wei_vnni_downconvert
+                = bm_conf_utils.wei_down_convert_to_vnni();
     }
 
     CHECK(bm_conf_utils.set_B_flags(weights_md));
