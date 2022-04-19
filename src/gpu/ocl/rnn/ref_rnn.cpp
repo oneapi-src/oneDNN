@@ -40,7 +40,7 @@
 #if DEBUGPRINT
 #define DPRINT(fmt, ...) \
     printf(fmt, __VA_ARGS__); \
-    fflush(0)
+    fflush(nullptr)
 #define WS_PRINT(c, s, w) ws_print(c, s, w)
 #else
 #define DPRINT(fmt, ...)

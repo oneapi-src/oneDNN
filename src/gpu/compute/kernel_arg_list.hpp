@@ -275,7 +275,7 @@ inline status_t check_scalar_arguments(const kernel_arg_list_t &arg_list,
                            "argument #%d is different from the type of the "
                            "given scalar\n",
                             i);
-                    fflush(0);
+                    fflush(nullptr);
                 }
                 return status::invalid_arguments;
             }

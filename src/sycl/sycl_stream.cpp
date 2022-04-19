@@ -90,7 +90,7 @@ status_t sycl_stream_t::init() {
         if (get_verbose()) {
             printf("onednn_verbose,gpu,error,DPC++ kernel profiling is not "
                    "supported with out-of-order queues\n");
-            fflush(0);
+            fflush(nullptr);
         }
         return status::invalid_arguments;
     }

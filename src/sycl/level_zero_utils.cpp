@@ -62,7 +62,7 @@ namespace {
         if (res_ != ZE_RESULT_SUCCESS) { \
             if (get_verbose()) { \
                 printf("onednn_verbose,gpu,ze_error,%d\n", (int)(res_)); \
-                fflush(0); \
+                fflush(nullptr); \
             } \
             return retval; \
         } \

@@ -89,7 +89,7 @@ status_t ocl_stream_t::init() {
                 printf("onednn_verbose,gpu,error,OpenCL kernel profiling is "
                        "not "
                        "supported with out-of-order queues\n");
-                fflush(0);
+                fflush(nullptr);
             }
             return status::invalid_arguments;
         }

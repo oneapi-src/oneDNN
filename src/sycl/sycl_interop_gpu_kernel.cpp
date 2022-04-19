@@ -131,7 +131,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                 if (get_verbose()) {
                     printf("onednn_verbose,gpu,error,Level Zero backend only "
                            "supports uniform work-groups\n");
-                    fflush(0);
+                    fflush(nullptr);
                 }
                 return status::invalid_arguments;
             }
