@@ -36,8 +36,6 @@ TEST(Op, ValidateMatmul) {
     ASSERT_EQ(matmul.get_kind(), op_kind::MatMul);
     ASSERT_EQ(matmul.get_name(), std::string("matmul"));
     ASSERT_FALSE(matmul.is_internal());
-    ASSERT_NE(matmul.get_schema(), nullptr);
-    ASSERT_EQ(matmul.get_schema()->get_op_kind(), op_kind::MatMul);
 }
 
 TEST(Op, CreateInternal) {
@@ -258,14 +256,42 @@ TEST(Op, ValidateSameAttributes) {
     ASSERT_FALSE(conv.has_same_attr_values(bn));
 }
 
-TEST(Op, AssignedPartition) {
+TEST(Op, OverwriteAttributes) {
     using namespace dnnl::graph::impl;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
+    std::vector<int64_t> pad = {2, 2};
+    conv.set_attr<std::vector<int64_t>>("pads_begin", pad);
+    conv.set_attr<std::string>("data_format", "NCX");
+    ASSERT_TRUE(conv.has_attr("pads_begin"));
+    ASSERT_TRUE(conv.has_attr("data_format"));
+    ASSERT_EQ(conv.get_attr<std::vector<int64_t>>("pads_begin"), pad);
+    ASSERT_EQ(conv.get_attr<std::string>("data_format"), "NCX");
 
-    ASSERT_FALSE(conv.is_assigned_to_partition());
+    // reset vector and string attributes
+    pad = {1, 1};
+    conv.set_attr<std::vector<int64_t>>("pads_begin", pad);
+    conv.set_attr<std::string>("data_format", "NXC");
+    ASSERT_TRUE(conv.has_attr("pads_begin"));
+    ASSERT_TRUE(conv.has_attr("data_format"));
+    ASSERT_EQ(conv.get_attr<std::vector<int64_t>>("pads_begin"), pad);
+    ASSERT_EQ(conv.get_attr<std::string>("data_format"), "NXC");
 
-    partition_impl_t *part {nullptr}; // use an empty partition for test purpose
-    conv.set_partition(part);
-    ASSERT_EQ(conv.get_partition(), part);
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    matmul.set_attr<bool>("transpose_a", true);
+    matmul.set_attr<bool>("transpose_b", false);
+    ASSERT_EQ(matmul.num_attributes(), 2);
+    ASSERT_TRUE(matmul.has_attr("transpose_a"));
+    ASSERT_TRUE(matmul.has_attr("transpose_b"));
+    ASSERT_TRUE(matmul.get_attr<bool>("transpose_a"));
+    ASSERT_FALSE(matmul.get_attr<bool>("transpose_b"));
+
+    // reset boolean attributes
+    matmul.set_attr<bool>("transpose_a", false);
+    matmul.set_attr<bool>("transpose_b", true);
+    ASSERT_EQ(matmul.num_attributes(), 2);
+    ASSERT_TRUE(matmul.has_attr("transpose_a"));
+    ASSERT_TRUE(matmul.has_attr("transpose_b"));
+    ASSERT_FALSE(matmul.get_attr<bool>("transpose_a"));
+    ASSERT_TRUE(matmul.get_attr<bool>("transpose_b"));
 }

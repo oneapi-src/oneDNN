@@ -263,17 +263,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_input(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_output(
         dnnl_graph_op_t *op, const dnnl_graph_logical_tensor_t *output);
 
-/// Returns the kind of specified attribute in the Op
-///
-/// @param op Input op
-/// @param name Name of the attribute
-/// @param kind Attribute's kind
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_get_attr_kind(
-        const dnnl_graph_op_t *op, const char *name,
-        dnnl_graph_attribute_kind_t *kind);
-
 /// Sets the attribute according to the name and kind
 ///
 /// @param op Input op
@@ -286,19 +275,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_get_attr_kind(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_attr(dnnl_graph_op_t *op,
         const char *name, dnnl_graph_attribute_kind_t kind, const void *attr,
         int64_t attr_no);
-
-/// Returns the attribute according to the name and kind
-///
-/// @param op Input op
-/// @param name Attribute's name
-/// @param kind The attribute's kind
-/// @param attr The attribute's value
-/// @param attr_no The number of attributes
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_get_attr(
-        const dnnl_graph_op_t *op, const char *name,
-        dnnl_graph_attribute_kind_t kind, const void **attr, int64_t *attr_no);
 
 /// Returns the unique id of the Op
 ///

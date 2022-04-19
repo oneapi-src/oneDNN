@@ -25,17 +25,8 @@ using namespace dnnl::graph::impl;
 /// constructor
 dnnl_graph_op::dnnl_graph_op(
         size_t id, op_kind_t kind, std::string name, bool internal)
-    : id_ {id}
-    , kind_ {kind}
-    , name_ {std::move(name)}
-    , schema_ {op_schema_registry_t::get_op_schema(kind)}
-    , internal_ {internal} {
+    : id_ {id}, kind_ {kind}, name_ {std::move(name)}, internal_ {internal} {
     if (name_.empty()) { name_ = kind2str(kind_) + "_" + std::to_string(id_); }
-}
-
-bool dnnl_graph_op::verify() const {
-    // always return true if there is no corresponding op schema
-    return nullptr == schema_ || schema_->verify(this);
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **op, uint64_t id,
@@ -59,11 +50,6 @@ status_t DNNL_GRAPH_API dnnl_graph_op_add_output(
         op_t *op, const logical_tensor_t *output) {
     op->add_output(*output);
     return status::success;
-}
-
-status_t DNNL_GRAPH_API dnnl_graph_op_get_attr_kind(
-        const op_t *op, const char *name, attribute_kind_t *kind) {
-    return op->kind_of(name, *kind);
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_add_attr(op_t *op, const char *name,
@@ -95,48 +81,6 @@ status_t DNNL_GRAPH_API dnnl_graph_op_add_attr(op_t *op, const char *name,
         default: return status::unsupported;
     }
     return status::success;
-}
-
-status_t DNNL_GRAPH_API dnnl_graph_op_get_attr(const op_t *op, const char *name,
-        attribute_kind_t kind, const void **attr, int64_t *attr_no) {
-    status_t status = status::success;
-    switch (kind) {
-        case attribute_kind::i: {
-            const int64_t *attr_addr {nullptr};
-            status = op->get_attr(name, &attr_addr);
-            *attr = attr_addr;
-        } break;
-        case attribute_kind::is: {
-            const std::vector<int64_t> *attr_addr {nullptr};
-            status = op->get_attr(name, &attr_addr);
-            assert(attr_addr != nullptr);
-            *attr = attr_addr->data();
-            *attr_no = static_cast<int64_t>(attr_addr->size());
-        } break;
-        case attribute_kind::f: {
-            const float *attr_addr = static_cast<const float *>(*attr);
-            status = op->get_attr(name, &attr_addr);
-            *attr = attr_addr;
-        } break;
-        case attribute_kind::fs: {
-            const std::vector<float> *attr_addr {nullptr};
-            status = op->get_attr(name, &attr_addr);
-            *attr = attr_addr->data();
-            *attr_no = static_cast<int64_t>(attr_addr->size());
-        } break;
-        case attribute_kind::s: {
-            const std::string *attr_addr {nullptr};
-            status = op->get_attr(name, &attr_addr);
-            *attr = attr_addr->c_str();
-        } break;
-        case attribute_kind::b: {
-            const bool *attr_addr = static_cast<const bool *>(*attr);
-            status = op->get_attr(name, &attr_addr);
-            *attr = attr_addr;
-        } break;
-        default: return status::unsupported;
-    }
-    return status;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_get_id(const op_t *op, size_t *id) {

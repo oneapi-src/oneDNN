@@ -96,3 +96,16 @@ TEST(Partition, Clone) {
     ASSERT_TRUE(p_copy->get_ops()[0]->has_attr("groups"));
     ASSERT_EQ(p_copy->get_ops()[0]->get_attr<int64_t>("groups"), 1);
 }
+
+TEST(Op, AssignedPartition) {
+    using namespace dnnl::graph::impl;
+
+    op_t conv {0, op_kind::Convolution, std::string("convolution")};
+
+    ASSERT_EQ(conv.get_partition(), nullptr);
+
+    auto part = std::make_shared<dnnl_impl::dnnl_partition_impl_t>(
+            engine_kind::cpu);
+    conv.set_partition(part.get());
+    ASSERT_EQ(conv.get_partition(), part.get());
+}

@@ -35,16 +35,20 @@ TEST(Op, FusedOp) {
     using namespace dnnl::graph::impl;
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
     op_t relu {1, op_kind::ReLU, std::string("relu")};
+    op_t mul {2, op_kind::Multiply, std::string("multiply")};
     ASSERT_FALSE(conv.is_fused());
     ASSERT_FALSE(relu.is_fused());
+    ASSERT_FALSE(mul.is_fused());
 
-    op_t conv_post_ops {2, impl::dnnl_impl::op_kind::conv_post_ops_fusion,
+    op_t conv_post_ops {4, impl::dnnl_impl::op_kind::conv_post_ops_fusion,
             std::string("conv_post_ops"), true};
     conv_post_ops.add_op_ids({0, 1});
+    conv_post_ops.add_op_ids(2);
     ASSERT_TRUE(conv_post_ops.is_fused());
 
     std::vector<size_t> ret = conv_post_ops.get_op_ids();
-    ASSERT_EQ(ret.size(), 2);
+    ASSERT_EQ(ret.size(), 3);
     ASSERT_EQ(ret[0], 0);
     ASSERT_EQ(ret[1], 1);
+    ASSERT_EQ(ret[2], 2);
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,19 +89,7 @@ public:
     dnnl_graph_op(op_kind_t kind)
         : dnnl_graph_op(DEFAULT_ID, kind, kind2str(kind), true) {}
 
-    // TODO(xxx): why? any problem with copy constructor?
-    ~dnnl_graph_op() {
-        for (size_t i = 0; i < inputs_.size(); ++i) {
-            inputs_[i]->remove_consumer(*this, i);
-        }
-
-        for (auto &v : outputs_) {
-            if (v->has_producer()
-                    && std::addressof(v->get_producer()) == this) {
-                v->reset_producer();
-            }
-        }
-    }
+    ~dnnl_graph_op() = default;
 
     // which op produced this input?
     dnnl_graph_op *get_input_op(size_t index) {
@@ -116,19 +104,11 @@ public:
                 && this->is_internal() == other.is_internal();
     }
 
-    bool operator!=(const dnnl_graph_op &other) const {
-        return !operator==(other);
-    }
-
     // some getters
     op_kind_t get_kind() const { return kind_; }
     size_t get_id() const { return id_; }
     const std::string &get_name() const { return name_; }
-    const dnnl::graph::impl::op_schema_t *get_schema() const { return schema_; }
     bool is_internal() const { return internal_; }
-
-    // verify the op against the schema
-    bool verify() const;
 
     ///////////////////////////////////////////////////////////////////////////
     // input values
@@ -224,16 +204,6 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////
     // attributes handling
-    status_t kind_of(const std::string &name, attribute_kind_t &kind) const {
-        const auto &found = attributes_.find(name);
-        if (found == end(attributes_)) {
-            return dnnl::graph::impl::status::invalid_argument;
-        }
-
-        kind = found->second.get_kind();
-        return dnnl::graph::impl::status::success;
-    }
-
     template <typename Attr>
     dnnl_graph_op &set_attr(const std::string &name, const Attr &a) {
         auto it = attributes_.find(name);
@@ -326,8 +296,6 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////
     // partition handling
-    bool is_assigned_to_partition() const { return partition_ != nullptr; }
-
     void set_partition(dnnl::graph::impl::partition_impl_t *part) {
         partition_ = part;
     }
@@ -357,29 +325,6 @@ public:
         return output_tensor_map_;
     }
 
-    // Add an input logical tensor to the fused op. The logical tensor is from
-    // one of original ops.
-    void add_fused_input(dnnl_graph_op *op, size_t in_offset) {
-        auto map = op->get_input_tensor_map();
-        assertm(map.find(in_offset) != map.end(), "fail to find the key");
-        input_tensor_map_[inputs_.size()] = map[in_offset];
-        inputs_.push_back(std::make_shared<value_t>(
-                op->get_input_value(in_offset)->get_logical_tensor()));
-    }
-
-    // Add an output logical tensor to the fused op. The logical tensor is from
-    // one of original ops.
-    void add_fused_output(dnnl_graph_op *op, size_t out_offset) {
-        auto map = op->get_output_tensor_map();
-        assertm(map.find(out_offset) != map.end(), "fail to find the key");
-        output_tensor_map_[outputs_.size()] = map[out_offset];
-        auto value = std::make_shared<value_t>(
-                op->get_output_value(out_offset)->get_logical_tensor());
-        value->set_producer(*this);
-        value->set_offset(outputs_.size());
-        outputs_.push_back(value);
-    }
-
 private:
     size_t id_ {};
     op_kind_t kind_ {};
@@ -388,7 +333,6 @@ private:
     std::vector<std::shared_ptr<value_t>> outputs_ {};
     std::unordered_map<std::string, attribute_value_t> attributes_;
 
-    const dnnl::graph::impl::op_schema_t *schema_;
     dnnl::graph::impl::partition_impl_t *partition_ {nullptr};
     bool internal_ {false};
 
