@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -503,6 +503,16 @@ status_t dnnl_post_ops_create(post_ops_t **post_ops) {
     if (post_ops == nullptr) return invalid_arguments;
 
     return safe_ptr_assign(*post_ops, new dnnl_post_ops);
+}
+
+status_t dnnl_post_ops_clone(
+        post_ops_t **post_ops, const post_ops_t *existing_post_ops) {
+    if (any_null(post_ops, existing_post_ops)) return invalid_arguments;
+
+    auto new_post_ops = utils::make_unique<post_ops_t>(*existing_post_ops);
+    if (!new_post_ops->is_initialized()) return out_of_memory;
+
+    return safe_ptr_assign(*post_ops, new_post_ops.release());
 }
 
 status_t dnnl_post_ops_destroy(post_ops_t *post_ops) {

@@ -595,6 +595,15 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_post_ops(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_post_ops_create(dnnl_post_ops_t *post_ops);
 
+/// Clones post-ops primitive attribute.
+///
+/// @param post_ops Output post-ops primitive attribute.
+/// @param existing_post_ops Post-ops primitive attribute to clone.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_post_ops_clone(
+        dnnl_post_ops_t *post_ops, const_dnnl_post_ops_t existing_post_ops);
+
 /// Destroys post-ops.
 ///
 /// @param post_ops Post-ops to destroy.

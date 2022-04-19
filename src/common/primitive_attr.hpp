@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -511,6 +511,11 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
     dnnl_post_ops() : entry_() {}
 
+    dnnl_post_ops(const dnnl_post_ops &other) {
+        if (copy_from(other) != dnnl::impl::status::success)
+            is_initialized_ = false;
+    }
+
     dnnl::impl::status_t append_sum(float scale, int32_t zero_point = 0,
             dnnl::impl::data_type_t dt = dnnl_data_type_undef);
     dnnl::impl::status_t append_eltwise(
@@ -585,6 +590,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         return status::success;
     }
+
+    bool is_initialized() const { return is_initialized_; }
 
     std::vector<entry_t> entry_;
 

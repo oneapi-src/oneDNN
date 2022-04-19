@@ -2931,6 +2931,13 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         reset(result);
     }
 
+    /// Creates post-ops primitive attribute from a C API ::dnnl_post_ops_t
+    /// handle. The resulting handle is not weak and the C handle will be
+    /// destroyed during the destruction of the C++ object.
+    ///
+    /// @param post_ops The C API post-ops primitive attribute.
+    post_ops(dnnl_post_ops_t post_ops) : handle<dnnl_post_ops_t>(post_ops) {}
+
     /// Returns the number of post-ops entries.
     int len() const { return dnnl_post_ops_len(get()); }
 
@@ -3603,12 +3610,14 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///
     /// @returns Post-ops.
     const post_ops get_post_ops() const {
-        post_ops result;
-        const_dnnl_post_ops_t c_result;
-        error::wrap_c_api(dnnl_primitive_attr_get_post_ops(get(), &c_result),
+        const_dnnl_post_ops_t const_c_post_ops;
+        error::wrap_c_api(
+                dnnl_primitive_attr_get_post_ops(get(), &const_c_post_ops),
                 "could not get post-ops primitive attribute");
-        result.reset(const_cast<dnnl_post_ops_t>(c_result), true);
-        return result;
+        dnnl_post_ops_t c_post_ops;
+        error::wrap_c_api(dnnl_post_ops_clone(&c_post_ops, const_c_post_ops),
+                "could not clone post-ops primitive attribute");
+        return post_ops(c_post_ops);
     }
 
     /// Sets post-ops.

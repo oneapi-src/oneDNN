@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 * Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,7 @@
 namespace dnnl {
 
 using data_type = memory::data_type;
+using tag = memory::format_tag;
 
 class attr_test_t : public ::testing::Test {
 protected:
@@ -593,6 +594,37 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
         ASSERT_NO_THROW(attr_os = cd_pd_os.get_primitive_attr());
         ASSERT_NO_THROW(attr_dw = cd_pd_dw.get_primitive_attr());
     }
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetCppObjects) {
+    auto engine_kind = get_test_engine_kind();
+    engine eng {engine_kind, 0};
+
+    // Post-ops is the only object that is returned from primitive attr, rest
+    // calls are of `void` type. Lack of "cloning" for post-ops led to a problem
+    // of using a dangling pointer from destroyed object via
+    // `pd.get_primitive_attr().get_post_ops()` construction as attributes will
+    // be destroyed once post-ops are saved on stack.
+    // See https://github.com/oneapi-src/oneDNN/issues/1337 for details.
+    dnnl::primitive_attr attr;
+    dnnl::post_ops ops;
+    memory::desc po_src1_md({1, 1, 1, 1}, data_type::f32, tag::abcd);
+    ops.append_binary(algorithm::binary_add, po_src1_md);
+    attr.set_post_ops(ops);
+
+    memory::desc md {{512, 512, 3, 3}, data_type::f32, tag::abcd};
+    auto bin_desc = binary::desc(algorithm::binary_add, md, md, md);
+    auto bin_pd = binary::primitive_desc(bin_desc, attr, eng);
+
+    const auto q_po = bin_pd.get_primitive_attr().get_post_ops();
+    ASSERT_EQ(q_po.len(), 1);
+    ASSERT_EQ(q_po.kind(0), primitive::kind::binary);
+
+    algorithm q_alg;
+    memory::desc q_po_src1_md;
+    q_po.get_params_binary(0, q_alg, q_po_src1_md);
+    ASSERT_EQ(q_alg, algorithm::binary_add);
+    ASSERT_EQ(q_po_src1_md, po_src1_md);
 }
 
 } // namespace dnnl
