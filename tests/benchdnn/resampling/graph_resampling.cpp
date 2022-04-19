@@ -13,53 +13,41 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include <ctime>
-#include <random>
-#include "binary/binary.hpp"
+
 #include "resampling/graph_resampling.hpp"
+#include "binary/binary.hpp"
 
 namespace benchdnnext {
 namespace resampling {
 
-resampling_graph_prb_t::spec_t::spec_t(
-        const ::resampling::prb_t *prb) noexcept {
-    using graph_op = dnnl::graph::op;
-    is_fwd_pass = prb->dir & FLAG_FWD;
-    op_kind = is_fwd_pass ? graph_op::kind::Interpolate
-                          : graph_op::kind::InterpolateBackprop;
-
-    switch (prb->ndims) {
-        case 5:
-            src_dims = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
-            dst_dims = {prb->mb, prb->ic, prb->od, prb->oh, prb->ow};
-            sizes = {prb->od, prb->oh, prb->ow};
-            scales = {(float)prb->od / prb->id, (float)prb->oh / prb->ih,
-                    (float)prb->ow / prb->iw};
-            break;
-        case 4:
-            src_dims = {prb->mb, prb->ic, prb->ih, prb->iw};
-            dst_dims = {prb->mb, prb->ic, prb->oh, prb->ow};
-            sizes = {prb->oh, prb->ow};
-            scales = {(float)prb->oh / prb->ih, (float)prb->ow / prb->iw};
-            break;
-        case 3:
-            src_dims = {prb->mb, prb->ic, prb->iw};
-            dst_dims = {prb->mb, prb->ic, prb->ow};
-            sizes = {prb->ow};
-            scales = {(float)prb->ow / prb->iw};
-            break;
-        default: assert("unknown dims size");
-    }
-    src_dt = convert_dt(prb->sdt);
-    dst_dt = convert_dt(prb->ddt);
-    tag = prb->tag;
-    mode = alg2str(prb->alg);
-
-    srand(std::time(NULL));
-    rand_testmode = (rand() % 2);
+static std::vector<int64_t> get_spatial_dims(const std::vector<int64_t> &dims) {
+    std::vector<int64_t> new_dims = dims;
+    new_dims.erase(new_dims.begin(), new_dims.begin() + 2);
+    return new_dims;
 }
 
-fill_status_t resampling_graph_prb_t::handle_main_op_() {
+static std::vector<int64_t> get_sizes(const std::vector<int64_t> &dst_dims) {
+    return get_spatial_dims(dst_dims);
+}
+
+static std::vector<float> get_scales(const std::vector<int64_t> &src_dims,
+        const std::vector<int64_t> &dst_dims) {
+    const auto src_spatial_dims = get_spatial_dims(src_dims);
+    const auto dst_spatial_dims = get_spatial_dims(dst_dims);
+    if (src_spatial_dims.size() != dst_spatial_dims.size())
+        return std::vector<float>();
+
+    std::vector<float> scales_dims(src_spatial_dims.size());
+    for (size_t i = 0; i < src_spatial_dims.size(); ++i) {
+        scales_dims[i] = static_cast<float>(dst_spatial_dims[i])
+                / static_cast<float>(src_spatial_dims[i]);
+    }
+
+    return scales_dims;
+}
+
+fill_status_t resampling_graph_prb_t::handle_main_op_(
+        const ::resampling::prb_t *prb) {
     using op = dnnl::graph::op;
 
     const size_t new_op_id = ops_.size();
@@ -77,46 +65,47 @@ fill_status_t resampling_graph_prb_t::handle_main_op_() {
     const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
     const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
 
-    tensor_descs_.emplace(SRC, spec_.src_dt, spec_.src_dims, spec_.tag);
-    if (spec_.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
-        tensor_descs_.emplace(SIZES, dt::s32, {1}, spec_.tag);
+    tensor_descs_.emplace(SRC, convert_dt(prb->sdt), prb->src_dims(), prb->tag);
+    if (rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
+        tensor_descs_.emplace(SIZES, dt::s32, {1}, prb->tag);
     }
 
-    if (spec_.is_fwd_pass) {
-        tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, spec_.tag);
+    if (prb->dir & FLAG_FWD) {
+        tensor_descs_.emplace(
+                DST, convert_dt(prb->ddt), prb->dst_dims(), prb->tag);
     } else {
         tensor_descs_.emplace(
-                DIFF_DST, spec_.dst_dt, spec_.dst_dims, spec_.tag);
+                DIFF_DST, convert_dt(prb->ddt), prb->dst_dims(), prb->tag);
         tensor_descs_.emplace(
-                DIFF_SRC, spec_.src_dt, spec_.src_dims, spec_.tag);
+                DIFF_SRC, convert_dt(prb->sdt), prb->src_dims(), prb->tag);
     }
 
     std::vector<dnnl::graph::logical_tensor> inputs;
     std::vector<dnnl::graph::logical_tensor> outputs;
 
     inputs.push_back(tensor_descs_[SRC]);
-    if (spec_.is_fwd_pass) {
+    if (prb->dir & FLAG_FWD) {
         outputs.push_back(tensor_descs_[DST]);
     } else {
         inputs.push_back(tensor_descs_[DIFF_DST]);
         outputs.push_back(tensor_descs_[DIFF_SRC]);
     }
-    if (spec_.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
+    if (rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
         inputs.emplace_back(tensor_descs_[SIZES]);
     }
 
-    const std::string op_name
-            = spec_.is_fwd_pass ? "Interpolate" : "InterpolateBackprop";
-    op resampling(new_op_id, spec_.op_kind, inputs, outputs, op_name);
-    resampling.set_attr("mode", spec_.mode);
-    resampling.set_attr("data_format", spec_.data_format);
-    if (spec_.rand_testmode == test_mode_t::SIZES_ATTR) {
-        resampling.set_attr<std::vector<int64_t>>("sizes", spec_.sizes);
-    }
-    if (spec_.rand_testmode == test_mode_t::SCALES_ATTR) {
-        resampling.set_attr<std::vector<int64_t>>("sizes", {});
-        resampling.set_attr<std::vector<float>>("scales", spec_.scales);
-    }
+    op resampling(new_op_id, op_kind, inputs, outputs, "interpolate");
+
+    const std::string data_format {"NCX"};
+
+    resampling.set_attr("data_format", data_format)
+            .set_attr("mode", std::string(alg2str(prb->alg)))
+            .set_attr<std::vector<int64_t>>(
+                    "sizes", get_sizes(prb->dst_dims()));
+    if (rand_testmode == test_mode_t::SCALES_ATTR)
+        resampling.set_attr<std::vector<float>>(
+                "scales", get_scales(prb->src_dims(), prb->dst_dims()));
+
     ops_.emplace_back(resampling);
     curr_out_map_ids_.assign({TENSOR_ID});
 
@@ -166,7 +155,6 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    const auto spec = graph_prb.spec();
 
     const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)
@@ -223,8 +211,8 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         dnnl::graph::tensor sizes_tensor;
         dnnl::graph::tensor bin_tensor;
         dnnl::graph::tensor sum_src1_tensor;
-        std::vector<int64_t> sizes_v(spec.sizes);
-        if (spec.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
+        std::vector<int64_t> sizes_v = get_sizes(prb->dst_dims());
+        if (graph_prb.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
             sizes_tensor = dnnl::graph::tensor(
                     ins[1], eng, static_cast<void *>(sizes_v.data()));
             tensors_in.emplace_back(sizes_tensor);
@@ -272,8 +260,8 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
 
         std::vector<dnnl::graph::tensor> tensors_in {src_tensor};
         dnnl::graph::tensor sizes_tensor;
-        std::vector<int64_t> sizes_v(spec.sizes);
-        if (spec.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
+        std::vector<int64_t> sizes_v = get_sizes(prb->dst_dims());
+        if (graph_prb.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
             sizes_tensor = dnnl::graph::tensor(
                     ins[2], eng, static_cast<void *>(sizes_v.data()));
             tensors_in.emplace_back(sizes_tensor);

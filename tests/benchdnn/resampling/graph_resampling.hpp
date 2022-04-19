@@ -17,6 +17,9 @@
 #ifndef GRAPH_RESAMPLING_HPP
 #define GRAPH_RESAMPLING_HPP
 
+#include <ctime>
+#include <random>
+
 #include "dnnl_graph_common.hpp"
 #include "resampling/resampling.hpp"
 
@@ -26,12 +29,22 @@ namespace resampling {
 enum test_mode_t { SIZES_ATTR = 0, SCALES_ATTR, SIZES_INPUT_TENSOR };
 
 struct resampling_graph_prb_t : public graph_prb_t {
-    resampling_graph_prb_t(const ::resampling::prb_t *prb) : spec_(prb) {
+    resampling_graph_prb_t(const ::resampling::prb_t *prb) {
+        using graph_op = dnnl::graph::op::kind;
+
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-        ctor_status = handle_main_op_();
+
+        op_kind = prb->dir & FLAG_FWD ? graph_op::Interpolate
+                                      : graph_op::InterpolateBackprop;
+
+        // TODO: test mode should be fixed
+        srand(std::time(NULL));
+        rand_testmode = (rand() % 2);
+
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
         for (const auto &po : prb->attr.post_ops.entry) {
             if (po.is_eltwise_kind()) {
@@ -51,40 +64,23 @@ struct resampling_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
 
+    // To program resampling sizes and scales
+    // 0 - sizes in input tensor
+    // 1 - sizes in attributes
+    // 2 - scales in attributes not supported for now in Graph
+    int rand_testmode;
+
 private:
-    struct spec_t {
-        spec_t(const ::resampling::prb_t *prb) noexcept;
-        bool is_fwd_pass {true};
-        dnnl::graph::op::kind op_kind;
-
-        dims_t src_dims;
-        dims_t dst_dims;
-
-        dt src_dt;
-        dt dst_dt;
-        std::string mode, tag;
-        std::vector<int64_t> sizes {0};
-        std::vector<float> scales {0};
-        std::string data_format = "NCX";
-        //To program resampling sizes and scales
-        //0 - sizes in input tensor
-        //1 - sizes in attributes
-        //2 - scales in attributes not supported for now in Graph
-        int rand_testmode;
-    };
-
-    spec_t spec_;
+    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
     po_handlers_t po_handler;
-    fill_status_t handle_main_op_();
+
+    fill_status_t handle_main_op_(const ::resampling::prb_t *prb);
     fill_status_t handle_sum_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return spec_.op_kind;
+        return op_kind;
     }
-
-public:
-    const spec_t &spec() const noexcept { return spec_; }
 };
 
 int doit(const ::resampling::prb_t *prb, res_t *res);

@@ -30,27 +30,6 @@
 namespace benchdnnext {
 namespace bnorm {
 
-bnorm_graph_prb_t::spec_t::spec_t(const ::bnorm::prb_t *prb) noexcept {
-    const dims_t dims_0d = {prb->mb, prb->ic};
-    const dims_t dims_1d = {prb->mb, prb->ic, prb->iw};
-    const dims_t dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
-    const dims_t dims_3d = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
-    dims = [&](int n) {
-        switch (n) {
-            case 5: return dims_3d;
-            case 4: return dims_2d;
-            case 3: return dims_1d;
-            default: return dims_0d;
-        }
-    }(prb->ndims);
-
-    s_dims = {prb->ic};
-    bnorm_dt = convert_dt(prb->dt);
-    epsilon = prb->eps;
-    tag = prb->tag;
-    dir = prb->dir;
-}
-
 void check_known_skipped_case_graph(
         const ::bnorm::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
@@ -74,7 +53,7 @@ void check_known_skipped_case_graph(
     if (res->state == SKIPPED) return;
 }
 
-fill_status_t bnorm_graph_prb_t::handle_main_op_() {
+fill_status_t bnorm_graph_prb_t::handle_main_op_(const ::bnorm::prb_t *prb) {
     using op = dnnl::graph::op;
     using graph_dt = dnnl::graph::logical_tensor::data_type;
 
@@ -91,19 +70,24 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     const std::string SCALE {TENSOR_ID + "_SCALE"};
     const std::string MEAN {TENSOR_ID + "_MEAN"};
     const std::string VAR {TENSOR_ID + "_VAR"};
-    tensor_descs_.emplace(SRC, spec_.bnorm_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(SCALE, graph_dt::f32, spec_.s_dims, lt::strided);
-    tensor_descs_.emplace(MEAN, graph_dt::f32, spec_.s_dims, lt::strided);
-    tensor_descs_.emplace(VAR, graph_dt::f32, spec_.s_dims, lt::strided);
-    if (spec_.dir & FLAG_FWD) {
+
+    graph_dt bnorm_dt = convert_dt(prb->dt);
+    dims_t dims = prb->data_dims();
+    dims_t s_dims = {prb->ic};
+
+    tensor_descs_.emplace(SRC, bnorm_dt, dims, lt::strided);
+    tensor_descs_.emplace(SCALE, graph_dt::f32, s_dims, lt::strided);
+    tensor_descs_.emplace(MEAN, graph_dt::f32, s_dims, lt::strided);
+    tensor_descs_.emplace(VAR, graph_dt::f32, s_dims, lt::strided);
+    if (prb->dir & FLAG_FWD) {
         op_name = "bnorm";
         const std::string SHIFT {TENSOR_ID + "_SHIFT"};
         const std::string DST {TENSOR_ID + "_DST"};
-        tensor_descs_.emplace(SHIFT, graph_dt::f32, spec_.s_dims, lt::strided);
-        tensor_descs_.emplace(DST, spec_.bnorm_dt, spec_.dims, lt::strided);
+        tensor_descs_.emplace(SHIFT, graph_dt::f32, s_dims, lt::strided);
+        tensor_descs_.emplace(DST, bnorm_dt, dims, lt::strided);
         inputs = {tensor_descs_[SRC], tensor_descs_[SCALE],
                 tensor_descs_[SHIFT], tensor_descs_[MEAN], tensor_descs_[VAR]};
-        if (spec_.dir & FLAG_INF) {
+        if (prb->dir & FLAG_INF) {
             op_kind = op::kind::BatchNormInference;
             outputs = {tensor_descs_[DST]};
         } else {
@@ -112,14 +96,12 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
             const std::string RUN_VAR {TENSOR_ID + "_RUN_VAR"};
             const std::string BATCH_MEAN {TENSOR_ID + "_BATCH_MEAN"};
             const std::string BATCH_VAR {TENSOR_ID + "_BATCH_VAR"};
+            tensor_descs_.emplace(RUN_MEAN, graph_dt::f32, s_dims, lt::strided);
+            tensor_descs_.emplace(RUN_VAR, graph_dt::f32, s_dims, lt::strided);
             tensor_descs_.emplace(
-                    RUN_MEAN, graph_dt::f32, spec_.s_dims, lt::strided);
+                    BATCH_MEAN, graph_dt::f32, s_dims, lt::strided);
             tensor_descs_.emplace(
-                    RUN_VAR, graph_dt::f32, spec_.s_dims, lt::strided);
-            tensor_descs_.emplace(
-                    BATCH_MEAN, graph_dt::f32, spec_.s_dims, lt::strided);
-            tensor_descs_.emplace(
-                    BATCH_VAR, graph_dt::f32, spec_.s_dims, lt::strided);
+                    BATCH_VAR, graph_dt::f32, s_dims, lt::strided);
             outputs = {tensor_descs_[DST], tensor_descs_[RUN_MEAN],
                     tensor_descs_[RUN_VAR], tensor_descs_[BATCH_MEAN],
                     tensor_descs_[BATCH_VAR]};
@@ -131,14 +113,10 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
         const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
         const std::string DIFF_SCALE {TENSOR_ID + "_DIFF_SCALE"};
         const std::string DIFF_SHIFT {TENSOR_ID + "_DIFF_SHIFT"};
-        tensor_descs_.emplace(
-                DIFF_DST, spec_.bnorm_dt, spec_.dims, lt::strided);
-        tensor_descs_.emplace(
-                DIFF_SRC, spec_.bnorm_dt, spec_.dims, lt::strided);
-        tensor_descs_.emplace(
-                DIFF_SCALE, graph_dt::f32, spec_.s_dims, lt::strided);
-        tensor_descs_.emplace(
-                DIFF_SHIFT, graph_dt::f32, spec_.s_dims, lt::strided);
+        tensor_descs_.emplace(DIFF_DST, bnorm_dt, dims, lt::strided);
+        tensor_descs_.emplace(DIFF_SRC, bnorm_dt, dims, lt::strided);
+        tensor_descs_.emplace(DIFF_SCALE, graph_dt::f32, s_dims, lt::strided);
+        tensor_descs_.emplace(DIFF_SHIFT, graph_dt::f32, s_dims, lt::strided);
         inputs = {tensor_descs_[SRC], tensor_descs_[DIFF_DST],
                 tensor_descs_[SCALE], tensor_descs_[MEAN], tensor_descs_[VAR]};
         outputs = {tensor_descs_[DIFF_SRC], tensor_descs_[DIFF_SCALE],
@@ -147,7 +125,7 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
 
     op bnorm_op(new_op_id, op_kind, inputs, outputs, op_name);
 
-    bnorm_op.set_attr("epsilon", spec_.epsilon);
+    bnorm_op.set_attr("epsilon", prb->eps);
     bnorm_op.set_attr<std::string>("data_format", "NCX");
 
     ops_.emplace_back(bnorm_op);

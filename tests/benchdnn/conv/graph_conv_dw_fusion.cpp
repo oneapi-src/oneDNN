@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "conv/graph_conv_dw_fusion.hpp"
 #include "conv/conv_dw_fusion.hpp"
 #include "conv/graph_conv.hpp"
 
@@ -61,7 +60,6 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     }
 
     auto graph_h0 = graph_prb0.to_graph();
-    const auto spec_conv = graph_prb0.spec();
 
     // Filter partitions
     const auto partitions0
@@ -78,22 +76,18 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     auto cp0 = compile_partition(
             ::conv_dw_fusion::init_pd, p0.get(), res, par0, ins0, outs0);
 
-    auto src_fp0 = make_dnn_mem(ins0[0], spec_conv.src_dims, dt::f32, tag::abx);
-    auto wei_fp0 = make_dnn_mem(ins0[1], spec_conv.wei_dims, dt::f32, tag::abx);
+    auto src_fp0 = make_dnn_mem(ins0[0], p0->src_dims(), dt::f32, tag::abx);
+    auto wei_fp0 = make_dnn_mem(ins0[1], p0->wei_dims(), dt::f32, tag::abx);
 
     dnn_mem_t bia_fp0;
     if (prb->dir == FWD_B) bia_fp0 = make_dnn_mem(ins0[2], dt::f32, tag::x);
-    auto dst_fp0
-            = make_dnn_mem(outs0[0], spec_conv.dst_dims, dt::f32, tag::abx);
+    auto dst_fp0 = make_dnn_mem(outs0[0], p0->dst_dims(), dt::f32, tag::abx);
 
-    auto src_dt0
-            = make_dnn_mem(ins0[0], spec_conv.src_dims, spec_conv.raw_src_tag);
-    auto wei_dt0
-            = make_dnn_mem(ins0[1], spec_conv.wei_dims, spec_conv.raw_wei_tag);
+    auto src_dt0 = make_dnn_mem(ins0[0], p0->src_dims(), p0->stag);
+    auto wei_dt0 = make_dnn_mem(ins0[1], p0->wei_dims(), p0->wtag);
     dnn_mem_t bia_dt0;
     if (prb->dir == FWD_B) bia_dt0 = make_dnn_mem(ins0[2], tag::x);
-    auto dst_dt0
-            = make_dnn_mem(outs0[0], spec_conv.dst_dims, spec_conv.raw_dst_tag);
+    auto dst_dt0 = make_dnn_mem(outs0[0], p0->dst_dims(), p0->dtag);
 
     SAFE(::conv::fill_src(p0.get(), src_dt0, src_fp0, res), WARN);
     SAFE(::conv::fill_wei(p0.get(), wei_dt0, wei_fp0, res), WARN);
@@ -113,7 +107,6 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     }
 
     auto graph_h1 = graph_prb1.to_graph();
-    const auto spec_dw = graph_prb1.spec();
 
     // Filter partitions
     const auto partitions1
@@ -130,18 +123,17 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     auto cp1 = compile_partition(
             ::conv_dw_fusion::init_pd, p1.get(), res, par1, ins1, outs1);
 
-    auto wei_fp1 = make_dnn_mem(ins1[1], spec_dw.wei_dims, dt::f32, tag::abx);
+    auto wei_fp1 = make_dnn_mem(ins1[1], p1->wei_dims(), dt::f32, tag::abx);
 
     dnn_mem_t bia_fp1;
     if (prb->dir == FWD_B) bia_fp1 = make_dnn_mem(ins1[2], dt::f32, tag::x);
-    auto dst_fp1 = make_dnn_mem(outs1[0], spec_dw.dst_dims, dt::f32, tag::abx);
+    auto dst_fp1 = make_dnn_mem(outs1[0], p1->dst_dims(), dt::f32, tag::abx);
 
-    auto src_dt1 = make_dnn_mem(ins1[0], spec_dw.src_dims, spec_dw.raw_src_tag);
-    auto wei_dt1 = make_dnn_mem(ins1[1], spec_dw.wei_dims, spec_dw.raw_wei_tag);
+    auto src_dt1 = make_dnn_mem(ins1[0], p1->src_dims(), p1->stag);
+    auto wei_dt1 = make_dnn_mem(ins1[1], p1->wei_dims(), p1->wtag);
     dnn_mem_t bia_dt1;
     if (prb->dir == FWD_B) bia_dt1 = make_dnn_mem(ins1[2], tag::x);
-    auto dst_dt1
-            = make_dnn_mem(outs1[0], spec_dw.dst_dims, spec_dw.raw_dst_tag);
+    auto dst_dt1 = make_dnn_mem(outs1[0], p1->dst_dims(), p1->dtag);
 
     SAFE(::conv::fill_wei(p1.get(), wei_dt1, wei_fp1, res), WARN);
     SAFE(::conv::fill_bia(p1.get(), bia_dt1, bia_fp1, res), WARN);
@@ -155,7 +147,6 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    const auto spec_fused = graph_prb.spec();
 
     // Filter partitions
     const auto partitions
@@ -172,26 +163,23 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     auto cp = compile_partition(
             ::conv_dw_fusion::init_pd, prb, res, par, ins, outs);
 
-    auto src_fp = make_dnn_mem(ins[0], spec_fused.src_dims, dt::f32, tag::abx);
-    auto wei_fp = make_dnn_mem(ins[1], spec_fused.wei_dims, dt::f32, tag::abx);
+    auto src_fp = make_dnn_mem(ins[0], prb->src_dims(), dt::f32, tag::abx);
+    auto wei_fp = make_dnn_mem(ins[1], prb->wei_dims(), dt::f32, tag::abx);
     dnn_mem_t bia_fp;
     if (prb->dir == FWD_B) bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
-    auto dst_fp = make_dnn_mem(outs[0], spec_dw.dst_dims, dt::f32, tag::abx);
+    auto dst_fp = make_dnn_mem(outs[0], p1->dst_dims(), dt::f32, tag::abx);
     auto fused_wei_fp
-            = make_dnn_mem(ins.back(), spec_dw.wei_dims, dt::f32, tag::abx);
+            = make_dnn_mem(ins.back(), p1->wei_dims(), dt::f32, tag::abx);
     dnn_mem_t fused_bia_fp;
     if (prb->dir == FWD_B)
         fused_bia_fp = make_dnn_mem(ins.back(), dt::f32, tag::x);
 
-    auto src_dt
-            = make_dnn_mem(ins[0], spec_fused.src_dims, spec_fused.raw_src_tag);
-    auto wei_dt
-            = make_dnn_mem(ins[1], spec_fused.wei_dims, spec_fused.raw_wei_tag);
+    auto src_dt = make_dnn_mem(ins[0], prb->src_dims(), prb->stag);
+    auto wei_dt = make_dnn_mem(ins[1], prb->wei_dims(), prb->wtag);
     dnn_mem_t bia_dt;
     if (prb->dir == FWD_B) bia_dt = make_dnn_mem(ins[2], tag::x);
-    auto dst_dt = make_dnn_mem(outs[0], spec_dw.dst_dims, spec_dw.raw_dst_tag);
-    auto fused_wei_dt = make_dnn_mem(
-            ins.back(), spec_dw.wei_dims, spec_fused.raw_wei_tag);
+    auto dst_dt = make_dnn_mem(outs[0], p1->dst_dims(), p1->dtag);
+    auto fused_wei_dt = make_dnn_mem(ins.back(), p1->wei_dims(), prb->wtag);
     dnn_mem_t fused_bia_dt;
     if (prb->dir == FWD_B) fused_bia_dt = make_dnn_mem(ins.back(), tag::x);
 

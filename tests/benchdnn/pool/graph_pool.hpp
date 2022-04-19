@@ -25,16 +25,27 @@ namespace benchdnnext {
 namespace pool {
 
 struct pool_graph_prb_t : public graph_prb_t {
-    pool_graph_prb_t(const ::pool::prb_t *prb) : spec_(prb) {
+    pool_graph_prb_t(const ::pool::prb_t *prb) {
+        using graph_op = dnnl::graph::op::kind;
+
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_();
+        if (prb->dir & FLAG_FWD) {
+            op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPool
+                                                : graph_op::AvgPool;
+        } else {
+            op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPoolBackprop
+                                                : graph_op::AvgPoolBackprop;
+        }
+
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
-        auto dtypes = {spec_.src_dt, spec_.dst_dt};
+        auto dtypes
+                = {convert_dt(prb->cfg[SRC].dt), convert_dt(prb->cfg[DST].dt)};
         if (benchdnnext::is_low_precision(dtypes))
             // needs to be set before call of post-op handlers
             with_quantization_ = true;
@@ -56,42 +67,15 @@ struct pool_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::pool::prb_t *prb) noexcept;
-
-        dims_t strides;
-        dims_t kernel;
-        dims_t pads_begin;
-        dims_t pads_end;
-        std::string rounding_type;
-        std::string raw_data_format;
-        // auto_pad will always be set to "None" due to benchdnn CLI limitations
-        std::string auto_pad {"None"};
-        std::string data_format {"NCX"};
-
-        // attributes specific to pooling type
-        bool exclude_pad; // AvgPool
-        dims_t dilations; // MaxPool
-
-        dims_t src_dims;
-        dims_t dst_dims;
-
-        dt src_dt;
-        dt dst_dt;
-
-        dnnl::graph::op::kind op_kind;
-        std::string op_name;
-        bool is_fwd;
-    };
-    spec_t spec_;
+    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
     po_handlers_t po_handler;
 
-    fill_status_t handle_main_op_();
+    fill_status_t handle_main_op_(const ::pool::prb_t *prb);
     fill_status_t handle_low_precision_(const ::pool::prb_t *prb_);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return spec_.op_kind;
+        return op_kind;
     }
 };
 

@@ -29,75 +29,6 @@
 namespace benchdnnext {
 namespace pool {
 
-pool_graph_prb_t::spec_t::spec_t(const ::pool::prb_t *prb) noexcept {
-    using graph_op = dnnl::graph::op::kind;
-
-    const dim_t src_1d_dims[] = {prb->mb, prb->ic, prb->iw};
-    const dim_t src_2d_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
-    const dim_t src_3d_dims[] = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
-
-    const dim_t dst_1d_dims[] = {prb->mb, prb->ic, prb->ow};
-    const dim_t dst_2d_dims[] = {prb->mb, prb->ic, prb->oh, prb->ow};
-    const dim_t dst_3d_dims[] = {prb->mb, prb->ic, prb->od, prb->oh, prb->ow};
-
-    switch (prb->ndims) {
-        case 5: {
-            src_dims.assign(src_3d_dims, end(src_3d_dims));
-            dst_dims.assign(dst_3d_dims, end(dst_3d_dims));
-        } break;
-
-        case 4: {
-            src_dims.assign(src_2d_dims, end(src_2d_dims));
-            dst_dims.assign(dst_2d_dims, end(dst_2d_dims));
-        } break;
-
-        case 3: {
-            src_dims.assign(src_1d_dims, end(src_1d_dims));
-            dst_dims.assign(dst_1d_dims, end(dst_1d_dims));
-        } break;
-
-        default: break;
-    }
-
-    src_dt = convert_dt(prb->cfg[SRC].dt);
-    dst_dt = convert_dt(prb->cfg[DST].dt);
-
-    const dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
-    const dim_t kernel_nd[] = {prb->kd, prb->kh, prb->kw};
-    const dim_t padding_l_nd[] = {prb->pd, prb->ph, prb->pw};
-    const dim_t padding_r_nd[] = {prb->pd_r, prb->ph_r, prb->pw_r};
-
-    const size_t max_ndims = 5;
-    const size_t offset = max_ndims - prb->ndims;
-
-    strides.assign(strides_nd + offset, end(strides_nd));
-    kernel.assign(kernel_nd + offset, end(kernel_nd));
-    pads_begin.assign(padding_l_nd + offset, end(padding_l_nd));
-    pads_end.assign(padding_r_nd + offset, end(padding_r_nd));
-
-    rounding_type = "floor";
-    raw_data_format = prb->tag;
-    is_fwd = prb->dir & FLAG_FWD;
-
-    if (is_fwd) {
-        op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPool
-                                            : graph_op::AvgPool;
-        op_name = (prb->alg == ::pool::max) ? "max_pool" : "avg_pool";
-    } else {
-        op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPoolBackprop
-                                            : graph_op::AvgPoolBackprop;
-        op_name = (prb->alg == ::pool::max) ? "max_pool_bwd" : "avg_pool_bwd";
-    }
-
-    // attributes specific to pooling type
-    const dim_t dilation_nd[] = {prb->dd, prb->dh, prb->dw};
-    dilations.assign(dilation_nd + offset, end(dilation_nd));
-    // "0" dilations in oneDNN is "1" in oneDNN graph
-    std::for_each(dilations.begin(), dilations.end(), [](dim_t &v) { v += 1; });
-
-    exclude_pad = prb->alg == ::pool::avg_np;
-}
-
 void check_known_skipped_case_graph(
         const ::pool::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
@@ -130,7 +61,7 @@ void check_known_skipped_case_graph(
     }
 }
 
-fill_status_t pool_graph_prb_t::handle_main_op_() {
+fill_status_t pool_graph_prb_t::handle_main_op_(const ::pool::prb_t *prb) {
     using op = dnnl::graph::op;
 
     const size_t new_op_id = ops_.size();
@@ -139,39 +70,29 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
     std::vector<dnnl::graph::logical_tensor> inputs {};
     std::vector<dnnl::graph::logical_tensor> outputs {};
 
-    dt src_dt;
-    dt dst_dt;
-    if (benchdnnext::is_low_precision({spec_.src_dt, spec_.dst_dt})) {
-        src_dt = dt::f32;
-        dst_dt = dt::f32;
-    } else {
-        src_dt = spec_.src_dt;
-        dst_dt = spec_.dst_dt;
-    }
+    auto src_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[SRC].dt));
+    auto dst_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[DST].dt));
 
     const std::string SRC {TENSOR_ID + "_SRC"};
-    tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_data_format);
-    if (spec_.is_fwd) {
+    tensor_descs_.emplace(SRC, src_dt, prb->src_dims(), prb->tag);
+    if (prb->dir & FLAG_FWD) {
         const std::string DST {TENSOR_ID + "_DST"};
-        tensor_descs_.emplace(
-                DST, dst_dt, spec_.dst_dims, spec_.raw_data_format);
+        tensor_descs_.emplace(DST, dst_dt, prb->dst_dims(), prb->tag);
         inputs = {tensor_descs_[SRC]};
         outputs = {tensor_descs_[DST]};
     } else {
         const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
         const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
-        tensor_descs_.emplace(
-                DIFF_DST, dst_dt, spec_.dst_dims, spec_.raw_data_format);
-        tensor_descs_.emplace(
-                DIFF_SRC, src_dt, spec_.src_dims, spec_.raw_data_format);
+        tensor_descs_.emplace(DIFF_DST, dst_dt, prb->dst_dims(), prb->tag);
+        tensor_descs_.emplace(DIFF_SRC, src_dt, prb->src_dims(), prb->tag);
         outputs = {tensor_descs_[DIFF_SRC]};
-        if (spec_.op_kind == op::kind::AvgPoolBackprop) {
+        if (op_kind == op::kind::AvgPoolBackprop) {
             inputs = {tensor_descs_[DIFF_DST]};
         } else {
             if (is_bench_mode(PERF)) {
                 const std::string DST_FWD_I {TENSOR_ID + "_DST_FWD_I"};
-                tensor_descs_.emplace(DST_FWD_I, dt::s32, spec_.dst_dims,
-                        spec_.raw_data_format);
+                tensor_descs_.emplace(
+                        DST_FWD_I, dt::s32, prb->dst_dims(), prb->tag);
                 inputs = {tensor_descs_[SRC], tensor_descs_[DIFF_DST],
                         tensor_descs_[DST_FWD_I]};
             } else { //workaround for correctness test
@@ -180,24 +101,34 @@ fill_status_t pool_graph_prb_t::handle_main_op_() {
         }
     }
 
-    op pool(new_op_id, spec_.op_kind, inputs, outputs, spec_.op_name);
+    op pool(new_op_id, op_kind, inputs, outputs, "pool");
 
-    pool.set_attr("strides", spec_.strides)
-            .set_attr("pads_begin", spec_.pads_begin)
-            .set_attr("pads_end", spec_.pads_end)
-            .set_attr("kernel", spec_.kernel)
-            .set_attr("data_format", spec_.data_format)
-            .set_attr("auto_pad", spec_.auto_pad);
+    const std::string auto_pad {"None"};
+    const std::string data_format {"NCX"};
+    const std::string rounding_type {"floor"};
+    const bool exclude_pad {prb->alg == ::pool::avg_np};
 
-    if (spec_.op_kind == op::kind::MaxPool
-            || spec_.op_kind == op::kind::MaxPoolBackprop) {
-        pool.set_attr("dilations", spec_.dilations);
+    dims_t dilations = prb->dilations();
+    // oneDNN graph dilation = 1 is equivalent of oneDNN
+    // dilation = 0
+    std::transform(dilations.begin(), dilations.end(), dilations.begin(),
+            [](const dim_t d) { return d + 1; });
+
+    pool.set_attr("strides", prb->strides())
+            .set_attr("pads_begin", prb->padding())
+            .set_attr("pads_end", prb->padding_r())
+            .set_attr("kernel", prb->kernel())
+            .set_attr("data_format", data_format)
+            .set_attr("auto_pad", auto_pad);
+
+    if (op_kind == op::kind::MaxPool || op_kind == op::kind::MaxPoolBackprop) {
+        pool.set_attr("dilations", dilations);
     } else { // AvgPool
-        pool.set_attr("exclude_pad", spec_.exclude_pad);
+        pool.set_attr("exclude_pad", exclude_pad);
     }
-    if (spec_.is_fwd) pool.set_attr("rounding_type", spec_.rounding_type);
-    if (spec_.op_kind == op::kind::AvgPoolBackprop)
-        pool.set_attr("input_shape", spec_.src_dims);
+    if (prb->dir & FLAG_FWD) pool.set_attr("rounding_type", rounding_type);
+    if (op_kind == op::kind::AvgPoolBackprop)
+        pool.set_attr("input_shape", prb->src_dims());
 
     ops_.emplace_back(pool);
     curr_out_map_ids_.assign({TENSOR_ID});
@@ -211,9 +142,10 @@ fill_status_t pool_graph_prb_t::handle_bin_(
 }
 
 fill_status_t pool_graph_prb_t::handle_low_precision_(
-        const ::pool::prb_t *prb_) {
-    low_precision_attr lp_attr = low_precision_attr::lp_attr(
-            spec_.src_dt, spec_.dst_dt, spec_.raw_data_format);
+        const ::pool::prb_t *prb) {
+    low_precision_attr lp_attr
+            = low_precision_attr::lp_attr(convert_dt(prb->cfg[SRC].dt),
+                    convert_dt(prb->cfg[DST].dt), prb->tag);
 
     fill_status_t ctor_status;
     ctor_status
@@ -228,8 +160,8 @@ fill_status_t pool_graph_prb_t::handle_low_precision_(
 
     if (has_post_bin()) {
         ctor_status = po_handler.pool.low_precision_handler
-                              .handle_low_precision_post_bin(*this, lp_attr,
-                                      prb_->attr.post_ops.entry);
+                              .handle_low_precision_post_bin(
+                                      *this, lp_attr, prb->attr.post_ops.entry);
     }
 
     return ctor_status;

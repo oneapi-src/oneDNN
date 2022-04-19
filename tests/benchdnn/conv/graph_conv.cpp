@@ -43,7 +43,7 @@ void check_known_skipped_case_graph(
     if (res->state == SKIPPED) return;
 }
 
-fill_status_t conv_graph_prb_t::handle_main_op_() {
+fill_status_t conv_graph_prb_t::handle_main_op_(const ::conv::prb_t *prb) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using kind = dnnl::graph::op::kind;
 
@@ -51,24 +51,30 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
 
-    dims_t wei_dims = spec_.wei_dims;
-    if (spec_.has_groups) {
+    dims_t wei_dims = prb->wei_dims();
+    if (prb->has_groups) {
         // group convolution convert
         dim_t groups = wei_dims[0];
         wei_dims.erase(wei_dims.begin());
         wei_dims[0] *= groups;
     }
 
-    auto src_dt = benchdnnext::set_main_op_dtype(spec_.src_dt);
-    auto wei_dt = benchdnnext::set_main_op_dtype(spec_.wei_dt);
-    auto dst_dt = benchdnnext::set_main_op_dtype(spec_.dst_dt);
+    dims_t dilations = prb->dilations();
+    // oneDNN graph dilation = 1 is equivalent of oneDNN
+    // dilation = 0
+    std::transform(dilations.begin(), dilations.end(), dilations.begin(),
+            [](const dim_t d) { return d + 1; });
+
+    auto src_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[SRC].dt));
+    auto wei_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[WEI].dt));
+    auto dst_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[DST].dt));
 
     std::string op_name {};
     kind op_kind {kind::LastSymbol};
     std::vector<logical_tensor> inputs {};
     std::vector<logical_tensor> outputs {};
 
-    if (spec_.dir & FLAG_FWD) {
+    if (prb->dir & FLAG_FWD) {
         op_name = "Convolution";
         op_kind = kind::Convolution;
 
@@ -76,15 +82,15 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
         const std::string WEI {TENSOR_ID + "_WEI"};
         const std::string DST {TENSOR_ID + "_DST"};
 
-        tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
-        tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag,
+        tensor_descs_.emplace(SRC, src_dt, prb->src_dims(), prb->stag);
+        tensor_descs_.emplace(WEI, wei_dt, wei_dims, prb->wtag,
                 tensor_descs_t::property_type::constant);
-        tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+        tensor_descs_.emplace(DST, dst_dt, prb->dst_dims(), prb->dtag);
 
         inputs = {tensor_descs_[SRC], tensor_descs_[WEI]};
         outputs = {tensor_descs_[DST]};
-    } else if (spec_.dir & FLAG_BWD) {
-        if (spec_.dir == BWD_D) {
+    } else if (prb->dir & FLAG_BWD) {
+        if (prb->dir == BWD_D) {
             op_name = "ConvolutionBackpropData";
             op_kind = kind::ConvolutionBackpropData;
 
@@ -92,16 +98,14 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
             const std::string WEI {TENSOR_ID + "_WEI"};
             const std::string DIFF_DST {TENSOR_ID + "DIFF_DST"};
 
-            tensor_descs_.emplace(
-                    DIFF_SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
-            tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag,
+            tensor_descs_.emplace(DIFF_SRC, src_dt, prb->src_dims(), prb->stag);
+            tensor_descs_.emplace(WEI, wei_dt, wei_dims, prb->wtag,
                     tensor_descs_t::property_type::constant);
-            tensor_descs_.emplace(
-                    DIFF_DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+            tensor_descs_.emplace(DIFF_DST, dst_dt, prb->dst_dims(), prb->dtag);
 
             inputs = {tensor_descs_[DIFF_DST], tensor_descs_[WEI]};
             outputs = {tensor_descs_[DIFF_SRC]};
-        } else if (spec_.dir == BWD_W) {
+        } else if (prb->dir == BWD_W) {
             op_name = "ConvolutionBackpropFilter";
             op_kind = kind::ConvolutionBackpropFilters;
 
@@ -109,12 +113,9 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
             const std::string DIFF_WEI {TENSOR_ID + "DIFF_WEI"};
             const std::string DIFF_DST {TENSOR_ID + "DIFF_DST"};
 
-            tensor_descs_.emplace(
-                    SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
-            tensor_descs_.emplace(
-                    DIFF_DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
-            tensor_descs_.emplace(
-                    DIFF_WEI, wei_dt, wei_dims, spec_.raw_wei_tag);
+            tensor_descs_.emplace(SRC, src_dt, prb->src_dims(), prb->stag);
+            tensor_descs_.emplace(DIFF_DST, dst_dt, prb->dst_dims(), prb->dtag);
+            tensor_descs_.emplace(DIFF_WEI, wei_dt, wei_dims, prb->wtag);
 
             inputs = {tensor_descs_[SRC], tensor_descs_[DIFF_DST]};
             outputs = {tensor_descs_[DIFF_WEI]};
@@ -127,14 +128,18 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
 
     graph::op conv_op(new_op_id, op_kind, inputs, outputs, op_name);
 
-    conv_op.set_attr("strides", spec_.strides)
-            .set_attr("pads_begin", spec_.pads_begin)
-            .set_attr("pads_end", spec_.pads_end)
-            .set_attr("dilations", spec_.dilations)
-            .set_attr("auto_pad", spec_.auto_pad)
-            .set_attr("groups", spec_.groups)
-            .set_attr("data_format", spec_.data_format)
-            .set_attr("filter_format", spec_.filter_format);
+    const std::string auto_pad {"None"};
+    const std::string data_format {"NCX"};
+    const std::string filter_format {"OIX"};
+
+    conv_op.set_attr("strides", prb->strides())
+            .set_attr("pads_begin", prb->padding())
+            .set_attr("pads_end", prb->padding_r())
+            .set_attr("dilations", dilations)
+            .set_attr("auto_pad", auto_pad)
+            .set_attr("groups", prb->g)
+            .set_attr("data_format", data_format)
+            .set_attr("filter_format", filter_format);
 
     ops_.emplace_back(conv_op);
     curr_out_map_ids_.assign({TENSOR_ID});
@@ -155,7 +160,6 @@ fill_status_t conv_graph_prb_t::handle_dw_(const ::conv::prb_t *prb_) {
                     != fill_status::UNHANDLED_CONFIG_OPTIONS) {
         return dw_graph_prb.ctor_status;
     }
-    const auto dw_spec = dw_graph_prb.spec();
 
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
@@ -163,32 +167,46 @@ fill_status_t conv_graph_prb_t::handle_dw_(const ::conv::prb_t *prb_) {
     const std::string DW_WEI {TENSOR_ID + "_WEI"};
     const std::string DW_DST {TENSOR_ID + "_DST"};
 
-    dims_t wei_dims = dw_spec.wei_dims;
+    dims_t wei_dims = dw_prb->wei_dims();
     // depthwise convolution must have groups
-    if (!dw_spec.has_groups) return fill_status::UNSUPPORTED_OP;
+    if (!dw_prb->has_groups) return fill_status::UNSUPPORTED_OP;
     // group convolution convert
     dim_t groups = wei_dims[0];
     wei_dims.erase(wei_dims.begin());
     wei_dims[0] *= groups;
 
-    tensor_descs_.emplace(DW_WEI, dw_spec.wei_dt, wei_dims, dw_spec.raw_wei_tag,
+    auto dw_wei_dt
+            = benchdnnext::set_main_op_dtype(convert_dt(dw_prb->cfg[WEI].dt));
+    auto dw_dst_dt
+            = benchdnnext::set_main_op_dtype(convert_dt(dw_prb->cfg[DST].dt));
+
+    tensor_descs_.emplace(DW_WEI, dw_wei_dt, wei_dims, dw_prb->wtag,
             tensor_descs_t::property_type::constant);
-    tensor_descs_.emplace(
-            DW_DST, dw_spec.dst_dt, dw_spec.dst_dims, dw_spec.raw_dst_tag);
+    tensor_descs_.emplace(DW_DST, dw_dst_dt, dw_prb->dst_dims(), dw_prb->dtag);
 
     op dw(new_op_id, op::kind::Convolution,
             {tensor_descs_[curr_out_map_ids_.back() + "_DST"],
                     tensor_descs_[DW_WEI]},
             {tensor_descs_[DW_DST]}, "dw");
 
-    dw.set_attr("strides", dw_spec.strides)
-            .set_attr("pads_begin", dw_spec.pads_begin)
-            .set_attr("pads_end", dw_spec.pads_end)
-            .set_attr("dilations", dw_spec.dilations)
-            .set_attr("auto_pad", dw_spec.auto_pad)
-            .set_attr("groups", dw_spec.groups)
-            .set_attr("data_format", dw_spec.data_format)
-            .set_attr("filter_format", dw_spec.filter_format);
+    const std::string auto_pad {"None"};
+    const std::string data_format {"NCX"};
+    const std::string filter_format {"OIX"};
+
+    dims_t dilations = dw_prb->dilations();
+    // oneDNN graph dilation = 1 is equivalent of oneDNN
+    // dilation = 0
+    std::transform(dilations.begin(), dilations.end(), dilations.begin(),
+            [](const dim_t d) { return d + 1; });
+
+    dw.set_attr("strides", dw_prb->strides())
+            .set_attr("pads_begin", dw_prb->padding())
+            .set_attr("pads_end", dw_prb->padding_r())
+            .set_attr("dilations", dilations)
+            .set_attr("auto_pad", auto_pad)
+            .set_attr("groups", dw_prb->g)
+            .set_attr("data_format", data_format)
+            .set_attr("filter_format", filter_format);
 
     ops_.emplace_back(dw);
     curr_out_map_ids_.assign({TENSOR_ID});
@@ -196,8 +214,8 @@ fill_status_t conv_graph_prb_t::handle_dw_(const ::conv::prb_t *prb_) {
     return fill_status::DONE;
 }
 
-fill_status_t conv_graph_prb_t::handle_bia_() {
-    return po_handler.conv.bias_handler(*this, spec_.bia_dt);
+fill_status_t conv_graph_prb_t::handle_bia_(const ::conv::prb_t *prb) {
+    return po_handler.conv.bias_handler(*this, convert_dt(prb->cfg[BIA].dt));
 }
 
 fill_status_t conv_graph_prb_t::handle_elt_(
@@ -210,9 +228,9 @@ fill_status_t conv_graph_prb_t::handle_sum_() {
 }
 
 fill_status_t conv_graph_prb_t::handle_low_precision_(
-        const ::conv::prb_t *prb_) {
+        const ::conv::prb_t *prb) {
 
-    const bool def_oscales = prb_->attr.oscale.is_def();
+    const bool def_oscales = prb->attr.oscale.is_def();
 
     // currently, only policy_t::COMMON is supported for asymmetric quant
     // for src and dst, other policy is not suppoted by oneDNN Graph.
@@ -222,31 +240,31 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
     src_zero_points.resize(common_zp_count, dflt_zp_val);
 
     // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb_->attr.zero_points.is_def(DNNL_ARG_SRC)) {
-        const auto &src_zp_e = prb_->attr.zero_points.get(DNNL_ARG_SRC);
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_SRC)) {
+        const auto &src_zp_e = prb->attr.zero_points.get(DNNL_ARG_SRC);
         if (src_zp_e.policy != policy_t::COMMON)
             return fill_status::UNSUPPORTED_CONFIG;
-        src_zero_points[0] = prb_->src_zp[0];
+        src_zero_points[0] = prb->src_zp[0];
     }
 
     const int64_t oscale_count
-            = prb_->attr.oscale.policy == policy_t::COMMON ? 1 : prb_->oc;
+            = prb->attr.oscale.policy == policy_t::COMMON ? 1 : prb->oc;
     wei_zero_points = std::vector<int64_t>(oscale_count, 0L);
 
     // zps for dst
     dst_zero_points.resize(common_zp_count, dflt_zp_val);
     // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb_->attr.zero_points.is_def(DNNL_ARG_DST)) {
-        const auto &dst_zp_e = prb_->attr.zero_points.get(DNNL_ARG_DST);
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)) {
+        const auto &dst_zp_e = prb->attr.zero_points.get(DNNL_ARG_DST);
         if (dst_zp_e.policy != policy_t::COMMON)
             return fill_status::UNSUPPORTED_CONFIG;
-        dst_zero_points[0] = prb_->dst_zp[0];
+        dst_zero_points[0] = prb->dst_zp[0];
     }
 
-    const float common_scale = [&prb_, this]() {
+    const float common_scale = [&prb, this]() {
         if (has_post_eltwise()) {
             const float post_eltwise_scale
-                    = get_post_eltwise_scale(prb_->attr.post_ops.entry);
+                    = get_post_eltwise_scale(prb->attr.post_ops.entry);
             // benchdnn ext. need to convert post relu scale to quant scale to
             // get same result as benchdnn primitive did
             return 1.f * (1 / post_eltwise_scale);
@@ -255,11 +273,12 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
         }
     }();
 
-    low_precision_attr lp_attr = low_precision_attr::lp_attr(spec_.src_dt,
-            spec_.wei_dt, spec_.dst_dt, spec_.raw_src_tag, spec_.raw_wei_tag,
-            spec_.raw_dst_tag, prb_->attr.oscale.policy, &oscales, common_scale,
-            &src_zero_points, &wei_zero_points, &dst_zero_points, prb_->scales,
-            prb_->oc, def_oscales);
+    low_precision_attr lp_attr
+            = low_precision_attr::lp_attr(convert_dt(prb->cfg[SRC].dt),
+                    convert_dt(prb->cfg[WEI].dt), convert_dt(prb->cfg[DST].dt),
+                    prb->stag, prb->wtag, prb->dtag, prb->attr.oscale.policy,
+                    &oscales, common_scale, &src_zero_points, &wei_zero_points,
+                    &dst_zero_points, prb->scales, prb->oc, def_oscales);
 
     fill_status_t ctor_status
             = po_handler.conv.low_precision_handler.handle_low_precision_src(
@@ -273,7 +292,7 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
 
     // `with_qdst == false` means that we are dealing
     // with x8s8f32 pattern
-    const bool with_qdst = dt::f32 != spec_.dst_dt;
+    const bool with_qdst = dt::f32 != convert_dt(prb->cfg[DST].dt);
     if (with_qdst) {
         ctor_status = po_handler.conv.low_precision_handler
                               .handle_low_precision_dst(*this, lp_attr);
@@ -282,8 +301,8 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
 
     if (has_post_sum()) {
         ctor_status = po_handler.conv.low_precision_handler
-                              .handle_low_precision_post_sum(*this, lp_attr,
-                                      prb_->attr.post_ops.entry);
+                              .handle_low_precision_post_sum(
+                                      *this, lp_attr, prb->attr.post_ops.entry);
     }
 
     return ctor_status;
@@ -308,7 +327,6 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    const auto spec = graph_prb.spec();
 
     // Filer partitions
     const auto partitions
@@ -325,16 +343,18 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     auto cp = compile_partition(::conv::init_pd, prb, res, par, ins, outs);
 
     int idx_ins = 0;
-    auto src_fp = make_dnn_mem(ins[idx_ins], spec.src_dims, dt::f32, tag::abx);
-    auto src_dt = make_dnn_mem(ins[idx_ins], spec.src_dims, spec.raw_src_tag);
+    auto src_fp
+            = make_dnn_mem(ins[idx_ins], prb->src_dims(), dt::f32, tag::abx);
+    auto src_dt = make_dnn_mem(ins[idx_ins], prb->src_dims(), prb->stag);
 
     dnn_mem_t wei_fp, wei_dt;
     if (prb->dir == BWD_W) {
-        wei_fp = make_dnn_mem(outs[0], spec.wei_dims, dt::f32, tag::abx);
-        wei_dt = make_dnn_mem(outs[0], spec.wei_dims, spec.raw_wei_tag);
+        wei_fp = make_dnn_mem(outs[0], prb->wei_dims(), dt::f32, tag::abx);
+        wei_dt = make_dnn_mem(outs[0], prb->wei_dims(), prb->wtag);
     } else {
-        wei_fp = make_dnn_mem(ins[++idx_ins], spec.wei_dims, dt::f32, tag::abx);
-        wei_dt = make_dnn_mem(ins[idx_ins], spec.wei_dims, spec.raw_wei_tag);
+        wei_fp = make_dnn_mem(
+                ins[++idx_ins], prb->wei_dims(), dt::f32, tag::abx);
+        wei_dt = make_dnn_mem(ins[idx_ins], prb->wei_dims(), prb->wtag);
     }
 
     dnn_mem_t bia_fp, bia_dt;
@@ -345,11 +365,11 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
     dnn_mem_t dst_fp, dst_dt;
     if (prb->dir == BWD_W) {
-        dst_fp = make_dnn_mem(ins[1], spec.dst_dims, dt::f32, tag::abx);
-        dst_dt = make_dnn_mem(ins[1], spec.dst_dims, spec.raw_dst_tag);
+        dst_fp = make_dnn_mem(ins[1], prb->dst_dims(), dt::f32, tag::abx);
+        dst_dt = make_dnn_mem(ins[1], prb->dst_dims(), prb->dtag);
     } else {
-        dst_fp = make_dnn_mem(outs[0], spec.dst_dims, dt::f32, tag::abx);
-        dst_dt = make_dnn_mem(outs[0], spec.dst_dims, spec.raw_dst_tag);
+        dst_fp = make_dnn_mem(outs[0], prb->dst_dims(), dt::f32, tag::abx);
+        dst_dt = make_dnn_mem(outs[0], prb->dst_dims(), prb->dtag);
     }
 
     SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
