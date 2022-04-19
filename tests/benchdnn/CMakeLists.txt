@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2021 Intel Corporation
+# Copyright 2017-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -268,16 +268,38 @@ foreach(driver ${all_graph_drivers})
     file(GLOB test_files_ci RELATIVE ${driver_dir}
             inputs_graph/${driver}/test_*_ci)
 
-    # Register ci input files for ci only
+    # For cpu build option only test *_ci except *_gpu_ci;
+    # For gpu build option only test *_gpu_ci
     if(DNNL_GRAPH_TEST_SET EQUAL DNNL_GRAPH_TEST_SET_CI)
-        # `test_files_ci` contains all the ci test cases for graph at present.
-        # The status may be changed in future as the test cases are added.
-        register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_ci}")
+        # gpu_ci files may happen if cpu coverage can not be used on gpu
+        # Filter out gpu_ci inputs from ci
+        foreach(test_file ${test_files_gpu_ci})
+            string(REPLACE "${test_file}" "" test_files_ci "${test_files_ci}")
+        endforeach()
+
+        # use gpu_ci if not empty
+        if(has_gpu)
+            if(test_files_gpu_ci)
+                register_all_graph_tests(gpu "C" "G" "${driver}" "${test_files_gpu_ci}")
+            endif()
+        else()
+            register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_ci}")
+        endif()
     endif()
 
+    # nightly test *_ci. For *_gpu_ci, uses gpu engine, others use cpu engine.
     if(DNNL_GRAPH_TEST_SET GREATER DNNL_GRAPH_TEST_SET_CI)
+        # gpu_ci files may happen if cpu coverage can not be used on gpu
+        # Filter out gpu_ci inputs from ci
+        foreach(test_file ${test_files_gpu_ci})
+            string(REPLACE "${test_file}" "" test_files_ci "${test_files_ci}")
+        endforeach()
+
+        if(has_gpu)
+            if(test_files_gpu_ci)
+                register_all_graph_tests(gpu "C" "G" "${driver}" "${test_files_gpu_ci}")
+            endif()
+        endif()
         register_all_graph_tests(cpu "C" "G" "${driver}" "${test_files_ci}")
-        register_all_graph_tests(cpu "P" "P" "${driver}" "${test_files_ci}")
-        register_all_graph_tests(cpu "P" "G" "${driver}" "${test_files_ci}")
     endif()
 endforeach()
