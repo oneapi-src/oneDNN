@@ -27,24 +27,6 @@
 namespace benchdnnext {
 namespace concat {
 
-concat_graph_prb_t::spec_t::spec_t(const ::concat::prb_t *prb) {
-    src_dims.resize(prb->n_inputs());
-    raw_src_tag.resize(prb->n_inputs());
-
-    for (auto i = 0; i < prb->n_inputs(); ++i) {
-        src_dims[i] = prb->vdims[i];
-        raw_src_tag[i] = prb->stag[i];
-    }
-
-    dst_dims = prb->dst_dims;
-    raw_dst_tag = prb->dtag;
-
-    src_dt = convert_dt(prb->sdt);
-    dst_dt = convert_dt(prb->ddt);
-
-    axis = prb->axis;
-}
-
 void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {
     auto rank = prb->vdims[0].size();
     auto axis = prb->axis;
@@ -110,38 +92,30 @@ void check_known_skipped_case_graph(const ::concat::prb_t *prb, res_t *res) {
     }
 }
 
-fill_status_t concat_graph_prb_t::handle_main_op_() {
+fill_status_t concat_graph_prb_t::handle_main_op_(const ::concat::prb_t *prb) {
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string DST {TENSOR_ID + "_DST"};
 
-    dt src_data_type, dst_data_type;
-    if (benchdnnext::is_low_precision({spec_.src_dt, spec_.dst_dt})) {
-        src_data_type = dt::f32;
-        dst_data_type = dt::f32;
-    } else {
-        src_data_type = spec_.src_dt;
-        dst_data_type = spec_.dst_dt;
-    }
+    auto src_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->sdt));
+    auto dst_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->ddt));
 
     std::vector<dnnl::graph::logical_tensor> tensor_descs_srcs;
-    tensor_descs_srcs.reserve(spec_.n_inputs());
+    tensor_descs_srcs.reserve(prb->n_inputs());
 
-    for (auto i = 0; i < spec_.n_inputs(); ++i) {
+    for (auto i = 0; i < prb->n_inputs(); ++i) {
         const auto SRC_I = SRC + std::to_string(i);
-        tensor_descs_.emplace(
-                SRC_I, src_data_type, spec_.src_dims[i], spec_.raw_src_tag[i]);
+        tensor_descs_.emplace(SRC_I, src_dt, prb->vdims[i], prb->stag[i]);
         tensor_descs_srcs.emplace_back(tensor_descs_[SRC_I]);
     }
-    tensor_descs_.emplace(
-            DST, dst_data_type, spec_.dst_dims, spec_.raw_dst_tag);
+    tensor_descs_.emplace(DST, dst_dt, prb->dst_dims, prb->dtag);
 
-    dnnl::graph::op concat(new_op_id, get_main_op_kind(), tensor_descs_srcs,
-            {tensor_descs_[DST]}, "concat");
+    dnnl::graph::op concat(new_op_id, dnnl::graph::op::kind::Concat,
+            tensor_descs_srcs, {tensor_descs_[DST]}, "concat");
 
-    concat.set_attr("axis", spec_.axis);
+    concat.set_attr("axis", static_cast<int64_t>(prb->axis));
 
     ops_.emplace_back(concat);
     curr_out_map_ids_.assign({TENSOR_ID});
@@ -150,14 +124,15 @@ fill_status_t concat_graph_prb_t::handle_main_op_() {
 }
 
 fill_status_t concat_graph_prb_t::handle_low_precision_(
-        const ::concat::prb_t *prb_) {
-    low_precision_attr lp_attr = low_precision_attr::lp_attr(spec_.src_dt,
-            spec_.dst_dt, spec_.raw_src_tag[0], spec_.raw_dst_tag);
+        const ::concat::prb_t *prb) {
+    low_precision_attr lp_attr
+            = low_precision_attr::lp_attr(convert_dt(prb->sdt),
+                    convert_dt(prb->ddt), prb->stag[0], prb->dtag);
 
     fill_status_t ctor_status;
     ctor_status
             = po_handler.concat.low_precision_handler.handle_low_precision_srcs(
-                    *this, lp_attr, spec_.n_inputs());
+                    *this, lp_attr, prb->n_inputs());
     if (ctor_status != fill_status::DONE) return ctor_status;
 
     ctor_status
@@ -189,7 +164,6 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    const auto spec = graph_prb.spec();
 
     // // Filter partitions
     const auto partitions = graph_h.get_partitions();
@@ -204,8 +178,8 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
 
     auto cp = compile_partition(::concat::init_pd, prb, res, par, ins, outs);
 
-    auto dst_fp = make_dnn_mem(outs[0], spec.dst_dims, dt::f32, tag::abx);
-    auto dst_dt = make_dnn_mem(outs[0], spec.dst_dims, spec.raw_dst_tag);
+    auto dst_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
+    auto dst_dt = make_dnn_mem(outs[0], prb->dtag);
 
     std::vector<dnn_mem_t> src_fp, src_dt;
     src_fp.reserve(prb->n_inputs());
@@ -218,10 +192,8 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
 
     args_t args, ref_args;
     for (auto i = 0; i < prb->n_inputs(); ++i) {
-        src_fp.emplace_back(
-                make_dnn_mem(ins[i], spec.src_dims[i], dt::f32, tag::abx));
-        src_dt.emplace_back(
-                make_dnn_mem(ins[i], spec.src_dims[i], spec.raw_src_tag[i]));
+        src_fp.emplace_back(make_dnn_mem(ins[i], dt::f32, tag::abx));
+        src_dt.emplace_back(make_dnn_mem(ins[i], prb->stag[i]));
 
         SAFE(::concat::fill_src(i, prb->ddt, src_dt[i], src_fp[i]), WARN);
 

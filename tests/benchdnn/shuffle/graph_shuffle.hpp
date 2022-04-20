@@ -24,46 +24,20 @@ namespace benchdnnext {
 namespace shuffle {
 
 struct shuffle_graph_prb_t : public graph_prb_t {
-    shuffle_graph_prb_t(const ::shuffle::prb_t *prb) : spec_(prb) {
+    shuffle_graph_prb_t(const ::shuffle::prb_t *prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_reshape_(0);
-        if (stop_work(ctor_status)) return;
-
-        ctor_status = handle_transpose_();
-        if (stop_work(ctor_status)) return;
-
-        ctor_status = handle_reshape_(1);
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::shuffle::prb_t *prb);
-
-        dims_t reshape0_src_dims;
-        dims_t reshape0_dst_dims;
-
-        dims_t transpose_dst_dims;
-        dims_t transpose_order;
-
-        dims_t reshape1_dst_dims;
-
-        std::string raw_tag;
-        dt dtype;
-        int64_t group;
-        int axis;
-    };
-
-    spec_t spec_;
-
-    fill_status_t handle_reshape_(int id);
-    fill_status_t handle_transpose_();
+    fill_status_t handle_main_op_(const ::shuffle::prb_t *prb);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::StaticReshape;

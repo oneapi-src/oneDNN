@@ -26,10 +26,33 @@
 namespace benchdnnext {
 namespace reduction {
 
-reduction_graph_prb_t::spec_t::spec_t(const ::reduction::prb_t *prb) {
-    src_dims = prb->vdims[0];
-    dst_dims = prb->vdims[1];
+void check_known_skipped_case_graph(const ::reduction::prb_t *prb, res_t *res) {
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
+}
 
+fill_status_t reduction_graph_prb_t::handle_main_op_(
+        const ::reduction::prb_t *prb) {
+    const size_t new_op_id = ops_.size();
+    const std::string TENSOR_ID = std::to_string(new_op_id);
+    tensor_id["main"].push_back(TENSOR_ID);
+    const std::string SRC {TENSOR_ID + "_SRC"};
+    const std::string DST {TENSOR_ID + "_DST"};
+
+    const auto src_dt = convert_dt(prb->sdt);
+    const auto dst_dt = convert_dt(prb->ddt);
+    const auto src_dims = prb->vdims[0];
+    const auto dst_dims = prb->vdims[1];
+
+    tensor_descs_.emplace(SRC, src_dt, src_dims, prb->stag);
+    tensor_descs_.emplace(DST, dst_dt, dst_dims, prb->dtag);
+
+    dnnl::graph::op reduction(new_op_id, op_kind, {tensor_descs_[SRC]},
+            {tensor_descs_[DST]}, "reduction");
+
+    const bool keep_dims {true};
+    std::vector<int64_t> axes;
     const int reduction_dim_size = 1;
     for (auto d = 0; d < prb->ndims; ++d) {
         const bool is_reduction_dim = dst_dims[d] == reduction_dim_size
@@ -37,36 +60,8 @@ reduction_graph_prb_t::spec_t::spec_t(const ::reduction::prb_t *prb) {
         if (is_reduction_dim) axes.push_back(d);
     }
 
-    src_dt = convert_dt(prb->sdt);
-    dst_dt = convert_dt(prb->ddt);
-
-    raw_src_tag = prb->stag;
-    raw_dst_tag = prb->dtag;
-
-    alg = convert_alg_kind(::reduction::alg2alg_kind(prb->alg));
-}
-
-void check_known_skipped_case_graph(const ::reduction::prb_t *prb, res_t *res) {
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-}
-
-fill_status_t reduction_graph_prb_t::handle_main_op_() {
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string DST {TENSOR_ID + "_DST"};
-
-    tensor_descs_.emplace(SRC, spec_.src_dt, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
-
-    dnnl::graph::op reduction(new_op_id, spec_.alg, {tensor_descs_[SRC]},
-            {tensor_descs_[DST]}, "reduction");
-
-    reduction.set_attr("keep_dims", spec_.keep_dims);
-    reduction.set_attr("axes", spec_.axes);
+    reduction.set_attr("keep_dims", keep_dims);
+    reduction.set_attr("axes", axes);
 
     ops_.emplace_back(reduction);
     curr_out_map_ids_.assign({TENSOR_ID});

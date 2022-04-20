@@ -25,9 +25,28 @@
 namespace benchdnnext {
 namespace shuffle {
 
-shuffle_graph_prb_t::spec_t::spec_t(const ::shuffle::prb_t *prb) {
-    dtype = convert_dt(prb->dt);
-    axis = prb->axis;
+void check_known_skipped_case_graph(const ::shuffle::prb_t *prb, res_t *res) {
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
+}
+
+fill_status_t shuffle_graph_prb_t::handle_main_op_(
+        const ::shuffle::prb_t *prb) {
+    const auto add_reshape = [this](const size_t id,
+                                     const dnnl::graph::logical_tensor &src,
+                                     const dnnl::graph::logical_tensor &dst) {
+        dnnl::graph::op reshape(id, dnnl::graph::op::kind::StaticReshape, {src},
+                {dst}, "reshape");
+        reshape.set_attr("shape", dst.get_dims())
+                .set_attr("special_zero", false);
+        ops_.emplace_back(reshape);
+    };
+
+    const auto data_type = convert_dt(prb->dt);
+    const int64_t axis = prb->axis;
+    const std::string tag = prb->tag;
+    int64_t group;
     if (prb->dir & FLAG_FWD) {
         group = prb->group;
     } else {
@@ -43,95 +62,69 @@ shuffle_graph_prb_t::spec_t::spec_t(const ::shuffle::prb_t *prb) {
         //
         // If we look at this pattern from up to bottom, then groups_fwd = 4,
         // from bottom to up however, groups_bwd = 2 = channel_dim / groups_fwd
-        group = prb->dims[prb->axis] / prb->group;
+        group = prb->dims[axis] / prb->group;
     }
-    raw_tag = prb->tag;
 
     // reshape0
-    reshape0_src_dims = prb->dims;
+    const auto reshape0_src_dims = prb->dims;
     // - dst dims should be same as src dims except at 'channel' axis
     // - 'channel' value should be replaced with (C / g, g),
     // therefore shape attr will have one more dimension than the src dims.
-    reshape0_dst_dims = prb->dims;
+    auto reshape0_dst_dims = prb->dims;
     reshape0_dst_dims[axis] /= group;
     reshape0_dst_dims.insert(reshape0_dst_dims.begin() + axis + 1, group);
 
     // transpose
-    transpose_dst_dims = reshape0_dst_dims;
+    auto transpose_dst_dims = reshape0_dst_dims;
     std::swap(transpose_dst_dims[axis], transpose_dst_dims[axis + 1]);
     // After reshape, we have to make a transposition of g and C / g.
     // To do that we have to do following steps:
     // - fill the order with n consecutive values, where n = input size - 1
     // - swap indices of 'channel' axis with successor axis
-    transpose_order.resize(transpose_dst_dims.size());
+    std::vector<int64_t> transpose_order(transpose_dst_dims.size());
     std::iota(transpose_order.begin(), transpose_order.end(), 0);
     std::swap(transpose_order[axis], transpose_order[axis + 1]);
 
     // reshape1
     // input and output dims of the whole pattern must equal
-    reshape1_dst_dims = prb->dims;
-}
+    const auto reshape1_dst_dims = prb->dims;
 
-void check_known_skipped_case_graph(const ::shuffle::prb_t *prb, res_t *res) {
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-}
+    const auto reshape0_id = ops_.size();
+    const std::string RESHAPE0_ID_STR = std::to_string(reshape0_id);
+    tensor_id["reshape" + std::to_string(reshape0_id)].push_back(
+            RESHAPE0_ID_STR);
+    const std::string RESHAPE0_SRC {RESHAPE0_ID_STR + "_SRC"};
+    const std::string RESHAPE0_DST {RESHAPE0_ID_STR + "_DST"};
+    tensor_descs_.emplace(RESHAPE0_SRC, data_type, reshape0_src_dims, tag);
+    tensor_descs_.emplace(RESHAPE0_DST, data_type, reshape0_dst_dims, tag);
 
-fill_status_t shuffle_graph_prb_t::handle_reshape_(int id) {
-    if (!(id == 0 || id == 1)) return fill_status::UNSUPPORTED_OP;
+    add_reshape(reshape0_id, tensor_descs_[RESHAPE0_SRC],
+            tensor_descs_[RESHAPE0_DST]);
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["reshape" + std::to_string(id)].push_back(TENSOR_ID);
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string DST {TENSOR_ID + "_DST"};
+    const auto transpose_id = ops_.size();
+    const std::string TRANSPOSE_ID_STR = std::to_string(transpose_id);
+    tensor_id["transpose"].push_back(TRANSPOSE_ID_STR);
+    const std::string TRANSPOSE_DST {TRANSPOSE_ID_STR + "_DST"};
+    tensor_descs_.emplace(TRANSPOSE_DST, data_type, transpose_dst_dims, tag);
 
-    if (id == 0) {
-        tensor_descs_.emplace(
-                SRC, spec_.dtype, spec_.reshape0_src_dims, spec_.raw_tag);
-        tensor_descs_.emplace(
-                DST, spec_.dtype, spec_.reshape0_dst_dims, spec_.raw_tag);
-    } else {
-        tensor_descs_.emplace(
-                DST, spec_.dtype, spec_.reshape1_dst_dims, spec_.raw_tag);
-    }
-    const auto src_tensor_desc = id == 0
-            ? tensor_descs_[SRC]
-            : tensor_descs_[curr_out_map_ids_.back() + "_DST"];
-    dnnl::graph::op reshape(new_op_id, get_main_op_kind(), {src_tensor_desc},
-            {tensor_descs_[DST]}, "reshape" + std::to_string(id));
-
-    // set shape attr to be same as previously calculated dst dims
-    const auto shape
-            = id == 0 ? spec_.reshape0_dst_dims : spec_.reshape1_dst_dims;
-    reshape.set_attr("shape", shape);
-    reshape.set_attr("special_zero", false);
-
-    ops_.emplace_back(reshape);
-    curr_out_map_ids_.assign({TENSOR_ID});
-
-    return fill_status::DONE;
-}
-
-fill_status_t shuffle_graph_prb_t::handle_transpose_() {
-    using op = dnnl::graph::op;
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["transpose"].push_back(TENSOR_ID);
-    const std::string DST {TENSOR_ID + "_DST"};
-
-    tensor_descs_.emplace(
-            DST, spec_.dtype, spec_.transpose_dst_dims, spec_.raw_tag);
-
-    op transpose(new_op_id, op::kind::StaticTranspose,
-            {tensor_descs_[curr_out_map_ids_.back() + "_DST"]},
-            {tensor_descs_[DST]}, "transpose");
-
-    transpose.set_attr("order", spec_.transpose_order);
-
+    dnnl::graph::op transpose(transpose_id,
+            dnnl::graph::op::kind::StaticTranspose,
+            {tensor_descs_[RESHAPE0_DST]}, {tensor_descs_[TRANSPOSE_DST]},
+            "transpose");
+    transpose.set_attr("order", transpose_order);
     ops_.emplace_back(transpose);
-    curr_out_map_ids_.assign({TENSOR_ID});
+
+    const auto reshape1_id = ops_.size();
+    const std::string RESHAPE1_ID_STR = std::to_string(reshape1_id);
+    tensor_id["reshape" + std::to_string(reshape1_id)].push_back(
+            RESHAPE1_ID_STR);
+    const std::string RESHAPE1_DST {RESHAPE1_ID_STR + "_DST"};
+    tensor_descs_.emplace(RESHAPE1_DST, data_type, reshape1_dst_dims, tag);
+
+    add_reshape(reshape1_id, tensor_descs_[TRANSPOSE_DST],
+            tensor_descs_[RESHAPE1_DST]);
+
+    curr_out_map_ids_.assign({RESHAPE1_ID_STR});
 
     return fill_status::DONE;
 }

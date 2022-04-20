@@ -25,13 +25,15 @@ namespace benchdnnext {
 namespace reduction {
 
 struct reduction_graph_prb_t : public graph_prb_t {
-    reduction_graph_prb_t(const ::reduction::prb_t *prb) : spec_(prb) {
+    reduction_graph_prb_t(const ::reduction::prb_t *prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_();
+        op_kind = convert_alg_kind(::reduction::alg2alg_kind(prb->alg));
+
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
         for (const auto &po : prb->attr.post_ops.entry) {
@@ -53,36 +55,15 @@ struct reduction_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::reduction::prb_t *prb);
-        // in oneDNN we always set reduction dimensions to 1,
-        // therefore keep_dims will default to true
-        bool keep_dims {true};
-        std::vector<int64_t> axes {};
-
-        dims_t src_dims;
-        dims_t dst_dims;
-
-        dt src_dt;
-        dt dst_dt;
-
-        std::string raw_src_tag;
-        std::string raw_dst_tag;
-
-        dnnl::graph::op::kind alg;
-    };
-
-    spec_t spec_;
+    dnnl::graph::op::kind op_kind;
     po_handlers_t po_handler;
 
-    fill_status_t handle_main_op_();
+    fill_status_t handle_main_op_(const ::reduction::prb_t *prb);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_sum_();
 
-    dnnl::graph::op::kind get_main_op_kind() const override {
-        return spec_.alg;
-    }
+    dnnl::graph::op::kind get_main_op_kind() const override { return op_kind; }
 };
 
 int doit(const ::reduction::prb_t *prb, res_t *res);

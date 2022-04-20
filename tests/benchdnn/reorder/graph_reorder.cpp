@@ -22,55 +22,6 @@
 namespace benchdnnext {
 namespace reorder {
 
-reorder_graph_prb_t::spec_t::spec_t(const ::reorder::prb_t *prb) noexcept {
-    dims = prb->dims;
-    src_dt = convert_dt(prb->conf_in->dt);
-    dst_dt = convert_dt(prb->conf_out->dt);
-    src_tag = prb->stag;
-    dst_tag = prb->dtag;
-    qtype = convert_attr_policy(prb->attr.oscale.policy);
-    //PER_DIM_01 not supported
-    switch (prb->attr.oscale.policy) {
-        case (attr_t::policy_t::PER_DIM_0): axis = 0; break;
-        case (attr_t::policy_t::PER_DIM_1): axis = 1; break;
-        default: break;
-    }
-    if (qtype == "per_channel") {
-        //TODO: needs update for PER_DIM_01
-        for (int i = 0; i < prb->dims[axis]; i++) {
-            scales.emplace_back(prb->scales[i]);
-            //TODO: src_zps and dst_zps could be different.
-            //Need to modify depending on spec - NOT SUPPORTED
-            zps.emplace_back(0);
-        }
-    } else {
-        scales.emplace_back(prb->scales[0]);
-        //Quantize Op
-        if (dst_dt == graph_dt::s8 || dst_dt == graph_dt::u8) {
-            if (prb->attr.zero_points.is_def()) {
-                zps.emplace_back(0);
-            } else {
-                zps.emplace_back(prb->dst_zp[0]);
-            }
-        }
-        //Dequantize Op
-        if ((src_dt == graph_dt::s8 || src_dt == graph_dt::u8)
-                && (dst_dt == graph_dt::f32)) {
-            if (prb->attr.zero_points.is_def()) {
-                zps.emplace_back(0);
-            } else {
-                zps.emplace_back(prb->src_zp[0]);
-            }
-        }
-    }
-    //Need to inverse scale
-    if (dst_dt == graph_dt::s8 || dst_dt == graph_dt::u8) {
-        for (int i = 0; i < scales.size(); i++) {
-            scales[i] = 1.f / scales[i];
-        }
-    }
-}
-
 void check_known_skipped_case_graph(
         const ::reorder::prb_t *prb, res_t *res) noexcept {
     /* reorder op requires source and destination data types to be same.
@@ -118,7 +69,8 @@ void check_known_skipped_case_graph(
     }
 }
 
-fill_status_t reorder_graph_prb_t::handle_main_op_() {
+fill_status_t reorder_graph_prb_t::handle_main_op_(
+        const ::reorder::prb_t *prb) {
     using op = dnnl::graph::op;
 
     const size_t new_op_id = ops_.size();
@@ -127,60 +79,99 @@ fill_status_t reorder_graph_prb_t::handle_main_op_() {
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string DST {TENSOR_ID + "_DST"};
 
-    tensor_descs_.emplace(SRC, spec_.src_dt, spec_.dims, spec_.src_tag);
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dims, spec_.dst_tag);
+    const auto src_dt = convert_dt(prb->conf_in->dt);
+    const auto dst_dt = convert_dt(prb->conf_out->dt);
+    const auto qtype = convert_attr_policy(prb->attr.oscale.policy);
+    int64_t axis;
+    // PER_DIM_01 not supported
+    switch (prb->attr.oscale.policy) {
+        case (attr_t::policy_t::PER_DIM_0): axis = 0; break;
+        case (attr_t::policy_t::PER_DIM_1): axis = 1; break;
+        default: break;
+    }
+    std::vector<float> scales;
+    std::vector<int64_t> zps;
+    if (qtype == "per_channel") {
+        //TODO: needs update for PER_DIM_01
+        for (int i = 0; i < prb->dims[axis]; i++) {
+            scales.emplace_back(prb->scales[i]);
+            //TODO: src_zps and dst_zps could be different.
+            //Need to modify depending on spec - NOT SUPPORTED
+            zps.emplace_back(0);
+        }
+    } else {
+        scales.emplace_back(prb->scales[0]);
+        //Quantize Op
+        if (dst_dt == graph_dt::s8 || dst_dt == graph_dt::u8) {
+            if (prb->attr.zero_points.is_def()) {
+                zps.emplace_back(0);
+            } else {
+                zps.emplace_back(prb->dst_zp[0]);
+            }
+        }
+        //Dequantize Op
+        if ((src_dt == graph_dt::s8 || src_dt == graph_dt::u8)
+                && (dst_dt == graph_dt::f32)) {
+            if (prb->attr.zero_points.is_def()) {
+                zps.emplace_back(0);
+            } else {
+                zps.emplace_back(prb->src_zp[0]);
+            }
+        }
+    }
+    //Need to inverse scale
+    if (dst_dt == graph_dt::s8 || dst_dt == graph_dt::u8) {
+        for (int i = 0; i < scales.size(); i++) {
+            scales[i] = 1.f / scales[i];
+        }
+    }
 
-    if (spec_.src_dt == spec_.dst_dt) {
+    tensor_descs_.emplace(SRC, src_dt, prb->dims, prb->stag);
+    tensor_descs_.emplace(DST, dst_dt, prb->dims, prb->dtag);
+
+    if (src_dt == dst_dt) {
         op reorder_op(new_op_id, op::kind::Reorder, {tensor_descs_[SRC]},
                 {tensor_descs_[DST]}, "reorder");
         ops_.emplace_back(reorder_op);
-    } else if ((spec_.src_dt == graph_dt::f32 && spec_.dst_dt == graph_dt::bf16)
-            || (spec_.src_dt == graph_dt::bf16
-                    && spec_.dst_dt == graph_dt::f32)) {
+    } else if ((src_dt == graph_dt::f32 && dst_dt == graph_dt::bf16)
+            || (src_dt == graph_dt::bf16 && dst_dt == graph_dt::f32)) {
         op typecast_op(new_op_id, op::kind::TypeCast, {tensor_descs_[SRC]},
                 {tensor_descs_[DST]}, "typecast");
         ops_.emplace_back(typecast_op);
-    } else if ((spec_.src_dt == graph_dt::f32)
-            && (spec_.dst_dt == graph_dt::s8 || spec_.dst_dt == graph_dt::u8)) {
+    } else if (src_dt == graph_dt::f32 && is_low_precision({dst_dt})) {
         op quantize_op(new_op_id, op::kind::Quantize, {tensor_descs_[SRC]},
                 {tensor_descs_[DST]}, "quantize");
-        quantize_op.set_attr<std::string>("qtype", spec_.qtype);
+        quantize_op.set_attr("qtype", qtype);
         //TODO: use zps - revisit
-        quantize_op.set_attr<std::vector<int64_t>>("zps", spec_.zps);
-        quantize_op.set_attr<std::vector<float>>("scales", spec_.scales);
+        quantize_op.set_attr("zps", zps);
+        quantize_op.set_attr("scales", scales);
         //TODO: axis doesnt support PER_DIM_01
-        if (spec_.qtype == "per_channel")
-            quantize_op.set_attr<int64_t>("axis", spec_.axis);
+        if (qtype == "per_channel") quantize_op.set_attr("axis", axis);
         ops_.emplace_back(quantize_op);
-    } else if ((spec_.src_dt == graph_dt::s8 || spec_.src_dt == graph_dt::u8)
-            && (spec_.dst_dt == graph_dt::f32)) {
+    } else if (is_low_precision({src_dt}) && dst_dt == graph_dt::f32) {
         op dequantize_op(new_op_id, op::kind::Dequantize, {tensor_descs_[SRC]},
                 {tensor_descs_[DST]}, "dequantize");
-        dequantize_op.set_attr<std::string>("qtype", spec_.qtype);
+        dequantize_op.set_attr("qtype", qtype);
         //TODO: use zps - revisit
-        dequantize_op.set_attr<std::vector<int64_t>>("zps", spec_.zps);
-        dequantize_op.set_attr<std::vector<float>>("scales", spec_.scales);
+        dequantize_op.set_attr("zps", zps);
+        dequantize_op.set_attr("scales", scales);
         //TODO: axis doesnt support PER_DIM_01
-        if (spec_.qtype == "per_channel")
-            dequantize_op.set_attr<int64_t>("axis", spec_.axis);
+        if (qtype == "per_channel") dequantize_op.set_attr("axis", axis);
         ops_.emplace_back(dequantize_op);
-    } else if ((spec_.src_dt == graph_dt::bf16)
-            && (spec_.dst_dt == graph_dt::s8 || spec_.dst_dt == graph_dt::u8)) {
+    } else if (src_dt == graph_dt::bf16 && is_low_precision({dst_dt})) {
         const std::string SRC_F32 {TENSOR_ID + "_SRC_F32"};
-        tensor_descs_.emplace(
-                SRC_F32, graph_dt::f32, spec_.dims, spec_.src_tag);
+        tensor_descs_.emplace(SRC_F32, graph_dt::f32, prb->dims, prb->stag);
         op typecast_op(new_op_id, op::kind::TypeCast, {tensor_descs_[SRC]},
                 {tensor_descs_[SRC_F32]}, "typecast");
         ops_.emplace_back(typecast_op);
         op quantize_op(ops_.size(), op::kind::Quantize,
                 {tensor_descs_[SRC_F32]}, {tensor_descs_[DST]}, "quantize");
-        quantize_op.set_attr<std::string>("qtype", spec_.qtype);
+        quantize_op.set_attr("qtype", qtype);
         //TODO: use zps - revisit
-        quantize_op.set_attr<std::vector<int64_t>>("zps", spec_.zps);
-        quantize_op.set_attr<std::vector<float>>("scales", spec_.scales);
+        quantize_op.set_attr("zps", zps);
+        quantize_op.set_attr("scales", scales);
         //TODO: axis doesnt support PER_DIM_01
-        if (spec_.qtype == "per_channel")
-            quantize_op.set_attr<int64_t>("axis", spec_.axis);
+        if (qtype == "per_channel") quantize_op.set_attr("axis", axis);
         ops_.emplace_back(quantize_op);
     } else {
         return fill_status::UNHANDLED_CONFIG_OPTIONS;
@@ -214,7 +205,6 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    const auto spec = graph_prb.spec();
 
     const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)

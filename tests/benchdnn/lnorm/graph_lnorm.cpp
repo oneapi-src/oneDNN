@@ -25,25 +25,10 @@
 namespace benchdnnext {
 namespace lnorm {
 
-lnorm_graph_prb_t::spec_t::spec_t(const ::lnorm::prb_t *prb) noexcept {
-    using graph_op = dnnl::graph::op;
-    is_fwd_pass = prb->dir & FLAG_FWD;
-
-    op_kind = is_fwd_pass ? graph_op::kind::LayerNorm
-                          : graph_op::kind::LayerNormBackprop;
-
-    dims = prb->dims;
-    ss_dims = dims_t {prb->c};
-    lnorm_dt = convert_dt(prb->dt);
-
-    for (int i = 0; i < prb->ndims - 1; i++) {
-        stat_dims.emplace_back(prb->dims[i]);
-    }
-
-    if (prb->dir != FWD_D) { keep_stats = false; }
-
-    use_affine = prb->use_ss();
-    epsilon = 1.f / 16;
+static std::vector<int64_t> get_stat_dims(
+        const std::vector<int64_t> &lnorm_dims) {
+    return std::vector<int64_t>(
+            lnorm_dims.begin(), lnorm_dims.begin() + (lnorm_dims.size() - 1));
 }
 
 void check_known_skipped_case_graph(
@@ -72,7 +57,7 @@ void check_known_skipped_case_graph(
     }
 }
 
-fill_status_t lnorm_graph_prb_t::handle_main_op_() {
+fill_status_t lnorm_graph_prb_t::handle_main_op_(const ::lnorm::prb_t *prb) {
     using op = dnnl::graph::op;
     using graph_dt = dnnl::graph::logical_tensor::data_type;
 
@@ -96,34 +81,34 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
     const std::string DIFF_GAMMA {TENSOR_ID + "_DIFF_GAMMA"};
     const std::string DIFF_BETA {TENSOR_ID + "_DIFF_BETA"};
 
-    //NOTE: beta, gamma, mean and variance supports only f32
-    tensor_descs_.emplace(SRC, spec_.lnorm_dt, spec_.dims, lt::strided);
-    tensor_descs_.emplace(GAMMA, graph_dt::f32, spec_.ss_dims, lt::strided);
-    tensor_descs_.emplace(BETA, graph_dt::f32, spec_.ss_dims, lt::strided);
-    tensor_descs_.emplace(MEAN, graph_dt::f32, spec_.stat_dims, lt::strided);
-    tensor_descs_.emplace(VAR, graph_dt::f32, spec_.stat_dims, lt::strided);
+    const dims_t ss_dims {prb->c};
+    const dims_t stat_dims = get_stat_dims(prb->dims);
+    const graph_dt lnorm_dt {convert_dt(prb->dt)};
 
-    if (spec_.is_fwd_pass) {
-        tensor_descs_.emplace(DST, spec_.lnorm_dt, spec_.dims, lt::strided);
+    //NOTE: beta, gamma, mean and variance supports only f32
+    tensor_descs_.emplace(SRC, lnorm_dt, prb->dims, lt::strided);
+    tensor_descs_.emplace(GAMMA, graph_dt::f32, ss_dims, lt::strided);
+    tensor_descs_.emplace(BETA, graph_dt::f32, ss_dims, lt::strided);
+    tensor_descs_.emplace(MEAN, graph_dt::f32, stat_dims, lt::strided);
+    tensor_descs_.emplace(VAR, graph_dt::f32, stat_dims, lt::strided);
+
+    if (prb->dir & FLAG_FWD) {
+        tensor_descs_.emplace(DST, lnorm_dt, prb->dims, lt::strided);
     } else {
-        tensor_descs_.emplace(
-                DIFF_DST, spec_.lnorm_dt, spec_.dims, lt::strided);
-        tensor_descs_.emplace(
-                DIFF_SRC, spec_.lnorm_dt, spec_.dims, lt::strided);
-        tensor_descs_.emplace(
-                DIFF_GAMMA, graph_dt::f32, spec_.ss_dims, lt::strided);
-        tensor_descs_.emplace(
-                DIFF_BETA, graph_dt::f32, spec_.ss_dims, lt::strided);
+        tensor_descs_.emplace(DIFF_DST, lnorm_dt, prb->dims, lt::strided);
+        tensor_descs_.emplace(DIFF_SRC, lnorm_dt, prb->dims, lt::strided);
+        tensor_descs_.emplace(DIFF_GAMMA, graph_dt::f32, ss_dims, lt::strided);
+        tensor_descs_.emplace(DIFF_BETA, graph_dt::f32, ss_dims, lt::strided);
     }
 
     std::vector<dnnl::graph::logical_tensor> inputs;
     std::vector<dnnl::graph::logical_tensor> outputs;
 
     inputs.push_back(tensor_descs_[SRC]);
-    if (spec_.is_fwd_pass) {
+    if (prb->dir & FLAG_FWD) {
         outputs.push_back(tensor_descs_[DST]);
 
-        if (spec_.keep_stats) {
+        if (prb->dir == FWD_D) {
             outputs.push_back(tensor_descs_[MEAN]);
             outputs.push_back(tensor_descs_[VAR]);
         }
@@ -134,27 +119,28 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_() {
 
         outputs.push_back(tensor_descs_[DIFF_SRC]);
 
-        if (spec_.use_affine) {
+        if (prb->use_ss()) {
             outputs.push_back(tensor_descs_[DIFF_GAMMA]);
             outputs.push_back(tensor_descs_[DIFF_BETA]);
         }
     }
 
-    if (spec_.use_affine) {
+    if (prb->use_ss()) {
         inputs.push_back(tensor_descs_[GAMMA]);
         inputs.push_back(tensor_descs_[BETA]);
     }
 
-    const std::string op_name
-            = spec_.is_fwd_pass ? "LayerNorm" : "LayerNormBackprop";
-    op lnorm_op(new_op_id, get_main_op_kind(), inputs, outputs, op_name);
+    op lnorm_op(new_op_id, get_main_op_kind(), inputs, outputs, "layernorm");
 
-    if (spec_.is_fwd_pass) {
-        lnorm_op.set_attr("keep_stats", spec_.keep_stats);
+    const int64_t begin_norm_axis {-1};
+    const float epsilon {1.f / 16};
+
+    if (prb->dir & FLAG_FWD) {
+        lnorm_op.set_attr("keep_stats", prb->dir == FWD_D);
     }
-    lnorm_op.set_attr("begin_norm_axis", spec_.begin_norm_axis);
-    lnorm_op.set_attr("use_affine", spec_.use_affine);
-    lnorm_op.set_attr("epsilon", spec_.epsilon);
+    lnorm_op.set_attr("begin_norm_axis", begin_norm_axis);
+    lnorm_op.set_attr("use_affine", prb->use_ss());
+    lnorm_op.set_attr("epsilon", epsilon);
 
     ops_.emplace_back(lnorm_op);
     curr_out_map_ids_.assign({TENSOR_ID});
@@ -177,7 +163,6 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    const auto spec = graph_prb.spec();
 
     const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)
@@ -193,6 +178,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
     static const engine_t cpu_engine(dnnl_cpu);
 
+    const bool keep_stats {prb->dir == FWD_D};
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto src_dt = make_dnn_mem(ins[0], (prb->tag).c_str());
     dnn_mem_t &dst_fp = src_fp; // in-place reference
@@ -203,24 +189,24 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     dnn_mem_t mean_fp, var_fp, mean_dt, var_dt;
-    if (spec.keep_stats || prb->dir & FLAG_BWD) {
-        mean_dt = make_dnn_mem(
-                spec.is_fwd_pass ? outs[1] : ins[2], (prb->stat_tag).c_str());
+    if (keep_stats || prb->dir & FLAG_BWD) {
+        mean_dt = make_dnn_mem(prb->dir & FLAG_FWD ? outs[1] : ins[2],
+                (prb->stat_tag).c_str());
         mean_fp = make_dnn_mem(
-                spec.is_fwd_pass ? outs[1] : ins[2], dt::f32, tag::abx);
-        var_dt = make_dnn_mem(
-                spec.is_fwd_pass ? outs[2] : ins[3], (prb->stat_tag).c_str());
+                prb->dir & FLAG_FWD ? outs[1] : ins[2], dt::f32, tag::abx);
+        var_dt = make_dnn_mem(prb->dir & FLAG_FWD ? outs[2] : ins[3],
+                (prb->stat_tag).c_str());
         var_fp = make_dnn_mem(
-                spec.is_fwd_pass ? outs[2] : ins[3], dt::f32, tag::abx);
+                prb->dir & FLAG_FWD ? outs[2] : ins[3], dt::f32, tag::abx);
     } else {
         /* prepare_fwd needs these memories for inference and training cases.
          * Below memories are used when keep_stats=false */
         dnnl::graph::logical_tensor mean_lt(1,
-                dnnl::graph::logical_tensor::data_type::f32, spec.stat_dims,
-                lt::strided);
+                dnnl::graph::logical_tensor::data_type::f32,
+                get_stat_dims(prb->dims), lt::strided);
         dnnl::graph::logical_tensor var_lt(2,
-                dnnl::graph::logical_tensor::data_type::f32, spec.stat_dims,
-                lt::strided);
+                dnnl::graph::logical_tensor::data_type::f32,
+                get_stat_dims(prb->dims), lt::strided);
         mean_dt = make_dnn_mem(mean_lt, (prb->stat_tag).c_str());
         mean_fp = make_dnn_mem(mean_lt, dt::f32, tag::abx);
         var_dt = make_dnn_mem(var_lt, (prb->stat_tag).c_str());
@@ -257,7 +243,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         }
 
         // oneDNN Graph supports either both scale and shift or neither of them
-        if (spec.use_affine) SAFE(ss_dt.reorder(ss_fp), WARN);
+        if (prb->use_ss()) SAFE(ss_dt.reorder(ss_fp), WARN);
 
         const dnnl::graph::engine &eng = get_test_engine();
 
@@ -266,7 +252,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         tensors_out.emplace_back(
                 dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
         std::vector<float> gamma_v(prb->c, 0.f), beta_v(prb->c, 0.f);
-        if (spec.use_affine) {
+        if (prb->use_ss()) {
             for (int64_t i = 0; i < prb->c; i++) {
                 gamma_v[i] = ss_dt.get_elem(i);
                 beta_v[i] = ss_dt.get_elem(prb->c + i);
@@ -277,7 +263,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
                     dnnl::graph::tensor(ins[2], eng, beta_v.data()));
         }
 
-        if (spec.keep_stats) {
+        if (keep_stats) {
             tensors_out.emplace_back(dnnl::graph::tensor(
                     outs[1], eng, static_cast<void *>(mean_dt)));
             tensors_out.emplace_back(dnnl::graph::tensor(
@@ -332,7 +318,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
-        if (spec.use_affine) SAFE(ss_dt.reorder(ss_fp), WARN);
+        if (prb->use_ss()) SAFE(ss_dt.reorder(ss_fp), WARN);
 
         const dnnl::graph::engine &eng = get_test_engine();
 
@@ -353,7 +339,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
         std::vector<float> gamma_v(prb->c, 0.f), beta_v(prb->c, 0.f),
                 d_gamma_v(prb->c, 0.f), d_beta_v(prb->c, 0.f);
-        if (spec.use_affine) {
+        if (prb->use_ss()) {
             for (int64_t i = 0; i < prb->c; i++) {
                 gamma_v[i] = ss_dt.get_elem(i);
                 beta_v[i] = ss_dt.get_elem(prb->c + i);
@@ -375,7 +361,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
         tensors_out.push_back(d_src_tensor);
 
-        if (spec.use_affine) {
+        if (prb->use_ss()) {
             tensors_in.push_back(gamma_tensor);
             tensors_in.push_back(beta_tensor);
 
@@ -385,7 +371,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
-        if (spec.use_affine) {
+        if (prb->use_ss()) {
             for (int64_t i = 0; i < prb->c; i++) {
                 d_ss_dt.set_elem(i, d_gamma_v[i]);
                 d_ss_dt.set_elem(prb->c + i, d_beta_v[i]);
@@ -405,7 +391,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_fp);
 
             std::vector<data_kind_t> kinds {SRC};
-            if (spec.use_affine && (prb->dir & FLAG_WEI)) {
+            if (prb->use_ss() && (prb->dir & FLAG_WEI)) {
                 args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
                 kinds.push_back(SS);
             }

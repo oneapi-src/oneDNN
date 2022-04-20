@@ -25,45 +25,30 @@ namespace benchdnnext {
 namespace prelu {
 
 struct prelu_graph_prb_t : public graph_prb_t {
-    prelu_graph_prb_t(const ::prelu::prb_t *prb) : spec_(prb) {
+    prelu_graph_prb_t(const ::prelu::prb_t *prb) {
+        using graph_op = dnnl::graph::op::kind;
+
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_();
+        op_kind = prb->dir & FLAG_FWD ? graph_op::PReLU
+                                      : graph_op::PReLUBackprop;
+
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::prelu::prb_t *prb) noexcept;
-        bool is_bwd_pass {false};
-        dnnl::graph::op::kind op_kind;
+    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
 
-        dims_t data_dims;
-        dims_t slope_dims;
-
-        dt data_dt;
-        dt slope_dt;
-        std::string raw_data_tag;
-        std::string raw_slope_tag;
-        std::string data_format {"NCX"};
-        bool broadcast_to_channel {false};
-    };
-
-    spec_t spec_;
-
-    fill_status_t handle_main_op_();
-
+    fill_status_t handle_main_op_(const ::prelu::prb_t *prb);
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return spec_.op_kind;
+        return op_kind;
     }
-
-public:
-    const spec_t &spec() const noexcept { return spec_; }
 };
 int doit(const ::prelu::prb_t *prb, res_t *res);
 

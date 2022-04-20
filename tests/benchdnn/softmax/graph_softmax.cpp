@@ -23,26 +23,6 @@
 namespace benchdnnext {
 namespace softmax {
 
-softmax_graph_prb_t::spec_t::spec_t(const ::softmax::prb_t *prb) noexcept {
-    using graph_op = dnnl::graph::op;
-    is_bwd_pass = prb->dir & FLAG_BWD;
-    axis = prb->axis;
-    dims = prb->dims;
-    softmax_dt = convert_dt(prb->sdt);
-    switch (prb->alg) {
-        case ::softmax::SOFTMAX:
-            op_kind = (is_bwd_pass) ? graph_op::kind::SoftMaxBackprop
-                                    : graph_op::kind::SoftMax;
-            break;
-        case ::softmax::LOGSOFTMAX:
-            op_kind = (is_bwd_pass) ? graph_op::kind::LogSoftmaxBackprop
-                                    : graph_op::kind::LogSoftmax;
-            break;
-        default: op_kind = graph_op::kind::LastSymbol;
-    }
-    tag = prb->stag;
-}
-
 void check_known_skipped_case_graph(
         const ::softmax::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
@@ -55,44 +35,44 @@ void check_known_skipped_case_graph(
     if (res->state == SKIPPED) return;
 }
 
-fill_status_t softmax_graph_prb_t::handle_main_op_() {
+fill_status_t softmax_graph_prb_t::handle_main_op_(
+        const ::softmax::prb_t *prb) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using op = dnnl::graph::op;
 
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
-
     const std::string DST {TENSOR_ID + "_DST"};
-    tensor_descs_.emplace(DST, spec_.softmax_dt, spec_.dims, spec_.tag);
+
+    const auto softmax_dt = convert_dt(prb->sdt);
+
+    tensor_descs_.emplace(DST, softmax_dt, prb->dims, prb->stag);
 
     std::string name;
     std::vector<logical_tensor> inputs;
     std::vector<logical_tensor> outputs;
-    if (spec_.is_bwd_pass) {
-        name = spec_.op_kind == op::kind::SoftMaxBackprop
-                ? "SoftMaxBackprop"
-                : "LogSoftmaxBackprop";
+    if (prb->dir & FLAG_FWD) {
+        name = op_kind == op::kind::SoftMax ? "SoftMax" : "LogSoftmax";
+        const std::string SRC {TENSOR_ID + "_SRC"};
+
+        tensor_descs_.emplace(SRC, softmax_dt, prb->dims, prb->stag);
+        inputs = {tensor_descs_[SRC]};
+        outputs = {tensor_descs_[DST]};
+    } else {
+        name = op_kind == op::kind::SoftMaxBackprop ? "SoftMaxBackprop"
+                                                    : "LogSoftmaxBackprop";
         const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
         const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
 
-        tensor_descs_.emplace(
-                DIFF_SRC, spec_.softmax_dt, spec_.dims, spec_.tag);
-        tensor_descs_.emplace(
-                DIFF_DST, spec_.softmax_dt, spec_.dims, spec_.tag);
+        tensor_descs_.emplace(DIFF_SRC, softmax_dt, prb->dims, prb->stag);
+        tensor_descs_.emplace(DIFF_DST, softmax_dt, prb->dims, prb->stag);
         inputs = {tensor_descs_[DIFF_DST], tensor_descs_[DST]};
         outputs = {tensor_descs_[DIFF_SRC]};
-    } else {
-        name = spec_.op_kind == op::kind::SoftMax ? "SoftMax" : "LogSoftmax";
-        const std::string SRC {TENSOR_ID + "_SRC"};
-
-        tensor_descs_.emplace(SRC, spec_.softmax_dt, spec_.dims, spec_.tag);
-        inputs = {tensor_descs_[SRC]};
-        outputs = {tensor_descs_[DST]};
     }
 
-    op softmax_op(new_op_id, spec_.op_kind, inputs, outputs, name);
-    softmax_op.set_attr<int64_t>("axis", spec_.axis);
+    op softmax_op(new_op_id, op_kind, inputs, outputs, name);
+    softmax_op.set_attr<int64_t>("axis", prb->axis);
 
     ops_.emplace_back(softmax_op);
     curr_out_map_ids_.assign({TENSOR_ID});

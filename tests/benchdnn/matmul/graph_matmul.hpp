@@ -24,22 +24,25 @@ namespace benchdnnext {
 namespace matmul {
 
 struct matmul_graph_prb_t : public graph_prb_t {
-    matmul_graph_prb_t(const ::matmul::prb_t *prb) : spec_(prb) {
+    matmul_graph_prb_t(const ::matmul::prb_t *prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        if (spec_.bia_dt != dt::undef) {
+        if (convert_dt(prb->bia_dt) != dt::undef) {
             // bias will become 3rd input (optionall) for MatMul
             // this case is handled in handle_main_op_()
             has_post_bia_ = true;
         }
 
-        ctor_status = handle_main_op_();
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
-        if (benchdnnext::is_low_precision(get_dtypes()))
+        std::vector<dt> dtypes {convert_dt(prb->cfg[SRC].dt),
+                convert_dt(prb->cfg[WEI].dt), convert_dt(prb->cfg[DST].dt)};
+
+        if (benchdnnext::is_low_precision(dtypes))
             // needs to be set before call of post-op handlers
             with_quantization_ = true;
 
@@ -60,7 +63,7 @@ struct matmul_graph_prb_t : public graph_prb_t {
         }
 
         // x8x8bf16 cases
-        if (with_typecast(get_dtypes())) {
+        if (with_typecast(dtypes)) {
             ctor_status = handle_typecast_(prb);
             if (stop_work(ctor_status)) return;
         }
@@ -74,34 +77,7 @@ struct matmul_graph_prb_t : public graph_prb_t {
 
     const std::vector<float> &get_oscales() const noexcept { return oscales_; }
 
-    std::vector<dt> get_dtypes() const {
-        return {spec_.src_dt, spec_.wei_dt, spec_.dst_dt};
-    }
-
 private:
-    struct spec_t {
-        spec_t(const ::matmul::prb_t *prb) noexcept;
-
-        bool transpose_a {false};
-        bool transpose_b {false};
-        std::string data_format {"NCX"};
-
-        dims_t src_dims;
-        dims_t wei_dims;
-        dims_t dst_dims;
-        dims_t bia_dims;
-
-        dt src_dt;
-        dt wei_dt;
-        dt dst_dt;
-        dt bia_dt;
-
-        std::string raw_src_tag;
-        std::string raw_wei_tag;
-        std::string raw_dst_tag;
-    };
-
-    spec_t spec_;
     std::vector<float> oscales_;
     std::vector<int64_t> src_zero_points;
     std::vector<int64_t> wei_zero_points;
@@ -109,10 +85,10 @@ private:
 
     po_handlers_t po_handler;
 
-    fill_status_t handle_main_op_();
+    fill_status_t handle_main_op_(const ::matmul::prb_t *prb);
     fill_status_t handle_sum_();
-    fill_status_t handle_typecast_(const ::matmul::prb_t *prb_);
-    fill_status_t handle_low_precision_(const ::matmul::prb_t *prb_);
+    fill_status_t handle_typecast_(const ::matmul::prb_t *prb);
+    fill_status_t handle_low_precision_(const ::matmul::prb_t *prb);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 

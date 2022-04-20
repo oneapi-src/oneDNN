@@ -20,23 +20,6 @@
 namespace benchdnnext {
 namespace prelu {
 
-prelu_graph_prb_t::spec_t::spec_t(const ::prelu::prb_t *prb) noexcept {
-    using graph_op = dnnl::graph::op;
-
-    is_bwd_pass = prb->dir & FLAG_BWD;
-    op_kind = is_bwd_pass ? graph_op::kind::PReLUBackprop
-                          : graph_op::kind::PReLU;
-
-    data_dims = prb->vdims[0];
-    slope_dims = prb->vdims[1];
-
-    raw_data_tag = prb->stag[0];
-    raw_slope_tag = prb->stag[1];
-
-    data_dt = convert_dt(prb->sdt[0]);
-    slope_dt = convert_dt(prb->sdt[1]);
-}
-
 void check_known_skipped_case_graph(
         const ::prelu::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
@@ -44,7 +27,7 @@ void check_known_skipped_case_graph(
     skip_invalid_and_unimplemented_prb(prb, res);
 }
 
-fill_status_t prelu_graph_prb_t::handle_main_op_() {
+fill_status_t prelu_graph_prb_t::handle_main_op_(const ::prelu::prb_t *prb) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using op = dnnl::graph::op;
 
@@ -54,44 +37,47 @@ fill_status_t prelu_graph_prb_t::handle_main_op_() {
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string SLOPE {TENSOR_ID + "_SLOPE"};
 
-    tensor_descs_.emplace(
-            SRC, spec_.data_dt, spec_.data_dims, spec_.raw_data_tag);
-    tensor_descs_.emplace(
-            SLOPE, spec_.slope_dt, spec_.slope_dims, spec_.raw_slope_tag);
+    const auto data_dt = convert_dt(prb->sdt[0]);
+    const auto slope_dt = convert_dt(prb->sdt[1]);
+    const auto data_dims = prb->vdims[0];
+    const auto slope_dims = prb->vdims[1];
+    const auto data_tag = prb->stag[0];
+    const auto slope_tag = prb->stag[1];
+
+    tensor_descs_.emplace(SRC, data_dt, data_dims, data_tag);
+    tensor_descs_.emplace(SLOPE, slope_dt, slope_dims, slope_tag);
 
     std::string name;
     std::vector<logical_tensor> inputs;
     std::vector<logical_tensor> outputs;
-    if (spec_.is_bwd_pass) {
+    if (prb->dir & FLAG_FWD) {
+        name = "prelu";
+        const std::string DST {TENSOR_ID + "_DST"};
+
+        tensor_descs_.emplace(DST, data_dt, data_dims, data_tag);
+        inputs = {tensor_descs_[SRC], tensor_descs_[SLOPE]};
+        outputs = {tensor_descs_[DST]};
+    } else { // bwd
         name = "prelu_bwd";
         const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
         const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
         const std::string DIFF_SLOPE {TENSOR_ID + "_DIFF_SLOPE"};
 
-        tensor_descs_.emplace(
-                DIFF_DST, spec_.data_dt, spec_.data_dims, spec_.raw_data_tag);
-        tensor_descs_.emplace(
-                DIFF_SRC, spec_.data_dt, spec_.data_dims, spec_.raw_data_tag);
-        tensor_descs_.emplace(DIFF_SLOPE, spec_.slope_dt, spec_.slope_dims,
-                spec_.raw_slope_tag);
+        tensor_descs_.emplace(DIFF_DST, data_dt, data_dims, data_tag);
+        tensor_descs_.emplace(DIFF_SRC, data_dt, data_dims, data_tag);
+        tensor_descs_.emplace(DIFF_SLOPE, slope_dt, slope_dims, slope_tag);
         inputs = {tensor_descs_[SRC], tensor_descs_[SLOPE],
                 tensor_descs_[DIFF_DST]};
         outputs = {tensor_descs_[DIFF_SRC], tensor_descs_[DIFF_SLOPE]};
-    } else { // fwd
-        name = "prelu";
-        const std::string DST {TENSOR_ID + "_DST"};
-
-        tensor_descs_.emplace(
-                DST, spec_.data_dt, spec_.data_dims, spec_.raw_data_tag);
-        inputs = {tensor_descs_[SRC], tensor_descs_[SLOPE]};
-        outputs = {tensor_descs_[DST]};
     }
 
-    op prelu_op(new_op_id, spec_.op_kind, inputs, outputs, name);
-    prelu_op.set_attr<std::string>("data_format", spec_.data_format);
-    if (!spec_.is_bwd_pass)
-        prelu_op.set_attr<bool>(
-                "per_channel_broadcast", spec_.broadcast_to_channel);
+    const std::string data_format {"NCX"};
+    const bool per_channel_broadcast {false};
+
+    op prelu_op(new_op_id, op_kind, inputs, outputs, name);
+    prelu_op.set_attr<std::string>("data_format", data_format);
+    if (prb->dir & FLAG_FWD)
+        prelu_op.set_attr<bool>("per_channel_broadcast", per_channel_broadcast);
 
     ops_.emplace_back(prelu_op);
     curr_out_map_ids_.assign({TENSOR_ID});
@@ -114,7 +100,6 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
     }
 
     auto graph_h = graph_prb.to_graph();
-    const auto spec = graph_prb.spec();
 
     const auto partitions = graph_h.get_partitions();
     if (partitions.empty() || partitions.size() > 1)

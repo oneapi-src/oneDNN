@@ -25,36 +25,6 @@
 namespace benchdnnext {
 namespace binary {
 
-binary_graph_prb_t::spec_t::spec_t(const ::binary::prb_t *prb) {
-    src0_dims = prb->vdims[0];
-    src1_dims = prb->vdims[1];
-
-    const auto ndims = (int)prb->vdims[0].size();
-    dst_dims.reserve(ndims);
-    for (auto d = 0; d < ndims; ++d)
-        dst_dims.push_back(std::max(src0_dims[d], src1_dims[d]));
-
-    raw_src0_tag = prb->stag[0];
-    raw_src1_tag = prb->stag[1];
-    raw_dst_tag = prb->dtag;
-
-    src0_dt = convert_dt(prb->sdt[0]);
-    src1_dt = convert_dt(prb->sdt[1]);
-    dst_dt = convert_dt(prb->ddt);
-
-    op_kind = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
-
-    // Note:
-    // for binary + sum post op, 'auto_broadcast' should be kept for hitting
-    // binary patterns in graph library to make sure extension has the same
-    // behavior as benchdnn
-    bool has_post_sum = false;
-    for (const auto &po : prb->attr.post_ops.entry) {
-        if (po.is_sum_kind()) { has_post_sum = true; }
-    }
-    if (src0_dims == src1_dims && !has_post_sum) auto_broadcast = "none";
-}
-
 void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
     const auto src0_dims = prb->vdims[0];
     const auto src1_dims = prb->vdims[1];
@@ -92,7 +62,7 @@ void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return;
 }
 
-fill_status_t binary_graph_prb_t::handle_main_op_() {
+fill_status_t binary_graph_prb_t::handle_main_op_(const ::binary::prb_t *prb) {
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
@@ -101,16 +71,24 @@ fill_status_t binary_graph_prb_t::handle_main_op_() {
     const std::string DST {TENSOR_ID + "_DST"};
 
     tensor_descs_.emplace(
-            SRC0, spec_.src0_dt, spec_.src0_dims, spec_.raw_src0_tag);
+            SRC0, convert_dt(prb->sdt[0]), prb->vdims[0], prb->stag[0]);
     tensor_descs_.emplace(
-            SRC1, spec_.src1_dt, spec_.src1_dims, spec_.raw_src1_tag);
-    tensor_descs_.emplace(DST, spec_.dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
+            SRC1, convert_dt(prb->sdt[1]), prb->vdims[1], prb->stag[1]);
+    tensor_descs_.emplace(DST, convert_dt(prb->ddt), prb->dst_dims, prb->dtag);
 
-    dnnl::graph::op binary(new_op_id, spec_.op_kind,
+    dnnl::graph::op binary(new_op_id, op_kind,
             {tensor_descs_[SRC0], tensor_descs_[SRC1]}, {tensor_descs_[DST]},
             "binary");
 
-    binary.set_attr("auto_broadcast", spec_.auto_broadcast);
+    std::string auto_broadcast {"numpy"};
+    bool has_post_sum = false;
+    for (const auto &po : prb->attr.post_ops.entry) {
+        if (po.is_sum_kind()) { has_post_sum = true; }
+    }
+    if (prb->vdims[0] == prb->vdims[1] && !has_post_sum)
+        auto_broadcast = "none";
+
+    binary.set_attr("auto_broadcast", auto_broadcast);
 
     ops_.emplace_back(binary);
     curr_out_map_ids_.assign({TENSOR_ID});

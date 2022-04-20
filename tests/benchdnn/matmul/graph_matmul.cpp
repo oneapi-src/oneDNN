@@ -28,28 +28,6 @@
 namespace benchdnnext {
 namespace matmul {
 
-matmul_graph_prb_t::spec_t::spec_t(const ::matmul::prb_t *prb) noexcept {
-    src_dims = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
-    wei_dims = get_runtime_dims(
-            prb->weights_dims(), prb->weights_runtime_dim_mask());
-    dst_dims = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
-    if (dt::undef != convert_dt(prb->bia_dt)) {
-        bia_dims.resize(dst_dims.size());
-        for (int i = 0; i < prb->ndims; ++i)
-            bia_dims[i] = (prb->bia_mask & (1 << i)) ? dst_dims[i] : 1;
-        bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
-    }
-
-    src_dt = convert_dt(prb->cfg[SRC].dt);
-    wei_dt = convert_dt(prb->cfg[WEI].dt);
-    dst_dt = convert_dt(prb->cfg[DST].dt);
-    bia_dt = convert_dt(prb->bia_dt);
-
-    raw_src_tag = prb->stag;
-    raw_wei_tag = prb->wtag;
-    raw_dst_tag = prb->dtag;
-}
-
 void check_known_skipped_case_graph(
         const ::matmul::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
@@ -61,10 +39,9 @@ void check_known_skipped_case_graph(
     if (res->state == SKIPPED) return;
 }
 
-fill_status_t matmul_graph_prb_t::handle_main_op_() {
+fill_status_t matmul_graph_prb_t::handle_main_op_(const ::matmul::prb_t *prb) {
     using op = dnnl::graph::op;
 
-    const bool with_bias = has_post_bia();
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
@@ -72,38 +49,54 @@ fill_status_t matmul_graph_prb_t::handle_main_op_() {
     // this is needed to align with po_handlers convention
     // some patterns like `matmul + bias + swish` may want to
     // reuse bias output via `tensor_id["bias"].back() + "_DST"`
-    if (with_bias) tensor_id["bias"].push_back(TENSOR_ID);
+    if (has_post_bia_) tensor_id["bias"].push_back(TENSOR_ID);
+
+    const auto orig_src_dt = convert_dt(prb->cfg[SRC].dt);
+    const auto orig_wei_dt = convert_dt(prb->cfg[WEI].dt);
+    const auto orig_dst_dt = convert_dt(prb->cfg[DST].dt);
 
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string WEI {TENSOR_ID + "_WEI"};
     const std::string BIA {TENSOR_ID + "_BIA"};
     const std::string DST {TENSOR_ID + "_DST"};
 
-    const auto is_lprec = is_low_precision(get_dtypes());
-    const auto with_tc = with_typecast(get_dtypes());
+    const auto is_lprec
+            = is_low_precision({orig_src_dt, orig_wei_dt, orig_dst_dt});
+    const auto with_tc = with_typecast({orig_src_dt, orig_wei_dt, orig_dst_dt});
     const auto change_dt = is_lprec || with_tc;
     const auto default_dt = (with_tc) ? dt::bf16 : dt::f32;
-    dt src_dt = (change_dt) ? default_dt : spec_.src_dt;
-    dt wei_dt = (change_dt) ? default_dt : spec_.wei_dt;
-    dt dst_dt = (change_dt) ? default_dt : spec_.dst_dt;
-    tensor_descs_.emplace(SRC, src_dt, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(WEI, wei_dt, spec_.wei_dims, spec_.raw_wei_tag,
+    const auto src_dt = (change_dt) ? default_dt : orig_src_dt;
+    const auto wei_dt = (change_dt) ? default_dt : orig_wei_dt;
+    const auto dst_dt = (change_dt) ? default_dt : orig_dst_dt;
+
+    const auto src_dims
+            = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
+    const auto wei_dims = get_runtime_dims(
+            prb->weights_dims(), prb->weights_runtime_dim_mask());
+    const auto dst_dims
+            = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
+
+    tensor_descs_.emplace(SRC, src_dt, src_dims, prb->stag);
+    tensor_descs_.emplace(WEI, wei_dt, wei_dims, prb->wtag,
             tensor_descs_t::property_type::constant);
-    tensor_descs_.emplace(DST, dst_dt, spec_.dst_dims, spec_.raw_dst_tag);
-    if (with_bias) {
-        tensor_descs_.emplace(BIA, spec_.bia_dt, spec_.bia_dims, lt::strided,
-                tensor_descs_t::property_type::constant);
+    tensor_descs_.emplace(DST, dst_dt, dst_dims, prb->dtag);
+    if (has_post_bia_) {
+        std::vector<int64_t> bia_dims(dst_dims.size());
+        for (int i = 0; i < prb->ndims; ++i)
+            bia_dims[i] = (prb->bia_mask & (1 << i)) ? dst_dims[i] : 1;
+        bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
+        tensor_descs_.emplace(BIA, convert_dt(prb->bia_dt), bia_dims,
+                lt::strided, tensor_descs_t::property_type::constant);
     }
 
     std::vector<dnnl::graph::logical_tensor> lt_inputs {
             tensor_descs_[SRC], tensor_descs_[WEI]};
     std::vector<dnnl::graph::logical_tensor> lt_outputs {tensor_descs_[DST]};
-    if (with_bias) lt_inputs.push_back(tensor_descs_[BIA]);
+    if (has_post_bia_) lt_inputs.push_back(tensor_descs_[BIA]);
 
     op matmul(new_op_id, op::kind::MatMul, lt_inputs, lt_outputs, "matmul");
 
-    matmul.set_attr("transpose_a", spec_.transpose_a)
-            .set_attr("transpose_b", spec_.transpose_b);
+    matmul.set_attr("transpose_a", false).set_attr("transpose_b", false);
 
     ops_.emplace_back(matmul);
     curr_out_map_ids_.assign({TENSOR_ID});
@@ -125,8 +118,7 @@ fill_status_t matmul_graph_prb_t::handle_sum_() {
     return po_handler.matmul.sum_handler(*this);
 }
 
-fill_status_t matmul_graph_prb_t::handle_typecast_(
-        const ::matmul::prb_t *prb_) {
+fill_status_t matmul_graph_prb_t::handle_typecast_(const ::matmul::prb_t *prb) {
     using op = dnnl::graph::op;
 
     const std::string SRC = tensor_id["main"].back() + "_SRC";
@@ -138,8 +130,13 @@ fill_status_t matmul_graph_prb_t::handle_typecast_(
     const std::string TCSRC {TENSOR_ID + "_SRC"};
     const std::string TCWEI {TENSOR_ID + "_WEI"};
 
-    tensor_descs_.emplace(TCSRC, dt::f32, spec_.src_dims, spec_.raw_src_tag);
-    tensor_descs_.emplace(TCWEI, dt::f32, spec_.wei_dims, spec_.raw_wei_tag);
+    tensor_descs_.emplace(TCSRC, dt::f32,
+            get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask()),
+            prb->stag);
+    tensor_descs_.emplace(TCWEI, dt::f32,
+            get_runtime_dims(
+                    prb->weights_dims(), prb->weights_runtime_dim_mask()),
+            prb->wtag);
 
     op typecast_src(ops_.size(), op::kind::TypeCast, {tensor_descs_[TCSRC]},
             {tensor_descs_[SRC]}, "typecast_src");
@@ -152,9 +149,12 @@ fill_status_t matmul_graph_prb_t::handle_typecast_(
 }
 
 fill_status_t matmul_graph_prb_t::handle_low_precision_(
-        const ::matmul::prb_t *prb_) {
-    const bool with_tc = with_typecast(get_dtypes());
-    const bool def_oscales = prb_->attr.oscale.is_def();
+        const ::matmul::prb_t *prb) {
+    const auto src_dt = convert_dt(prb->cfg[SRC].dt);
+    const auto wei_dt = convert_dt(prb->cfg[WEI].dt);
+    const auto dst_dt = convert_dt(prb->cfg[DST].dt);
+    const bool with_tc = with_typecast({src_dt, wei_dt, dst_dt});
+    const bool def_oscales = prb->attr.oscale.is_def();
 
     // currently, only policy_t::COMMON is supported for asymmetric quant
     // for src and dst, other policy is not suppoted by oneDNN Graph.
@@ -163,17 +163,17 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
     const int64_t dflt_zp_val = 0;
     src_zero_points.resize(common_zp_count, dflt_zp_val);
     // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb_->attr.zero_points.is_def(DNNL_ARG_SRC)) {
-        const auto &src_zp_e = prb_->attr.zero_points.get(DNNL_ARG_SRC);
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_SRC)) {
+        const auto &src_zp_e = prb->attr.zero_points.get(DNNL_ARG_SRC);
         if (src_zp_e.policy != policy_t::COMMON)
             return fill_status::UNSUPPORTED_CONFIG;
-        src_zero_points[0] = prb_->src_zp[0];
+        src_zero_points[0] = prb->src_zp[0];
     }
     // zps for wei
     wei_zero_points.resize(common_zp_count, dflt_zp_val);
     // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb_->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
-        const auto &wei_zp_e = prb_->attr.zero_points.get(DNNL_ARG_WEIGHTS);
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
+        const auto &wei_zp_e = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS);
         if (wei_zp_e.policy != policy_t::COMMON)
             return fill_status::UNSUPPORTED_CONFIG;
         wei_zero_points[0] = wei_zp_e.value;
@@ -181,17 +181,17 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
     // zps for dst
     dst_zero_points.resize(common_zp_count, dflt_zp_val);
     // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb_->attr.zero_points.is_def(DNNL_ARG_DST)) {
-        const auto &dst_zp_e = prb_->attr.zero_points.get(DNNL_ARG_DST);
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)) {
+        const auto &dst_zp_e = prb->attr.zero_points.get(DNNL_ARG_DST);
         if (dst_zp_e.policy != policy_t::COMMON)
             return fill_status::UNSUPPORTED_CONFIG;
-        dst_zero_points[0] = prb_->dst_zp[0];
+        dst_zero_points[0] = prb->dst_zp[0];
     }
 
-    const float common_scale = [&prb_, this]() {
+    const float common_scale = [&prb, this]() {
         if (has_post_eltwise()) {
             const float post_eltwise_scale
-                    = get_post_eltwise_scale(prb_->attr.post_ops.entry);
+                    = get_post_eltwise_scale(prb->attr.post_ops.entry);
             // benchdnn ext. need to convert post relu scale to quant scale to
             // get same result as benchdnn primitive did
             return 1.f * (1 / post_eltwise_scale);
@@ -200,11 +200,10 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
         }
     }();
 
-    low_precision_attr lp_attr = low_precision_attr::lp_attr(spec_.src_dt,
-            spec_.wei_dt, spec_.dst_dt, spec_.raw_src_tag, spec_.raw_wei_tag,
-            spec_.raw_dst_tag, prb_->attr.oscale.policy, &oscales_,
-            common_scale, &src_zero_points, &wei_zero_points, &dst_zero_points,
-            prb_->scales, prb_->n, def_oscales, with_tc);
+    low_precision_attr lp_attr = low_precision_attr::lp_attr(src_dt, wei_dt,
+            dst_dt, prb->stag, prb->wtag, prb->dtag, prb->attr.oscale.policy,
+            &oscales_, common_scale, &src_zero_points, &wei_zero_points,
+            &dst_zero_points, prb->scales, prb->n, def_oscales, with_tc);
 
     fill_status_t ctor_status;
     ctor_status
@@ -219,7 +218,7 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
 
     // `with_qdst == false` means that we are dealing
     // with Quantized lacking pattern, like x8s8f32 or x8s8bf16
-    const bool with_qdst = dt::u8 == spec_.dst_dt || dt::s8 == spec_.dst_dt;
+    const bool with_qdst = dt::u8 == dst_dt || dt::s8 == dst_dt;
     if (with_qdst) {
         ctor_status = po_handler.matmul.low_precision_handler
                               .handle_low_precision_dst(*this, lp_attr);
@@ -228,8 +227,8 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
 
     if (has_post_sum()) {
         ctor_status = po_handler.matmul.low_precision_handler
-                              .handle_low_precision_post_sum(*this, lp_attr,
-                                      prb_->attr.post_ops.entry);
+                              .handle_low_precision_post_sum(
+                                      *this, lp_attr, prb->attr.post_ops.entry);
     }
 
     return ctor_status;
@@ -365,7 +364,10 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         }
         ref_args.set(binary_po_args, binary_po_fp);
 
-        if (apply_bias && is_low_precision(graph_prb.get_dtypes())) {
+        if (apply_bias
+                && is_low_precision({convert_dt(prb->cfg[SRC].dt),
+                        convert_dt(prb->cfg[WEI].dt),
+                        convert_dt(prb->cfg[DST].dt)})) {
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::abx);
             scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);

@@ -24,16 +24,23 @@ namespace benchdnnext {
 namespace eltwise {
 
 struct eltwise_graph_prb_t : public graph_prb_t {
-    eltwise_graph_prb_t(const ::eltwise::prb_t *prb) : spec_(prb) {
+    eltwise_graph_prb_t(const ::eltwise::prb_t *prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_();
+        const auto dnnl_kind = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
+        op_kind = convert_alg_kind(dnnl_kind, prb->dir & FLAG_FWD);
+        if (dnnl_kind == dnnl_eltwise_soft_relu)
+            softplus_beta = 1;
+        else if (dnnl_kind == dnnl_eltwise_logsigmoid)
+            softplus_beta = -1;
+
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
-        if (benchdnnext::is_low_precision({spec_.eltwise_dt}))
+        if (benchdnnext::is_low_precision({convert_dt(prb->dt)}))
             // needs to be set before call of post-op handlers
             with_quantization_ = true;
 
@@ -58,29 +65,17 @@ struct eltwise_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::eltwise::prb_t *prb) noexcept;
+    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
+    int64_t softplus_beta {0};
 
-        float alpha, beta;
-        dims_t dims;
-        dt eltwise_dt;
-        dnnl::graph::op::kind op_kind;
-        std::string raw_data_format;
-        std::string data_format {"NCX"};
-        int64_t softplus_beta {0};
-        bool is_fwd_pass {true};
-        bool use_dst {true};
-    };
-
-    spec_t spec_;
     po_handlers_t po_handler;
 
-    fill_status_t handle_main_op_();
-    fill_status_t handle_low_precision_(const ::eltwise::prb_t *prb_);
+    fill_status_t handle_main_op_(const ::eltwise::prb_t *prb);
+    fill_status_t handle_low_precision_(const ::eltwise::prb_t *prb);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return spec_.op_kind;
+        return op_kind;
     }
 };
 

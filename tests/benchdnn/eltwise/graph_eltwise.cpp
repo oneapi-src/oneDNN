@@ -22,25 +22,6 @@
 namespace benchdnnext {
 namespace eltwise {
 
-eltwise_graph_prb_t::spec_t::spec_t(const ::eltwise::prb_t *prb) noexcept {
-    dims = prb->dims;
-    eltwise_dt = convert_dt(prb->dt);
-    raw_data_format = prb->tag;
-    is_fwd_pass = prb->dir & FLAG_FWD;
-    use_dst = prb->use_dst();
-
-    auto dnnl_kind = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
-    op_kind = convert_alg_kind(dnnl_kind, is_fwd_pass);
-
-    alpha = prb->alpha;
-    beta = prb->beta;
-
-    if (dnnl_kind == dnnl_eltwise_soft_relu)
-        softplus_beta = 1;
-    else if (dnnl_kind == dnnl_eltwise_logsigmoid)
-        softplus_beta = -1;
-}
-
 void check_known_skipped_case_graph(
         const ::eltwise::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
@@ -52,74 +33,66 @@ void check_known_skipped_case_graph(
     if (res->state == SKIPPED) return;
 }
 
-fill_status_t eltwise_graph_prb_t::handle_main_op_() {
+fill_status_t eltwise_graph_prb_t::handle_main_op_(
+        const ::eltwise::prb_t *prb) {
     using op = dnnl::graph::op;
 
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
 
-    dt data_type;
-    if (benchdnnext::is_low_precision({spec_.eltwise_dt})) {
-        data_type = dt::f32;
-    } else {
-        data_type = spec_.eltwise_dt;
-    }
+    auto common_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->dt));
 
     std::vector<dnnl::graph::logical_tensor> ltensors_in;
     std::vector<dnnl::graph::logical_tensor> ltensors_out;
 
     const std::string SRC {TENSOR_ID + "_SRC"};
-    tensor_descs_.emplace(SRC, data_type, spec_.dims, spec_.raw_data_format);
+    tensor_descs_.emplace(SRC, common_dt, prb->dims, prb->tag);
     ltensors_in.push_back({tensor_descs_[SRC]});
 
-    if (spec_.is_fwd_pass) {
+    if (prb->dir & FLAG_FWD) {
         const std::string DST {TENSOR_ID + "_DST"};
-        tensor_descs_.emplace(
-                DST, data_type, spec_.dims, spec_.raw_data_format);
+        tensor_descs_.emplace(DST, common_dt, prb->dims, prb->tag);
         ltensors_out.push_back({tensor_descs_[DST]});
     } else {
         const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
         const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
-        tensor_descs_.emplace(
-                DIFF_SRC, data_type, spec_.dims, spec_.raw_data_format);
-        tensor_descs_.emplace(
-                DIFF_DST, data_type, spec_.dims, spec_.raw_data_format);
+        tensor_descs_.emplace(DIFF_SRC, common_dt, prb->dims, prb->tag);
+        tensor_descs_.emplace(DIFF_DST, common_dt, prb->dims, prb->tag);
         ltensors_in.push_back({tensor_descs_[DIFF_DST]});
         ltensors_out.push_back({tensor_descs_[DIFF_SRC]});
     }
 
-    op eltwise_op(
-            new_op_id, spec_.op_kind, ltensors_in, ltensors_out, "eltwise");
+    op eltwise_op(new_op_id, op_kind, ltensors_in, ltensors_out, "eltwise");
 
     //Set alpha, beta, min and max for relevant ops
-    switch (spec_.op_kind) {
+    switch (op_kind) {
         case dnnl::graph::op::kind::Elu:
-            eltwise_op.set_attr("alpha", spec_.alpha);
+            eltwise_op.set_attr("alpha", prb->alpha);
             break;
         case dnnl::graph::op::kind::EluBackprop:
-            eltwise_op.set_attr("alpha", spec_.alpha);
-            eltwise_op.set_attr("use_dst", spec_.use_dst);
+            eltwise_op.set_attr("alpha", prb->alpha);
+            eltwise_op.set_attr("use_dst", prb->use_dst());
             break;
         case dnnl::graph::op::kind::ReLUBackprop:
         case dnnl::graph::op::kind::SigmoidBackprop:
         case dnnl::graph::op::kind::SqrtBackprop:
         case dnnl::graph::op::kind::TanhBackprop:
-            eltwise_op.set_attr("use_dst", spec_.use_dst);
+            eltwise_op.set_attr("use_dst", prb->use_dst());
             break;
         case dnnl::graph::op::kind::HardTanh:
-            eltwise_op.set_attr("min", spec_.alpha);
-            eltwise_op.set_attr("max", spec_.beta);
+            eltwise_op.set_attr("min", prb->alpha);
+            eltwise_op.set_attr("max", prb->beta);
             break;
         case dnnl::graph::op::kind::HardTanhBackprop:
-            eltwise_op.set_attr("min", spec_.alpha);
-            eltwise_op.set_attr("max", spec_.beta);
+            eltwise_op.set_attr("min", prb->alpha);
+            eltwise_op.set_attr("max", prb->beta);
             // Since backend uses clp_v2 for HardTanhBackprop
-            eltwise_op.set_attr("use_dst", spec_.use_dst);
+            eltwise_op.set_attr("use_dst", prb->use_dst());
             break;
         case dnnl::graph::op::kind::SoftPlus:
         case dnnl::graph::op::kind::SoftPlusBackprop:
-            eltwise_op.set_attr("beta", spec_.softplus_beta);
+            eltwise_op.set_attr("beta", softplus_beta);
             break;
         default: break;
     }
@@ -136,9 +109,9 @@ fill_status_t eltwise_graph_prb_t::handle_bin_(
 }
 
 fill_status_t eltwise_graph_prb_t::handle_low_precision_(
-        const ::eltwise::prb_t *prb_) {
+        const ::eltwise::prb_t *prb) {
     low_precision_attr lp_attr = low_precision_attr::lp_attr(
-            spec_.eltwise_dt, spec_.eltwise_dt, spec_.raw_data_format);
+            convert_dt(prb->dt), convert_dt(prb->dt), prb->tag);
 
     fill_status_t ctor_status;
     ctor_status
@@ -153,8 +126,8 @@ fill_status_t eltwise_graph_prb_t::handle_low_precision_(
 
     if (has_post_bin()) {
         ctor_status = po_handler.pool.low_precision_handler
-                              .handle_low_precision_post_bin(*this, lp_attr,
-                                      prb_->attr.post_ops.entry);
+                              .handle_low_precision_post_bin(
+                                      *this, lp_attr, prb->attr.post_ops.entry);
     }
 
     return ctor_status;

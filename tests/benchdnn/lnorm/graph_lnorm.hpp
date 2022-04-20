@@ -24,45 +24,30 @@ namespace benchdnnext {
 namespace lnorm {
 
 struct lnorm_graph_prb_t : public graph_prb_t {
-    lnorm_graph_prb_t(const ::lnorm::prb_t *prb) : spec_(prb) {
+    lnorm_graph_prb_t(const ::lnorm::prb_t *prb) {
+        using graph_op = dnnl::graph::op::kind;
+
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_();
+        op_kind = prb->dir & FLAG_FWD ? graph_op::LayerNorm
+                                      : graph_op::LayerNormBackprop;
+
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::lnorm::prb_t *prb) noexcept;
-        bool is_fwd_pass {true};
-        dnnl::graph::op::kind op_kind;
+    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
 
-        bool keep_stats {true};
-        int64_t begin_norm_axis {-1};
-        bool use_affine {true};
-        float epsilon {0.00001f};
-
-        dims_t dims;
-        dims_t stat_dims;
-        dims_t ss_dims;
-        dt lnorm_dt;
-    };
-
-    spec_t spec_;
-
-    fill_status_t handle_main_op_();
-
+    fill_status_t handle_main_op_(const ::lnorm::prb_t *prb);
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return spec_.op_kind;
+        return op_kind;
     }
-
-public:
-    const spec_t &spec() const noexcept { return spec_; }
 };
 
 int doit(const ::lnorm::prb_t *prb, res_t *res);

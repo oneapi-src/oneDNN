@@ -24,39 +24,42 @@ namespace benchdnnext {
 namespace softmax {
 
 struct softmax_graph_prb_t : public graph_prb_t {
-    softmax_graph_prb_t(const ::softmax::prb_t *prb) : spec_(prb) {
+    softmax_graph_prb_t(const ::softmax::prb_t *prb) {
+        using graph_op = dnnl::graph::op::kind;
+
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-        if (spec_.op_kind == dnnl::graph::op::kind::LastSymbol) {
+
+        switch (prb->alg) {
+            case ::softmax::SOFTMAX:
+                op_kind = prb->dir & FLAG_FWD ? graph_op::SoftMax
+                                              : graph_op::SoftMaxBackprop;
+                break;
+            case ::softmax::LOGSOFTMAX:
+                op_kind = prb->dir & FLAG_FWD ? graph_op::LogSoftmax
+                                              : graph_op::LogSoftmaxBackprop;
+                break;
+            default: op_kind = graph_op::LastSymbol;
+        }
+        if (op_kind == graph_op::LastSymbol) {
             ctor_status = fill_status::UNSUPPORTED_OP;
             return;
         }
 
-        ctor_status = handle_main_op_();
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
         ctor_status = fill_status::DONE;
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::softmax::prb_t *prb) noexcept;
-        bool is_bwd_pass {false};
-        int axis {1};
-        dims_t dims;
-        dt softmax_dt;
-        dnnl::graph::op::kind op_kind;
-        std::string tag;
-    };
+    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
 
-    spec_t spec_;
-
-    fill_status_t handle_main_op_();
-
+    fill_status_t handle_main_op_(const ::softmax::prb_t *prb);
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return spec_.op_kind;
+        return op_kind;
     }
 };
 

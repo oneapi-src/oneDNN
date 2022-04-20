@@ -52,16 +52,17 @@ inline int64_t permute_axis(const int64_t raw_axis, const dims_t &src0_dims,
 }
 
 struct concat_graph_prb_t : public graph_prb_t {
-    concat_graph_prb_t(const ::concat::prb_t *prb) : spec_(prb) {
+    concat_graph_prb_t(const ::concat::prb_t *prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_();
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
-        if (benchdnnext::is_low_precision({spec_.src_dt, spec_.dst_dt})) {
+        if (benchdnnext::is_low_precision(
+                    {convert_dt(prb->sdt), convert_dt(prb->ddt)})) {
             ctor_status = handle_low_precision_(prb);
             if (stop_work(ctor_status)) return;
         }
@@ -70,35 +71,14 @@ struct concat_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::concat::prb_t *prb);
-
-        int64_t axis {1};
-
-        std::vector<dims_t> src_dims;
-        dims_t dst_dims;
-
-        dt src_dt;
-        dt dst_dt;
-
-        std::vector<std::string> raw_src_tag;
-        std::string raw_dst_tag;
-
-        int64_t n_inputs() const { return static_cast<int>(src_dims.size()); }
-    };
-
-    spec_t spec_;
     po_handlers_t po_handler;
 
-    fill_status_t handle_main_op_();
-    fill_status_t handle_low_precision_(const ::concat::prb_t *prb_);
+    fill_status_t handle_main_op_(const ::concat::prb_t *prb);
+    fill_status_t handle_low_precision_(const ::concat::prb_t *prb);
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::Concat;
     }
-
-public:
-    const spec_t &spec() const noexcept { return spec_; }
 };
 
 int doit(const ::concat::prb_t *prb, res_t *res);

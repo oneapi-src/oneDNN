@@ -24,13 +24,16 @@ namespace benchdnnext {
 namespace binary {
 
 struct binary_graph_prb_t : public graph_prb_t {
-    binary_graph_prb_t(const ::binary::prb_t *prb) : spec_(prb) {
+    binary_graph_prb_t(const ::binary::prb_t *prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_();
+        op_kind = convert_alg_kind(
+                attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
+
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
         for (const auto &po : prb->attr.post_ops.entry) {
@@ -52,40 +55,15 @@ struct binary_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::binary::prb_t *prb);
-
-        std::string auto_broadcast {"numpy"};
-        std::string backend {"dnnl"};
-
-        std::string data_format {"NCX"};
-
-        std::string raw_src0_tag;
-        std::string raw_src1_tag;
-        std::string raw_dst_tag;
-
-        dims_t src0_dims;
-        dims_t src1_dims;
-        dims_t dst_dims;
-
-        dt src0_dt;
-        dt src1_dt;
-        dt dst_dt;
-
-        dnnl::graph::op::kind op_kind;
-    };
-
-    spec_t spec_;
+    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
     po_handlers_t po_handler;
 
-    fill_status_t handle_main_op_();
+    fill_status_t handle_main_op_(const ::binary::prb_t *prb);
     fill_status_t handle_sum_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
 
-    dnnl::graph::op::kind get_main_op_kind() const override {
-        return spec_.op_kind;
-    }
+    dnnl::graph::op::kind get_main_op_kind() const override { return op_kind; }
 };
 
 int doit(const ::binary::prb_t *prb, res_t *res);

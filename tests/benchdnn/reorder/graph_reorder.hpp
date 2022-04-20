@@ -24,13 +24,13 @@ namespace benchdnnext {
 namespace reorder {
 
 struct reorder_graph_prb_t : public graph_prb_t {
-    reorder_graph_prb_t(const ::reorder::prb_t *prb) : spec_(prb) {
+    reorder_graph_prb_t(const ::reorder::prb_t *prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        ctor_status = handle_main_op_();
+        ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
         for (const auto &po : prb->attr.post_ops.entry) {
@@ -44,33 +44,14 @@ struct reorder_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    struct spec_t {
-        spec_t(const ::reorder::prb_t *prb) noexcept;
-        dims_t dims;
-        dt src_dt;
-        dt dst_dt;
-        std::string src_tag;
-        std::string dst_tag;
-        std::string qtype;
-        //TODO: zps needs to be modified depending on qtype/policy
-        std::vector<int64_t> zps;
-        std::vector<float> scales;
-        int axis {1};
-    };
-
-    spec_t spec_;
-
     po_handlers_t po_handler;
 
-    fill_status_t handle_main_op_();
+    fill_status_t handle_main_op_(const ::reorder::prb_t *prb);
     fill_status_t handle_sum_();
 
     dnnl::graph::op::kind get_main_op_kind() const noexcept override {
         return dnnl::graph::op::kind::Reorder;
     }
-
-public:
-    const spec_t &spec() const noexcept { return spec_; }
 };
 
 int doit(const ::reorder::prb_t *prb, res_t *res);
