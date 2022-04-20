@@ -30,9 +30,6 @@ struct binary_graph_prb_t : public graph_prb_t {
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        op_kind = convert_alg_kind(
-                attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
-
         ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
@@ -55,15 +52,12 @@ struct binary_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_(const ::binary::prb_t *prb);
     fill_status_t handle_sum_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
-
-    dnnl::graph::op::kind get_main_op_kind() const override { return op_kind; }
 };
 
 int doit(const ::binary::prb_t *prb, res_t *res);

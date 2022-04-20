@@ -48,10 +48,6 @@ private:
 
     fill_status_t handle_main_op_(const ::reorder::prb_t *prb);
     fill_status_t handle_sum_();
-
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::Reorder;
-    }
 };
 
 int doit(const ::reorder::prb_t *prb, res_t *res);

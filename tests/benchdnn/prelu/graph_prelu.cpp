@@ -71,13 +71,12 @@ fill_status_t prelu_graph_prb_t::handle_main_op_(const ::prelu::prb_t *prb) {
         outputs = {tensor_descs_[DIFF_SRC], tensor_descs_[DIFF_SLOPE]};
     }
 
-    const std::string data_format {"NCX"};
-    const bool per_channel_broadcast {false};
-
+    const auto op_kind = prb->dir & FLAG_FWD
+            ? dnnl::graph::op::kind::PReLU
+            : dnnl::graph::op::kind::PReLUBackprop;
     op prelu_op(new_op_id, op_kind, inputs, outputs, name);
-    prelu_op.set_attr<std::string>("data_format", data_format);
-    if (prb->dir & FLAG_FWD)
-        prelu_op.set_attr<bool>("per_channel_broadcast", per_channel_broadcast);
+    prelu_op.set_attr("data_format", std::string("NCX"));
+    if (prb->dir & FLAG_FWD) prelu_op.set_attr("per_channel_broadcast", false);
 
     ops_.emplace_back(prelu_op);
     curr_out_map_ids_.assign({TENSOR_ID});

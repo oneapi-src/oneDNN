@@ -38,10 +38,6 @@ struct shuffle_graph_prb_t : public graph_prb_t {
 
 private:
     fill_status_t handle_main_op_(const ::shuffle::prb_t *prb);
-
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::StaticReshape;
-    }
 };
 
 int doit(const ::shuffle::prb_t *prb, res_t *res);

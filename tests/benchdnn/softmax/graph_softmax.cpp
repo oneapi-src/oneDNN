@@ -46,6 +46,20 @@ fill_status_t softmax_graph_prb_t::handle_main_op_(
     const std::string DST {TENSOR_ID + "_DST"};
 
     const auto softmax_dt = convert_dt(prb->sdt);
+    dnnl::graph::op::kind op_kind;
+    switch (prb->alg) {
+        case ::softmax::SOFTMAX:
+            op_kind = prb->dir & FLAG_FWD
+                    ? dnnl::graph::op::kind::SoftMax
+                    : dnnl::graph::op::kind::SoftMaxBackprop;
+            break;
+        case ::softmax::LOGSOFTMAX:
+            op_kind = prb->dir & FLAG_FWD
+                    ? dnnl::graph::op::kind::LogSoftmax
+                    : dnnl::graph::op::kind::LogSoftmaxBackprop;
+            break;
+        default: op_kind = dnnl::graph::op::kind::LastSymbol;
+    }
 
     tensor_descs_.emplace(DST, softmax_dt, prb->dims, prb->stag);
 
@@ -72,7 +86,7 @@ fill_status_t softmax_graph_prb_t::handle_main_op_(
     }
 
     op softmax_op(new_op_id, op_kind, inputs, outputs, name);
-    softmax_op.set_attr<int64_t>("axis", prb->axis);
+    softmax_op.set_attr("axis", static_cast<int64_t>(prb->axis));
 
     ops_.emplace_back(softmax_op);
     curr_out_map_ids_.assign({TENSOR_ID});

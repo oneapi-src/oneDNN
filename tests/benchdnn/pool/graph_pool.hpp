@@ -26,20 +26,10 @@ namespace pool {
 
 struct pool_graph_prb_t : public graph_prb_t {
     pool_graph_prb_t(const ::pool::prb_t *prb) {
-        using graph_op = dnnl::graph::op::kind;
-
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-
-        if (prb->dir & FLAG_FWD) {
-            op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPool
-                                                : graph_op::AvgPool;
-        } else {
-            op_kind = (prb->alg == ::pool::max) ? graph_op::MaxPoolBackprop
-                                                : graph_op::AvgPoolBackprop;
-        }
 
         ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
@@ -67,16 +57,11 @@ struct pool_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_(const ::pool::prb_t *prb);
     fill_status_t handle_low_precision_(const ::pool::prb_t *prb_);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
-
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return op_kind;
-    }
 };
 
 int doit(const ::pool::prb_t *prb, res_t *res);

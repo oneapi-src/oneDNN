@@ -153,10 +153,6 @@ fill_status_t deconv_graph_prb_t::handle_main_op_(const ::conv::prb_t *prb) {
 
     op deconv_op(new_op_id, op_kind, inputs, outputs, op_name);
 
-    const std::string auto_pad {"None"};
-    const std::string data_format {"NCX"};
-    const std::string filter_format {"OIX"};
-
     dims_t dilations = prb->dilations();
     // oneDNN graph dilation = 1 is equivalent of oneDNN
     // dilation = 0
@@ -167,10 +163,10 @@ fill_status_t deconv_graph_prb_t::handle_main_op_(const ::conv::prb_t *prb) {
             .set_attr("pads_begin", prb->padding())
             .set_attr("pads_end", prb->padding_r())
             .set_attr("dilations", dilations)
-            .set_attr("auto_pad", auto_pad)
+            .set_attr("auto_pad", std::string("None"))
             .set_attr("groups", prb->g)
-            .set_attr("data_format", data_format)
-            .set_attr("filter_format", filter_format);
+            .set_attr("data_format", std::string("NCX"))
+            .set_attr("filter_format", std::string("OIX"));
 
     if (prb->dir == BWD_W) { deconv_op.set_attr("filter_shape", wei_dims); }
 

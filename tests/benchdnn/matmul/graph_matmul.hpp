@@ -91,10 +91,6 @@ private:
     fill_status_t handle_low_precision_(const ::matmul::prb_t *prb);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
-
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::MatMul;
-    }
 };
 
 dims_t get_runtime_dims(

@@ -130,17 +130,16 @@ fill_status_t lnorm_graph_prb_t::handle_main_op_(const ::lnorm::prb_t *prb) {
         inputs.push_back(tensor_descs_[BETA]);
     }
 
-    op lnorm_op(new_op_id, get_main_op_kind(), inputs, outputs, "layernorm");
+    const auto op_kind = prb->dir & FLAG_FWD
+            ? dnnl::graph::op::kind::LayerNorm
+            : dnnl::graph::op::kind::LayerNormBackprop;
 
-    const int64_t begin_norm_axis {-1};
-    const float epsilon {1.f / 16};
+    op lnorm_op(new_op_id, op_kind, inputs, outputs, "layernorm");
 
-    if (prb->dir & FLAG_FWD) {
-        lnorm_op.set_attr("keep_stats", prb->dir == FWD_D);
-    }
-    lnorm_op.set_attr("begin_norm_axis", begin_norm_axis);
-    lnorm_op.set_attr("use_affine", prb->use_ss());
-    lnorm_op.set_attr("epsilon", epsilon);
+    lnorm_op.set_attr("begin_norm_axis", int64_t(-1))
+            .set_attr("use_affine", prb->use_ss())
+            .set_attr("epsilon", float(1.f / 16));
+    if (prb->dir & FLAG_FWD) lnorm_op.set_attr("keep_stats", prb->dir == FWD_D);
 
     ops_.emplace_back(lnorm_op);
     curr_out_map_ids_.assign({TENSOR_ID});

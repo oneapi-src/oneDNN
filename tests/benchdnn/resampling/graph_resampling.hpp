@@ -30,15 +30,10 @@ enum test_mode_t { SIZES_ATTR = 0, SCALES_ATTR, SIZES_INPUT_TENSOR };
 
 struct resampling_graph_prb_t : public graph_prb_t {
     resampling_graph_prb_t(const ::resampling::prb_t *prb) {
-        using graph_op = dnnl::graph::op::kind;
-
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-
-        op_kind = prb->dir & FLAG_FWD ? graph_op::Interpolate
-                                      : graph_op::InterpolateBackprop;
 
         // TODO: test mode should be fixed
         srand(std::time(NULL));
@@ -71,16 +66,12 @@ struct resampling_graph_prb_t : public graph_prb_t {
     int rand_testmode;
 
 private:
-    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_(const ::resampling::prb_t *prb);
     fill_status_t handle_sum_();
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return op_kind;
-    }
 };
 
 int doit(const ::resampling::prb_t *prb, res_t *res);

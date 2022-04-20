@@ -94,16 +94,16 @@ fill_status_t resampling_graph_prb_t::handle_main_op_(
         inputs.emplace_back(tensor_descs_[SIZES]);
     }
 
+    const auto op_kind = prb->dir & FLAG_FWD
+            ? dnnl::graph::op::kind::Interpolate
+            : dnnl::graph::op::kind::InterpolateBackprop;
     op resampling(new_op_id, op_kind, inputs, outputs, "interpolate");
 
-    const std::string data_format {"NCX"};
-
-    resampling.set_attr("data_format", data_format)
+    resampling.set_attr("data_format", std::string("NCX"))
             .set_attr("mode", std::string(alg2str(prb->alg)))
-            .set_attr<std::vector<int64_t>>(
-                    "sizes", get_sizes(prb->dst_dims()));
+            .set_attr("sizes", get_sizes(prb->dst_dims()));
     if (rand_testmode == test_mode_t::SCALES_ATTR)
-        resampling.set_attr<std::vector<float>>(
+        resampling.set_attr(
                 "scales", get_scales(prb->src_dims(), prb->dst_dims()));
 
     ops_.emplace_back(resampling);

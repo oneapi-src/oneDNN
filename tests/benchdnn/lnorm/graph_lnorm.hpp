@@ -25,15 +25,10 @@ namespace lnorm {
 
 struct lnorm_graph_prb_t : public graph_prb_t {
     lnorm_graph_prb_t(const ::lnorm::prb_t *prb) {
-        using graph_op = dnnl::graph::op::kind;
-
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-
-        op_kind = prb->dir & FLAG_FWD ? graph_op::LayerNorm
-                                      : graph_op::LayerNormBackprop;
 
         ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
@@ -42,12 +37,7 @@ struct lnorm_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
-
     fill_status_t handle_main_op_(const ::lnorm::prb_t *prb);
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return op_kind;
-    }
 };
 
 int doit(const ::lnorm::prb_t *prb, res_t *res);

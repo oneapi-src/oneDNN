@@ -293,21 +293,6 @@ std::map<std::string, float> convert_eltw_entry(
     }
 }
 
-bool should_handle_swish(graph_prb_t &p, const dnnl_alg_kind_t kind) noexcept {
-    using op = dnnl::graph::op;
-    static const std::vector<op::kind> possible_base_ops
-            = {op::kind::Convolution, op::kind::MatMul};
-
-    const bool valid_base_op
-            = std::find(possible_base_ops.cbegin(), possible_base_ops.cend(),
-                      p.get_main_op_kind())
-            != possible_base_ops.cend();
-    const bool is_bias = p.has_post_bia();
-    const bool is_swish = kind == dnnl_eltwise_swish;
-
-    return valid_base_op && is_bias && is_swish;
-}
-
 int scale_bia(
         dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales) {
     if (scales.empty()) {
@@ -571,12 +556,13 @@ fill_status_t po_handlers_t::bias_po_handler_t::operator()(
     return fill_status::DONE;
 }
 
-fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(
-        graph_prb_t &p, const attr_t::post_ops_t::entry_t &po_entry) {
+fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(graph_prb_t &p,
+        const attr_t::post_ops_t::entry_t &po_entry, bool allow_swish_fuse) {
     using op = dnnl::graph::op;
 
     const auto requested_post_op_kind = convert_alg_kind(po_entry.eltwise.alg);
-    const auto is_swish = should_handle_swish(p, po_entry.eltwise.alg);
+    const auto is_swish
+            = allow_swish_fuse && po_entry.eltwise.alg == dnnl_eltwise_swish;
     if (requested_post_op_kind == op::kind::LastSymbol && !is_swish)
         return fill_status::UNSUPPORTED_OP;
     const auto post_op_kind

@@ -48,10 +48,10 @@ fill_status_t reduction_graph_prb_t::handle_main_op_(
     tensor_descs_.emplace(SRC, src_dt, src_dims, prb->stag);
     tensor_descs_.emplace(DST, dst_dt, dst_dims, prb->dtag);
 
+    const auto op_kind = convert_alg_kind(::reduction::alg2alg_kind(prb->alg));
     dnnl::graph::op reduction(new_op_id, op_kind, {tensor_descs_[SRC]},
             {tensor_descs_[DST]}, "reduction");
 
-    const bool keep_dims {true};
     std::vector<int64_t> axes;
     const int reduction_dim_size = 1;
     for (auto d = 0; d < prb->ndims; ++d) {
@@ -60,8 +60,7 @@ fill_status_t reduction_graph_prb_t::handle_main_op_(
         if (is_reduction_dim) axes.push_back(d);
     }
 
-    reduction.set_attr("keep_dims", keep_dims);
-    reduction.set_attr("axes", axes);
+    reduction.set_attr("keep_dims", true).set_attr("axes", axes);
 
     ops_.emplace_back(reduction);
     curr_out_map_ids_.assign({TENSOR_ID});

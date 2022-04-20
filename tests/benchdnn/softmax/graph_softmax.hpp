@@ -25,28 +25,10 @@ namespace softmax {
 
 struct softmax_graph_prb_t : public graph_prb_t {
     softmax_graph_prb_t(const ::softmax::prb_t *prb) {
-        using graph_op = dnnl::graph::op::kind;
-
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
-
-        switch (prb->alg) {
-            case ::softmax::SOFTMAX:
-                op_kind = prb->dir & FLAG_FWD ? graph_op::SoftMax
-                                              : graph_op::SoftMaxBackprop;
-                break;
-            case ::softmax::LOGSOFTMAX:
-                op_kind = prb->dir & FLAG_FWD ? graph_op::LogSoftmax
-                                              : graph_op::LogSoftmaxBackprop;
-                break;
-            default: op_kind = graph_op::LastSymbol;
-        }
-        if (op_kind == graph_op::LastSymbol) {
-            ctor_status = fill_status::UNSUPPORTED_OP;
-            return;
-        }
 
         ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
@@ -55,12 +37,7 @@ struct softmax_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
-
     fill_status_t handle_main_op_(const ::softmax::prb_t *prb);
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return op_kind;
-    }
 };
 
 int doit(const ::softmax::prb_t *prb, res_t *res);

@@ -48,10 +48,6 @@ private:
 
     fill_status_t handle_main_op_(const ::bnorm::prb_t *prb);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po_entry);
-
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::BatchNormInference;
-    }
 };
 
 int doit(const ::bnorm::prb_t *prb, res_t *res);

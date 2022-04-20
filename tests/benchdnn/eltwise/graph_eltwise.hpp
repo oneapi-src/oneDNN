@@ -30,13 +30,6 @@ struct eltwise_graph_prb_t : public graph_prb_t {
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        const auto dnnl_kind = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
-        op_kind = convert_alg_kind(dnnl_kind, prb->dir & FLAG_FWD);
-        if (dnnl_kind == dnnl_eltwise_soft_relu)
-            softplus_beta = 1;
-        else if (dnnl_kind == dnnl_eltwise_logsigmoid)
-            softplus_beta = -1;
-
         ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
@@ -65,18 +58,11 @@ struct eltwise_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    dnnl::graph::op::kind op_kind {dnnl::graph::op::kind::LastSymbol};
-    int64_t softplus_beta {0};
-
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_(const ::eltwise::prb_t *prb);
     fill_status_t handle_low_precision_(const ::eltwise::prb_t *prb);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po_entry);
-
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return op_kind;
-    }
 };
 
 int doit(const ::eltwise::prb_t *prb, res_t *res);

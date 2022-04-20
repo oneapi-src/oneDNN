@@ -106,7 +106,7 @@ fill_status_t matmul_graph_prb_t::handle_main_op_(const ::matmul::prb_t *prb) {
 
 fill_status_t matmul_graph_prb_t::handle_elt_(
         const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.matmul.eltw_handler(*this, po_entry);
+    return po_handler.matmul.eltw_handler(*this, po_entry, has_post_bia_);
 }
 
 fill_status_t matmul_graph_prb_t::handle_bin_(

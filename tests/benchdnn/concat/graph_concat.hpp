@@ -75,10 +75,6 @@ private:
 
     fill_status_t handle_main_op_(const ::concat::prb_t *prb);
     fill_status_t handle_low_precision_(const ::concat::prb_t *prb);
-
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::Concat;
-    }
 };
 
 int doit(const ::concat::prb_t *prb, res_t *res);

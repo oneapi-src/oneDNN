@@ -63,6 +63,14 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_(
         ltensors_out.push_back({tensor_descs_[DIFF_SRC]});
     }
 
+    const auto dnnl_kind = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
+    const auto op_kind = convert_alg_kind(dnnl_kind, prb->dir & FLAG_FWD);
+    int64_t softplus_beta = 0;
+    if (dnnl_kind == dnnl_eltwise_soft_relu)
+        softplus_beta = 1;
+    else if (dnnl_kind == dnnl_eltwise_logsigmoid)
+        softplus_beta = -1;
+
     op eltwise_op(new_op_id, op_kind, ltensors_in, ltensors_out, "eltwise");
 
     //Set alpha, beta, min and max for relevant ops

@@ -73,6 +73,16 @@ fill_status_t pool_graph_prb_t::handle_main_op_(const ::pool::prb_t *prb) {
     auto src_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[SRC].dt));
     auto dst_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[DST].dt));
 
+    dnnl::graph::op::kind op_kind;
+    if (prb->dir & FLAG_FWD) {
+        op_kind = (prb->alg == ::pool::max) ? dnnl::graph::op::kind::MaxPool
+                                            : dnnl::graph::op::kind::AvgPool;
+    } else {
+        op_kind = (prb->alg == ::pool::max)
+                ? dnnl::graph::op::kind::MaxPoolBackprop
+                : dnnl::graph::op::kind::AvgPoolBackprop;
+    }
+
     const std::string SRC {TENSOR_ID + "_SRC"};
     tensor_descs_.emplace(SRC, src_dt, prb->src_dims(), prb->tag);
     if (prb->dir & FLAG_FWD) {
@@ -103,11 +113,6 @@ fill_status_t pool_graph_prb_t::handle_main_op_(const ::pool::prb_t *prb) {
 
     op pool(new_op_id, op_kind, inputs, outputs, "pool");
 
-    const std::string auto_pad {"None"};
-    const std::string data_format {"NCX"};
-    const std::string rounding_type {"floor"};
-    const bool exclude_pad {prb->alg == ::pool::avg_np};
-
     dims_t dilations = prb->dilations();
     // oneDNN graph dilation = 1 is equivalent of oneDNN
     // dilation = 0
@@ -118,15 +123,16 @@ fill_status_t pool_graph_prb_t::handle_main_op_(const ::pool::prb_t *prb) {
             .set_attr("pads_begin", prb->padding())
             .set_attr("pads_end", prb->padding_r())
             .set_attr("kernel", prb->kernel())
-            .set_attr("data_format", data_format)
-            .set_attr("auto_pad", auto_pad);
+            .set_attr("data_format", std::string("NCX"))
+            .set_attr("auto_pad", std::string("None"));
 
     if (op_kind == op::kind::MaxPool || op_kind == op::kind::MaxPoolBackprop) {
         pool.set_attr("dilations", dilations);
     } else { // AvgPool
-        pool.set_attr("exclude_pad", exclude_pad);
+        pool.set_attr("exclude_pad", prb->alg == ::pool::avg_np);
     }
-    if (prb->dir & FLAG_FWD) pool.set_attr("rounding_type", rounding_type);
+    if (prb->dir & FLAG_FWD)
+        pool.set_attr("rounding_type", std::string("floor"));
     if (op_kind == op::kind::AvgPoolBackprop)
         pool.set_attr("input_shape", prb->src_dims());
 

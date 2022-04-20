@@ -31,8 +31,6 @@ struct reduction_graph_prb_t : public graph_prb_t {
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
-        op_kind = convert_alg_kind(::reduction::alg2alg_kind(prb->alg));
-
         ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
@@ -55,15 +53,12 @@ struct reduction_graph_prb_t : public graph_prb_t {
     };
 
 private:
-    dnnl::graph::op::kind op_kind;
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_(const ::reduction::prb_t *prb);
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_sum_();
-
-    dnnl::graph::op::kind get_main_op_kind() const override { return op_kind; }
 };
 
 int doit(const ::reduction::prb_t *prb, res_t *res);

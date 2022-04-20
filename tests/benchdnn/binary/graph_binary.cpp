@@ -76,17 +76,20 @@ fill_status_t binary_graph_prb_t::handle_main_op_(const ::binary::prb_t *prb) {
             SRC1, convert_dt(prb->sdt[1]), prb->vdims[1], prb->stag[1]);
     tensor_descs_.emplace(DST, convert_dt(prb->ddt), prb->dst_dims, prb->dtag);
 
+    const auto op_kind
+            = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
+
     dnnl::graph::op binary(new_op_id, op_kind,
             {tensor_descs_[SRC0], tensor_descs_[SRC1]}, {tensor_descs_[DST]},
             "binary");
 
-    std::string auto_broadcast {"numpy"};
     bool has_post_sum = false;
     for (const auto &po : prb->attr.post_ops.entry) {
         if (po.is_sum_kind()) { has_post_sum = true; }
     }
-    if (prb->vdims[0] == prb->vdims[1] && !has_post_sum)
-        auto_broadcast = "none";
+    const std::string auto_broadcast
+            = (prb->vdims[0] == prb->vdims[1] && !has_post_sum) ? "none"
+                                                                : "numpy";
 
     binary.set_attr("auto_broadcast", auto_broadcast);
 

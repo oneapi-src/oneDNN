@@ -79,8 +79,6 @@ dims_t convert_bin_policy(
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind op_kind,
         const attr_t::post_ops_t::entry_t &entry) noexcept;
-bool should_handle_swish(
-        struct graph_prb_t &p, const dnnl_alg_kind_t kind) noexcept;
 
 int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales);
 
@@ -368,8 +366,6 @@ struct graph_prb_t {
         return graph;
     }
 
-    virtual dnnl::graph::op::kind get_main_op_kind() const = 0;
-
     bool has_post_bia() const noexcept { return has_post_bia_; }
     bool has_post_bin() const noexcept { return has_post_bin_; }
     bool has_post_dw() const noexcept { return has_post_dw_; }
@@ -496,8 +492,9 @@ private:
     };
 
     struct eltwise_po_handler_t {
-        fill_status_t operator()(
-                graph_prb_t &p, const attr_t::post_ops_t::entry_t &po_entry);
+        fill_status_t operator()(graph_prb_t &p,
+                const attr_t::post_ops_t::entry_t &po_entry,
+                bool allow_swish_fuse = false);
     };
 
     struct binary_po_handler_t {

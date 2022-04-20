@@ -126,7 +126,7 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_(const ::bnorm::prb_t *prb) {
     op bnorm_op(new_op_id, op_kind, inputs, outputs, op_name);
 
     bnorm_op.set_attr("epsilon", prb->eps);
-    bnorm_op.set_attr<std::string>("data_format", "NCX");
+    bnorm_op.set_attr("data_format", std::string("NCX"));
 
     ops_.emplace_back(bnorm_op);
     curr_out_map_ids_.assign({TENSOR_ID});
