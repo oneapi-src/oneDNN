@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,9 +49,9 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::types;
 using namespace alg_kind;
 
-#define GET_OFF(field) offsetof(call_params_t, field)
+#define GET_OFF(field) offsetof(jit_uni_i8i8_pool_call_params_t, field)
 
-struct call_params_t {
+struct jit_uni_i8i8_pool_call_params_t {
     const char *src_i8;
     const char *dst_i8;
     const char *dst_orig;
@@ -1194,7 +1194,10 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_tmp_reg() {
     switch (jpp.alg) {
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding:
-            mov(reg_tmp, ptr[reg_param + offsetof(call_params_t, idivider)]);
+            mov(reg_tmp,
+                    ptr[reg_param
+                            + offsetof(jit_uni_i8i8_pool_call_params_t,
+                                    idivider)]);
             uni_vmovq(xmm_tmp, reg_tmp);
             uni_vpbroadcastd(vreg_tmp, xmm_tmp);
             break;
@@ -1235,7 +1238,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
 #endif
 
 #define READ_PARAM(reg, field) \
-    mov(reg, ptr[reg_param + offsetof(call_params_t, field)])
+    mov(reg, ptr[reg_param + offsetof(jit_uni_i8i8_pool_call_params_t, field)])
     READ_PARAM(reg_ptr_src_i8, src_i8);
     READ_PARAM(reg_ptr_dst_i8, dst_i8);
     READ_PARAM(reg_kd, kd_range);
@@ -1468,7 +1471,7 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
                 dim_t kw_end = nstl::min(
                         dim_t(jpp.kw), jpp.iw + jpp.l_pad - ow * jpp.stride_w);
 
-                auto p = call_params_t();
+                auto p = jit_uni_i8i8_pool_call_params_t();
                 p.src_i8 = &src_i8[get_offset(src_d, n, 0, id, ih, iw)
                         * src_d.data_type_size()];
                 p.dst_i8 = &dst_i8[get_offset(dst_d, n, 0, od, oh, ow)
