@@ -39,7 +39,7 @@ public:
     DECLARE_QUERY_AND_COMPUTE();
 
     binary_elementwise_op_impl_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            elt_operator elt_op, int inplace = 1);
+            elt_operator elt_op, int inplace = 0);
     binary_elementwise_op_impl_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
 
@@ -79,7 +79,7 @@ private:
 class add_op_t : public binary_elementwise_op_impl_t {
 public:
     add_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
+            bool vectorized = false, int inplace = 0)
         : binary_elementwise_op_impl_t(
                 std::move(lhs), std::move(rhs), elt_operator::ADD, inplace) {
         alg_kind_ = brgemm::binary_add;
@@ -97,7 +97,7 @@ class sub_op_t : public binary_elementwise_op_impl_t,
                  public op_traits::may_quantize_t {
 public:
     sub_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
+            bool vectorized = false, int inplace = 0)
         : binary_elementwise_op_impl_t(
                 std::move(lhs), std::move(rhs), elt_operator::SUB, inplace) {
         alg_kind_ = brgemm::binary_sub;
@@ -114,7 +114,7 @@ public:
 class mul_op_t : public binary_elementwise_op_impl_t {
 public:
     mul_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
+            bool vectorized = false, int inplace = 0)
         : binary_elementwise_op_impl_t(
                 std::move(lhs), std::move(rhs), elt_operator::MUL, inplace) {
         alg_kind_ = brgemm::binary_mul;
@@ -131,7 +131,7 @@ public:
 class div_op_t : public binary_elementwise_op_impl_t {
 public:
     div_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
+            bool vectorized = false, int inplace = 0)
         : binary_elementwise_op_impl_t(
                 std::move(lhs), std::move(rhs), elt_operator::DIV, inplace) {
         alg_kind_ = brgemm::binary_div;
@@ -148,7 +148,7 @@ public:
 class min_op_t : public binary_elementwise_op_impl_t {
 public:
     min_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
+            bool vectorized = false, int inplace = 0)
         : binary_elementwise_op_impl_t(
                 std::move(lhs), std::move(rhs), elt_operator::MIN, inplace) {
         alg_kind_ = brgemm::binary_min;
@@ -165,7 +165,7 @@ public:
 class max_op_t : public binary_elementwise_op_impl_t {
 public:
     max_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
+            bool vectorized = false, int inplace = 0)
         : binary_elementwise_op_impl_t(
                 std::move(lhs), std::move(rhs), elt_operator::MAX, inplace) {
         alg_kind_ = brgemm::binary_max;
@@ -184,7 +184,7 @@ public:
 class squared_diff_op_t : public binary_elementwise_op_impl_t {
 public:
     squared_diff_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
-            bool vectorized = false, int inplace = 1)
+            bool vectorized = false, int inplace = 0)
         : binary_elementwise_op_impl_t(std::move(lhs), std::move(rhs),
                 elt_operator::SQD_DIFF, inplace) {}
     squared_diff_op_t(const std::vector<graph_tensor_ptr> &ins,

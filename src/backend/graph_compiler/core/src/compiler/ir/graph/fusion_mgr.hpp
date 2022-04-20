@@ -84,6 +84,8 @@ protected:
     // allocates a temp tensor for the result of the op
     void allocate_tensor(graph_tensor_ptr, fdata_map &);
 
+    bool is_allocated_tensor(const tensor &tsr);
+
 public:
     int get_input_op_count() const { return input_op_count_; }
     int get_output_op_count() const { return output_op_count_; }

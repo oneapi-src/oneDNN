@@ -457,7 +457,7 @@ slice_range_list infer_tensor_view_slice(
 
 void tensor_view_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
-    if (share_with_output(get_inputs()[0])) {
+    if (share_gt_with_op<output_op>(get_inputs()[0])) {
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
         return;
     }
@@ -483,7 +483,7 @@ void tensor_view_op_t::infer_slice_ranges(
 
 void tensor_view_op_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
-    if (share_with_output(get_inputs()[0])) {
+    if (share_gt_with_op<output_op>(get_inputs()[0])) {
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
         return;
     }

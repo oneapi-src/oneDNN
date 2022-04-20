@@ -91,8 +91,6 @@ inline std::vector<expr> get_slice_shape(const slice_range &range) {
     return ret;
 }
 
-bool share_with_output(const graph_tensor_ptr &gt);
-
 /**
  * A slice of the tensor.
  * @param tptr_ the base tensor_ptr
@@ -153,27 +151,13 @@ struct fusion_data_t {
     bool need_alloc_ = true;
     fusion_data_t() = default;
     fusion_data_t(const fusion_data_t &) = delete;
+    bool buffer_allocated() const { return buffer_.defined(); }
+    void set_buffer(const expr &buf);
     const expr &get_buffer() const { return buffer_; };
-    const tensor get_allocated_tensor() const {
-        auto buf = buffer_;
-        while (!buf.isa<tensor>()) {
-            COMPILE_ASSERT(buf.isa<tensorptr>(),
-                    "tensor_slice only accepts a tensor or tensorptr, got: "
-                            << buf);
-            auto base = buf.static_as<tensorptr>()->base_;
-            COMPILE_ASSERT(base.isa<indexing>(),
-                    "tensor_ptr base should be indexing, but got: " << base);
-            buf = base.checked_as<indexing>()->ptr_;
-        }
-        COMPILE_ASSERT(buf.isa<tensor>(), "Tensor type is expected")
-        return buf.static_as<tensor>();
-    };
+    tensor get_real_tensor() const;
 
 private:
-    expr buffer_;
-    friend class fusion_manager;
-    friend void set_buffer_reuse_hint(buffer_identity_count &, int64_t &,
-            fdata_map &, const sc_op_ptr &, const expr &, bool);
+    expr buffer_; /*tensor or tensorptr*/
 };
 
 struct fuse_state_t {

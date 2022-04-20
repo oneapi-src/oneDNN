@@ -27,8 +27,8 @@ namespace sc {
 
 // check tensor node attr
 static bool is_tensor_and_should_shrink(const expr &e) {
-    return e.isa<tensor>() && e->attr_
-            && e->attr_->has_key(tensor_shrinker_attrs::should_shrink);
+    return e.isa<tensor>()
+            && e->attr().has_key(tensor_shrinker_attrs::should_shrink);
 }
 // check tensorptr node attr
 static bool is_tensorptr_and_should_shrink(const expr &e) {
@@ -40,8 +40,10 @@ static bool is_tensorptr_and_should_shrink(const expr &e) {
 static bool is_reshaped_and_should_shrink(const expr &e) {
     return e.isa<tensorptr>() && !e.static_as<tensorptr>()->is_slice_
             && e.static_as<tensorptr>()->base_.defined()
-            && e.static_as<tensorptr>()->base_->ptr_.isa<tensor>() && e->attr_
-            && e->attr_->has_key(tensor_shrinker_attrs::should_shrink);
+            && e.static_as<tensorptr>()->base_->ptr_.isa<tensor>()
+            && e->attr().has_key(tensor_shrinker_attrs::should_shrink)
+            && e.static_as<tensorptr>()->base_->ptr_->attr().has_key(
+                    tensor_shrinker_attrs::should_shrink);
 }
 
 static constexpr const char *temp_shrink_tag = "tensor_shrinker.def";

@@ -177,6 +177,53 @@ const sc_op *fusion_manager::get_first_input() const {
     return nullptr;
 }
 
+void fusion_data_t::set_buffer(const expr &buf) {
+    if (buf.isa<tensorptr>()) {
+        COMPILE_ASSERT(!buf.static_as<tensorptr>()->is_slice_,
+                "tensorptr is only used for tensorview op inside fmgr")
+        auto base = buf.static_as<tensorptr>()->base_;
+        COMPILE_ASSERT(base.isa<indexing>(),
+                "tensor_ptr base should be indexing, but got: " << base);
+        auto offset = base.static_as<indexing>()->idx_;
+        for (auto &of : offset) {
+            COMPILE_ASSERT(of.isa<constant_c>()
+                            && get_const_as_int(of.static_as<constant_c>())
+                                    == 0,
+                    "tensorptr used for tensorview op should have all-zero "
+                    "offset")
+        }
+        COMPILE_ASSERT(base.static_as<indexing>()->ptr_.isa<tensor>(),
+                "Nested tensorptr is not expected inside fmgr")
+        auto dims = get_expr_to_dims(
+                base.static_as<indexing>()->ptr_.static_as<tensor>()->dims_);
+        auto shape = get_expr_to_dims(buf.static_as<tensorptr>()->shape_);
+        COMPILE_ASSERT(get_dims_product(dims) == get_dims_product(shape),
+                "Unexpected reshaped tensor found")
+    }
+    buffer_ = buf;
+}
+
+tensor fusion_data_t::get_real_tensor() const {
+    auto buf = buffer_;
+    COMPILE_ASSERT(buf.isa<tensor>() || buf.isa<tensorptr>(),
+            "Only tensor or tensorptr is accepted")
+    if (buf.isa<tensorptr>()) {
+        auto base = buf.static_as<tensorptr>()->base_;
+        COMPILE_ASSERT(base.isa<indexing>(),
+                "tensor_ptr base should be indexing, but got: " << base);
+        buf = base.static_as<indexing>()->ptr_;
+    }
+    COMPILE_ASSERT(buf.isa<tensor>(), "Tensor type is expected")
+    return buf.static_as<tensor>();
+};
+
+bool fusion_manager::is_allocated_tensor(const tensor &tsr) {
+    std::vector<sc::tensor>::iterator tensor_iter
+            = std::find_if(allocated_tensors_.begin(), allocated_tensors_.end(),
+                    [&tsr](sc::tensor &t) { return t.ptr_same(tsr); });
+    return tensor_iter != allocated_tensors_.end();
+}
+
 fusion_manager::fusion_manager(fusion_manager &&other)
     : input_op_count_(other.input_op_count_)
     , output_op_count_(other.output_op_count_)
@@ -215,16 +262,15 @@ void fusion_manager::allocate_tensor(
                     allocated_tensors_.emplace_back(tsr);
                 }
 
-                fdetail.buffer_ = tsr;
+                fdetail.set_buffer(tsr);
             };
     // TODO(xxx): remove this reorder judgement
-    if (auto const_op = output->producer_owner_->dyn_cast<constant_op_t>()) {
+    if (auto const_op = fop->dyn_cast<constant_op_t>()) {
         auto const_value = const_op->get_constant_values();
         allocate_("_const_buf_", output->details_, address_space::automatic,
                 const_value, true);
     } else {
-        allocate_("_" + output->producer_owner_->op_name_ + "_buf_",
-                output->details_);
+        allocate_("_" + fop->op_name_ + "_buf_", output->details_);
     }
 }
 
@@ -375,8 +421,8 @@ void set_buffer_reuse_hint(buffer_identity_count &buf_cnt_map,
     // update inp tsrs' last access to maximum last access
     for (auto &in : node->get_inputs()) {
         auto &in_detail = fdmap.get(in);
-        if (in_detail.buffer_.defined()) {
-            auto in_tsr = in_detail.buffer_;
+        if (in_detail.buffer_allocated()) {
+            auto in_tsr = in_detail.get_buffer();
             while (in_tsr.isa<tensorptr>()) {
                 in_tsr = in_tsr.static_as<tensorptr>()->base_->ptr_;
             }
@@ -474,15 +520,14 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                             input_cur->get_outputs()[0]->details_.dtype_);
                     tsr = arg_tsr;
                 }
-                fdmap.get(cur->get_outputs()[0]).buffer_
-                        = tsr.checked_as<tensor>();
+                fdmap.get(cur->get_outputs()[0]).set_buffer(tsr);
             } else {
                 auto buf = src[input_idx].get_real_tensor();
                 // may reuse input buffer, e.g. originalout
                 set_buffer_reuse_hint(
                         buf_cnt_map, hint_tick, fdmap, cur_node, buf);
                 reset_buffer_reuse_first_access_hint(buf, 0);
-                fdmap.get(cur->get_outputs()[0]).buffer_ = buf;
+                fdmap.get(cur->get_outputs()[0]).set_buffer(buf);
             }
             return;
         } else if (dynamic_cast<output_op *>(cur)) {
@@ -493,15 +538,15 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             assert(graph_.ops_.size() > 2);
             auto output_cur = static_cast<output_op *>(cur);
             auto &output_cur_in_detail = fdmap.get(output_cur->get_inputs()[0]);
-            if (output_cur_in_detail.buffer_.defined()) return;
+            if (output_cur_in_detail.buffer_allocated()) return;
             int output_idx = get_output_idx(output_cur);
 
             // for output node, use the output tensor
             if (!dst.empty()) {
                 // TODO(xxx): need to consider multi-slice from create_anchor
                 // stage
-                output_cur_in_detail.buffer_
-                        = dst[output_idx].get_real_tensor();
+                output_cur_in_detail.set_buffer(
+                        dst[output_idx].get_real_tensor());
             } else {
                 expr tsr;
                 // query if outs is given by outside
@@ -524,7 +569,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
 
                 // output will inplace the last buffer, so we need to clear it
                 // firstly.
-                output_cur_in_detail.buffer_ = tsr.checked_as<tensor>();
+                output_cur_in_detail.set_buffer(tsr);
             }
             // update tensors' last_access
             set_buffer_reuse_hint(
@@ -532,21 +577,23 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
             return;
         } else if (dynamic_cast<tensor_view_op_t *>(cur)) {
             auto &cur_in_detail = fdmap.get(cur->get_inputs()[0]);
-            COMPILE_ASSERT(!share_with_output(cur->get_inputs()[0]),
+            COMPILE_ASSERT(
+                    !cur->share_gt_with_op<output_op>(cur->get_inputs()[0]),
                     "tensor view op could not share same input buffer with "
                     "output op");
             auto &cur_out_detail = fdmap.get(cur->get_outputs()[0]);
             auto reshape_cur = static_cast<tensor_view_op_t *>(cur);
             cur_out_detail.need_alloc_ = false;
-            cur_out_detail.buffer_ = builder::tensor_ptr(cur_in_detail.buffer_,
-                    std::vector<expr>(
-                            cur_in_detail.buffer_.checked_as<tensor>()
-                                    ->dims_.size(),
-                            0),
-                    dims_to_expr(reshape_cur->get_shapes()));
+            auto base_tsr = cur_in_detail.get_real_tensor();
+
+            // use tensorptr to represent reshaped tensor
+            cur_out_detail.set_buffer(builder::tensor_ptr(base_tsr,
+                    std::vector<expr>(base_tsr->dims_.size(), 0),
+                    dims_to_expr(reshape_cur->get_shapes())));
+
             bool access_has_updated = false;
             set_buffer_reuse_hint(buf_cnt_map, hint_tick, fdmap, cur_node,
-                    cur_out_detail.need_alloc_ ? cur_out_detail.buffer_
+                    cur_out_detail.need_alloc_ ? cur_out_detail.get_buffer()
                                                : expr(),
                     access_has_updated);
             return;
@@ -574,7 +621,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                         break;
                     }
                 }
-                if (out_i_detail.buffer_.defined()) continue;
+                if (out_i_detail.buffer_allocated()) continue;
 
                 for (auto j : share_map[i]) {
                     auto &in_j_detail = fdmap.get(inputs[j]);
@@ -585,17 +632,20 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                                                ->producer_owner_
                                                ->dyn_cast<input_op>()) {
                             if (inp->is_arg_input()
-                                    || in_j_detail.buffer_->attr().get_or_else(
-                                            "read_buffer", false))
+                                    || in_j_detail.get_buffer()
+                                               ->attr()
+                                               .get_or_else(
+                                                       "read_buffer", false))
                                 continue;
-                        } else if (share_with_output(inputs[j])) {
+                        } else if (cur->share_gt_with_op<output_op>(
+                                           inputs[j])) {
                             continue;
                         }
                         // if the subnode is used only once, we can reuse
                         // its buffer
                         out_i_detail.need_alloc_ = false;
                         // inplace tsr_slice_list_
-                        out_i_detail.buffer_ = in_j_detail.buffer_;
+                        out_i_detail.set_buffer(in_j_detail.get_buffer());
                         break;
                     }
                 }
@@ -603,13 +653,13 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 if (out_i_detail.need_alloc_) {
                     allocate_tensor(outputs[i], fdmap);
                 }
-                assert(out_i_detail.buffer_.defined());
+                assert(out_i_detail.buffer_allocated());
                 // set buffer reuse hint for loop lifetime analysis
                 // out_i_detail.tsr_slice_list may be empty when next op is
                 // output op
                 bool access_has_updated = false;
                 set_buffer_reuse_hint(buf_cnt_map, hint_tick, fdmap, cur_node,
-                        out_i_detail.need_alloc_ ? out_i_detail.buffer_
+                        out_i_detail.need_alloc_ ? out_i_detail.get_buffer()
                                                  : expr(),
                         access_has_updated);
             }
@@ -629,8 +679,7 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
     for (auto &op : sorted_ops_) {
         if (dynamic_cast<constant_op_t *>(op.get())) { continue; }
         for (auto &out : op->get_outputs()) {
-            auto buf = fdmap.get(out).buffer_;
-            assert(buf.defined());
+            assert(fdmap.get(out).buffer_allocated());
         }
     }
     reset_buffer_hint_by_count(buf_cnt_map);
@@ -674,54 +723,54 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
     auto &fsmap_list = fstate.fsmap_list_;
     COMPILE_ASSERT(!sorted_ops_.empty(),
             "sorted ops are expected to be ready, please initilize it first");
-    // declare tptr_ of real tensor in fdata, and put it at the beginning of ss
-    auto declare_ = [&](const graph_tensor_ptr &gt_ptr, std::vector<stmt> &ss,
-                            int anchor_id) {
-        auto &tsr = fdmap.get(gt_ptr).buffer_;
+
+    // declare real tensor in fdata, and put it at the beginning of ss
+    auto declare_tensor_ = [&](const graph_tensor_ptr &gt_ptr,
+                                   std::vector<stmt> &ss, int anchor_id) {
+        auto tsr = fdmap.get(gt_ptr).get_real_tensor();
+        COMPILE_ASSERT(tsr.isa<tensor>(), "allocated tensor not found");
         if (tsr->attr_ && tsr->attr_->has_key("temp.declared")) return;
-        // Only temp buffer need to be declared
-        if (tsr.isa<tensor>()) {
-            std::vector<sc::tensor>::iterator tensor_iter
-                    = std::find_if(allocated_tensors_.begin(),
-                            allocated_tensors_.end(), [tsr](sc::tensor &t) {
-                                return t.ptr_same(tsr.static_as<tensor>());
-                            });
-            if (tensor_iter != allocated_tensors_.end()) {
-                ss.emplace(ss.begin(),
-                        builder::make_var_tensor_def_unattached(tsr));
-                tsr->attr()["temp.declared"] = true;
+
+        // Only allocated tensor need to be declared
+        if (is_allocated_tensor(tsr)) {
+            ss.emplace(
+                    ss.begin(), builder::make_var_tensor_def_unattached(tsr));
+            tsr->attr()["temp.declared"] = true;
+        }
+    };
+
+    auto set_shrink_info_ = [&](const graph_tensor_ptr &gt_ptr, int anchor_id) {
+        // buffer is tensor or tensorptr
+        auto &buf = fdmap.get(gt_ptr).get_buffer();
+        // automatically skip
+        if (buf->attr().has_key(tensor_shrinker_attrs::should_shrink)
+                || (buf.isa<tensor>()
+                        && !is_allocated_tensor(buf.static_as<tensor>()))) {
+            return;
+        }
+        int shrink_anchor = anchor_id;
+        // used for reshaped tensor
+        if (buf.isa<tensor>()) {
+            shrink_anchor = buf->attr().get_or_else(
+                    "temp.reshaped_tensor_anchor", shrink_anchor);
+        }
+        // if buf is not tensor, only shrink for tensorview output
+        else if (buf.isa<tensorptr>()) {
+            auto ptr = buf.static_as<tensorptr>()
+                               ->base_.checked_as<indexing>()
+                               ->ptr_;
+            auto &att = ptr->attr();
+            if (!att.has_key("temp.reshaped_tensor_anchor")) {
+                att["temp.reshaped_tensor_anchor"] = anchor_id;
             } else {
-                // Only declared tensor need shrink info
-                return;
+                shrink_anchor = att.get<int>("temp.reshaped_tensor_anchor");
             }
         }
 
-        // set shrink info if necessary
-        if (gt_ptr->producer_owner_->isa<input_op>()
-                || gt_ptr->producer_owner_->isa<constant_op_t>())
-            return;
-        for (auto &user : gt_ptr->uses_) {
-            if (user.second->isa<output_op>()) return;
-        }
-        if (auto reo_op = gt_ptr->producer_owner_->dyn_cast<reorder_op_t>()) {
-            if (reo_op->check_padding()) return;
-        }
-        // if tsr is not tensor
-        if (tsr.isa<tensorptr>()) {
-            auto base = tsr.static_as<tensorptr>()->base_;
-            COMPILE_ASSERT(base.isa<indexing>(),
-                    "tensorptr base should be indexing, but got: " << base);
-            auto att = base.static_as<indexing>()->ptr_->attr();
-            if (!att.has_key(tensor_shrinker_attrs::should_shrink)
-                    && !att.has_key(tensor_shrinker_attrs::may_shrink))
-                return;
-        }
-        auto range_list = fsmap_list[anchor_id].get(gt_ptr);
+        auto range_list = fsmap_list[shrink_anchor].get(gt_ptr);
         COMPILE_ASSERT(!range_list.empty(), "empty range list found")
-        if (range_list.size() > 1) return;
-
-        // The tensor to shrink should not have init value
-        tsr->attr()[tensor_shrinker_attrs::should_shrink]
+        if (range_list.size() != 1) return;
+        buf->attr()[tensor_shrinker_attrs::should_shrink]
                 = tensor_shrinker_t::shrink_info_t {
                         /*base*/ get_slice_idx(range_list[0]),
                         /*shape*/ get_slice_shape(range_list[0]), stmts()};
@@ -739,9 +788,9 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
             // shrink tensor from the input of fusion manager may also need to
             // move its definition place, we need to provide an anchor to it.
 
-            auto tsr = fdmap.get(out).buffer_;
-            if (tsr->attr_
-                    && tsr->attr_->has_key(tensor_shrinker_attrs::may_shrink)) {
+            auto tsr = fdmap.get(out).get_buffer();
+            if (tsr->attr().get_or_else(
+                        tensor_shrinker_attrs::may_shrink, false)) {
                 // search real input anchor
                 int real_anchor = anchor_id;
                 for (int64_t j = static_cast<int64_t>(sorted_ops_.size()) - 1;
@@ -753,7 +802,7 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
                     int tmp_anchor = tmp_op->anchor_id_;
                     bool found = false;
                     for (auto &ins : tmp_op->get_inputs()) {
-                        if (fdmap.get(ins).buffer_.ptr_same(tsr)) {
+                        if (fdmap.get(ins).get_buffer().ptr_same(tsr)) {
                             real_anchor = tmp_anchor;
                             found = true;
                             break;
@@ -762,7 +811,7 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
                     }
                     if (found) break;
                     for (auto &out : tmp_op->get_outputs()) {
-                        if (fdmap.get(out).buffer_.ptr_same(tsr)) {
+                        if (fdmap.get(out).get_buffer().ptr_same(tsr)) {
                             real_anchor = tmp_anchor;
                             found = true;
                             break;
@@ -773,7 +822,10 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
                 }
 
                 // set input tensor shrink info
-                auto range = fsmap_list[real_anchor].get(out)[0];
+                auto range_list = fsmap_list[real_anchor].get(out);
+                COMPILE_ASSERT(range_list.size() == 1,
+                        "Currently only single slice is supported for input op")
+                auto range = range_list[0];
 
                 tsr->attr()[tensor_shrinker_attrs::should_shrink]
                         = tensor_shrinker_t::shrink_info_t {
@@ -811,11 +863,13 @@ void fusion_manager::do_declare_tensor(fuse_state_t &fstate) {
         // beginning of this sequence.
         auto &ss = decl_body->seq_;
         for (auto &ins : cur_op->get_inputs()) {
-            declare_(ins, ss, anchor_id);
+            declare_tensor_(ins, ss, anchor_id);
+            set_shrink_info_(ins, anchor_id);
         }
 
         for (auto &out : cur_op->get_outputs()) {
-            declare_(out, ss, anchor_id);
+            declare_tensor_(out, ss, anchor_id);
+            set_shrink_info_(out, anchor_id);
         }
     }
 
@@ -917,7 +971,7 @@ void fusion_manager::do_compute_block(
             } else if (buf.isa<tensorptr>()) {
                 buf_dims = get_expr_to_dims(buf.static_as<tensorptr>()->shape_);
             }
-            auto tsr = fstate.fdmap_.get(gt_ptr).get_allocated_tensor();
+            auto tsr = fstate.fdmap_.get(gt_ptr).get_real_tensor();
             size_t dtsize
                     = utils::get_sizeof_etype(tsr->elem_dtype_.type_code_);
             static constexpr int page_size = 4096;
@@ -1413,7 +1467,7 @@ fusion_manager::get_input_tsr_slices_list(
     std::vector<std::vector<tensor_slice>> result;
     for (auto &input : op->get_inputs()) {
         std::vector<tensor_slice> tmp;
-        auto buf = fdmap.get(input).buffer_;
+        auto buf = fdmap.get(input).get_buffer();
         auto range_list = fsmap.get(input);
         COMPILE_ASSERT(!range_list.empty(),
                 "empty input range found for " << op->op_name_)
@@ -1432,7 +1486,7 @@ fusion_manager::get_output_tsr_slices_list(
     std::vector<std::vector<tensor_slice>> result;
     for (auto &output : op->get_outputs()) {
         std::vector<tensor_slice> tmp;
-        auto buf = fdmap.get(output).buffer_;
+        auto buf = fdmap.get(output).get_buffer();
         auto range_list = fsmap.get(output);
         COMPILE_ASSERT(!range_list.empty(),
                 "empty output range found for " << op->op_name_)

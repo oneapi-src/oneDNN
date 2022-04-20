@@ -56,13 +56,6 @@ template struct gt_map_t<slice_range_list>;
 template struct gt_map_t<graph_tensor_ptr>;
 template struct gt_map_t<std::vector<int>>;
 
-bool share_with_output(const graph_tensor_ptr &gt) {
-    return std::any_of(gt->uses_.begin(), gt->uses_.end(),
-            [](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
-                return user.second->isa<output_op>();
-            });
-}
-
 sc_op_ptr op_traits::auto_copyable_t::copy(
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {

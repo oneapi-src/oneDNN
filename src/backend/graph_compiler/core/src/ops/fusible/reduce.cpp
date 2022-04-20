@@ -93,7 +93,8 @@ reduce_op_t::reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
     COMPILE_ASSERT(ins.size() == 1, "Expecting 1 input for reduce_op_t");
     info_.inputs_ = ins;
     COMPILE_ASSERT(attrs.has_key("rd_axis") && attrs.has_key("rd_op"),
-            "attrs should have reduce axis info.");
+            "attrs of reduce op should have both reduce axis and operand "
+            "information.");
     plain_rd_axis_ = attrs.get<std::vector<int>>("rd_axis");
     rd_op_ = reduce_operator(attrs.get<int>("rd_op"));
     keep_dims_ = attrs.get_or_else("keep_dims", true);

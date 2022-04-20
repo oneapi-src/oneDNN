@@ -222,6 +222,17 @@ public:
     // the op is single output and the output is single used
     bool is_single_output_single_use();
 
+    // the op share given graph tensor with opT(except itself)
+    template <typename opT>
+    bool share_gt_with_op(const graph_tensor_ptr &gt) {
+        auto ths = this;
+        return std::any_of(gt->uses_.begin(), gt->uses_.end(),
+                [&ths](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                    return user.second->isa<opT>()
+                            && (user.second.get() != ths);
+                });
+    }
+
     // Marks this node invalid and detach_use from all input tensors
     void remove();
 

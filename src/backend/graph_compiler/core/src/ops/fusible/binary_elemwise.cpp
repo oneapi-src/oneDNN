@@ -168,12 +168,12 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
     // TODO(xxx): do not cache vectorized_ or inplace_
     assert(ins.size() == 2);
     info_.inputs_ = ins;
+    auto lhs_const = dynamic_cast<constant_op_t *>(
+            info_.inputs_.at(0)->producer_owner_);
+    auto rhs_const = dynamic_cast<constant_op_t *>(
+            info_.inputs_.at(1)->producer_owner_);
     if (outs.empty()) {
         // fixme: correctly infer the shape for broadcast
-        auto lhs_const = dynamic_cast<constant_op_t *>(
-                info_.inputs_.at(0)->producer_owner_);
-        auto rhs_const = dynamic_cast<constant_op_t *>(
-                info_.inputs_.at(1)->producer_owner_);
         if (!lhs_const && rhs_const) {
             info_.outputs_.emplace_back(
                     std::make_shared<graph_tensor>(this, ins[0]->details_));
@@ -201,7 +201,23 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(
 
     if (plain_bc_axis_.empty()) { plain_bc_axis_ = infer_broadcast_axis(); }
 
-    inplace_ = attrs.get_or_else("inplace", 1);
+    inplace_ = attrs.get_or_else("inplace", 0);
+    // legelize inplace
+    // inplace 0-th input
+    if (inplace_ == 0 && (lhs_const || bc_idx == 0)) {
+        inplace_ = -1;
+    }
+    // inplace 1-th input
+    else if (inplace_ == 1 && (rhs_const || bc_idx == 1)) {
+        inplace_ = -1;
+    }
+    COMPILE_ASSERT(inplace_ >= -1 && inplace_ <= 1,
+            "binary op only have two inputs, but got "
+                    << inplace_ << "-th input to be inplaced.");
+
+    info_.tensor_share_info_ = (inplace_ == -1)
+            ? std::unordered_map<int, std::vector<int>> {}
+            : std::unordered_map<int, std::vector<int>> {{0, {inplace_}}};
 }
 
 binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(graph_tensor_ptr lhs,
@@ -368,40 +384,6 @@ void binary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
 
     in_detail0.use_count_++;
     in_detail1.use_count_++;
-    auto lhs_const = dynamic_cast<constant_op_t *>(
-            info_.inputs_.at(0)->producer_owner_);
-    auto rhs_const = dynamic_cast<constant_op_t *>(
-            info_.inputs_.at(1)->producer_owner_);
-    // no inplace, need to create a new buffer
-    if (inplace_ == 0) {
-        info_.tensor_share_info_ = {};
-    }
-    // inplace 1-th input
-    else if (inplace_ == 1) {
-        if (lhs_const
-                || (info_.inputs_[0]->details_.get_blocking_dims()
-                        != output->details_.get_blocking_dims())) {
-            info_.tensor_share_info_ = {};
-            inplace_ = 0;
-        } else {
-            info_.tensor_share_info_ = {{0, {0}}};
-        }
-    }
-    // inplace 2-th input
-    else if (inplace_ == 2) {
-        if (rhs_const
-                || (info_.inputs_[1]->details_.get_blocking_dims()
-                        != output->details_.get_blocking_dims())) {
-            info_.tensor_share_info_ = {};
-            inplace_ = 0;
-        } else {
-            info_.tensor_share_info_ = {{0, {1}}};
-        }
-    } else {
-        COMPILE_ASSERT(0,
-                "binary op only have two inputs, but got "
-                        << inplace_ << "-th input to be inplaced.");
-    }
 }
 
 // The logic below might be suitable for most fusible op, which has same
@@ -451,14 +433,8 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
     }
     // set outputs slice range
     int bc_idx = get_broadcast_input();
-    if (bc_idx != -1 && bc_idx == inplace_ - 1) {
-        // inplace_ is 0 or 1 or 2
-        // if we have inplace_, but the inplace_ side is the smaller side
-        // we need to follow the bc_idx rather than inplace_ to set outslice
-        outslice = known_ranges_map[1 - bc_idx];
-    } else {
-        outslice = known_ranges_map[inplace_ == 2 ? 1 : 0];
-    }
+    outslice = known_ranges_map[bc_idx > -1 ? (1 - bc_idx)
+                                            : (inplace_ > -1 ? inplace_ : 0)];
 }
 
 void binary_elementwise_op_impl_t::pre_slice_ranges(
