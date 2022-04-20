@@ -699,11 +699,11 @@ inline void json_reader::read_string(std::string *out_str) {
             if (ch == '\\') {
                 char sch = static_cast<char>(next_char());
                 switch (sch) {
-                    case 'r': output << "\r"; break;
-                    case 'n': output << "\r"; break;
-                    case '\\': output << "\r"; break;
-                    case 't': output << "\r"; break;
-                    case '\"': output << "\r"; break;
+                    case 'r': output << '\r'; break;
+                    case 'n': output << '\n'; break;
+                    case '\\': output << '\\'; break;
+                    case 't': output << '\t'; break;
+                    case '\"': output << '\"'; break;
                     default:
                         throw std::runtime_error(
                                 "JSON: unknown string escape.");
