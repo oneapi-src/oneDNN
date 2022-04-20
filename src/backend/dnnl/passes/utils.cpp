@@ -892,7 +892,7 @@ bool prelu_doable(const std::vector<dim_t> &src_dims,
             // if broadcast to channel,
             // then src channel dim should be equal to wei dim
             const int channel_dim_num
-                    = data_format == "NCX" ? 1 : src_dims[src_ndims - 1];
+                    = data_format == "NCX" ? 1 : src_ndims - 1;
             doable = src_dims[channel_dim_num] == wei_dims[0];
         }
     } else {

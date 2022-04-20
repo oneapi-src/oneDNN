@@ -186,6 +186,17 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             perm_op->set_attr<std::string>("to_format", "NXC");
             insert_op_after(perm_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(perm_op);
+
+            // Insert permute after prelu bprop second output
+            if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
+                op_ptr perm_op_1
+                        = std::make_shared<impl::op_t>(op_kind::permute);
+                perm_op_1->set_attr<std::string>("permute_kind", "permute");
+                perm_op_1->set_attr<std::string>("from_format", "NCX");
+                perm_op_1->set_attr<std::string>("to_format", "NXC");
+                insert_op_after(perm_op_1, cur_op, 1);
+                to_be_inserted_ops.emplace_back(perm_op_1);
+            }
         }
     }
     for (const auto &op : to_be_inserted_ops)
@@ -601,25 +612,17 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
 
     for (auto &cur_op : subgraph) {
-        if (cur_op->get_kind() != op_kind::dnnl_prelu
-                && cur_op->get_kind() != op_kind::dnnl_prelu_bwd)
-            continue;
+        if (cur_op->get_kind() != op_kind::dnnl_prelu) continue;
 
         // check doable
         auto src_lt = cur_op->get_input_value(0)->get_logical_tensor();
         auto wei_lt = cur_op->get_input_value(1)->get_logical_tensor();
-        const auto wei_vdims = ltw(wei_lt).vdims();
         const std::string data_format
                 = cur_op->get_attr<std::string>("data_format");
-
-        // In backward pass if the slope is one-dimensional
-        // and its dims[0] != 1, then per channel broadcast will be performed.
         const bool per_channel_broadcast
-                = cur_op->get_kind() == op_kind::dnnl_prelu
-                ? cur_op->get_attr<bool>("per_channel_broadcast")
-                : wei_vdims.size() == 1 && wei_vdims[0] != 1;
+                = cur_op->get_attr<bool>("per_channel_broadcast");
 
-        if (!prelu_doable(ltw(src_lt).vdims(), wei_vdims, data_format,
+        if (!prelu_doable(ltw(src_lt).vdims(), ltw(wei_lt).vdims(), data_format,
                     per_channel_broadcast)) {
             return status::invalid_shape;
         }
@@ -631,8 +634,8 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
             auto expand_op = std::make_shared<op_t>(op_kind::expand);
             expand_op->set_attr<int64_t>("expand_to", src_ndims);
             // insert op before weights, which are the second input
-            int wei_input_id = 1;
-            insert_op_before(expand_op, cur_op, wei_input_id);
+            int wei_id = 1;
+            insert_op_before(expand_op, cur_op, wei_id);
             to_be_inserted_ops.emplace_back(expand_op);
 
             if (data_format == "NCX" && src_ndims > 2
@@ -646,6 +649,101 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
                 insert_op_after(perm_op, expand_op, 0);
                 to_be_inserted_ops.emplace_back(perm_op);
             }
+        }
+    }
+
+    for (const auto &op : to_be_inserted_ops) {
+        subgraph.emplace_back(op);
+    }
+
+    for (const auto &op : to_be_removed_ops) {
+        auto pos = std::find_if(subgraph.begin(), subgraph.end(),
+                [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
+        if (pos != subgraph.end()) subgraph.erase(pos);
+    }
+
+    return impl::status::success;
+}
+
+impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
+        std::shared_ptr<subgraph_t> &sg) {
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<op_ptr> to_be_inserted_ops;
+    std::vector<op_ptr> to_be_removed_ops;
+
+    auto &subgraph = sg->get_mutable_ops();
+
+    for (auto &cur_op : subgraph) {
+        if (cur_op->get_kind() != op_kind::dnnl_prelu_bwd) continue;
+
+        // check doable
+        auto src_lt = cur_op->get_input_value(0)->get_logical_tensor();
+        auto wei_lt = cur_op->get_input_value(1)->get_logical_tensor();
+        const auto wei_vdims = ltw(wei_lt).vdims();
+        const std::string data_format
+                = cur_op->get_attr<std::string>("data_format");
+
+        // In backward pass if the slope is one-dimensional
+        // and its dims[0] != 1, then per channel broadcast will be performed.
+        const bool per_channel_broadcast
+                = wei_vdims.size() == 1 && wei_vdims[0] != 1;
+
+        if (!prelu_doable(ltw(src_lt).vdims(), wei_vdims, data_format,
+                    per_channel_broadcast)) {
+            return status::invalid_shape;
+        }
+        // insert expand op
+        int32_t src_ndims = src_lt.ndims;
+        int32_t wei_ndims = wei_lt.ndims;
+        // we only broadcast wei dims
+        if (wei_ndims != src_ndims) {
+            auto expand_op = std::make_shared<op_t>(op_kind::expand);
+            expand_op->set_attr<int64_t>("expand_to", src_ndims);
+            // insert expand before weights, which are the second input
+            int wei_id = 1;
+            insert_op_before(expand_op, cur_op, wei_id);
+            to_be_inserted_ops.emplace_back(expand_op);
+
+            auto expand_op_diff_wei = std::make_shared<op_t>(op_kind::expand);
+            expand_op_diff_wei->set_attr<int64_t>("expand_to", src_ndims);
+            // insert expand before diff_weights, which are the second output
+            insert_op_after(expand_op_diff_wei, cur_op, wei_id);
+            to_be_inserted_ops.emplace_back(expand_op_diff_wei);
+
+            if (data_format == "NCX" && src_ndims > 2
+                    && per_channel_broadcast) {
+                // If data format is NCX we need to permute expanded weights,
+                // which are in format NXC.
+                op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
+                perm_op->set_attr<std::string>("permute_kind", "permute");
+                perm_op->set_attr<std::string>("from_format", "NXC");
+                perm_op->set_attr<std::string>("to_format", "NCX");
+                insert_op_after(perm_op, expand_op, 0);
+                to_be_inserted_ops.emplace_back(perm_op);
+            }
+
+            std::vector<int64_t> squeeze_dims = {};
+            if (wei_vdims.size() == 1) {
+                squeeze_dims.resize(src_ndims - 1);
+                squeeze_dims[0] = 0;
+                if (data_format == "NCX") {
+                    std::iota(squeeze_dims.begin() + 1, squeeze_dims.end(), 2);
+                } else {
+                    // data_format == "NXC"
+                    std::iota(squeeze_dims.begin() + 1, squeeze_dims.end(), 1);
+                }
+            } else {
+                squeeze_dims.resize(1);
+                squeeze_dims[0] = 0;
+            }
+
+            op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
+            squeeze_op->set_attr<std::vector<int64_t>>("axes", squeeze_dims);
+            // Insert squeeze after diff weights, so that its dimensions
+            // have their original shape.
+            insert_op_after(squeeze_op, expand_op_diff_wei, 0);
+            to_be_inserted_ops.emplace_back(squeeze_op);
         }
     }
 

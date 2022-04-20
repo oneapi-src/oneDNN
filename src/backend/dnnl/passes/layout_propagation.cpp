@@ -661,12 +661,12 @@ static void layout_propagation_for_prelu_bwd(op_ptr &op,
 
     insert_reorder_after(
             op, 0, pd.diff_src_desc(), p_engine, prm_attr_mgr, reorder_ops);
-    value_ptr diff_src = op->get_input_value(0);
+    value_ptr diff_src = op->get_output_value(0);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
     insert_reorder_after(
             op, 1, pd.diff_weights_desc(), p_engine, prm_attr_mgr, reorder_ops);
-    value_ptr diff_wei = op->get_input_value(1);
+    value_ptr diff_wei = op->get_output_value(1);
     fill_layout_info(diff_wei, pd.diff_weights_desc());
 
     value_ptr scratchpad_val = op->get_output_value(2);
@@ -1112,7 +1112,9 @@ static void layout_propagation_for_squeeze(op_ptr &op,
     auto out_lt = dst->get_logical_tensor();
 
     auto predecessor_kind = src->get_producer().get_kind();
-    if (predecessor_kind == op_kind::dnnl_reduction) {
+    // Predecessor kind is expand in the case of prelu bwd
+    if (predecessor_kind == op_kind::dnnl_reduction
+            || predecessor_kind == op_kind::expand) {
         auto in_md = make_dnnl_memory_desc(in_lt);
         if (ltw(out_lt).is_any()) {
             const auto in_ndim = static_cast<int64_t>(in_md.dims().size());

@@ -21977,10 +21977,11 @@ public:
                 1, params.wei_dims, impl::data_type::f32);
         impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
                 2, params.data_dims, impl::data_type::f32);
-        impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-                3, params.data_dims, impl::data_type::f32);
-        impl::logical_tensor_t diff_wei_lt = utils::logical_tensor_init(
-                4, params.diff_wei_dims, impl::data_type::f32);
+        impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(3,
+                params.data_dims, impl::data_type::f32, impl::layout_type::any);
+        impl::logical_tensor_t diff_wei_lt
+                = utils::logical_tensor_init(4, params.diff_wei_dims,
+                        impl::data_type::f32, impl::layout_type::any);
 
         prelu_op.add_input(src_lt);
         prelu_op.add_input(wei_lt);
@@ -22036,46 +22037,42 @@ TEST_P(PreluBackprop, TestPreluBackprop) {
 INSTANTIATE_TEST_SUITE_P(Execute, PreluBackprop,
         ::testing::Values(
                 // NCX, 1d slope, per tensor broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1},
-                        {1, 1, 1, 1},
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1}, {1},
                         {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0}, {-4.0},
                         {-0.0625, 0.125, 0.0, 0.0625, -0.125, 0.0, 0.0625,
                                 0.125},
                         {0.25, -0.5, -0.0, 0.0625, 0.5, 0.0, 0.0625, 0.125},
                         {0.125}, "NCX"},
                 // NCX, 1d slope, per channel broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {2},
-                        {1, 2, 1, 1},
-                        {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0}, {-4.0, 2.0},
-                        {-0.0625, 0.125, 0.0, 0.0625, -0.125, 0.0, 0.0625,
-                                0.125},
-                        {0.25, -0.5, -0.0, 0.0625, -0.25, 0.0, 0.0625, 0.125},
-                        {0.0, 0.125}, "NCX"},
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 1, 1}, {2}, {2},
+                        {-0.0, 2.0}, {-4.0, 2.0}, {-0.0625, 0.125},
+                        {0.25, 0.125}, {0.0, 0.0}, "NCX"},
                 // NCX, tensorflow case
                 dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {2, 2, 2},
-                        {1, 2, 2, 2},
-                        {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0},
+                        {2, 2, 2}, {-0.0, 0.0, 0.0, 1.0, -1.0, 1.0, 1.0, 2.0},
                         {-4.0, 2.0, 1.0, 0.5, -0.25, 8.0, 4.0, 2.0},
                         {-0.0625, 0.125, 0.0, 0.0625, -0.125, 0.0, 0.0625,
                                 0.125},
                         {0.25, 0.25, 0.0, 0.0625, 0.03125, 0.0, 0.0625, 0.125},
                         {0.0, 0.0, 0.0, 0.0, 0.125, 0.0, 0.0, 0.0}, "NCX"},
                 // NXC, 1d slope, per tensor broadcast, pytorch case
-                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1},
-                        {1, 1, 1, 1},
+                dnnl_graph_test_prelu_bwd_params {{1, 2, 2, 2}, {1}, {1},
                         {-0.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 2.0}, {-4.0},
                         {-0.0625, -0.125, 0.125, 0.0, 0.0, 0.0625, 0.0625,
                                 0.125},
                         {0.25, 0.5, -0.5, 0.0, -0.0, 0.0625, 0.0625, 0.125},
                         {0.125}, "NXC"},
+                // NXC, 1d slope, per channel broadcast, pytorch case
+                dnnl_graph_test_prelu_bwd_params {{1, 1, 1, 2}, {2}, {2},
+                        {-0.0, -1.0}, {-4.0, 1.0}, {-0.0625, -0.125},
+                        {0.25, -0.125}, {0.0, 0.125}, "NXC"},
                 // 2d input, per tensor broadcast
-                dnnl_graph_test_prelu_bwd_params {{1, 2}, {1}, {1, 1},
-                        {-0.0, 0.0}, {-4.0}, {-0.0625, 0.125}, {0.25, -0.5},
-                        {0.0}, "NCX"},
+                dnnl_graph_test_prelu_bwd_params {{1, 2}, {1}, {1}, {-0.0, 0.0},
+                        {-4.0}, {-0.0625, 0.125}, {0.25, -0.5}, {0.0}, "NCX"},
                 // 2d input, per channel broadcast
-                dnnl_graph_test_prelu_bwd_params {{1, 2}, {2}, {1, 2},
-                        {-0.0, 0.0}, {-4.0, 2.0}, {-0.0625, 0.125},
-                        {0.25, 0.25}, {0.0, 0.0}, "NCX"}));
+                dnnl_graph_test_prelu_bwd_params {{1, 2}, {2}, {2}, {-0.0, 0.0},
+                        {-4.0, 2.0}, {-0.0625, 0.125}, {0.25, 0.25}, {0.0, 0.0},
+                        "NCX"}));
 
 TEST(ExecuteSubgraphInt8, Relu) {
     // compare results between:

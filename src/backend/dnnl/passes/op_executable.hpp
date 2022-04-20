@@ -1129,7 +1129,7 @@ create_prelu_bwd_pd(std::shared_ptr<impl::op_t> &op,
     wei = to_format_any(wei);
 
     auto diff_data = make_dnnl_memory_desc(
-            op->get_output_value(0)->get_logical_tensor());
+            op->get_input_value(2)->get_logical_tensor());
     auto diff_wei = make_dnnl_memory_desc(
             op->get_output_value(1)->get_logical_tensor());
     diff_wei = to_format_any(diff_wei);

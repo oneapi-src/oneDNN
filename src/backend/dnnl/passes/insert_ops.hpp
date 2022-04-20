@@ -86,6 +86,26 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg);
 /// after expanding weights, we additionally have to permute them.
 impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg);
 
+/// Insert expand_to and squeeze op for PReLUBackprop:
+///     The weights dims we receive from the frameworks do not meet DNNL
+///     requirements. Its number of dimensions are less than the number of src
+///     dimensions. Therefore, we need to use expand and squeeze to satisfy
+///     certain conditions.
+///
+/// The usage of expand op:
+///     expand_to inserts 1 at the beginning of the weight dims and diff weights
+///     dims as many as needed, so that the weights have the same number of
+///     ndims as src.
+///     When performing broadcast to channel and data format is NCX,
+///     after expanding weights, we additionally have to permute them, so that
+///     the weights and src have the same channel dim.
+///
+/// The usage of squeeze op:
+///     squeeze op is the inverse of expand and is needed to restore the
+///     original dimensions of the diff weights at the output.
+impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
+        std::shared_ptr<subgraph_t> &sg);
+
 /// Insert expand and squeeze op for reduction:
 ///     Both OPs will only be inserted when reduction 'keep_dims' attribute is
 ///     equal to false. Their goal is to make subgraph compatible with oneDNN
