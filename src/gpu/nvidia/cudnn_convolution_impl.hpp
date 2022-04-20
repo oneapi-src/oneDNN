@@ -30,6 +30,10 @@
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
+#if CUDNN_MAJOR < 8
+#define CUDNN_FMA_MATH CUDNN_DEFAULT_MATH
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
