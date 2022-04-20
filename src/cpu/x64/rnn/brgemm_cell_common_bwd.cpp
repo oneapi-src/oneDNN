@@ -254,8 +254,8 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel_amx(
         const int ithr, const int nthr) const {
     using namespace cpu::rnn_utils;
 
-    int start = 0, end = 0;
-    balance211(work_amount_, nthr, ithr, start, end);
+    int mn_start = 0, mn_end = 0;
+    balance211(work_amount_, nthr, ithr, mn_start, mn_end);
 
     int n_block_id = 0, m_block_id = 0;
     const auto n_gates = rnn_.n_gates;
@@ -272,20 +272,20 @@ void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::kernel_amx(
 
         switch (rnn_.diff_src_brgemm.loop_order) {
             case brgemm_rnn_execute_loop_order_t::mblk_nblk:
-                nd_iterator_init(start, m_block_id, m_blocking_, n_block_id,
+                nd_iterator_init(mn_start, m_block_id, m_blocking_, n_block_id,
                         n_blocking_);
                 break;
             case brgemm_rnn_execute_loop_order_t::nblk_mblk:
-                nd_iterator_init(start, n_block_id, n_blocking_, m_block_id,
+                nd_iterator_init(mn_start, n_block_id, n_blocking_, m_block_id,
                         m_blocking_);
                 break;
             default: assert(!"unsupported loop order");
         }
-
-        while (start < end) {
+        int mn_idx = mn_start;
+        while (mn_idx < mn_end) {
             kernel_amx_compute_iter(
                     m_block_id, n_block_id, gates_start, gates_end, ctx);
-            ++start;
+            ++mn_idx;
             switch (rnn_.diff_src_brgemm.loop_order) {
                 case brgemm_rnn_execute_loop_order_t::mblk_nblk:
                     nd_iterator_step(
