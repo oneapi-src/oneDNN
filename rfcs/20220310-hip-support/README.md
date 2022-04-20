@@ -7,7 +7,7 @@ The idea for this RFC is to expose the AMD backend for oneDNN.
 - Build process and compilation is successfully validated.
 
 ## Proposal
-The primitives are built using MIOpen and hipDNN library, which are the open-source DNN libraries of AMD.
+The primitives are built using MIOpen library, which are the open-source DNN libraries of AMD.
 - The backend can be exposed to the user via DNNL_GPU_VENDOR=AMD flag used in CMake.
 - This contribution would extend oneDNN's support for primitives and their supported post-ops and Quantization from CUDA backend to HIP backend.
 
@@ -51,7 +51,7 @@ Limitations:
 ## LRN(LOCAL RESPONSE NORMALIZATION) :
 
 The local response normalization primitive in the AMD backend is implemented with the
-hipdnnLRNForward and hipdnnLRNBackward functions for forward and backward propagation respectively.
+miopenLRNForward and miopenLRNBackward functions for forward and backward propagation respectively.
 
 Propagation:
 Forward and Backward.
