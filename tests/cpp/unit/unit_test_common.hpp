@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "interface/engine.hpp"
+#include "interface/partition_cache.hpp"
 #include "interface/stream.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
@@ -133,5 +134,20 @@ using vector = std::vector<T, TestAllocator<T>>;
 using vector = std::vector<T>;
 #endif // DNNL_GRAPH_WITH_SYCL
 } // namespace test
+
+inline int get_compiled_partition_cache_size() {
+    int result = 0;
+    auto status = dnnl::graph::impl::get_compiled_partition_cache_size(&result);
+    if (status != dnnl::graph::impl::status::success) return -1;
+    return result;
+}
+
+inline int set_compiled_partition_cache_capacity(int capacity) {
+    if (capacity < 0) return -1;
+#ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
+    return dnnl::graph::impl::compiled_partition_cache().set_capacity(capacity);
+#endif
+    return 0;
+}
 
 #endif

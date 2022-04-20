@@ -17,10 +17,12 @@
 #ifndef TEST_API_COMMON_HPP
 #define TEST_API_COMMON_HPP
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <numeric>
 #include <random>
 #include <string>
 #include <utility>
@@ -29,8 +31,6 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph.hpp"
-
-#include "src/interface/partition_cache.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
@@ -155,13 +155,6 @@ void api_test_dnnl_graph_graph_create(
 
 dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
         dnnl::graph::engine::kind engine_kind);
-
-inline int get_compiled_partition_cache_size() {
-    int result = 0;
-    auto status = dnnl::graph::impl::get_compiled_partition_cache_size(&result);
-    if (status != dnnl::graph::impl::status::success) return -1;
-    return result;
-}
 
 inline dnnl_graph_dim_t product(const std::vector<int64_t> &dims) {
     return dims.empty()

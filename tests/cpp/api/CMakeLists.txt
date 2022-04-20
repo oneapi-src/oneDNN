@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ set(API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_constant_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition_cache_mt.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api_test_main.cpp
     )
 
@@ -59,19 +58,9 @@ target_link_libraries(${LIB_NAME}_api_test
 
 target_include_directories(${LIB_NAME}_api_test
     PRIVATE
-    ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
-    ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
     ${PROJECT_SOURCE_DIR}/tests # gtest related headers
-    ${PROJECT_SOURCE_DIR}/src
-    ${PROJECT_SOURCE_DIR}/
-    PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     )
-
-if(NOT DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE)
-    target_compile_definitions(${LIB_NAME}_api_test
-        PRIVATE DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE)
-endif()
 
 set(TEST_FILES_NEED_VERSION ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_version.cpp)

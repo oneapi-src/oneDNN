@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,6 +49,11 @@ target_link_libraries(${LIB_NAME}_unit_test
     ${DNNL_GRAPH_EXTRA_SHARED_LIBS}
     ${DNNL_GRAPH_COMMON_LINK_FLAGS} # FIXME: consider target_link_options from cmake 3.13
     )
+
+if(NOT DNNL_GRAPH_ENABLE_COMPILED_PARTITION_CACHE)
+    target_compile_definitions(${LIB_NAME}_unit_test
+        PRIVATE DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE)
+endif()
 
 set(sycl_rt_pattern "(DPCPP)")
 add_test("${LIB_NAME}_unit_test" "${LIB_NAME}_unit_test" "--engine=cpu")
