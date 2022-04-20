@@ -17,6 +17,7 @@
 #include <climits>
 #include <cstring>
 #ifdef _WIN32
+#include <io.h>
 #include <windows.h>
 #else
 #include <dlfcn.h>
@@ -28,6 +29,7 @@
 #include <compiler/ir/sc_data_type.hpp>
 #include <runtime/config.hpp>
 #include <runtime/env_vars.hpp>
+#include <runtime/logging.hpp>
 
 namespace sc {
 namespace utils {
@@ -133,6 +135,19 @@ compiler_configs_t::compiler_configs_t() {
             utils::getenv_string(env_names[SC_CPU_JIT_FLAGS]), " ");
     temp_dir_ = utils::getenv_string(env_names[SC_TEMP_DIR]);
     if (temp_dir_.empty()) { temp_dir_ = "/tmp"; }
+#ifndef _WIN32
+    int access_ret = access(temp_dir_.c_str(), W_OK);
+    COMPILE_ASSERT(access_ret == 0,
+            temp_dir_ << " can not be writen as temp directory, please make "
+                         "your writable temp directory and use with "
+                         "SC_TEMP_DIR=/path/to/temp");
+#else
+    int access_ret = _access(temp_dir_.c_str(), 2);
+    SC_WARN << temp_dir_
+            << "can not be writen as temp directory, please make "
+               "your writable temp directory and use with "
+               "SC_TEMP_DIR=/path/to/temp";
+#endif
 
     print_pass_time_ = utils::getenv_int(env_names[SC_PRINT_PASS_TIME], 0);
     print_pass_result_ = utils::getenv_int(env_names[SC_PRINT_PASS_RESULT], 0);

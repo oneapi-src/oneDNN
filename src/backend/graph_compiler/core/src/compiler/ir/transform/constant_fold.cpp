@@ -484,6 +484,23 @@ public:
         return false;
     }
 
+    // fold x/c1/c2 => x /(c1*c2)
+    bool fold_successive_div(expr_c &orig, expr_c &l, const expr_c &r) {
+        sc_expr_type op = orig->node_type_;
+        if (op != sc_expr_type::div) { return false; }
+        if (is_same_op(orig, l) && !l.isa<constant>() && r.isa<constant>()) {
+            auto v = get_operand_from_binary(l);
+            if (v.second.isa<constant>()) {
+                auto c1 = v.second.static_as<constant_c>();
+                orig = builder::make_div(v.first,
+                        compute_constexpr(c1, r.static_as<constant_c>(),
+                                builder::make_mul(c1, r)));
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** expand Polynomial function
      *  e.g. ((a+b)*c+d)*e = a*c*e+b*c*e+d*e
      *                  *
@@ -598,6 +615,7 @@ public:
                 }
             }
             if (fold_special_exprs(parent, l, r)) { return parent; }
+            if (fold_successive_div(parent, l, r)) { return parent; }
         }
         if (!l.ptr_same(lhs) || !r.ptr_same(rhs)) {
             return builder::remake_binary(l, r, parent);
