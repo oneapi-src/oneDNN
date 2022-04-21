@@ -136,6 +136,20 @@ struct allocator_handle_t {
     }
 };
 static allocator_handle_t allocator_handle;
+
+struct sycl_deletor {
+    sycl_deletor() = delete;
+    cl::sycl::context ctx_;
+    sycl_deletor(const cl::sycl::context &ctx) : ctx_(ctx) {}
+    void operator()(void *ptr) {
+        if (ptr) cl::sycl::free(ptr, ctx_);
+    }
+};
+
+void *sycl_alloc(size_t n, const void *dev, const void *ctx,
+        dnnl_graph_allocator_attr_t attr);
+
+void sycl_free(void *ptr, const void *ctx);
 #endif // DNNL_GRAPH_WITH_SYCL
 
 struct engine_handle_t {

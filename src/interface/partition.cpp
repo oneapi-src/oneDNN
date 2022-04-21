@@ -282,14 +282,6 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         return status::invalid_argument;
     }
 
-    if (stream->get_engine()->kind() == engine_kind::gpu) {
-        return status::invalid_argument;
-    } else {
-#ifdef DNNL_GRAPH_CPU_SYCL
-        return status::invalid_argument;
-#endif
-    }
-
     std::vector<tensor_t> ins, outs;
     ins.reserve(num_inputs);
     outs.reserve(num_inputs);
