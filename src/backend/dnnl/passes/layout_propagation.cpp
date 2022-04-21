@@ -1564,7 +1564,9 @@ static void remove_optional_conv_dw_output(
         new_conv_dw->merge_attributes(cur_op->get_attributes());
 
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
-            new_conv_dw->connect_input(i, cur_op->get_input_value(i));
+            const auto &in_val = cur_op->get_input_value(i);
+            in_val->remove_consumer(*cur_op, i);
+            new_conv_dw->connect_input(i, in_val);
         }
         // connect outputs, omit optional one with offset > 1
         value_ptr conv_dw_dst = cur_op->get_output_value(0);
