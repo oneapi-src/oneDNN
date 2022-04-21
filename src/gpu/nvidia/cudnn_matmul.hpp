@@ -54,9 +54,6 @@ struct cudnn_matmul_t : public primitive_t {
             bool s8_case = utils::everyone_is(s8, src_dt, wei_dt)
                     && utils::one_of(dst_dt, s8, f32);
 
-            memory_desc_wrapper dst_mdw(dst_md());
-            auto dst_stride = dst_mdw.blocking_desc().strides;
-
             bool ok = blocking_ok()
                     && attr()->has_default_values(
                             smask_t::oscale_runtime | smask_t::post_ops)
@@ -69,8 +66,7 @@ struct cudnn_matmul_t : public primitive_t {
                                             utils::one_of(bia_dt, f16, f32))
                                     && IMPLICATION(s8_case,
                                             utils::one_of(bia_dt, s8, f32))))
-                    && !(with_bias() && s8_case)
-                    && (dst_stride[dst_md()->ndims - 1] == 1);
+                    && !(with_bias() && s8_case);
             if (!ok) return status::unimplemented;
 
             // Check for uniform batch values across src and wei since

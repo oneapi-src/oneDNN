@@ -193,7 +193,6 @@ struct cudnn_matmul_impl_t {
     status_t init_gemm_parameters(const memory_desc_wrapper src_d,
             const memory_desc_wrapper weights_d,
             const memory_desc_wrapper dst_d) {
-        const auto &dst_bd = dst_d.blocking_desc();
 
         if (isbatched_) {
             // Check that user didn't provide broadcast case. See pd_t::init()
@@ -213,6 +212,7 @@ struct cudnn_matmul_impl_t {
         N_ = (int)N;
         K_ = (int)K;
 
+        const auto &dst_strides = &dst_d.blocking_desc().strides[isbatched_];
         const auto &src_strides = &src_d.blocking_desc().strides[isbatched_];
         const auto &weights_strides
                 = &weights_d.blocking_desc().strides[isbatched_];
@@ -226,13 +226,18 @@ struct cudnn_matmul_impl_t {
         transB_ = src_strides[1] == 1 && src_d.dims()[isbatched_ + 0] > 1
                 ? cublasOperation_t::CUBLAS_OP_N
                 : cublasOperation_t::CUBLAS_OP_T;
+        // C matrix is the dst
+        transC_ = dst_strides[1] == 1 && dst_d.dims()[isbatched_ + 0] > 1
+                ? cublasOperation_t::CUBLAS_OP_N
+                : cublasOperation_t::CUBLAS_OP_T;
 
         lda_ = (int)
                 weights_strides[transA_ == cublasOperation_t::CUBLAS_OP_N ? 0
                                                                           : 1];
         ldb_ = (int)
                 src_strides[transB_ == cublasOperation_t::CUBLAS_OP_N ? 0 : 1];
-        ldc_ = (int)dst_bd.strides[isbatched_ + 0];
+        ldc_ = (int)
+                dst_strides[transC_ == cublasOperation_t::CUBLAS_OP_N ? 0 : 1];
 
         if (isbatched_) {
             // These parameters are required for cublasGemmStridedBatchedEx()
@@ -240,7 +245,8 @@ struct cudnn_matmul_impl_t {
                                                                     : lda_ * M_;
             stride_b_ = (transB_ == cublasOperation_t::CUBLAS_OP_N) ? ldb_ * N_
                                                                     : ldb_ * K_;
-            stride_c_ = ldc_ * N_;
+            stride_c_ = (transC_ == cublasOperation_t::CUBLAS_OP_N) ? ldc_ * N_
+                                                                    : ldc_ * M_;
         }
 
         return status::success;
@@ -306,19 +312,40 @@ struct cudnn_matmul_impl_t {
             temp_mem_desc_ = tensor_descs_[io::dst];
             gemm_beta = post_op_sum_;
         }
+        auto flip_op = [](cublasOperation_t op) {
+            return (op == cublasOperation_t::CUBLAS_OP_T)
+                    ? cublasOperation_t::CUBLAS_OP_N
+                    : cublasOperation_t::CUBLAS_OP_T;
+        };
         if (isbatched_) {
             // Calls cublasGemmStridedBatchedEx()
-            CUBLAS_EXECUTE_FUNC(cublasGemmStridedBatchedEx, cublas_handle,
-                    transA_, transB_, M_, N_, K_, &scales, a, weights_type_,
-                    lda_, stride_a_, b, src_type_, ldb_, stride_b_, &gemm_beta,
-                    scratch, dst_type_, ldc_, stride_c_, batch_count_,
-                    acc_type_, gemm_algo_);
+            if (transC_ == cublasOperation_t::CUBLAS_OP_T) {
+                CUBLAS_EXECUTE_FUNC(cublasGemmStridedBatchedEx, cublas_handle,
+                        flip_op(transB_), flip_op(transA_), N_, M_, K_, &scales,
+                        b, src_type_, ldb_, stride_b_, a, weights_type_, lda_,
+                        stride_a_, &gemm_beta, scratch, dst_type_, ldc_,
+                        stride_c_, batch_count_, acc_type_, gemm_algo_);
+
+            } else {
+                CUBLAS_EXECUTE_FUNC(cublasGemmStridedBatchedEx, cublas_handle,
+                        transA_, transB_, M_, N_, K_, &scales, a, weights_type_,
+                        lda_, stride_a_, b, src_type_, ldb_, stride_b_,
+                        &gemm_beta, scratch, dst_type_, ldc_, stride_c_,
+                        batch_count_, acc_type_, gemm_algo_);
+            }
         } else {
             // Calls cublasGemmEx()
-            CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle, transA_, transB_,
-                    M_, N_, K_, &scales, a, weights_type_, lda_, b, src_type_,
-                    ldb_, &gemm_beta, scratch, dst_type_, ldc_, acc_type_,
-                    gemm_algo_);
+            if (transC_ == cublasOperation_t::CUBLAS_OP_T) {
+                CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle,
+                        flip_op(transB_), flip_op(transA_), N_, M_, K_, &scales,
+                        b, src_type_, ldb_, a, weights_type_, lda_, &gemm_beta,
+                        scratch, dst_type_, ldc_, acc_type_, gemm_algo_);
+            } else {
+                CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle, transA_,
+                        transB_, M_, N_, K_, &scales, a, weights_type_, lda_, b,
+                        src_type_, ldb_, &gemm_beta, scratch, dst_type_, ldc_,
+                        acc_type_, gemm_algo_);
+            }
         }
         if (with_bias_) {
             // When bias is specified call cudnnAddTensor()
@@ -384,6 +411,7 @@ private:
     }
     cublasOperation_t transA_;
     cublasOperation_t transB_;
+    cublasOperation_t transC_;
     int M_, N_, K_;
     int lda_, ldb_, ldc_;
     long long int stride_a_, stride_b_, stride_c_;
