@@ -203,7 +203,7 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     SAFE(fused_wei_dt.reorder(wei_fp1), WARN);
     if (prb->dir == FWD_B) SAFE(fused_bia_dt.reorder(bia_fp1), WARN);
 
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     // Execute first convolution
     graph::tensor src_tensor0(ins0[0], eng, static_cast<void *>(src_dt0));

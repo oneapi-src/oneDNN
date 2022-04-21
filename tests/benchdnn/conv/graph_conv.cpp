@@ -378,7 +378,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
                 binary_po_dt[i], binary_po_fp[i]);
     }
 
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     idx_ins = 0;
     graph::tensor src_tensor(ins[idx_ins], eng,

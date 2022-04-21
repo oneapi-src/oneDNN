@@ -137,7 +137,7 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
 
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     tensors_in.emplace_back(
             dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));

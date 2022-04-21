@@ -259,7 +259,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         // oneDNN Graph supports either both scale and shift or neither of them
         if (spec.use_affine) SAFE(ss_dt.reorder(ss_fp), WARN);
 
-        dnnl::graph::engine &eng = get_test_engine();
+        const dnnl::graph::engine &eng = get_test_engine();
 
         tensors_in.emplace_back(
                 dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
@@ -334,7 +334,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         SAFE(var_dt.reorder(var_fp), WARN);
         if (spec.use_affine) SAFE(ss_dt.reorder(ss_fp), WARN);
 
-        dnnl::graph::engine &eng = get_test_engine();
+        const dnnl::graph::engine &eng = get_test_engine();
 
         dnnl::graph::tensor src_tensor(
                 ins[0], eng, static_cast<void *>(src_dt));

@@ -1,0 +1,23 @@
+# main op
+--reset
+--alg=ADD --stag=abx:abx --dtag=abx 64x128x28x28:64x128x28x28
+
+--reset
+--alg=SUB --stag=axb:axb --dtag=axb 64x128x28x28:64x128x28x28
+
+# post binary
+--reset
+--alg=MUL --ddt=f32 --sdt=f32:f32 --attr-post-ops=add:f32:common,add:f32:per_oc,add:f32:per_oc:axb --stag=abx:abx
+64x128x28x28:64x128x28x28
+
+# post sum
+--reset
+--alg=MAX --attr-post-ops=sum --stag=abx:abx 64x128x28x28:64x128x28x28
+
+# post eltwise
+--reset
+--alg=MIN --ddt=f32 --sdt=f32:f32 --attr-post-ops=logistic --stag=abx:abx 64x128x28x28:64x128x28x28
+
+# bf16 post binary
+--reset
+--alg=MUL --ddt=bf16 --sdt=bf16:bf16 --attr-post-ops=add:bf16:common --stag=abx:abx 64x128x28x28:64x128x28x28

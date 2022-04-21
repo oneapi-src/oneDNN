@@ -182,7 +182,7 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
             ::resampling::init_pd, prb, res, par, ins, outs);
     const auto cp_dst_lt = cp.query_logical_tensor(outs[0].get_id());
 
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
     auto dst_fp = make_dnn_mem(cp_dst_lt, dt::f32, tag::abx);
 

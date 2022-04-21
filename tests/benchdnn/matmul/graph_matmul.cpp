@@ -312,7 +312,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
                     binary_po_dt[i], binary_po_fp[i]);
         }
     }
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     idx_ins = 0;
     dnnl::graph::tensor src_tensor(

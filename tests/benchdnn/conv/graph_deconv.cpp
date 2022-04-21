@@ -362,7 +362,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
                 binary_po_dt.back(), binary_po_fp.back());
     }
 
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     dnnl::graph::tensor src_tensor(src_lt, eng, static_cast<void *>(src_dt));
     dnnl::graph::tensor wei_tensor(wei_lt, eng, static_cast<void *>(wei_dt));

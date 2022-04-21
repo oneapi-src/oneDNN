@@ -305,7 +305,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
         ::binary::fill_mem(po_idx, binary_po_dt.back(), binary_po_fp.back());
         binary_po_args.push_back(po_idx);
     }
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     dnn_mem_t d_dst_dt, d_src_dt, ws_dt;
     args_t args, ref_args;

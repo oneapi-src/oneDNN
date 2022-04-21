@@ -249,7 +249,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     SAFE(var_dt.reorder(var_fp), WARN);
 
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
     args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {

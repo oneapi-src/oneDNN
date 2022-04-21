@@ -1,0 +1,16 @@
+--reset
+
+--mb=2
+--alg=nearest,linear
+--tag=abx,axb
+--dir=FWD_D,BWD_D
+
+--sdt=f32 --ddt=f32
+--batch=shapes_ci
+
+--sdt=bf16 --ddt=bf16
+--batch=shapes_ci
+
+--reset
+--attr-post-ops=relu,sum,add:f32:common,add:f32:per_oc,add:f32:per_tensor   ic17iw21ow17
+--sdt=bf16 --ddt=bf16  --attr-post-ops=relu,sum   ic17iw21ow17

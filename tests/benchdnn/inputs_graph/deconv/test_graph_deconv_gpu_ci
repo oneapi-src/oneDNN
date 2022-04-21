@@ -1,0 +1,34 @@
+# no groups
+--reset
+--dir=FWD_D,BWD_D,BWD_W
+--stag=abcd
+--wtag=abcde
+--dtag=abcd
+--batch=shapes_2d
+
+# no groups + post-ops
+--reset
+--dir=FWD_D
+--cfg=f32
+--attr-post-ops=add:f32:common
+--batch=shapes_3d
+
+# with groups + post-ops
+--reset
+--dir=FWD_B
+--cfg=f32
+--stag=abcd
+--wtag=acbde
+--dtag=abcd
+--attr-post-ops=add:f32:per_oc
+--batch=shapes_2d_groups
+
+# int8  with groups + post-ops
+--reset
+--dir=FWD_D,FWD_B
+--cfg=u8s8s8,s8s8s8
+--stag=abcd
+--wtag=acbde
+--dtag=abcd
+--attr-post-ops=relu
+g4oc16ic16_oh5ih5kh3ph1_n"2d_conv:grouped"

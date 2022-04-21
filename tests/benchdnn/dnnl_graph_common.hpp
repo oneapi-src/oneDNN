@@ -32,6 +32,10 @@
 #include "test_thread.hpp"
 #endif
 
+#if DNNL_GRAPH_WITH_SYCL
+#include "oneapi/dnnl/dnnl_graph_sycl.hpp"
+#endif
+
 #include "dnn_graph_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -281,13 +285,19 @@ typedef std::function<void(dnnl::graph::stream &,
         perf_function_t;
 
 // Engine used to run oneDNN fusion patterns for testing.
-inline dnnl::graph::engine &get_test_engine() {
-    dnnl::graph::engine::kind graph_engine_kind = engine_tgt_kind == dnnl_cpu
-            ? dnnl::graph::engine::kind::cpu
-            : dnnl::graph::engine::kind::gpu;
-    static dnnl::graph::engine instance(
-            graph_engine_kind, static_cast<int>(engine_index));
-    return instance;
+const dnnl::graph::engine &get_test_engine();
+const dnnl::graph::stream &get_test_stream();
+
+#if DNNL_GRAPH_WITH_SYCL
+void *sycl_alloc(size_t n, const void *dev, const void *ctx,
+        dnnl::graph::allocator::attribute attr);
+void sycl_free(void *ptr, const void *ctx);
+dnnl::graph::engine &get_engine();
+#endif // DNNL_GRAPH_WITH_SYCL
+
+// Engine used to run oneDNN fusion patterns for testing.
+inline dnnl_engine_kind_t &get_test_engine_kind() {
+    return engine_tgt_kind;
 }
 
 void compiled_partition_executor(dnnl::graph::compiled_partition &cp,
@@ -325,14 +335,14 @@ int measure_partition_compl(timer::timer_t &t,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &inputs,
         const std::vector<dnnl::graph::logical_tensor> &outputs,
-        dnnl::graph::engine &engine);
+        const dnnl::graph::engine &engine);
 
 template <typename func_t, typename prb_t>
 dnnl::graph::compiled_partition compile_partition(const func_t &init_pd_func,
         prb_t *prb, res_t *res, const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &inputs,
         const std::vector<dnnl::graph::logical_tensor> &outputs) {
-    dnnl::graph::engine &engine = get_test_engine();
+    const dnnl::graph::engine &engine = get_test_engine();
     auto cp = par.compile(inputs, outputs, engine);
 
     if (is_bench_mode(PERF)) {

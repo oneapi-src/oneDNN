@@ -176,7 +176,7 @@ int doit(const ::shuffle::prb_t *prb, res_t *res) {
 
     SAFE(::shuffle::fill_src(prb, src_dt, src_fp), WARN);
 
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     dnnl::graph::tensor src_tensor(ins[0], eng, static_cast<void *>(src_dt));
     dnnl::graph::tensor dst_tensor(outs[0], eng, static_cast<void *>(dst_dt));

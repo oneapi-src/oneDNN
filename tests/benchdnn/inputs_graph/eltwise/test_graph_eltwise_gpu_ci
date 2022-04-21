@@ -1,0 +1,93 @@
+#all supported algs
+--reset
+--inplace=true
+--dir=FWD_D
+--dt=f32
+--tag=abx
+--alpha=0 --beta=0
+--alg=abs,exp,gelu_erf,hardswish,log,soft_relu,sqrt
+64x16x28x28
+
+--alpha=0 --beta=2
+--alg=clip_v2
+64x16x28x28
+
+--alpha= --beta=0
+--alg=elu
+64x16x28x28
+
+#all supported algs bwd
+--reset
+--inplace=false
+--dir=BWD_D
+--dt=f32
+--tag=axb
+--alpha=0 --beta=0
+--alg=gelu_erf,hardswish,relu_dst,soft_relu,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst,logsigmoid
+64x16x28x28
+
+--alpha=-2 --beta=2
+--alg=clip_v2,clip_v2_dst
+64x16x28x28
+
+--alpha=2 --beta=0
+--alg=elu,elu_dst
+64x16x28x28
+
+# post binary-add
+--reset
+--inplace=true
+--dir=FWD_D
+--alg=logsigmoid
+--alpha=0 --beta=0
+--attr-post-ops=add:f32:common,add:f32:per_oc
+64x16x28x28
+
+#gelu shapes from bert_squad
+--reset
+--inplace=true
+--dir=FWD_D
+--dt=f32
+--tag=abx
+--alpha= --beta=
+--alg=gelu_erf
+8x384x4096
+
+#relu input shapes
+--reset
+--inplace=false
+--dir=FWD_D,BWD_D
+--dt=f32
+--tag=abx
+--alpha=0 --beta=0
+--alg=relu
+64x2048x7x7
+
+# int8 + post-ops
+--reset
+--dt=s8,u8
+--dir=FWD_I
+--alg=relu
+--alpha=0 --beta=0
+--attr-post-ops=,add:s8:common,add:s8:per_oc,add:u8:common,add:u8:per_oc
+64x2048x7x7
+
+# main op - no alpha, no beta
+--reset
+--inplace=false
+--dir=FWD_D
+--dt=bf16
+--alpha=0 --beta=0
+--alg=sqrt,square,tanh,logistic,logsigmoid
+64x16x28x28
+
+# main op - elu, only alpha
+--reset
+--inplace=false
+--dir=FWD_D,BWD_D
+--dt=bf16
+--alg=elu
+--alpha= --beta=0
+64x16x28x28
+
+

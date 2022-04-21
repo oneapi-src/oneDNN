@@ -214,7 +214,7 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
     std::vector<dnnl::graph::tensor> tensors_in {};
     tensors_in.reserve(prb->n_inputs());
 
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     args_t args, ref_args;
     for (auto i = 0; i < prb->n_inputs(); ++i) {

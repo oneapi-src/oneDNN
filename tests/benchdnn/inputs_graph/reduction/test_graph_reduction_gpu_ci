@@ -1,0 +1,21 @@
+# f32
+--reset
+
+--sdt=f32 --ddt=f32
+--attr-post-ops=,sum,relu,add:f32:common
+--p=1 --eps=0.0
+--alg=sum,max,mean,norm_lp_power_p_sum
+--stag=abx --dtag=abx   64x20x7x7:64x20x1x1
+
+--p=2 --eps=0.0
+--alg=norm_lp_sum
+--stag=abx --dtag=axb   64x20x7x7:64x20x1x1
+
+# bf16
+--reset
+
+--sdt=bf16 --ddt=bf16
+--attr-post-ops=,sum,relu,add:bf16:common
+--p=1 --eps=0.0
+--alg=mul,min
+--stag=axb --dtag=axb   64x20x7x7:64x20x1x1

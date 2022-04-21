@@ -232,7 +232,7 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
 
     SAFE(::eltwise::fill_data(prb, SRC, src_dt, src_fp), WARN);
 
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
     args_t args, ref_args;
 

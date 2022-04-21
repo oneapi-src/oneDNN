@@ -20,6 +20,9 @@
 #include <oneapi/dnnl/dnnl_debug.h>
 
 #include "dnnl_graph_common.hpp"
+#ifdef DNNL_GRAPH_WITH_SYCL
+#include "dnnl_sycl.hpp"
+#endif
 #include "utils/timer.hpp"
 
 namespace benchdnnext {
@@ -435,13 +438,28 @@ void compiled_partition_executor(dnnl::graph::compiled_partition &cp,
         dnnl::graph::stream &stream,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
-    cp.execute(stream, inputs, outputs);
+    if (get_test_engine_kind() == dnnl_cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        dnnl::graph::sycl_interop::execute(cp, stream, inputs,
+                const_cast<std::vector<dnnl::graph::tensor> &>(outputs));
+#else
+        cp.execute(stream, inputs, outputs);
+#endif
+    } else {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        dnnl::graph::sycl_interop::execute(cp, stream, inputs,
+                const_cast<std::vector<dnnl::graph::tensor> &>(outputs));
+#else
+        assert(!"GPU only support DPCPP runtime now");
+#endif
+    }
 }
 
-int execute_and_wait(perf_function_t &exec_func, dnnl::graph::engine &engine,
+int execute_and_wait(perf_function_t &exec_func,
+        const dnnl::graph::engine &engine,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
-    dnnl::graph::stream stream(engine);
+    dnnl::graph::stream stream {get_test_stream()};
     BENCHDNNEXT_SAFE(exec_func(stream, inputs, outputs), CRIT);
     BENCHDNNEXT_SAFE(stream.wait(), CRIT);
 
@@ -454,7 +472,7 @@ int execute_and_wait(dnnl::graph::compiled_partition &cp,
     perf_function_t perf_func
             = std::bind(&compiled_partition_executor, cp, std::placeholders::_1,
                     std::placeholders::_2, std::placeholders::_3);
-    dnnl::graph::engine &engine = get_test_engine();
+    const dnnl::graph::engine &engine = get_test_engine();
 
     int status = execute_and_wait(perf_func, engine, inputs, outputs);
     if (res) res->state = EXECUTED;
@@ -479,14 +497,7 @@ int measure_perf(timer::timer_t &t, perf_function_t &perf_func,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs) {
     if (is_bench_mode(PERF)) {
-#if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
-        dnnl::graph::stream stream
-                = dnnl::graph::threadpool_interop::make_stream(
-                        ::benchdnnext::get_test_engine(),
-                        dnnl::graph::testing::get_threadpool());
-#else
-        dnnl::graph::stream stream(::benchdnnext::get_test_engine());
-#endif
+        dnnl::graph::stream stream = get_test_stream();
         return measure_perf_individual(t, stream, perf_func, inputs, outputs);
     } else {
         return OK;
@@ -519,7 +530,7 @@ int measure_partition_compl(timer::timer_t &ct,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &inputs,
         const std::vector<dnnl::graph::logical_tensor> &outputs,
-        dnnl::graph::engine &engine) {
+        const dnnl::graph::engine &engine) {
     ct.reset();
     while (true) {
         par.compile(inputs, outputs, engine);
@@ -940,6 +951,90 @@ po_handlers_t::low_precision_handler_t::handle_low_precision_post_bin(
     p.ops_.emplace_back(dequant_bin);
 
     return fill_status::DONE;
+}
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+void *sycl_alloc(size_t n, const void *dev, const void *ctx,
+        dnnl::graph::allocator::attribute attr) {
+    return cl::sycl::malloc_shared(n,
+            *static_cast<const cl::sycl::device *>(dev),
+            *static_cast<const cl::sycl::context *>(ctx));
+}
+
+void sycl_free(void *ptr, const void *ctx) {
+    return cl::sycl::free(ptr, *static_cast<const cl::sycl::context *>(ctx));
+}
+
+const dnnl::graph::engine &get_graph_engine() {
+    static auto sycl_allocator {
+            dnnl::graph::sycl_interop::make_allocator(sycl_alloc, sycl_free)};
+    static dnnl::engine test_eng {::get_test_engine()};
+    static cl::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
+    static cl::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
+    static dnnl::graph::engine eng {
+            dnnl::graph::sycl_interop::make_engine(dev, ctx)};
+    eng.set_allocator(sycl_allocator);
+    return eng;
+}
+
+dnnl::graph::stream &get_graph_stream() {
+    static dnnl::engine test_eng {::get_test_engine()};
+    static cl::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
+    static cl::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
+
+    static cl::sycl::queue q {ctx, dev, cl::sycl::property::queue::in_order {}};
+
+    static dnnl::graph::stream strm {
+            dnnl::graph::sycl_interop::make_stream(get_graph_engine(), q)};
+    return strm;
+}
+#endif // DNNL_GRAPH_WITH_SYCL
+
+// Engine used to run oneDNN fusion patterns for testing.
+const dnnl::graph::engine &get_test_engine() {
+    using engine = dnnl::graph::engine;
+    if (get_test_engine_kind() == dnnl_cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        static engine eng(get_graph_engine());
+#else
+        static engine eng(engine::kind::cpu, static_cast<int>(engine_index));
+#endif
+        return eng;
+    } else {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        static engine eng(get_graph_engine());
+#else
+        assert(!"GPU only support DPCPP runtime now");
+        static engine eng(engine::kind::gpu, static_cast<int>(engine_index));
+#endif
+        return eng;
+    }
+}
+
+const dnnl::graph::stream &get_test_stream() {
+    using stream = dnnl::graph::stream;
+    if (get_test_engine_kind() == dnnl_cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        static const stream strm(get_graph_stream());
+#elif DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
+        static const stream strm {dnnl::graph::threadpool_interop::make_stream(
+                get_test_engine(), dnnl::graph::testing::get_threadpool())};
+#else
+        static const stream strm(
+                const_cast<dnnl::graph::engine &>(get_test_engine()));
+#endif
+        return strm;
+    } else {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        static const stream strm(
+                const_cast<dnnl::graph::stream &>(get_graph_stream()));
+#else
+        assert(!"GPU only support DPCPP runtime now");
+        static const stream strm(
+                const_cast<dnnl::graph::engine &>(get_test_engine()));
+#endif
+        return strm;
+    }
 }
 
 } // namespace benchdnnext

@@ -1,0 +1,20 @@
+# main op
+--reset
+--sdt=f32
+--inplace=true,false
+--dir=FWD_I,BWD_D
+--alg=SOFTMAX,LOGSOFTMAX
+--stag=abx
+--axis=0,1
+8x384x1024
+
+# main op
+--reset
+--sdt=bf16
+--ddt=bf16
+--inplace=true,false
+--dir=FWD_I,BWD_D
+--alg=SOFTMAX,LOGSOFTMAX
+--stag=abx
+--axis=0,1
+8x384x1024

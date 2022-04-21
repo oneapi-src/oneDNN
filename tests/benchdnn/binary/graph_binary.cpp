@@ -196,7 +196,7 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
         binary_po_args.push_back(po_idx);
     }
 
-    dnnl::graph::engine &eng = get_test_engine();
+    const dnnl::graph::engine &eng = get_test_engine();
 
     dnnl::graph::tensor src0_tensor(ins[0], eng, static_cast<void *>(src0_dt));
     dnnl::graph::tensor src1_tensor(ins[1], eng, static_cast<void *>(src1_dt));
