@@ -1655,7 +1655,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     jcp.ic < 16
                             && jcp.oc < 16
                             // already optimized for amx 1x1 convs
-                            && !jcp.is_1x1);
+                            && !jcp.is_1x1)
+            // direct approach only supports int8 grouped conv
+            // when channels per groups is at least multiple of 4
+            && IMPLICATION(one_of(jcp.src_dt, u8, s8),
+                    jcp.ic % 4 == 0 && jcp.oc % 4 == 0);
     if (is_grouped_small_ic) return status::unimplemented;
 
     jcp.s8s8_avx512 = jcp.src_dt == s8 && !is_amx(jcp.isa);
@@ -1754,6 +1758,18 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             jcp, isa, cd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
 
     if (jcp.is_1x1) return status::unimplemented;
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper weights_d(&weights_md);
+    const memory_desc_wrapper dst_d(&dst_md);
+    const memory_desc_wrapper bias_d(&bias_md);
+
+    const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
+    // direct convolution only support int8 grouped conv
+    // when channels per groups is at least multiple of 4
+    // then we need to enable such shapes in brgemm conv
+    const bool is_support_group_int8 = with_groups && jcp.ngroups > 1
+            && !IMPLICATION(one_of(jcp.src_dt, u8, s8),
+                    jcp.ic % 4 == 0 && jcp.oc % 4 == 0);
     // TODO: check these restrictions
     if (is_amx(isa)) {
         // disabled for two convolutions from ssd_resnet34
@@ -1765,18 +1781,14 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1
                         || jcp.dilate_d > 0));
 
-        if (jcp.ic <= 4 && !is_real_3d) return status::unimplemented;
+        if (jcp.ic <= 4 && !is_real_3d && !is_support_group_int8)
+            return status::unimplemented;
 
         if (jcp.f_pad >= jcp.kd || jcp.t_pad >= jcp.kh || jcp.r_pad >= jcp.kw)
             return status::unimplemented;
         if (jcp.dilate_d > 0 || jcp.dilate_h > 0 || jcp.dilate_w > 0)
             return status::unimplemented;
     }
-
-    const memory_desc_wrapper src_d(&src_md);
-    const memory_desc_wrapper weights_d(&weights_md);
-    const memory_desc_wrapper dst_d(&dst_md);
-    const memory_desc_wrapper bias_d(&bias_md);
 
     jcp.idp = jcp.id + jcp.f_pad + jcp.back_pad;
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
@@ -1976,7 +1988,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 P4K);
     }
 
-    const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     const bool with_pad = jcp.f_pad > 0 || jcp.back_pad > 0 || jcp.t_pad > 0
             || jcp.b_pad > 0 || jcp.l_pad > 0 || jcp.r_pad > 0;
 
@@ -1996,7 +2007,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.comp_with_vpads = (jcp.src_zero_point || jcp.s8s8_avx512) && with_pad;
     const dim_t work_amount = static_cast<dim_t>(jcp.mb) * jcp.ngroups
             * jcp.nb_oc * jcp.od * jcp.oh * jcp.ow * jcp.icp;
-    if (jcp.comp_with_vpads && work_amount < 0.85 * brg_blocking_t::L2)
+    if (jcp.comp_with_vpads && !is_support_group_int8
+            && work_amount < 0.85 * brg_blocking_t::L2)
         return status::unimplemented;
 
     // estimate the number of kernel range combination for compensation
