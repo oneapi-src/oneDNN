@@ -38,6 +38,17 @@ if((DNNL_TARGET_ARCH STREQUAL "X64") OR (DNNL_TARGET_ARCH STREQUAL "AARCH64"))
     endforeach()
 endif()
 
+if(DNNL_TARGET_ARCH STREQUAL "PPC64")
+    file(GLOB FILES_REQUIRED_OPT
+        ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
+        )
+    foreach(SOURCE_FILE ${FILES_REQUIRED_OPT})
+        list(APPEND SOURCES "${SOURCE_FILE}")
+    endforeach()
+    set_source_files_properties(${FILES_REQUIRED_OPT}
+        PROPERTIES COMPILE_FLAGS "-O3 -funroll-loops")
+endif()
+
 if(NOT DNNL_ENABLE_JIT_PROFILING)
     # XXX: the profiling interface will still be built and present
     add_definitions_with_host_compiler(-DDNNL_ENABLE_JIT_PROFILING=0)
@@ -99,4 +110,7 @@ if (DNNL_TARGET_ARCH STREQUAL "X64")
 endif()
 if (DNNL_TARGET_ARCH STREQUAL "AARCH64")
     add_subdirectory(aarch64)
+endif()
+if (DNNL_TARGET_ARCH STREQUAL "PPC64")
+    add_subdirectory(ppc64)
 endif()

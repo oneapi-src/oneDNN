@@ -30,6 +30,10 @@
 #include "cpu/gemm/f32/ref_gemm_f32.hpp"
 #include "cpu/gemm/s8x8s32/ref_gemm_s8x8s32.hpp"
 #include "cpu/gemm/s8x8s32/simple_gemm_s8s8s32.hpp"
+#ifdef DNNL_PPC64
+#include "cpu/ppc64/PPC64_gemm_driver.hpp"
+using namespace dnnl::impl::cpu;
+#endif
 
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
@@ -192,6 +196,25 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
                 B, LDB, bo, beta, C, LDC, co, false);
 #endif
 
+#ifdef DNNL_PPC64
+#ifdef __MMA__
+    if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
+                && utils::one_of(*transb, 'n', 'N', 't', 'T')))
+        return dnnl_unimplemented;
+    int ATflag = (*transa == 'T') || (*transa == 't');
+    int BTflag = (*transb == 'T') || (*transb == 't');
+    int m = (int)*M;
+    int n = (int)*N;
+    int k = (int)*K;
+    int lda = (int)*LDA;
+    int ldb = (int)*LDB;
+    int ldc = (int)*LDC;
+
+    return cblas_gemm_s8u8s32_PPC64(ATflag, BTflag, offsetc, m, n, k, *alpha, A,
+            lda, ao, B, ldb, bo, C, *beta, ldc, co, 0);
+#endif
+#endif
+
     return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
             B, LDB, bo, beta, C, LDC, co);
 }
@@ -220,6 +243,26 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     else if (use_s8u8)
         return simple_gemm_s8s8s32(transa, transb, offsetc, M, N, K, alpha, A,
                 LDA, ao, B, LDB, bo, beta, C, LDC, co);
+#endif
+
+#ifdef DNNL_PPC64
+#ifdef __MMA__
+    if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
+                && utils::one_of(*transb, 'n', 'N', 't', 'T')))
+        return dnnl_unimplemented;
+    int ATflag = (*transa == 'T') || (*transa == 't');
+    int BTflag = (*transb == 'T') || (*transb == 't');
+    int m = (int)*M;
+    int n = (int)*N;
+    int k = (int)*K;
+    int lda = (int)*LDA;
+    int ldb = (int)*LDB;
+    int ldc = (int)*LDC;
+
+    return cblas_gemm_s8u8s32_PPC64(ATflag, BTflag, offsetc, m, n, k, *alpha, A,
+            lda, ao, (const uint8_t *)B, ldb, (const uint8_t *)bo, C, *beta,
+            ldc, co, 1);
+#endif
 #endif
 
     return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
