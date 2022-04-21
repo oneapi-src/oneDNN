@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,16 +44,18 @@ static inline bool is_mem_debug() {
 
 // Static inline for optimization purposes when memory_debug is disabled
 static inline bool is_mem_debug_overflow() {
-    if (is_mem_debug())
+// Note: not re-using `is_mem_debug` due to `-Wundef` compilation option.
+#if defined(DNNL_ENABLE_MEM_DEBUG)
 #if (DNNL_ENABLE_MEM_DEBUG == DNNL_MEM_DEBUG_UNDERFLOW)
-        return false;
-#else
-        // Default to DNNL_MEM_DEBUG_OVERFLOW as buffer overflows are a
-        // more common memory error.
-        return true;
+    return false;
+#else // DNNL_ENABLE_MEM_DEBUG == DNNL_MEM_DEBUG_OVERFLOW
+    // Default to DNNL_MEM_DEBUG_OVERFLOW as buffer overflows are a
+    // more common memory error.
+    return true;
 #endif
-    else
-        return false;
+#else // defined(DNNL_ENABLE_MEM_DEBUG)
+    return false;
+#endif
 }
 
 // Export the memory_debug::malloc symbol to for external linkage.

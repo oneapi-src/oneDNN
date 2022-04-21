@@ -293,13 +293,7 @@ void jit_prelu_bwd_t::fill_scratchpad_zeros(float *const scratchpad,
 
     parallel(nthr, [&](std::size_t ithr, std::size_t) {
         float *scratchpad_ithr = scratchpad + ithr * thread_scratchpad_size;
-#if SAFE_TO_USE_OMP_SIMD
-        PRAGMA_OMP_SIMD()
-        for (int i = 0; i < thread_scratchpad_size; i++)
-            scratchpad_ithr[i] = 0.0f;
-#else
         std::memset(scratchpad_ithr, 0, thread_scratchpad_size * sizeof(float));
-#endif
     });
 }
 

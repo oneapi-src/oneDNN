@@ -16,6 +16,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "cpu/platform.hpp"
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include <algorithm>
 
@@ -25,8 +27,6 @@
 #include <sched.h>
 #endif
 #endif
-
-#include "cpu/platform.hpp"
 
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"

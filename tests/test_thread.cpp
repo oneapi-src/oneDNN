@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "tests/test_thread.hpp"
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
 #include <mutex>
@@ -26,7 +28,6 @@
 
 #include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #include "src/common/counting_barrier.hpp"
-#include "tests/test_thread.hpp"
 
 #if !defined(DNNL_TEST_THREADPOOL_USE_TBB)
 
@@ -43,7 +44,7 @@ inline int read_num_threads_from_env() {
     char buf[buf_size];
     size_t val_size = GetEnvironmentVariable(env_var_name, buf, buf_size);
     if (val_size > 0 && val_size < buf_size) env_num_threads = buf;
-#else
+#else // ifdef _WIN32
     env_num_threads = ::getenv(env_var_name);
 #endif
 
@@ -61,9 +62,9 @@ inline int read_num_threads_from_env() {
 } // namespace
 } // namespace testing
 } // namespace dnnl
-#endif
+#endif // !defined(DNNL_TEST_THREADPOOL_USE_TBB)
 
-#ifdef DNNL_TEST_THREADPOOL_USE_EIGEN
+#if defined(DNNL_TEST_THREADPOOL_USE_EIGEN)
 
 #include <memory>
 #include "Eigen/Core"
@@ -114,7 +115,7 @@ public:
 } // namespace testing
 } // namespace dnnl
 
-#elif DNNL_TEST_THREADPOOL_USE_TBB
+#elif defined(DNNL_TEST_THREADPOOL_USE_TBB)
 #include "tbb/parallel_for.h"
 #include "tbb/task_arena.h"
 

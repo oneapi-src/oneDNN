@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -187,7 +187,7 @@ bool get_jit_dump() {
     return jit_dump.get();
 }
 
-#if DNNL_AARCH64
+#if defined(DNNL_AARCH64) && (DNNL_AARCH64 == 1)
 static setting_t<unsigned> jit_profiling_flags {DNNL_JIT_PROFILE_LINUX_PERFMAP};
 #else
 static setting_t<unsigned> jit_profiling_flags {DNNL_JIT_PROFILE_VTUNE};

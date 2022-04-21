@@ -162,7 +162,7 @@ int fill_wei(
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
 
     dnnl_data_type_t dt_check = dnnl_s8;
-#if DNNL_AARCH64
+#if defined(DNNL_AARCH64) && (DNNL_AARCH64 == 1)
     /* Note for x64:
     Both data types of src and weight are s8, oneDNN addds 128 to one of the s8
     input to make it of type u8 instead, as explained in

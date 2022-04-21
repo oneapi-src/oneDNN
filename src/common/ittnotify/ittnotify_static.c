@@ -62,7 +62,7 @@ static const char api_version[] = API_VERSION "\0\n@(#) $Revision$\n";
 #define ITT_ATTRIBUTE_FALLTHROUGH [[gnu::fallthrough]]
 #elif HAS_CPP_ATTR(clang::fallthrough)
 #define ITT_ATTRIBUTE_FALLTHROUGH [[clang::fallthrough]]
-#elif HAS_GNU_ATTR(fallthrough) && !__INTEL_COMPILER
+#elif HAS_GNU_ATTR(fallthrough) && !defined(__INTEL_COMPILER)
 #define ITT_ATTRIBUTE_FALLTHROUGH __attribute__((fallthrough))
 #else
 #define ITT_ATTRIBUTE_FALLTHROUGH
