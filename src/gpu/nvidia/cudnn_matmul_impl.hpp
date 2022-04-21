@@ -137,7 +137,7 @@ struct cudnn_matmul_impl_t {
 
         if (with_eltwise(0, pd) || with_eltwise(1, pd)) {
             with_eltwise_ = true;
-            create_and_set_op_descriptor(pd);
+            CHECK(create_and_set_op_descriptor(pd));
         }
 
         // Set parameter when post-op sum is specified
