@@ -356,6 +356,7 @@ public:
         do_atomic_update = false;
         reuse_headers = hw() <= ngen::HW::XeLP;
         bwd_d_optimize_strided = false;
+        bwd_d_optimize_strided_iw = false;
         use_ow_kw_grf_cache = false;
         fuse_spatial = false;
         hoist_masks_from_compute_loop = false;
@@ -641,6 +642,7 @@ public:
     bool do_atomic_update; // Whether to use atomics during C update.
     bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
     bool bwd_d_optimize_strided; // Apply special optimization for strided BWD_D convolution.
+    bool bwd_d_optimize_strided_iw; // Apply special optimization for strided BWD_D convolution (iw dim).
     bool use_ow_kw_grf_cache; // Whether to use GRF cache to reuse source for ow/kw pairs.
     bool fuse_spatial; // Apply blocking to fused spatial (otherwise only `w` is blocked).
     bool hoist_masks_from_compute_loop; // Whether to move send mask initialization out of compute loop.

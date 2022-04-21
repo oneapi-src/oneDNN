@@ -289,7 +289,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     // Try to enable special optimization for strided BWD_D convolution.
     maybe_set_bwd_d_stride_optimization(bh->thr_blk("iw"));
 
-    if (bwd_d_optimize_strided) {
+    if (bwd_d_optimize_strided_iw) {
         int iw_tg_dim0 = bh->tg_dim("iw");
         ir_assert(math::is_pow2(iw_tg_dim0));
         ir_assert(iw % sw == 0);
@@ -353,7 +353,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     // stride optimization is enabled. These cases have non-trivial
     // post-increment updates which result in unrolling all reduction loops
     // and exceeding the instruction cache.
-    if (!is_stride1() && !bwd_d_optimize_strided) do_pipeline_unroll = false;
+    if (!is_stride1() && !bwd_d_optimize_strided_iw) do_pipeline_unroll = false;
 
     CHECK(fixup_inference_consistency());
     if (!try_reduce_grf_usage()) return status::unimplemented;
@@ -979,11 +979,12 @@ void conv_config_t::maybe_set_hoist_masks_from_compute_loop() {
 
 void conv_config_t::maybe_set_bwd_d_stride_optimization(int iw_thr_blk) {
     if (!is_bwd_d) return;
+    bwd_d_optimize_strided = true;
     if (is_nhwc("dst")) return;
     if (iw_thr_blk > 1) return;
     if (is_stride1()) return;
     if (iw % sw != 0) return;
-    bwd_d_optimize_strided = true;
+    bwd_d_optimize_strided_iw = true;
 }
 
 void conv_config_t::maybe_set_ow_kw_grf_cache() {

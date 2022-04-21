@@ -276,7 +276,7 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     if (check_ow) ow_mask = (x >= 0) & (x < cfg_.ow);
 
     std::function<expr_t(const expr_t &)> iw_mapping;
-    if (cfg_.bwd_d_optimize_strided) {
+    if (cfg_.bwd_d_optimize_strided_iw) {
         // Apply mapping to iw to ensure each thread group has the same
         // stride condition when evaluating skip conditions.
         iw_mapping = [&](const expr_t &e) {
@@ -310,7 +310,7 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
 
     // When stride optimization is enabled, stride conditions are handled by
     // continue calls in the outer loops.
-    if (!cfg_.bwd_d_optimize_strided) {
+    if (!cfg_.bwd_d_optimize_strided_iw) {
         od_mask &= (od % cfg_.sd == 0);
         oh_mask &= (oh % cfg_.sh == 0);
         ow_mask &= (ow % cfg_.sw == 0);
@@ -403,7 +403,8 @@ void kernel_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     if (cfg_.bwd_d_optimize_strided) {
         gemm_schedule.set_skip_condition(kd, od % cfg_.sd != 0);
         gemm_schedule.set_skip_condition(kh, oh % cfg_.sh != 0);
-        gemm_schedule.set_skip_condition(kw, ow % cfg_.sw != 0);
+        if (cfg_.bwd_d_optimize_strided_iw)
+            gemm_schedule.set_skip_condition(kw, ow % cfg_.sw != 0);
         // Put kd/kh/kw outermost to allow pipelining in oc loop.
         gemm_schedule.reorder({kd, kh, kw, oc_blk_idx});
     } else {
