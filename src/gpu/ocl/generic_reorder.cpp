@@ -224,6 +224,12 @@ bool fill_to_vect(int simd_size, dimensions_t all, dimensions_t &subset) {
             return false;
         }
         if (all[i].size <= need) {
+            if (2 * all[i].size <= simd_size && need % all[i].size != 0) {
+                // Avoid the problematic case where multiple reads are necessary
+                // to read 16 entries and the trailing packet has fewer than
+                // all[i].size entries.
+                return false;
+            }
             subset.push_back(all[i]);
             current_size *= all[i].size;
             need /= all[i].size;
