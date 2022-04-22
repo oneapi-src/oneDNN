@@ -183,7 +183,7 @@ int doit(const mlp_graph_spec_t *spec, res_t *res) {
     }
     BENCHDNN_PRINT(1, "paritition size %ld.\n", partitions.size());
 
-    dnnl::graph::engine &engine = benchdnnext::get_test_engine();
+    const dnnl::graph::engine &engine = benchdnnext::get_test_engine();
     std::vector<std::vector<dnnl::graph::logical_tensor>> ins_vec, outs_vec;
     std::vector<dnnl::graph::compiled_partition> cp_vec;
 

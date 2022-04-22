@@ -344,7 +344,7 @@ int doit(const mha_graph_spec_t *spec, res_t *res) {
             return res->state = UNIMPLEMENTED, OK;
     }
 
-    dnnl::graph::engine &engine = benchdnnext::get_test_engine();
+    const dnnl::graph::engine &engine = benchdnnext::get_test_engine();
     std::vector<std::vector<dnnl::graph::logical_tensor>> ins_vec, outs_vec;
     std::vector<dnnl::graph::compiled_partition> cp_vec;
     for (int i = 0; i < partitions.size(); i++) {
