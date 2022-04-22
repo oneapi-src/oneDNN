@@ -30,7 +30,7 @@
 #include "cpu/gemm/f32/ref_gemm_f32.hpp"
 #include "cpu/gemm/s8x8s32/ref_gemm_s8x8s32.hpp"
 #include "cpu/gemm/s8x8s32/simple_gemm_s8s8s32.hpp"
-#ifdef DNNL_PPC64
+#if DNNL_PPC64
 #include "cpu/ppc64/PPC64_gemm_driver.hpp"
 using namespace dnnl::impl::cpu;
 #endif
@@ -196,7 +196,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
                 B, LDB, bo, beta, C, LDC, co, false);
 #endif
 
-#ifdef DNNL_PPC64
+#if DNNL_PPC64
 #ifdef __MMA__
     if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
                 && utils::one_of(*transb, 'n', 'N', 't', 'T')))
@@ -245,7 +245,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
                 LDA, ao, B, LDB, bo, beta, C, LDC, co);
 #endif
 
-#ifdef DNNL_PPC64
+#if DNNL_PPC64
 #ifdef __MMA__
     if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
                 && utils::one_of(*transb, 'n', 'N', 't', 'T')))
