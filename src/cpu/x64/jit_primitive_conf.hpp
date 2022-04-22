@@ -904,6 +904,7 @@ struct jit_brgemm_conv_conf_t {
     bool dst_zero_point;
     bool req_brg_comp_pad;
     bool req_cal_comp_pad;
+    bool is_bf32;
 };
 
 struct jit_shuffle_conf_t {

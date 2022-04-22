@@ -366,7 +366,7 @@ status_t brdgmm_blocking(brgemm_t *brg, const int max_zmm_accum) {
 void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
         impl::data_type_t dt_a, impl::data_type_t dt_b, brgemm_layout_t layout,
         float alpha, float beta, dim_t LDA, dim_t LDB, dim_t LDC, dim_t M,
-        dim_t N, dim_t K, const brgemm_strides_t *strides) {
+        dim_t N, dim_t K, const brgemm_strides_t *strides, bool is_bf32) {
 
     init_common_conf(brg, type, alpha, beta, strides);
 
@@ -389,7 +389,8 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
             && IMPLICATION(isa != isa_any, isa == avx512_core_bf16_amx_int8);
     brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16)
             && IMPLICATION(isa != isa_any, isa == avx512_core_bf16_amx_bf16);
-    brg->is_amx = (brg->is_int8_amx || brg->is_bf16_amx);
+    brg->is_bf32 = is_bf32;
+    brg->is_amx = brg->is_int8_amx || brg->is_bf16_amx || brg->is_bf32;
 
     brg->req_s8s8_compensation
             = brg->is_int8 && !brg->is_int8_amx && brg->dt_a == data_type::s8;

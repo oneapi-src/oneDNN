@@ -24,6 +24,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/x64/brgemm/brgemm_utils.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
@@ -514,6 +515,8 @@ void brg_blocking_t::select_ic_block() {
         if (ic * kw_sets < simd_w) {
             // this is current requirement from brgemm kernel
             ic_block = rnd_up(ic, last_ic_block_size);
+        } else if (is_bf32) {
+            ic_block = simd_w;
         } else {
             if (exec_type == exec_trans) {
                 auto simd_blocks = 1;
@@ -612,9 +615,10 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
 
     N = oc >= oc_block ? oc_block : 0;
     N_tail = oc % oc_block;
+
     K = kh_sets * kw_sets * (ic >= ic_block ? ic_block : 0);
     K_tail = kh_sets * kw_sets
-            * (exec_type == exec_trans
+            * (exec_type == exec_trans && (!is_bf32)
                             ? ic_block
                             : rnd_up(ic % ic_block, last_ic_block_size));
 
@@ -625,8 +629,10 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     const float alpha = 1.0;
     const float beta = 0.0;
     brgemm_t brg;
-    CHECK(brgemm_desc_init(&brg, isa, brgemm_addr, src_dt, wei_dt, false, false,
-            brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK));
+    brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
+            brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK, nullptr,
+            is_bf32);
+    CHECK(brgemm_utils::brgemm_blocking(&brg));
     ur = brg.bd_block * (is_amx(isa) ? brg.bd_block2 : 1);
     ur_block = brg.bd_block;
     if (is_1x1 && is_amx(isa) && M > 0 && M_tail > 0) {
@@ -677,9 +683,10 @@ status_t brg_blocking_t::get_brgemm_ur(
                     const auto strides_ptr = (brg_type == brgemm_strd)
                             ? &brg_strides
                             : nullptr;
-                    CHECK(brgemm_desc_init(&brg, isa, brg_type, src_dt, wei_dt,
-                            false, false, brgemm_row_major, alpha, vbeta, LDA,
-                            LDB, LDC, vM, vN, vK, strides_ptr));
+                    brgemm_utils::init_brgemm_conf(&brg, isa, brg_type, src_dt,
+                            wei_dt, brgemm_row_major, alpha, vbeta, LDA, LDB,
+                            LDC, vM, vN, vK, strides_ptr, is_bf32);
+                    CHECK(brgemm_utils::brgemm_blocking(&brg));
 
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = max_batch;
@@ -688,6 +695,7 @@ status_t brg_blocking_t::get_brgemm_ur(
                             : 0;
                     brgattr.max_top_vpad = max_vpad;
                     brgattr.max_bottom_vpad = max_vpad;
+                    brgattr.fpmath_mode = attr->fpmath_mode_;
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
 
                     brg.with_sum = with_sum;
@@ -1640,8 +1648,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.wei_dt = cd.weights_desc.data_type;
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
 
-    brg_blocking_t::last_ic_block_size
-            = (jcp.wei_dt == f32) ? 1 : ((jcp.wei_dt == bf16) ? 2 : 4);
+    jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
+            && attr.fpmath_mode_ == fpmath_mode::bf16
+            && isa == avx512_core_bf16_amx_bf16;
+
+    brg_blocking_t::last_ic_block_size = data_type_vnni_granularity(jcp.wei_dt);
 
     // TODO: optimize depthwise convolutions (for now direct approach is faster)
     const bool is_depthwise
@@ -1668,6 +1679,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         return status::unimplemented;
     if (!IMPLICATION(jcp.wei_dt == bf16, mayiuse(avx512_core_bf16)))
         return status::unimplemented;
+    const bool is_f32
+            = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
+    if (!IMPLICATION(is_f32, isa == avx512_core || jcp.is_bf32))
+        return status::unimplemented;
 
     if (one_of(jcp.src_dt, u8, s8)) {
         jcp.acc_dt = s32;
@@ -1686,7 +1701,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / jcp.src_dsz;
     jcp.amx_h = 16;
-    jcp.amx_w = 64 / jcp.src_dsz;
+    jcp.amx_w = 64 / (jcp.is_bf32 ? types::data_type_size(bf16) : jcp.src_dsz);
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
@@ -2028,6 +2043,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.comp_a_buffer_size
             = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size * jcp.oc_block;
     jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
+
+    if (!IMPLICATION(jcp.is_bf32, jcp.use_uker)) return status::unimplemented;
 
     return status::success;
 }

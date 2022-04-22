@@ -256,6 +256,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                     brgattr.max_top_vpad = jcp_.max_vpad;
                     brgattr.max_bottom_vpad = jcp_.max_vpad;
                 }
+                brgattr.fpmath_mode = attr()->fpmath_mode_;
                 CHECK(brgemm_desc_set_attr(brg, brgattr));
 
                 auto LDD = jcp_.oc_without_padding;
