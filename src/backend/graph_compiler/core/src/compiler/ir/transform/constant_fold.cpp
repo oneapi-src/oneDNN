@@ -28,52 +28,86 @@ namespace sc {
 namespace constant_folding {
 
 template <typename T>
-expr create_cast(sc_data_type_t to_dtype, type_category to_cate, T v) {
-    switch (to_cate) {
-        case CATE_FLOAT: {
-            float outv = static_cast<float>(v);
-            return make_expr<constant_node>(outv, to_dtype);
-            break;
-        }
-        case CATE_INT: {
-            int64_t outv = static_cast<int64_t>(v);
-            return make_expr<constant_node>(outv, to_dtype);
-            break;
-        }
-        case CATE_UINT: {
-            uint64_t outv = static_cast<uint64_t>(v);
-            return make_expr<constant_node>(outv, to_dtype);
-            break;
-        }
-        default: COMPILE_ASSERT(0, "Bad cast to " << to_dtype); return expr();
-    }
-}
-
-template <typename T>
 union_val make_val(T) = delete;
 
-union_val make_val(float t) {
+static union_val make_val(float t) {
     union_val a;
     a.f32 = t;
     return a;
 }
 
-union_val make_val(uint64_t t) {
+static union_val make_val(uint64_t t) {
     union_val a;
     a.u64 = t;
     return a;
 }
 
-union_val make_val(int64_t t) {
+static union_val make_val(int64_t t) {
     union_val a;
     a.s64 = t;
     return a;
 }
 
-union_val make_val(bool t) {
+static union_val make_val(bool t) {
     union_val a;
     a.u64 = t ? 1 : 0;
     return a;
+}
+
+template <typename T>
+struct extract_val_t {
+    static T doit(union_val) = delete;
+};
+
+template <>
+struct extract_val_t<float> {
+    static float doit(union_val v) { return v.f32; }
+};
+
+template <>
+struct extract_val_t<uint64_t> {
+    static uint64_t doit(union_val v) { return v.u64; }
+};
+template <>
+struct extract_val_t<int64_t> {
+    static int64_t doit(union_val v) { return v.s64; }
+};
+
+template <>
+struct extract_val_t<bool> {
+    static bool doit(union_val v) { return v.u64; }
+};
+
+template <typename SrcT, typename DestT>
+static union_val cast_dispatched(union_val val) {
+    return make_val(static_cast<DestT>(extract_val_t<SrcT>::doit(val)));
+}
+
+template <typename T>
+expr create_cast(sc_data_type_t to_dtype, type_category to_cate,
+        const std::vector<union_val> &v) {
+    std::vector<union_val> ret;
+    ret.reserve(v.size());
+    union_val (*dispatch)(union_val val);
+    switch (to_cate) {
+        case CATE_FLOAT: {
+            dispatch = cast_dispatched<T, float>;
+            break;
+        }
+        case CATE_INT: {
+            dispatch = cast_dispatched<T, int64_t>;
+            break;
+        }
+        case CATE_UINT: {
+            dispatch = cast_dispatched<T, uint64_t>;
+            break;
+        }
+        default: COMPILE_ASSERT(0, "Bad cast to " << to_dtype); return expr();
+    }
+    for (auto val : v) {
+        ret.push_back(dispatch(val));
+    }
+    return make_expr<constant_node>(ret, to_dtype);
 }
 
 bool is_const_equal_to(const constant_c &v, int64_t V) {
@@ -95,17 +129,77 @@ bool is_const_equal_to(const constant_c &v, int64_t V) {
     }
 }
 
-bool execute_logic_binary(sc_expr_type op, bool a, bool b) {
-    switch (op) {
-        case sc_expr_type::logic_and: return (a && b);
-        case sc_expr_type::logic_or: return (a || b);
-        default: assert(0 && "Unknown logic OP"); return false;
-    }
+template <typename T, typename... Args>
+static size_t check_size_equals(const T &v0) {
+    return v0.size();
 }
 
-float execute_mod(float a, float b) {
-    COMPILE_ASSERT(0, "%% cannot be applied on float type");
-    return 0;
+template <typename T, typename... Args>
+static size_t check_size_equals(const T &v0, const Args &... args) {
+    auto ret = check_size_equals(args...);
+    if (v0.size() == 1UL) { return ret; }
+    if (ret == 1UL) { return v0.size(); }
+    COMPILE_ASSERT(
+            v0.size() == ret, "number of constant value elements mismatch");
+    return ret;
+}
+
+static union_val extract_const_value(
+        const std::vector<union_val> &v, size_t idx) {
+    if (idx < v.size()) { return v[idx]; }
+    return v[0];
+}
+
+template <typename T>
+static T extract_typed_value(const std::vector<union_val> &v, size_t idx) {
+    return extract_val_t<T>::doit(extract_const_value(v, idx));
+}
+
+template <typename R, typename... A>
+R ret_helper(R (*)(A...));
+
+// decay an lambda to function pointer
+template <typename R, typename FirstArg, typename... A>
+FirstArg first_arg_helper(R (*)(FirstArg, A...));
+
+template <typename FuncT, typename... Args>
+static std::vector<union_val> execute_on_values_impl(
+        FuncT func, const Args &... args) {
+    using FirstArg = decltype(first_arg_helper(func));
+    size_t sz = check_size_equals(args...);
+    std::vector<union_val> ret;
+    ret.reserve(sz);
+    auto first_val = func(extract_typed_value<FirstArg>(args, 0)...);
+    ret.push_back(make_val(first_val));
+    bool is_same = true;
+    for (size_t i = 1; i < sz; i++) {
+        auto cur_val = func(extract_typed_value<FirstArg>(args, i)...);
+        ret.push_back(make_val(cur_val));
+        is_same &= (cur_val == first_val);
+    }
+    if (is_same) { ret.resize(1); }
+    return ret;
+}
+
+template <typename FuncT, typename... Args>
+static std::vector<union_val> execute_on_values(
+        FuncT func, const Args &... args) {
+    // the FuncT can be a lambda.
+    // the +func trick converts the func to a function pointer
+    return execute_on_values_impl(+func, args...);
+}
+
+std::vector<union_val> execute_logic_binary(sc_expr_type op,
+        const std::vector<union_val> &a, const std::vector<union_val> &b) {
+    switch (op) {
+        case sc_expr_type::logic_and:
+            return execute_on_values(
+                    [](bool a, bool b) { return a && b; }, a, b);
+        case sc_expr_type::logic_or:
+            return execute_on_values(
+                    [](bool a, bool b) { return a || b; }, a, b);
+        default: assert(0 && "Unknown logic OP"); return {};
+    };
 }
 
 template <typename T>
@@ -113,13 +207,9 @@ T execute_mod(T a, T b) {
     return a % b;
 }
 
-static float execute_and(float a, float b) {
-    COMPILE_ASSERT(0, "& cannot be applied on float type");
-    return 0;
-}
-
-static float execute_or(float a, float b) {
-    COMPILE_ASSERT(0, "| cannot be applied on float type");
+template <>
+float execute_mod(float a, float b) {
+    COMPILE_ASSERT(0, "%% cannot be applied on float type");
     return 0;
 }
 
@@ -133,64 +223,79 @@ T execute_or(T a, T b) {
     return a | b;
 }
 
+template <>
+float execute_and(float a, float b) {
+    COMPILE_ASSERT(0, "& cannot be applied on float type");
+    return 0;
+}
+
+template <>
+float execute_or(float a, float b) {
+    COMPILE_ASSERT(0, "| cannot be applied on float type");
+    return 0;
+}
+
+#define DEF_COMPUTE(expr_) \
+    execute_on_values([](T a, T b) { return (expr_); }, x, y);
+
 template <typename T>
-union_val execute_binary(sc_expr_type op, intrin_type intrin_op, T a, T b) {
+std::vector<union_val> execute_binary(sc_expr_type op, intrin_type intrin_op,
+        const std::vector<union_val> &x, const std::vector<union_val> &y) {
     switch (op) {
-        case sc_expr_type::add: return make_val(a + b);
-        case sc_expr_type::sub: return make_val(a - b);
-        case sc_expr_type::mul: return make_val(a * b);
-        case sc_expr_type::div: return make_val(a / b);
-        case sc_expr_type::mod: return make_val(execute_mod(a, b));
+        case sc_expr_type::add: return DEF_COMPUTE(a + b);
+        case sc_expr_type::sub: return DEF_COMPUTE(a - b);
+        case sc_expr_type::mul: return DEF_COMPUTE(a * b);
+        case sc_expr_type::div: return DEF_COMPUTE(a / b);
+        case sc_expr_type::mod: return execute_on_values(&execute_mod<T>, x, y);
         case sc_expr_type::intrin_call: {
             switch (intrin_op) {
-                case intrin_type::min: return make_val(a < b ? a : b);
-                case intrin_type::max: return make_val(a > b ? a : b);
-                case intrin_type::int_and: return make_val(execute_and(a, b));
-                case intrin_type::int_or: return make_val(execute_or(a, b));
+                case intrin_type::min: return DEF_COMPUTE(a < b ? a : b);
+                case intrin_type::max: return DEF_COMPUTE(a > b ? a : b);
+                case intrin_type::int_and:
+                    return execute_on_values(&execute_and<T>, x, y);
+                case intrin_type::int_or:
+                    return execute_on_values(&execute_or<T>, x, y);
                 default: assert(0 && "Unknown OP");
             }
         }
-        case sc_expr_type::cmp_eq: return make_val(a == b);
-        case sc_expr_type::cmp_ne: return make_val(a != b);
-        case sc_expr_type::cmp_lt: return make_val(a < b);
-        case sc_expr_type::cmp_le: return make_val(a <= b);
-        case sc_expr_type::cmp_gt: return make_val(a > b);
-        case sc_expr_type::cmp_ge: return make_val(a >= b);
-        default: assert(0 && "Unknown OP"); return make_val(false);
+        case sc_expr_type::cmp_eq: return DEF_COMPUTE(a == b);
+        case sc_expr_type::cmp_ne: return DEF_COMPUTE(a != b);
+        case sc_expr_type::cmp_lt: return DEF_COMPUTE(a < b);
+        case sc_expr_type::cmp_le: return DEF_COMPUTE(a <= b);
+        case sc_expr_type::cmp_gt: return DEF_COMPUTE(a > b);
+        case sc_expr_type::cmp_ge: return DEF_COMPUTE(a >= b);
+        default: assert(0 && "Unknown OP"); return {};
     }
 }
 
 expr compute_constexpr(
         const constant_c &cl, const constant_c &cr, const expr_c &parent) {
-    if (cl->is_vector() || cr->is_vector()) return parent.remove_const();
     COMPILE_ASSERT(cl->dtype_ == cr->dtype_,
             "LHS and RHS should have the same type: " << parent);
     if (parent.instanceof <logic>()) {
-        COMPILE_ASSERT(cl->dtype_ == datatypes::boolean,
+        COMPILE_ASSERT(cl->dtype_.type_code_ == sc_data_etype::BOOLEAN,
                 "logic op should have boolean operands: " << parent);
-        bool res = execute_logic_binary(
-                parent->node_type_, cl->value_[0].u64, cr->value_[0].u64);
-        return make_expr<constant_node>(
-                static_cast<uint64_t>(res), datatypes::boolean);
+        auto res = execute_logic_binary(
+                parent->node_type_, cl->value_, cr->value_);
+        return make_expr<constant_node>(res, cl->dtype_);
     }
-    type_category ty = get_type_category(cl->dtype_);
+    type_category ty = get_etype_category_nothrow(cl->dtype_.type_code_);
     auto op = parent->node_type_;
     intrin_type intrin_op = intrin_type::NUM_INTRINSICS;
     if (op == intrin_call_node::type_code_)
         intrin_op = parent.static_as<intrin_call_c>()->type_;
-    union_val val;
+    std::vector<union_val> val;
     switch (ty) {
         case CATE_FLOAT:
-            val = execute_binary(
-                    op, intrin_op, cl->value_[0].f32, cr->value_[0].f32);
+            val = execute_binary<float>(op, intrin_op, cl->value_, cr->value_);
             break;
         case CATE_UINT:
-            val = execute_binary(
-                    op, intrin_op, cl->value_[0].u64, cr->value_[0].u64);
+            val = execute_binary<uint64_t>(
+                    op, intrin_op, cl->value_, cr->value_);
             break;
         case CATE_INT:
-            val = execute_binary(
-                    op, intrin_op, cl->value_[0].s64, cr->value_[0].s64);
+            val = execute_binary<int64_t>(
+                    op, intrin_op, cl->value_, cr->value_);
             break;
         default:
             COMPILE_ASSERT(0, "Type of binary op: " << parent);
@@ -237,6 +342,7 @@ std::pair<expr_c, expr_c> get_operand_from_binary(const expr_c &a) {
 }
 
 bool fold_special_consts(expr_c &orig, expr_c l, const constant_c &r) {
+    // todo: handle vector types
     if (r->is_vector()) return false;
     sc_expr_type op = orig->node_type_;
     if (r->dtype_ == datatypes::boolean) {
@@ -398,6 +504,10 @@ public:
                     parent = make_expr<constant_node>(0UL, parent->dtype_);
                     return true;
                 }
+                if (parent->dtype_.lanes_ > 1) {
+                    // todo: handle vector types
+                    return false;
+                }
                 if (rhs.isa<constant_c>()) {
                     int rv1 = get_const_as_int(rhs.checked_as<constant_c>());
                     // fold (x * nC) % C = 0
@@ -514,6 +624,10 @@ public:
      *          a   b
      * */
     expr_c expand_polynomial(expr_c parent) {
+        if (parent->dtype_.lanes_ > 1) {
+            // todo: handle vector types
+            return false;
+        }
         switch (parent->node_type_) {
             case sc_expr_type::mul:
             case sc_expr_type::div:
@@ -598,25 +712,21 @@ public:
             expr_c parent, const expr_c &lhs, const expr_c &rhs) {
         auto l = dispatch(lhs);
         auto r = dispatch(rhs);
-        bool is_vector
-                = (l.isa<constant>() && l.static_as<constant_c>()->is_vector())
-                || (r.isa<constant>()
-                        && r.static_as<constant_c>()->is_vector());
-        if (!is_vector) {
-            if (l.isa<constant>() && r.isa<constant>()) {
-                auto cl = l.static_as<constant_c>();
-                auto cr = r.static_as<constant_c>();
-                return compute_constexpr(cl, cr, parent);
-            }
-            try_rotate_const(parent, l, r);
-            if (r.isa<constant>()) {
-                if (fold_special_consts(parent, l, r.static_as<constant>())) {
-                    return parent;
-                }
-            }
-            if (fold_special_exprs(parent, l, r)) { return parent; }
-            if (fold_successive_div(parent, l, r)) { return parent; }
+
+        if (l.isa<constant>() && r.isa<constant>()) {
+            auto cl = l.static_as<constant_c>();
+            auto cr = r.static_as<constant_c>();
+            return compute_constexpr(cl, cr, parent);
         }
+        try_rotate_const(parent, l, r);
+        if (r.isa<constant>()) {
+            if (fold_special_consts(parent, l, r.static_as<constant>())) {
+                return parent;
+            }
+        }
+        if (fold_special_exprs(parent, l, r)) { return parent; }
+        if (fold_successive_div(parent, l, r)) { return parent; }
+
         if (!l.ptr_same(lhs) || !r.ptr_same(rhs)) {
             return builder::remake_binary(l, r, parent);
         }
@@ -649,29 +759,27 @@ public:
         bool changed = !in.ptr_same(v->in_);
         if (in.isa<constant>()) {
             auto inconst = in.as<constant_c>();
-            if (!inconst->is_vector()) {
-                type_category fromty
-                        = get_type_category_nothrow(inconst->dtype_);
-                type_category toty = get_type_category_nothrow(v->dtype_);
-                if (fromty != CATE_OTHER && toty != CATE_OTHER) {
-                    switch (fromty) {
-                        case CATE_FLOAT:
-                            return create_cast(
-                                    v->dtype_, toty, inconst->value_[0].f32);
-                            break;
-                        case CATE_UINT:
-                            return create_cast(
-                                    v->dtype_, toty, inconst->value_[0].u64);
-                            break;
-                        case CATE_INT:
-                            return create_cast(
-                                    v->dtype_, toty, inconst->value_[0].s64);
-                            break;
-                        default:
-                            COMPILE_ASSERT(
-                                    0, "Bad cast from " << inconst->dtype_);
-                            return expr();
-                    }
+            type_category fromty
+                    = get_etype_category_nothrow(inconst->dtype_.type_code_);
+            type_category toty
+                    = get_etype_category_nothrow(v->dtype_.type_code_);
+            if (fromty != CATE_OTHER && toty != CATE_OTHER) {
+                switch (fromty) {
+                    case CATE_FLOAT:
+                        return create_cast<float>(
+                                v->dtype_, toty, inconst->value_);
+                        break;
+                    case CATE_UINT:
+                        return create_cast<uint64_t>(
+                                v->dtype_, toty, inconst->value_);
+                        break;
+                    case CATE_INT:
+                        return create_cast<int64_t>(
+                                v->dtype_, toty, inconst->value_);
+                        break;
+                    default:
+                        COMPILE_ASSERT(0, "Bad cast from " << inconst->dtype_);
+                        return expr();
                 }
             }
         }
