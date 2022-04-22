@@ -390,6 +390,8 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
         graph_t *graph, const int ignore_env_var) {
 #ifdef DNNL_GRAPH_ENABLE_DUMP
     if (ignore_env_var || utils::getenv_int_user("DUMP", 0) > 0) {
+        const auto status = graph->build_graph();
+        if (status) return status;
         std::ofstream out;
         auto filename = "graph-" + std::to_string(graph->id()) + ".dot";
         printf("onednn_graph_verbose,info,visualize graph to a dot file %s\n",
@@ -399,25 +401,28 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
         topo_order_visit(graph->get_output_ops(), [&](op_t *op) {
             const auto &current_op_name = op->get_name();
             const size_t current_op_id = op->get_id();
-            if (op->num_inputs() > 0) {
-                for (size_t i = 0; i < op->num_inputs(); ++i) {
-                    auto input_value = op->get_input_value(i);
-                    if (input_value->has_producer()) {
-                        op_t *input_op = &(input_value->get_producer());
-                        const std::string &input_op_name = input_op->get_name();
-                        const size_t input_op_id = input_op->get_id();
-                        out << "\"" << input_op_name << "_" << input_op_id
-                            << "\" -> \"" << current_op_name << "_"
-                            << current_op_id << "\";\n";
-                    }
+            // dump edge between ops
+            for (size_t i = 0; i < op->num_inputs(); ++i) {
+                auto input_value = op->get_input_value(i);
+                if (input_value->has_producer()) {
+                    op_t *input_op = &(input_value->get_producer());
+                    const std::string &input_op_name = input_op->get_name();
+                    const size_t input_op_id = input_op->get_id();
+                    out << "\"" << input_op_name << "_" << input_op_id
+                        << "\" -> \"" << current_op_name << "_" << current_op_id
+                        << "\";\n";
                 }
-            } else {
-                out << "\"" << current_op_name << "_" << current_op_id
-                    << "\"[label=\"" << current_op_name << "_" << current_op_id
-                    << "\"];\n";
             }
+            // dump op info
+            const auto &op_kind_name = op_t::kind2str(op->get_kind());
+            out << "\"" << current_op_name << "_" << current_op_id
+                << "\"[label=\"" << current_op_name << "_" << current_op_id
+                << "\\n"
+                << "opkind: " << op_kind_name << "\\n"
+                << "\"];\n";
             return status::success;
         });
+        // dump partition info after get_partitions
         auto &partition_vec = graph->get_partitions();
         for (auto &p : partition_vec) {
             auto *bkd = p->get_assigned_backend();
