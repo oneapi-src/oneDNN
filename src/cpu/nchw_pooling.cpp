@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,21 +88,21 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
 
     const auto ker_max = [=](data_t *d, dim_t mb, dim_t c, dim_t od, dim_t oh,
                                  dim_t ow) {
+        const auto src_off = IW * IH * ID * C * mb + IW * IH * ID * c;
+        const auto *src_loc = &src[src_off];
+
         for_(dim_t kd = 0; kd < KD; ++kd)
         for_(dim_t kh = 0; kh < KH; ++kh)
         for (dim_t kw = 0; kw < KW; ++kw) {
             const dim_t id = od * SD - padF + kd;
-            const dim_t ih = oh * SH - padT + kh;
-            const dim_t iw = ow * SW - padL + kw;
-
             if (id < 0 || id >= ID) continue;
+            const dim_t ih = oh * SH - padT + kh;
             if (ih < 0 || ih >= IH) continue;
+            const dim_t iw = ow * SW - padL + kw;
             if (iw < 0 || iw >= IW) continue;
 
-            const auto src_offset = (size_t)IW * IH * ID * C * mb
-                    + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
-                    + (size_t)IW * ih + (size_t)iw;
-            const auto &s = src[src_offset];
+            const auto src_off_loc = IW * IH * id + IW * ih + iw;
+            const auto &s = src_loc[src_off_loc];
             if (s > d[0]) {
                 d[0] = s;
                 set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
@@ -124,55 +124,95 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
                 : (id_end - id_start) * (ih_end - ih_start)
                         * (iw_end - iw_start);
 
+        const auto src_off
+                = IW * IH * ID * C * mb + IW * IH * ID * c + iw_start;
+
         float d_val = 0;
         for_(dim_t id = id_start; id < id_end; ++id)
-        for_(dim_t ih = ih_start; ih < ih_end; ++ih)
-        for (dim_t iw = iw_start; iw < iw_end; ++iw) {
-            const auto src_offset = (size_t)IW * IH * ID * C * mb
-                    + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
-                    + (size_t)IW * ih + (size_t)iw;
-            d_val += src[src_offset];
+        for (dim_t ih = ih_start; ih < ih_end; ++ih) {
+            const auto src_off_loc = src_off + IW * IH * id + IW * ih;
+            const auto *src_loc = &src[src_off_loc];
+            for (dim_t iw = 0; iw < iw_end - iw_start; ++iw)
+                d_val += src_loc[iw];
         }
 
         return d_val / num_summands;
     };
 
+    // Keep branches for post-ops since reference post-ops execution brings
+    // noticeable overhead.
+    const bool has_post_ops = pd()->attr()->post_ops_.len() > 0;
+
     if (alg == alg_kind::pooling_max) {
-        parallel_nd(MB, C, OD, OH, OW,
-                [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
-                    const size_t dst_offset = (size_t)OW * OH * OD * C * mb
-                            + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
-                            + (size_t)OW * oh + (size_t)ow;
-                    data_t *d = &dst[dst_offset];
-                    d[0] = numeric_limits<data_t>::lowest();
-                    set_ws(mb, c, od, oh, ow, 0);
-                    ker_max(d, mb, c, od, oh, ow);
+        if (has_post_ops) {
+            parallel_nd(MB, C, OD, OH, OW,
+                    [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
+                        const size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                                + (size_t)OW * OH * OD * c
+                                + (size_t)OW * OH * od + (size_t)OW * oh
+                                + (size_t)ow;
+                        data_t *d = &dst[dst_offset];
+                        d[0] = numeric_limits<data_t>::lowest();
+                        set_ws(mb, c, od, oh, ow, 0);
+                        ker_max(d, mb, c, od, oh, ow);
 
-                    ref_post_ops_t::args_t args;
-                    args.ctx = &ctx;
-                    args.l_offset = dst_offset;
-                    args.dst_md = pd()->dst_md();
-                    ref_post_ops_.execute(dst[dst_offset], args);
-                    dst[dst_offset]
-                            = saturate_and_round<data_t>(dst[dst_offset]);
-                });
+                        ref_post_ops_t::args_t args;
+                        args.ctx = &ctx;
+                        args.l_offset = dst_offset;
+                        args.dst_md = pd()->dst_md();
+                        ref_post_ops_.execute(dst[dst_offset], args);
+                        dst[dst_offset]
+                                = saturate_and_round<data_t>(dst[dst_offset]);
+                    });
+        } else {
+            parallel_nd(MB, C, OD, OH, OW,
+                    [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
+                        const size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                                + (size_t)OW * OH * OD * c
+                                + (size_t)OW * OH * od + (size_t)OW * oh
+                                + (size_t)ow;
+                        data_t *d = &dst[dst_offset];
+                        d[0] = numeric_limits<data_t>::lowest();
+                        set_ws(mb, c, od, oh, ow, 0);
+                        ker_max(d, mb, c, od, oh, ow);
+
+                        dst[dst_offset]
+                                = saturate_and_round<data_t>(dst[dst_offset]);
+                    });
+        }
     } else {
-        parallel_nd(MB, C, OD, OH, OW,
-                [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
-                    const size_t dst_offset = (size_t)OW * OH * OD * C * mb
-                            + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
-                            + (size_t)OW * oh + (size_t)ow;
-                    data_t *d = &dst[dst_offset];
-                    d[0] = 0;
-                    auto res = ker_avg(d, mb, c, od, oh, ow);
+        if (has_post_ops) {
+            parallel_nd(MB, C, OD, OH, OW,
+                    [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
+                        const size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                                + (size_t)OW * OH * OD * c
+                                + (size_t)OW * OH * od + (size_t)OW * oh
+                                + (size_t)ow;
+                        data_t *d = &dst[dst_offset];
+                        d[0] = 0;
+                        auto res = ker_avg(d, mb, c, od, oh, ow);
 
-                    ref_post_ops_t::args_t args;
-                    args.ctx = &ctx;
-                    args.l_offset = dst_offset;
-                    args.dst_md = pd()->dst_md();
-                    ref_post_ops_.execute(res, args);
-                    d[0] = saturate_and_round<data_t>(res);
-                });
+                        ref_post_ops_t::args_t args;
+                        args.ctx = &ctx;
+                        args.l_offset = dst_offset;
+                        args.dst_md = pd()->dst_md();
+                        ref_post_ops_.execute(res, args);
+                        d[0] = saturate_and_round<data_t>(res);
+                    });
+        } else {
+            parallel_nd(MB, C, OD, OH, OW,
+                    [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
+                        const size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                                + (size_t)OW * OH * OD * c
+                                + (size_t)OW * OH * od + (size_t)OW * oh
+                                + (size_t)ow;
+                        data_t *d = &dst[dst_offset];
+                        d[0] = 0;
+                        auto res = ker_avg(d, mb, c, od, oh, ow);
+
+                        d[0] = saturate_and_round<data_t>(res);
+                    });
+        }
     }
 
     return status::success;
@@ -242,22 +282,21 @@ status_t nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
 
     auto ker_max = [=](float *d, dim_t mb, dim_t c, dim_t od, dim_t oh,
                            dim_t ow) {
+        const auto src_off = IW * IH * ID * C * mb + IW * IH * ID * c;
+        const auto *src_loc = &bf16cvt_wsp[src_off];
+
         for_(dim_t kd = 0; kd < KD; ++kd)
         for_(dim_t kh = 0; kh < KH; ++kh)
         for (dim_t kw = 0; kw < KW; ++kw) {
             const dim_t id = od * SD - padF + kd;
-            const dim_t ih = oh * SH - padT + kh;
-            const dim_t iw = ow * SW - padL + kw;
-
             if (id < 0 || id >= ID) continue;
+            const dim_t ih = oh * SH - padT + kh;
             if (ih < 0 || ih >= IH) continue;
+            const dim_t iw = ow * SW - padL + kw;
             if (iw < 0 || iw >= IW) continue;
 
-            auto src_offset = (size_t)IW * IH * ID * C * mb
-                    + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
-                    + (size_t)IW * ih + (size_t)iw;
-            auto &s = bf16cvt_wsp[src_offset];
-
+            const auto src_off_loc = IW * IH * id + IW * ih + iw;
+            const auto &s = src_loc[src_off_loc];
             if (s > d[0]) {
                 d[0] = s;
                 set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
@@ -279,17 +318,20 @@ status_t nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
                 : (id_end - id_start) * (ih_end - ih_start)
                         * (iw_end - iw_start);
 
+        const auto src_off
+                = IW * IH * ID * C * mb + IW * IH * ID * c + iw_start;
+
         for_(dim_t id = id_start; id < id_end; ++id)
-        for_(dim_t ih = ih_start; ih < ih_end; ++ih)
-        for (dim_t iw = iw_start; iw < iw_end; ++iw) {
-            auto src_offset = (size_t)IW * IH * ID * C * mb
-                    + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
-                    + (size_t)IW * ih + (size_t)iw;
-            d[0] += bf16cvt_wsp[src_offset];
+        for (dim_t ih = ih_start; ih < ih_end; ++ih) {
+            const auto src_off_loc = src_off + IW * IH * id + IW * ih;
+            const auto *src_loc = &bf16cvt_wsp[src_off_loc];
+            for (dim_t iw = 0; iw < iw_end - iw_start; ++iw)
+                d[0] += src_loc[iw];
         }
 
         d[0] = out_round<float>((float)d[0] / num_summands);
     };
+
     parallel_nd(blocked_size, [&](size_t i) {
         cvt_bfloat16_to_float(
                 &bf16cvt_wsp[i * simd_w], &src[i * simd_w], simd_w);
@@ -297,41 +339,79 @@ status_t nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
     if (tail_size)
         cvt_bfloat16_to_float(&bf16cvt_wsp[blocked_size * simd_w],
                 &src[blocked_size * simd_w], tail_size);
+
+    // Keep branches for post-ops since reference post-ops execution brings
+    // noticeable overhead.
+    const bool has_post_ops = pd()->attr()->post_ops_.len() > 0;
+
     if (alg == alg_kind::pooling_max) {
-        parallel_nd(MB, C, OD, OH, OW,
-                [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
-                    size_t dst_offset = (size_t)OW * OH * OD * C * mb
-                            + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
-                            + (size_t)OW * oh + (size_t)ow;
-                    float d_fp32 = numeric_limits<bfloat16_t>::lowest();
+        if (has_post_ops) {
+            parallel_nd(MB, C, OD, OH, OW,
+                    [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
+                        size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                                + (size_t)OW * OH * OD * c
+                                + (size_t)OW * OH * od + (size_t)OW * oh
+                                + (size_t)ow;
+                        float d_fp32 = numeric_limits<bfloat16_t>::lowest();
 
-                    set_ws(mb, c, od, oh, ow, 0);
+                        set_ws(mb, c, od, oh, ow, 0);
 
-                    ker_max(&d_fp32, mb, c, od, oh, ow);
+                        ker_max(&d_fp32, mb, c, od, oh, ow);
 
-                    ref_post_ops_t::args_t args;
-                    args.ctx = &ctx;
-                    args.l_offset = dst_offset;
-                    args.dst_md = pd()->dst_md();
-                    ref_post_ops_.execute(d_fp32, args);
+                        ref_post_ops_t::args_t args;
+                        args.ctx = &ctx;
+                        args.l_offset = dst_offset;
+                        args.dst_md = pd()->dst_md();
+                        ref_post_ops_.execute(d_fp32, args);
 
-                    dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
-                });
+                        dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
+                    });
+        } else {
+            parallel_nd(MB, C, OD, OH, OW,
+                    [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
+                        size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                                + (size_t)OW * OH * OD * c
+                                + (size_t)OW * OH * od + (size_t)OW * oh
+                                + (size_t)ow;
+                        float d_fp32 = numeric_limits<bfloat16_t>::lowest();
+
+                        set_ws(mb, c, od, oh, ow, 0);
+
+                        ker_max(&d_fp32, mb, c, od, oh, ow);
+
+                        dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
+                    });
+        }
     } else {
-        parallel_nd(MB, C, OD, OH, OW,
-                [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
-                    size_t dst_offset = (size_t)OW * OH * OD * C * mb
-                            + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
-                            + (size_t)OW * oh + (size_t)ow;
-                    float d_fp32 = 0.0f;
-                    ker_avg(&d_fp32, mb, c, od, oh, ow);
-                    ref_post_ops_t::args_t args;
-                    args.ctx = &ctx;
-                    args.l_offset = dst_offset;
-                    args.dst_md = pd()->dst_md();
-                    ref_post_ops_.execute(d_fp32, args);
-                    dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
-                });
+        if (has_post_ops) {
+            parallel_nd(MB, C, OD, OH, OW,
+                    [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
+                        size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                                + (size_t)OW * OH * OD * c
+                                + (size_t)OW * OH * od + (size_t)OW * oh
+                                + (size_t)ow;
+                        float d_fp32 = 0.0f;
+                        ker_avg(&d_fp32, mb, c, od, oh, ow);
+                        ref_post_ops_t::args_t args;
+                        args.ctx = &ctx;
+                        args.l_offset = dst_offset;
+                        args.dst_md = pd()->dst_md();
+                        ref_post_ops_.execute(d_fp32, args);
+                        dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
+                    });
+        } else {
+            parallel_nd(MB, C, OD, OH, OW,
+                    [&](dim_t mb, dim_t c, dim_t od, dim_t oh, dim_t ow) {
+                        size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                                + (size_t)OW * OH * OD * c
+                                + (size_t)OW * OH * od + (size_t)OW * oh
+                                + (size_t)ow;
+                        float d_fp32 = 0.0f;
+                        ker_avg(&d_fp32, mb, c, od, oh, ow);
+
+                        dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
+                    });
+        }
     }
 
     return status::success;
