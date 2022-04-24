@@ -35,8 +35,8 @@ dnnl_status_t cblas_gemm_s8u8s32_PPC64(int ATflag, int BTflag,
     if ((*ao != 0) || (*bo != 0)) {
         short *Ashort, *AP, *APraw;
         short *Bshort, *BP, *BPraw;
-        int a_size = lda * (ATflag ? m : k);
-        int b_size = ldb * (BTflag ? k : n);
+        int a_size = lda * (ATflag ? m-1 : k-1) + (ATflag ? k : m);
+        int b_size = ldb * (BTflag ? k-1 : n-1) + (BTflag ? n : k);
         Ashort = (short *)malloc(a_size * sizeof(short), 4096);
         Bshort = (short *)malloc(b_size * sizeof(short), 4096);
         if (utils::any_null(Ashort, Bshort)) {
@@ -48,8 +48,9 @@ dnnl_status_t cblas_gemm_s8u8s32_PPC64(int ATflag, int BTflag,
             Ashort[i] = ((short)A[i]) - (short)*ao;
         if (flipB_flag) {
             const signed char *Bflip = (const signed char *)B;
+	    const signed char *bo_flip = (const signed char *)bo;
             for (int i = 0; i < b_size; ++i)
-                Bshort[i] = ((short)Bflip[i]) - (short)*bo;
+                Bshort[i] = ((short)(Bflip[i])) - (short)*bo_flip;
         } else {
             for (int i = 0; i < b_size; ++i)
                 Bshort[i] = ((short)B[i]) - (short)*bo;
@@ -95,7 +96,7 @@ dnnl_status_t cblas_gemm_s8u8s32_PPC64(int ATflag, int BTflag,
         else
             pack_T16_8bit(k, m, A, lda, AP);
         if (flipB_flag) {
-            int b_size = ldb * (BTflag ? k : n);
+            int b_size = ldb * (BTflag ? k-1 : n-1) + (BTflag ? n : k);
             uint8_t *Bflip = (uint8_t *)malloc(b_size * sizeof(uint8_t), 4096);
             if (utils::any_null(Bflip)) {
                 free(Bflip);
