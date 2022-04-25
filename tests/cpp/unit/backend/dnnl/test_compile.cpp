@@ -16264,7 +16264,7 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_maxpool_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -16391,7 +16391,7 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_avgpool_fusion");
+        impl::pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -16428,11 +16428,11 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
     impl::stream_t &strm = get_stream();
 
     const std::vector<config_t> confs {
-            config_t {impl::op_kind::AvgPool, "int8_avgpool_add_fusion", true},
-            config_t {impl::op_kind::AvgPool, "int8_avgpool_add_fusion", false},
-            config_t {impl::op_kind::MaxPool, "int8_maxpool_add_fusion", true},
+            config_t {impl::op_kind::AvgPool, "int8_pool_binary_fusion", true},
+            config_t {impl::op_kind::AvgPool, "int8_pool_binary_fusion", false},
+            config_t {impl::op_kind::MaxPool, "int8_pool_binary_fusion", true},
             config_t {
-                    impl::op_kind::MaxPool, "int8_maxpool_add_fusion", false}};
+                    impl::op_kind::MaxPool, "int8_pool_binary_fusion", false}};
     const std::vector<std::string> qtypes {"symmetric", "asymmetric"};
     const std::vector<bool> swap_add_ins {true, false};
 

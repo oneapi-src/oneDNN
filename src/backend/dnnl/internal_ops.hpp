@@ -58,11 +58,8 @@ namespace op_kind {
     X(squeeze, Squeeze) \
     X(dnnl_convolution, Dnnl_convolution) \
     X(dnnl_convtranspose, Dnnl_convtranspose) \
-    X(int8_maxpool, INT8_MaxPool) \
-    X(int8_maxpool_add, INT8_MaxPool_add) \
+    X(int8_pool_binary, INT8_Pool_binary) \
     X(eltwise_binary, Eltwise_binary) \
-    X(int8_avgpool, INT8_AvgPool) \
-    X(int8_avgpool_add, INT8_AvgPool_add) \
     X(dnnl_pool, Dnnl_pool) \
     X(dnnl_bn_folding, Dnnl_bn_folding) \
     X(dnnl_conv_bwd_data, Dnnl_conv_bwd_data) \

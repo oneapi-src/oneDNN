@@ -7469,11 +7469,11 @@ TEST(Pass, FuseToInt8Maxpool) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_maxpool_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_maxpool);
+            dnnl_impl::op_kind::int8_pool_binary);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
@@ -7492,7 +7492,7 @@ TEST(PassPriority, TestInt8MaxpoolPasPriority) {
            quant
              | (u8/s8)
     */
-    pass::pass_base_ptr pass1 = get_pass("int8_maxpool_fusion");
+    pass::pass_base_ptr pass1 = get_pass("int8_pool_binary_fusion");
     pass::pass_base_ptr pass2 = get_pass("max_pool_pass");
     pass::pass_base_ptr pass3 = get_pass("quant_pass");
     pass::pass_base_ptr pass4 = get_pass("dequant_pass");
@@ -7552,11 +7552,11 @@ TEST(Pass, FuseToInt8Avgpool) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_avgpool_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_avgpool);
+            dnnl_impl::op_kind::int8_pool_binary);
 }
 
 TEST(Pass, FuseToInt8PoolAdd) {
@@ -7574,19 +7574,19 @@ TEST(Pass, FuseToInt8PoolAdd) {
            quant
              | (u8/s8)
     */
-    using config_t = std::tuple<op_kind_t, op_kind_t, std::string, std::string>;
+    using config_t = std::tuple<op_kind_t, op_kind_t, std::string>;
     const auto confs = std::vector<config_t> {
-            config_t {AvgPool, dnnl_impl::op_kind::int8_avgpool_add,
-                    "int8_avgpool_fusion", "int8_avgpool_add_fusion"},
-            config_t {MaxPool, dnnl_impl::op_kind::int8_maxpool_add,
-                    "int8_maxpool_fusion", "int8_maxpool_add_fusion"}};
+            config_t {AvgPool, dnnl_impl::op_kind::int8_pool_binary,
+                    "int8_pool_binary_fusion"},
+            config_t {MaxPool, dnnl_impl::op_kind::int8_pool_binary,
+                    "int8_pool_binary_fusion"}};
 
     for (const auto &conf : confs) {
         op_kind_t base_op;
         op_kind_t fused_op;
         std::string failing_fuse;
         std::string passing_fuse;
-        std::tie(base_op, fused_op, failing_fuse, passing_fuse) = conf;
+        std::tie(base_op, fused_op, passing_fuse) = conf;
 
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
@@ -7653,10 +7653,6 @@ TEST(Pass, FuseToInt8PoolAdd) {
         ASSERT_EQ(agraph.add_op(&quant), status::success);
         agraph.build_graph();
 
-        pass::pass_base_ptr apass2 = get_pass(failing_fuse);
-        apass2->run(agraph);
-        ASSERT_EQ(agraph.get_num_partitions(), 0);
-
         pass::pass_base_ptr apass = get_pass(passing_fuse);
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1);
@@ -7665,12 +7661,12 @@ TEST(Pass, FuseToInt8PoolAdd) {
     }
 }
 
-TEST(PassPriority, TestInt8MaxPoolAdd) {
+TEST(PassPriority, TestInt8PoolAdd) {
     /*    
              | (u8/s8)
           dequant
              | (f32)
-          maxpool
+            pool
              | (f32)
              |     | (u8/s8)
              |   dequant
@@ -7680,41 +7676,13 @@ TEST(PassPriority, TestInt8MaxPoolAdd) {
            quant
              | (u8/s8)
     */
-    pass::pass_base_ptr pass1 = get_pass("int8_maxpool_add_fusion");
-    pass::pass_base_ptr pass2 = get_pass("int8_maxpool_fusion");
-    pass::pass_base_ptr pass3 = get_pass("pool_binary_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
+    pass::pass_base_ptr pass1 = get_pass("int8_pool_binary_fusion");
+    pass::pass_base_ptr pass2 = get_pass("pool_binary_fusion");
+    pass::pass_base_ptr pass3 = get_pass("quant_pass");
+    pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());
     ASSERT_GT(pass1->get_priority(), pass3->get_priority());
     ASSERT_GT(pass1->get_priority(), pass4->get_priority());
-    ASSERT_GT(pass1->get_priority(), pass5->get_priority());
-}
-
-TEST(PassPriority, TestInt8AvgPoolAdd) {
-    /*    
-             | (u8/s8)
-          dequant
-             | (f32)
-          avgpool
-             | (f32)
-             |     | (u8/s8)
-             |   dequant
-             |  / (f32)
-            add
-             | (f32)
-           quant
-             | (u8/s8)
-    */
-    pass::pass_base_ptr pass1 = get_pass("int8_avgpool_add_fusion");
-    pass::pass_base_ptr pass2 = get_pass("int8_avgpool_fusion");
-    pass::pass_base_ptr pass3 = get_pass("pool_binary_fusion");
-    pass::pass_base_ptr pass4 = get_pass("quant_pass");
-    pass::pass_base_ptr pass5 = get_pass("dequant_pass");
-    ASSERT_GT(pass1->get_priority(), pass2->get_priority());
-    ASSERT_GT(pass1->get_priority(), pass3->get_priority());
-    ASSERT_GT(pass1->get_priority(), pass4->get_priority());
-    ASSERT_GT(pass1->get_priority(), pass5->get_priority());
 }
 
 TEST(Pass, FuseToInt8Relu) {

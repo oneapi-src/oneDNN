@@ -222,10 +222,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(op_kind::chained_relu, float_eltwise_fwd);
 
     // quantized pooling
-    DNNL_REGISTER_KERNEL(op_kind::int8_maxpool, quantized_pooling);
-    DNNL_REGISTER_KERNEL(op_kind::int8_maxpool_add, quantized_pooling);
-    DNNL_REGISTER_KERNEL(op_kind::int8_avgpool, quantized_pooling);
-    DNNL_REGISTER_KERNEL(op_kind::int8_avgpool_add, quantized_pooling);
+    DNNL_REGISTER_KERNEL(op_kind::int8_pool_binary, quantized_pooling);
 
     // quantized eltwise
     DNNL_REGISTER_KERNEL(op_kind::int8_relu, quantized_eltwise);
