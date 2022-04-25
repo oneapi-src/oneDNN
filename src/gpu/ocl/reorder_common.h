@@ -294,6 +294,7 @@
 #define SCALE_S3 (SCALE_D4 * SCALE_D5)
 #define SCALE_S4 (SCALE_D5)
 #define SCALE_S5 (1)
+#define NSCALES (SCALE_S0 * SCALE_D0)
 
 #define SCALE_OFF(x0, x1, x2, x3, x4, x5) \
     ((x0)*SCALE_S0 * MASK_D(0) + (x1)*SCALE_S1 * MASK_D(1) \

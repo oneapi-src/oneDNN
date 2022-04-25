@@ -109,18 +109,16 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         const int pad_d3 = NDIMS > 3 && d[3] + b[3] >= SRC_D3;
         const int pad_d4 = NDIMS > 4 && d[4] + b[4] >= SRC_D4;
         const int pad_d5 = NDIMS > 5 && d[5] + b[5] >= SRC_D5;
-        const int out_of_bounds = sgId >= LIMIT_SSGID;
+        const bool pad_sgid = sgId >= LIMIT_SSGID;
         const int pad
                 = pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5;
-        if (pad && !out_of_bounds) {
-            cache[cache_idx] = 0;
-        } else if (!out_of_bounds) {
+        if (!pad_sgid) {
             // src_off is based on coordinates of blocks and returns same
             // result for each workitem in subgroup. This is to make sure
             // offset calculation is simple enough that compiler won't split
             // this burst into single bytes accesses. Yet each workitem will
             // read different address thanks to "+sgID" statement
-            SRC_DATA_T src_tmp = src[src_off + sgId];
+            SRC_DATA_T src_tmp = pad ? 0 : src[src_off + sgId];
             cache[cache_idx] = src_tmp;
         }
     }
@@ -193,7 +191,7 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
             // TODO: move to separate loop to enable burst reads from scales?
             uint scale_idx = SCALE_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
                     d[3] + b[3], d[4] + b[4], d[5] + b[5]);
-            alpha = scale_idx < SCALE_S0 ? scales[scale_idx] : 0.0;
+            alpha = scale_idx < NSCALES ? scales[scale_idx] : 0.0;
 #endif
 
             REORDER(dst_tmp, from_cache, alpha, beta);
