@@ -35,6 +35,9 @@ class pb_op;
 class pb_node;
 class pb_graph_t;
 // Helper types
+// VARIADIC_INPUT_NUM means the num of inputs will be depend on the op
+// Using a large enough number to represent this.
+#define VARIADIC_INPUT_NUM 64
 using iport_t = int64_t;
 using oport_t = int64_t;
 using producer_t = std::pair<pb_node *, oport_t>;

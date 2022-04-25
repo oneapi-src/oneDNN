@@ -36,12 +36,6 @@ bool has_commutative_inputs(op_t *op) {
     return commutative_kinds.count(op->get_kind());
 }
 
-// check if an op's inputs num can be variadic
-bool has_variadic_inputs(op_t *op) {
-    static const std::unordered_set<op_kind_t> variadic_kinds {op_kind::Concat};
-    return variadic_kinds.count(op->get_kind());
-}
-
 // check if a pb_node is optional and its all consumers are optional
 bool check_is_optional(pb_node *n) {
     if (n->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
@@ -92,38 +86,51 @@ bool match_node_inputs(op_t *op, pb_node *node, match_context_t *ctx,
     if (node_inputs.empty()) return true;
 
     std::unordered_map<op_t *, pb_op *> copied_op_map = matched_op_map;
-    if (!has_commutative_inputs(op)) {
-        for (size_t i = 0; i < node_inputs.size(); ++i) {
-            if (op->num_inputs() < i + 1) {
-                if (has_variadic_inputs(op))
-                    break;
-                else
-                    return false;
+
+    // a lambda function to match each of the inputs in op and node
+    auto match_input
+            = [&](size_t op_input_offset, size_t node_input_offset) -> bool {
+        pb_node *in_node = node_inputs[node_input_offset].second.first;
+        std::shared_ptr<value_t> op_in_value
+                = op->get_input_value(op_input_offset);
+        if (!op_in_value->has_producer()) {
+            // pattern node has producer while graph op
+            // doesn't have. In this case, only optional
+            // can survive
+            if (in_node->get_node_kind()
+                    != pb_node_kind::PB_NODE_KIND_REPETITION)
+                return false;
+            repetition_t *rep_node = dynamic_cast<repetition_t *>(in_node);
+            if (rep_node->get_min_rep() != 0) return false;
+        } else {
+            op_t *in_op = op->get_input_op(op_input_offset);
+            size_t in_op_oport = op_in_value->get_offset();
+            oport_t in_node_oport
+                    = node_inputs[node_input_offset].second.second;
+            binding_t in_bind(
+                    BIND_OUT, in_op, in_op_oport, in_node, in_node_oport);
+            if (!match_graph_helper(in_bind, ctx, copied_op_map)) {
+                return false;
             }
+        }
+        return true;
+    };
+
+    if (node->get_inputs().size() == VARIADIC_INPUT_NUM) {
+        assertm(op->num_inputs() < VARIADIC_INPUT_NUM,
+                "variadic input num should be larger than actual op's num of "
+                "inputs");
+        for (size_t i = 0; i < node_inputs.size(); ++i) {
+            if (op->num_inputs() < i + 1) break;
+            iport_t node_iport = node_inputs[i].first;
+            if (!match_input(node_iport, i)) return false;
+        }
+    } else if (!has_commutative_inputs(op)) {
+        for (size_t i = 0; i < node_inputs.size(); ++i) {
+            if (op->num_inputs() < i + 1) return false;
             iport_t node_iport = node_inputs[i].first;
             if (op->num_inputs() < node_iport + 1) return false;
-            std::shared_ptr<value_t> op_in_value
-                    = op->get_input_value(node_iport);
-            pb_node *in_node = node_inputs[i].second.first;
-            if (!op_in_value->has_producer()) {
-                // pattern node has producer while graph op
-                // doesn't have. In this case, only optional
-                // can survive
-                if (in_node->get_node_kind()
-                        != pb_node_kind::PB_NODE_KIND_REPETITION)
-                    return false;
-                repetition_t *rep_node = dynamic_cast<repetition_t *>(in_node);
-                if (rep_node->get_min_rep() != 0) return false;
-            } else {
-                op_t *in_op = op->get_input_op(node_iport);
-                size_t in_op_oport = op_in_value->get_offset();
-                oport_t in_node_oport = node_inputs[i].second.second;
-                binding_t in_bind(
-                        BIND_OUT, in_op, in_op_oport, in_node, in_node_oport);
-                if (!match_graph_helper(in_bind, ctx, copied_op_map)) {
-                    return false;
-                }
-            }
+            if (!match_input(node_iport, i)) return false;
         }
     } else { // commutative ops need to consider switching inputs
         size_t matched_op_input_offset = op->num_inputs(); // init with illegal
@@ -135,20 +142,9 @@ bool match_node_inputs(op_t *op, pb_node *node, match_context_t *ctx,
                     matched_op_input_offset = op->num_inputs();
                     continue;
                 }
-                std::shared_ptr<value_t> op_in_value
-                        = op->get_input_value(op_input_offset);
-                pb_node *in_node = node_inputs[node_input_offset].second.first;
-                oport_t in_node_oport
-                        = node_inputs[node_input_offset].second.second;
-                if (op_in_value->has_producer()) {
-                    op_t *in_op = op->get_input_op(op_input_offset);
-                    size_t in_op_oport = op_in_value->get_offset();
-                    binding_t in_bind(BIND_OUT, in_op, in_op_oport, in_node,
-                            in_node_oport);
-                    if (match_graph_helper(in_bind, ctx, copied_op_map)) {
-                        matched_op_input_offset = op_input_offset;
-                        break;
-                    }
+                if (match_input(op_input_offset, node_input_offset)) {
+                    matched_op_input_offset = op_input_offset;
+                    break;
                 }
             }
             if (matched_op_input_offset == op->num_inputs()) return false;

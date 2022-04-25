@@ -28,8 +28,6 @@ using pb_graph_t = pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
-#define MAX_NUM_OF_CONCAT 64
-
 namespace {
 bool check_scales_zps_all_equal(op_t *op) {
     auto out_port = op->get_output_value(0);
@@ -74,7 +72,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_concat_fusion)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     in_edges_t input_edges;
-                    for (size_t i = 0; i < MAX_NUM_OF_CONCAT; ++i) {
+                    for (size_t i = 0; i < VARIADIC_INPUT_NUM; ++i) {
                         pm::pb_op *dequant
                                 = pgraph->append_op(impl::op_kind::Dequantize);
                         input_edges.emplace_back(in_edge(i, dequant, 0));
