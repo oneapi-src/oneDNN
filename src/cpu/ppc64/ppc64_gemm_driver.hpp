@@ -17,13 +17,10 @@
 #ifndef CPU_PPC64_GEMM_GEMM_DRIVER_HPP
 #define CPU_PPC64_GEMM_GEMM_DRIVER_HPP
 
-//#include "cpu/ppc64/PPC64_gemm_s8x8s32.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
-//template <typename a_type, typename b_type, typename c_type>
-dnnl_status_t cblas_gemm_s8u8s32_PPC64(int, int, char const *, int, int, int,
+dnnl_status_t cblas_gemm_s8u8s32_ppc64(int, int, char const *, int, int, int,
         float, signed char const *, int, signed char const *,
         unsigned char const *, int, unsigned char const *, int *, float, int,
         int const *, int);

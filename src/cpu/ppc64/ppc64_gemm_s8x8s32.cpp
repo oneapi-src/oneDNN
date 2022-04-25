@@ -1,31 +1,17 @@
 #ifdef __MMA__
 #include <altivec.h>
-#include "PPC64_gemm_s8x8s32.hpp"
 #include "cpu/simple_q10n.hpp"
-//#define TIMING 1
-
-#ifdef TIMING
-#include <sys/platform/ppc.h>
-double tot_time = 0.0;
-double inv_freq;
-uint64_t t1, t2, freq;
-#endif
+#include "ppc64_gemm_s8x8s32.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-dnnl_status_t cblas_gemm_s8u8s32_PPC64(int ATflag, int BTflag,
+dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
         char const *offsetc, int m, int n, int k, float alpha,
         signed char const *A, int lda, signed char const *ao,
         unsigned char const *B, int ldb, unsigned char const *bo, int *C,
         float beta, int ldc, int const *co, int flipB_flag) {
-
-#ifdef TIMING
-    freq = __ppc_get_timebase_freq();
-    inv_freq = 1.0 / freq;
-    t1 = __ppc_get_timebase();
-#endif
 
     int m_cap, n_cap, k_cap;
     m_cap = (m + 3) & (~3);
@@ -35,8 +21,8 @@ dnnl_status_t cblas_gemm_s8u8s32_PPC64(int ATflag, int BTflag,
     if ((*ao != 0) || (*bo != 0)) {
         short *Ashort, *AP, *APraw;
         short *Bshort, *BP, *BPraw;
-        int a_size = lda * (ATflag ? m-1 : k-1) + (ATflag ? k : m);
-        int b_size = ldb * (BTflag ? k-1 : n-1) + (BTflag ? n : k);
+        int a_size = lda * (ATflag ? m - 1 : k - 1) + (ATflag ? k : m);
+        int b_size = ldb * (BTflag ? k - 1 : n - 1) + (BTflag ? n : k);
         Ashort = (short *)malloc(a_size * sizeof(short), 4096);
         Bshort = (short *)malloc(b_size * sizeof(short), 4096);
         if (utils::any_null(Ashort, Bshort)) {
@@ -48,7 +34,7 @@ dnnl_status_t cblas_gemm_s8u8s32_PPC64(int ATflag, int BTflag,
             Ashort[i] = ((short)A[i]) - (short)*ao;
         if (flipB_flag) {
             const signed char *Bflip = (const signed char *)B;
-	    const signed char *bo_flip = (const signed char *)bo;
+            const signed char *bo_flip = (const signed char *)bo;
             for (int i = 0; i < b_size; ++i)
                 Bshort[i] = ((short)(Bflip[i])) - (short)*bo_flip;
         } else {
@@ -96,7 +82,7 @@ dnnl_status_t cblas_gemm_s8u8s32_PPC64(int ATflag, int BTflag,
         else
             pack_T16_8bit(k, m, A, lda, AP);
         if (flipB_flag) {
-            int b_size = ldb * (BTflag ? k-1 : n-1) + (BTflag ? n : k);
+            int b_size = ldb * (BTflag ? k - 1 : n - 1) + (BTflag ? n : k);
             uint8_t *Bflip = (uint8_t *)malloc(b_size * sizeof(uint8_t), 4096);
             if (utils::any_null(Bflip)) {
                 free(Bflip);
@@ -170,12 +156,6 @@ dnnl_status_t cblas_gemm_s8u8s32_PPC64(int ATflag, int BTflag,
         for (int i = 0; i < n; ++i)
             for (int j = 0; j < m; ++j)
                 C[ldc * i + j] += co[j];
-
-#ifdef TIMING
-    t2 = __ppc_get_timebase();
-    tot_time += ((double)(t2 - t1)) * inv_freq;
-    printf("tot_time = %11.9lf\n", tot_time);
-#endif
 
     return dnnl_success;
 }

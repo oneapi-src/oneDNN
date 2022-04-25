@@ -31,7 +31,7 @@
 #include "cpu/gemm/s8x8s32/ref_gemm_s8x8s32.hpp"
 #include "cpu/gemm/s8x8s32/simple_gemm_s8s8s32.hpp"
 #if DNNL_PPC64
-#include "cpu/ppc64/PPC64_gemm_driver.hpp"
+#include "cpu/ppc64/ppc64_gemm_driver.hpp"
 using namespace dnnl::impl::cpu;
 #endif
 
@@ -210,7 +210,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     int ldb = (int)*LDB;
     int ldc = (int)*LDC;
 
-    return cblas_gemm_s8u8s32_PPC64(ATflag, BTflag, offsetc, m, n, k, *alpha, A,
+    return cblas_gemm_s8u8s32_ppc64(ATflag, BTflag, offsetc, m, n, k, *alpha, A,
             lda, ao, B, ldb, bo, C, *beta, ldc, co, 0);
 #endif
 #endif
@@ -259,7 +259,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     int ldb = (int)*LDB;
     int ldc = (int)*LDC;
 
-    return cblas_gemm_s8u8s32_PPC64(ATflag, BTflag, offsetc, m, n, k, *alpha, A,
+    return cblas_gemm_s8u8s32_ppc64(ATflag, BTflag, offsetc, m, n, k, *alpha, A,
             lda, ao, (const uint8_t *)B, ldb, (const uint8_t *)bo, C, *beta,
             ldc, co, 1);
 #endif

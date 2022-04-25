@@ -1926,9 +1926,12 @@ int pack_T8_8bit(
                 memcpy_n(&temp0[2], b_off[2], nbytes);
                 memcpy_n(&temp0[3], b_off[3], nbytes);
                 memcpy_n(&temp1[0], b_off[4], nbytes);
-                if (j > 1 || (!k_skip) || delk < 3) memcpy_n(&temp1[1], b_off[5], nbytes);
-                if (j > 1 || (!k_skip) || delk < 2) memcpy_n(&temp1[2], b_off[6], nbytes);
-                if (j > 1 || (!k_skip) || delk < 1) memcpy_n(&temp1[3], b_off[7], nbytes);
+                if (j > 1 || (!k_skip) || delk < 3)
+                    memcpy_n(&temp1[1], b_off[5], nbytes);
+                if (j > 1 || (!k_skip) || delk < 2)
+                    memcpy_n(&temp1[2], b_off[6], nbytes);
+                if (j > 1 || (!k_skip) || delk < 1)
+                    memcpy_n(&temp1[3], b_off[7], nbytes);
             }
             vbp[0] = vec_perm(vw0, vw0, swiz); // 4x4 transpose
             vbp[1] = vec_perm(vw1, vw1, swiz); // 4x4 transpose
