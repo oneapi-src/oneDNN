@@ -66,6 +66,9 @@ public:
     std::string command_ = "g++";
     unsigned opt_level_;
     bool debug_info_;
+
+    statics_table_t codegen_to_cpp(std::ostream &os,
+            const const_ir_module_ptr &module, bool generate_wrapper);
     std::shared_ptr<jit_module> make_jit_module(
             const_ir_module_ptr module, bool generate_wrapper) override;
     std::shared_ptr<jit_module> make_jit_module(const std::string &inpath,

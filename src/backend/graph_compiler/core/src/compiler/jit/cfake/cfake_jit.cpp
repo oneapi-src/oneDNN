@@ -169,6 +169,14 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
                     std::move(globals), has_generic_wrapper));
 }
 
+statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
+        const const_ir_module_ptr &module, bool generate_wrapper) {
+    auto gen = create_c_generator(os, context_, generate_wrapper);
+    auto new_mod = gen(module);
+    return std::move(*new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
+            ir_module_t::attr_key_t::MODULE_DATA_BUFFERS));
+}
+
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         const_ir_module_ptr module, bool generate_wrapper) {
     std::stringstream name_maker;
@@ -184,11 +192,8 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     std::string inpath = tmpdir + "/cfake_jit_module-" + unique_name + ".cpp";
 
     std::ofstream of(inpath);
-    auto gen = create_c_generator(of, context_, generate_wrapper);
-    auto new_mod = gen(module);
+    auto attr_table = codegen_to_cpp(of, module, generate_wrapper);
     of.close();
-    auto &attr_table = *new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
-            ir_module_t::attr_key_t::MODULE_DATA_BUFFERS);
 
     return make_jit_module(
             inpath, outpath, std::move(attr_table), generate_wrapper);

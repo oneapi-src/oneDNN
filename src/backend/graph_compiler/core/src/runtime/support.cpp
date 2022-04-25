@@ -97,10 +97,16 @@ runtime_config_t &runtime_config_t::get() {
 int runtime_config_t::get_num_threads() {
     return omp_get_max_threads();
 }
+
+void runtime_config_t::set_num_threads(int num) {
+    return omp_set_num_threads(num);
+}
 #else
 int runtime_config_t::get_num_threads() {
     return 1;
 }
+
+void runtime_config_t::set_num_threads(int num) {}
 #endif
 
 using namespace env_key;
