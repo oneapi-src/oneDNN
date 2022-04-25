@@ -115,6 +115,16 @@ void sc_data_format_kind_t::collect_dim_count(
     }
 }
 
+bool sc_data_format_kind_t::is_vnni_format() const {
+    int last_dim = get(ndims() - 1);
+    int dims[MAX_DIMS];
+    for (int i = 0; i < MAX_DIMS; i++)
+        dims[i] = 0;
+    collect_dim_count(dims);
+    if (dims[last_dim] == 3) return true;
+    return false;
+}
+
 int sc_data_format_kind_t::norig_dims() const {
     int ret = -1;
     for (int i = 0; i < MAX_DIMS; i++) {
@@ -180,6 +190,10 @@ sc_data_format_kind_t sc_data_format_kind_t::to_plain() const {
 
 bool sc_data_format_t::is_blocking() const {
     return format_code_.is_blocking();
+}
+
+bool sc_data_format_t::is_vnni_format() const {
+    return format_code_.is_vnni_format();
 }
 
 bool sc_data_format_t::is_plain() const {

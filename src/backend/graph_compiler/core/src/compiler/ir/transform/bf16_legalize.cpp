@@ -31,7 +31,8 @@ static bool check_ref_more_than_one(
 static bool define_can_promote(const context_ptr &ctx, const define_c &v) {
     return v->var_.isa<var>() && v->var_->dtype_.is_etype(sc_data_etype::BF16)
             && v->var_->dtype_.lanes_
-            <= ctx->get_max_vector_lanes(sc_data_etype::F32);
+            <= ctx->get_max_vector_lanes(sc_data_etype::F32)
+            && v->var_->attr().get_or_else("can_promote_to_f32", true);
 }
 
 std::tuple<expr_c, expr_c> bf16_promote_impl_t::docast(
@@ -151,6 +152,7 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::shuffle:
         case intrin_type::permute:
         case intrin_type::broadcast:
+        case intrin_type::permutex2var:
         case intrin_type::reinterpret: break;
         default:
             COMPILE_ASSERT(false, "Unsupport BF16 intrin type: " << v->type_);

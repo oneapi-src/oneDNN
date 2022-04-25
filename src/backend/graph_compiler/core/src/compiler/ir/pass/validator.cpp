@@ -338,6 +338,16 @@ void validate_impl_t::view(intrin_call_c v) {
                             << v->args_[0]->dtype_ << " v.s. "
                             << v->args_[1]->dtype_ << ", expr = " << v);
             break;
+        case intrin_type::permutex2var:
+            validate_type(v);
+            COMPILE_ASSERT(v->args_.size() == 3,
+                    "Trinary intrinsics take three parameters. Got " << v);
+            COMPILE_ASSERT(v->args_[0]->dtype_ == v->args_[2]->dtype_,
+                    "The types of the first and last args should be the same"
+                            << v->args_[0]->dtype_ << " v.s. "
+                            << v->args_[1]->dtype_);
+
+            break;
         case intrin_type::broadcast:
             validate_type(v);
             COMPILE_ASSERT(v->args_.size() == 1,

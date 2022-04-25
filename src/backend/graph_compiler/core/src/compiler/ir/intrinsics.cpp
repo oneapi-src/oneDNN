@@ -50,6 +50,8 @@ void trinary_intrinsic_handler_t::on_initialize(intrin_call_node &node) {
     if (node.type_ == intrin_type::permute
             || node.type_ == intrin_type::shuffle) {
         node.dtype_ = a->dtype_ == b->dtype_ ? a->dtype_ : datatypes::undef;
+    } else if (node.type_ == intrin_type::permutex2var) {
+        node.dtype_ = a->dtype_ == c->dtype_ ? a->dtype_ : datatypes::undef;
     } else {
         node.dtype_ = a->dtype_ == b->dtype_ && a->dtype_ == c->dtype_
                 ? a->dtype_
@@ -180,6 +182,10 @@ struct reinterpret_handler_t : public intrinsic_handler_t {
                 intrin_attr::out_dtype);
     }
     reinterpret_handler_t() : intrinsic_handler_t("reinterpret") {}
+};
+
+struct permutex2var_handler_t : public trinary_intrinsic_handler_t {
+    permutex2var_handler_t() : trinary_intrinsic_handler_t("permutex2var") {}
 };
 
 struct round_and_cast_handler_t : public intrinsic_handler_t {
@@ -337,6 +343,7 @@ static std::unique_ptr<intrinsic_handler_t> handlers[]
                 utils::make_unique<round_and_cast_handler_t>(),
                 utils::make_unique<shl_handler_t>(),
                 utils::make_unique<shr_handler_t>(),
+                utils::make_unique<permutex2var_handler_t>(),
                 utils::make_unique<brgemm_handler_t>(
                         brgemm_args::NUM_FULL_ARGS_STRIDE, "brgemm"),
                 utils::make_unique<brgemm_handler_t>(

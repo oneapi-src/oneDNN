@@ -126,6 +126,8 @@ public:
     // e.g. NCHWc => out=[1,2,1,1], the axis C occurs twice
     void collect_dim_count(int out[MAX_DIMS]) const;
 
+    bool is_vnni_format() const;
+
     // collects the index of blocking with given `axis`. e.g. NCHWc and given
     // `axis=1` we get the blocking index vector {0}
     std::vector<int> collect_blocking_index(int axis) const;
@@ -226,6 +228,8 @@ struct SC_API sc_data_format_t {
     bool is_blocking() const;
 
     bool is_plain() const;
+
+    bool is_vnni_format() const;
 
     bool is_any() const;
 

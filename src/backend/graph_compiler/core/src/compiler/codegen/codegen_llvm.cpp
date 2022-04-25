@@ -921,7 +921,15 @@ public:
                         break;
                 }
             } break;
-
+            case intrin_type::permutex2var: {
+                assert(v->args_.size() == 3);
+                auto inval1 = generate_expr(v->args_[0]);
+                auto inval2 = generate_expr(v->args_[1]);
+                auto inval3 = generate_expr(v->args_[2]);
+                current_val_ = builder_.CreateIntrinsic(
+                        Intrinsic::x86_avx512_vpermi2var_ps_128, {},
+                        {inval1, inval2, inval3});
+            } break;
             case intrin_type::unpack_high:
             case intrin_type::unpack_low: {
                 assert(v->args_.size() == 2);

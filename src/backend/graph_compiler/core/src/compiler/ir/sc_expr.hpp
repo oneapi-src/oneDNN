@@ -1293,6 +1293,7 @@ enum class intrin_type {
     round_and_cast,
     shl, // shift left
     shr, // shift right
+    permutex2var,
     // Below are micro-kernels, which should be lower to function call before
     // codegen
     brgemm,

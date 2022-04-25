@@ -420,6 +420,9 @@ void codegen_c_vis::view(intrin_call_c v) {
             dispatch(v->args_[1]);
             *os << ')';
             break;
+        case intrin_type::permutex2var:
+            trinary_func_codegen_c(v, "sc_permutex2var");
+            break;
         default: assert(0 && "Unknown intrinsic!"); break;
     }
 }

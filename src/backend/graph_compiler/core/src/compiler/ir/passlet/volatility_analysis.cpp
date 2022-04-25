@@ -64,6 +64,7 @@ static bool expr_can_hoist(const expr_base *s) {
                 case intrin_type::int_xor:
                 case intrin_type::reinterpret:
                 case intrin_type::broadcast:
+                case intrin_type::permutex2var:
                 case intrin_type::isnan:
                 case intrin_type::saturated_cast:
                 case intrin_type::round_and_cast:
