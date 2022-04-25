@@ -57,8 +57,8 @@ namespace ocl {
 using namespace dnnl::impl::memory_tracking::names;
 
 using dimension_t = struct {
-    int size;
-    int step;
+    dim_t size;
+    dim_t step;
     int idx;
 };
 
@@ -69,9 +69,9 @@ bool is_power_of_2(int n) {
 }
 
 using stride_t = struct {
+    dim_t stride;
+    dim_t size;
     int idx;
-    int stride;
-    int size;
 };
 
 // Stride sorter. Smaller stride = inner dim, bigger stride = outer dim.
@@ -345,8 +345,8 @@ size_t check_burst_length(dimensions_t all, dimensions_t subset) {
 // burst size = 32 (2b*4c*4a)
 bool increase_burst(dimensions_t all, dimensions_t &subset, dimensions_t &other,
         size_t itemlimit, size_t current_size, size_t optimal_size) {
-    const int space_coeff = (int)(itemlimit / check_size(subset));
-    const int request_coeff = (int)(utils::div_up(optimal_size, current_size));
+    const dim_t space_coeff = itemlimit / check_size(subset);
+    const dim_t request_coeff = utils::div_up(optimal_size, current_size);
     dimensions_t subset_copy = subset;
     if (space_coeff < 2) { return false; }
     for (size_t i = 0; i < all.size(); i++) {
@@ -359,7 +359,7 @@ bool increase_burst(dimensions_t all, dimensions_t &subset, dimensions_t &other,
         }
         if (all[i].size != 1) {
             // add to subset new item or enlarge last item, if it was the same dim
-            int incr = std::min(space_coeff, all[i].size);
+            auto incr = std::min(space_coeff, all[i].size);
             incr = std::min(incr, request_coeff);
             all[i].size = incr;
             bool success = add_to_vector(subset, all[i]);

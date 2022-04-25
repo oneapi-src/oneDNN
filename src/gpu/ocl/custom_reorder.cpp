@@ -29,14 +29,14 @@ namespace ocl {
 using namespace dnnl::impl::memory_tracking::names;
 
 using dimension = struct {
-    int size;
+    dim_t size;
     int idx;
 };
 
 using stride_t = struct {
+    dim_t stride;
+    dim_t size;
     int idx;
-    int stride;
-    int size;
 };
 
 // Stride sorter. Smaller stride = inner dim, bigger stride = outer dim.
