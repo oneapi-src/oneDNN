@@ -86,6 +86,76 @@ static void check_input_format(const std::vector<sc::graph_tensor_ptr> &ins) {
     }
 }
 
+static void insert_reorder_for_output_op(const sc_op_ptr &node,
+        bool is_out_plain, bool is_input_plain, sc_graph_t &graph,
+        reorder_callback_type &insert_reorder_callback) {
+    auto given_target_formats
+            = node->attrs_.get_or_null<std::vector<sc_data_format_t>>(
+                    "target_formats");
+    auto given_target_strides
+            = node->attrs_.get_or_null<std::vector<sc_dims>>("target_strides");
+    if (given_target_formats) {
+        COMPILE_ASSERT(
+                given_target_formats->size() == node->get_inputs().size(),
+                "Output op's target_formats' size should be equal to "
+                "number of tensors");
+    }
+
+    if (given_target_strides) {
+        COMPILE_ASSERT(
+                given_target_strides->size() == node->get_inputs().size(),
+                "Output op's target_strides' size should be equal to "
+                "number of tensors");
+    }
+
+    for (size_t i = 0; i < node->get_inputs().size(); ++i) {
+        auto &in_detail = node->get_inputs()[i]->details_;
+        sc_data_format_t target_format;
+        sc_dims target_stride;
+        if (given_target_formats) {
+            target_format = (*given_target_formats)[i];
+        } else if (is_out_plain) {
+            target_format = in_detail.get_format().to_plain();
+        } else {
+            target_format = in_detail.get_format();
+        }
+        if (given_target_strides) {
+            target_stride = (*given_target_strides)[i];
+        } else if (is_out_plain) {
+            // here stride is calculated by plain dims since the format
+            // is also plain
+            target_stride = logical_tensor_t::compute_dense_stride(
+                    in_detail.get_plain_dims());
+        } else {
+            if (given_target_formats) {
+                auto dims = logical_tensor_t(target_format,
+                        in_detail.get_plain_dims(), in_detail.dtype_)
+                                    .get_blocking_dims();
+                target_stride = logical_tensor_t::compute_dense_stride(dims);
+            } else {
+                target_stride = in_detail.get_strides();
+            }
+        }
+
+        auto in = node->get_inputs()[i];
+        COMPILE_ASSERT(!in->details_.get_format().is_any(),
+                "output op's input format should have a concrete "
+                "format, instead of any format");
+        bool plain_check_failed = is_out_plain && target_format.is_blocking();
+        COMPILE_ASSERT(!target_format.is_any() && !plain_check_failed,
+                "output op's target format should be plain or "
+                "permuted.")
+
+        if (target_format != in->details_.get_format()
+                || target_stride != in->details_.get_strides()) {
+            format_stride_pair target_fs_pair(
+                    target_format, std::move(target_stride));
+            insert_reorder_op(graph, in, i, target_fs_pair, node,
+                    is_input_plain, insert_reorder_callback);
+        }
+    }
+}
+
 constexpr int MAX_LAYOUT_TRIES = 64;
 
 SC_INTERNAL_API void layout_propagation(
@@ -154,52 +224,12 @@ SC_INTERNAL_API void layout_propagation(
         }
     };
     reorder_callback_type insert_reorder_callback;
+    bool is_out_plain = graph.attrs_.get_or_else(
+            sc_graph_t::attr_key_t::is_output_plain, true);
     auto do_visit = [&](const sc_op_ptr &node) {
         if (node->isa<output_op>()) {
-            if (graph.attrs_.get_or_else(
-                        sc_graph_t::attr_key_t::is_output_plain, true)) {
-                // if is not plain format, will insert reorder.
-                std::vector<sc_data_format_t> plain_formats(
-                        node->get_inputs().size());
-                std::vector<sc_dims> dense_strides(node->get_inputs().size());
-                for (size_t i = 0; i < node->get_inputs().size(); ++i) {
-                    plain_formats[i] = node->get_inputs()[i]
-                                               ->details_.get_format()
-                                               .to_plain();
-                    // here stride is calculated by plain dims since the format
-                    // is also plain
-                    dense_strides[i] = logical_tensor_t::compute_dense_stride(
-                            node->get_inputs()[i]->details_.get_plain_dims());
-                }
-                const auto &target_formats = node->attrs_.get_or_else(
-                        "target_formats", plain_formats);
-                const auto &target_strides = node->attrs_.get_or_else(
-                        "target_strides", dense_strides);
-                COMPILE_ASSERT(
-                        target_formats.size() == node->get_inputs().size(),
-                        "Output op's target_formats' size should be equal to "
-                        "number of tensors");
-                for (size_t i = 0; i < node->get_inputs().size(); ++i) {
-                    auto in = node->get_inputs()[i];
-                    auto target_format = target_formats[i];
-                    auto target_stride = target_strides[i];
-                    COMPILE_ASSERT(!in->details_.get_format().is_any(),
-                            "output op's input format should have a concrete "
-                            "format, instead of any format");
-                    COMPILE_ASSERT(!target_format.is_any()
-                                    && !target_format.is_blocking(),
-                            "output op's target format should be plain or "
-                            "permuted.")
-                    format_stride_pair in_fs_pair(in->details_.get_format(),
-                            in->details_.get_strides());
-                    format_stride_pair target_fs_pair(
-                            target_format, target_stride);
-                    if (in_fs_pair != target_fs_pair) {
-                        insert_reorder_op(graph, in, i, target_fs_pair, node,
-                                is_input_plain, insert_reorder_callback);
-                    }
-                }
-            }
+            insert_reorder_for_output_op(node, is_out_plain, is_input_plain,
+                    graph, insert_reorder_callback);
         } else if (node->isa<input_op>() || node->isa<constant_op_t>()) {
             update_output_formats(node->info_.outputs_, {}, 0);
         } else {
