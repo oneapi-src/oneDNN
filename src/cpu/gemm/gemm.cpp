@@ -30,10 +30,6 @@
 #include "cpu/gemm/f32/ref_gemm_f32.hpp"
 #include "cpu/gemm/s8x8s32/ref_gemm_s8x8s32.hpp"
 #include "cpu/gemm/s8x8s32/simple_gemm_s8s8s32.hpp"
-#if DNNL_PPC64
-#include "cpu/ppc64/ppc64_gemm_driver.hpp"
-using namespace dnnl::impl::cpu;
-#endif
 
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
@@ -44,6 +40,9 @@ using namespace dnnl::impl::cpu;
 #include "cpu/x64/gemm/gemm_driver.hpp"
 
 using namespace dnnl::impl::cpu::x64;
+#elif DNNL_PPC64
+#include "cpu/ppc64/ppc64_gemm_driver.hpp"
+using namespace dnnl::impl::cpu::ppc64;
 #endif
 
 namespace dnnl {
@@ -76,6 +75,13 @@ dnnl_status_t check_gemm_input(const char *transa, const char *transb,
             && (is_packed_b || *ldb >= nstl::max(dim_t(1), nrow_b))
             && *ldc >= nstl::max(dim_t(1), *M);
     if (!consistency) return dnnl_invalid_arguments;
+#if DNNL_PPC64
+#ifdef __MMA__
+    if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
+                && utils::one_of(*transb, 'n', 'N', 't', 'T')))
+        return dnnl_unimplemented;
+#endif
+#endif
 
     return dnnl_success;
 }
@@ -198,9 +204,6 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
 
 #if DNNL_PPC64
 #ifdef __MMA__
-    if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
-                && utils::one_of(*transb, 'n', 'N', 't', 'T')))
-        return dnnl_unimplemented;
     int ATflag = (*transa == 'T') || (*transa == 't');
     int BTflag = (*transb == 'T') || (*transb == 't');
     int m = (int)*M;
@@ -247,9 +250,6 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
 
 #if DNNL_PPC64
 #ifdef __MMA__
-    if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
-                && utils::one_of(*transb, 'n', 'N', 't', 'T')))
-        return dnnl_unimplemented;
     int ATflag = (*transa == 'T') || (*transa == 't');
     int BTflag = (*transb == 'T') || (*transb == 't');
     int m = (int)*M;

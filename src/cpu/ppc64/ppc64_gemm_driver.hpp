@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2022 IBM Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,11 +20,13 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace ppc64 {
 dnnl_status_t cblas_gemm_s8u8s32_ppc64(int, int, char const *, int, int, int,
         float, signed char const *, int, signed char const *,
         unsigned char const *, int, unsigned char const *, int *, float, int,
         int const *, int);
 
+} // namespace ppc64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
