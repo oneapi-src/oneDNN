@@ -47,7 +47,7 @@ struct op_inplace_pair_t {
 };
 
 std::vector<op_inplace_pair_t> get_op_inplace_pairs(
-        op_t &op, primitive_attr_mgr_t &prm_attr_mgr) {
+        op_t &op, fusion_info_mgr_t &mgr) {
     // TODO(xxx) extend the set
     const static std::set<impl::op_kind_t> ops {op_kind::dnnl_mul_scales,
             op_kind::dnnl_add_zps, op_kind::dnnl_reorder, op_kind::dnnl_binary,
@@ -58,12 +58,11 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
 
     // Make post-sum inplace has higher priority since it affects both
     // performance and memory footprint
-    if (op.has_attr("primitive_attr_key")
-            && op.get_attr<int64_t>("primitive_attr_key") != -1) {
+    if (op.has_attr("fusion_info_key")
+            && op.get_attr<int64_t>("fusion_info_key") != -1) {
         // sum post ops support inplace
-        int64_t key = op.get_attr<int64_t>("primitive_attr_key");
-        auto prm_attr = prm_attr_mgr.get_attr(key);
-        dnnl::post_ops pops = prm_attr.get_post_ops();
+        int64_t key = op.get_attr<int64_t>("fusion_info_key");
+        const auto &pops = mgr.get_info(key).get_post_ops();
 
         // the post-ops input offset
         size_t index = 1;
@@ -80,13 +79,13 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         }
 
         std::shared_ptr<value_t> post_sum_input;
-        for (int i = 0; i < pops.len(); i++) {
-            if (pops.kind(i) == dnnl::primitive::kind::sum) {
+        for (int i = 0; i < pops.size(); i++) {
+            if (pops[i]->is_post_sum()) {
                 post_sum_input = op.get_input_value(index);
                 break; // assume only one post sum
-            } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+            } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
                 index++;
-            } else if (pops.kind(i) == dnnl::primitive::kind::convolution) {
+            } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_eltwise) {
                 // FIXME(xx) fused conv may have bias
                 index++;
             } else {
@@ -270,8 +269,8 @@ std::vector<const value_t *> alias_analyzer_t::get_all_aliases(
     return ret;
 }
 
-void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::prepare_args_for_conv_and_matmul(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     exec_args args;
 
     memory mem;
@@ -290,23 +289,23 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
         args.insert({DNNL_ARG_BIAS, mem});
     }
 
-    dnnl::primitive_attr prm_attr
-            = (op->has_attr("primitive_attr_key")
-                      && op->get_attr<int64_t>("primitive_attr_key") != -1)
-            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
-            : dnnl::primitive_attr();
-    dnnl::post_ops pops = prm_attr.get_post_ops();
-    for (int i = 0; i < pops.len(); i++) {
-        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+    const fusion_info_t &fusion_info
+            = (op->has_attr("fusion_info_key")
+                      && op->get_attr<int64_t>("fusion_info_key") != -1)
+            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            : fusion_info_t();
+    const auto &pops = fusion_info.get_post_ops();
+    for (int i = 0; i < pops.size(); i++) {
+        if (pops[i]->is_post_sum()) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert(
                     {DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1, mem});
-        } else if (pops.kind(i) == dnnl::primitive::kind::convolution) {
+        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_convolution) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert({DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, mem});
@@ -326,8 +325,8 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_binary(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::prepare_args_for_binary(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     exec_args args;
 
     memory mem;
@@ -340,18 +339,18 @@ void memory_planner_t::prepare_args_for_binary(op_t *op,
     exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_SRC_1, mem});
 
-    dnnl::primitive_attr prm_attr
-            = (op->has_attr("primitive_attr_key")
-                      && op->get_attr<int64_t>("primitive_attr_key") != -1)
-            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
-            : dnnl::primitive_attr();
-    dnnl::post_ops pops = prm_attr.get_post_ops();
-    for (int i = 0; i < pops.len(); i++) {
-        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+    const fusion_info_t &fusion_info
+            = (op->has_attr("fusion_info_key")
+                      && op->get_attr<int64_t>("fusion_info_key") != -1)
+            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            : fusion_info_t();
+    const auto &pops = fusion_info.get_post_ops();
+    for (int i = 0; i < pops.size(); i++) {
+        if (pops[i]->is_post_sum()) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert(
@@ -372,9 +371,9 @@ void memory_planner_t::prepare_args_for_binary(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_prelu(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-    UNUSED(prm_attr_mgr);
+void memory_planner_t::prepare_args_for_prelu(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
     exec_args args;
 
     memory mem;
@@ -398,9 +397,9 @@ void memory_planner_t::prepare_args_for_prelu(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_prelu_bwd(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-    UNUSED(prm_attr_mgr);
+void memory_planner_t::prepare_args_for_prelu_bwd(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
     exec_args args;
 
     memory mem;
@@ -431,7 +430,7 @@ void memory_planner_t::prepare_args_for_prelu_bwd(op_t *op,
 
 // for single-input-single-output op
 void memory_planner_t::prepare_args_for_siso_op(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         bool need_scratchpad, bool need_workspace) {
     exec_args args;
 
@@ -441,18 +440,18 @@ void memory_planner_t::prepare_args_for_siso_op(op_t *op,
     exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_FROM, mem});
 
-    dnnl::primitive_attr prm_attr
-            = (op->has_attr("primitive_attr_key")
-                      && op->get_attr<int64_t>("primitive_attr_key") != -1)
-            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
-            : dnnl::primitive_attr();
-    dnnl::post_ops pops = prm_attr.get_post_ops();
-    for (int i = 0; i < pops.len(); i++) {
-        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+    const fusion_info_t &fusion_info
+            = (op->has_attr("fusion_info_key")
+                      && op->get_attr<int64_t>("fusion_info_key") != -1)
+            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            : fusion_info_t();
+    const auto &pops = fusion_info.get_post_ops();
+    for (int i = 0; i < pops.size(); i++) {
+        if (pops[i]->is_post_sum()) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert(
@@ -478,7 +477,7 @@ void memory_planner_t::prepare_args_for_siso_op(op_t *op,
 }
 
 void memory_planner_t::prepare_args_for_dnnl_pool(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         bool need_scratchpad, bool need_workspace) {
     exec_args args;
 
@@ -488,16 +487,18 @@ void memory_planner_t::prepare_args_for_dnnl_pool(op_t *op,
     exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_FROM, mem});
 
-    dnnl::primitive_attr prm_attr = op->has_attr("primitive_attr_key")
-            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
-            : dnnl::primitive_attr();
-    dnnl::post_ops pops = prm_attr.get_post_ops();
-    for (int i = 0; i < pops.len(); i++) {
-        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+    const fusion_info_t &fusion_info
+            = (op->has_attr("fusion_info_key")
+                      && op->get_attr<int64_t>("fusion_info_key") != -1)
+            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            : fusion_info_t();
+    const auto &pops = fusion_info.get_post_ops();
+    for (int i = 0; i < pops.size(); i++) {
+        if (pops[i]->is_post_sum()) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
-        } else if (pops.kind(i) == dnnl::primitive::kind::binary) {
+        } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert(
@@ -529,8 +530,8 @@ void memory_planner_t::prepare_args_for_dnnl_pool(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_pool_bwd(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::prepare_args_for_pool_bwd(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     exec_args args;
 
     memory mem;
@@ -553,9 +554,9 @@ void memory_planner_t::prepare_args_for_pool_bwd(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_miso_op(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-    UNUSED(prm_attr_mgr);
+void memory_planner_t::prepare_args_for_miso_op(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
     exec_args args;
     memory mem;
 
@@ -576,9 +577,9 @@ void memory_planner_t::prepare_args_for_miso_op(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_niso_op(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-    UNUSED(prm_attr_mgr);
+void memory_planner_t::prepare_args_for_niso_op(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
     exec_args args;
     memory mem;
 
@@ -622,8 +623,8 @@ void memory_planner_t::bind_memory_for_bn_folding(
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::bind_memory_for_conv_bwd_data(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::bind_memory_for_conv_bwd_data(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     memory mem;
     size_t index = 0;
     exec_args args;
@@ -647,8 +648,8 @@ void memory_planner_t::bind_memory_for_conv_bwd_data(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::bind_memory_for_conv_bwd_weights(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::bind_memory_for_conv_bwd_weights(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     memory mem;
     size_t index = 0;
     exec_args args;
@@ -672,8 +673,8 @@ void memory_planner_t::bind_memory_for_conv_bwd_weights(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::bind_memory_for_batchnorm(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::bind_memory_for_batchnorm(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     memory mem;
     exec_args args;
 
@@ -728,8 +729,8 @@ void memory_planner_t::bind_memory_for_batchnorm(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::bind_memory_for_batchnorm_bwd(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::bind_memory_for_batchnorm_bwd(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     memory mem;
     size_t index = 0;
     exec_args args;
@@ -769,8 +770,8 @@ void memory_planner_t::bind_memory_for_batchnorm_bwd(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::bind_memory_for_layernorm(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::bind_memory_for_layernorm(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     memory mem;
     exec_args args;
 
@@ -806,8 +807,8 @@ void memory_planner_t::bind_memory_for_layernorm(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::bind_memory_for_layernorm_bwd(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::bind_memory_for_layernorm_bwd(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     memory mem;
     exec_args args;
 
@@ -861,8 +862,8 @@ void memory_planner_t::bind_memory_for_layernorm_bwd(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_reorder_op(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
+void memory_planner_t::prepare_args_for_reorder_op(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
     exec_args args;
 
     memory mem;
@@ -900,14 +901,14 @@ void memory_planner_t::prepare_args_for_reorder_op(op_t *op,
         args.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, mem});
     }
 
-    dnnl::primitive_attr prm_attr
-            = (op->has_attr("primitive_attr_key")
-                      && op->get_attr<int64_t>("primitive_attr_key") != -1)
-            ? prm_attr_mgr.get_attr(op->get_attr<int64_t>("primitive_attr_key"))
-            : dnnl::primitive_attr();
-    dnnl::post_ops pops = prm_attr.get_post_ops();
-    for (int i = 0; i < pops.len(); i++) {
-        if (pops.kind(i) == dnnl::primitive::kind::sum) {
+    const fusion_info_t &fusion_info
+            = (op->has_attr("fusion_info_key")
+                      && op->get_attr<int64_t>("fusion_info_key") != -1)
+            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            : fusion_info_t();
+    const auto &pops = fusion_info.get_post_ops();
+    for (int i = 0; i < pops.size(); i++) {
+        if (pops[i]->is_post_sum()) {
             exec_args_set_.find_value_mem_map(
                     op->get_input_value(index++).get(), mem);
             args.insert({DNNL_GRAPH_ARG_POST_SRC, mem});
@@ -927,9 +928,9 @@ void memory_planner_t::prepare_args_for_reorder_op(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_softmax_bwd(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-    UNUSED(prm_attr_mgr);
+void memory_planner_t::prepare_args_for_softmax_bwd(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
     memory mem;
     exec_args args;
 
@@ -949,9 +950,9 @@ void memory_planner_t::prepare_args_for_softmax_bwd(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_resampling_bwd(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-    UNUSED(prm_attr_mgr);
+void memory_planner_t::prepare_args_for_resampling_bwd(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
     memory mem;
     exec_args args;
 
@@ -968,9 +969,9 @@ void memory_planner_t::prepare_args_for_resampling_bwd(op_t *op,
     exec_args_set_.add_exec_args(args);
 }
 
-void memory_planner_t::prepare_args_for_eltwise_bwd(op_t *op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-    UNUSED(prm_attr_mgr);
+void memory_planner_t::prepare_args_for_eltwise_bwd(
+        op_t *op, const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+    UNUSED(mgr);
     memory mem;
     exec_args args;
 
@@ -1053,7 +1054,7 @@ impl::status_t memory_planner_t::assign_external_inputs_buffer(
 impl::status_t memory_planner_t::assign_external_outputs_buffer(
         const std::vector<op_ptr> &subgraph,
         const std::vector<impl::logical_tensor_t> &outputs,
-        primitive_attr_mgr_t &prm_attr_mgr) {
+        fusion_info_mgr_t &mgr) {
     for (auto &val : impl::graph_t(subgraph).get_output_values()) {
         for (size_t i = 0; i < outputs.size(); i++) {
             if (val->get_logical_tensor().id == outputs[i].id) {
@@ -1079,8 +1080,7 @@ impl::status_t memory_planner_t::assign_external_outputs_buffer(
 
                     // push the inplaced input to queue for next visit
                     auto &producer = cur_val->get_producer();
-                    auto op_inplace_pairs
-                            = get_op_inplace_pairs(producer, prm_attr_mgr);
+                    auto op_inplace_pairs = get_op_inplace_pairs(producer, mgr);
                     for (auto &pair : op_inplace_pairs) {
                         if (pair.out_idx_ != cur_val->get_offset()) continue;
                         auto in_val = producer.get_input_value(pair.in_idx_);
@@ -1105,8 +1105,7 @@ impl::status_t memory_planner_t::assign_external_outputs_buffer(
 // the same buffers and assign the same buffer to them. This can be regarded as
 // a kind of constant folding, with which the cached buffer can be reduced.
 impl::status_t memory_planner_t::assign_internal_persistent_buffer(
-        const std::vector<op_ptr> &subgraph,
-        primitive_attr_mgr_t &prm_attr_mgr) {
+        const std::vector<op_ptr> &subgraph, fusion_info_mgr_t &mgr) {
     for (auto &val : get_constant_block_output_values(subgraph)) {
         assign_info_t orig_info = buffer_assignments_.at(val);
         if (orig_info.kind_ != internal_temporary) continue;
@@ -1134,8 +1133,7 @@ impl::status_t memory_planner_t::assign_internal_persistent_buffer(
 
             // push the inplaced input to queue for next visit
             auto &producer = cur_val->get_producer();
-            auto op_inplace_pairs
-                    = get_op_inplace_pairs(producer, prm_attr_mgr);
+            auto op_inplace_pairs = get_op_inplace_pairs(producer, mgr);
             for (auto &pair : op_inplace_pairs) {
                 if (pair.out_idx_ != cur_val->get_offset()) continue;
                 auto in_val = producer.get_input_value(pair.in_idx_);
@@ -1161,7 +1159,7 @@ impl::status_t memory_planner_t::assign_internal_persistent_buffer(
 impl::status_t memory_planner_t::assign_internal_temporary_buffer(
         const std::vector<op_ptr> &subgraph,
         const std::unordered_map<value_t *, size_t> &edge_ref_count,
-        primitive_attr_mgr_t &prm_attr_mgr, bool enable_standard_sharing) {
+        fusion_info_mgr_t &mgr, bool enable_standard_sharing) {
     auto func = [&](impl::op_t *op) {
         // Handle alias first
         auto inputs = op->get_input_values();
@@ -1177,7 +1175,7 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
         }
 
         // Handle inplace
-        auto op_inplace_pairs = get_op_inplace_pairs(*op, prm_attr_mgr);
+        auto op_inplace_pairs = get_op_inplace_pairs(*op, mgr);
         if (!op_inplace_pairs.empty()) {
             for (const auto &pair : op_inplace_pairs) {
                 value_t *in = op->get_input_value(pair.in_idx_).get();
@@ -1247,7 +1245,7 @@ impl::status_t memory_planner_t::assign_internal_temporary_buffer(
 
 impl::status_t memory_planner_t::prepare_execution_args_set(
         const std::vector<op_ptr> &subgraph, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr) {
+        fusion_info_mgr_t &mgr) {
     // bind memory object to each value
     for (value_t *in : impl::graph_t(subgraph).get_input_values()) {
         exec_args_set_.add_value_mem_map({in,
@@ -1308,8 +1306,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::dnnl_matmul
                         || op->get_kind() == op_kind::dnnl_convtranspose
                         || op->get_kind() == op_kind::dnnl_conv_depthwise) {
-                    prepare_args_for_conv_and_matmul(
-                            op, p_engine, prm_attr_mgr);
+                    prepare_args_for_conv_and_matmul(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_pool
                         || op->get_kind() == op_kind::dnnl_softmax
                         || op->get_kind() == op_kind::dnnl_logsoftmax) {
@@ -1317,20 +1314,20 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                             ? op->get_attr<bool>("is_training")
                             : false;
                     prepare_args_for_siso_op(
-                            op, p_engine, prm_attr_mgr, true, is_training);
+                            op, p_engine, mgr, true, is_training);
                 } else if (op->get_kind() == op_kind::dnnl_softmax_bwd
                         || op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
-                    prepare_args_for_softmax_bwd(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_softmax_bwd(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_pool) {
                     const bool is_training = op->has_attr("is_training")
                             ? op->get_attr<bool>("is_training")
                             : false;
                     prepare_args_for_dnnl_pool(
-                            op, p_engine, prm_attr_mgr, true, is_training);
+                            op, p_engine, mgr, true, is_training);
                 } else if (op->get_kind() == op_kind::dnnl_pool_bwd) {
-                    prepare_args_for_pool_bwd(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_pool_bwd(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_concat) {
-                    prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_miso_op(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_eltwise
                         || op->get_kind() == op_kind::dnnl_reduction
                         || op->get_kind() == op_kind::dnnl_shuffle
@@ -1342,44 +1339,43 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::dnnl_resampling
                         || op->get_kind() == impl::op_kind::StaticReshape
                         || op->get_kind() == impl::op_kind::StaticTranspose) {
-                    prepare_args_for_siso_op(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_siso_op(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_prelu) {
-                    prepare_args_for_prelu(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_prelu(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_prelu_bwd) {
-                    prepare_args_for_prelu_bwd(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_prelu_bwd(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_bn_folding) {
                     bind_memory_for_bn_folding(op, p_engine);
                 } else if (op->get_kind() == op_kind::dnnl_conv_bwd_data
                         || op->get_kind()
                                 == op_kind::dnnl_convtranspose_bwd_data) {
-                    bind_memory_for_conv_bwd_data(op, p_engine, prm_attr_mgr);
+                    bind_memory_for_conv_bwd_data(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_conv_bwd_weights
                         || op->get_kind()
                                 == op_kind::dnnl_convtranspose_bwd_weights) {
-                    bind_memory_for_conv_bwd_weights(
-                            op, p_engine, prm_attr_mgr);
+                    bind_memory_for_conv_bwd_weights(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_batchnorm) {
-                    bind_memory_for_batchnorm(op, p_engine, prm_attr_mgr);
+                    bind_memory_for_batchnorm(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
-                    bind_memory_for_batchnorm_bwd(op, p_engine, prm_attr_mgr);
+                    bind_memory_for_batchnorm_bwd(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_layernorm) {
-                    bind_memory_for_layernorm(op, p_engine, prm_attr_mgr);
+                    bind_memory_for_layernorm(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_layernorm_bwd) {
-                    bind_memory_for_layernorm_bwd(op, p_engine, prm_attr_mgr);
+                    bind_memory_for_layernorm_bwd(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_sum) {
-                    prepare_args_for_miso_op(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_miso_op(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_binary) {
-                    prepare_args_for_binary(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_binary(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_constant_scales
                         || op->get_kind() == op_kind::dnnl_constant_zps) {
-                    prepare_args_for_niso_op(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_niso_op(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_mul_scales
                         || op->get_kind() == op_kind::dnnl_reorder) {
-                    prepare_args_for_reorder_op(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_reorder_op(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_resampling_bwd) {
-                    prepare_args_for_resampling_bwd(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_resampling_bwd(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_eltwise_bwd) {
-                    prepare_args_for_eltwise_bwd(op, p_engine, prm_attr_mgr);
+                    prepare_args_for_eltwise_bwd(op, p_engine, mgr);
                 } else {
                     assertm(false, "memory planning: unsupported op");
                     return impl::status::compile_fail;
@@ -1405,7 +1401,7 @@ impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
             // check if can inplaced sharing external input buffer
             bool inplace_shared = false;
             auto op_inplace_pairs
-                    = get_op_inplace_pairs(*cur_op, sg->prm_attr_mgr_);
+                    = get_op_inplace_pairs(*cur_op, sg->fusion_info_mgr_);
             for (const auto &pair : op_inplace_pairs) {
                 if (pair.out_idx_ != out_val->get_offset()) continue;
 
@@ -1501,7 +1497,7 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     status_t ret;
 
     auto &subgraph = sg->get_mutable_ops();
-    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+    auto &mgr = sg->fusion_info_mgr_;
     const auto &p_engine = *(sg->p_engine_);
     const auto &inputs = sg->ins_;
     const auto &outputs = sg->outs_;
@@ -1536,16 +1532,16 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
 
     // Assign internal temporary buffer for all other edges
     ret = assign_internal_temporary_buffer(
-            subgraph, edge_ref_count, prm_attr_mgr, false);
+            subgraph, edge_ref_count, mgr, false);
     if (ret != status::success) return ret;
 
     // Replace some internal temporary buffers to user given external output
     // buffer
-    ret = assign_external_outputs_buffer(subgraph, outputs, prm_attr_mgr);
+    ret = assign_external_outputs_buffer(subgraph, outputs, mgr);
     if (ret != status::success) return ret;
 
     // Replace some internal temporary buffers to cached persistent buffer
-    ret = assign_internal_persistent_buffer(subgraph, prm_attr_mgr);
+    ret = assign_internal_persistent_buffer(subgraph, mgr);
     if (ret != status::success) return ret;
 
     // Reset the unreplaced internal temporary buffer
@@ -1561,8 +1557,7 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
 
     // Re-assign internal temporary buffer for reset ones (will re-do memory
     // sharing between temporary buffers)
-    ret = assign_internal_temporary_buffer(
-            subgraph, edge_ref_count, prm_attr_mgr, true);
+    ret = assign_internal_temporary_buffer(subgraph, edge_ref_count, mgr, true);
     if (ret != status::success) return ret;
 
     // Check which input/output pair of the subgraph can be inplaced
@@ -1570,7 +1565,7 @@ impl::status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     if (ret != status::success) return ret;
 
     // Bind memory object to each value
-    ret = prepare_execution_args_set(subgraph, p_engine, prm_attr_mgr);
+    ret = prepare_execution_args_set(subgraph, p_engine, mgr);
     if (ret != status::success) return ret;
 
     return impl::status::success;

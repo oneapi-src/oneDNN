@@ -35,6 +35,7 @@
 #include "utils/utils.hpp"
 
 #include "backend/dnnl/internal_ops.hpp"
+#include "backend/dnnl/passes/fusion_info.hpp"
 #include "backend/dnnl/utils.hpp"
 
 #include "dnnl.hpp"
@@ -46,31 +47,6 @@ namespace dnnl_impl {
 
 struct op_executable_t;
 using pd_cache_t = std::unordered_map<op_t *, dnnl::primitive_desc>;
-
-class primitive_attr_mgr_t {
-public:
-    primitive_attr_mgr_t() = default;
-
-    // Disable assignment and copy
-    primitive_attr_mgr_t(const primitive_attr_mgr_t &) = delete;
-    primitive_attr_mgr_t(primitive_attr_mgr_t &&) = delete;
-    primitive_attr_mgr_t &operator=(const primitive_attr_mgr_t &) = delete;
-    primitive_attr_mgr_t &operator=(primitive_attr_mgr_t &&) = delete;
-
-    int64_t init_attr() {
-        auto ret = data_.insert({counter++, dnnl::primitive_attr()});
-        return ret.first->first;
-    }
-
-    dnnl::primitive_attr &get_attr(int64_t key) {
-        assertm(key != -1, "invalid key");
-        return data_[key];
-    }
-
-private:
-    std::unordered_map<int64_t, dnnl::primitive_attr> data_;
-    int64_t counter {0};
-};
 
 // The subgraph_t class is a subclass of graph_t, which is used as the only
 // parameter of transformation passes. Each transformation pass will process the
@@ -95,9 +71,8 @@ public:
     // The engine that the subgraph is compiled for
     const dnnl::engine *p_engine_;
 
-    // The primitive attr manager that is used to hold each op's fusion
-    // information
-    primitive_attr_mgr_t prm_attr_mgr_;
+    // This manager holds each op's fusion information
+    fusion_info_mgr_t fusion_info_mgr_;
 
     // The custom cache to store the created primitive desc
     pd_cache_t pd_cache_;

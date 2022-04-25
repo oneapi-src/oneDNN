@@ -212,11 +212,11 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
-    ASSERT_TRUE((*qconv_op)->has_attr("primitive_attr_key"));
-    int64_t key = (*qconv_op)->get_attr<int64_t>("primitive_attr_key");
-    dnnl::primitive_attr &prm_attr = subgraph->prm_attr_mgr_.get_attr(key);
-    auto post_ops = prm_attr.get_post_ops();
-    ASSERT_EQ(post_ops.len(), 2);
+    ASSERT_TRUE((*qconv_op)->has_attr("fusion_info_key"));
+    int64_t key = (*qconv_op)->get_attr<int64_t>("fusion_info_key");
+    auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
+    auto post_ops = fusion_info.get_post_ops();
+    ASSERT_EQ(post_ops.size(), 2);
 }
 
 TEST(SubgraphPass, LowerDownToInt8Matmul) {
@@ -332,11 +332,11 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
-    ASSERT_TRUE((*qmatmul_op)->has_attr("primitive_attr_key"));
-    int64_t key = (*qmatmul_op)->get_attr<int64_t>("primitive_attr_key");
-    dnnl::primitive_attr &prm_attr = subgraph->prm_attr_mgr_.get_attr(key);
-    auto post_ops = prm_attr.get_post_ops();
-    ASSERT_EQ(post_ops.len(), 1);
+    ASSERT_TRUE((*qmatmul_op)->has_attr("fusion_info_key"));
+    int64_t key = (*qmatmul_op)->get_attr<int64_t>("fusion_info_key");
+    auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
+    auto post_ops = fusion_info.get_post_ops();
+    ASSERT_EQ(post_ops.size(), 1);
 }
 
 TEST(SubgraphPass, Int8ConvSumRelu) {
@@ -1141,7 +1141,7 @@ TEST(SubgraphPass, MemoryPlanning) {
     std::vector<logical_tensor_t> outputs = {val7, val9};
     dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
 
-    // the prm_attr_mgr is dummy here
+    // the fusion_info_mgr is dummy here
     dnnl_impl::memory_planner_t memory_planner;
 
     ASSERT_EQ(memory_planner.run(subgraph), impl::status::success);

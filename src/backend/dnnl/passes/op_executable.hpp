@@ -29,6 +29,7 @@
 #include <utils/utils.hpp>
 
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/passes/fusion_info.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
@@ -43,7 +44,7 @@ namespace dnnl_impl {
 //      -> {pd, the flag indicating if this is the first time to create}
 inline std::pair<dnnl::convolution_forward::primitive_desc, bool>
 create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::convolution_forward::primitive_desc &>(
@@ -59,10 +60,10 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -114,7 +115,7 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
 
 inline std::pair<dnnl::deconvolution_forward::primitive_desc, bool>
 create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::deconvolution_forward::primitive_desc &>(
@@ -130,10 +131,10 @@ create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -172,7 +173,7 @@ create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
 
 inline std::pair<dnnl::deconvolution_backward_data::primitive_desc, bool>
 create_deconv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -190,10 +191,10 @@ create_deconv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -225,7 +226,7 @@ create_deconv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::deconvolution_backward_weights::primitive_desc, bool>
 create_deconv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -243,9 +244,9 @@ create_deconv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
 
     auto src = make_dnnl_memory_desc(
@@ -276,7 +277,7 @@ create_deconv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::matmul::primitive_desc &>(
@@ -285,10 +286,10 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -326,7 +327,7 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
 
 inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::pooling_v2_forward::primitive_desc &>(
@@ -345,10 +346,10 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -411,7 +412,7 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
 
 inline std::pair<dnnl::pooling_v2_backward::primitive_desc, bool>
 create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -430,9 +431,9 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -505,7 +506,7 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::batch_normalization_forward::primitive_desc, bool>
 create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -535,10 +536,10 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -565,7 +566,7 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::batch_normalization_backward::primitive_desc, bool>
 create_batchnorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -580,10 +581,10 @@ create_batchnorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
     auto flags = normalization_flag::use_scale | normalization_flag::use_shift;
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -611,7 +612,7 @@ create_batchnorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::layer_normalization_forward::primitive_desc, bool>
 create_layernorm_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -650,7 +651,7 @@ create_layernorm_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::layer_normalization_backward::primitive_desc, bool>
 create_layernorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<
@@ -660,10 +661,10 @@ create_layernorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -688,7 +689,7 @@ create_layernorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::convolution_backward_data::primitive_desc, bool>
 create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -705,10 +706,10 @@ create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -740,7 +741,7 @@ create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::convolution_backward_weights::primitive_desc, bool>
 create_conv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -758,9 +759,9 @@ create_conv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -792,7 +793,7 @@ create_conv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::eltwise_forward::primitive_desc &>(
@@ -805,10 +806,10 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     if (op->has_attr("beta")) { beta = op->get_attr<float>("beta"); }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -832,7 +833,7 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
 
 inline std::pair<dnnl::eltwise_backward::primitive_desc, bool>
 create_eltwise_bwd_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::eltwise_backward::primitive_desc &>(
@@ -841,10 +842,10 @@ create_eltwise_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -875,7 +876,7 @@ create_eltwise_bwd_pd(std::shared_ptr<impl::op_t> &op,
 
 inline dnnl::sum::primitive_desc create_dnnl_sum_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr) {
+        fusion_info_mgr_t &mgr) {
     std::vector<dnnl::memory::desc> src_descs;
     src_descs.reserve(op->num_inputs());
     for (const auto &in_val : op->get_input_values()) {
@@ -896,7 +897,7 @@ inline dnnl::sum::primitive_desc create_dnnl_sum_pd(
 
 inline dnnl::concat::primitive_desc create_concat_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr) {
+        fusion_info_mgr_t &mgr) {
     // Here we force to use plain-in-plain-out (acdb) for 4D case to make
     // sure good performance of DensenNet121 (reducing reorder overhead).
     // But for other cases like 2D/3D (e.g. DLRM), we just use default
@@ -916,10 +917,10 @@ inline dnnl::concat::primitive_desc create_concat_pd(
     const auto axis = res.second;
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -944,7 +945,7 @@ inline dnnl::concat::primitive_desc create_concat_pd(
 
 inline std::pair<dnnl::resampling_forward::primitive_desc, bool>
 create_resampling_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -954,10 +955,10 @@ create_resampling_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     // resampling src doesn't support any
@@ -988,7 +989,7 @@ create_resampling_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::resampling_backward::primitive_desc, bool>
 create_resampling_bwd_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::resampling_backward::primitive_desc &>(
@@ -997,10 +998,10 @@ create_resampling_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -1035,7 +1036,7 @@ create_resampling_bwd_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::binary::primitive_desc &>(
@@ -1044,10 +1045,10 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -1073,7 +1074,7 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
 
 inline std::pair<dnnl::prelu_forward::primitive_desc, bool> create_prelu_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::prelu_forward::primitive_desc &>(
@@ -1082,10 +1083,10 @@ inline std::pair<dnnl::prelu_forward::primitive_desc, bool> create_prelu_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -1105,7 +1106,7 @@ inline std::pair<dnnl::prelu_forward::primitive_desc, bool> create_prelu_pd(
 
 inline std::pair<dnnl::prelu_backward::primitive_desc, bool>
 create_prelu_bwd_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -1115,10 +1116,10 @@ create_prelu_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -1148,8 +1149,7 @@ create_prelu_bwd_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::softmax_v2_forward::primitive_desc, bool>
 create_softmax_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache,
-        dnnl::algorithm algo) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache, dnnl::algorithm algo) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::softmax_v2_forward::primitive_desc &>(
@@ -1158,10 +1158,10 @@ create_softmax_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -1186,7 +1186,7 @@ create_softmax_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
 
 inline std::pair<dnnl::softmax_v2_backward::primitive_desc, bool>
 create_softmax_bwd_pd(std::shared_ptr<impl::op_t> &op,
-        const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
         pd_cache_t &pd_cache, dnnl::algorithm algo) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
@@ -1235,7 +1235,7 @@ create_softmax_bwd_pd(std::shared_ptr<impl::op_t> &op,
 
 inline std::pair<dnnl::shuffle_forward::primitive_desc, bool> create_shuffle_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::shuffle_forward::primitive_desc &>(
                         pd_cache.at(op.get())),
@@ -1246,10 +1246,10 @@ inline std::pair<dnnl::shuffle_forward::primitive_desc, bool> create_shuffle_pd(
     const int axis = static_cast<int>(op->get_attr<int64_t>("axis"));
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -1267,7 +1267,7 @@ inline std::pair<dnnl::shuffle_forward::primitive_desc, bool> create_shuffle_pd(
 
 inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr, pd_cache_t &pd_cache) {
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
         return {static_cast<dnnl::reduction::primitive_desc &>(
@@ -1276,10 +1276,10 @@ inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
@@ -1308,12 +1308,12 @@ inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
 
 inline dnnl::reorder::primitive_desc create_reorder_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
-        primitive_attr_mgr_t &prm_attr_mgr) {
+        fusion_info_mgr_t &mgr) {
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("primitive_attr_key")
-            && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-        int64_t attr_key = op->get_attr<int64_t>("primitive_attr_key");
-        prm_attr = prm_attr_mgr.get_attr(attr_key);
+    if (op->has_attr("fusion_info_key")
+            && op->get_attr<int64_t>("fusion_info_key") != -1) {
+        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
 
     // generate mask
@@ -1429,9 +1429,9 @@ using i64vec_to_i32vec_filler = const_memory_filler_t<int64_t, int32_t>;
 
 struct conv_fwd_executable_t : public op_executable_t {
     conv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_conv_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_conv_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::convolution_forward(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
@@ -1462,9 +1462,9 @@ private:
 
 struct deconv_fwd_executable_t : public op_executable_t {
     deconv_fwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_deconv_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_deconv_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::deconvolution_forward(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
@@ -1495,10 +1495,9 @@ private:
 
 struct deconv_bwd_data_executable_t : public op_executable_t {
     deconv_bwd_data_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_deconv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache)
-                      .first;
+        pd_ = create_deconv_bwd_data_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::deconvolution_backward_data(pd_);
     }
 
@@ -1516,10 +1515,9 @@ private:
 
 struct deconv_bwd_weights_executable_t : public op_executable_t {
     deconv_bwd_weights_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_deconv_bwd_weights_pd(op, p_engine, prm_attr_mgr, pd_cache)
-                      .first;
+        pd_ = create_deconv_bwd_weights_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::deconvolution_backward_weights(pd_);
     }
 
@@ -1537,9 +1535,9 @@ private:
 
 struct matmul_executable_t : public op_executable_t {
     matmul_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_matmul_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_matmul_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::matmul(pd_);
 
         // The scratchpad size of pd created by using any format tag may be
@@ -1584,9 +1582,9 @@ private:
 
 struct eltwise_executable_t : public op_executable_t {
     eltwise_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_eltwise_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_eltwise_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::eltwise_forward(pd_);
     }
 
@@ -1604,9 +1602,9 @@ private:
 
 struct eltwise_bwd_executable_t : public op_executable_t {
     eltwise_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_eltwise_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_eltwise_bwd_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::eltwise_backward(pd_);
     }
 
@@ -1624,9 +1622,9 @@ private:
 
 struct binary_executable_t : public op_executable_t {
     binary_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_binary_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_binary_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::binary(pd_);
 
         if (op->has_attr("with_sum"))
@@ -1660,8 +1658,8 @@ private:
 
 struct concat_executable_t : public op_executable_t {
     concat_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-        pd_ = create_concat_pd(op, p_engine, prm_attr_mgr);
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+        pd_ = create_concat_pd(op, p_engine, mgr);
         prim_ = dnnl::concat(pd_);
     }
 
@@ -1679,9 +1677,9 @@ private:
 
 struct shuffle_executable_t : public op_executable_t {
     shuffle_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_shuffle_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_shuffle_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::shuffle_forward(pd_);
     }
 
@@ -1699,9 +1697,9 @@ private:
 
 struct pool_executable_t : public op_executable_t {
     pool_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_pool_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_pool_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::pooling_v2_forward(pd_);
     }
 
@@ -1717,9 +1715,9 @@ private:
 
 struct pool_bwd_executable_t : public op_executable_t {
     pool_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_pool_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_pool_bwd_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::pooling_v2_backward(pd_);
     }
 
@@ -1735,9 +1733,9 @@ private:
 
 struct prelu_executable_t : public op_executable_t {
     prelu_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_prelu_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_prelu_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::prelu_forward(pd_);
     }
 
@@ -1755,9 +1753,9 @@ private:
 
 struct prelu_bwd_executable_t : public op_executable_t {
     prelu_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_prelu_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_prelu_bwd_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::prelu_backward(pd_);
     }
 
@@ -1775,8 +1773,8 @@ private:
 
 struct reorder_executable_t : public op_executable_t {
     reorder_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-        pd_ = create_reorder_pd(op, p_engine, prm_attr_mgr);
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+        pd_ = create_reorder_pd(op, p_engine, mgr);
         prim_ = dnnl::reorder(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
@@ -2016,10 +2014,9 @@ private:
 
 struct conv_bwd_data_executable_t : public op_executable_t {
     conv_bwd_data_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_conv_bwd_data_pd(op, p_engine, prm_attr_mgr, pd_cache)
-                      .first;
+        pd_ = create_conv_bwd_data_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::convolution_backward_data(pd_);
     }
 
@@ -2037,10 +2034,9 @@ private:
 
 struct conv_bwd_weights_executable_t : public op_executable_t {
     conv_bwd_weights_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_conv_bwd_weights_pd(op, p_engine, prm_attr_mgr, pd_cache)
-                      .first;
+        pd_ = create_conv_bwd_weights_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::convolution_backward_weights(pd_);
     }
 
@@ -2058,14 +2054,14 @@ private:
 
 struct batchnorm_executable_t : public op_executable_t {
     batchnorm_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
         is_training_ = op->get_attr<bool>("is_training");
         float momentum = 0.5;
         if (op->has_attr("momentum"))
             momentum = op->get_attr<float>("momentum");
         scales_ = {momentum, 1 - momentum};
-        pd_ = create_batchnorm_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_batchnorm_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::batch_normalization_forward(pd_);
     }
 
@@ -2125,10 +2121,9 @@ private:
 
 struct batchnorm_bwd_executable_t : public op_executable_t {
     batchnorm_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_batchnorm_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache)
-                      .first;
+        pd_ = create_batchnorm_bwd_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::batch_normalization_backward(pd_);
     }
 
@@ -2146,9 +2141,9 @@ private:
 
 struct resampling_executable_t : public op_executable_t {
     resampling_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_resampling_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_resampling_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::resampling_forward(pd_);
         if (op->has_attr("with_sum"))
             with_sum_ = op->get_attr<bool>("with_sum");
@@ -2178,10 +2173,9 @@ private:
 
 struct resampling_bwd_executable_t : public op_executable_t {
     resampling_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_resampling_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache)
-                      .first;
+        pd_ = create_resampling_bwd_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::resampling_backward(pd_);
     }
 
@@ -2199,9 +2193,9 @@ private:
 
 struct layernorm_executable_t : public op_executable_t {
     layernorm_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_layernorm_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_layernorm_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::layer_normalization_forward(pd_);
     }
 
@@ -2219,10 +2213,9 @@ private:
 
 struct layernorm_bwd_executable_t : public op_executable_t {
     layernorm_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_layernorm_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache)
-                      .first;
+        pd_ = create_layernorm_bwd_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::layer_normalization_backward(pd_);
     }
 
@@ -2240,8 +2233,8 @@ private:
 
 struct sum_executable_t : public op_executable_t {
     sum_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr) {
-        pd_ = create_dnnl_sum_pd(op, p_engine, prm_attr_mgr);
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
+        pd_ = create_dnnl_sum_pd(op, p_engine, mgr);
         prim_ = dnnl::sum(pd_);
     }
 
@@ -2259,10 +2252,10 @@ private:
 
 struct softmax_executable_t : public op_executable_t {
     softmax_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_softmax_pd(op, p_engine, prm_attr_mgr, pd_cache,
-                dnnl::algorithm::softmax_accurate)
+        pd_ = create_softmax_pd(
+                op, p_engine, mgr, pd_cache, dnnl::algorithm::softmax_accurate)
                       .first;
         prim_ = dnnl::softmax_v2_forward(pd_);
     }
@@ -2281,10 +2274,10 @@ private:
 
 struct softmax_bwd_executable_t : public op_executable_t {
     softmax_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_softmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache,
-                dnnl::algorithm::softmax_accurate)
+        pd_ = create_softmax_bwd_pd(
+                op, p_engine, mgr, pd_cache, dnnl::algorithm::softmax_accurate)
                       .first;
         prim_ = dnnl::softmax_v2_backward(pd_);
     }
@@ -2303,10 +2296,10 @@ private:
 
 struct logsoftmax_executable_t : public op_executable_t {
     logsoftmax_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_softmax_pd(op, p_engine, prm_attr_mgr, pd_cache,
-                dnnl::algorithm::softmax_log)
+        pd_ = create_softmax_pd(
+                op, p_engine, mgr, pd_cache, dnnl::algorithm::softmax_log)
                       .first;
         prim_ = dnnl::softmax_v2_forward(pd_);
     }
@@ -2325,10 +2318,10 @@ private:
 
 struct logsoftmax_bwd_executable_t : public op_executable_t {
     logsoftmax_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_softmax_bwd_pd(op, p_engine, prm_attr_mgr, pd_cache,
-                dnnl::algorithm::softmax_log)
+        pd_ = create_softmax_bwd_pd(
+                op, p_engine, mgr, pd_cache, dnnl::algorithm::softmax_log)
                       .first;
         prim_ = dnnl::softmax_v2_backward(pd_);
     }
@@ -2347,9 +2340,9 @@ private:
 
 struct reduction_executable_t : public op_executable_t {
     reduction_executable_t(std::shared_ptr<impl::op_t> &op,
-            const dnnl::engine &p_engine, primitive_attr_mgr_t &prm_attr_mgr,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        pd_ = create_reduction_pd(op, p_engine, prm_attr_mgr, pd_cache).first;
+        pd_ = create_reduction_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::reduction(pd_);
 
         if (op->has_attr("with_sum"))

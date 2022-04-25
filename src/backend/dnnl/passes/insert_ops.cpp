@@ -127,14 +127,13 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         if (!need_permute_0) return false;
 
         size_t num_post_binary_ops = 0;
-        auto &prm_attr_mgr = sg->prm_attr_mgr_;
-        if (op->has_attr("primitive_attr_key")
-                && op->get_attr<int64_t>("primitive_attr_key") != -1) {
-            int64_t key = op->get_attr<int64_t>("primitive_attr_key");
-            const auto &pops = prm_attr_mgr.get_attr(key).get_post_ops();
-            for (int n = 0; n < pops.len(); ++n) {
-                if (pops.kind(n) == dnnl::primitive::kind::sum
-                        || pops.kind(n) == dnnl::primitive::kind::binary)
+        const auto &mgr = sg->fusion_info_mgr_;
+        if (op->has_attr("fusion_info_key")
+                && op->get_attr<int64_t>("fusion_info_key") != -1) {
+            int64_t key = op->get_attr<int64_t>("fusion_info_key");
+            const auto &pops = mgr.get_info(key).get_post_ops();
+            for (int n = 0; n < pops.size(); ++n) {
+                if (pops[n]->get_op()->get_kind() == op_kind::dnnl_binary)
                     num_post_binary_ops++;
             }
         }
@@ -386,7 +385,7 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
 impl::status_t insert_reshape_for_ndx2d_matmul(
         std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
-    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+    auto &mgr = sg->fusion_info_mgr_;
 
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
@@ -450,17 +449,17 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
             insert_op_before(reshape_op3, cur_op, 3);
         }
 
-        // update the mask (mask is related to axis, after changing shape, the
-        // axis is changed)
-        if (cur_op->has_attr("primitive_attr_key")
-                && cur_op->get_attr<int64_t>("primitive_attr_key") != -1) {
-            int64_t key = cur_op->get_attr<int64_t>("primitive_attr_key");
-            auto prm_attr = prm_attr_mgr.get_attr(key);
-            scale_t ori_scales;
-            int ori_mask;
-            prm_attr.get_output_scales(ori_mask, ori_scales);
-            ori_mask = !ori_mask ? 0 : 2; // per tensor mask or the second axis
-            prm_attr.set_output_scales(ori_mask, ori_scales);
+        // update the axis
+        if (cur_op->has_attr("fusion_info_key")
+                && cur_op->get_attr<int64_t>("fusion_info_key") != -1) {
+            int64_t key = cur_op->get_attr<int64_t>("fusion_info_key");
+            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+            impl::op_t *oscales_op = fusion_info.get_mutable_output_scales();
+            if (oscales_op
+                    && oscales_op->get_attr<std::string>("qtype")
+                            == "per_channel") {
+                oscales_op->set_attr<int64_t>("axis", 1); // the 2nd dim;
+            }
         }
     }
     for (const auto &op : to_be_inserted_ops)
@@ -560,7 +559,7 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
 
 impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     auto &subgraph = sg->get_mutable_ops();
-    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+    auto &mgr = sg->fusion_info_mgr_;
 
     std::vector<op_ptr> to_be_inserted_ops;
     for (auto &cur_op : subgraph) {
@@ -576,19 +575,32 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
             continue;
 
         int64_t key = -1;
-        if (cur_op->get_attr<int64_t>("primitive_attr_key") != -1) {
-            key = cur_op->get_attr<int64_t>("primitive_attr_key");
+        if (cur_op->get_attr<int64_t>("fusion_info_key") != -1) {
+            key = cur_op->get_attr<int64_t>("fusion_info_key");
         } else {
-            key = prm_attr_mgr.init_attr();
-            cur_op->set_attr<int64_t>("primitive_attr_key", key);
+            key = mgr.init_info();
+            cur_op->set_attr<int64_t>("fusion_info_key", key);
         }
-        dnnl::primitive_attr &prm_attr = prm_attr_mgr.get_attr(key);
-        std::vector<int32_t> current_zp;
-        int mask = 0;
-        prm_attr.get_zero_points(DNNL_ARG_WEIGHTS, mask, current_zp);
-        if (current_zp.size() != 1) continue;
-        std::vector<int32_t> adjusted_zp {current_zp[0] - 128};
-        prm_attr.set_zero_points(DNNL_ARG_WEIGHTS, mask, adjusted_zp);
+        fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+        impl::op_t *wei_zps_op = fusion_info.get_mutable_zero_points(
+                true, /*the wei indice*/ 1);
+        if (wei_zps_op) { // already fused zps, update the zps
+            std::vector<int64_t> current_zp
+                    = wei_zps_op->get_attr<std::vector<int64_t>>("zps");
+            if (current_zp.size() != 1) continue;
+            // the equivalent transformation: mm(src_u8, wei_u8) -> mm(src_u8,
+            // wei_u8 - 128 + 128) -> mm(src_u8, wei_s8 + 128), which wei_s8 =
+            // wei_u8 - 128
+            std::vector<int64_t> adjusted_zp {current_zp[0] + 128};
+            wei_zps_op->set_attr<std::vector<int64_t>>("zps", adjusted_zp);
+        } else { // fuse a 128 zps
+            std::vector<int64_t> zp {128};
+            auto zps_op = std::make_shared<impl::op_t>(op_kind::dnnl_add_zps);
+            zps_op->set_attr<std::string>("qtype", "per_tensor");
+            zps_op->set_attr<int64_t>("axis", 0);
+            zps_op->set_attr<std::vector<int64_t>>("zps", zp);
+            fusion_info.set_zero_points(zps_op, true, /*the wei indice*/ 1);
+        }
 
         op_ptr u8_to_s8_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
         u8_to_s8_op->set_attr<std::vector<int64_t>>(

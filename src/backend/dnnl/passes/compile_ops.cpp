@@ -38,7 +38,7 @@ using op_ptr = std::shared_ptr<impl::op_t>;
 /// complete shape/dtype/layout information. We can create executable for these
 /// ops.
 impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
-    auto &prm_attr_mgr = sg->prm_attr_mgr_;
+    auto &mgr = sg->fusion_info_mgr_;
     const auto &p_engine = *(sg->p_engine_);
     auto &pd_cache = sg->pd_cache_;
 
@@ -49,48 +49,47 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         if (cur_op->get_kind() == op_kind::dnnl_convolution
                 || cur_op->get_kind() == op_kind::dnnl_conv_depthwise) {
             exec = std::make_shared<conv_fwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose) {
             exec = std::make_shared<deconv_fwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_convtranspose_bwd_data) {
             exec = std::make_shared<deconv_bwd_data_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind()
                 == op_kind::dnnl_convtranspose_bwd_weights) {
             exec = std::make_shared<deconv_bwd_weights_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_matmul) {
             exec = std::make_shared<matmul_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_eltwise) {
             exec = std::make_shared<eltwise_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_eltwise_bwd) {
             exec = std::make_shared<eltwise_bwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_shuffle) {
             exec = std::make_shared<shuffle_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_prelu) {
             exec = std::make_shared<prelu_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
             exec = std::make_shared<prelu_bwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_pool) {
             exec = std::make_shared<pool_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_pool_bwd) {
             exec = std::make_shared<pool_bwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_concat) {
-            exec = std::make_shared<concat_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr);
+            exec = std::make_shared<concat_executable_t>(cur_op, p_engine, mgr);
         } else if (cur_op->get_kind() == op_kind::dnnl_mul_scales
                 || cur_op->get_kind() == op_kind::dnnl_reorder) {
             exec = std::make_shared<reorder_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr);
+                    cur_op, p_engine, mgr);
         } else if (cur_op->get_kind() == op_kind::dnnl_constant_scales) {
             exec = std::make_shared<fvec_to_fvec_filler>(cur_op, "scales");
         } else if (cur_op->get_kind() == op_kind::dnnl_constant_zps) {
@@ -109,49 +108,48 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
             exec = std::make_shared<bn_folding_t>(cur_op, p_engine);
         } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_data) {
             exec = std::make_shared<conv_bwd_data_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_conv_bwd_weights) {
             exec = std::make_shared<conv_bwd_weights_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm) {
             exec = std::make_shared<batchnorm_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_batchnorm_bwd) {
             exec = std::make_shared<batchnorm_bwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_layernorm) {
             exec = std::make_shared<layernorm_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_layernorm_bwd) {
             exec = std::make_shared<layernorm_bwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_resampling) {
             exec = std::make_shared<resampling_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_resampling_bwd) {
             exec = std::make_shared<resampling_bwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_sum) {
-            exec = std::make_shared<sum_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr);
+            exec = std::make_shared<sum_executable_t>(cur_op, p_engine, mgr);
         } else if (cur_op->get_kind() == op_kind::dnnl_binary) {
             exec = std::make_shared<binary_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_softmax) {
             exec = std::make_shared<softmax_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_softmax_bwd) {
             exec = std::make_shared<softmax_bwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax) {
             exec = std::make_shared<logsoftmax_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
             exec = std::make_shared<logsoftmax_bwd_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else if (cur_op->get_kind() == op_kind::dnnl_reduction) {
             exec = std::make_shared<reduction_executable_t>(
-                    cur_op, p_engine, prm_attr_mgr, pd_cache);
+                    cur_op, p_engine, mgr, pd_cache);
         } else {
             assertm(false, "unimplemented op, can't compile it");
             return impl::status::compile_fail;
