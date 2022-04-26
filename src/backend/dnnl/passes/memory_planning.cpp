@@ -85,7 +85,8 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
                 break; // assume only one post sum
             } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
                 index++;
-            } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_eltwise) {
+            } else if (pops[i]->get_op()->get_kind()
+                    == op_kind::dnnl_convolution) {
                 // FIXME(xx) fused conv may have bias
                 index++;
             } else {
