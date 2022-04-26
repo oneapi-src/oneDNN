@@ -32,6 +32,7 @@ jobs:
         displayName: 'ClangFormat_Check'
         failOnStderr: true 
   - job: 'Ubuntu20'
+    timeoutInMinutes: 120
     pool:
       vmImage: 'ubuntu-20.04'
     strategy:
@@ -56,6 +57,7 @@ jobs:
         displayName: 'test'
         failOnStderr: true
   - job: 'Ubuntu18'
+    timeoutInMinutes: 120
     pool:
       vmImage: 'ubuntu-18.04'
     strategy:
@@ -104,6 +106,7 @@ jobs:
         displayName: 'test'
         failOnStderr: true
   - job: 'Windows_Server_2022'
+    timeoutInMinutes: 120
     pool:
       vmImage: 'windows-2022'
     steps:
@@ -115,6 +118,7 @@ jobs:
         displayName: 'test'
         failOnStderr: true
   - job: 'Windows_Server_2019'
+    timeoutInMinutes: 120
     pool:
       vmImage: 'windows-2019'
     steps:
