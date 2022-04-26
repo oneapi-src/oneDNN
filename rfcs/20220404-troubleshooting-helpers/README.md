@@ -129,7 +129,7 @@ To map the current verbose levels we have, we would have to expose
 `ERROR`, `PROFILE` and `DEVINFO`.
 
 So the equivalent of current level 1 would be
-`ONEDNN_VERBOSE=ERROR,PROFILE_CREATE` and the equivalent of our
+`ONEDNN_VERBOSE=ERROR,PROFILE_EXEC` and the equivalent of our
 current level 2 would be `ONEDNN_VERBOSE=ERROR,PROFILE` or
 `ONEDNN_VERBOSE=ALL`.
 
