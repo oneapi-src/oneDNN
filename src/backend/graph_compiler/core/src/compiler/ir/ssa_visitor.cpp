@@ -36,6 +36,14 @@ expr ssa_data_t::get_value_of_var() const {
     return static_cast<define_node_t *>(owner.get())->init_;
 }
 
+expr ssa_data_t::get_value_of_var_nothrow() const {
+    if (utils::is_uninitialized_weakptr(owner_)) { return expr(); }
+    auto owner = owner_.lock();
+    assert(owner);
+    if (owner->node_type_ != sc_stmt_type::define) { return expr(); }
+    return static_cast<define_node_t *>(owner.get())->init_;
+}
+
 expr_c ssa_visitor_t::dispatch(expr_c e) {
     auto ret = ir_visitor_t::dispatch(e);
     if (!ret->ssa_data_) {
@@ -77,10 +85,10 @@ stmt_c ssa_visitor_t::dispatch(stmt_c e) {
         case sc_stmt_type::assign:
             // the LHS of assign can be indexing
             set_referenced(ret.static_as<assign>()->var_, false);
-            set_referenced(ret.static_as<assign>()->value_, true);
+            set_referenced(ret.static_as<assign>()->value_, false);
             break;
         case sc_stmt_type::if_else:
-            set_referenced(ret.static_as<if_else>()->condition_, true);
+            set_referenced(ret.static_as<if_else>()->condition_, false);
             break;
         case sc_stmt_type::evaluate:
             // the value of evaluate can be call_node
@@ -88,16 +96,16 @@ stmt_c ssa_visitor_t::dispatch(stmt_c e) {
             break;
         case sc_stmt_type::for_loop: {
             auto the_for = ret.static_as<for_loop_c>();
-            set_referenced(the_for->iter_begin_, true);
-            set_referenced(the_for->iter_end_, true);
-            set_referenced(the_for->step_, true);
+            set_referenced(the_for->iter_begin_, false);
+            set_referenced(the_for->iter_end_, false);
+            set_referenced(the_for->step_, false);
             set_referenced(the_for->var_, true);
             the_for->var_->ssa_data_->owner_ = ret.weak();
         } break;
         case sc_stmt_type::returns: {
             auto the_ret = ret.static_as<returns_c>();
             if (the_ret->value_.defined()) {
-                set_referenced(the_ret->value_, true);
+                set_referenced(the_ret->value_, false);
             }
         } break;
         case sc_stmt_type::define: process_define_node_after_visit(ret); break;

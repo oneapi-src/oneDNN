@@ -89,6 +89,21 @@ struct typed_passlet : public passlet_t {
  * The passlet ananlysis result addresser. It will insert the result to the
  * expr/stmt's temp_data_.
  * @tparam T the type of the temp_data_
+ * */
+template <typename T>
+struct temp_data_inserter {
+    T *operator()(passlet_t *ths, const node_base *v) {
+        auto &data = v->temp_data();
+        if (!data.isa<T>()) { data = T(); }
+        auto &ret = data.get<T>();
+        return &ret;
+    }
+};
+
+/**
+ * The passlet ananlysis result addresser. It will insert the result to the
+ * expr/stmt's temp_data_ as a field.
+ * @tparam T the type of the temp_data_
  * @tparam TObj the analysis result type of the passlet
  * @tparam ptr the member pointer of TObj in struct T
  * */
@@ -101,6 +116,25 @@ struct temp_data_addresser {
         return &(ret.*ptr);
     }
 };
+
+namespace helper {
+
+template <typename T, typename TObj>
+struct temp_data_addresser_helper {
+    using Base = T;
+    using Obj = TObj;
+};
+
+template <typename T, typename TObj>
+constexpr temp_data_addresser_helper<T, TObj> mk_helper(TObj T::*ptr) {
+    return temp_data_addresser_helper<T, TObj> {};
+};
+
+#define sc_make_temp_data_addresser(PTR) \
+    (temp_data_addresser<decltype(helper::mk_helper(PTR))::Base, \
+            decltype(helper::mk_helper(PTR))::Obj, (PTR)>())
+
+} // namespace helper
 
 template <typename T>
 struct key_converter {

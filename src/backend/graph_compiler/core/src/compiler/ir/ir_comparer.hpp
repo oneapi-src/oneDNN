@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ public:
     bool cmp_names_;
     bool cmp_callee_;
     bool cmp_var_ref_;
+    bool cmp_commutative_;
     bool same_;
 
     void reset();
@@ -59,9 +60,12 @@ public:
      * @param cmp_callee similar to cmp_var_ref. if false, will compare callee
      * functions in call_nodes by their pointer instead of comparing using
      * func_base::equals()
+     * @param cmp_commutative if the expr is commutative, try to match both
+     * orders. DO NOT enable this when the expr is very complex
      * */
     ir_comparer(bool needs_diff = false, bool cmp_names = false,
-            bool cmp_var_ref = false, bool cmp_callee = false);
+            bool cmp_var_ref = false, bool cmp_callee = false,
+            bool cmp_commutative = false);
     bool set_result(func_c l, func_c r, bool cond);
     bool set_result(expr_c l, expr_c r, bool cond);
     bool set_result(stmt_c l, stmt_c r, bool cond);

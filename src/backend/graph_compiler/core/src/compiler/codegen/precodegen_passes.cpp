@@ -43,6 +43,7 @@
 #include <compiler/ir/transform/simplify.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
+#include <compiler/ir/transform/value_numbering.hpp>
 #include <compiler/ir/util_module_passes.hpp>
 namespace sc {
 
@@ -97,6 +98,7 @@ sequential_module_pass_t get_default_precodegen_passes(
             module_function_pass_t::make<local_tensor_lowering_cpu_t>(128));
     if (ctx->flags_.ssa_passes_) {
         ret.emplace_back(module_function_pass_t::make<ssa_transform_t>());
+        ret.emplace_back(module_function_pass_t::make<value_numbering_t>());
         ret.emplace_back(
                 module_function_pass_t::make<loop_invariant_code_motion_t>());
         ret.emplace_back(module_function_pass_t::make<dessa_transform_t>());

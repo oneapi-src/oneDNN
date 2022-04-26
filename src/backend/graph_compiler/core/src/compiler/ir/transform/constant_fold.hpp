@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@ namespace sc {
 
 namespace constant_folding {
 std::pair<expr_c, expr_c> get_operand_from_binary(const expr_c &a);
-}
+bool is_op_commutative_and_associative(const expr_c &v);
+} // namespace constant_folding
 
 /**
  * Fold the constants.

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,11 +26,12 @@ void ir_comparer::reset() {
     if (diff) diff = utils::make_unique<ir_comparer_diff_t>();
     var_mapping_.clear();
 }
-ir_comparer::ir_comparer(
-        bool needs_diff, bool cmp_names, bool cmp_var_ref, bool cmp_callee)
+ir_comparer::ir_comparer(bool needs_diff, bool cmp_names, bool cmp_var_ref,
+        bool cmp_callee, bool cmp_commutative)
     : cmp_names_(cmp_names)
     , cmp_callee_(cmp_callee)
     , cmp_var_ref_(cmp_var_ref)
+    , cmp_commutative_(cmp_commutative)
     , same_(true) {
     if (needs_diff) diff = utils::make_unique<ir_comparer_diff_t>();
 }

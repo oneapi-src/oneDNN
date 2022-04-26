@@ -42,6 +42,9 @@ struct ssa_data_t {
     // gets the value of a var node
     expr get_value_of_var() const;
 
+    // gets the value of a var node
+    expr get_value_of_var_nothrow() const;
+
     // check if this var is locally defined
     bool is_local() { return !is_global_ && !is_param_; }
     // check if this expr is no longer used

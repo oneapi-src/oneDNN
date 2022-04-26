@@ -377,19 +377,35 @@ bool cast_node::equals(expr_c v, ir_comparer &ctx) const {
 bool binary_node::equals(expr_c v, ir_comparer &ctx) const {
     DYNCAST_OR_RETURN(v, other);
     if (node_type_ != other->node_type_) { RETURN(false); }
-    return l_->equals(other->l_, ctx) && r_->equals(other->r_, ctx);
+    auto ret = l_->equals(other->l_, ctx) && r_->equals(other->r_, ctx);
+    if (!ret && ctx.cmp_commutative_
+            && (node_type_ == sc_expr_type::add
+                    || node_type_ == sc_expr_type::mul)) {
+        return l_->equals(other->r_, ctx) && r_->equals(other->l_, ctx);
+    }
+    return ret;
 }
 
 bool logic_node::equals(expr_c v, ir_comparer &ctx) const {
     DYNCAST_OR_RETURN(v, other);
     if (node_type_ != other->node_type_) { RETURN(false); }
-    return l_->equals(other->l_, ctx) && r_->equals(other->r_, ctx);
+    auto ret = l_->equals(other->l_, ctx) && r_->equals(other->r_, ctx);
+    if (!ret && ctx.cmp_commutative_) {
+        return l_->equals(other->r_, ctx) && r_->equals(other->l_, ctx);
+    }
+    return ret;
 }
 
 bool cmp_node::equals(expr_c v, ir_comparer &ctx) const {
     DYNCAST_OR_RETURN(v, other);
     if (node_type_ != other->node_type_) { RETURN(false); }
-    return l_->equals(other->l_, ctx) && r_->equals(other->r_, ctx);
+    auto ret = l_->equals(other->l_, ctx) && r_->equals(other->r_, ctx);
+    if (!ret && ctx.cmp_commutative_
+            && (node_type_ == sc_expr_type::cmp_eq
+                    || node_type_ == sc_expr_type::cmp_ne)) {
+        return l_->equals(other->r_, ctx) && r_->equals(other->l_, ctx);
+    }
+    return ret;
 }
 
 #define GEN_BINARY(CLASS, OP) \
