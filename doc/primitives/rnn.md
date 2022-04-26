@@ -61,7 +61,10 @@ The RNN API provides four cell functions:
 -   [LSTM](#lstm), a four-gate long short-term memory cell,
 -   [GRU](#gru), a three-gate gated recurrent unit cell,
 -   [Linear-before-reset GRU](#linear-before-reset-gru), a three-gate recurrent
-    unit cell with the linear layer before the reset gate.
+    unit cell with the linear layer before the reset gate,
+-   [AUGRU](#augru), a three-gate gated recurrent unit cell with the attention update gate,
+-   [Linear-before-reset AUGRU](#linear-before-reset-augru), a three-gate recurrent
+    unit cell with the linear layer before the reset gate and the attention update gate.
 
 ### Vanilla RNN
 
@@ -300,19 +303,15 @@ following equation gives the mathematical definition of these gates.
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= \tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
-h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
+\tilde u_t &= 1 - a_t * u_t \\
+h_t &= \tilde u_t * h_{t-1, l} + (1 - \tilde u_t) * o_t
 \end{align}
 \f]
 
 where \f$W_*\f$ are in \weightslayer, \f$U_*\f$ are in
 \weightsiter, and \f$B_*\f$ are stored in \bias.
 
-@note If you need to replace u_t by (1-u_t) when computing h_t, you can
-achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
-This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
-+ B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
-
-### Linear-Before-Reset GRU
+### Linear-Before-Reset AUGRU
 
 A three-gate gated recurrent unit cell with linear layer applied before the
 reset gate, initialized with #dnnl::lbr_augru_forward::desc::desc()
@@ -326,14 +325,15 @@ or #dnnl::lbr_augru_backward::desc::desc() as in the following example.
 ~~~
 
 The following equation describes the mathematical behavior of the
-Linear-Before-Reset GRU cell.
+Linear-Before-Reset AUGRU cell.
 
 \f[
 \begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= \tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
-h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
+\tilde u_t &= 1 - a_t * u_t \\
+h_t &= \tilde u_t * h_{t-1, l} + (1 - \tilde u_t) * o_t
 \end{align}
 \f]
 
@@ -341,11 +341,6 @@ Note that for all tensors with a dimension depending on the gate number, except
 the bias, we implicitly require the order of these gates to be `u`, `r`, and
 `o`. For the \bias tensor, we implicitly require the order of the gates to be
 `u`, `r`, `o`, and `u'`.
-
-@note If you need to replace u_t by (1-u_t) when computing h_t, you can
-achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
-This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
-+ B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
 
 ## Considerations for Training
 

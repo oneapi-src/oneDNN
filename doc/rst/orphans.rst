@@ -24,6 +24,7 @@ Orphans
     page_cpu_cnn_training_f32_c
     page_rnn_training_f32_cpp
     page_cnn_training_bf16_cpp
+    example_augru.cpp.rst
     example_batch_normalization.cpp.rst
     example_binary.cpp.rst
     example_bnorm_u8_via_binary_postops.cpp.rst
@@ -63,6 +64,8 @@ Orphans
     example_softmax.cpp.rst
     example_sum.cpp.rst
     example_sycl_interop_buffer.cpp.rst
+    page_augru_example_cpp.rst
+    page_augru_example_cpp_short.rst
     page_batch_normalization_example_cpp.rst
     page_batch_normalization_example_cpp_short.rst
     page_binary_example_cpp.rst
