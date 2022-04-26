@@ -322,7 +322,7 @@ terms.
 3-clause BSD license:
 * [Xbyak](https://github.com/herumi/xbyak)
 * [gtest](https://github.com/google/googletest)
-* [Instrumentation and Tracing Technology API (ITT API)](https://github.com/intel/IntelSEAPI/tree/master/ittnotify)
+* [Instrumentation and Tracing Technology API (ITT API)](https://github.com/intel/ittapi)
 * [CMake](https://github.com/Kitware/CMake)
 
 2-clause BSD license:
