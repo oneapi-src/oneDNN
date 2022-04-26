@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2022 Intel Corporation
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +23,9 @@
 #include "cpu/x64/prelu/jit_prelu_forward.hpp"
 
 using namespace dnnl::impl::cpu::x64;
+#elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+#include "cpu/aarch64/acl_prelu.hpp"
+using namespace dnnl::impl::cpu::aarch64;
 #endif
 
 namespace dnnl {
@@ -37,6 +41,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_PRELU_P({
         {{forward}, {
             CPU_INSTANCE_X64(jit_prelu_fwd_t)
+            CPU_INSTANCE_AARCH64_ACL(acl_prelu_fwd_t)
             CPU_INSTANCE(ref_prelu_fwd_t)
             nullptr,
         }},
