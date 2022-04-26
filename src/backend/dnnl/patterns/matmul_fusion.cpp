@@ -1081,24 +1081,21 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
 
                     auto key_reshape = pgraph->append_op(
                             impl::op_kind::StaticReshape, "key_reshape");
-                    auto key_transpose
-                            = pgraph->append_op(impl::op_kind::StaticTranspose,
-                                    in_edges_t {in_edge(0, key_reshape, 0)},
-                                    "key_transpose");
 
-                    // Optional key_transpose
-                    auto popt_graph = std::make_shared<pb_graph_t>(
+                    // 1 or 2 key_transpose
+                    auto prep_graph = std::make_shared<pb_graph_t>(
                             "poptional_transpose");
-                    auto ptranspose = popt_graph->append_op(
+                    auto ptranspose = prep_graph->append_op(
                             impl::op_kind::StaticTranspose, "pkey_transpose");
-                    popt_graph->create_input_port(0, ptranspose, 0);
-                    popt_graph->create_output_port(0, ptranspose, 0);
-                    auto popt = pgraph->append_optional(
-                            popt_graph, {in_edge(0, key_transpose, 0)}, "popt");
+                    prep_graph->create_input_port(0, ptranspose, 0);
+                    prep_graph->create_output_port(0, ptranspose, 0);
+                    auto prep = pgraph->append_repetition(prep_graph, {0, 0}, 1,
+                            3, in_edges_t {in_edge(0, key_reshape, 0)},
+                            "prepetition");
 
                     auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
                             in_edges_t {in_edge(0, query_transpose, 0),
-                                    in_edge(1, popt, 0)},
+                                    in_edge(1, prep, 0)},
                             "matmul_qk");
 
                     // Optional fscore_scale
