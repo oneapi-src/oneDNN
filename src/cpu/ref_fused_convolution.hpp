@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2021 Intel Corporation
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -320,6 +321,16 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
         }
         return status::success;
     }
+
+#if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        for (auto &p : primitives_) {
+            CHECK(p->create_resource(engine, mapper));
+        }
+        return status::success;
+    }
+#endif
 
     status_t execute(const exec_ctx_t &ctx) const override {
         engine_t *engine = ctx.stream()->engine();
