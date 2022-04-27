@@ -25,5 +25,4 @@ TEST(api_engine, simple_create) {
     engine e {engine::kind::cpu, 0, alloc};
 
     ASSERT_EQ(e.get_kind(), engine::kind::cpu);
-    ASSERT_FALSE(e.get_device_handle());
 }

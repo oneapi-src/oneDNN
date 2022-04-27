@@ -340,17 +340,6 @@ public:
         reset(e);
     }
 
-    /// Returns device handle of the current engine
-    ///
-    /// @returns Device handle
-    void *get_device_handle() const {
-        void *handle {};
-        error::check_succeed(
-                dnnl_graph_engine_get_device_handle(get(), &handle),
-                "could not get device handle from the engine");
-        return handle;
-    }
-
     /// Returns concrete kind of the current engine
     ///
     ///@returns Kind of engine

@@ -61,8 +61,6 @@ public:
 
     ~dnnl_graph_engine() = default;
 
-    void *get_device_handle() const noexcept { return device_handle_; }
-
     size_t index() const noexcept { return index_; }
 
     dnnl::graph::impl::engine_kind_t kind() const noexcept { return kind_; }
@@ -93,7 +91,6 @@ private:
 
     static void dummy_destroy_allocator(dnnl::graph::impl::allocator_t *) {}
 
-    void *device_handle_ {};
     dnnl::graph::impl::engine_kind_t kind_ {};
     size_t index_ {};
     std::shared_ptr<dnnl::graph::impl::allocator_t> allocator_ {nullptr};

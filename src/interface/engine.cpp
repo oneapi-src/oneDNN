@@ -134,12 +134,6 @@ status_t DNNL_GRAPH_API dnnl_graph_engine_destroy(engine_t *engine) {
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_engine_get_device_handle(
-        const engine_t *engine, void **handle) {
-    *handle = engine->get_device_handle();
-    return status::success;
-}
-
 status_t DNNL_GRAPH_API dnnl_graph_engine_get_kind(
         const engine_t *engine, engine_kind_t *kind) {
     *kind = engine->kind();
