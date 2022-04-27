@@ -250,32 +250,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-// fusions with div
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_fusion)
-        .set_priority(10.4f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, dequant_data, 0),
-                                    in_edge(1, dequant_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::Divide,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_div_add_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -383,8 +358,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_post_ops_fusion)
                             = std::make_shared<pb_graph_t>("peltwise_graph");
                     pm::pb_op *pop = peltwise_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::Exp,
-                                    impl::op_kind::GELU,
+                                    impl::op_kind::Divide, impl::op_kind::Elu,
+                                    impl::op_kind::Exp, impl::op_kind::GELU,
                                     impl::op_kind::HardTanh,
                                     impl::op_kind::HardSwish,
                                     impl::op_kind::Log, impl::op_kind::Sigmoid,
@@ -429,303 +404,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_post_ops_fusion)
                     return fused_op;
                 });
 
-// int8-bf16 mix precision fusions
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_fusion)
-        .set_priority(9.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    // this pattern requires the weight should be s8
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
-                    pm::pb_op *typecast_data
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *typecast_dst
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, matmul, 0)});
-                    typecast_dst->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
-                    pgraph->append_op(impl::op_kind::Quantize,
-                            in_edges_t {in_edge(0, typecast_dst, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
-        .set_priority(10.5f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-
-                    // Optional quant_weight
-                    auto popt_graph = std::make_shared<pb_graph_t>(
-                            "poptional_quant_weight");
-                    pm::pb_op *pquant = popt_graph->append_op(
-                            impl::op_kind::Quantize, "pquant");
-                    popt_graph->create_input_port(0, pquant, 0);
-                    popt_graph->create_output_port(0, pquant, 0);
-                    auto popt = pgraph->append_optional(popt_graph, "popt");
-
-                    pm::pb_op *dequant_weight = pgraph->append_op(
-                            impl::op_kind::Dequantize,
-                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
-
-                    pm::pb_op *typecast_data
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-
-                    // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op *typecast_bias = popt_bias_graph->append_op(
-                            impl::op_kind::TypeCast, "tc_bias");
-                    typecast_bias->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
-
-                    pm::pb_op *typecast_dst
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, popt_bias, 0)});
-                    typecast_dst->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
-                    pgraph->append_op(impl::op_kind::Quantize,
-                            in_edges_t {in_edge(0, typecast_dst, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_gelu_fusion)
-        .set_priority(9.9f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    // this pattern requires the weight should be s8
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
-
-                    pm::pb_op *typecast_data
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pm::pb_op *gelu = pgraph->append_op(impl::op_kind::GELU,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                    pm::pb_op *typecast_gelu
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, gelu, 0)});
-                    typecast_gelu->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
-                    pgraph->append_op(impl::op_kind::Quantize,
-                            in_edges_t {in_edge(0, typecast_gelu, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
-        .set_priority(10.5f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-
-                    // Optional quant_weight
-                    auto popt_graph = std::make_shared<pb_graph_t>(
-                            "poptional_quant_weight");
-                    pm::pb_op *pquant = popt_graph->append_op(
-                            impl::op_kind::Quantize, "pquant");
-                    popt_graph->create_input_port(0, pquant, 0);
-                    popt_graph->create_output_port(0, pquant, 0);
-                    auto popt = pgraph->append_optional(popt_graph, "popt");
-
-                    pm::pb_op *dequant_weight = pgraph->append_op(
-                            impl::op_kind::Dequantize,
-                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
-
-                    pm::pb_op *typecast_data
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-
-                    // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op *typecast_bias = popt_bias_graph->append_op(
-                            impl::op_kind::TypeCast, "tc_bias");
-                    typecast_bias->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
-
-                    pm::pb_op *gelu = pgraph->append_op(impl::op_kind::GELU,
-                            in_edges_t {in_edge(0, popt_bias, 0)});
-                    pm::pb_op *typecast_gelu
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, gelu, 0)});
-                    typecast_gelu->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
-                    pgraph->append_op(impl::op_kind::Quantize,
-                            in_edges_t {in_edge(0, typecast_gelu, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_fusion)
-        .set_priority(9.8f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *typecast_data
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_div_fusion)
-        .set_priority(10.4f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *typecast_data
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
-
-                    pgraph->append_op(impl::op_kind::Divide,
-                            in_edges_t {in_edge(0, matmul, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_div_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_bf16_matmul_div_add_fusion)
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -763,91 +442,24 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_div_add_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_fusion)
-        .set_priority(10.4f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
-                    pm::pb_op *typecast_data
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<3>);
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_add_fusion)
-        .set_priority(10.5f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
-                    pm::pb_op *dequant_other
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *typecast_data
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *typecast_other
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_other, 0)});
-                    typecast_other->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<3>);
-
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0),
-                                    in_edge(1, typecast_other, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
+/*
+                    [quant_weight]*
+        |                  |
+   dequant_data     dequant_weight
+        |                  |
+   typecast_data    typecast_weight
+        \_____       _____/
+              matmul
+                |
+              [bias]*    [dequant_other -> typecast_other]* for Add
+                |          /
+ [ ReLU/GELU/Divide/Multiply/Add ]
+                |
+  [typecast_out -> quant_out]*
+*/
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        dnnl, x8x8bf16_matmul_bias_add_bf16_fusion)
-        .set_priority(10.49f)
+        dnnl, int8_bf16_matmul_post_ops_fusion)
+        .set_priority(10.4f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op *dequant_data
@@ -865,7 +477,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize,
                             in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
-
                     pm::pb_op *typecast_data
                             = pgraph->append_op(impl::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -881,14 +492,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
                             in_edges_t {in_edge(0, typecast_data, 0),
                                     in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function([](op_t *op) -> bool {
-                        // must have bias to be not conflict with
-                        // x8s8bf16_matmul_add_fusion pattern
-                        return check_input_num<3>(op)
-                                || (check_input_num<2>(op)
-                                        && check_successor_op_kind<
-                                                impl::op_kind::BiasAdd>(op));
-                    });
 
                     // Optional bias_add
                     auto popt_bias_graph
@@ -907,55 +510,53 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto popt_bias = pgraph->append_optional(popt_bias_graph,
                             in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
 
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, popt_bias, 0)});
-                })
-        .set_attr<FCreateV2FusedOp>(
-                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::int8_matmul_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
-                    return fused_op;
-                });
-
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_add_fusion)
-        .set_priority(10.3f)
-        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *dequant_weight
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<impl::data_type::s8>);
-                    pm::pb_op *dequant_other
-                            = pgraph->append_op(impl::op_kind::Dequantize);
-                    pm::pb_op *typecast_data
+                    // post add with dequant->typecast
+                    auto padd_graph
+                            = std::make_shared<pb_graph_t>("padd_graph");
+                    pm::pb_op *pdequant_add = padd_graph->append_op(
+                            impl::op_kind::Dequantize, "dequant_add");
+                    pm::pb_op *typecast_add
                             = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_data, 0)});
-                    typecast_data->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
+                                    in_edges_t {in_edge(0, pdequant_add, 0)});
+                    pm::pb_op *padd = padd_graph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(1, typecast_add, 0)}, "padd");
+                    padd_graph->create_input_port(0, padd, 0);
+                    padd_graph->create_input_port(1, pdequant_add, 0);
+                    padd_graph->create_output_port(0, padd, 0);
 
-                    pm::pb_op *typecast_weight
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_weight, 0)});
-                    typecast_weight->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
+                    auto other_postop_graph = std::make_shared<pb_graph_t>(
+                            "pother_postop_graph");
+                    pm::pb_op *pop = other_postop_graph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::GELU,
+                                    impl::op_kind::Add},
+                            "pother_postop");
+                    other_postop_graph->create_input_port(0, pop, 0);
+                    other_postop_graph->create_input_port(1, pop, 1);
+                    other_postop_graph->create_output_port(0, pop, 0);
 
-                    pm::pb_op *typecast_other
-                            = pgraph->append_op(impl::op_kind::TypeCast,
-                                    in_edges_t {in_edge(0, dequant_other, 0)});
-                    typecast_other->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
+                    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+                    auto palt = alt_graph->append_alternation(
+                            {padd_graph, other_postop_graph}, "palt");
+                    alt_graph->create_input_port(0, palt, 0);
+                    alt_graph->create_output_port(0, palt, 0);
 
-                    pm::pb_op *matmul = pgraph->append_op(impl::op_kind::MatMul,
-                            in_edges_t {in_edge(0, typecast_data, 0),
-                                    in_edge(1, typecast_weight, 0)});
-                    matmul->append_decision_function(check_input_num<2>);
+                    auto prep = pgraph->append_optional(alt_graph,
+                            in_edges_t {in_edge(0, popt_bias, 0)},
+                            "prepetition");
 
-                    pgraph->append_op(impl::op_kind::Add,
-                            in_edges_t {in_edge(0, matmul, 0),
-                                    in_edge(0, typecast_other, 0)});
+                    // Optional typecast_out + quant_out
+                    auto popt_qout_graph = std::make_shared<pb_graph_t>(
+                            "poptional_tc_quant_out");
+                    pm::pb_op *ptc_out = popt_qout_graph->append_op(
+                            impl::op_kind::TypeCast, "ptc_out");
+                    pm::pb_op *pquant_out = popt_qout_graph->append_op(
+                            impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, ptc_out, 0)}, "pquant_out");
+                    popt_qout_graph->create_input_port(0, ptc_out, 0);
+                    popt_qout_graph->create_output_port(0, pquant_out, 0);
+                    pgraph->append_optional(popt_qout_graph,
+                            in_edges_t {in_edge(0, prep, 0)},
+                            "popt_tc_quant_out");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
