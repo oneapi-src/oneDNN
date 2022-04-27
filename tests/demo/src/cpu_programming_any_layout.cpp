@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,8 +128,7 @@ int cpu_programming_any_layout_tutorial(engine::kind engine_kind) {
     set_any_layout(partitions, id_to_set_any_layout);
 
     /// construct a new engine
-    int device_id = 0;
-    engine e {engine_kind, device_id};
+    engine e {engine_kind, 0};
 
     /// construct a new stream
     stream s {e};

@@ -29,8 +29,8 @@
 struct dnnl_graph_engine {
 public:
     explicit dnnl_graph_engine(
-            dnnl::graph::impl::engine_kind_t kind, int device_id)
-        : kind_(kind), device_id_(device_id) {
+            dnnl::graph::impl::engine_kind_t kind, size_t index)
+        : kind_(kind), index_(index) {
         allocator_.reset(dnnl::graph::impl::allocator_t::create(),
                 default_destroy_allocator);
     }
@@ -51,7 +51,7 @@ public:
 
     void *get_device_handle() const noexcept { return device_handle_; }
 
-    int device_id() const noexcept { return device_id_; }
+    size_t index() const noexcept { return index_; }
 
     dnnl::graph::impl::engine_kind_t kind() const noexcept { return kind_; }
 
@@ -87,7 +87,7 @@ private:
 
     void *device_handle_ {};
     dnnl::graph::impl::engine_kind_t kind_ {};
-    int device_id_ {};
+    size_t index_ {};
     std::shared_ptr<dnnl::graph::impl::allocator_t> allocator_ {nullptr};
 #ifdef DNNL_GRAPH_WITH_SYCL
     cl::sycl::device dev_;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@ TEST(Engine, SimpleEngine) {
     dnnl::graph::impl::engine_t engine_cpu(akind, 0);
 
     ASSERT_EQ(engine_cpu.kind(), akind);
-    ASSERT_EQ(engine_cpu.device_id(), 0);
+    ASSERT_EQ(engine_cpu.index(), 0);
 
     akind = dnnl::graph::impl::engine_kind::gpu;
     dnnl::graph::impl::engine_t engine_gpu(akind, 0);
 
     ASSERT_EQ(engine_gpu.kind(), akind);
-    ASSERT_EQ(engine_gpu.device_id(), 0);
+    ASSERT_EQ(engine_gpu.index(), 0);
 }

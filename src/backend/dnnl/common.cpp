@@ -122,7 +122,7 @@ dnnl::engine make_dnnl_engine(const impl::engine_t &g_engine) {
                 g_engine.sycl_device(), g_engine.sycl_context());
 #else
         return dnnl::engine(static_cast<dnnl::engine::kind>(g_engine.kind()),
-                static_cast<size_t>(g_engine.device_id()));
+                g_engine.index());
 #endif
     } else if (g_engine.kind() == impl::engine_kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
@@ -130,7 +130,7 @@ dnnl::engine make_dnnl_engine(const impl::engine_t &g_engine) {
                 g_engine.sycl_device(), g_engine.sycl_context());
 #else
         return dnnl::engine(static_cast<dnnl::engine::kind>(g_engine.kind()),
-                static_cast<size_t>(g_engine.device_id()));
+                g_engine.index());
 #endif
     } else {
         assert(!"only cpu and gpu engine are valid");

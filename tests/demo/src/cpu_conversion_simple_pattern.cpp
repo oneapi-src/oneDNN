@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -145,12 +145,11 @@ int cpu_conversion_simple_pattern_tutorial(engine::kind engine_kind) {
     std::unordered_set<size_t> id_to_set_any_layout;
     set_any_layout(partitions, id_to_set_any_layout);
 
-    /// Create an `engine` according to `engine_kind` and `device_id`. Then,
+    /// Create an `engine` according to `engine_kind` and `index`. Then,
     /// create a `stream` based on this engine
     /// @snippet cpu_conversion_simple_pattern.cpp Create engine and stream
     //[Create engine and stream]
-    int device_id = 0;
-    engine e {engine_kind, device_id};
+    engine e {engine_kind, 0};
     stream s {e};
     //[Create engine and stream]
 

@@ -28,15 +28,15 @@
 using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_engine_create(
-        engine_t **engine, engine_kind_t kind, int32_t device_id) {
+        engine_t **engine, engine_kind_t kind, size_t index) {
     if (kind == engine_kind::gpu) { return status::invalid_argument; }
 #ifdef DNNL_GRAPH_CPU_SYCL
     UNUSED(engine);
     UNUSED(kind);
-    UNUSED(device_id);
+    UNUSED(index);
     return status::invalid_argument;
 #else
-    *engine = new engine_t {kind, device_id};
+    *engine = new engine_t {kind, index};
     return status::success;
 #endif
 }

@@ -495,13 +495,13 @@ dnnl_graph_compiled_partition_get_inplace_ports(
 /// Creates an engine with specified engine kind and device id.
 ///
 /// @param engine The handle of output engine.
-/// @param engine_kind The kind of engine.
-/// @param device_id The device associated to created engine.
+/// @param kind The kind of engine.
+/// @param index The device associated to created engine.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create(
-        dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t engine_kind,
-        int32_t device_id);
+        dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t kind,
+        size_t index);
 
 /// Destroy the target engine.
 ///

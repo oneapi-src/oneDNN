@@ -317,11 +317,11 @@ public:
     /// Constructs an engine with specified kind and device_id
     ///
     /// @param akind The kind of engine to construct
-    /// @param device_id Specify which device to be used
-    engine(kind akind, int device_id) {
+    /// @param index Specify which device to be used
+    engine(kind akind, size_t index) {
         dnnl_graph_engine_t *e {};
         error::check_succeed(
-                dnnl_graph_engine_create(&e, convert_to_c(akind), device_id),
+                dnnl_graph_engine_create(&e, convert_to_c(akind), index),
                 "could not create engine with engine kind and device id");
         reset(e);
     }
@@ -329,12 +329,12 @@ public:
     /// Constructs an engine with specified kind and device_id
     ///
     /// @param akind Engine kind
-    /// @param device_id Specify which device to be used
+    /// @param index Specify which device to be used
     /// @param alloc The memory allocator bound with engine
-    engine(kind akind, int device_id, allocator &alloc) {
+    engine(kind akind, size_t index, allocator &alloc) {
         dnnl_graph_engine_t *e {};
         error::check_succeed(
-                dnnl_graph_engine_create(&e, convert_to_c(akind), device_id),
+                dnnl_graph_engine_create(&e, convert_to_c(akind), index),
                 "could not create engine with engine kind and device id");
         reset(e);
 
