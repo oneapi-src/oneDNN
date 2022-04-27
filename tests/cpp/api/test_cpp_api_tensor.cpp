@@ -38,7 +38,6 @@ TEST(api_tensor, create_with_shape) {
     tensor t_0 {lt_0, eng, handle0};
     ASSERT_EQ(t_0.get_data_handle<float>(), handle0);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
-    ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
     // 1D
     logical_tensor lt_1 {id, data_type::f32, logical_tensor::dims_t {3},
@@ -48,7 +47,6 @@ TEST(api_tensor, create_with_shape) {
     tensor t_1 {lt_1, eng, handle1};
     ASSERT_EQ(t_1.get_data_handle<float>(), handle1);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
-    ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
     // 2D
     logical_tensor lt_2 {id, data_type::f32, logical_tensor::dims_t {3, 4},
@@ -59,7 +57,6 @@ TEST(api_tensor, create_with_shape) {
     tensor t_2 {lt_2, eng, handle2};
     ASSERT_EQ(t_2.get_data_handle<float>(), handle2);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
-    ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
     // 3D
     logical_tensor lt_3 {id, data_type::f32, logical_tensor::dims_t {3, 4, 5},
@@ -70,7 +67,6 @@ TEST(api_tensor, create_with_shape) {
     tensor t_3 {lt_3, eng, handle3};
     ASSERT_EQ(t_3.get_data_handle<float>(), handle3);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
-    ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
     // 4D
     logical_tensor lt_4 {id, data_type::f32,
@@ -81,7 +77,6 @@ TEST(api_tensor, create_with_shape) {
     tensor t_4 {lt_4, eng, handle4};
     ASSERT_EQ(t_4.get_data_handle<float>(), handle4);
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
-    ASSERT_EQ(t_0.get_engine().get_device_id(), eng.get_device_id());
 
     std::vector<float> n5 {0};
     void *handle5 = n5.data();

@@ -529,15 +529,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_set_allocator(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_get_device_handle(
         const dnnl_graph_engine_t *engine, void **handle);
 
-/// Get the device id from an engine.
-///
-/// @param engine The target engine.
-/// @param device_id The output device id.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_get_device_id(
-        const dnnl_graph_engine_t *engine, int32_t *device_id);
-
 /// Get the engine kind from an engine.
 ///
 /// @param engine The target engine.

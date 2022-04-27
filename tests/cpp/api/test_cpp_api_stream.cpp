@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,5 +23,5 @@ TEST(api_stream, simple_create) {
     using namespace dnnl::graph;
     engine e {engine::kind::cpu, 0};
     stream s {e};
-    ASSERT_EQ(e.get_device_id(), 0);
+    ASSERT_EQ(e.get_kind(), engine::kind::cpu);
 }

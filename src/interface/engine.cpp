@@ -96,12 +96,6 @@ status_t DNNL_GRAPH_API dnnl_graph_engine_get_device_handle(
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_engine_get_device_id(
-        const engine_t *engine, int32_t *device_id) {
-    *device_id = engine->device_id();
-    return status::success;
-}
-
 status_t DNNL_GRAPH_API dnnl_graph_engine_get_kind(
         const engine_t *engine, engine_kind_t *kind) {
     *kind = engine->kind();

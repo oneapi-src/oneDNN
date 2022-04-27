@@ -361,16 +361,6 @@ public:
         return handle;
     }
 
-    /// Returns device id of the current engine
-    ///
-    /// @returns Device id
-    int get_device_id() const {
-        int32_t device_id {};
-        error::check_succeed(dnnl_graph_engine_get_device_id(get(), &device_id),
-                "could not get device id from the engine");
-        return device_id;
-    }
-
     /// Returns concrete kind of the current engine
     ///
     ///@returns Kind of engine
