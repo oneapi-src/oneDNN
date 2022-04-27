@@ -40,10 +40,14 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     const int64_t W {kind == SRC ? prb->iw : prb->ow};
     const int64_t ker_size {prb->kd * prb->kh * prb->kw};
     const auto &c = prb->cfg[kind];
+    // For huge kernels to get different output values filling should be very
+    // variative, thus, use a factor of 1.
+    const bool has_huge_kernel = ker_size >= c.f_max;
 
     benchdnn_parallel_nd(MB, IC, D, H, W,
             [&](int64_t mb, int64_t ic, int64_t d, int64_t h, int64_t w) {
-                const int64_t factor = prb->alg == max ? 1 : ker_size;
+                const int64_t factor
+                        = prb->alg == max || has_huge_kernel ? 1 : ker_size;
                 // keep values for avg_exclude_pad positive to prevent cancellation err
                 const int64_t f_min = prb->alg == max ? c.f_min / factor : 0;
                 // divide on factor to keep value in the range
@@ -151,7 +155,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     cmp.set_threshold(prb->cfg[kind].eps);
-    cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
+    // Backward may have most zeroes for ker_in_pad with huge kernels problems.
+    const float zero_percent = (prb->dir & FLAG_FWD) ? 99.f : 100.f;
+    cmp.set_zero_trust_percent(zero_percent); // TODO: consider enabling
 
     const auto pooling_add_check
             = [&](const compare::compare_t::driver_check_func_args_t &args) {

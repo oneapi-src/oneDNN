@@ -11,7 +11,7 @@
 --batch=set_topologies
 
 --dir=FWD_D
---attr-post-ops=mul:s32:per_oc,add:f32:per_tensor
+--attr-post-ops=add:s32:per_oc,add:f32:per_tensor
 --batch=set_all_small
 
 # Inference
