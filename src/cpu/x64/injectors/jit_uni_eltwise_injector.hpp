@@ -223,6 +223,7 @@ private:
     void gelu_erf_compute_vector_fwd(const Vmm &vmm_src);
     void round_compute_vector_fwd(const Vmm &vmm_src);
     void hardswish_compute_vector_fwd(const Vmm &vmm_src);
+    void hardsigmoid_compute_vector_fwd(const Vmm &vmm_src);
 
     void exp_compute_vector_bwd(const Vmm &vmm_src);
     void relu_compute_vector_bwd(const Vmm &vmm_src);
@@ -245,6 +246,7 @@ private:
     void pow_compute_vector_bwd(const Vmm &vmm_src);
     void gelu_erf_compute_vector_bwd(const Vmm &vmm_src);
     void hardswish_compute_vector_bwd(const Vmm &vmm_src);
+    void hardsigmoid_compute_vector_bwd(const Vmm &vmm_src);
 
     enum key_t {
         scale = 0, // scale argument

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -397,8 +397,17 @@ inline U gelu_erf_bwd(T dd, T s) {
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U hardsigmoid_fwd(T s) {
+    return (1.f / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
+}
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U hardsigmoid_bwd(T dd, T s) {
+    return (s < 3.f && s > -3.f ? dd / 6.f : 0);
+}
+
+template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U hardswish_fwd(T s) {
-    return (s / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
+    return s * hardsigmoid_fwd(s);
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U hardswish_bwd(T dd, T s) {
@@ -417,8 +426,8 @@ inline bool is_eltwise_ok(
                       eltwise_bounded_relu, eltwise_soft_relu,
                       eltwise_soft_relu_v2, eltwise_logsigmoid, eltwise_mish,
                       eltwise_logistic, eltwise_exp, eltwise_gelu_tanh,
-                      eltwise_hardswish, eltwise_swish, eltwise_log,
-                      eltwise_clip, eltwise_clip_v2, eltwise_pow,
+                      eltwise_hardsigmoid, eltwise_hardswish, eltwise_swish,
+                      eltwise_log, eltwise_clip, eltwise_clip_v2, eltwise_pow,
                       eltwise_gelu_erf, eltwise_round)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(

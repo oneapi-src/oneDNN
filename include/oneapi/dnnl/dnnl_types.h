@@ -1455,6 +1455,8 @@ typedef enum {
     dnnl_eltwise_soft_relu = 0x9f,
     /// Eltwise: soft_relu version 2
     dnnl_eltwise_soft_relu_v2 = 0xa0,
+    /// Eltwise: hardsigmoid
+    dnnl_eltwise_hardsigmoid = 0xa1,
     /// Eltwise: logistic
     dnnl_eltwise_logistic = 0xaf,
     /// Eltwise: exponent
@@ -1979,12 +1981,12 @@ typedef struct {
     /// The kind of eltwise algorithm. Possible values: #dnnl_eltwise_relu,
     /// #dnnl_eltwise_tanh, #dnnl_eltwise_elu, #dnnl_eltwise_square,
     /// #dnnl_eltwise_abs, #dnnl_eltwise_sqrt, #dnnl_eltwise_linear,
-    /// #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu, #dnnl_eltwise_soft_relu_v2,
-    /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu_tanh,
-    /// #dnnl_eltwise_swish, #dnnl_eltwise_log, #dnnl_eltwise_clip,
-    /// #dnnl_eltwise_clip_v2, #dnnl_eltwise_pow, #dnnl_eltwise_gelu_erf,
-    /// #dnnl_eltwise_round, #dnnl_eltwise_logsigmoid, #dnnl_eltwise_mish,
-    /// #dnnl_eltwise_hardswish.
+    /// #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu,
+    /// #dnnl_eltwise_soft_relu_v2, #dnnl_eltwise_logistic, #dnnl_eltwise_exp,
+    /// #dnnl_eltwise_gelu_tanh, #dnnl_eltwise_swish, #dnnl_eltwise_log,
+    /// #dnnl_eltwise_clip, #dnnl_eltwise_clip_v2, #dnnl_eltwise_pow,
+    /// #dnnl_eltwise_gelu_erf, #dnnl_eltwise_round, #dnnl_eltwise_logsigmoid,
+    /// #dnnl_eltwise_mish, #dnnl_eltwise_hardswish, #dnnl_eltwise_hardsigmoid.
     /// Possible values for passing destination memory on backward:
     /// #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
     /// #dnnl_eltwise_elu_use_dst_for_bwd, #dnnl_eltwise_sqrt_use_dst_for_bwd,
@@ -2021,6 +2023,7 @@ typedef struct {
     ///  - #dnnl_eltwise_logsigmoid @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_mish @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_hardswish @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_hardsigmoid @p alpha and @p beta ignored
     float alpha, beta;
 } dnnl_eltwise_desc_t;
 

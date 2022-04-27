@@ -223,6 +223,7 @@ struct attr_t {
             EXP_DST,
             GELU_ERF,
             GELU_TANH,
+            HARDSIGMOID,
             HARDSWISH,
             LINEAR,
             LOG,

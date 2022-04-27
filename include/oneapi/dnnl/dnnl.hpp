@@ -588,6 +588,8 @@ enum class algorithm {
     eltwise_round = dnnl_eltwise_round,
     /// Elementwise: hardswish
     eltwise_hardswish = dnnl_eltwise_hardswish,
+    /// Elementwise: hardsigmoid
+    eltwise_hardsigmoid = dnnl_eltwise_hardsigmoid,
     /// Elementwise: rectified linar unit (ReLU) (dst for backward)
     eltwise_relu_use_dst_for_bwd = dnnl_eltwise_relu_use_dst_for_bwd,
     /// Elementwise: hyperbolic tangent non-linearity (tanh) (dst for backward)
