@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,8 +69,8 @@ inline int read_num_threads_from_env() {
 #include "Eigen/Core"
 #include "unsupported/Eigen/CXX11/ThreadPool"
 
-#if !(EIGEN_WORLD_VERSION == 3 && EIGEN_MAJOR_VERSION == 3)
-#error Unsupported Eigen version (need 3.3.x)
+#if EIGEN_WORLD_VERSION + 10 * EIGEN_MAJOR_VERSION < 33
+#error Unsupported Eigen version (need 3.3.x or higher)
 #endif
 
 #if EIGEN_MINOR_VERSION >= 90
