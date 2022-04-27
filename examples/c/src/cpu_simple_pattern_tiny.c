@@ -142,8 +142,8 @@ int main(int argc, char **argv) {
     printf("Step 2: Create engine-------------------");
     dnnl_graph_engine_t *engine;
     const int32_t device_id = 0;
-    DNNL_GRAPH_CHECK(dnnl_graph_engine_create(&engine, engine_kind, device_id));
-    DNNL_GRAPH_CHECK(dnnl_graph_engine_set_allocator(engine, allocator));
+    DNNL_GRAPH_CHECK(dnnl_graph_engine_create_with_allocator(
+            &engine, engine_kind, device_id, allocator));
     printf("Success!\n");
 
     /// Step 3: create dnnl_graph_op and add attrs

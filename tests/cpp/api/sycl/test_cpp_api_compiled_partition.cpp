@@ -67,8 +67,8 @@ TEST(ApiExecute, ConvReLU) {
             : sycl::queue(
                     sycl::cpu_selector {}, sycl::property::queue::in_order {});
 
-    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
-    eng.set_allocator(alloc);
+    engine eng
+            = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
 
     dnnl::graph::stream strm = sycl_interop::make_stream(eng, q);
 
@@ -147,8 +147,8 @@ TEST(SyclApiExecute, ConvReLU) {
             : sycl::queue(
                     sycl::cpu_selector {}, sycl::property::queue::in_order {});
 
-    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
-    eng.set_allocator(alloc);
+    engine eng
+            = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
 
     dnnl::graph::stream strm = sycl_interop::make_stream(eng, q);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -159,9 +159,9 @@ int main(int argc, char **argv) {
     sycl::queue q = (engine_kind == engine::kind::gpu)
             ? sycl::queue(gpu_selector {}, sycl::property::queue::in_order {})
             : sycl::queue(cpu_selector {}, sycl::property::queue::in_order {});
-    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
+
     allocator alloc = sycl_interop::make_allocator(sycl_malloc_wrapper, sycl_free_wrapper);
-    eng.set_allocator(alloc);
+    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
 
     /// construct a new stream
     dnnl::graph::stream strm = sycl_interop::make_stream(eng, q);

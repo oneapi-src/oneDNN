@@ -41,6 +41,21 @@ status_t DNNL_GRAPH_API dnnl_graph_engine_create(
 #endif
 }
 
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create_with_allocator(
+        engine_t **engine, engine_kind_t kind, size_t index,
+        const allocator_t *alloc) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+    UNUSED(engine);
+    UNUSED(kind);
+    UNUSED(index);
+    UNUSED(alloc);
+    return status::invalid_argument;
+#else
+    *engine = new engine_t {kind, index, alloc};
+    return status::success;
+#endif
+}
+
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
         engine_t **engine, const void *dev, const void *ctx) {
 #ifdef DNNL_GRAPH_WITH_SYCL
@@ -77,16 +92,45 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
 #endif
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_engine_destroy(engine_t *engine) {
-    delete engine;
+status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create_with_allocator(
+        engine_t **engine, const void *dev, const void *ctx,
+        const allocator_t *alloc) {
+#ifdef DNNL_GRAPH_WITH_SYCL
+    if (utils::any_null(engine, dev, ctx)) { return status::invalid_argument; }
+
+    auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
+    auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
+
+    engine_kind_t kind;
+    if (sycl_dev.is_gpu()) {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        kind = engine_kind::gpu;
+#else
+        return status::invalid_argument;
+#endif
+    } else if (sycl_dev.is_cpu() || sycl_dev.is_host()) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        kind = engine_kind::cpu;
+#else
+        return status::invalid_argument;
+#endif
+    } else {
+        return status::invalid_argument;
+    }
+
+    *engine = new engine_t {kind, sycl_dev, sycl_ctx, alloc};
+
     return status::success;
+#else
+    UNUSED(engine);
+    UNUSED(dev);
+    UNUSED(ctx);
+    return status::unsupported;
+#endif
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_engine_set_allocator(
-        engine_t *engine, allocator_t *allocator) {
-    if (utils::any_null(engine, allocator)) { return status::invalid_argument; }
-
-    engine->set_allocator(allocator);
+status_t DNNL_GRAPH_API dnnl_graph_engine_destroy(engine_t *engine) {
+    delete engine;
     return status::success;
 }
 

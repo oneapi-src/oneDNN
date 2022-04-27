@@ -51,9 +51,8 @@ impl::engine_t &get_engine() {
         static auto sycl_allocator = std::shared_ptr<impl::allocator_t>(
                 impl::allocator_t::create(sycl_alloc, sycl_free),
                 [](impl::allocator_t *alloc) { alloc->release(); });
-        static impl::engine_t eng(
-                impl::engine_kind::cpu, get_device(), get_context());
-        eng.set_allocator(sycl_allocator.get());
+        static impl::engine_t eng(impl::engine_kind::cpu, get_device(),
+                get_context(), sycl_allocator.get());
 #else
         static impl::engine_t eng(impl::engine_kind::cpu, 0);
 #endif
@@ -63,9 +62,8 @@ impl::engine_t &get_engine() {
         static auto sycl_allocator = std::shared_ptr<impl::allocator_t>(
                 impl::allocator_t::create(sycl_alloc, sycl_free),
                 [](impl::allocator_t *alloc) { alloc->release(); });
-        static impl::engine_t eng(
-                impl::engine_kind::gpu, get_device(), get_context());
-        eng.set_allocator(sycl_allocator.get());
+        static impl::engine_t eng(impl::engine_kind::gpu, get_device(),
+                get_context(), sycl_allocator.get());
 #else
         assert(!"GPU only support DPCPP runtime now");
         static impl::engine_t eng(impl::engine_kind::gpu, 0);

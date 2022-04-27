@@ -322,7 +322,7 @@ public:
         dnnl_graph_engine_t *e {};
         error::check_succeed(
                 dnnl_graph_engine_create(&e, convert_to_c(akind), index),
-                "could not create engine with engine kind and device id");
+                "could not create engine with engine kind and device index");
         reset(e);
     }
 
@@ -331,23 +331,13 @@ public:
     /// @param akind Engine kind
     /// @param index Specify which device to be used
     /// @param alloc The memory allocator bound with engine
-    engine(kind akind, size_t index, allocator &alloc) {
+    engine(kind akind, size_t index, const allocator &alloc) {
         dnnl_graph_engine_t *e {};
-        error::check_succeed(
-                dnnl_graph_engine_create(&e, convert_to_c(akind), index),
-                "could not create engine with engine kind and device id");
+        error::check_succeed(dnnl_graph_engine_create_with_allocator(&e,
+                                     convert_to_c(akind), index, alloc.get()),
+                "could not create engine with engine kind, device index, and "
+                "allocator");
         reset(e);
-
-        set_allocator(alloc);
-    }
-
-    /// Set allocator to an engine
-    ///
-    /// @param alloc The memory allocator bound with engine
-    void set_allocator(allocator &alloc) {
-        error::check_succeed(
-                dnnl_graph_engine_set_allocator(get(), alloc.get()),
-                "could not set allocator to the engine");
     }
 
     /// Returns device handle of the current engine

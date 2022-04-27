@@ -55,6 +55,19 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
         dnnl_graph_engine_t **engine, const void *dev, const void *ctx);
 
+/// Creates an engine associated sycl device, context, and allocator.
+///
+/// @param engine The handle of output engine.
+/// @param dev The sycl device associated to created engine.
+/// @param ctx The sycl context associated to created engine.
+/// @param alloc Memory allocator associated to the engine.
+/// @returns #dnnl_graph_result_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_result_t DNNL_GRAPH_API
+dnnl_graph_sycl_interop_engine_create_with_allocator(
+        dnnl_graph_engine_t **engine, const void *dev, const void *ctx,
+        const dnnl_graph_allocator_t *alloc);
+
 /// Creates a stream for a given engine associated with a SYCL queue.
 ///
 /// @param stream The handle of output stream.

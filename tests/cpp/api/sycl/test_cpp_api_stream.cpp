@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,7 +51,6 @@ public:
                     // functionality changes.
                     sycl::queue queue {*sycl_ctx, *sycl_dev};
                     stream s = dnnl::graph::sycl_interop::make_stream(e, queue);
-                    ASSERT_EQ(e.get_device_id(), 0);
                 }
             }
         }

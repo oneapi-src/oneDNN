@@ -38,6 +38,5 @@ TEST(tensor_test, gpu_engine) {
     tensor t {lt, eng, nullptr};
 
     ASSERT_EQ(t.get_engine().get_kind(), engine::kind::gpu);
-    ASSERT_EQ(t.get_engine().get_device_id(), 0); // no valid device id
 }
 #endif

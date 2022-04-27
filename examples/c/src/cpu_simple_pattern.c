@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,8 +180,8 @@ int main(int argc, char **argv) {
     printf("Step 2: Create engine-------------------");
     dnnl_graph_engine_t *engine = NULL;
     int32_t device_id = 0;
-    DNNL_GRAPH_CHECK(dnnl_graph_engine_create(&engine, engine_kind, device_id));
-    DNNL_GRAPH_CHECK(dnnl_graph_engine_set_allocator(engine, allocator));
+    DNNL_GRAPH_CHECK(dnnl_graph_engine_create_with_allocator(
+            &engine, engine_kind, device_id, allocator));
     printf("Success!\n");
 
     // Step 3: traverse the example graph, convert each op to

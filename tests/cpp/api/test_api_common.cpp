@@ -43,11 +43,9 @@ void api_test_dnnl_graph_engine_create(
                     dnnl_graph_sycl_interop_allocator_create(
                             &allocator_handle.allocator, sycl_alloc, sycl_free),
                     dnnl_graph_result_success);
-            ASSERT_EQ(dnnl_graph_sycl_interop_engine_create(
-                              &engine_handle.engine, &dev, &ctx),
-                    dnnl_graph_result_success);
-            ASSERT_EQ(dnnl_graph_engine_set_allocator(
-                              engine_handle.engine, allocator_handle.allocator),
+            ASSERT_EQ(dnnl_graph_sycl_interop_engine_create_with_allocator(
+                              &engine_handle.engine, &dev, &ctx,
+                              allocator_handle.allocator),
                     dnnl_graph_result_success);
         };
 #else
@@ -67,11 +65,9 @@ void api_test_dnnl_graph_engine_create(
                     dnnl_graph_sycl_interop_allocator_create(
                             &allocator_handle.allocator, sycl_alloc, sycl_free),
                     dnnl_graph_result_success);
-            ASSERT_EQ(dnnl_graph_sycl_interop_engine_create(
-                              &engine_handle.engine, &dev, &ctx),
-                    dnnl_graph_result_success);
-            ASSERT_EQ(dnnl_graph_engine_set_allocator(
-                              engine_handle.engine, allocator_handle.allocator),
+            ASSERT_EQ(dnnl_graph_sycl_interop_engine_create_with_allocator(
+                              &engine_handle.engine, &dev, &ctx,
+                              allocator_handle.allocator),
                     dnnl_graph_result_success);
         };
         *engine = engine_handle.engine;
@@ -95,8 +91,7 @@ dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
                 = dnnl::graph::sycl_interop::make_allocator(
                         sycl_alloc, sycl_free);
         static dnnl::graph::engine eng
-                = dnnl::graph::sycl_interop::make_engine(dev, ctx);
-        eng.set_allocator(alloc);
+                = dnnl::graph::sycl_interop::make_engine(dev, ctx, alloc);
 #else
         static dnnl::graph::engine eng(engine_kind, 0);
 #endif
@@ -109,8 +104,7 @@ dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
     static dnnl::graph::allocator alloc
             = dnnl::graph::sycl_interop::make_allocator(sycl_alloc, sycl_free);
     static dnnl::graph::engine eng
-            = dnnl::graph::sycl_interop::make_engine(dev, ctx);
-    eng.set_allocator(alloc);
+            = dnnl::graph::sycl_interop::make_engine(dev, ctx, alloc);
     return eng;
 #else
     static dnnl::graph::engine eng(engine_kind, 0);

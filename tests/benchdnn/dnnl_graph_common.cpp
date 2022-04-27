@@ -972,8 +972,7 @@ const dnnl::graph::engine &get_graph_engine() {
     static cl::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
     static cl::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
     static dnnl::graph::engine eng {
-            dnnl::graph::sycl_interop::make_engine(dev, ctx)};
-    eng.set_allocator(sycl_allocator);
+            dnnl::graph::sycl_interop::make_engine(dev, ctx, sycl_allocator)};
     return eng;
 }
 

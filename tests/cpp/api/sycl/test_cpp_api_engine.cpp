@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,12 +73,11 @@ public:
                         || (kind == engine::kind::cpu && dev.is_cpu())) {
                     sycl_dev.reset(new device(dev));
                     sycl_ctx.reset(new context(*sycl_dev));
-                    engine e = dnnl::graph::sycl_interop::make_engine(
-                            *sycl_dev, *sycl_ctx);
+
                     allocator alloc = dnnl::graph::sycl_interop::make_allocator(
                             sycl_malloc_wrapper, sycl_free_wrapper);
-                    e.set_allocator(alloc);
-                    ASSERT_EQ(e.get_device_id(), 0);
+                    engine e = dnnl::graph::sycl_interop::make_engine(
+                            *sycl_dev, *sycl_ctx, alloc);
                 }
             }
         }

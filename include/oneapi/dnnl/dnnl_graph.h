@@ -492,7 +492,7 @@ dnnl_graph_compiled_partition_get_inplace_ports(
 /// @addtogroup dnnl_graph_api_engine
 /// @{
 
-/// Creates an engine with specified engine kind and device id.
+/// Creates an engine with specified engine kind and device index.
 ///
 /// @param engine The handle of output engine.
 /// @param kind The kind of engine.
@@ -503,6 +503,18 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create(
         dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t kind,
         size_t index);
 
+/// Creates an engine with specified engine kind, device index, and allocator.
+///
+/// @param engine The handle of output engine.
+/// @param kind The kind of engine.
+/// @param index The device associated to the engine.
+/// @param alloc The allocator associated to the engine.
+/// @returns #dnnl_graph_result_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create_with_allocator(
+        dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t kind,
+        size_t index, const dnnl_graph_allocator_t *alloc);
+
 /// Destroy the target engine.
 ///
 /// @param engine The target engine.
@@ -510,15 +522,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_destroy(
         dnnl_graph_engine_t *engine);
-
-/// Set an allocator to the target engine.
-///
-/// @param engine The target engine.
-/// @param allocator The allocator which will be set to engine.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_set_allocator(
-        dnnl_graph_engine_t *engine, dnnl_graph_allocator_t *allocator);
 
 /// Get the device handle from an engine.
 ///

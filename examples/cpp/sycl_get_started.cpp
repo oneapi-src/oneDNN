@@ -274,8 +274,7 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     ///
     /// @snippet sycl_get_started.cpp Create engine
     //[Create engine]
-    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
-    eng.set_allocator(alloc);
+    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
     //[Create engine]
 
     /// Create a #dnnl::graph::stream on the given engine

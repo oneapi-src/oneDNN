@@ -28,22 +28,34 @@
 
 struct dnnl_graph_engine {
 public:
-    explicit dnnl_graph_engine(
-            dnnl::graph::impl::engine_kind_t kind, size_t index)
+    explicit dnnl_graph_engine(dnnl::graph::impl::engine_kind_t kind,
+            size_t index, const dnnl::graph::impl::allocator_t *alloc = nullptr)
         : kind_(kind), index_(index) {
-        allocator_.reset(dnnl::graph::impl::allocator_t::create(),
-                default_destroy_allocator);
+        if (alloc) {
+            allocator_.reset(dnnl::graph::impl::allocator_t::create(alloc),
+                    default_destroy_allocator);
+        } else {
+            allocator_.reset(dnnl::graph::impl::allocator_t::create(),
+                    default_destroy_allocator);
+        }
     }
 
+    // default engine
     dnnl_graph_engine()
-        : dnnl_graph_engine(dnnl::graph::impl::engine_kind::cpu, 0) {}
+        : dnnl_graph_engine(dnnl::graph::impl::engine_kind::cpu, 0, nullptr) {}
 
 #ifdef DNNL_GRAPH_WITH_SYCL
     dnnl_graph_engine(dnnl::graph::impl::engine_kind_t kind,
-            const cl::sycl::device &dev, const cl::sycl::context &ctx)
+            const cl::sycl::device &dev, const cl::sycl::context &ctx,
+            const dnnl::graph::impl::allocator_t *alloc = nullptr)
         : kind_(kind), dev_(dev), ctx_(ctx) {
-        allocator_.reset(dnnl::graph::impl::allocator_t::create(),
-                default_destroy_allocator);
+        if (alloc) {
+            allocator_.reset(dnnl::graph::impl::allocator_t::create(alloc),
+                    default_destroy_allocator);
+        } else {
+            allocator_.reset(dnnl::graph::impl::allocator_t::create(),
+                    default_destroy_allocator);
+        }
     }
 #endif
 
@@ -54,10 +66,6 @@ public:
     size_t index() const noexcept { return index_; }
 
     dnnl::graph::impl::engine_kind_t kind() const noexcept { return kind_; }
-
-    void set_allocator(dnnl::graph::impl::allocator_t *a) {
-        allocator_.reset(a, dummy_destroy_allocator);
-    }
 
     dnnl::graph::impl::allocator_t *get_allocator() const {
         return allocator_.get();

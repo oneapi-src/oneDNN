@@ -21,10 +21,9 @@
 
 TEST(api_engine, simple_create) {
     using namespace dnnl::graph;
-    engine e {engine::kind::cpu, 0};
-
     allocator alloc {};
-    e.set_allocator(alloc);
+    engine e {engine::kind::cpu, 0, alloc};
+
     ASSERT_EQ(e.get_kind(), engine::kind::cpu);
     ASSERT_FALSE(e.get_device_handle());
 }

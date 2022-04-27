@@ -74,6 +74,24 @@ inline engine make_engine(
     return engine(c_engine);
 }
 
+/// Constructs an engine from SYCL device, context, and allocator.
+///
+/// @param adevice SYCL device.
+/// @param acontext SYCL context.
+/// @param alloc The memory allocator associated to the engine.
+///
+/// @returns Created engine.
+inline engine make_engine(const cl::sycl::device &adevice,
+        const cl::sycl::context &acontext, const allocator &alloc) {
+    dnnl_graph_engine_t *c_engine;
+    error::check_succeed(
+            dnnl_graph_sycl_interop_engine_create_with_allocator(&c_engine,
+                    static_cast<const void *>(&adevice),
+                    static_cast<const void *>(&acontext), alloc.get()),
+            "could not create engine from sycl device and context");
+    return engine(c_engine);
+}
+
 /// Creates an execution stream for a given engine associated with a SYCL
 /// queue.
 ///

@@ -82,6 +82,15 @@ public:
         return new dnnl_graph_allocator {cpu_malloc, cpu_free};
     }
 
+    static dnnl_graph_allocator *create(const dnnl_graph_allocator *alloc) {
+#ifdef DNNL_GRAPH_WITH_SYCL
+        return new dnnl_graph_allocator {
+                alloc->sycl_malloc_, alloc->sycl_free_};
+#else
+        return new dnnl_graph_allocator {alloc->cpu_malloc_, alloc->cpu_free_};
+#endif
+    }
+
 #ifdef DNNL_GRAPH_WITH_SYCL
     static dnnl_graph_allocator *create(dnnl_graph_sycl_allocate_f sycl_malloc,
             dnnl_graph_sycl_deallocate_f sycl_free) {

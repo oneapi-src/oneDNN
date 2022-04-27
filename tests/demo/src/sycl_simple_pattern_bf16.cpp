@@ -153,10 +153,10 @@ int main(int argc, char **argv) {
     sycl::queue q = (engine_kind == engine::kind::gpu)
             ? sycl::queue(gpu_selector {}, sycl::property::queue::in_order {})
             : sycl::queue(cpu_selector {}, sycl::property::queue::in_order {});
-    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
+
     allocator alloc = sycl_interop::make_allocator(
             sycl_malloc_wrapper, sycl_free_wrapper);
-    eng.set_allocator(alloc);
+    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
 
     /// construct a new stream
     dnnl::graph::stream strm = sycl_interop::make_stream(eng, q);

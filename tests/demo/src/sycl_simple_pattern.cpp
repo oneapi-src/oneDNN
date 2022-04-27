@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -256,8 +256,7 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     ///
     /// @snippet sycl_simple_pattern.cpp Create engine
     //[Create engine]
-    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
-    eng.set_allocator(alloc);
+    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
     //[Create engine]
     
     /// Create a stream on the engine associated with a sycl queue.

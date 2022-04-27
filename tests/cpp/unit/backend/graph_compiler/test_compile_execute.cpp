@@ -387,10 +387,9 @@ TEST(GCGraphTest, AllocatorEarlyRelease) {
     }
     impl::compiled_partition_t cp(p);
     impl::allocator_t *allocator = impl::allocator_t::create();
-    impl::engine_t eng(impl::engine_kind::cpu,
-            0); // create a new engine rather than use test engine here to
+    impl::engine_t eng(impl::engine_kind::cpu, 0,
+            allocator); // create a new engine rather than use test engine here to
     // avoid release the default allocator of the test engine
-    eng.set_allocator(allocator);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     allocator->release(); // release the allocator
