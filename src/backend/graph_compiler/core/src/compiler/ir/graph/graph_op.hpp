@@ -17,6 +17,7 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_GRAPH_OP_HPP
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 #include "graph.hpp"
@@ -32,11 +33,21 @@ class fusion_manager;
 
 class graph_op_t : public sc_op {
 public:
+    graph_op_t() = default;
+
+    graph_op_t(const std::string &op_name,
+            const std::vector<graph_tensor_ptr> &producer_lt,
+            const std::vector<graph_tensor_ptr> &consumer_lt,
+            const any_map_t &attrs)
+        : sc_op(op_name, producer_lt, consumer_lt, attrs) {}
+
     ir_module_ptr get_func(context_ptr ctx) override;
+
     void query_format(context_ptr ctx,
             std::vector<std::vector<format_stride_pair>> &supported_ins,
             std::vector<std::vector<format_stride_pair>> &supported_outs)
             override {};
+
     virtual std::shared_ptr<sc_graph_t> get_graph_impl() = 0;
 
     virtual std::shared_ptr<sc_graph_t> get_graph();
@@ -48,6 +59,14 @@ public:
 class configurable_graph_op_t : public graph_op_t,
                                 public op_traits::configurable_t {
 public:
+    configurable_graph_op_t() = default;
+
+    configurable_graph_op_t(const std::string &op_name,
+            const std::vector<graph_tensor_ptr> &producer_lt,
+            const std::vector<graph_tensor_ptr> &consumer_lt,
+            const any_map_t &attrs)
+        : graph_op_t(op_name, producer_lt, consumer_lt, attrs) {}
+
     std::shared_ptr<sc_graph_t> get_graph() override;
 
     config_ptr get_config() override;
@@ -59,6 +78,38 @@ public:
 
 protected:
     sc::graph_config config_data_;
+};
+
+/**
+ * The nested graph op
+ * Used to convert a graph to a graph op which could be
+ * reused in other graph.
+ * Ins:
+ *  - The corresponding input tensors of the nested graph
+ * Outs:
+ *  - The corresponding output tensors of the nested graph
+ * Attrs:
+ * - The attribute of the op
+ * Graph:
+ * - The graph used to convert a graph to a nested graph op.
+ * */
+class SC_INTERNAL_API nested_graph_op_t : public configurable_graph_op_t,
+                                          public op_traits::copyable_t {
+public:
+    nested_graph_op_t(const std::string &op_name,
+            const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs,
+            sc_graph_t &&graph);
+
+    std::shared_ptr<sc_graph_t> get_graph_impl() override;
+
+    // linter has a false alarm to treat copy here as a STL function
+    sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
+            const std::vector<graph_tensor_ptr> &outs,
+            sc_graph_t &mgr) override;
+
+protected:
+    sc_graph_t graph_;
 };
 
 } // namespace sc

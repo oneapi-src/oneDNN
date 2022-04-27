@@ -18,6 +18,7 @@
 #include "lowering.hpp"
 #include "util/utils.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/graph/pass/pass.hpp>
 
 namespace sc {
 
@@ -61,4 +62,69 @@ config_ptr configurable_graph_op_t::get_default_config(context_ptr ctx) {
             sc::graph::get_graph_default_config(ctx, *op_graph));
 }
 
+nested_graph_op_t::nested_graph_op_t(const std::string &op_name,
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs,
+        sc_graph_t &&graph)
+    : configurable_graph_op_t(op_name, ins, outs, attrs)
+    , graph_(std::move(graph)) {
+    if (outs.empty()) {
+        for (auto &out_op : graph_.get_output_ops()) {
+            info_.outputs_.insert(info_.outputs_.end(),
+                    out_op->get_inputs().begin(), out_op->get_inputs().end());
+        }
+        info_.outputs_ = remake_logical_tensors(info_.outputs_);
+        for (auto &op : info_.outputs_) {
+            op->producer_owner_ = this;
+        }
+    }
+
+    auto required_input_tsenor_num = 0ul;
+    for (auto &in_op : graph_.get_input_ops()) {
+        required_input_tsenor_num += in_op->get_outputs().size();
+    }
+    COMPILE_ASSERT(required_input_tsenor_num == ins.size(),
+            "The number of input tensor "
+                    << ins.size() << " is incorrect. The required number is "
+                    << required_input_tsenor_num);
+
+    // create new input logical tensors
+    std::vector<graph_tensor_ptr> inputs, outputs;
+    inputs = remake_logical_tensors(info_.inputs_);
+
+    // combine all input op into one
+    int counter = 0;
+    for (auto &op : graph_.get_input_ops()) {
+        for (size_t idx = 0; idx < op->get_outputs().size(); ++idx) {
+            op->get_outputs()[idx]->replace_with(inputs.at(counter++));
+        }
+        op->remove();
+    }
+    auto in_op = graph_.make_input(inputs);
+
+    // combine all output op into one
+    counter = 0;
+    for (auto &op : graph_.get_output_ops()) {
+        outputs.insert(outputs.end(), op->get_inputs().begin(),
+                op->get_inputs().end());
+        op->remove();
+    }
+    auto out_op = graph_.make_output(outputs);
+
+    // delete those removed op
+    graph_.reset_op_ids();
+}
+
+std::shared_ptr<sc_graph_t> nested_graph_op_t::get_graph_impl() {
+    return std::make_shared<sc_graph_t>(copy_graph(graph_));
+}
+
+// linter has a false alarm to treat copy here as a STL function
+sc_op_ptr nested_graph_op_t::copy( // NOLINT
+        const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
+    auto ret = mgr.make<nested_graph_op_t>(
+            this->op_name_, ins, outs, attrs_, copy_graph(graph_));
+    return ret;
+}
 } // namespace sc
