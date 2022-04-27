@@ -250,6 +250,8 @@ struct brgemm_matmul_conf_utils_t {
         return bf32_dt && get_blocked_B();
     }
 
+    inline bool is_any_B_layout() const { return B_any_layout; }
+
     status_t set_or_check_B_tag(
             memory_desc_t &B_md, bool init_n_tag = true) const;
     status_t update_and_check_B_tag(memory_desc_t &B_md, int n_blk_size) const;

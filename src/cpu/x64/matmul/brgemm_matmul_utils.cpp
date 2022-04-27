@@ -892,6 +892,13 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         bgmmc.C_strides[d] = bgmmc.c_dt_sz * dst_d.blocking_desc().strides[dim];
     }
 
+    // BF32 'Hint' Heuristic:
+    // Under the following conditions, F32 through AVX512_CORE performs better
+    // than using BF32 arithmetic.
+    if (bgmmc.is_bf32 && (bgmmc.M < 8)
+            && ((bgmmc.wei_tag == abcd) || bm_conf_utils.is_any_B_layout()))
+        return status::unimplemented;
+
     // Heuristic tries to optimize the following parameters:
     // - M_blk, M_Chunk
     // - N_blk, N_Chunk
