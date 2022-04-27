@@ -69,14 +69,6 @@ bool check_producer_input_num(op_t *op) {
     return producer->num_inputs() == N;
 }
 
-template <impl::op_kind_t KIND>
-bool check_successor_op_kind(op_t *op) {
-    auto out_value = op->get_output_value(0);
-    if (out_value->get_consumers().empty()) return false;
-    auto &successor = out_value->get_consumers()[0].get_op();
-    return successor.get_kind() == KIND;
-}
-
 inline const std::vector<impl::op_kind_t> &get_unary_ops() {
     const static std::vector<impl::op_kind_t> unary = {impl::op_kind::Abs,
             impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
