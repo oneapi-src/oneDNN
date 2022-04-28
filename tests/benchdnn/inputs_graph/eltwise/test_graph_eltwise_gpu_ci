@@ -5,7 +5,7 @@
 --dt=f32
 --tag=abx
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,hardswish,log,soft_relu,sqrt
+--alg=abs,exp,gelu_erf,hardswish,log,round,soft_relu,sqrt
 64x16x28x28
 
 --alpha=0 --beta=2

@@ -11,7 +11,7 @@
 --reset
 
 --inplace=false
---alg=ADD,MUL,MAX,MIN
+--alg=ADD,DIV,MUL,MAX,MIN
 
 --ddt=f32 --sdt=f32:f32
 --attr-post-ops=,relu,logistic

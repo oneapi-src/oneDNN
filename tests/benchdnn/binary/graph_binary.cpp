@@ -76,13 +76,6 @@ void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
 
 void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
     using p = attr_t::post_ops_t;
-    // TODO (kgajdamo):
-    // Divide op is not supported at the moment.
-    // Remove below when divide will be enabled.
-    if (prb->alg == p::kind_t::DIV) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
     // Binary ops supports relu, sigmoid, sum and binary post-ops.
     // Other cases are being skipped.
     for (const auto &po : prb->attr.post_ops.entry) {

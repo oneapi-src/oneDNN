@@ -6,7 +6,7 @@
 --tag=abx,axb
 
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,hardswish,log,soft_relu,sqrt,square,tanh,logistic,logsigmoid
+--alg=abs,exp,gelu_erf,hardswish,log,round,soft_relu,sqrt,square,tanh,logistic,logsigmoid
 64x512x28x28
 
 --alpha= --beta=
@@ -15,6 +15,12 @@
 
 --alpha= --beta=0
 --alg=elu
+64x512x28x28
+
+#eltwise binary fusion -TODO - add per_tensor POLICY case
+--alpha=0 --beta=0
+--alg=abs,exp,gelu_erf,hardswish
+--attr-post-ops=add:f32,div:f32,sub:f32,mul:f32,min:f32
 64x512x28x28
 
 #all supported algs bwd
