@@ -173,13 +173,24 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     }
 
     if (use_sp_blocking) {
+        if (is_dw) bh->set_pref_tg_block(osp_name);
         bh->allow_split({osp_name, "mb"});
         bh->reorder({osp_name, "mb"});
     } else {
+        if (!is_dw && ow > 256)
+            bh->set_pref_tg_block("oc");
+        else if (is_dp_fma() && mb >= 16)
+            bh->set_pref_tg_block(osp_name);
         bh->reorder({"mb", osp_name});
         if (mb >= 128 && (fuse_spatial ? osp : ow) % 4 != 0)
             bh->allow_split({"mb"});
     }
+
+    if (is_dp_fma()) { bh->set_base_iter_block("oc", 32); }
+
+    if (mb < 8 && !bh->any_pref_tg_block())
+        bh->set_pref_tg_block(ow > oc ? osp_name : "oc");
+
     bh->reorder({"ic", "kw"});
 
     bh->compute();
