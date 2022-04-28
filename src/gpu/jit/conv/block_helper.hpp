@@ -179,6 +179,8 @@ public:
         ir_assert(idx >= min_tile_level_idx && idx <= max_tile_level_idx);
         return max_tile_dims_[idx];
     }
+    bool pref_tg_block() { return pref_tg_block_; }
+    void set_pref_tg_block(bool value = true) { pref_tg_block_ = value; }
     void set_tg_dim(dim_value_t value) { set_dim(tile_level_t::tg, value); }
     void set_thr_dim(dim_value_t value) { set_dim(tile_level_t::thr, value); }
     void set_iter_dim(dim_value_t value) { set_dim(tile_level_t::iter, value); }
@@ -283,6 +285,8 @@ private:
 
     // Whether the dimension can be split between multiple tile levels.
     bool allow_split_ = false;
+
+    bool pref_tg_block_ = false;
 
     // Dimensions with smaller order keys are tiled first.
     int order_key_ = -1;
@@ -398,6 +402,17 @@ public:
 
     void set_max_tg_dim(const std::string &name, int value) {
         dim(name).set_max_dim(tile_level_t::tg, value);
+    }
+    void set_pref_tg_block(const std::string &name, bool value = true) {
+        dim(name).set_pref_tg_block(value);
+    }
+
+    bool any_pref_tg_block() {
+        for (auto &kv : dims_) {
+            auto &d = kv.second;
+            if (d.pref_tg_block()) return true;
+        }
+        return false;
     }
 
     void allow_fuse(std::initializer_list<std::string> names) {
@@ -601,6 +616,7 @@ private:
         for (auto &kv : dims_) {
             auto &d = kv.second;
             auto &bmnk_d = bmnk_dim(d.bmnk());
+            if (d.pref_tg_block()) bmnk_d.set_pref_tg_block();
             bmnk_d.set_size(bmnk_d.size() * d.size());
             bmnk_d.set_base_iter_block(
                     bmnk_d.base_iter_block() * d.base_iter_block());

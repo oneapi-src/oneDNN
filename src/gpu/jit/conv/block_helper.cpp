@@ -381,7 +381,8 @@ void block_helper_t::init_bmnk_blocks() {
                     && m_dim().base_iter_block() == 1;
             m_blk = (is_x8x8s32() || use_small_m_block ? 8 : 16);
             bool small_m_tg = m_dim().base_iter_block() == 1
-                    && hw_cfg_.hw() == ngen::HW::XeHPG;
+                    && hw_cfg_.hw() == ngen::HW::XeHPG
+                    && !m_dim().pref_tg_block();
             m_dim().set_max_dim(tile_level_t::tg, small_m_tg ? 1 : 4);
             bn_blk = hw_cfg_.vec_size();
             k_blk = compute_mad_k_block();
@@ -486,6 +487,8 @@ void block_helper_t::init_bmnk_blocks() {
         // Compute max thread group blocks, independently for each dimension.
         std::vector<char> tg_bmnks = {vectorize_by_b() ? 'B' : 'N', 'M'};
         std::vector<int> tg_dims(tg_bmnks.size(), 1);
+        bool any_pref_dim = false;
+        int *split_dim_idx;
         for (size_t i = 0; i < tg_bmnks.size(); i++) {
             auto &d = bmnk_dim(tg_bmnks[i]);
             int i_max_tg_dim = min(target_tg_size, d.max_dim(tile_level_t::tg));
@@ -494,6 +497,13 @@ void block_helper_t::init_bmnk_blocks() {
                     / d.iter_dim();
             tg_dim = utils::rnd_down_pow2(tg_dim);
             tg_dims[i] = tg_dim;
+            if (d.pref_tg_block()) {
+                //only one preferred dim allowed
+                assert(!any_pref_dim);
+                any_pref_dim = true;
+            } else {
+                split_dim_idx = &tg_dims.at(i);
+            }
         }
 
         auto total_tg_dim = [&]() {
@@ -501,6 +511,7 @@ void block_helper_t::init_bmnk_blocks() {
                     tg_dims.begin(), tg_dims.end(), 1, std::multiplies<int>());
         };
         auto max_tg_dim = [&]() -> int & {
+            if (any_pref_dim && *split_dim_idx > 1) return *split_dim_idx;
             return *std::max_element(tg_dims.begin(), tg_dims.end());
         };
 
