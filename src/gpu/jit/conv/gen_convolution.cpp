@@ -137,8 +137,8 @@ public:
         try {
             auto &cfg = get_cfg(primitive);
 
-            ir_trace() << "Configuration:" << std::endl;
-            ir_trace() << cfg;
+            ir_info() << "Configuration:" << std::endl;
+            ir_info() << cfg;
 
             auto &kernel_infos = primitive->pd()->kernel_infos;
             for (int i = 0; i < int(kernel_infos.size()); i++) {

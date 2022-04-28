@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ namespace ir_utils {
 
 const int LOG_OFF = 0;
 const int LOG_WARNING = 100;
+const int LOG_INFO = 150;
 const int LOG_TRACE = 200;
 
 #ifdef GEN_CONV_DEBUG
@@ -248,6 +249,10 @@ private:
     std::ostream &out_;
     bool is_first_print_ = true;
 };
+
+#define ir_info() \
+    ir_utils::logger_t<ir_utils::LOG_INFO>::is_enabled() \
+            && ir_utils::logger_t<ir_utils::LOG_INFO>()
 
 #define ir_warning() \
     ir_utils::logger_t<ir_utils::LOG_WARNING>::is_enabled() \
