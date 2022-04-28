@@ -6136,11 +6136,12 @@ void gemm_kernel_generator_t<hw>::updateC(const GRFMultirange &C_acc,
 
     if (problem.hasPostOp()) {
         Label labelPostOpDone;
-        auto flagNonfinal = state.raVFlag.alloc();
+        bool allocFlag = strategy.altCRemainder;
+        auto flagNonfinal = allocFlag ? state.raVFlag.alloc() : state.flagAP;
         and_(1 | nz | flagNonfinal, null.ud(), state.inputs.flags,
                 FlagNonfinalKBlock);
         jmpi(1 | flagNonfinal, labelPostOpDone);
-        state.raVFlag.safeRelease(flagNonfinal);
+        if (allocFlag) state.raVFlag.safeRelease(flagNonfinal);
         if (state.Tacc != Type::f32 || !postOpInjector) stub();
         for (const auto &range : C_acc.ranges)
             postOpInjector->compute(range);
