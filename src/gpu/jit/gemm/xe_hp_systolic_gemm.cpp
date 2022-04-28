@@ -738,10 +738,13 @@ xe_hp_systolic_gemm_t::get_blocking() const {
     // Decide on k blocking.
     int64_t block_k = compute_info_.blocking[LoopK];
     int64_t nblock_k = utils::div_up(k, block_k);
+    nblock_k = nstl::max<int64_t>(nblock_k, 1);
     block_k = utils::div_up(k, nblock_k);
+    block_k = nstl::max<dim_t>(block_k, 1);
     block_k = utils::rnd_up(
             (pd()->desc()->acc_type != pd()->desc()->c_type()) ? k : block_k,
             unroll_k);
+    block_k = nstl::max<dim_t>(block_k, 1);
 
     return std::make_tuple(block_m, block_n, block_k);
 }
@@ -1014,7 +1017,7 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         if (status) return status;
     }
 
-    for (int64_t Bk = 0; Bk < k; Bk += block_k) {
+    for (int64_t Bk = 0; Bk < nstl::max<dim_t>(k, 1); Bk += block_k) {
         int64_t size_k = k - Bk;
         bool first_k_block = (Bk == 0);
         bool last_k_block = (size_k <= block_k);

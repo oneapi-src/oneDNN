@@ -262,7 +262,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     int32_t k0 = 1;
     if (k_parallel_local || k_parallel_global) {
         k0 = block_k;
-        block_k = k;
+        block_k = nstl::max<dim_t>(k, 1);
 
         if (k_parallel_global && beta != 1.0f
                 && (k > k0 * nocopy_info()->wg[2])) {
@@ -273,7 +273,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         }
     }
 
-    for (int64_t Bk = 0; Bk < k; Bk += block_k) {
+    for (int64_t Bk = 0; Bk < nstl::max<dim_t>(k, 1); Bk += block_k) {
         int64_t size_k = k - Bk;
         bool last_k_block = (size_k <= block_k);
         if (!last_k_block) size_k = block_k;
