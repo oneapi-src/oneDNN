@@ -150,8 +150,7 @@ created with an engine kind and a device id. The engine kind should be the same
 as the one used to create the graph.
 
 ~~~cpp
-int device_id = 0;
-engine e {engine_kind, device_id};
+engine e {engine_kind, 0};
 ~~~
 
 In oneDNN Graph, a

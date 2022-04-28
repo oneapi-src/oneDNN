@@ -145,9 +145,8 @@ In oneDNN Graph, SYCL extension APIs reside in the namespace
 [dnnl_graph_sycl.hpp](../../include/oneapi/dnnl/dnnl_graph_sycl.hpp).
 
 ~~~cpp
-engine eng = sycl_interop::make_engine(q.get_device(), q.get_context());
 allocator alloc = sycl_interop::make_allocator(sycl_malloc_wrapper, sycl_free_wrapper);
-eng.set_allocator(alloc);
+engine eng = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
 ~~~
 
 At runtime, the information about a tensor should be known, including `shape`
