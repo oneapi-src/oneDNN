@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,8 @@ struct gen9_sum_t : public gpu_primitive_t {
 
             if (n > max_num_arrs) return status::unimplemented;
 
-            bool ok = gpu_sum_pd_t::init(engine) == status::success;
+            bool ok = gpu_sum_pd_t::init(engine) == status::success
+                    && !memory_desc_ndims_ok(dst_md());
 
             if (!ok) return status::unimplemented;
 

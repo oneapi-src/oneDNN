@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,8 @@ struct gen9_concat_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = n_inputs() <= 16 && attr()->has_default_values()
-                    && set_default_params() == status::success;
+                    && set_default_params() == status::success
+                    && !memory_desc_ndims_ok(dst_md());
             if (!ok) return status::unimplemented;
 
             return init_conf(engine);

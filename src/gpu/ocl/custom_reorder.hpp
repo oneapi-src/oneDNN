@@ -55,7 +55,7 @@ struct custom_reorder_t : public gpu_primitive_t {
                     dst_engine->kind() == engine_kind::gpu ? dst_engine
                                                            : src_engine);
 
-            ok = ok
+            ok = ok && !memory_desc_ndims_ok(src_md(), dst_md())
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(

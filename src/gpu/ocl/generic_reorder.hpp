@@ -56,6 +56,7 @@ struct generic_reorder_t : public gpu_primitive_t {
             ok = ok
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
+                    && !memory_desc_ndims_ok(src_md(), dst_md())
                     && IMPLICATION(
                             utils::one_of(data_type::f16, src_md()->data_type,
                                     dst_md()->data_type),

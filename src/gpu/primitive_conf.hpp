@@ -35,6 +35,15 @@ namespace gpu {
 #define MAX_NDIMS 6
 #define MAX_POST_OPS_SUPPORTED 32
 
+inline bool memory_desc_ndims_ok(const memory_desc_t *md) {
+    return md->ndims > MAX_NDIMS;
+}
+
+template <typename T, typename... Rest>
+bool memory_desc_ndims_ok(const T *first, const Rest *... rest) {
+    return memory_desc_ndims_ok(first) || memory_desc_ndims_ok(rest...);
+}
+
 struct memory_desc_info_t {
     // Max levels of blocking
     static const int max_nlevels = 3;

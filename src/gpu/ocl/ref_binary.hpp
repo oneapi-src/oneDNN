@@ -54,6 +54,7 @@ struct ref_binary_t : public gpu_primitive_t {
                                             f32, s8, u8)
                                     && utils::one_of(dst_md()->data_type, f16,
                                             f32, s8, u8)))
+                    && !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md())
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask())
                     && attr()->has_default_values(attr_skip_mask)

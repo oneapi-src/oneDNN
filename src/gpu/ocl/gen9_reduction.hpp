@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ struct gen9_reduction_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = set_default_params() == status::success
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && !memory_desc_ndims_ok(src_md(), dst_md());
             if (!ok) return status::unimplemented;
 
             CHECK(init_conf(engine));

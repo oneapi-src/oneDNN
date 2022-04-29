@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ struct ref_reduction_t : public gpu_primitive_t {
             const auto attr_skip_mask = sm::post_ops;
 
             const bool ok = set_default_params() == status::success
+                    && !memory_desc_ndims_ok(src_md(), dst_md())
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
                     && attr_.set_default_formats(dst_md(0)) == status::success;

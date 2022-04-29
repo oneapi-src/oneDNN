@@ -52,6 +52,7 @@ struct gen9_binary_t : public gpu_primitive_t {
                     = is_broadcast() && !conf.is_ncX_layout;
             bool ok = set_default_params() == status::success
                     && !is_blkd_broadcast
+                    && !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md())
                     && (utils::everyone_is(bf16, src_md(0)->data_type,
                                 src_md(1)->data_type, dst_md()->data_type)
                             || (utils::one_of(

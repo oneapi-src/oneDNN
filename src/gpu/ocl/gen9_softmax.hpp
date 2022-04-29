@@ -52,6 +52,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             bool ok = is_fwd() && axis_size() % 128 == 0
+                    && !memory_desc_ndims_ok(src_md(), dst_md())
                     && axis() == src_d.ndims() - 1 && src_d.is_plain()
                     && utils::one_of(src_dt, f32, f16, bf16, u8, s8)
                     && utils::one_of(dst_dt, f32, f16, bf16, u8, s8)
@@ -143,6 +144,8 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
 
             using namespace data_type;
             bool ok = !is_fwd() && axis_size() % 128 == 0
+                    && !memory_desc_ndims_ok(
+                            dst_md(), diff_src_md(), diff_dst_md())
                     && axis() == diff_src_d.ndims() - 1
                     && utils::one_of(diff_src_d.data_type(), f32, bf16)
                     && utils::one_of(diff_dst_d.data_type(), f32, bf16)

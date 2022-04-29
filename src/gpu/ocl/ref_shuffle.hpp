@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +49,10 @@ struct ref_shuffle_t : public gpu_primitive_t {
                             (int)types::data_type_size(data_md()->data_type), 1,
                             2, 4)
                     && attr()->has_default_values()
+                    && IMPLICATION(
+                            is_fwd(), !memory_desc_ndims_ok(src_md(), dst_md()))
+                    && IMPLICATION(!is_fwd(),
+                            !memory_desc_ndims_ok(diff_src_md(), diff_dst_md()))
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
                             compute_engine->mayiuse(

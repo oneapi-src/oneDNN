@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,9 @@ struct ref_prelu_fwd_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
 
             bool ok = is_fwd() && set_default_formats()
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && !memory_desc_ndims_ok(
+                            src_md(0), dst_md(0), weights_md(0));
 
             if (!ok) return status::unimplemented;
 
@@ -96,7 +98,9 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
 
             bool ok = !is_fwd() && set_default_formats()
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && !memory_desc_ndims_ok(
+                            diff_src_md(0), diff_dst_md(0), diff_weights_md(0));
 
             if (!ok) return status::unimplemented;
 

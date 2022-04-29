@@ -57,6 +57,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
                     && compute_engine->mayiuse_sub_group(16)
+                    && !memory_desc_ndims_ok(src_md(), dst_md())
                     && attr()->has_default_values(skip_mask_t::oscale)
                     && attr_oscale_ok()
                     && set_default_formats() == status::success;
@@ -170,6 +171,8 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
                     && utils::one_of(diff_src_d.data_type(), f32, bf16)
                     && utils::one_of(diff_dst_d.data_type(), f32, bf16)
                     && compute_engine->mayiuse_sub_group(16)
+                    && !memory_desc_ndims_ok(
+                            dst_md(), diff_src_md(), diff_dst_md())
                     && attr()->has_default_values()
                     && set_default_formats() == status::success
                     && diff_dst_d.data_type() == dst_d.data_type();

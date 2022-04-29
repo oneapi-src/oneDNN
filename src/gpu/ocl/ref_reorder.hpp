@@ -42,6 +42,7 @@ struct ref_reorder_t : public gpu_primitive_t {
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
             bool ok = src_engine == dst_engine
+                    && !memory_desc_ndims_ok(src_md(), dst_md())
                     && src_engine->kind() == engine_kind::gpu && attr_ok()
                     && extra_ok();
             if (!ok) return status::unimplemented;

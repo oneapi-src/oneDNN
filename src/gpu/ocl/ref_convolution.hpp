@@ -67,6 +67,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64)
                                     && attr()->post_ops_.has_default_values())
+                    && !memory_desc_ndims_ok(src_md(), weights_md(), dst_md())
                     && this->set_default_formats()
                     && attr()->has_default_values(
                             attr_skip_mask, dst_md_.data_type)
@@ -179,6 +180,7 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_data
                     && desc()->alg_kind == alg_kind::convolution_direct
+                    && !memory_desc_ndims_ok(diff_src_md(), diff_dst_md())
                     && this->set_default_formats()
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
@@ -248,6 +250,7 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_weights
                     && desc()->alg_kind == alg_kind::convolution_direct
+                    && !memory_desc_ndims_ok(src_md(), diff_dst_md())
                     && utils::one_of(
                             desc()->diff_weights_desc.data_type, f32, bf16)
                     && utils::one_of(desc()->src_desc.data_type, f32, bf16)
