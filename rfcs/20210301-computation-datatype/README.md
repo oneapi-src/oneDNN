@@ -152,26 +152,26 @@ different behavior is agreed upon.
 As usual, we would introduce the setter and getter for the FP math mode attribute.
 
 ```c++
-dnnl_status_t DNNL_API dnnl_primitive_attr_set_fp_math_mode(
-        dnnl_primitive_attr_t attr, dnnl_fp_math_mode_t mode);
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_fpmath_mode(
+        dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t mode);
 
-dnnl_status_t DNNL_API dnnl_primitive_attr_get_fp_math_mode(
-        dnnl_primitive_attr_t attr, dnnl_fp_math_mode_t *mode);
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_fpmath_mode(
+        dnnl_primitive_attr_t attr, dnnl_fpmath_mode_t *mode);
 ```
 
 The math mode attribute will have the following values:
 ```c++
 typedef enum {
-    dnnl_fp_math_mode_strict, // default behavior, described in doc
-    dnnl_fp_math_mode_bf16,   // implicit f32->bf16 conversion allowed
-    dnnl_fp_math_mode_f16,    // implicit f32->f16 conversion allowed
-    dnnl_fp_math_mode_any,    // implicit f32->f16 or f32->bf16 conversion allowed
-} dnnl_fp_math_mode_t;
+    dnnl_fpmath_mode_strict, // default behavior, described in doc
+    dnnl_fpmath_mode_bf16,   // implicit f32->bf16 conversion allowed
+    dnnl_fpmath_mode_f16,    // implicit f32->f16 conversion allowed
+    dnnl_fpmath_mode_any,    // implicit f32->f16 or f32->bf16 conversion allowed
+} dnnl_fpmath_mode_t;
 ```
 
 As mentioned in the previous section, these will apply only to
 primitives created with floating-point computation. Using any value
-other value than `dnnl_fp_math_mode_strict` for primitives with
+other value than `dnnl_fpmath_mode_strict` for primitives with
 integer computation data-type should return `invalid`. As a first
 step, we would allow implicit down-conversion only to formats that are
 at least as accurate as the format specified in the math mode (so same
@@ -192,7 +192,7 @@ support implicit down-conversion from any FP data-type (hence why the
 enum and attribute name mentions `fp` and not `f32`).
 
 We could reuse the `dnnl_data_type_t` enum type instead of introducing
-a `dnnl_fp_math_mode_t` enum type, but I believe it is better to keep
+a `dnnl_fpmath_mode_t` enum type, but I believe it is better to keep
 them separate as
 1. it does not make sense to have `dnnl_datatype_any` for data_type
 2. and we don't want to support integer types.
@@ -200,7 +200,7 @@ them separate as
 ## 3.2 New environment variable and associated function.
 
 To allow end-users to experiment with down-conversion without depending
-on FWK/toolkit knobs, we would introduce a `DNNL_DEFAULT_FP_MATH_MODE`
+on FWK/toolkit knobs, we would introduce a `DNNL_DEFAULT_FPMATH_MODE`
 environment variable. This would change the `default` value for the
 math mode attribute. The accepted values would be:
 - `STRICT` to disable implicit down-conversion. This would be the
@@ -215,7 +215,7 @@ As usual, we would introduce the corresponding function APIs, which
 supersedes the environment variable.
 
 ```c++
-dnnl_status_t DNNL_API dnnl_set_default_fp_math_mode(dnnl_fp_math_mode_t mode);
+dnnl_status_t DNNL_API dnnl_set_default_fpmath_mode(dnnl_fpmath_mode_t mode);
 ```
 
 Because some users create primitives in parallel, this setting should
@@ -228,7 +228,7 @@ There are two kind of information a user might need/want:
   exactly what was passed to the API and aligns with the other
   attributes.
 2. The computation data-type of a primitive when down-conversion
-  happens. Since the `fp_math_mode` is a hint, users might want to
+  happens. Since the `fpmath_mode` is a hint, users might want to
   know about when down-conversion effectively happens, vs when it
   could happen.
 
@@ -240,5 +240,5 @@ Here the proposal is to stick with option 1 through verbose for
 now. If a need arise for option 2, we can still extend the verbose
 with the primitive computation type.  Regarding the string we would
 print, as usual, we have to pick a shortname (e.g. `fpm:strict` for
-`dnnl_fp_math_mode_strict`, ...).
+`dnnl_fpmath_mode_strict`, ...).
 
