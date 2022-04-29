@@ -837,6 +837,12 @@ dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str) {
 }
 
 dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
+    if (std::strcmp(str, "") == 0) {
+        dnnl_fpmath_mode_t ret;
+        dnnl_get_default_fpmath_mode(&ret);
+        return ret;
+    }
+
 #define CASE(fpm) \
     param = #fpm; \
     if (!strncasecmp(param, str, strlen(param))) return dnnl_fpmath_mode_##fpm;
