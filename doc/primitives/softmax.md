@@ -123,8 +123,11 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 
 ## Implementation Limitations
 
-1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
-   limitations related to data types support.
+1. Refer to @ref dev_guide_data_types for limitations related to data types
+   support.
+
+2. **GPU**
+   - Only tensors of 6 or fewer dimensions are supported.
 
 ## Performance Tips
 

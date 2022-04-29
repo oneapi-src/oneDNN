@@ -77,6 +77,9 @@ The concat primitive does not support any post-ops or attributes.
 2. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
+2. **GPU**
+   - Only tensors of 6 or fewer dimensions are supported.
+
 ## Performance Tips
 
 1. Whenever possible, avoid specifying the destination memory format so that the

@@ -118,6 +118,9 @@ The shuffle primitive does not support any post-ops or attributes.
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
+2. **GPU**
+   - Only tensors of 6 or fewer dimensions are supported.
+
 ## Performance Tips
 
 N/A

@@ -96,6 +96,9 @@ meaning associated with any of the dimensions of a tensor.
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
+2. **GPU**
+   - Only tensors of 6 or fewer dimensions are supported.
+
 ## Performance Tips
 
 1. Whenever possible, avoid specifying different memory formats for source
