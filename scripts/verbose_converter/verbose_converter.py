@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ################################################################################
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ from argparse import RawTextHelpFormatter
 from src import utils
 from src import writer
 
-def convert(verbose_level, parser, input, action, generator, split_output):
+def convert(verbose_level, parser, input, action, generator, split_output, agg_keys):
     status = utils.check_version()
     if status != utils.status.get('SUCCESS'):
         return status
@@ -44,16 +44,21 @@ def convert(verbose_level, parser, input, action, generator, split_output):
     if action == 'dumpIR':
         logger.print(f'Dumping data from input...', 'INFO')
         log_parser.dump(True)
+
     if action == 'generate':
+        logger.print(f'Generating output ...', 'INFO')
         if generator == 'benchdnn':
             from src import benchdnn_generator
             gen = benchdnn_generator.InputGenerator(logger)
+            output = gen.generate(log_parser.get_data(), split_output)
+        elif generator == "breakdown":
+            from src import breakdown_generator
+            gen = breakdown_generator.BreakdownGenerator(logger)
+            output = gen.generate(log_parser.get_data(), agg_keys)
         else:
             logger.print("Error: unsupported generator", 'STDIO')
             return utils.status.get('FAILED')
 
-        logger.print(f'Generating output ...', 'INFO')
-        output = gen.generate(log_parser.get_data(), split_output)
     return utils.status.get('SUCCESS'), output
 
 def validate_option(value, supported_values, str):
@@ -68,10 +73,10 @@ def main():
         return status
 
     action_opts = ["generate", "dumpIR"]
-    generator_opts = ["benchdnn"]
+    generator_opts = ["benchdnn", "breakdown"]
     parser_opts = ["oneDNN"]
     verbose_opts = ["0", "1"]
-
+    aggregate_opts = ['engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'alg_kind', 'shapes']
     args_parser = argparse.ArgumentParser(description='oneDNN log converter',
                                           formatter_class=RawTextHelpFormatter)
     args_parser.add_argument('-i',
@@ -94,6 +99,12 @@ def main():
         type=bool,
         default=False,
         help='split generated inputs by primitive kinds (default: False)')
+    args_parser.add_argument(
+        '-k',
+        '--aggregate',
+        nargs='+',
+        default=aggregate_opts,
+        help=f'aggregates statistics on the specified keys (default: all keys but time).\nValues: {aggregate_opts}')
     args_parser.add_argument(
         '-v',
         '--verbose_level',
@@ -145,7 +156,8 @@ def main():
                              input=input_data,
                              action=args.action,
                              generator=args.generator,
-                             split_output=args.split)
+                             split_output=args.split,
+                             agg_keys=args.aggregate)
 
     if status != utils.status.get('SUCCESS'):
         return status

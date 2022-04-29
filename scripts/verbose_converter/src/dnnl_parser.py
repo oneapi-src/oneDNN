@@ -298,7 +298,7 @@ class LogParser:
                     if opt == "prim_template":
                         verbose_template = "onednn_verbose," + line.split(':')[1]
                 if event == "exec":
-                    l_converted = convert_primitive(l_raw, verbose_template)
+                    l_converted = convert_primitive(l_raw, verbose_template + ',exec_time')
                     if l_converted:
                         self.__data[i] = l_converted
                         i = i + 1
