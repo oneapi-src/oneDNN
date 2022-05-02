@@ -728,12 +728,11 @@ public:
     /// @returns The underlying memory buffer
     template <typename T>
     typename std::add_pointer<T>::type get_data_handle() const {
-        void *data_handle {};
+        void *handle {};
         error::check_succeed(dnnl_graph_tensor_get_if_type(
-                                     get(), get_data_type<T>(), &data_handle),
+                                     get(), get_data_type<T>(), &handle),
                 "could not get data handle from the tensor");
-        return reinterpret_cast<typename std::add_pointer<T>::type>(
-                data_handle);
+        return reinterpret_cast<typename std::add_pointer<T>::type>(handle);
     }
 
     /// Sets the underlying memory buffer

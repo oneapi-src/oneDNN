@@ -178,21 +178,21 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_destroy(
 ///
 /// @param tensor The input tensor.
 /// @param type Expected data type of the tensor.
-/// @param data_handle Pointer to the data of input tensor.
+/// @param handle Pointer to the data of input tensor.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
         const dnnl_graph_tensor_t *tensor, dnnl_graph_data_type_t type,
-        void **data_handle);
+        void **handle);
 
 /// Set data handle for tensor
 ///
 /// @param tensor The input tensor.
-/// @param data_handle New data_handle for tensor.
+/// @param handle New data handle for tensor.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
-        dnnl_graph_tensor_t *tensor, void *data_handle);
+        dnnl_graph_tensor_t *tensor, void *handle);
 
 /// Returns the engine of a tensor object.
 ///
