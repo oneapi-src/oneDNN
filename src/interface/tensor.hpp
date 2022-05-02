@@ -22,9 +22,9 @@
 #include <utility>
 #include <vector>
 
-#include "c_types_map.hpp"
-#include "engine.hpp"
-#include "logical_tensor.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/engine.hpp"
+#include "interface/logical_tensor.hpp"
 
 struct dnnl_graph_tensor {
 public:
