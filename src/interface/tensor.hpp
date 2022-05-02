@@ -27,33 +27,33 @@ public:
 
     dnnl_graph_tensor(const dnnl::graph::impl::logical_tensor_t &lt,
             const dnnl::graph::impl::engine_t *eng, void *handle)
-        : tensor_desc_(lt), eng_(eng), data_handle_(handle) {}
+        : lt_(lt), eng_(eng), handle_(handle) {}
 
     bool is(dnnl::graph::impl::data_type_t dtype) const {
-        return dtype == tensor_desc_.data_type;
+        return dtype == lt_.data_type;
     }
 
     template <typename Value>
     typename std::add_pointer<Value>::type get_data_handle() const {
         return is(get_data_type<Value>())
                 ? reinterpret_cast<typename std::add_pointer<Value>::type>(
-                        data_handle_)
+                        handle_)
                 : nullptr;
     }
 
-    void *get_data_handle() const { return data_handle_; }
+    void *get_data_handle() const { return handle_; }
 
     void *get_data_handle_if_is(dnnl::graph::impl::data_type_t type) const {
-        return is(type) ? data_handle_ : nullptr;
+        return is(type) ? handle_ : nullptr;
     }
 
-    void set_data_handle(void *handle) { data_handle_ = handle; }
+    void set_data_handle(void *handle) { handle_ = handle; }
 
     const dnnl::graph::impl::logical_tensor_t &get_logical_tensor() const {
-        return tensor_desc_;
+        return lt_;
     }
 
-    operator bool() const { return data_handle_ != nullptr; }
+    operator bool() const { return handle_ != nullptr; }
 
     const dnnl::graph::impl::engine_t *get_engine() const { return eng_; }
 
@@ -70,9 +70,10 @@ private:
             return dnnl::graph::impl::data_type::undef;
     }
 
-    dnnl::graph::impl::logical_tensor_t tensor_desc_;
+    dnnl::graph::impl::logical_tensor_t lt_
+            = dnnl::graph::impl::zero_logical_tensor();
     const dnnl::graph::impl::engine_t *eng_ {nullptr};
-    void *data_handle_ {nullptr};
+    void *handle_ {nullptr};
 };
 
 #endif
