@@ -17,11 +17,6 @@
 #ifndef INTERFACE_TENSOR_HPP
 #define INTERFACE_TENSOR_HPP
 
-#include <functional>
-#include <numeric>
-#include <utility>
-#include <vector>
-
 #include "interface/c_types_map.hpp"
 #include "interface/engine.hpp"
 #include "interface/logical_tensor.hpp"
