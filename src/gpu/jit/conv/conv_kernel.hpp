@@ -2725,86 +2725,118 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return step;
     };
 
-    // bf16 -> f32:
-    // - bf16 must be packed: use left shift instead.
-    if (src_bf && dst_f) {
-        int step = get_step();
-        for (int i = 0; i < width; i += step) {
-            step = std::min(step, width - i);
-            step = utils::rnd_down_pow2(step);
-            int esize = step;
-            auto s = src.subregister(
-                    i, esize, src_stride_bytes, ngen::DataType::uw);
-            auto d = dst.subregister(
-                    i, esize, dst_stride_bytes, ngen::DataType::ud);
-            host->eshl(esize, d(dst_stride), s(src_stride), 16);
+    enum class conversion_t {
+        // Naming convention to reduce number of enums: Support any conversion
+        // from <src_dt_set> to <dst_dt_set> for enums with form
+        // <src_dt_set>_to_<dst_dt_set>
+        unsupported,
+        none,
+        bf_to_f,
+        d_to_bf_hf,
+        d_f_hf_to_b,
+        b_to_d_f,
+    };
+
+    conversion_t conversion = [&]() {
+        if (src_type == dst_type) {
+            return conversion_t::none;
+        } else if (src_bf && dst_f) {
+            return conversion_t::bf_to_f;
+        } else if (src_d && (dst_bf || dst_hf)) {
+            return conversion_t::d_to_bf_hf;
+        } else if ((src_d || src_f || src_hf) && dst_b) {
+            return conversion_t::d_f_hf_to_b;
+        } else if ((dst_d || dst_f) && src_b) {
+            return conversion_t::b_to_d_f;
+        } else {
+            return conversion_t::unsupported;
         }
-        return;
-    }
+    }();
 
-    // d -> bf/hf:
-    // - Use d -> f -> bf/hf conversion with temporary
-    if (src_d && (dst_bf || dst_hf)) {
-        auto tmp = scope.alloc_reg_buf_data(
-                                utils::div_up(
-                                        int(width * sizeof(float)), grf_size))
-                           .format(0, ngen::DataType::f);
-        emit_reorder_1d_tile(hw, host, scope, width, src, src_stride, tmp, 1);
-        emit_reorder_1d_tile(hw, host, scope, width, tmp, 1, dst, dst_stride);
-        return;
-    }
+    switch (conversion) {
+        case conversion_t::bf_to_f: {
+            // bf16 -> f32:
+            // - bf16 must be packed: use left shift instead.
+            int step = get_step();
+            for (int i = 0; i < width; i += step) {
+                step = std::min(step, width - i);
+                step = utils::rnd_down_pow2(step);
+                int esize = step;
+                auto s = src.subregister(
+                        i, esize, src_stride_bytes, ngen::DataType::uw);
+                auto d = dst.subregister(
+                        i, esize, dst_stride_bytes, ngen::DataType::ud);
+                host->eshl(esize, d(dst_stride), s(src_stride), 16);
+            }
+            return;
+        }
 
-    // f32/f16/s32 -> s8/u8 and s8/u8 -> f32/s32
-    // - Use saturation
-    // - s8/u8 must be DW-strided: use temporary
-    bool d_or_f_to_b = (src_d || src_f) && dst_b;
-    bool b_to_d_or_f = (dst_d || dst_f) && src_b;
-    bool hf_to_b = src_hf && dst_b;
-    if (d_or_f_to_b || b_to_d_or_f || hf_to_b) {
-        if (dst_d || dst_f) ir_assert(dst_stride_bytes == 4);
-        if (src_d || src_f) ir_assert(src_stride_bytes == 4);
-        if (src_hf) ir_assert(src_stride_bytes == 2);
-        if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4));
-        if (src_b) ir_assert(utils::one_of(src_stride_bytes, 1, 4));
-        int step = get_step();
-        const int grf_size = ngen::GRF::bytes(hw);
-        auto tmp = scope.alloc_reg_buf_data(
-                utils::div_up(int(step * sizeof(uint32_t)), grf_size));
-        for (int i = 0; i < width; i += step) {
-            step = std::min(step, width - i);
-            step = utils::rnd_down_pow2(step);
-            int esize = step;
+        case conversion_t::d_to_bf_hf: {
+            // d -> bf/hf:
+            // - Use d -> f -> bf/hf conversion with temporary
+            auto tmp = scope
+                               .alloc_reg_buf_data(utils::div_up(
+                                       int(width * sizeof(float)), grf_size))
+                               .format(0, ngen::DataType::f);
+            emit_reorder_1d_tile(
+                    hw, host, scope, width, src, src_stride, tmp, 1);
+            emit_reorder_1d_tile(
+                    hw, host, scope, width, tmp, 1, dst, dst_stride);
+            return;
+        }
+        case conversion_t::d_f_hf_to_b:
+        case conversion_t::b_to_d_f: {
+            // f32/f16/s32 -> s8/u8 and s8/u8 -> f32/s32
+            // - Use saturation
+            // - s8/u8 must be DW-strided: use temporary
+            if (dst_d || dst_f) ir_assert(dst_stride_bytes == 4);
+            if (src_d || src_f) ir_assert(src_stride_bytes == 4);
+            if (src_hf) ir_assert(src_stride_bytes == 2);
+            if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4));
+            if (src_b) ir_assert(utils::one_of(src_stride_bytes, 1, 4));
+            int step = get_step();
+            const int grf_size = ngen::GRF::bytes(hw);
+            auto tmp = scope.alloc_reg_buf_data(
+                    utils::div_up(int(step * sizeof(uint32_t)), grf_size));
+            for (int i = 0; i < width; i += step) {
+                step = std::min(step, width - i);
+                step = utils::rnd_down_pow2(step);
+                int esize = step;
 
-            auto s = src.subregister(i, esize, src_stride_bytes);
-            auto d = dst.subregister(i, esize, dst_stride_bytes);
-            if (src_d || src_f || src_hf) {
-                // d -> b.
-                if (dst_stride_bytes == 1) {
-                    auto t = tmp.subregister(0, dst_type)(4);
-                    host->emov(esize | host->sat, t, s(1));
-                    host->emov(esize, d(1), t);
+                auto s = src.subregister(i, esize, src_stride_bytes);
+                auto d = dst.subregister(i, esize, dst_stride_bytes);
+                if (src_d || src_f || src_hf) {
+                    // d -> b.
+                    if (dst_stride_bytes == 1) {
+                        auto t = tmp.subregister(0, dst_type)(4);
+                        host->emov(esize | host->sat, t, s(1));
+                        host->emov(esize, d(1), t);
+                    } else {
+                        host->emov(esize | host->sat, d(4), s(1));
+                    }
                 } else {
-                    host->emov(esize | host->sat, d(4), s(1));
-                }
-            } else {
-                // b -> d.
-                // hf -> d.
-                if (esize == 1) {
-                    // Direct x8 -> x32 scalar cast is not always
-                    // supported. Use intermediate cast to s16.
-                    auto t = tmp.subregister(0, ngen::DataType::w)(1);
-                    host->emov(esize, t, s);
-                    host->emov(esize, d, t);
-                } else if (src_stride_bytes == 1) {
-                    auto t = tmp.subregister(0, src_type)(4);
-                    host->emov(esize, t, s(1));
-                    host->emov(esize, d(1), t);
-                } else {
-                    host->emov(esize, d(1), s(4));
+                    // b -> d.
+                    // hf -> d.
+                    if (esize == 1) {
+                        // Direct x8 -> x32 scalar cast is not always
+                        // supported. Use intermediate cast to s16.
+                        auto t = tmp.subregister(0, ngen::DataType::w)(1);
+                        host->emov(esize, t, s);
+                        host->emov(esize, d, t);
+                    } else if (src_stride_bytes == 1) {
+                        auto t = tmp.subregister(0, src_type)(4);
+                        host->emov(esize, t, s(1));
+                        host->emov(esize, d(1), t);
+                    } else {
+                        host->emov(esize, d(1), s(4));
+                    }
                 }
             }
+            return;
         }
-        return;
+        case conversion_t::none: break;
+        case conversion_t::unsupported: ir_error_not_implemented(); break;
+        default: ir_error_not_expected();
     }
 
     // Handle mov(src.uw(x)(1), dst.uw(y)(2).
