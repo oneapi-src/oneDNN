@@ -406,18 +406,43 @@ public:
     const view_t &c_view() const { return c_view_; }
 
     void set_a_view(const view_t &v) {
-        set_view(v, a_view_);
+        set_abc_view(v, a_view_);
         bmnk_mapper_.set_a_vars(a_view_.vvars());
     }
 
     void set_b_view(const view_t &v) {
-        set_view(v, b_view_);
+        set_abc_view(v, b_view_);
         bmnk_mapper_.set_b_vars(b_view_.vvars());
     }
 
     void set_c_view(const view_t &v) {
-        set_view(v, c_view_);
+        set_abc_view(v, c_view_);
         bmnk_mapper_.set_c_vars(c_view_.vvars());
+    }
+
+    void set_view(const view_t &view) {
+        // Create missing loops.
+        for (int i = 0; i < view.nvdims(); i++) {
+            auto &v = view.vvars()[i];
+            dim_t bound = view.vdims()[i];
+            if (has_loop(v)) {
+                auto &loop = find_loop(v);
+                ir_assert(bound == to_cpp<dim_t>(loop.bound()))
+                        << "Inconsistent sizes.";
+                continue;
+            }
+            create_loop(v, bound, /*is_root=*/true);
+        }
+    }
+
+    tensor_t tg_view_tile(const view_t &view) const {
+        return view_tile(view, tile_level_t::thread_group);
+    }
+
+    tensor_t thr_view_tile(const view_t &view, bool is_relative = true) const {
+        auto thr_tile = view_tile(view, tile_level_t::thread);
+        if (is_relative) return thr_tile;
+        return tg_view_tile(view).create_sub_tensor(thr_tile);
     }
 
     view_t a_tg_view() const {
@@ -788,20 +813,9 @@ private:
         bmnk_mapper_.set_bmnk_kind(var, kind);
     }
 
-    void set_view(const view_t &view, view_t &this_view) {
-        this_view = view;
-        // Create missing loops.
-        for (int i = 0; i < view.nvdims(); i++) {
-            auto &v = view.vvars()[i];
-            dim_t bound = view.vdims()[i];
-            if (has_loop(v)) {
-                auto &loop = find_loop(v);
-                ir_assert(bound == to_cpp<dim_t>(loop.bound()))
-                        << "Inconsistent sizes.";
-                continue;
-            }
-            create_loop(v, bound, /*is_root=*/true);
-        }
+    void set_abc_view(const view_t &view, view_t &abc_view) {
+        abc_view = view;
+        set_view(view);
     }
 
     loop_kind_t bound_var_to_loop_kind(const expr_t &v) const {
@@ -921,6 +935,15 @@ private:
         }
     }
 
+    tensor_t view_tile(const view_t &view, tile_level_t level) const {
+        object_map_t<expr_t, split_info_t> split_infos;
+        for (auto &v : view.vvars()) {
+            if (split_infos.count(v) > 0) continue;
+            split_infos.insert({v, get_split_info(v)});
+        }
+        return compute_problem_tile(view.vvars(), split_infos, level);
+    }
+
     split_info_t get_split_info(const expr_t &root_var) const {
         split_info_t ret;
         std::function<void(const expr_t &)> walk_down;
@@ -954,7 +977,7 @@ private:
 
     tensor_t compute_problem_tile(const std::vector<expr_t> &vars,
             const object_map_t<expr_t, split_info_t> &split_infos,
-            tile_level_t tile_level) {
+            tile_level_t tile_level) const {
         std::vector<dim_t> tile_dims;
         std::vector<expr_t> tile_start;
         for (auto &v : vars) {
