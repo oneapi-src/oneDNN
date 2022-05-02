@@ -194,15 +194,6 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
         dnnl_graph_tensor_t *tensor, void *data_handle);
 
-/// Gets the unique id of the tensor
-///
-/// @param tensor Input tensor.
-/// @param id The unique id.
-/// @returns #dnnl_graph_result_success on success and a status describing the
-///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_id(
-        const dnnl_graph_tensor_t *tensor, size_t *id);
-
 /// Returns the engine of a tensor object.
 ///
 /// @param tensor Tensor object.
