@@ -7715,37 +7715,46 @@ stmt_t inject_compute_loop_label(const stmt_t &s) {
     return compute_loop_label_injector_t().mutate(s);
 }
 
+void init_kernel_grid(const std::array<int, 3> &kernel_grid_dims,
+        const std::array<int, 3> &tg_grid_dims, int simd_size,
+        constraint_set_t &cset, grid_info_t &kernel_grid, grid_info_t &tg_grid,
+        std::array<expr_t, 3> &local_id) {
+    int grid_ndims = 3;
+    kernel_grid = grid_info_t(grid_ndims);
+    tg_grid = grid_info_t(grid_ndims);
+    for (int i = 0; i < grid_ndims; i++) {
+        local_id[i]
+                = var_t::make(type_t::u16(), "local_id" + std::to_string(i));
+        kernel_grid.dim(i) = kernel_grid_dims[i];
+        kernel_grid.idx(i)
+                = var_t::make(type_t::s32(), "grid_idx" + std::to_string(i));
+        tg_grid.dim(i) = tg_grid_dims[i];
+        tg_grid.idx(i)
+                = var_t::make(type_t::s32(), "tg_idx" + std::to_string(i));
+
+        int local_id_bound = tg_grid_dims[i];
+        if (i == 0) local_id_bound *= simd_size;
+        cset.add_constraint(local_id[i] >= 0);
+        cset.add_constraint(local_id[i] < local_id_bound);
+
+        cset.add_constraint(kernel_grid.idx(i) >= 0);
+        cset.add_constraint(kernel_grid.idx(i) < kernel_grid_dims[i]);
+        cset.add_constraint(tg_grid.idx(i) >= 0);
+        cset.add_constraint(tg_grid.idx(i) < tg_grid_dims[i]);
+    }
+}
+
 void kernel_builder_t::build() {
     ir_context_t ir_ctx;
     constraint_set_t init_cset;
 
-    int grid_ndims = 3;
-    kernel_grid_ = grid_info_t(grid_ndims);
-    tg_grid_ = grid_info_t(grid_ndims);
-    for (int i = 0; i < grid_ndims; i++) {
-        local_id_[i]
-                = var_t::make(type_t::u16(), "local_id" + std::to_string(i));
-        kernel_grid_.dim(i) = cfg_.kernel_grid_dim[i];
-        kernel_grid_.idx(i)
-                = var_t::make(type_t::s32(), "grid_idx" + std::to_string(i));
-        tg_grid_.dim(i) = cfg_.tg_grid_dim[i];
-        tg_grid_.idx(i)
-                = var_t::make(type_t::s32(), "tg_idx" + std::to_string(i));
-
-        int local_id_bound = cfg_.tg_grid_dim[i];
-        if (i == 0) local_id_bound *= cfg_.simd_size();
-        init_cset.add_constraint(local_id_[i] >= 0);
-        init_cset.add_constraint(local_id_[i] < local_id_bound);
-
-        init_cset.add_constraint(kernel_grid_.idx(i) >= 0);
-        init_cset.add_constraint(kernel_grid_.idx(i) < cfg_.kernel_grid_dim[i]);
-        init_cset.add_constraint(tg_grid_.idx(i) >= 0);
-        init_cset.add_constraint(tg_grid_.idx(i) < cfg_.tg_grid_dim[i]);
-    }
+    init_kernel_grid(cfg_.kernel_grid_dim, cfg_.tg_grid_dim, cfg_.simd_size(),
+            init_cset, kernel_grid_, tg_grid_, local_id_);
 
     gemm_schedule_t gemm_schedule(init_cset, kernel_grid_, tg_grid_);
 
     std::vector<stmt_t> init_stmts;
+    int grid_ndims = 3;
     for (int i = 0; i < grid_ndims; i++) {
         auto value = local_id_[i];
         if (i == 0) value /= cfg_.simd_size();
@@ -7867,6 +7876,186 @@ void kernel_builder_t::build() {
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
     ir_trace() << "Kernel body:\n" << stmt_ << std::endl;
+}
+
+std::vector<int> reorder_kernel_builder_t::compute_blocks(
+        const layout_t &src, const layout_t &dst, int &threads) {
+    ir_assert(src.ndims() == dst.ndims());
+    int ndims = src.ndims();
+    std::vector<dim_t> dims(ndims);
+    std::vector<dim_t> inner_dims(ndims);
+    auto src_inner = src.innermost_block_layout();
+    auto dst_inner = dst.innermost_block_layout();
+    for (int i = 0; i < ndims; i++) {
+        dims[i] = std::max(src.dim(i), dst.dim(i));
+        inner_dims[i] = std::max(src_inner.dim(i), dst_inner.dim(i));
+    }
+
+    std::vector<int> candidate_dim_idxs;
+    for (int i = 0; i < ndims; i++) {
+        if (inner_dims[i] != 1) candidate_dim_idxs.push_back(i);
+    }
+
+    for (dim_t dim_limit : {16, 1}) {
+        if (candidate_dim_idxs.size() >= 2) break;
+        for (int i = 0; i < ndims; i++) {
+            if (inner_dims[i] != 1 || dims[i] == 1) continue;
+            if (dims[i] >= dim_limit) candidate_dim_idxs.push_back(i);
+        }
+    }
+
+    auto get_block = [&](int dim_idx) {
+        dim_t max_block = 32;
+        dim_t dim = inner_dims[dim_idx];
+        if (dim == 1) dim = dims[dim_idx];
+        return (int)utils::max_div(dim, max_block);
+    };
+
+    dim_t max_total_block = 1024;
+    dim_t total_block = 1;
+    std::vector<int> blocks(ndims, 1);
+    for (int idx : candidate_dim_idxs) {
+        blocks[idx] = get_block(idx);
+        total_block *= blocks[idx];
+        if (total_block >= max_total_block) break;
+    }
+
+    threads = 1;
+    for (int i = 0; i < ndims; i++) {
+        threads *= utils::div_up(dims[i], blocks[i]);
+    }
+    return blocks;
+}
+
+void reorder_kernel_builder_t::build() {
+    ir_context_t ir_ctx;
+    constraint_set_t init_cset;
+
+    int ndims = src_layout_.ndims();
+    std::vector<expr_t> vars;
+    for (int i = 0; i < ndims; i++) {
+        char letter = 'a' + i;
+        vars.push_back(var_t::make(type_t::s32(), std::string(1, letter)));
+    }
+
+    int threads = 1;
+    auto blocks = compute_blocks(src_layout_, dst_layout_, threads);
+
+    std::array<int, 3> kernel_grid_dims = {threads, 1, 1};
+    std::array<int, 3> tg_grid_dims = {1, 1, 1};
+
+    init_kernel_grid(kernel_grid_dims, tg_grid_dims, hw_cfg_.simd_size(),
+            init_cset, kernel_grid_, tg_grid_, local_id_);
+
+    auto &x = view_t::placeholder_var();
+
+    std::vector<dim_t> vdims(ndims);
+    for (int i = 0; i < ndims; i++) {
+        vdims[i] = std::max(src_layout_.dim(i), dst_layout_.dim(i));
+    }
+
+    view_t src_view(vars, ndims);
+    for (int i = 0; i < ndims; i++) {
+        int dim = src_layout_.dim(i);
+        src_view.set_vdim(vars[i], vdims[i]);
+        expr_t mask(true);
+        if (dim != vdims[i]) mask = x < dim;
+        src_view.set_tdim(i, vars[i], mask);
+    }
+    src_view.set_tlayout(src_layout_);
+
+    view_t dst_view(vars, ndims);
+    for (int i = 0; i < ndims; i++) {
+        int dim = dst_layout_.dim(i);
+        dst_view.set_vdim(vars[i], vdims[i]);
+        expr_t mask(true);
+        if (dim != vdims[i]) mask = x < dim;
+        dst_view.set_tdim(i, vars[i], mask);
+    }
+    dst_view.set_tlayout(dst_layout_);
+
+    gemm_schedule_t schedule(init_cset, kernel_grid_, tg_grid_);
+
+    schedule.set_view(src_view);
+    schedule.set_view(dst_view);
+
+    std::vector<expr_t> fused_idxs;
+    int block_size = 1;
+    for (int i = 0; i < ndims; i++) {
+        if (blocks[i] == 1) {
+            fused_idxs.push_back(vars[i]);
+            continue;
+        }
+        block_size *= blocks[i];
+        expr_t outer;
+        expr_t inner;
+        schedule.split(vars[i], blocks[i], outer, inner);
+        schedule.tensorize(inner);
+        fused_idxs.push_back(outer);
+    }
+
+    auto tg_idx = schedule.fuse(fused_idxs);
+
+    schedule.bind(tg_idx, kernel_grid_.idx(0));
+
+    schedule.finalize();
+
+    auto thr_tile = schedule.thr_view_tile(src_view, /*is_relative=*/false);
+
+    auto src_thr_view = src_view.create_sub_view(thr_tile);
+    auto dst_thr_view = dst_view.create_sub_view(thr_tile);
+
+    auto src_buf = kernel_info_.arg_var(0);
+    auto dst_buf = kernel_info_.arg_var(1);
+
+    auto reg_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "reg");
+
+    std::vector<stmt_t> allocs;
+    for (int i = 0; i < kernel_info_.nargs(); i++) {
+        auto &var = kernel_info_.arg_var(i);
+        if (!var.type().is_ptr()) continue;
+        allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
+    }
+
+    auto read
+            = make_access_builder(hw_cfg_.hw(), ir_ctx, init_cset, src_thr_view,
+                    src_buf, reg_buf, send_op_t::load, send_address_t::a64);
+    auto read_stmt = read.stmt();
+
+    auto write
+            = make_access_builder(hw_cfg_.hw(), ir_ctx, init_cset, dst_thr_view,
+                    dst_buf, reg_buf, send_op_t::store, send_address_t::a64);
+    auto write_stmt = write.stmt();
+
+    auto read_layout = read.reg_layout();
+    auto write_layout = write.reg_layout();
+    allocs.push_back(
+            alloc_t::make(reg_buf, read_layout.size(), alloc_kind_t::grf));
+
+    if (read_layout != write_layout) {
+        auto tmp_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "tmp");
+        allocs.push_back(
+                alloc_t::make(tmp_buf, write_layout.size(), alloc_kind_t::grf));
+
+        auto reorder_stmt = create_reorder_stmt(
+                read_layout, write_layout, reg_buf, tmp_buf);
+        write_stmt = substitute(write_stmt, reg_buf, tmp_buf);
+        write_stmt = reorder_stmt.append(write_stmt);
+    }
+
+    stmt_ = stmt_.append(read_stmt);
+    stmt_ = stmt_.append(write_stmt);
+
+    stmt_ = schedule.create_loop_nest(stmt_);
+    stmt_ = schedule.create_bind_stmt(stmt_);
+    stmt_ = inject_alloc_stmts(stmt_, allocs);
+    stmt_ = inject_external_var_let(stmt_);
+
+    stmt_ = simplify_pass(stmt_, init_cset);
+    stmt_ = lift_buffer_offsets_in_send(stmt_);
+    stmt_ = inject_send(stmt_, ir_ctx, init_cset);
+    stmt_ = split_wide_stores(hw_cfg_.hw(), stmt_);
+    stmt_ = simplify_pass(stmt_, init_cset);
 }
 
 } // namespace jit

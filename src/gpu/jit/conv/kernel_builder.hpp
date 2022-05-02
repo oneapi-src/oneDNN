@@ -69,6 +69,42 @@ private:
     stmt_t stmt_;
 };
 
+class reorder_kernel_builder_t {
+public:
+    reorder_kernel_builder_t(const hw_config_t &hw_cfg,
+            const kernel_info_t &kernel_info, const layout_t &src_layout,
+            const layout_t &dst_layout)
+        : hw_cfg_(hw_cfg)
+        , kernel_info_(kernel_info)
+        , src_layout_(src_layout)
+        , dst_layout_(dst_layout) {
+        build();
+    }
+
+    const stmt_t &stmt() const { return stmt_; }
+
+    const grid_info_t &kernel_grid() const { return kernel_grid_; }
+
+    const std::array<expr_t, 3> &local_id() const { return local_id_; }
+
+    static std::vector<int> compute_blocks(
+            const layout_t &src, const layout_t &dst, int &threads);
+
+private:
+    void build();
+
+    hw_config_t hw_cfg_;
+    const kernel_info_t &kernel_info_;
+    layout_t src_layout_;
+    layout_t dst_layout_;
+
+    std::array<expr_t, 3> local_id_; // Local IDs (OpenCL) for the 0-th lane.
+    grid_info_t kernel_grid_; // Kernel grid (consisting of thread groups).
+    grid_info_t tg_grid_; // Thread group grid (consisting of threads).
+
+    stmt_t stmt_;
+};
+
 } // namespace jit
 } // namespace gpu
 } // namespace impl

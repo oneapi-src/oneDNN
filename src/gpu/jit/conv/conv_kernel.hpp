@@ -1135,6 +1135,7 @@ protected:
     using ir_kernel_t<hw>::eshr;
 
 #define IR_KERNEL_FORWARD(hw) \
+    NGEN_FORWARD_OPENCL(hw) \
     IR_KERNEL_EMULATION_FORWARD(hw) \
     using ir_kernel_t<hw>::setup_interface; \
     using ir_kernel_t<hw>::bind_external_vars; \
@@ -1146,7 +1147,6 @@ protected:
 template <ngen::HW hw>
 class conv_kernel_t : public ir_kernel_t<hw> {
 public:
-    NGEN_FORWARD_OPENCL(hw)
     IR_KERNEL_FORWARD(hw)
 
     conv_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
@@ -1159,7 +1159,6 @@ private:
 template <ngen::HW hw = ngen::HW::Unknown>
 class zero_out_kernel_t : public ir_kernel_t<hw> {
 public:
-    NGEN_FORWARD_OPENCL(hw)
     IR_KERNEL_FORWARD(hw)
 
     zero_out_kernel_t(const hw_config_t &hw_cfg,
@@ -2349,7 +2348,6 @@ private:
 template <ngen::HW hw = ngen::HW::Unknown>
 class reorder_kernel_t : public ir_kernel_t<hw> {
 public:
-    NGEN_FORWARD_OPENCL(hw)
     IR_KERNEL_FORWARD(hw)
 
     reorder_kernel_t(const hw_config_t &hw_cfg,
@@ -2357,6 +2355,24 @@ public:
             const layout_t &dst_layout, bool require_dpas)
         : ir_kernel_t<hw>("reorder", hw_cfg, kernel_info, require_dpas,
                 /*require_global_atomics=*/false) {
+        if (reorder_kernel_t<>::is_ir_based_reorder(src_layout, dst_layout)) {
+            reorder_kernel_builder_t builder(
+                    hw_cfg, kernel_info, src_layout, dst_layout);
+            stmt_t body = builder.stmt();
+            setup_interface(body);
+            generate_prologue();
+            expr_binding_t expr_binding(hw);
+            bind_external_vars(body, builder.kernel_grid(), builder.local_id(),
+                    expr_binding);
+
+            // Generate assembly from IR.
+            ir_to_ngen_t<hw> visitor(this, expr_binding);
+            visitor.visit(body);
+
+            generate_epilogue();
+            return;
+        }
+
         // Handle specific reorder versions.
         setup_interface();
         generate_prologue();
@@ -2570,6 +2586,13 @@ public:
         }
     }
 
+    static bool is_ir_based_reorder(const layout_t &src, const layout_t &dst) {
+        int dummy;
+        if (is_2d_reorder(src, dst, dummy)) return false;
+        if (is_f32_to_bf16(src, dst)) return false;
+        return true;
+    }
+
     static compute::nd_range_t nd_range(
             int simd, const layout_t &src, const layout_t &dst) {
 
@@ -2589,8 +2612,13 @@ public:
                             1});
         }
 
-        ir_error_not_expected();
-        return compute::nd_range_t();
+        // Handle IR-based reorder.
+        ir_assert(reorder_kernel_t<>::is_ir_based_reorder(src, dst));
+
+        int nthreads;
+        auto blocks
+                = reorder_kernel_builder_t::compute_blocks(src, dst, nthreads);
+        return compute::nd_range_t({nthreads * simd, 1, 1}, {simd, 1, 1});
     }
 
 private:
