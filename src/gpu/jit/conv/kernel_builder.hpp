@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #ifndef GPU_JIT_CONV_KERNEL_BUILDER_HPP
 #define GPU_JIT_CONV_KERNEL_BUILDER_HPP
+
+#include <array>
 
 #include "common/convolution_pd.hpp"
 #include "gpu/jit/conv/config.hpp"
@@ -39,11 +41,9 @@ public:
 
     const stmt_t &stmt() const { return stmt_; }
 
-    const expr_t &kernel_grid_idx(int dim_idx) const {
-        return kernel_grid_.idx(dim_idx);
-    }
+    const grid_info_t &kernel_grid() const { return kernel_grid_; }
 
-    const expr_t &local_id(int dim_idx) const { return local_id_[dim_idx]; }
+    const std::array<expr_t, 3> &local_id() const { return local_id_; }
 
 private:
     void build();
@@ -62,7 +62,7 @@ private:
     const convolution_pd_t *pd_;
     const kernel_info_t &kernel_info_;
 
-    expr_t local_id_[3]; // Local IDs (OpenCL) for the 0-th lane.
+    std::array<expr_t, 3> local_id_; // Local IDs (OpenCL) for the 0-th lane.
     grid_info_t kernel_grid_; // Kernel grid (consisting of thread groups).
     grid_info_t tg_grid_; // Thread group grid (consisting of threads).
 

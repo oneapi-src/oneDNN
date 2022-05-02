@@ -613,7 +613,7 @@ template <ngen::HW hw>
 class ir_to_ngen_t;
 
 template <ngen::HW hw>
-class conv_kernel_t : public jit_generator<hw> {
+class ir_kernel_t : public jit_generator<hw> {
 public:
     NGEN_FORWARD_OPENCL(hw);
 
@@ -621,24 +621,33 @@ public:
     friend class ir_to_ngen_t<hw>;
     friend class send_impl_t;
 
-    conv_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
-            const kernel_info_t &kernel_info, bool force_large_grf = false);
+    ir_kernel_t(const std::string &kernel_name, const hw_config_t &hw_cfg,
+            const kernel_info_t &kernel_info, bool require_dpas,
+            bool require_global_atomics, bool force_large_grf = false)
+        : kernel_name_(kernel_name)
+        , hw_cfg_(hw_cfg)
+        , kernel_info_(kernel_info)
+        , require_dpas_(require_dpas)
+        , require_global_atomics_(require_global_atomics)
+        , regs_(force_large_grf ? 256 : hw_cfg.regs())
+        , ra_(hw, kernel_name, reg_allocator_t::warn_all)
+        , emu_strategy(hw, hw_cfg.stepping_id()) {
+        ra_.setRegisterCount(regs_);
+    }
 
-    void setup_interface(
-            const stmt_t &kernel_body, const kernel_info_t &kernel_info) {
-        externalName("gen_conv");
+    void setup_interface(const stmt_t &kernel_body = stmt_t()) {
+        externalName(kernel_name_);
         requireLocalID(3);
         requireLocalSize();
         requireGRF(regs_);
-        requireSIMD(cfg_.simd_size());
+        requireSIMD(hw_cfg_.simd_size());
         requireBarrier();
-        if (utils::one_of(cfg_.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw))
-            requireDPAS();
-        if (cfg_.do_atomic_update) requireGlobalAtomics();
+        if (require_dpas_) requireDPAS();
+        if (require_global_atomics_) requireGlobalAtomics();
 
-        for (int i = 0; i < kernel_info.nargs(); i++) {
-            auto &name = kernel_info.arg_name(i);
-            auto &type = kernel_info.arg_type(i);
+        for (int i = 0; i < kernel_info_.nargs(); i++) {
+            auto &name = kernel_info_.arg_name(i);
+            auto &type = kernel_info_.arg_type(i);
             if (type.is_ptr()) {
                 newArgument(name, ngen::ExternalArgumentType::GlobalPtr);
             } else {
@@ -646,11 +655,82 @@ public:
             }
         }
 
-        int slm_size
-                = alloc_manager_t(kernel_body).total_size(alloc_kind_t::slm);
-        requireSLM(slm_size);
+        if (!kernel_body.is_empty()) {
+            int slm_size = alloc_manager_t(kernel_body)
+                                   .total_size(alloc_kind_t::slm);
+            requireSLM(slm_size);
+        }
 
         finalizeInterface();
+    }
+
+    void generate_prologue() {
+        setDefaultNoMask();
+        setDefaultAutoSWSB(true);
+
+        prologue();
+
+        // Claim registers.
+        ra_.claim(r0);
+        for (int i = 0; i < 3; i++)
+            ra_.claim(getLocalID(i));
+
+        for (int i = 0; i < kernel_info_.nargs(); i++) {
+            ra_.claim(getArgument(kernel_info_.arg_name(i)));
+        }
+
+        if (emu_strategy.emulate64) {
+            emu_state.temp[0] = ra_.alloc();
+            emu_state.temp[1] = ra_.alloc();
+        }
+        // Enable IEEE f32 -> s32 rounding and f32/f16 denormals.
+        or_(1, cr0, cr0, uint16_t(0x1480));
+
+        // Allocate and initialize signal header for future use.
+        if (require_signal_header_) {
+            signal_header_ = ra_.alloc();
+            barrierheader(signal_header_);
+        }
+    }
+
+    void bind_external_vars(const stmt_t &kernel_body,
+            const grid_info_t &kernel_grid,
+            const std::array<expr_t, 3> &local_id,
+            expr_binding_t &expr_binding) {
+        alloc_manager_t alloc_mgr(kernel_body);
+
+        // Bind grid indices.
+        int r0_sub_idxs[] = {1, 6, 7};
+        for (int i = 0; i < 3; i++) {
+            auto tmp = ra_.template alloc_sub<int32_t>();
+            mov(1, tmp, r0.ud(r0_sub_idxs[i]));
+            expr_binding.bind(kernel_grid.idx(i), tmp);
+        }
+
+        // Bind local IDs.
+        for (int i = 0; i < 3; i++) {
+            expr_binding.bind(local_id[i], getLocalID(i).uw(0));
+        }
+
+        // Bind arguments.
+        for (int i = 0; i < kernel_info_.nargs(); i++) {
+            auto &arg_var = kernel_info_.arg_var(i);
+            auto &name = kernel_info_.arg_name(i);
+            if (arg_var.type().is_ptr()) {
+                auto alloc_buf = alloc_mgr.find_buffer(name);
+                ir_assert(alloc_buf.is_same(arg_var));
+            }
+            expr_binding.bind(arg_var, getArgument(name));
+        }
+
+        // Bind SLM buffer (SLM loads/stores use 0-based offsets).
+        auto slm_buf = alloc_mgr.find_buffer("slm", /*allow_empty=*/true);
+        if (!slm_buf.is_empty()) expr_binding.bind(slm_buf, to_ngen(expr_t(0)));
+    }
+
+    void generate_epilogue() {
+        epilogue();
+        pad_kernel();
     }
 
     // Kernel padding for instruction prefetch.
@@ -977,7 +1057,6 @@ public:
         ra_.safeRelease(qot_tmp);
     }
 
-    friend struct dnnl::impl::gpu::jit::EmulationImplementation;
     template <typename DT = void>
     void emov(const ngen::InstructionModifier &mod, ngen::RegData dst,
             ngen::RegData src0) {
@@ -1033,9 +1112,14 @@ public:
                 *this, mod, dst, src0, src1, emu_strategy, emu_state);
     }
 
-private:
-    const conv_config_t &cfg_;
-    const int regs_;
+protected:
+    std::string kernel_name_;
+    hw_config_t hw_cfg_;
+    kernel_info_t kernel_info_;
+    bool require_dpas_;
+    bool require_global_atomics_;
+    bool require_signal_header_ = false;
+    int regs_;
     reg_allocator_t ra_;
     ngen::GRF signal_header_;
 
@@ -1043,67 +1127,68 @@ private:
     EmulationState emu_state;
 };
 
-template <ngen::HW hw = ngen::HW::Unknown>
-class zero_out_kernel_t : public jit_generator<hw> {
+#define IR_KERNEL_EMULATION_FORWARD(hw) \
+    using ir_kernel_t<hw>::emov; \
+    using ir_kernel_t<hw>::eadd; \
+    using ir_kernel_t<hw>::emul; \
+    using ir_kernel_t<hw>::eshl; \
+    using ir_kernel_t<hw>::eshr;
+
+#define IR_KERNEL_FORWARD(hw) \
+    IR_KERNEL_EMULATION_FORWARD(hw) \
+    using ir_kernel_t<hw>::setup_interface; \
+    using ir_kernel_t<hw>::bind_external_vars; \
+    using ir_kernel_t<hw>::generate_prologue; \
+    using ir_kernel_t<hw>::generate_epilogue; \
+    using ir_kernel_t<hw>::emu_strategy; \
+    using ir_kernel_t<hw>::ra_;
+
+template <ngen::HW hw>
+class conv_kernel_t : public ir_kernel_t<hw> {
 public:
-    NGEN_FORWARD_OPENCL(hw);
+    NGEN_FORWARD_OPENCL(hw)
+    IR_KERNEL_FORWARD(hw)
 
-    zero_out_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
-            const kernel_info_t &kernel_info)
-        : ra_(hw, "zero_out_kernel_t") {
-        externalName("zero_out");
-        requireLocalID(1);
-        requireLocalSize();
-        requireGRF(cfg.regs());
-        requireSIMD(cfg.simd_size());
-        if (cfg.is_dpas_or_dpasw_fma()) requireDPAS();
+    conv_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
+            const kernel_info_t &kernel_info, bool force_large_grf = false);
 
-        for (int i = 0; i < kernel_info.nargs(); i++) {
-            auto &name = kernel_info.arg_name(i);
-            auto &type = kernel_info.arg_type(i);
-            if (type.is_ptr()) {
-                newArgument(name, ngen::ExternalArgumentType::GlobalPtr);
-            } else {
-                newArgument(name, to_ngen(type));
-            }
-        }
+private:
+    const conv_config_t &cfg_;
+};
 
-        finalizeInterface();
+template <ngen::HW hw = ngen::HW::Unknown>
+class zero_out_kernel_t : public ir_kernel_t<hw> {
+public:
+    NGEN_FORWARD_OPENCL(hw)
+    IR_KERNEL_FORWARD(hw)
 
-        // Claim registers.
-        ra_.claim(r0);
-        ra_.claim(getLocalID(0));
-        ra_.claim(getLocalSize(0));
+    zero_out_kernel_t(const hw_config_t &hw_cfg,
+            const kernel_info_t &kernel_info, bool require_dpas)
+        : ir_kernel_t<hw>("zero_out", hw_cfg, kernel_info, require_dpas,
+                /*require_global_atomics=*/false) {
+
+        setup_interface();
+        generate_prologue();
 
         std::vector<std::string> arg_names(kernel_info.nargs());
         for (int i = 0; i < kernel_info.nargs(); i++) {
             arg_names[i] = kernel_info.arg_name(i);
-            ra_.claim(getArgument(arg_names[i]));
         }
 
-        setDefaultNoMask();
-        setDefaultAutoSWSB(true);
-
+        int simd_size = getSIMD();
         bool use_a64 = false;
         // XXX: Stateful messages don't work on XeHPC.
         use_a64 = (hw == ngen::HW::XeHPC);
 
-        prologue();
-
-        if (emu_strategy.emulate64) {
-            emu_state.temp[0] = ra_.alloc();
-            emu_state.temp[1] = ra_.alloc();
-        }
-
         auto ptr = getArgument(arg_names[0]);
         auto surf = Surface(getArgumentSurface(arg_names[0]));
         auto size = getArgument(arg_names[1]);
-        auto global_id = ra_.alloc_sub<uint32_t>();
-        auto off0 = ra_.alloc_sub<uint32_t>();
+        auto global_id = ra_.template alloc_sub<uint32_t>();
+        auto off0 = ra_.template alloc_sub<uint32_t>();
 
         mul(1, global_id, r0.ud(1), getLocalSize(0).uw());
         add(1, global_id, global_id, getLocalID(0));
-        shl(1, off0, global_id, math::ilog2q(bytes_per_thr / cfg.simd_size()));
+        shl(1, off0, global_id, math::ilog2q(bytes_per_thr / simd_size));
 
         int grf_size = ngen::GRF::bytes(hw);
         int bytes_per_store = 16;
@@ -1111,7 +1196,7 @@ public:
         int uq_size = sizeof(uint64_t);
 
         auto zero = ra_.alloc_range(bytes_per_store * ud_size / grf_size);
-        auto off_vec = ra_.alloc_range(bytes_per_thr * ud_size / grf_size);
+        auto off_vec = ra_.alloc_range(bytes_per_thr * uq_size / grf_size);
         auto ptr_vec = ra_.alloc_range(bytes_per_thr * uq_size / grf_size);
 
         for (int i = 0; i < bytes_per_store * ud_size; i += 64) {
@@ -1123,8 +1208,8 @@ public:
         mov(8, idx_vec, ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
 
         for (int i = 0; i < bytes_per_thr; i += 8) {
-            auto off_sub_vec
-                    = get_subregister(hw, ngen::DataType::ud, off_vec, i)(1);
+            auto off_sub_vec = get_subregister(
+                    hw, ngen::DataType::ud, off_vec, i * 2)(2);
             add3(8, off_sub_vec, off0, idx_vec, i);
             if (use_a64) {
                 auto ptr_sub_vec = get_subregister(
@@ -1134,8 +1219,8 @@ public:
         }
 
         for (int i = 0; i < bytes_per_thr; i += bytes_per_store) {
-            auto off_sub_vec
-                    = get_subregister(hw, ngen::DataType::ud, off_vec, i)(1);
+            auto off_sub_vec = get_subregister(
+                    hw, ngen::DataType::ud, off_vec, i * 2)(2);
             cmp(16 | lt | f0[0], off_sub_vec, size);
             if (use_a64) {
                 auto h_a64
@@ -1147,30 +1232,15 @@ public:
             }
         }
 
-        epilogue();
+        generate_epilogue();
     }
 
-    friend struct dnnl::impl::gpu::jit::EmulationImplementation;
-
-    template <typename DT = void>
-    void emov(const ngen::InstructionModifier &mod, ngen::RegData dst,
-            ngen::RegData src0) {
-        EmulationImplementation::emov<DT>(*this, mod, dst, src0, emu_strategy);
-    }
-
-    template <typename DT = void>
-    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::RegData &src1) {
-        EmulationImplementation::eadd<DT>(
-                *this, mod, dst, src0, src1, emu_strategy, emu_state);
+    static compute::nd_range_t nd_range(int simd, int size) {
+        return compute::nd_range_t(
+                {utils::div_up(size, bytes_per_thr) * simd, 1, 1});
     }
 
     static const int bytes_per_thr;
-
-private:
-    reg_allocator_t ra_;
-    EmulationStrategy emu_strategy = EmulationStrategy(hw);
-    EmulationState emu_state;
 };
 
 template <ngen::HW hw>
@@ -1180,8 +1250,8 @@ const int zero_out_kernel_t<hw>::bytes_per_thr = 128;
 template <ngen::HW hw>
 class expr_evaluator_t : public ir_visitor_t {
 public:
-    expr_evaluator_t(conv_kernel_t<hw> *host,
-            const expr_binding_t &expr_binding, ngen_register_scope_t &scope)
+    expr_evaluator_t(ir_kernel_t<hw> *host, const expr_binding_t &expr_binding,
+            ngen_register_scope_t &scope)
         : host_(host), expr_binding_(expr_binding), scope_(scope) {}
 
     bool is_int_up_convert(const expr_t &e, type_t &type) const {
@@ -1559,7 +1629,7 @@ private:
         }
     }
 
-    conv_kernel_t<hw> *host_;
+    ir_kernel_t<hw> *host_;
     expr_binding_t expr_binding_;
     ngen_register_scope_t &scope_;
 
@@ -2277,62 +2347,31 @@ private:
 };
 
 template <ngen::HW hw = ngen::HW::Unknown>
-class reorder_kernel_t : public jit_generator<hw> {
+class reorder_kernel_t : public ir_kernel_t<hw> {
 public:
-    NGEN_FORWARD_OPENCL(hw);
+    NGEN_FORWARD_OPENCL(hw)
+    IR_KERNEL_FORWARD(hw)
 
-    reorder_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
+    reorder_kernel_t(const hw_config_t &hw_cfg,
             const kernel_info_t &kernel_info, const layout_t &src_layout,
-            const layout_t &dst_layout)
-        : simd_size_(cfg.simd_size()), ra_(hw, "reorder_kernel_t") {
-        externalName("reorder");
-        requireLocalID(1);
-        requireLocalSize();
-        requireGRF(cfg.regs());
-        requireSIMD(simd_size_);
-        if (cfg.is_dpas_or_dpasw_fma()) requireDPAS();
-
-        for (int i = 0; i < kernel_info.nargs(); i++) {
-            auto &name = kernel_info.arg_name(i);
-            auto &type = kernel_info.arg_type(i);
-            if (type.is_ptr()) {
-                newArgument(name, ngen::ExternalArgumentType::GlobalPtr);
-            } else {
-                newArgument(name, to_ngen(type));
-            }
-        }
-
-        finalizeInterface();
-
-        // Claim registers.
-        ra_.claim(r0);
-        ra_.claim(getLocalID(0));
-        ra_.claim(getLocalSize(0));
+            const layout_t &dst_layout, bool require_dpas)
+        : ir_kernel_t<hw>("reorder", hw_cfg, kernel_info, require_dpas,
+                /*require_global_atomics=*/false) {
+        // Handle specific reorder versions.
+        setup_interface();
+        generate_prologue();
 
         std::vector<std::string> arg_names(kernel_info.nargs());
-
         for (int i = 0; i < kernel_info.nargs(); i++) {
             arg_names[i] = kernel_info.arg_name(i);
-            ra_.claim(getArgument(kernel_info.arg_name(i)));
         }
-
-        setDefaultNoMask();
-        setDefaultAutoSWSB(true);
-
-        prologue();
-
-        if (emu_strategy.emulate64) {
-            emu_state.temp[0] = ra_.alloc();
-            emu_state.temp[1] = ra_.alloc();
-        }
-
         src_ptr_ = getArgument(arg_names[0]);
         dst_ptr_ = getArgument(arg_names[1]);
         src_surf_ = Surface(getArgumentSurface(arg_names[0]));
         dst_surf_ = Surface(getArgumentSurface(arg_names[1]));
         elems_ = getArgument(arg_names[2]);
 
-        global_id_ = ra_.alloc_sub<uint32_t>();
+        global_id_ = ra_.template alloc_sub<uint32_t>();
 
         mul(1, global_id_, r0.ud(1), getLocalSize(0).uw());
         add(1, global_id_, global_id_, getLocalID(0));
@@ -2346,11 +2385,12 @@ public:
             ir_error_not_expected();
         }
 
-        epilogue();
+        generate_epilogue();
     }
 
     void emit_f32_to_bf16() {
         int elems_per_thr = f32_to_bf16_elems_per_thr();
+        int simd_size = getSIMD();
 
         bool use_a64 = false;
         // XXX: Stateful messages don't work on XeHPC.
@@ -2393,7 +2433,7 @@ public:
         mov(8, idx_vec, ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
         for (int i = 0; i < elems_per_thr; i += 8)
             shl(8, get_elem(i), global_id_,
-                    math::ilog2q(elems_per_thr / simd_size_));
+                    math::ilog2q(elems_per_thr / simd_size));
         for (int i = 0; i < elems_per_thr; i += 8) {
             add3(8, get_elem(i), get_elem(i), idx_vec, i);
             if (use_a64) {
@@ -2462,6 +2502,7 @@ public:
         auto tile = _src.split_into_max_tile(elems_per_thr, /*is_dense=*/true);
         ir_assert(!tile.is_empty()) << "Can't split " << _src;
 
+        int simd_size = getSIMD();
         auto src = _src.map(tile);
         auto dst = _dst.map(tile);
 
@@ -2480,9 +2521,9 @@ public:
 
         // Prepare headers for loads and stores.
         eshl(1, src_header.uq(0), global_id_,
-                math::ilog2q(elems_per_thr / simd_size_ * src_size));
+                math::ilog2q(elems_per_thr / simd_size * src_size));
         eshl(1, dst_header.uq(0), global_id_,
-                math::ilog2q(elems_per_thr / simd_size_ * dst_size));
+                math::ilog2q(elems_per_thr / simd_size * dst_size));
         eadd(1, src_header.uq(0), src_header.uq(0), src_ptr_);
         eadd(1, dst_header.uq(0), dst_header.uq(0), dst_ptr_);
 
@@ -2529,49 +2570,23 @@ public:
         }
     }
 
-    friend struct dnnl::impl::gpu::jit::EmulationImplementation;
-
-    template <typename DT = void>
-    void emov(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0) {
-        EmulationImplementation::emov<DT>(*this, mod, dst, src0, emu_strategy);
-    }
-
-    template <typename DT = void>
-    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::RegData &src1) {
-        EmulationImplementation::eadd<DT>(
-                *this, mod, dst, src0, src1, emu_strategy, emu_state);
-    }
-
-    template <typename DT = void>
-    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::Immediate &src1) {
-        EmulationImplementation::eadd<DT>(
-                *this, mod, dst, src0, src1, emu_strategy, emu_state);
-    }
-
-    template <typename DT = void>
-    void eshl(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, uint16_t src1) {
-        EmulationImplementation::eshl<DT>(
-                *this, mod, dst, src0, src1, emu_strategy, emu_state);
-    }
-
     static compute::nd_range_t nd_range(
             int simd, const layout_t &src, const layout_t &dst) {
-        ir_assert(src.elems() == dst.elems());
 
         if (is_f32_to_bf16(src, dst)) {
+            ir_assert(src.elems() == dst.elems());
             int elems_per_thr = f32_to_bf16_elems_per_thr();
             return compute::nd_range_t(
-                    {utils::div_up(src.elems(), elems_per_thr) * simd});
+                    {(int)utils::div_up(src.elems(), elems_per_thr) * simd, 1,
+                            1});
         }
 
         int elems_per_thr;
         if (is_2d_reorder(src, dst, elems_per_thr)) {
+            ir_assert(src.elems() == dst.elems());
             return compute::nd_range_t(
-                    {utils::div_up(src.elems(), elems_per_thr) * simd});
+                    {(int)utils::div_up(src.elems(), elems_per_thr) * simd, 1,
+                            1});
         }
 
         ir_error_not_expected();
@@ -2612,11 +2627,6 @@ private:
 
         return true;
     }
-
-    int simd_size_;
-    reg_allocator_t ra_;
-    EmulationStrategy emu_strategy = EmulationStrategy(hw);
-    EmulationState emu_state;
 
     ngen::Subregister src_ptr_;
     ngen::Subregister dst_ptr_;
@@ -3227,10 +3237,10 @@ private:
 template <ngen::HW hw>
 class ir_to_ngen_t : public ir_visitor_t {
 public:
-    ir_to_ngen_t(conv_kernel_t<hw> *host, const expr_binding_t &expr_binding)
+    ir_to_ngen_t(ir_kernel_t<hw> *host, const expr_binding_t &expr_binding)
         : host_(host)
         , expr_binding_(expr_binding)
-        , simd_size_(host->cfg_.simd_size()) {}
+        , simd_size_(host->getSIMD()) {}
 
     ~ir_to_ngen_t() {
 #ifdef GEN_CONV_DEBUG
@@ -3847,7 +3857,7 @@ private:
         return expr_evaluator.eval(exprs);
     }
 
-    conv_kernel_t<hw> *host_;
+    ir_kernel_t<hw> *host_;
     expr_binding_t expr_binding_;
     int simd_size_;
 
@@ -3865,12 +3875,10 @@ template <ngen::HW hw>
 conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         const convolution_pd_t *pd, const kernel_info_t &kernel_info,
         bool force_large_grf)
-    : cfg_(cfg)
-    , regs_(!force_large_grf ? cfg.regs() : 256)
-    , ra_(hw, "conv_kernel_t", reg_allocator_t::warn_all)
-    , emu_strategy(hw, cfg.hw_cfg.stepping_id()) {
-
-    ra_.setRegisterCount(regs_);
+    : ir_kernel_t<hw>("gen_conv", cfg.hw_cfg, kernel_info,
+            utils::one_of(cfg.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw),
+            cfg.do_atomic_update, force_large_grf)
+    , cfg_(cfg) {
 
     // XXX: BWD_W does 32x32 multiplication in the inner loop which may cause
     // hangs when using with split barrier. Switch to emulation to work around
@@ -3883,63 +3891,15 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 
     alloc_manager_t alloc_mgr(body);
 
-    setup_interface(body, kernel_info);
+    setup_interface(body);
 
-    setDefaultNoMask();
-    setDefaultAutoSWSB(true);
-
-    prologue();
-
-    // Claim registers.
-    ra_.claim(r0);
-    for (int i = 0; i < 3; i++)
-        ra_.claim(getLocalID(i));
-
-    for (int i = 0; i < kernel_info.nargs(); i++) {
-        ra_.claim(getArgument(kernel_info.arg_name(i)));
-    }
-
-    if (emu_strategy.emulate64) {
-        emu_state.temp[0] = ra_.alloc();
-        emu_state.temp[1] = ra_.alloc();
-    }
-    // Enable IEEE f32 -> s32 rounding and f32/f16 denormals.
-    or_(1, cr0, cr0, uint16_t(0x1480));
-
-    // Allocate and initialize signal header for future use.
-    signal_header_ = ra_.alloc();
-    barrierheader(signal_header_);
+    this->require_signal_header_ = true;
+    generate_prologue();
 
     // Bind "external" variables.
     expr_binding_t expr_binding(hw);
-
-    // Bind grid indices.
-    int r0_sub_idxs[] = {1, 6, 7};
-    for (int i = 0; i < 3; i++) {
-        auto tmp = ra_.alloc_sub<int32_t>();
-        mov(1, tmp, r0.ud(r0_sub_idxs[i]));
-        expr_binding.bind(builder.kernel_grid_idx(i), tmp);
-    }
-
-    // Bind local IDs.
-    for (int i = 0; i < 3; i++) {
-        expr_binding.bind(builder.local_id(i), getLocalID(i).uw(0));
-    }
-
-    // Bind arguments.
-    for (int i = 0; i < kernel_info.nargs(); i++) {
-        auto &arg_var = kernel_info.arg_var(i);
-        auto &name = kernel_info.arg_name(i);
-        if (arg_var.type().is_ptr()) {
-            auto alloc_buf = alloc_mgr.find_buffer(name);
-            ir_assert(alloc_buf.is_same(arg_var));
-        }
-        expr_binding.bind(arg_var, getArgument(name));
-    }
-
-    // Bind SLM buffer (SLM loads/stores use 0-based offsets).
-    auto slm_buf = alloc_mgr.find_buffer("slm", /*allow_empty=*/true);
-    if (!slm_buf.is_empty()) { expr_binding.bind(slm_buf, to_ngen(expr_t(0))); }
+    bind_external_vars(
+            body, builder.kernel_grid(), builder.local_id(), expr_binding);
 
 #ifdef GEN_CONV_DEBUG
     int grf_size = ngen::GRF::bytes(hw);
@@ -3956,8 +3916,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     ir_to_ngen_t<hw> visitor(this, expr_binding);
     visitor.visit(body);
 
-    epilogue();
-    pad_kernel();
+    generate_epilogue();
 
 #ifdef GEN_CONV_DEBUG
     ir_trace() << "Actual register usage:           "

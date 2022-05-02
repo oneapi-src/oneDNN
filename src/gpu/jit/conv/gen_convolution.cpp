@@ -171,8 +171,9 @@ public:
                         auto dst_layout = cfg.tensor_config.compute_layout(
                                 info.arg_name(1));
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                primitive->pd(), info, src_layout, dst_layout));
+                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
+                                info, src_layout, dst_layout,
+                                cfg.is_dpas_or_dpasw_fma()));
                         break;
                     }
                     case kernel_id_t::post_reorder: {
@@ -181,14 +182,15 @@ public:
                         auto dst_layout = cfg.tensor_config.user_layout(
                                 info.arg_name(0));
                         kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                primitive->pd(), info, src_layout, dst_layout));
+                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
+                                info, src_layout, dst_layout,
+                                cfg.is_dpas_or_dpasw_fma()));
                         break;
                     }
                     case kernel_id_t::zero_out:
                         kernels_.push_back(make_kernel<zero_out_kernel_t>(
-                                primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                primitive->pd(), info));
+                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
+                                info, cfg.is_dpas_or_dpasw_fma()));
                         break;
                     default: ir_error_not_expected();
                 }
@@ -363,11 +365,8 @@ private:
                 auto size_var = var_t::make(type_t::u32(), "size");
                 zero_out_info.register_internal_arg(
                         size_var, uint32_t(compute_size));
-                int bytes_per_thr = zero_out_kernel_t<>::bytes_per_thr;
-                compute::nd_range_t nd_range(
-                        {utils::div_up(compute_size, bytes_per_thr)
-                                * cfg.hw_cfg.simd_size()});
-                zero_out_info.set_nd_range(nd_range);
+                zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
+                        cfg.hw_cfg.simd_size(), compute_size));
             }
             if (!t.needs_reorder)
                 conv_info.register_user_arg(user_buf, user_arg_key,
