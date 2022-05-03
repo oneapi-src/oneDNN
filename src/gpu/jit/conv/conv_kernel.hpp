@@ -2744,7 +2744,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             return conversion_t::none;
         } else if (src_bf && dst_f) {
             return conversion_t::bf_to_f;
-        } else if (src_f && (dst_tf || dst_bf)) {
+        } else if (src_f && (dst_tf || dst_bf || dst_hf)) {
             // Conversion implicitly handled by fp mov instructions
             return conversion_t::none;
         } else if (src_d && (dst_bf || dst_hf)) {

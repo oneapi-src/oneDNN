@@ -711,6 +711,12 @@ private:
                             != fma_kind_t::unknown) {
                 a_data_type = data_type::bf16;
                 b_data_type = data_type::bf16;
+            } else if (attr->mayidownconvert(data_type::f32, data_type::f16)
+                    && fma_kind::get_supported_kind(hw(), data_type::f16,
+                               data_type::f16, data_type::f32)
+                            != fma_kind_t::unknown) {
+                a_data_type = data_type::f16;
+                b_data_type = data_type::f16;
             } else if (attr->mayidownconvert(data_type::f32, data_type::tf32)
                     && fma_kind::get_supported_kind(hw(), data_type::tf32,
                                data_type::tf32, data_type::f32)
