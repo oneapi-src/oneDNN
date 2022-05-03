@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include "test_api_common.h"
 
 TEST(c_api_test, create_graph_by_device) {
-    dnnl_graph_graph_t *agraph = NULL;
+    dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
 
 #define CREATE_GRAPH_BY_DEVICE_DESTROY \

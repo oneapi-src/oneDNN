@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,9 +21,9 @@
 #include "test_api_common.h"
 
 TEST(c_api_test, filter_conv_bn_standalone) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
-    dnnl_graph_op_t *bn = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
     dnnl_graph_op_kind_t op_kind = kConvolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
@@ -146,9 +146,9 @@ TEST(c_api_test, filter_conv_bn_standalone) {
 }
 
 TEST(c_api_test, filter_conv_bn_fused) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
-    dnnl_graph_op_t *bn = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
     dnnl_graph_op_kind_t op_kind = kConvolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
@@ -270,12 +270,12 @@ TEST(c_api_test, filter_conv_bn_fused) {
 
 TEST(c_api_test, filter_relu_add) {
     // y = relu(x); z = x + y
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *relu = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t relu = NULL;
     dnnl_graph_op_kind_t op_kind = kReLU;
     dnnl_graph_op_create(&relu, 0, op_kind, "relu");
 
-    dnnl_graph_op_t *add = NULL;
+    dnnl_graph_op_t add = NULL;
     op_kind = kAdd;
     dnnl_graph_op_create(&add, 1, op_kind, "add");
 
@@ -328,8 +328,8 @@ TEST(c_api_test, filter_relu_add) {
 }
 
 TEST(c_api_test, different_lt_with_same_id) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *add = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t add = NULL;
     dnnl_graph_op_kind_t op_kind = kAdd;
     dnnl_graph_op_create(&add, 1, op_kind, "add");
 

@@ -23,13 +23,13 @@
 #include "test_api_common.hpp"
 
 TEST(c_api_test, compile_bn) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *bn = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kBatchNormInference;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t gamma;
     dnnl_graph_logical_tensor_t beta;
@@ -121,7 +121,7 @@ TEST(c_api_test, compile_bn) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_BN_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            5, inputs, 1, outputs, e),
@@ -141,13 +141,13 @@ TEST(c_api_test, compile_bn) {
 }
 
 TEST(c_api_test, compile_conv2d) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kConvolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t output;
@@ -237,7 +237,7 @@ TEST(c_api_test, compile_conv2d) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILED_CONV2D_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            2, inputs, 1, outputs, e),
@@ -257,13 +257,13 @@ TEST(c_api_test, compile_conv2d) {
 }
 
 TEST(c_api_test, compile_grouped_conv2d) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kConvolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t output;
@@ -353,7 +353,7 @@ TEST(c_api_test, compile_grouped_conv2d) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_GROUND_CONV2D_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            2, inputs, 1, outputs, e),
@@ -373,14 +373,14 @@ TEST(c_api_test, compile_grouped_conv2d) {
 }
 
 TEST(c_api_test, compile_conv2d_bias_sum) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
-    dnnl_graph_op_t *bias_add = NULL;
-    dnnl_graph_op_t *sum = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_op_t bias_add = NULL;
+    dnnl_graph_op_t sum = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t bias;
@@ -512,7 +512,7 @@ TEST(c_api_test, compile_conv2d_bias_sum) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_CONV2D_BIAS_SUM_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            4, inputs, 1, outputs, e),
@@ -534,14 +534,14 @@ TEST(c_api_test, compile_conv2d_bias_sum) {
 }
 
 TEST(c_api_test, compile_conv2d_sum_conv2d) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv0 = NULL;
-    dnnl_graph_op_t *conv1 = NULL;
-    dnnl_graph_op_t *sum = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv0 = NULL;
+    dnnl_graph_op_t conv1 = NULL;
+    dnnl_graph_op_t sum = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t **partition = NULL;
-    dnnl_graph_compiled_partition_t **compiled_partition = NULL;
+    dnnl_graph_partition_t *partition = NULL;
+    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
     dnnl_graph_logical_tensor_t conv0_input;
     dnnl_graph_logical_tensor_t conv0_weight;
     dnnl_graph_logical_tensor_t conv0_output;
@@ -678,14 +678,14 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
             dnnl_graph_result_success, COMPILE_CONV2D_SUM_CONV2D_DESTROY);
     ASSERT_EQ_SAFE(part_num, 2, COMPILE_CONV2D_SUM_CONV2D_DESTROY);
 
-    partition = (dnnl_graph_partition_t **)malloc(
-            part_num * sizeof(dnnl_graph_partition_t *));
+    partition = (dnnl_graph_partition_t *)malloc(
+            part_num * sizeof(dnnl_graph_partition_t));
     if (partition == NULL) {
         COMPILE_CONV2D_SUM_CONV2D_DESTROY;
         return;
     }
-    compiled_partition = (dnnl_graph_compiled_partition_t **)malloc(
-            part_num * sizeof(dnnl_graph_compiled_partition_t *));
+    compiled_partition = (dnnl_graph_compiled_partition_t *)malloc(
+            part_num * sizeof(dnnl_graph_compiled_partition_t));
     if (compiled_partition == NULL) {
         COMPILE_CONV2D_SUM_CONV2D_DESTROY;
         free(partition);
@@ -728,7 +728,7 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
             = {&conv1_input, &conv1_weight};
     const dnnl_graph_logical_tensor_t *p0_outputs[1] = {&conv1_output};
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(*partition, *compiled_partition,
                            2, p0_inputs, 1, p0_outputs, e),
@@ -769,14 +769,14 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
 }
 
 TEST(c_api_test, compile_sum_conv2d_strided_bn) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv0 = NULL;
-    dnnl_graph_op_t *bn = NULL;
-    dnnl_graph_op_t *sum = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv0 = NULL;
+    dnnl_graph_op_t bn = NULL;
+    dnnl_graph_op_t sum = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t **partition = NULL;
-    dnnl_graph_compiled_partition_t **compiled_partition = NULL;
+    dnnl_graph_partition_t *partition = NULL;
+    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
     dnnl_graph_logical_tensor_t conv0_input;
     dnnl_graph_logical_tensor_t conv0_weight;
     dnnl_graph_logical_tensor_t conv0_output;
@@ -938,10 +938,10 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
             dnnl_graph_result_success, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
     ASSERT_EQ_SAFE(part_num, 2, COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY);
 
-    partition = (dnnl_graph_partition_t **)malloc(
-            part_num * sizeof(dnnl_graph_partition_t *));
-    compiled_partition = (dnnl_graph_compiled_partition_t **)malloc(
-            part_num * sizeof(dnnl_graph_compiled_partition_t *));
+    partition = (dnnl_graph_partition_t *)malloc(
+            part_num * sizeof(dnnl_graph_partition_t));
+    compiled_partition = (dnnl_graph_compiled_partition_t *)malloc(
+            part_num * sizeof(dnnl_graph_compiled_partition_t));
 
 #define COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS \
     do { \
@@ -979,7 +979,7 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
             = {&bn_input, &bn_gamma, &bn_beta, &bn_mean, &bn_var};
     const dnnl_graph_logical_tensor_t *p0_outputs[1] = {&sum_input1};
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(*partition, *compiled_partition,
                            5, p0_inputs, 1, p0_outputs, e),
@@ -1036,13 +1036,13 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
 }
 
 TEST(c_api_test, compile_conv2d_with_unknown_shape) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kConvolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t output;
@@ -1146,7 +1146,7 @@ TEST(c_api_test, compile_conv2d_with_unknown_shape) {
             dnnl_graph_result_success,
             COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     const dnnl_graph_logical_tensor_t *const_outputs[1] = {&output};
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
@@ -1168,13 +1168,13 @@ TEST(c_api_test, compile_conv2d_with_unknown_shape) {
 }
 
 TEST(c_api_test, compile_maxpool) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *maxpool = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t maxpool = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kMaxPool;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t output;
 
@@ -1254,7 +1254,7 @@ TEST(c_api_test, compile_maxpool) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILED_POOL_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            1, inputs, 1, outputs, e),
@@ -1265,13 +1265,13 @@ TEST(c_api_test, compile_maxpool) {
 }
 
 TEST(c_api_test, compile_maxpool_with_strided_output) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *maxpool = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t maxpool = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kMaxPool;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t output;
 
@@ -1351,7 +1351,7 @@ TEST(c_api_test, compile_maxpool_with_strided_output) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILED_POOL_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            1, inputs, 1, outputs, e),
@@ -1378,13 +1378,13 @@ TEST(c_api_test, compile_maxpool_with_strided_output) {
 }
 
 TEST(c_api_test, compile_add) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *add = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t add = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kAdd;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
 
 #define COMPILE_ADD_DESTROY \
     do { \
@@ -1450,7 +1450,7 @@ TEST(c_api_test, compile_add) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_ADD_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     const dnnl_graph_logical_tensor_t *const_inputs[2] = {&src0, &src1};
     const dnnl_graph_logical_tensor_t *const_dst[1] = {&dst};
@@ -1463,13 +1463,13 @@ TEST(c_api_test, compile_add) {
 }
 
 TEST(c_api_test, compile_conv_bn) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
-    dnnl_graph_op_t *bn = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t conv_input;
     dnnl_graph_logical_tensor_t conv_weight;
     dnnl_graph_logical_tensor_t conv_output;
@@ -1613,7 +1613,7 @@ TEST(c_api_test, compile_conv_bn) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_CONV_BN_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            6, inputs, 1, outputs, e),
@@ -1624,13 +1624,13 @@ TEST(c_api_test, compile_conv_bn) {
 }
 
 TEST(c_api_test, compile_grouped_conv_bn) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
-    dnnl_graph_op_t *bn = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t conv_input;
     dnnl_graph_logical_tensor_t conv_weight;
     dnnl_graph_logical_tensor_t conv_output;
@@ -1774,7 +1774,7 @@ TEST(c_api_test, compile_grouped_conv_bn) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_GROUPED_CONV_BN_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            6, inputs, 1, outputs, e),
@@ -1785,13 +1785,13 @@ TEST(c_api_test, compile_grouped_conv_bn) {
 }
 
 TEST(c_api_test, compile_conv_bn_standalone) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *conv2d = NULL;
-    dnnl_graph_op_t *bn = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t conv2d = NULL;
+    dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t *partition[2] = {NULL};
-    dnnl_graph_compiled_partition_t *compiled_partition[2] = {NULL};
+    dnnl_graph_partition_t partition[2] = {NULL};
+    dnnl_graph_compiled_partition_t compiled_partition[2] = {NULL};
     dnnl_graph_logical_tensor_t conv_input;
     dnnl_graph_logical_tensor_t conv_weight;
     dnnl_graph_logical_tensor_t conv_output;
@@ -1961,7 +1961,7 @@ TEST(c_api_test, compile_conv_bn_standalone) {
     ASSERT_EQ_SAFE(dnnl_graph_partition_get_ops(partition[1], 1, ops),
             dnnl_graph_result_success, COMPILE_CONV_BN_STANDALONE_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(
             dnnl_graph_partition_compile(partition[0], compiled_partition[0], 2,
@@ -1977,13 +1977,13 @@ TEST(c_api_test, compile_conv_bn_standalone) {
 }
 
 TEST(c_api_test, compile_matmul_add_1d) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *matmul = NULL;
-    dnnl_graph_op_t *add = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t matmul = NULL;
+    dnnl_graph_op_t add = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t matmul_output;
@@ -2069,7 +2069,7 @@ TEST(c_api_test, compile_matmul_add_1d) {
     const dnnl_graph_logical_tensor_t *inputs[3] = {&input, &weight, &other};
     const dnnl_graph_logical_tensor_t *outputs[1] = {&add_output};
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
                            3, inputs, 1, outputs, e),
@@ -2080,14 +2080,14 @@ TEST(c_api_test, compile_matmul_add_1d) {
 }
 
 TEST(c_api_test, compile_matmul_add_activation) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *matmul = NULL;
-    dnnl_graph_op_t *add = NULL;
-    dnnl_graph_op_t *activation = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t matmul = NULL;
+    dnnl_graph_op_t add = NULL;
+    dnnl_graph_op_t activation = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
     dnnl_graph_logical_tensor_t input;
     dnnl_graph_logical_tensor_t weight;
     dnnl_graph_logical_tensor_t matmul_output;
@@ -2206,7 +2206,7 @@ TEST(c_api_test, compile_matmul_add_activation) {
                 = {&input, &weight, &other};
         const dnnl_graph_logical_tensor_t *outputs[1] = {&activation_output};
 
-        dnnl_graph_engine_t *e;
+        dnnl_graph_engine_t e;
         api_test_dnnl_graph_engine_create(&e, engine);
         ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition,
                                compiled_partition, 3, inputs, 1, outputs, e),
@@ -2219,13 +2219,13 @@ TEST(c_api_test, compile_matmul_add_activation) {
 }
 
 TEST(c_api_test, compile_softmax) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *softmax = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t softmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kSoftMax;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
 
 #define COMPILE_SOFTMAX_DESTROY \
     do { \
@@ -2283,7 +2283,7 @@ TEST(c_api_test, compile_softmax) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_SOFTMAX_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     const dnnl_graph_logical_tensor_t *const_inputs[1] = {&src};
     const dnnl_graph_logical_tensor_t *const_dst[1] = {&dst};
@@ -2296,13 +2296,13 @@ TEST(c_api_test, compile_softmax) {
 }
 
 TEST(c_api_test, compile_softmax_bwd) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *softmax = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t softmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kSoftMaxBackprop;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
 
 #define COMPILE_SOFTMAX_BWD_DESTROY \
     do { \
@@ -2368,7 +2368,7 @@ TEST(c_api_test, compile_softmax_bwd) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_SOFTMAX_BWD_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     const dnnl_graph_logical_tensor_t *const_inputs[2] = {&src0, &src1};
     const dnnl_graph_logical_tensor_t *const_dst[1] = {&dst};
@@ -2381,13 +2381,13 @@ TEST(c_api_test, compile_softmax_bwd) {
 }
 
 TEST(c_api_test, compile_logsoftmax) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *logsoftmax = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t logsoftmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
     dnnl_graph_op_kind_t op_kind = kLogSoftmax;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    dnnl_graph_partition_t *partition = NULL;
-    dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
 
 #define COMPILE_LOGSOFTMAX_DESTROY \
     do { \
@@ -2445,7 +2445,7 @@ TEST(c_api_test, compile_logsoftmax) {
                            &compiled_partition, partition),
             dnnl_graph_result_success, COMPILE_LOGSOFTMAX_DESTROY);
 
-    dnnl_graph_engine_t *e;
+    dnnl_graph_engine_t e;
     api_test_dnnl_graph_engine_create(&e, engine);
     const dnnl_graph_logical_tensor_t *const_inputs[1] = {&src};
     const dnnl_graph_logical_tensor_t *const_dst[1] = {&dst};

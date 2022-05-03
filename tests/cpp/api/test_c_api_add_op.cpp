@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,9 +21,9 @@
 #include "test_api_common.h"
 
 TEST(c_api_test, add_op) {
-    dnnl_graph_graph_t *agraph = NULL;
-    dnnl_graph_op_t *op0 = NULL;
-    dnnl_graph_op_t *op1 = NULL;
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t op0 = NULL;
+    dnnl_graph_op_t op1 = NULL;
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
 
 #define ADD_OP_DESTROY \

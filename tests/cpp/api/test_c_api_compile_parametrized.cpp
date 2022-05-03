@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,10 +45,10 @@ public:
                         && isa < dnnl_cpu_isa_avx512_core,
                 "Skip test for systems that do not support avx512_core.");
 
-        dnnl_graph_graph_t *agraph = NULL;
-        dnnl_graph_op_t *op = NULL;
-        dnnl_graph_partition_t *partition = NULL;
-        dnnl_graph_compiled_partition_t *compiled_partition = NULL;
+        dnnl_graph_graph_t agraph = NULL;
+        dnnl_graph_op_t op = NULL;
+        dnnl_graph_partition_t partition = NULL;
+        dnnl_graph_compiled_partition_t compiled_partition = NULL;
 
 #define TEST_CONV2D_DESTROY \
     do { \
@@ -140,7 +140,7 @@ public:
                                &compiled_partition, partition),
                 dnnl_graph_result_success, TEST_CONV2D_DESTROY);
 
-        dnnl_graph_engine_t *e;
+        dnnl_graph_engine_t e;
         api_test_dnnl_graph_engine_create(&e, p.engine);
         ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition,
                                compiled_partition, 2, inputs, 1, outputs, e),

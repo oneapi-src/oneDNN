@@ -129,7 +129,7 @@ extern dnnl_graph_engine_kind_t api_test_engine_kind;
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 struct allocator_handle_t {
-    dnnl_graph_allocator_t *allocator = nullptr;
+    dnnl_graph_allocator_t allocator = nullptr;
     ~allocator_handle_t() { dnnl_graph_allocator_destroy(allocator); }
     explicit operator bool() const noexcept {
         return static_cast<bool>(allocator);
@@ -153,7 +153,7 @@ void sycl_free(void *ptr, const void *ctx);
 #endif // DNNL_GRAPH_WITH_SYCL
 
 struct engine_handle_t {
-    dnnl_graph_engine_t *engine = nullptr;
+    dnnl_graph_engine_t engine = nullptr;
     ~engine_handle_t() { dnnl_graph_engine_destroy(engine); }
     explicit operator bool() const noexcept {
         return static_cast<bool>(engine);
@@ -162,10 +162,10 @@ struct engine_handle_t {
 static engine_handle_t engine_handle;
 
 void api_test_dnnl_graph_engine_create(
-        dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t engine_kind);
+        dnnl_graph_engine_t *engine, dnnl_graph_engine_kind_t engine_kind);
 
 void api_test_dnnl_graph_graph_create(
-        dnnl_graph_graph_t **graph, dnnl_graph_engine_kind_t engine_kind);
+        dnnl_graph_graph_t *graph, dnnl_graph_engine_kind_t engine_kind);
 
 dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
         dnnl::graph::engine::kind engine_kind);

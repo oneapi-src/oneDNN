@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
 
     /// Step 1: create allocator
     printf("Step 1: Create allocator----------------");
-    dnnl_graph_allocator_t *allocator;
+    dnnl_graph_allocator_t allocator;
     DNNL_GRAPH_CHECK(
             dnnl_graph_allocator_create(&allocator, allocate, deallocate));
     printf("Success!\n");
@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
     /// Step 2: create an engine and set the allocator to it,
     /// the engine and allocator will used by dnnl graph backend to manage memory resource
     printf("Step 2: Create engine-------------------");
-    dnnl_graph_engine_t *engine;
+    dnnl_graph_engine_t engine;
     const int32_t device_id = 0;
     DNNL_GRAPH_CHECK(dnnl_graph_engine_create_with_allocator(
             &engine, engine_kind, device_id, allocator));
@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 
     /// Step 3: create dnnl_graph_op and add attrs
     printf("Step 3: Create op-----------------------");
-    dnnl_graph_op_t *conv0, *relu0, *conv1, *relu1, *bias_add0, *bias_add1;
+    dnnl_graph_op_t conv0, relu0, conv1, relu1, bias_add0, bias_add1;
     DNNL_GRAPH_CHECK(
             dnnl_graph_op_create(&conv0, CONV0_ID, kConvolution, "conv0"));
     DNNL_GRAPH_CHECK(dnnl_graph_op_create(&relu0, RELU0_ID, kReLU, "relu0"));
@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
     /// Step 4: connect dnnl_graph_op by using logical tensor, and then add dnnl_graph_op
     /// into backend graph
     printf("Step 4: Add OP to graph-----------------");
-    dnnl_graph_graph_t *graph;
+    dnnl_graph_graph_t graph;
     DNNL_GRAPH_CHECK(dnnl_graph_graph_create(&graph, engine_kind));
     {
         /// Here, we create dummy logical tensors, which only have valid ID.
@@ -312,7 +312,7 @@ int main(int argc, char **argv) {
 
     /// Get partition from the optimized graph. Each partition will be composed
     /// of a single op (fused or unfused op)
-    dnnl_graph_partition_t *partitions[2];
+    dnnl_graph_partition_t partitions[2];
     DNNL_GRAPH_CHECK(dnnl_graph_partition_create(&partitions[0]));
     DNNL_GRAPH_CHECK(dnnl_graph_partition_create(&partitions[1]));
     DNNL_GRAPH_CHECK(dnnl_graph_graph_get_partitions(graph, 2, partitions));
@@ -320,7 +320,7 @@ int main(int argc, char **argv) {
 
     /// Step 6: compile partitions
     printf("Step 6: Compile the partitions----------");
-    dnnl_graph_compiled_partition_t *cpartitions[2];
+    dnnl_graph_compiled_partition_t cpartitions[2];
 
     /// Compile partition[0]
     DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_create(
@@ -405,7 +405,7 @@ int main(int argc, char **argv) {
 
     /// Step 7: alloc memory and execute compiled partition
     printf("Step 7: Alloc memory and execute--------\n");
-    dnnl_graph_stream_t *stream = NULL;
+    dnnl_graph_stream_t stream = NULL;
     DNNL_GRAPH_CHECK(dnnl_graph_stream_create(&stream, engine));
 
     /// Alloc used buffer for compiled_partition[0]
@@ -437,7 +437,7 @@ int main(int argc, char **argv) {
     relu0_dst_data = (float *)malloc(relu0_dst_size);
 
     /// Wrap buffer and dnnl_graph_logical_tensor to dnnl_graph_tensor
-    dnnl_graph_tensor_t *conv0_src, *conv0_weight, *conv0_bias, *relu0_dst;
+    dnnl_graph_tensor_t conv0_src, conv0_weight, conv0_bias, relu0_dst;
     DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
             &conv0_src, &conv0_src_desc, engine, conv0_src_data));
     DNNL_GRAPH_CHECK(dnnl_graph_tensor_create(
@@ -469,7 +469,7 @@ int main(int argc, char **argv) {
     relu1_dst_data = (float *)malloc(relu1_dst_size);
 
     /// Wrap buffer and dnnl_graph_logical_tensor to dnnl_graph_tensor
-    dnnl_graph_tensor_t *conv1_src, *conv1_weight, *conv1_bias, *relu1_dst;
+    dnnl_graph_tensor_t conv1_src, conv1_weight, conv1_bias, relu1_dst;
     DNNL_GRAPH_CHECK(
             dnnl_graph_tensor_create(&conv1_src, &conv1_src_desc, engine,
                     relu0_dst_data)); // use compiled partition[0] output buffer
@@ -509,16 +509,16 @@ int main(int argc, char **argv) {
         /// their order should be same too. Because dnnl graph implementation recorded the index
         /// of logical tensor it needs in the given ones, and the index will
         /// used here to take out required tensors.
-        const dnnl_graph_tensor_t *cpartition0_inputs[]
+        const_dnnl_graph_tensor_t cpartition0_inputs[]
                 = {conv0_src, conv0_weight, conv0_bias};
-        const dnnl_graph_tensor_t *cpartition0_outputs[] = {relu0_dst};
+        const_dnnl_graph_tensor_t cpartition0_outputs[] = {relu0_dst};
         DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_execute(cpartitions[0],
                 stream, 3, cpartition0_inputs, 1, cpartition0_outputs));
 
         /// Execute the compiled_partition[1]
-        const dnnl_graph_tensor_t *cpartition1_inputs[]
+        const_dnnl_graph_tensor_t cpartition1_inputs[]
                 = {relu0_dst, conv1_weight, conv1_bias};
-        const dnnl_graph_tensor_t *cpartition1_outputs[] = {relu1_dst};
+        const_dnnl_graph_tensor_t cpartition1_outputs[] = {relu1_dst};
         DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_execute(cpartitions[1],
                 stream, 3, cpartition1_inputs, 1, cpartition1_outputs));
         end = clock();

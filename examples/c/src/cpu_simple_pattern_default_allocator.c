@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,13 +38,13 @@
 
 typedef struct {
     example_op_t *example_op_;
-    dnnl_graph_op_t *dnnl_graph_op_;
+    dnnl_graph_op_t dnnl_graph_op_;
 } op_map;
 
 typedef struct {
     example_op_t *e_op_;
-    dnnl_graph_partition_t *l_p_;
-    dnnl_graph_compiled_partition_t *l_cp_;
+    dnnl_graph_partition_t l_p_;
+    dnnl_graph_compiled_partition_t l_cp_;
 
 } partition_map;
 
@@ -54,7 +54,7 @@ int64_t o_map_num = 0;
 partition_map p_map[100];
 int64_t p_map_num = 0;
 
-void op_map_add(example_op_t *e_op, dnnl_graph_op_t *l_op) {
+void op_map_add(example_op_t *e_op, dnnl_graph_op_t l_op) {
     o_map[o_map_num].example_op_ = e_op;
     o_map[o_map_num].dnnl_graph_op_ = l_op;
     o_map_num++;
@@ -75,14 +75,14 @@ example_result_t find_example_op_by_dnnl_graph_op_id(
     return example_result_error_common_fail;
 }
 
-void partition_map_add(example_op_t *e_op, dnnl_graph_partition_t *l_p) {
+void partition_map_add(example_op_t *e_op, dnnl_graph_partition_t l_p) {
     p_map[p_map_num].e_op_ = e_op;
     p_map[p_map_num].l_p_ = l_p;
     p_map[p_map_num].l_cp_ = NULL;
     p_map_num++;
 }
 
-int64_t find_by_dnnl_graph_partition(dnnl_graph_partition_t *l_p) {
+int64_t find_by_dnnl_graph_partition(dnnl_graph_partition_t l_p) {
     for (int k = 0; k < p_map_num; k++) {
         if (l_p == p_map[k].l_p_) { return k; }
     }
@@ -112,8 +112,8 @@ example_result_t create_simple_pattern_graph(
     return example_result_success;
 }
 
-dnnl_graph_op_t *convert_op(example_op_t *e_op) {
-    dnnl_graph_op_t *l_op = NULL;
+dnnl_graph_op_t convert_op(example_op_t *e_op) {
+    dnnl_graph_op_t l_op = NULL;
 
     // dispatch to different op kind
     if (e_op->kind_ == e_kconv2d) {
@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
     // Step 1: create an engine and set the allocator to it,
     // the engine and allocator will used by dnnl graph backend to manage memory resource
     printf("Step 1: Create engine-------------------");
-    dnnl_graph_engine_t *engine = NULL;
+    dnnl_graph_engine_t engine = NULL;
     int32_t device_id = 0;
     DNNL_GRAPH_CHECK(dnnl_graph_engine_create(&engine, engine_kind, device_id));
     printf("Success!\n");
@@ -180,14 +180,14 @@ int main(int argc, char **argv) {
     // dnnl graph op, create corresponding logical tensor edge and
     // then add supported ops into the graph
     printf("Step 2: Add OP to graph-----------------");
-    dnnl_graph_graph_t *graph = NULL;
+    dnnl_graph_graph_t graph = NULL;
     DNNL_GRAPH_CHECK(dnnl_graph_graph_create(&graph, engine_kind));
 
     for (int i = 0; i < example_graph->op_num_; i++) {
         example_op_t *e_op = example_graph->ops_[i];
 
         // convert example op to dnnl graph op and merge attrs
-        dnnl_graph_op_t *l_op = convert_op(e_op);
+        dnnl_graph_op_t l_op = convert_op(e_op);
         if (l_op == NULL) {
             example_graph_destroy(example_graph);
             example_tensor_destroy_all();
@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
         DNNL_GRAPH_CHECK(dnnl_graph_engine_destroy(engine));
         return -1;
     }
-    dnnl_graph_partition_t *partitions[2];
+    dnnl_graph_partition_t partitions[2];
     for (int i = 0; i < partitions_num; i++) {
         DNNL_GRAPH_CHECK(dnnl_graph_partition_create(&partitions[i]));
     }
@@ -351,7 +351,7 @@ int main(int argc, char **argv) {
     // Step 5: compile the partitions
     // do layout propagation and mount backend's execution kernel
     printf("Step 5: Compile the partitions----------");
-    dnnl_graph_compiled_partition_t *compiled_partitions[2];
+    dnnl_graph_compiled_partition_t compiled_partitions[2];
     for (int i = 0; i < partitions_num; i++) {
         // we find the corresponding fake op in example graph, create
         // logical tensor according to its inputs and outputs example
@@ -378,7 +378,7 @@ int main(int argc, char **argv) {
             } else {
                 // we need to query logical tensor id from the producer compiled partition
                 int64_t temp_idx = find_by_example_op(e_t->producer_.producer_);
-                dnnl_graph_compiled_partition_t *l_cp = p_map[temp_idx].l_cp_;
+                dnnl_graph_compiled_partition_t l_cp = p_map[temp_idx].l_cp_;
                 DNNL_GRAPH_CHECK(
                         dnnl_graph_compiled_partition_query_logical_tensor(
                                 l_cp, e_t->id_, l_lts_in + j));
@@ -435,7 +435,7 @@ int main(int argc, char **argv) {
         }
 
         int64_t idx = find_by_example_op(e_op);
-        dnnl_graph_compiled_partition_t *l_cp = p_map[idx].l_cp_;
+        dnnl_graph_compiled_partition_t l_cp = p_map[idx].l_cp_;
 
         for (int j = 0; j < e_op->inputs_num_; j++) {
             example_tensor_t *e_t = e_op->inputs_[j];
@@ -469,7 +469,7 @@ int main(int argc, char **argv) {
 
     // Step 8: Execute compiled partitions
     printf("Step 7: Execute compiled partitions-----");
-    dnnl_graph_stream_t *stream = NULL;
+    dnnl_graph_stream_t stream = NULL;
     DNNL_GRAPH_CHECK(dnnl_graph_stream_create(&stream, engine));
     for (int i = 0; i < example_graph->op_num_; i++) {
         example_op_t *e_op = example_graph->ops_[i];
@@ -481,9 +481,9 @@ int main(int argc, char **argv) {
         }
 
         int64_t idx = find_by_example_op(e_op);
-        dnnl_graph_compiled_partition_t *l_cp = p_map[idx].l_cp_;
+        dnnl_graph_compiled_partition_t l_cp = p_map[idx].l_cp_;
 
-        dnnl_graph_tensor_t *l_ts_in[3];
+        dnnl_graph_tensor_t l_ts_in[3];
         for (int j = 0; j < e_op->inputs_num_; j++) {
             example_tensor_t *e_t = e_op->inputs_[j];
 
@@ -495,7 +495,7 @@ int main(int argc, char **argv) {
                     &l_ts_in[j], &l_lt, engine, e_t->data_));
         }
 
-        dnnl_graph_tensor_t *l_ts_out[2];
+        dnnl_graph_tensor_t l_ts_out[2];
         for (int j = 0; j < e_op->outputs_num_; j++) {
             example_tensor_t *e_t = e_op->outputs_[j];
 
@@ -509,8 +509,8 @@ int main(int argc, char **argv) {
 
         // execute the compiled partition
         DNNL_GRAPH_CHECK(dnnl_graph_compiled_partition_execute(l_cp, stream,
-                e_op->inputs_num_, (const dnnl_graph_tensor_t **)l_ts_in,
-                e_op->outputs_num_, (const dnnl_graph_tensor_t **)l_ts_out));
+                e_op->inputs_num_, (const_dnnl_graph_tensor_t *)l_ts_in,
+                e_op->outputs_num_, (const_dnnl_graph_tensor_t *)l_ts_out));
 
         // destroy tensor, which will not free data_ memory
         for (int j = 0; j < e_op->inputs_num_; j++) {

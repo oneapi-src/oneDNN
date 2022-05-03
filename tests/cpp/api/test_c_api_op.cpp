@@ -24,7 +24,7 @@
  * TODO: cover more op kind
 */
 TEST(c_api_test, create_op) {
-    dnnl_graph_op_t *op = NULL;
+    dnnl_graph_op_t op = NULL;
     dnnl_graph_op_kind_t op_kind = kConvolution;
 
 #define CREATE_OP_DESTROY \
@@ -40,8 +40,8 @@ TEST(c_api_test, create_op) {
 }
 
 TEST(c_api_test, op_attr) {
-    dnnl_graph_op_t *op = NULL;
-    dnnl_graph_op_t *matmul_op = NULL;
+    dnnl_graph_op_t op = NULL;
+    dnnl_graph_op_t matmul_op = NULL;
     dnnl_graph_op_kind_t op_kind = kConvolution;
 
 #define OP_ATTR_DESTROY \

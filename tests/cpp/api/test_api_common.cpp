@@ -33,7 +33,7 @@ void sycl_free(void *ptr, const void *ctx) {
 #endif // DNNL_GRAPH_WITH_SYCL
 
 void api_test_dnnl_graph_engine_create(
-        dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t engine_kind) {
+        dnnl_graph_engine_t *engine, dnnl_graph_engine_kind_t engine_kind) {
     if (engine_kind == dnnl_graph_cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
         static cl::sycl::device dev {cl::sycl::cpu_selector {}};
@@ -76,7 +76,7 @@ void api_test_dnnl_graph_engine_create(
 }
 
 void api_test_dnnl_graph_graph_create(
-        dnnl_graph_graph_t **graph, dnnl_graph_engine_kind_t engine_kind) {
+        dnnl_graph_graph_t *graph, dnnl_graph_engine_kind_t engine_kind) {
     ASSERT_EQ(dnnl_graph_graph_create(graph, engine_kind),
             dnnl_graph_result_success);
 }

@@ -41,7 +41,7 @@ TEST(api_base_test, managed_handle) {
 #endif
     constexpr int expected_deletion {1};
     const int deletion_counter_before_deletion = [] {
-        using handle = dnnl::graph::detail::handle<int, destory>;
+        using handle = dnnl::graph::detail::handle<int *, destory>;
         handle h {new int {}};
         return deletion_counter;
     }();
@@ -61,7 +61,7 @@ TEST(api_base_test, unmanaged_handle) {
 #endif
     constexpr int expected_deletion {0};
     const int deletion_counter_before_deletion = [] {
-        using handle = dnnl::graph::detail::handle<int, destory>;
+        using handle = dnnl::graph::detail::handle<int *, destory>;
         auto h = handle(reinterpret_cast<int *>(1234), true);
         return deletion_counter;
     }();
