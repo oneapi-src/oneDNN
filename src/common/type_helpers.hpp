@@ -81,9 +81,10 @@ namespace types {
 
 inline size_t data_type_size(data_type_t data_type) {
     using namespace data_type;
-    switch (data_type) {
+    switch ((int)data_type) {
         case f16: return sizeof(prec_traits<f16>::type);
         case bf16: return sizeof(prec_traits<bf16>::type);
+        case tf32: // the tf32 type is an f32
         case f32: return sizeof(prec_traits<f32>::type);
         case f64: return sizeof(prec_traits<f64>::type);
         case s32: return sizeof(prec_traits<s32>::type);

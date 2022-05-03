@@ -47,12 +47,15 @@ status_t check_fpmath_mode(fpmath_mode_t mode) {
 bool is_fpsubtype(data_type_t sub_dt, data_type_t dt) {
     using namespace dnnl::impl::utils;
     using namespace dnnl::impl::data_type;
-    switch (dt) {
-        case f32: return one_of(sub_dt, f32, bf16, f16);
-        case bf16: return one_of(sub_dt, bf16);
-        case f16: return one_of(sub_dt, f16);
-        default: return false;
-    }
+
+    if (sub_dt == dt) return true;
+
+    // Check for strict subtype
+    if (dt == f32) return one_of(sub_dt, tf32, bf16, f16);
+    if (dt == tf32) return one_of(sub_dt, bf16, f16);
+
+    // bf16 and f16 have no strict subtypes
+    return false;
 }
 
 fpmath_mode_t get_fpmath_mode() {
