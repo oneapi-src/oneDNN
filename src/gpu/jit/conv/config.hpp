@@ -841,7 +841,9 @@ private:
         }
         for (int i = 0; i < attr->post_ops_.len(); i++) {
             auto &po = attr->post_ops_.entry_[i];
-            if (po.is_eltwise() || po.is_sum(/*require_scale_one=*/false)) {
+            if (po.is_eltwise()
+                    || po.is_sum(/*require_scale_one=*/false,
+                            /*require_zp_zero=*/false)) {
                 // No extra tensors.
             } else if (po.is_binary()) {
                 auto layout = make_layout(po.binary.src1_desc);

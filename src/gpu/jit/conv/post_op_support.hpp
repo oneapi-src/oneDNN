@@ -299,8 +299,10 @@ public:
                 auto func = eltwise_t::make(po.eltwise.alg, po.eltwise.scale,
                         po.eltwise.alpha, po.eltwise.beta);
                 post_ops_.emplace_back(c, c, func);
-            } else if (po.is_sum(/*require_scale_one=*/false)) {
+            } else if (po.is_sum(/*require_scale_one=*/false,
+                               /*require_zp_zero=*/false)) {
                 float scale = po.sum.scale;
+                int32_t zp = po.sum.zero_point;
                 if (pd->is_bwd_w()) {
                     ir_assert(scale == 1) << "BWD_W doesn't support "
                                              "non-default scale for sum.";
@@ -314,7 +316,7 @@ public:
                     view = view.retype(po.sum.dt);
                 auto buf = kernel_info.find_arg(pd->is_fwd() ? "dst" : "src");
                 auto c_old = add_input_tensor(view, buf);
-                post_ops_.emplace_back(c, c + scale * c_old);
+                post_ops_.emplace_back(c, c + scale * (c_old - zp));
             } else if (po.is_prelu()) {
                 uint32_t rhs_mask = normalize_mask(po.prelu.mask);
                 auto rhs_view = create_view(type_t::f32(), rhs_mask);
@@ -395,7 +397,9 @@ private:
             if (po.is_eltwise()) {
                 if (!eltwise_fwd_pd_t::eltwise_preserves_zero(po.eltwise))
                     return true;
-            } else if (po.is_sum(/*require_scale_one=*/false)) {
+            } else if (po.is_sum(/*require_scale_one=*/false,
+                               /*require_zp_zero=*/false)) {
+                if (po.sum.zero_point != 0) return true;
                 for (int j = 0; j < cp_ndims(); j++) {
                     if (!is_cp_dim_zero_padded(j)) continue;
                     // Size one dimensions are treated as broadcast which does

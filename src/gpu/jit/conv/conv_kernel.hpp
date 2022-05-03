@@ -57,6 +57,8 @@ T to_cpp(const ngen::Immediate &imm) {
             return (T)utils::bit_cast<std::array<uint32_t, 2>>(u64)[0];
         case ngen::DataType::q: return (T)utils::bit_cast<int64_t>(u64);
         case ngen::DataType::uq: return (T)utils::bit_cast<uint64_t>(u64);
+        case ngen::DataType::f:
+            return (T)utils::bit_cast<std::array<float, 2>>(u64)[0];
         default: ir_error_not_expected();
     }
     return 0;
