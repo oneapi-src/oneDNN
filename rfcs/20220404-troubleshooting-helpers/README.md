@@ -239,7 +239,37 @@ should be compiled away when the library is built with
   `get_string` should be a function/lambda with the signature
   `std::string (void)`. This should allow to avoid string creation
   overheads when `ONEDNN_DEVEL_MODE=OFF`.
-- `DPROFILE(level, string, time)`.
+
+Some macros to collect timings and profile internal computations on host/cpu.
+- `DDECLTIMER(timer)`, useful to declare a timer as primitive
+  member, and collect performance across multiple runs of the same primitive.
+- `DTIMESTAMP(level, stamp)` useful to add host timestamp in a way that there
+  is no overheads when the library is not in `ONEDNN_DEVEL_MODE=OFF`.
+- `DCOLLECTTIME(level, timer, start_stamp, end_stamp)`. This will add
+  `end_stamp - start_stamp` to the timer.
+- `DPROFILE(level, get_string, timer)`. Prints the info relative to a
+  given timer.  Ideally, this should be called in primitive destructor
+  to avoid print overheads.
+
+Similar profiling macros but for device time.
+- `DDEVICEDECLTIMER(timer)`, useful to declare a timer as primitive
+  member, and collect performance across multiple runs of the same primitive.
+- `DDEVICETIMESTAMP(stamp, event)` useful to add a timestamp on the
+  device. This should not cause synchronization with the device. The
+  current definition takes an event as input, but if too complex to
+  retrieve events, we can simplify in different ways (e.g. using
+  stream and inserting dummy kernel to get fresh event).
+- `DDEVICECOLLECTTIME(level, timer, start_stamp, end_stamp)`. This
+  should be asyncronous as well. To wait on event and collect profile
+  info, it will likely need to spawn a new thread for sycl, and use
+  callbacks for OCL.  It will also require some care to avoid race
+  conditions (e.g. using std::atomic for some members, at least for a
+  counter of collections currently waiting, and for the accumulated
+  time).
+- `DDEVICEPROFILE(level, get_string, timer)`. Same as `DPROFILE` but
+  for reporting device time. This call will be a synchronous call, so
+  it is recommended to use it only in primitive destructor to reduce
+  overheads.
 
 
 ## Device side printing
