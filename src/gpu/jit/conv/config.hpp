@@ -705,13 +705,22 @@ private:
         if (utils::everyone_is(
                     data_type::f32, a_data_type, b_data_type, c_data_type)) {
 
-            if (attr->mayidownconvert(data_type::f32, data_type::bf16)
+            // TODO: bf16 and f16 currently perform worse than tf32, this is
+            // likely due to an extra reorder required on the b buffer.
+            bool use_matching_fpmath = false;
+#ifdef GEN_CONV_DEBUG
+            use_matching_fpmath = ir_utils::getenv_bool(
+                    "use_matching_fpmath", use_matching_fpmath);
+#endif
+            if (use_matching_fpmath
+                    && attr->mayidownconvert(data_type::f32, data_type::bf16)
                     && fma_kind::get_supported_kind(hw(), data_type::bf16,
                                data_type::bf16, data_type::f32)
                             != fma_kind_t::unknown) {
                 a_data_type = data_type::bf16;
                 b_data_type = data_type::bf16;
-            } else if (attr->mayidownconvert(data_type::f32, data_type::f16)
+            } else if (use_matching_fpmath
+                    && attr->mayidownconvert(data_type::f32, data_type::f16)
                     && fma_kind::get_supported_kind(hw(), data_type::f16,
                                data_type::f16, data_type::f32)
                             != fma_kind_t::unknown) {
