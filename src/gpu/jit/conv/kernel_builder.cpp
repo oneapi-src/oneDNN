@@ -6447,12 +6447,22 @@ layout_t get_fma_friendly_layout(abc_kind_t abc_kind, int simd_size,
 
     ir_assert(k_blk % dpas_layout.dim(k_idx) == 0);
 
+    if (k_idx < mn_idx) {
+        dim_t dpas_k_blk = dpas_layout.dim(k_idx);
+        dpas_layout = dpas_layout.add_outer_block(k_idx, k_blk / dpas_k_blk);
+    }
+
     dim_t dpas_mn_blk = dpas_layout.dim(mn_idx);
     dim_t dpas_k_blk = dpas_layout.dim(k_idx);
     dim_t k_outer = ir_utils::safe_divide(k_blk, dpas_k_blk);
     dim_t mn_outer = ir_utils::safe_divide(mn_blk, dpas_mn_blk);
     dpas_layout = dpas_layout.add_outer_block(k_idx, k_outer);
     dpas_layout = dpas_layout.add_outer_block(mn_idx, mn_outer);
+
+    if (k_idx > mn_idx) {
+        dim_t dpas_k_blk = dpas_layout.dim(k_idx);
+        dpas_layout = dpas_layout.add_outer_block(k_idx, k_blk / dpas_k_blk);
+    }
 
     return dpas_layout;
 }
@@ -6517,8 +6527,8 @@ layout_t convert_to_fma_friendly_layout(const conv_config_t &cfg,
 
     auto bmnk_layout = bmnk_mapper.map_to_bmnk(abc_kind, bmnk_kinds, layout);
 
-    auto dpas_layout = get_fma_friendly_layout(
-            abc_kind, cfg.simd_size(), bmnk_layout, a_type, b_type);
+    auto dpas_layout = get_fma_friendly_layout(abc_kind, cfg.simd_size(),
+            bmnk_layout, cfg.a_data_type, cfg.b_data_type);
     if (dpas_layout == bmnk_layout) return layout;
 
     if (changed) *changed = true;

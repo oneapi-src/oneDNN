@@ -73,6 +73,7 @@ ngen::DataType to_ngen(const type_t &type) {
 
     CASE(bf16, bf);
     CASE(f16, hf);
+    CASE(tf32, tf32);
     CASE(f32, f);
     CASE(s16, w);
     CASE(s32, d);
@@ -2700,6 +2701,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     int dst_stride_bytes = dst_stride * dst_type_size;
     bool dst_b = ngen_is_b(dst_type);
     bool dst_bf = (dst_type == ngen::DataType::bf);
+    bool dst_tf = (dst_type == ngen::DataType::tf32);
     bool dst_d = ngen_is_dw(dst_type);
     bool dst_f = (dst_type == ngen::DataType::f);
     bool dst_hf = (dst_type == ngen::DataType::hf);
@@ -2742,6 +2744,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             return conversion_t::none;
         } else if (src_bf && dst_f) {
             return conversion_t::bf_to_f;
+        } else if (src_f && dst_tf) {
+            return conversion_t::none; // tf32 is bit compatible with f32
         } else if (src_d && (dst_bf || dst_hf)) {
             return conversion_t::d_to_bf_hf;
         } else if ((src_d || src_f || src_hf) && dst_b) {

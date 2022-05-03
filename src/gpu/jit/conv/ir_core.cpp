@@ -41,6 +41,7 @@ std::string to_string(type_kind_t kind) {
         CASE(s64);
         CASE(bf16);
         CASE(f16);
+        CASE(tf32);
         CASE(f32);
         CASE(byte);
         CASE(dword);
@@ -71,6 +72,7 @@ int type_t::size() const {
         case type_kind_t::f16: return 2;
         case type_kind_t::u32:
         case type_kind_t::s32:
+        case type_kind_t::tf32:
         case type_kind_t::f32:
         case type_kind_t::dword: return 4;
         case type_kind_t::u64:
@@ -89,6 +91,7 @@ data_type_t to_dnnl(const type_t &type) {
     switch (type.kind()) {
         case type_kind_t::bf16: return data_type::bf16;
         case type_kind_t::f16: return data_type::f16;
+        case type_kind_t::tf32: return data_type::tf32;
         case type_kind_t::f32: return data_type::f32;
         case type_kind_t::s32: return data_type::s32;
         case type_kind_t::s8: return data_type::s8;

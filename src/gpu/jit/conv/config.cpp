@@ -643,8 +643,9 @@ void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
         init_mad_wei_oi_blocks(true, wei_o_blk, wei_i_blk);
     } else {
         // Set dpas blocks.
+        int packed_dword_elems = 4 / types::data_type_size(wei_data_type);
         wei_o_blk = vec_size;
-        wei_i_blk = (is_wei_byte ? 4 : 2);
+        wei_i_blk = packed_dword_elems;
         if (!is_small_ic()) {
             wei_i_blk_outer = 8;
 

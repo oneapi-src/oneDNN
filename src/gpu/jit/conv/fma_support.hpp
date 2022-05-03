@@ -156,6 +156,7 @@ public:
 
     static bool matches_types(
             ngen::HW hw, const type_t &a, const type_t &b, const type_t &c);
+    static bool is_src_type(type_t type);
 
     bool is_dpasw;
 

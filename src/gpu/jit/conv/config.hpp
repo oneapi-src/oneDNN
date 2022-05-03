@@ -288,7 +288,7 @@ public:
         // These functions have implicit dependencies between them. They cannot be
         // reordered with verifying these dependencies are satisfied.
         CHECK(conv_problem_t::init(conv_pd));
-        CHECK(init_abc_data_types());
+        CHECK(init_abc_data_types(attr));
         CHECK(init_acc_data_type());
         CHECK(init_fma_kind_and_simd_size());
 
@@ -354,7 +354,7 @@ public:
         assign_sbids = is_dp_fma();
         do_pipeline_unroll = hw() > ngen::HW::XeLP;
         reduce_grf_usage = true;
-        allow_grf_reorder = false;
+        allow_grf_reorder = !matches_user_types();
         do_atomic_update = false;
         reuse_headers = hw() <= ngen::HW::XeLP;
         a_sub_tiles = 1;
@@ -684,7 +684,7 @@ private:
     // FWD:        src -> A,      wei -> B,      dst -> C
     // BWD_D: diff_dst -> A,      wei -> B, diff_src -> C
     // BWD_W:      src -> A, diff_dst -> B, diff_wei -> C
-    status_t init_abc_data_types() {
+    status_t init_abc_data_types(primitive_attr_t *attr) {
         if (is_fwd) {
             a_data_type = src_data_type;
             b_data_type = wei_data_type;
@@ -701,10 +701,39 @@ private:
         } else {
             ir_error_not_expected();
         }
+
+        if (utils::everyone_is(
+                    data_type::f32, a_data_type, b_data_type, c_data_type)) {
+
+            if (attr->mayidownconvert(data_type::f32, data_type::tf32)
+                    && fma_kind::get_supported_kind(hw(), data_type::tf32,
+                               data_type::tf32, data_type::f32)
+                            != fma_kind_t::unknown) {
+                a_data_type = data_type::tf32;
+                b_data_type = data_type::tf32;
+            }
+        }
+
         a_data_type_size = (int)types::data_type_size(a_data_type);
         b_data_type_size = (int)types::data_type_size(b_data_type);
         c_data_type_size = (int)types::data_type_size(c_data_type);
         return status::success;
+    }
+
+    bool matches_user_types() const {
+        if (is_fwd) {
+            return a_data_type == src_data_type && b_data_type == wei_data_type
+                    && c_data_type == dst_data_type;
+        } else if (is_bwd_d) {
+            return a_data_type == dst_data_type && b_data_type == wei_data_type
+                    && c_data_type == src_data_type;
+        } else if (is_bwd_w) {
+            return a_data_type == src_data_type && b_data_type == dst_data_type
+                    && c_data_type == wei_data_type;
+        } else {
+            ir_error_not_expected();
+            return false;
+        }
     }
 
     status_t init_acc_data_type() {
@@ -716,6 +745,8 @@ private:
             acc_data_type = data_type::s32;
         } else if (utils::everyone_is(data_type::f16, a, b)
                 || utils::everyone_is(data_type::bf16, a, b)) {
+            acc_data_type = data_type::f32;
+        } else if (utils::everyone_is(data_type::tf32, a, b)) {
             acc_data_type = data_type::f32;
         } else if (utils::everyone_is(data_type::f32, a, b)) {
             acc_data_type = data_type::f32;

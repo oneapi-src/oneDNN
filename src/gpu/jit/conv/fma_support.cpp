@@ -82,6 +82,7 @@ type_t multiply_desc_t::get_c_type(
         return type_t::s32();
 
     if (a == type_t::bf16() && b == type_t::bf16()) return type_t::f32();
+    if (a == type_t::tf32() && b == type_t::tf32()) return type_t::f32();
     if (a == type_t::f32() && b == type_t::f32()) return type_t::f32();
 
     if (utils::one_of(a, type_t::f16(), type_t::bf16()) && b == type_t::f32()) {
@@ -98,8 +99,13 @@ type_t multiply_desc_t::get_c_type(
     return type_t::undef();
 }
 
+bool dpas_t::is_src_type(type_t type) {
+    return utils::one_of(type.kind(), type_kind_t::u8, type_kind_t::s8,
+            type_kind_t::bf16, type_kind_t::f16, type_kind_t::tf32);
+}
+
 layout_t dpas_t::a_layout() const {
-    if (src1_type.size() != 1 && src1_type.size() != 2) ir_error_not_expected();
+    if (!is_src_type(src1_type)) ir_error_not_expected();
 
     int m_blk = exec_size;
     int inner_blk = 4 / src1_type.size();
@@ -110,12 +116,13 @@ layout_t dpas_t::a_layout() const {
 }
 
 layout_t dpas_t::b_layout() const {
-    if (src2_type.size() != 1 && src2_type.size() != 2) ir_error_not_expected();
+    if (!is_src_type(src2_type)) ir_error_not_expected();
 
     int n_blk = rcount;
     int k_blk = sdepth * 4 / src2_type.size();
     std::vector<dim_t> blocks = {n_blk, k_blk};
-    return layout_t(src2_type, 0, blocks).transpose();
+    auto tmp = layout_t(src2_type, 0, blocks);
+    return tmp.transpose();
 }
 
 layout_t dpas_t::c_layout() const {
@@ -147,6 +154,8 @@ bool dpas_t::matches_types(
     if (a.is_x8() && b.is_x8() && c.is_s32()) return true;
     if (a.is_f16() && b.is_f16() && c.is_f32()) return true;
     if (a.is_bf16() && b.is_bf16() && c.is_f32()) return true;
+    if (a.is_tf32() && b.is_tf32() && c.is_f32() && hw >= ngen::HW::XeHPC)
+        return true;
 
     return false;
 }

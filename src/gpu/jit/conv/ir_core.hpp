@@ -181,6 +181,7 @@ enum class type_kind_t {
     // Floating point types.
     bf16,
     f16,
+    tf32,
     f32,
 
     // Message data types.
@@ -237,6 +238,9 @@ public:
         return type_t(type_kind_t::bf16, elems);
     }
     static type_t f16(int elems = 1) { return type_t(type_kind_t::f16, elems); }
+    static type_t tf32(int elems = 1) {
+        return type_t(type_kind_t::tf32, elems);
+    }
     static type_t f32(int elems = 1) { return type_t(type_kind_t::f32, elems); }
 
     static type_t byte(int elems = 1) {
@@ -328,11 +332,12 @@ public:
     // Constructor from dnnl_data_type_t.
     type_t(data_type_t dt) {
         elems_ = 1;
-        switch (dt) {
+        switch ((int)dt) {
 #define CASE(x) \
     case data_type::x: kind_ = type_kind_t::x; break;
             CASE(bf16);
             CASE(f16);
+            CASE(tf32);
             CASE(f32);
             CASE(s32);
             CASE(s8);
@@ -368,12 +373,13 @@ public:
     bool is_bool() const { return kind() == type_kind_t::_bool; }
 
     bool is_fp() const {
-        return utils::one_of(
-                kind(), type_kind_t::bf16, type_kind_t::f16, type_kind_t::f32);
+        return utils::one_of(kind(), type_kind_t::bf16, type_kind_t::f16,
+                type_kind_t::tf32, type_kind_t::f32);
     }
 
     bool is_bf16() const { return kind() == type_kind_t::bf16; }
     bool is_f16() const { return kind() == type_kind_t::f16; }
+    bool is_tf32() const { return kind() == type_kind_t::tf32; }
     bool is_f32() const { return kind() == type_kind_t::f32; }
 
     bool is_int() const {
