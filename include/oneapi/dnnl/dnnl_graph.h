@@ -41,8 +41,7 @@ extern "C" {
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_allocator_create(
-        dnnl_graph_allocator_t **allocator,
-        dnnl_graph_cpu_allocate_f cpu_malloc,
+        dnnl_graph_allocator_t *allocator, dnnl_graph_cpu_allocate_f cpu_malloc,
         dnnl_graph_cpu_deallocate_f cpu_free);
 
 /// Destroys the created allocator
@@ -51,7 +50,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_allocator_create(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_allocator_destroy(
-        dnnl_graph_allocator_t *allocator);
+        dnnl_graph_allocator_t allocator);
 
 /// @} dnnl_graph_api_allocator
 
@@ -161,9 +160,9 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_logical_tensor_has_same_layout(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 /// error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_create(
-        dnnl_graph_tensor_t **tensor,
+        dnnl_graph_tensor_t *tensor,
         const dnnl_graph_logical_tensor_t *logical_tensor,
-        const dnnl_graph_engine_t *engine, void *handle);
+        const_dnnl_graph_engine_t engine, void *handle);
 
 /// Destroys the created tensor.
 ///
@@ -171,7 +170,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_create(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_destroy(
-        dnnl_graph_tensor_t *tensor);
+        dnnl_graph_tensor_t tensor);
 
 /// Gets data handle of tensor, if type doesn't match tensor's data type,
 /// nullptr will be returned.
@@ -182,7 +181,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_destroy(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
-        const dnnl_graph_tensor_t *tensor, dnnl_graph_data_type_t type,
+        const_dnnl_graph_tensor_t tensor, dnnl_graph_data_type_t type,
         void **handle);
 
 /// Set data handle for tensor
@@ -192,7 +191,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
-        dnnl_graph_tensor_t *tensor, void *handle);
+        dnnl_graph_tensor_t tensor, void *handle);
 
 /// Returns the engine of a tensor object.
 ///
@@ -201,7 +200,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_engine(
-        const dnnl_graph_tensor_t *tensor, dnnl_graph_engine_t **engine);
+        const_dnnl_graph_tensor_t tensor, dnnl_graph_engine_t *engine);
 
 /// @} dnnl_graph_api_tensor
 
@@ -217,7 +216,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_tensor_get_engine(
 /// @param verbose_name The string added as the op name.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_create(dnnl_graph_op_t **op,
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_create(dnnl_graph_op_t *op,
         uint64_t id, dnnl_graph_op_kind_t kind, const char *const verbose_name);
 
 /// Destroys the created op
@@ -225,7 +224,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_create(dnnl_graph_op_t **op,
 /// @param op The op to be destroyed.
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_destroy(dnnl_graph_op_t *op);
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_destroy(dnnl_graph_op_t op);
 
 /// Adds input logical tensor to the op
 ///
@@ -234,7 +233,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_destroy(dnnl_graph_op_t *op);
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_input(
-        dnnl_graph_op_t *op, const dnnl_graph_logical_tensor_t *input);
+        dnnl_graph_op_t op, const dnnl_graph_logical_tensor_t *input);
 
 /// Adds output logical tensor to the op
 ///
@@ -243,7 +242,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_input(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_output(
-        dnnl_graph_op_t *op, const dnnl_graph_logical_tensor_t *output);
+        dnnl_graph_op_t op, const dnnl_graph_logical_tensor_t *output);
 
 /// Sets the attribute according to the name and kind
 ///
@@ -254,7 +253,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_output(
 /// @param attr_no The number of attributes
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_attr(dnnl_graph_op_t *op,
+dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_attr(dnnl_graph_op_t op,
         const char *name, dnnl_graph_attribute_kind_t kind, const void *attr,
         int64_t attr_no);
 
@@ -265,7 +264,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_attr(dnnl_graph_op_t *op,
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_get_id(
-        const dnnl_graph_op_t *op, size_t *id);
+        const_dnnl_graph_op_t op, size_t *id);
 
 /// Returns the concrete kind of this op
 ///
@@ -274,7 +273,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_get_id(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_get_kind(
-        const dnnl_graph_op_t *op, dnnl_graph_op_kind_t *kind);
+        const_dnnl_graph_op_t op, dnnl_graph_op_kind_t *kind);
 
 /// @} dnnl_graph_api_op
 
@@ -287,7 +286,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_get_kind(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_create(
-        dnnl_graph_partition_t **partition);
+        dnnl_graph_partition_t *partition);
 
 /// Creates a new partition with a given operator and engine kind.
 ///
@@ -297,7 +296,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_create(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
-        dnnl_graph_partition_t **partition, const dnnl_graph_op_t *op,
+        dnnl_graph_partition_t *partition, const_dnnl_graph_op_t op,
         dnnl_graph_engine_kind_t ekind);
 
 /// Destroy the target partition.
@@ -306,7 +305,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_destroy(
-        dnnl_graph_partition_t *partition);
+        dnnl_graph_partition_t partition);
 
 /// Returns the number of ops of the partition.
 ///
@@ -315,7 +314,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_destroy(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_op_num(
-        const dnnl_graph_partition_t *partition, size_t *num);
+        const_dnnl_graph_partition_t partition, size_t *num);
 
 /// Returns the list of op IDs of the partition.
 ///
@@ -325,7 +324,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_op_num(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_ops(
-        dnnl_graph_partition_t *partition, size_t num, size_t *ids);
+        dnnl_graph_partition_t partition, size_t num, size_t *ids);
 
 /// Returns the ID of the partition.
 ///
@@ -334,7 +333,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_ops(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_id(
-        const dnnl_graph_partition_t *partition, size_t *id);
+        const_dnnl_graph_partition_t partition, size_t *id);
 
 /// Compile the partition with given input and output logical tensors
 ///
@@ -348,11 +347,11 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_id(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_compile(
-        dnnl_graph_partition_t *partition,
-        dnnl_graph_compiled_partition_t *compiled_partition, uint64_t in_num,
+        dnnl_graph_partition_t partition,
+        dnnl_graph_compiled_partition_t compiled_partition, uint64_t in_num,
         const dnnl_graph_logical_tensor_t **inputs, uint64_t out_num,
         const dnnl_graph_logical_tensor_t **outputs,
-        const dnnl_graph_engine_t *engine);
+        const_dnnl_graph_engine_t engine);
 
 /// Returns the number of input logical tensors of the partition.
 ///
@@ -361,7 +360,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_compile(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports_num(
-        const dnnl_graph_partition_t *partition, uint64_t *num);
+        const_dnnl_graph_partition_t partition, uint64_t *num);
 
 /// Returns a list of input logical tensors from the partition.
 ///
@@ -371,7 +370,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports_num(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports(
-        const dnnl_graph_partition_t *partition, uint64_t num,
+        const_dnnl_graph_partition_t partition, uint64_t num,
         dnnl_graph_logical_tensor_t *inputs);
 
 /// Returns the number of output logical tensors of the partition.
@@ -381,7 +380,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports_num(
-        const dnnl_graph_partition_t *partition, uint64_t *num);
+        const_dnnl_graph_partition_t partition, uint64_t *num);
 
 /// Returns a list of output logical tensors from the partition.
 ///
@@ -391,7 +390,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports_num(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports(
-        const dnnl_graph_partition_t *partition, uint64_t num,
+        const_dnnl_graph_partition_t partition, uint64_t num,
         dnnl_graph_logical_tensor_t *outputs);
 
 /// Returns the supporting status of the partition
@@ -402,7 +401,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_is_supported(
-        const dnnl_graph_partition_t *partition, uint8_t *is_supported);
+        const_dnnl_graph_partition_t partition, uint8_t *is_supported);
 
 /// Returns the engine kind of the partition
 ///
@@ -411,8 +410,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_is_supported(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
-        const dnnl_graph_partition_t *partition,
-        dnnl_graph_engine_kind_t *kind);
+        const_dnnl_graph_partition_t partition, dnnl_graph_engine_kind_t *kind);
 
 /// @} dnnl_graph_api_partition
 
@@ -426,8 +424,8 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_compiled_partition_create(
-        dnnl_graph_compiled_partition_t **compiled_partition,
-        dnnl_graph_partition_t *partition);
+        dnnl_graph_compiled_partition_t *compiled_partition,
+        dnnl_graph_partition_t partition);
 
 /// Execute a compiled partition.
 ///
@@ -440,10 +438,10 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_compiled_partition_create(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
-        const dnnl_graph_compiled_partition_t *compiled_partition,
-        const dnnl_graph_stream_t *stream, const uint64_t num_inputs,
-        const dnnl_graph_tensor_t **inputs, const uint64_t num_outputs,
-        const dnnl_graph_tensor_t **outputs);
+        const_dnnl_graph_compiled_partition_t compiled_partition,
+        const_dnnl_graph_stream_t stream, const uint64_t num_inputs,
+        const_dnnl_graph_tensor_t *inputs, const uint64_t num_outputs,
+        const_dnnl_graph_tensor_t *outputs);
 
 /// Destroy the target compiled partition.
 ///
@@ -451,7 +449,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_compiled_partition_destroy(
-        dnnl_graph_compiled_partition_t *compiled_partition);
+        dnnl_graph_compiled_partition_t compiled_partition);
 
 /// Returns the logical tensor according to tensor id
 ///
@@ -462,7 +460,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_compiled_partition_destroy(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API
 dnnl_graph_compiled_partition_query_logical_tensor(
-        const dnnl_graph_compiled_partition_t *compiled_partition, size_t tid,
+        const_dnnl_graph_compiled_partition_t compiled_partition, size_t tid,
         dnnl_graph_logical_tensor_t *lt);
 
 /// Returns the in-place pairs.
@@ -474,7 +472,7 @@ dnnl_graph_compiled_partition_query_logical_tensor(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API
 dnnl_graph_compiled_partition_get_inplace_ports(
-        const dnnl_graph_compiled_partition_t *compiled_partition,
+        const_dnnl_graph_compiled_partition_t compiled_partition,
         size_t *num_inplace_pairs,
         const dnnl_graph_inplace_pair_t **inplace_pairs);
 
@@ -491,7 +489,7 @@ dnnl_graph_compiled_partition_get_inplace_ports(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create(
-        dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t kind,
+        dnnl_graph_engine_t *engine, dnnl_graph_engine_kind_t kind,
         size_t index);
 
 /// Creates an engine with specified engine kind, device index, and allocator.
@@ -503,8 +501,8 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create_with_allocator(
-        dnnl_graph_engine_t **engine, dnnl_graph_engine_kind_t kind,
-        size_t index, const dnnl_graph_allocator_t *alloc);
+        dnnl_graph_engine_t *engine, dnnl_graph_engine_kind_t kind,
+        size_t index, const_dnnl_graph_allocator_t alloc);
 
 /// Destroy the target engine.
 ///
@@ -512,7 +510,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_create_with_allocator(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_destroy(
-        dnnl_graph_engine_t *engine);
+        dnnl_graph_engine_t engine);
 
 /// Get the engine kind from an engine.
 ///
@@ -521,7 +519,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_destroy(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_get_kind(
-        const dnnl_graph_engine_t *engine, dnnl_graph_engine_kind_t *kind);
+        const_dnnl_graph_engine_t engine, dnnl_graph_engine_kind_t *kind);
 
 /// @} dnnl_graph_api_engine
 
@@ -536,7 +534,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_engine_get_kind(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_create(
-        dnnl_graph_graph_t **graph, dnnl_graph_engine_kind_t engine_kind);
+        dnnl_graph_graph_t *graph, dnnl_graph_engine_kind_t engine_kind);
 
 /// Destroy the target graph.
 ///
@@ -544,7 +542,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_create(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_destroy(
-        dnnl_graph_graph_t *graph);
+        dnnl_graph_graph_t graph);
 
 /// Add a new op to a graph.
 ///
@@ -553,7 +551,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_destroy(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_add_op(
-        dnnl_graph_graph_t *graph, dnnl_graph_op_t *op);
+        dnnl_graph_graph_t graph, dnnl_graph_op_t op);
 
 /// Do graph filtering and partitioning.
 ///
@@ -564,7 +562,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_add_op(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_filter(
-        dnnl_graph_graph_t *graph, dnnl_graph_partition_policy_t policy);
+        dnnl_graph_graph_t graph, dnnl_graph_partition_policy_t policy);
 
 /// Gets the number of partitions of the graph.
 ///
@@ -573,7 +571,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_filter(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_get_partition_num(
-        const dnnl_graph_graph_t *graph, uint64_t *num);
+        const_dnnl_graph_graph_t graph, uint64_t *num);
 
 /// Gets the filtered partitions of the graph.
 ///
@@ -583,8 +581,8 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_get_partition_num(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
-        dnnl_graph_graph_t *graph, uint64_t num,
-        dnnl_graph_partition_t **partition);
+        dnnl_graph_graph_t graph, uint64_t num,
+        dnnl_graph_partition_t *partition);
 
 /// Visualize the graph
 ///
@@ -593,7 +591,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
-        dnnl_graph_graph_t *graph, const int ignore_env_var);
+        dnnl_graph_graph_t graph, const int ignore_env_var);
 
 /// @} dnnl_graph_api_graph
 
@@ -607,7 +605,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_visualize(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_create(
-        dnnl_graph_stream_t **stream, const dnnl_graph_engine_t *engine);
+        dnnl_graph_stream_t *stream, const_dnnl_graph_engine_t engine);
 
 /// Waits for all compiled partitions executing in the stream to finish.
 ///
@@ -615,7 +613,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_create(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_wait(
-        dnnl_graph_stream_t *stream);
+        dnnl_graph_stream_t stream);
 
 /// Destroy the target stream.
 ///
@@ -623,7 +621,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_wait(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_stream_destroy(
-        dnnl_graph_stream_t *stream);
+        dnnl_graph_stream_t stream);
 
 /// @} dnnl_graph_api_stream
 

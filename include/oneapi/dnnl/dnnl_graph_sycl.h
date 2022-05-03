@@ -41,7 +41,7 @@ extern "C" {
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
-        dnnl_graph_allocator_t **allocator,
+        dnnl_graph_allocator_t *allocator,
         dnnl_graph_sycl_allocate_f sycl_malloc,
         dnnl_graph_sycl_deallocate_f sycl_free);
 
@@ -53,7 +53,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
-        dnnl_graph_engine_t **engine, const void *dev, const void *ctx);
+        dnnl_graph_engine_t *engine, const void *dev, const void *ctx);
 
 /// Creates an engine associated sycl device, context, and allocator.
 ///
@@ -65,8 +65,8 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API
 dnnl_graph_sycl_interop_engine_create_with_allocator(
-        dnnl_graph_engine_t **engine, const void *dev, const void *ctx,
-        const dnnl_graph_allocator_t *alloc);
+        dnnl_graph_engine_t *engine, const void *dev, const void *ctx,
+        const_dnnl_graph_allocator_t alloc);
 
 /// Creates a stream for a given engine associated with a SYCL queue.
 ///
@@ -76,7 +76,7 @@ dnnl_graph_sycl_interop_engine_create_with_allocator(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
-        dnnl_graph_stream_t **stream, const dnnl_graph_engine_t *engine,
+        dnnl_graph_stream_t *stream, const_dnnl_graph_engine_t engine,
         const void *queue);
 
 /// Execute a compiled partition with sycl runtime.
@@ -94,11 +94,11 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API
 dnnl_graph_sycl_interop_compiled_partition_execute(
-        const dnnl_graph_compiled_partition_t *compiled_partition,
-        const dnnl_graph_stream_t *stream, const uint64_t num_inputs,
-        const dnnl_graph_tensor_t **inputs, const uint64_t num_outputs,
-        const dnnl_graph_tensor_t **outputs, const uint64_t num_deps,
-        void *deps, void *sycl_event);
+        const_dnnl_graph_compiled_partition_t compiled_partition,
+        const_dnnl_graph_stream_t stream, const uint64_t num_inputs,
+        const_dnnl_graph_tensor_t *inputs, const uint64_t num_outputs,
+        const_dnnl_graph_tensor_t *outputs, const uint64_t num_deps, void *deps,
+        void *sycl_event);
 
 /// @} dnnl_graph_api_sycl_interop
 

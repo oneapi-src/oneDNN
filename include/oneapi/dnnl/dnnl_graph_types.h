@@ -378,35 +378,44 @@ typedef struct {
 
 /// @brief An allocator handle
 struct dnnl_graph_allocator;
-typedef struct dnnl_graph_allocator dnnl_graph_allocator_t;
+typedef struct dnnl_graph_allocator *dnnl_graph_allocator_t;
+typedef const struct dnnl_graph_allocator *const_dnnl_graph_allocator_t;
 
 /// @brief A tensor handle
 struct dnnl_graph_tensor;
-typedef struct dnnl_graph_tensor dnnl_graph_tensor_t;
+typedef struct dnnl_graph_tensor *dnnl_graph_tensor_t;
+typedef const struct dnnl_graph_tensor *const_dnnl_graph_tensor_t;
 
 /// @brief A op handle
 struct dnnl_graph_op;
-typedef struct dnnl_graph_op dnnl_graph_op_t;
+typedef struct dnnl_graph_op *dnnl_graph_op_t;
+typedef const struct dnnl_graph_op *const_dnnl_graph_op_t;
 
 /// @brief A partition handle
 struct dnnl_graph_partition;
-typedef struct dnnl_graph_partition dnnl_graph_partition_t;
+typedef struct dnnl_graph_partition *dnnl_graph_partition_t;
+typedef const struct dnnl_graph_partition *const_dnnl_graph_partition_t;
 
 /// @brief A compiled partition handle
 struct dnnl_graph_compiled_partition;
-typedef struct dnnl_graph_compiled_partition dnnl_graph_compiled_partition_t;
+typedef struct dnnl_graph_compiled_partition *dnnl_graph_compiled_partition_t;
+typedef const struct dnnl_graph_compiled_partition
+        *const_dnnl_graph_compiled_partition_t;
 
 /// @brief A graph handle
 struct dnnl_graph_graph;
-typedef struct dnnl_graph_graph dnnl_graph_graph_t;
+typedef struct dnnl_graph_graph *dnnl_graph_graph_t;
+typedef const struct dnnl_graph_graph *const_dnnl_graph_graph_t;
 
 /// @brief An engine handle
 struct dnnl_graph_engine;
-typedef struct dnnl_graph_engine dnnl_graph_engine_t;
+typedef struct dnnl_graph_engine *dnnl_graph_engine_t;
+typedef const struct dnnl_graph_engine *const_dnnl_graph_engine_t;
 
 /// @brief A stream handle
 struct dnnl_graph_stream;
-typedef struct dnnl_graph_stream dnnl_graph_stream_t;
+typedef struct dnnl_graph_stream *dnnl_graph_stream_t;
+typedef const struct dnnl_graph_stream *const_dnnl_graph_stream_t;
 
 /// @endcond
 

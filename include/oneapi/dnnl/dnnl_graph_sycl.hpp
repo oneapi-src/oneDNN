@@ -51,7 +51,7 @@ namespace sycl_interop {
 /// @returns Created allocator
 inline allocator make_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
         dnnl_graph_sycl_deallocate_f sycl_free) {
-    dnnl_graph_allocator_t *c_allocator;
+    dnnl_graph_allocator_t c_allocator = nullptr;
     error::check_succeed(dnnl_graph_sycl_interop_allocator_create(
                                  &c_allocator, sycl_malloc, sycl_free),
             "could not create allocator for sycl device");
@@ -66,7 +66,7 @@ inline allocator make_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
 /// @returns Created engine.
 inline engine make_engine(
         const cl::sycl::device &adevice, const cl::sycl::context &acontext) {
-    dnnl_graph_engine_t *c_engine;
+    dnnl_graph_engine_t c_engine = nullptr;
     error::check_succeed(dnnl_graph_sycl_interop_engine_create(&c_engine,
                                  static_cast<const void *>(&adevice),
                                  static_cast<const void *>(&acontext)),
@@ -83,7 +83,7 @@ inline engine make_engine(
 /// @returns Created engine.
 inline engine make_engine(const cl::sycl::device &adevice,
         const cl::sycl::context &acontext, const allocator &alloc) {
-    dnnl_graph_engine_t *c_engine;
+    dnnl_graph_engine_t c_engine = nullptr;
     error::check_succeed(
             dnnl_graph_sycl_interop_engine_create_with_allocator(&c_engine,
                     static_cast<const void *>(&adevice),
@@ -100,7 +100,7 @@ inline engine make_engine(const cl::sycl::device &adevice,
 ///
 /// @returns An execution stream.
 inline stream make_stream(engine aengine, const cl::sycl::queue &aqueue) {
-    dnnl_graph_stream_t *c_stream;
+    dnnl_graph_stream_t c_stream = nullptr;
     error::check_succeed(
             dnnl_graph_sycl_interop_stream_create(&c_stream, aengine.get(),
                     static_cast<const void *>(&aqueue)),
@@ -120,12 +120,12 @@ inline stream make_stream(engine aengine, const cl::sycl::queue &aqueue) {
 inline cl::sycl::event execute(compiled_partition &c_partition, stream &astream,
         const std::vector<tensor> &inputs, std::vector<tensor> &outputs,
         const std::vector<cl::sycl::event> &deps = {}) {
-    std::vector<const dnnl_graph_tensor_t *> c_inputs;
+    std::vector<const_dnnl_graph_tensor_t> c_inputs;
     c_inputs.reserve(inputs.size());
     for (auto &in : inputs) {
         c_inputs.push_back(in.get());
     }
-    std::vector<const dnnl_graph_tensor_t *> c_outputs;
+    std::vector<const_dnnl_graph_tensor_t> c_outputs;
     c_outputs.reserve(outputs.size());
     for (auto &out : outputs) {
         c_outputs.push_back(out.get());

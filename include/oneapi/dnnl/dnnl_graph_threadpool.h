@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ extern "C" {
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
-        dnnl_graph_stream_t **stream, const dnnl_graph_engine_t *engine,
+        dnnl_graph_stream_t *stream, const_dnnl_graph_engine_t engine,
         void *threadpool);
 
 /// Returns a threadpool to be used by the execution stream.
@@ -54,7 +54,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API
 dnnl_graph_threadpool_interop_stream_get_threadpool(
-        dnnl_graph_stream_t *astream, void **threadpool);
+        dnnl_graph_stream_t astream, void **threadpool);
 
 /// @} dnnl_graph_api_threadpool_interop
 

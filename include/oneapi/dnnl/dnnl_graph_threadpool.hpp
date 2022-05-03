@@ -45,7 +45,7 @@ namespace threadpool_interop {
 /// @returns An execution stream.
 inline dnnl::graph::stream make_stream(
         const dnnl::graph::engine &aengine, threadpool_iface *threadpool) {
-    dnnl_graph_stream_t *c_stream;
+    dnnl_graph_stream_t c_stream = nullptr;
     error::check_succeed(dnnl_graph_threadpool_interop_stream_create(
                                  &c_stream, aengine.get(), threadpool),
             "could not create stream");

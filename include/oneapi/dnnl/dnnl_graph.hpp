@@ -37,7 +37,7 @@ namespace graph {
 
 namespace detail {
 
-template <typename T, dnnl_graph_result_t (*del)(T *)>
+template <typename T, dnnl_graph_result_t (*del)(T)>
 class handle {
 public:
     static constexpr auto default_del = del;
@@ -51,7 +51,7 @@ public:
     /// @param t Raw pointer to the C API handle
     /// @param weak A flag which indicates whether this wrapper
     ///     is a weak pointer
-    handle(T *t, bool weak = false) { reset(t, weak); }
+    handle(T t, bool weak = false) { reset(t, weak); }
 
     /// Copy constructor
     handle(const handle &) = default;
@@ -67,19 +67,19 @@ public:
     /// @param t The raw pointer of C API handle
     /// @param weak A flag which indicates whether this wrapper is a
     ///     weak pointer
-    void reset(T *t, bool weak = false) {
+    void reset(T t, bool weak = false) {
         data_.reset(t, weak ? dummy_del : default_del);
     }
 
     /// Returns the underlying C API handle
     ///
     /// @returns The underlying C API handle
-    T *get() const { return data_.get(); }
+    T get() const { return data_.get(); }
 
 private:
-    std::shared_ptr<T> data_ {0};
+    std::shared_ptr<typename std::remove_pointer<T>::type> data_ {0};
     /// Dummy destructor
-    static dnnl_graph_result_t dummy_del(T *) {
+    static dnnl_graph_result_t dummy_del(T) {
         return dnnl_graph_result_success;
     }
 };
@@ -268,7 +268,7 @@ public:
     /// @param cpu_free A pointer to free function for CPU
     allocator(dnnl_graph_cpu_allocate_f cpu_malloc,
             dnnl_graph_cpu_deallocate_f cpu_free) {
-        dnnl_graph_allocator_t *a {};
+        dnnl_graph_allocator_t a = nullptr;
         error::check_succeed(
                 dnnl_graph_allocator_create(&a, cpu_malloc, cpu_free),
                 "could not create allocator for cpu");
@@ -277,7 +277,7 @@ public:
 
     /// Default constructor
     allocator() {
-        dnnl_graph_allocator_t *a {};
+        dnnl_graph_allocator_t a = nullptr;
         error::check_succeed(dnnl_graph_allocator_create(&a, nullptr, nullptr),
                 "could not create allocator");
         reset(a);
@@ -319,7 +319,7 @@ public:
     /// @param akind The kind of engine to construct
     /// @param index Specify which device to be used
     engine(kind akind, size_t index) {
-        dnnl_graph_engine_t *e {};
+        dnnl_graph_engine_t e = nullptr;
         error::check_succeed(
                 dnnl_graph_engine_create(&e, convert_to_c(akind), index),
                 "could not create engine with engine kind and device index");
@@ -332,7 +332,7 @@ public:
     /// @param index Specify which device to be used
     /// @param alloc The memory allocator bound with engine
     engine(kind akind, size_t index, const allocator &alloc) {
-        dnnl_graph_engine_t *e {};
+        dnnl_graph_engine_t e = nullptr;
         error::check_succeed(dnnl_graph_engine_create_with_allocator(&e,
                                      convert_to_c(akind), index, alloc.get()),
                 "could not create engine with engine kind, device index, and "
@@ -374,7 +374,7 @@ public:
     ///
     /// @param engine Engine to create stream on
     stream(const engine &engine) {
-        dnnl_graph_stream_t *s {};
+        dnnl_graph_stream_t s = nullptr;
         error::check_succeed(dnnl_graph_stream_create(&s, engine.get()),
                 "could not create stream");
         reset(s);
@@ -714,7 +714,7 @@ public:
     /// @param handle Handle of memory buffer to use as an underlying storage,
     ///     if the ndims in the logical tensor is 0, data handle holds a scalar
     tensor(const logical_tensor &lt, const engine &aengine, void *handle) {
-        dnnl_graph_tensor_t *t = nullptr;
+        dnnl_graph_tensor_t t = nullptr;
         error::check_succeed(
                 dnnl_graph_tensor_create(&t, &(lt.data), aengine.get(), handle),
                 "could not create tensor object with the logical_tensor, "
@@ -748,7 +748,7 @@ public:
     ///
     /// @returns An engine object
     engine get_engine() const {
-        dnnl_graph_engine_t *c_engine;
+        dnnl_graph_engine_t c_engine = nullptr;
         error::check_succeed(dnnl_graph_tensor_get_engine(get(), &c_engine),
                 "could not get an engine from a tensor object");
         return engine(c_engine, true);
@@ -772,7 +772,7 @@ public:
     compiled_partition() = default;
 
     /// Constructs a compiled partition object
-    compiled_partition(dnnl_graph_compiled_partition_t *compiled_partition) {
+    compiled_partition(dnnl_graph_compiled_partition_t compiled_partition) {
         reset(compiled_partition, false);
     }
 
@@ -824,12 +824,12 @@ public:
     /// @param outputs A list of output tensors in the partition
     void execute(stream &astream, const std::vector<tensor> &inputs,
             const std::vector<tensor> &outputs) const {
-        std::vector<const dnnl_graph_tensor_t *> c_inputs;
+        std::vector<const_dnnl_graph_tensor_t> c_inputs;
         c_inputs.reserve(inputs.size());
         for (auto &in : inputs) {
             c_inputs.push_back(in.get());
         }
-        std::vector<const dnnl_graph_tensor_t *> c_outputs;
+        std::vector<const_dnnl_graph_tensor_t> c_outputs;
         c_outputs.reserve(outputs.size());
         for (auto &out : outputs) {
             c_outputs.push_back(out.get());
@@ -953,7 +953,7 @@ public:
     ///     the op, such as Convolution and ReLU.
     /// @param verbose_name The string added for debug
     op(size_t id, kind akind, const std::string &verbose_name) {
-        dnnl_graph_op_t *op {};
+        dnnl_graph_op_t op = nullptr;
         error::check_succeed(dnnl_graph_op_create(&op, id, convert_to_c(akind),
                                      verbose_name.c_str()),
                 "could not create op with id and op kind");
@@ -1183,14 +1183,14 @@ public:
     /// Constructs a partition object
     ///
     /// @param p A raw pointer to the C API handle
-    partition(dnnl_graph_partition_t *p) { reset(p, false); }
+    partition(dnnl_graph_partition_t p) { reset(p, false); }
 
     /// Constructs a partition with a given op and engine kind
     ///
     /// @param aop An operator used to create the partition
     /// @param ekind Engine kind
     partition(const op &aop, engine::kind ekind) {
-        dnnl_graph_partition_t *p {};
+        dnnl_graph_partition_t p = nullptr;
         error::check_succeed(
                 dnnl_graph_partition_create_with_op(&p, aop.get(),
                         static_cast<dnnl_graph_engine_kind_t>(ekind)),
@@ -1327,7 +1327,7 @@ private:
             c_outputs.push_back(&(out.data));
         }
 
-        dnnl_graph_compiled_partition_t *cpartitions;
+        dnnl_graph_compiled_partition_t cpartitions = nullptr;
         error::check_succeed(
                 dnnl_graph_compiled_partition_create(&cpartitions, get()),
                 "could not create compiled_partition");
@@ -1360,7 +1360,7 @@ public:
     ///
     /// @param engine_kind Can be cpu, gpu or any supported engine.
     graph(engine::kind engine_kind) {
-        dnnl_graph_graph_t *g {};
+        dnnl_graph_graph_t g = nullptr;
         error::check_succeed(
                 dnnl_graph_graph_create(&g, engine::convert_to_c(engine_kind)),
                 "could not create graph with engine kind and device id");
@@ -1406,7 +1406,7 @@ public:
         partition_vec out_list;
         out_list.reserve(partitions_no);
 
-        std::vector<dnnl_graph_partition_t *> partitions(partitions_no);
+        std::vector<dnnl_graph_partition_t> partitions(partitions_no);
         for (auto &p : partitions) {
             error::check_succeed(dnnl_graph_partition_create(&p),
                     "could not create partition");
