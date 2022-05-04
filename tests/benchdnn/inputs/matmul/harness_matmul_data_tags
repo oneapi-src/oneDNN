@@ -10,6 +10,7 @@
 
 --stag=ab --dtag=ab
 --cfg=f32
+--attr-fpmath=,bf16
 --wtag=BA16a64b,BA16a48b,BA16a32b,BA16a16b
 --batch=shapes_2d
 

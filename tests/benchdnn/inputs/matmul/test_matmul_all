@@ -66,6 +66,9 @@
 # bf16
 --batch=test_matmul_bfloat16
 
+# bf32
+--batch=test_matmul_bf32_bf16
+
 # data-tags
 --batch=harness_matmul_data_tags
 
