@@ -236,7 +236,7 @@ directly.
    variance must be provided by a user (i.e., #dnnl_use_global_stats is set).
 
 3. **GPU**
-   - ReLU eltwise post-op doesn't support non-zero \alpha parameter.
+   - ReLU eltwise post-op doesn't support non-zero \f$\alpha\f$ parameter.
 
 ## Performance Tips
 

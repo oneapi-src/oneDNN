@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2019 Intel Corporation
+# Copyright 2016-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -239,6 +239,7 @@ ALIASES                =
 ALIASES += img{4}="@htmlonly <style>div.image img[src=\"\1\"]{width:\3;\4}</style>@endhtmlonly\n@image html \1 \"\2\""
 ALIASES += src="\f$\src\f$"
 ALIASES += srclayer="\f$\srclayer\f$"
+ALIASES += srclayerattention="\f$\srclayerattention\f$"
 ALIASES += srciter="\f$\srciter\f$"
 ALIASES += srciterc="\f$\srciterc\f$"
 ALIASES += weights="\f$\weights\f$"
@@ -253,6 +254,7 @@ ALIASES += dstiter="\f$\dstiter\f$"
 ALIASES += dstiterc="\f$\dstiterc\f$"
 ALIASES += diffsrc="\f$\diffsrc\f$"
 ALIASES += diffsrclayer="\f$\diffsrclayer\f$"
+ALIASES += diffsrclayerattention="\f$\diffsrclayerattention\f$"
 ALIASES += diffsrciter="\f$\diffsrciter\f$"
 ALIASES += diffsrciterc="\f$\diffsrciterc\f$"
 ALIASES += diffweights="\f$\diffweights\f$"
