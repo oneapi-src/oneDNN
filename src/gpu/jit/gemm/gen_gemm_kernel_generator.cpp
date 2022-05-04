@@ -6136,7 +6136,7 @@ void gemm_kernel_generator_t<hw>::updateC(const GRFMultirange &C_acc,
 
     if (problem.hasPostOp()) {
         Label labelPostOpDone;
-        bool allocFlag = strategy.altCRemainder;
+        bool allocFlag = state.flagAP.isInvalid();
         auto flagNonfinal = allocFlag ? state.raVFlag.alloc() : state.flagAP;
         and_(1 | nz | flagNonfinal, null.ud(), state.inputs.flags,
                 FlagNonfinalKBlock);
@@ -7129,6 +7129,8 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
     }
 
     // Claim flags.
+    auto saveFlagAP = state.flagAP;
+    state.raVFlag.safeRelease(state.flagAP);
     state.raVFlag.claim(f0[0]);
     state.raVFlag.claim(f0[1]);
     state.raVFlag.claim(f1[0]);
@@ -7490,6 +7492,7 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
     state.ra.safeRelease(ix_init);
     FOR_EACH_C state.ra.safeRelease(header[q]);
 
+    state.flagAP = saveFlagAP;
     if (state.flagAP.isValid()) state.raVFlag.claim(state.flagAP);
 
 #undef FOR_EACH_C
@@ -11990,9 +11993,10 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
 
         // Release the all-purpose flag temporarily to free up flag registers if it won't be needed.
         auto saveFlagAP = state.flagAP;
-        if (!strategy.fused && !strategy.noJumpTables
-                && state.emulate.flag != state.flagAP)
-            state.raVFlag.safeRelease(state.flagAP);
+        if (!problem.hasPostOp())
+            if (!strategy.fused && !strategy.noJumpTables
+                    && state.emulate.flag != state.flagAP)
+                state.raVFlag.safeRelease(state.flagAP);
 
         // Decide on the C remainder handling strategy.
         bool fragments[2] = {false, false};
