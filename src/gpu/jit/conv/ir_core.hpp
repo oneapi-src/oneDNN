@@ -436,6 +436,16 @@ public:
         return *this == type_t::from_cpp<T>();
     }
 
+    bool is_bitwise_compatible(const type_t &other) const {
+        if (*this == other) return true;
+
+        // tf32 is bitwise compatible with f32.
+        if (kind() == type_kind_t::f32 && other.kind() == type_kind_t::tf32)
+            return elems() == other.elems();
+
+        return false;
+    }
+
     type_t remove_elems() const { return with_elems(1); }
 
     type_t remove_ptr() const {

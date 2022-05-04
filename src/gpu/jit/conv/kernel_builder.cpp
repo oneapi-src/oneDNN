@@ -7114,15 +7114,23 @@ private:
                 &changed);
 
         if (changed) {
+            bool is_reorder_nop
+                    = fma_layout.retype(reg_layout.type()) == reg_layout
+                    && reg_layout.type().is_bitwise_compatible(
+                            fma_layout.type());
+
             if (fma_layout.type() != reg_layout.type()) {
                 reg_view = reg_view.retype(fma_layout.type());
             }
             reg_layout = fma_layout;
             reg_view.set_tlayout(reg_layout);
-            stmt = substitute(stmt, x_reg_buf, ab_tmp_buf_);
-            stmt = stmt.append(create_reorder_stmt(
-                    load_layout, reg_layout, ab_tmp_buf_, x_reg_buf));
-            tmp_buf_size_ = std::max(tmp_buf_size_, int(load_layout.size()));
+            if (!is_reorder_nop) {
+                stmt = substitute(stmt, x_reg_buf, ab_tmp_buf_);
+                stmt = stmt.append(create_reorder_stmt(
+                        load_layout, reg_layout, ab_tmp_buf_, x_reg_buf));
+                tmp_buf_size_
+                        = std::max(tmp_buf_size_, int(load_layout.size()));
+            }
         }
 
         if (use_x_slm) {

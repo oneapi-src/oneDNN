@@ -2639,7 +2639,7 @@ private:
 
     static bool is_2d_reorder(
             const layout_t &src, const layout_t &dst, int &elems_per_thr) {
-        if (src.type() != dst.type()) return false;
+        if (!src.type().is_bitwise_compatible(dst.type())) return false;
 
         const int hword_bytes = 32;
         const int min_bytes_per_thr = hword_bytes;
