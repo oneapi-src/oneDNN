@@ -3338,7 +3338,8 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     ///
     ///     conv_args.insert(
     ///      {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_WEIGHTS, prelu_weights})
-
+    /// @endcode
+    ///
     /// @note
     ///     The order of dimensions does not depend on how elements are laid
     ///     out in memory. For example:
@@ -3349,8 +3350,8 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     ///
     ///    Prelu weights tensor is passed in runtime execution phase. Prelu
     ///    weights tensor data type is implicitly assumed as f32 using plain
-    ///    layout (a, ab, acb, acdb, acdeb)
-
+    ///    layout (a, ab, acb, acdb, acdeb).
+    ///
     /// @param mask Defines the correspondence between the output tensor
     ///     dimensions and the prelu weights tensor. The set i-th bit indicates
     ///     that a dedicated weights value is used for each index along that
@@ -3364,7 +3365,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// Returns the parameters of a prelu post-op.
     ///
     /// @param index Index of the prelu post-op.
-    /// @param maks Weights mask of prelu post-op.
+    /// @param mask Weights mask of prelu post-op.
     void get_params_prelu(int index, int &mask) const {
         error::wrap_c_api(dnnl_post_ops_get_params_prelu(get(), index, &mask),
                 "could not get parameters of a binary post-op");
