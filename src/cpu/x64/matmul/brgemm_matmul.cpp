@@ -74,7 +74,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     const bool problem_dt_correct = is_int8 || is_bf16 || is_f32;
     bool ok = mayiuse(isa) && problem_dt_correct
             && !has_runtime_dims_or_strides()
-            && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale
+            && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale_runtime
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt,
@@ -192,9 +192,10 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
+    DEFINE_SCALES_BUFFER(oscales);
 
     brg_matmul_exec_ctx_t brgmm_ctx(
-            ctx, pd(), src_zero_point, wei_zero_point, dst_zero_point);
+            ctx, pd(), oscales, src_zero_point, wei_zero_point, dst_zero_point);
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const bool use_buffer_a
@@ -608,8 +609,9 @@ void brgemm_matmul_t<isa>::accumulate(
 
 template <cpu_isa_t isa>
 struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
-    brg_matmul_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd, int32_t src_zp,
-            int32_t wei_zp, int32_t dst_zp)
+    brg_matmul_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd,
+            const float *oscales, int32_t src_zp, int32_t wei_zp,
+            int32_t dst_zp)
         : bgmmc_(pd->get_brgemm_matmul_conf()) {
 
         data_A_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
@@ -617,7 +619,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         data_C_ptr_ = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
         bias_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
-        oscales_ptr_ = pd->attr()->output_scales_.scales_;
+        oscales_ptr_ = oscales;
         memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
         const auto &bgmmc = pd->get_brgemm_matmul_conf();
 
