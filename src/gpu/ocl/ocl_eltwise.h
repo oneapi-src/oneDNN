@@ -238,7 +238,7 @@ float hardsigmoid_fwd(float s) {
     return (1.f / 6.f) * bounded_relu_fwd(s + 3.f, 6.f);
 }
 float hardsigmoid_bwd(float dd, float s) {
-    return (s < 3.f && s > -3.f ? dd / 6.f : 0;
+    return (s < 3.f && s > -3.f ? dd / 6.f : 0);
 }
 
 float hardswish_fwd(float s) {
