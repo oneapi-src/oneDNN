@@ -36,7 +36,8 @@ namespace aarch64 {
 
 namespace acl_utils {
 
-arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt);
+arm_compute::DataType get_acl_data_t(
+        const dnnl_data_type_t dt, const bool is_quantized = false);
 arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
 arm_compute::ActivationLayerInfo get_acl_act(const eltwise_desc_t &ed);
 bool acl_act_ok(alg_kind_t eltwise_activation);

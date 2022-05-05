@@ -96,12 +96,6 @@ struct acl_eltwise_fwd_t : public primitive_t {
                     data_d.nelems() / thread_dim, thread_dim);
             aep.data_info = arm_compute::TensorInfo(shape, 1, acl_data_t);
 
-            const bool is_int8 = one_of(data_d.data_type(), s8, u8);
-            if (is_int8) {
-                aep.data_info.set_quantization_info(
-                        arm_compute::QuantizationInfo(1, 0));
-            }
-
             if (!acl_utils::acl_act_ok(desc()->alg_kind))
                 return status::unimplemented;
 

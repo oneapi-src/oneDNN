@@ -26,14 +26,23 @@ namespace acl_utils {
 using namespace dnnl::impl::alg_kind;
 using namespace data_type;
 
-arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt) {
+arm_compute::DataType get_acl_data_t(
+        const dnnl_data_type_t dt, const bool is_quantized) {
     switch (dt) {
-        case bf16: return arm_compute::DataType::BFLOAT16; break;
-        case f32: return arm_compute::DataType::F32; break;
-        case s32: return arm_compute::DataType::S32; break;
-        case f16: return arm_compute::DataType::F16; break;
-        case s8: return arm_compute::DataType::QASYMM8_SIGNED; break;
-        case u8: return arm_compute::DataType::QASYMM8; break;
+        case bf16: return arm_compute::DataType::BFLOAT16;
+        case f32: return arm_compute::DataType::F32;
+        case s32: return arm_compute::DataType::S32;
+        case f16: return arm_compute::DataType::F16;
+        case s8:
+            if (is_quantized)
+                return arm_compute::DataType::QASYMM8_SIGNED;
+            else
+                return arm_compute::DataType::S8;
+        case u8:
+            if (is_quantized)
+                return arm_compute::DataType::QASYMM8;
+            else
+                return arm_compute::DataType::U8;
         default: return arm_compute::DataType::UNKNOWN;
     }
 }
