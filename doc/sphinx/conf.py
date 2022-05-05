@@ -51,7 +51,7 @@ sys.path.insert(1, os.path.abspath(doxyrest_share_path))
 # -- Project information -----------------------------------------------------
 
 project = 'oneDNN'
-copyright = '© Copyright 2016 - 2021, Intel Corporation'
+copyright = '© Copyright 2016 - 2022, Intel Corporation'
 author = 'Intel'
 
 # -- General configuration ---------------------------------------------------
