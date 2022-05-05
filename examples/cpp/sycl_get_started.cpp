@@ -373,8 +373,8 @@ void sycl_get_started_tutorial(engine::kind ekind) {
                 global_outputs_ts_map[out.get_id()] = outputs_ts.back();
             }
 
-            /// Execute the compiled partition 1 on the specified stream.
-            /// @snippet cpu_get_started.cpp Execute compiled partition 1
+            /// Execute the compiled partition on the specified stream.
+            /// @snippet cpu_get_started.cpp Execute compiled partition
             //[Execute compiled partition]
             sycl_interop::execute(cp, strm, inputs_ts, outputs_ts);
             //[Execute compiled partition]
