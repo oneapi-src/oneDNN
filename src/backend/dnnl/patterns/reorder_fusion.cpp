@@ -43,9 +43,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reorder_sum_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op *reorder = pgraph->append_op(
+                    pm::pb_op_t *reorder = pgraph->append_op(
                             impl::op_kind::Reorder, "preorder");
-                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                    pm::pb_op_t *add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, reorder, 0)}, "padd");
                     add->append_decision_function([](op_t *graph_op) -> bool {
                         return !graph_op->has_attr("auto_broadcast")
@@ -66,9 +66,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op *dequant = pgraph->append_op(
+                    pm::pb_op_t *dequant = pgraph->append_op(
                             impl::op_kind::Dequantize, "pdequant");
-                    pm::pb_op *reorder
+                    pm::pb_op_t *reorder
                             = pgraph->append_op(impl::op_kind::Reorder,
                                     {in_edge(0, dequant, 0)}, "preorder");
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -86,14 +86,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_sum_fusion)
         .set_priority(10.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op *dequant = pgraph->append_op(
+                    pm::pb_op_t *dequant = pgraph->append_op(
                             impl::op_kind::Dequantize, "pdequant");
-                    pm::pb_op *dequant_other = pgraph->append_op(
+                    pm::pb_op_t *dequant_other = pgraph->append_op(
                             impl::op_kind::Dequantize, "pdequant_other");
-                    pm::pb_op *reorder
+                    pm::pb_op_t *reorder
                             = pgraph->append_op(impl::op_kind::Reorder,
                                     {in_edge(0, dequant, 0)}, "preorder");
-                    pm::pb_op *add = pgraph->append_op(impl::op_kind::Add,
+                    pm::pb_op_t *add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, reorder, 0),
                                     in_edge(1, dequant_other, 0)},
                             "padd");

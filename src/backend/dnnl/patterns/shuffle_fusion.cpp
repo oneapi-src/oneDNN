@@ -43,9 +43,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, shuffle_fusion)
         .set_priority(8.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op *reshape0
+                    pm::pb_op_t *reshape0
                             = pgraph->append_op(impl::op_kind::StaticReshape);
-                    pm::pb_op *transpose
+                    pm::pb_op_t *transpose
                             = pgraph->append_op(impl::op_kind::StaticTranspose,
                                     in_edges_t {in_edge(0, reshape0, 0)});
                     pgraph->append_op(impl::op_kind::StaticReshape,

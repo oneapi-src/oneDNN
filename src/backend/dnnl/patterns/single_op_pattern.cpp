@@ -136,7 +136,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    impl::utils::pm::pb_op *p_interpolate = pgraph->append_op(
+                    impl::utils::pm::pb_op_t *p_interpolate = pgraph->append_op(
                             impl::op_kind::Interpolate, "p-interpolate");
                     p_interpolate->INTERPOLATE_ATTR_CHECK();
                 })
@@ -152,7 +152,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_bwd_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    impl::utils::pm::pb_op *p_interpolate_bwd
+                    impl::utils::pm::pb_op_t *p_interpolate_bwd
                             = pgraph->append_op(
                                     impl::op_kind::InterpolateBackprop,
                                     "p-interpolate_bwd");
@@ -188,7 +188,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    impl::utils::pm::pb_op *p_tc = pgraph->append_op(
+                    impl::utils::pm::pb_op_t *p_tc = pgraph->append_op(
                             impl::op_kind::TypeCast, "p-typecast");
                     p_tc->SET_BF16_F16_CHECK();
                 })
@@ -205,7 +205,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
             .set_priority(p) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
-                        impl::utils::pm::pb_op *reduction \
+                        impl::utils::pm::pb_op_t *reduction \
                                 = pgraph->append_op(impl::op_kind::op); \
                         reduction->append_decision_function([](op_t *graph_op) \
                                                                     -> bool { \
@@ -245,7 +245,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    impl::utils::pm::pb_op *softplus = pgraph->append_op(
+                    impl::utils::pm::pb_op_t *softplus = pgraph->append_op(
                             impl::op_kind::SoftPlus, "softplus");
                     softplus->SOFTPLUS_ATTR_CHECK();
                 })
@@ -261,7 +261,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_bw_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    impl::utils::pm::pb_op *softplus_bw = pgraph->append_op(
+                    impl::utils::pm::pb_op_t *softplus_bw = pgraph->append_op(
                             impl::op_kind::SoftPlusBackprop, "softplus_bw");
                     softplus_bw->SOFTPLUS_ATTR_CHECK();
                 })

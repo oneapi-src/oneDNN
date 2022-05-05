@@ -38,7 +38,7 @@ namespace pm {
 // Matching start with a seed graph op and pattern graph.
 // Pattern graph serves as a map for guiding the matching process and
 // while matching, individual graph ops will be paired up with a pb_op
-// in the pattern graph. pb_op encodes which edges need to be matched
+// in the pattern graph. pb_op_t encodes which edges need to be matched
 // (topologicial constraints) and what other properties a a paired graph
 // op should possess(attribute constraints).
 // The pattern graph itself is a nested graph where nesting happens
@@ -48,7 +48,7 @@ namespace pm {
 // A match_context holds the pattern graph in current context and
 // the in/out port map used to map upper-level contexts.
 //
-// A "binding" is pre step for graph op to pb_op pairing. At any pattern
+// A "binding" is pre step for graph op to pb_op_t pairing. At any pattern
 // level, some pattern nodes are not pb_op. binding is between a
 // graph op and a pattern node (not necessarily a pb_op).
 // Matching is driven by binding. If binding is not to a pb_op,
@@ -79,10 +79,10 @@ enum node_bind_kind {
 class binding_t {
 public:
     binding_t(node_bind_kind p_kind, op_t *p_op, int64_t p_op_port,
-            pb_node *p_node, int64_t p_port);
+            pb_node_t *p_node, int64_t p_port);
 
     op_t *bind_op;
-    pb_node *bind_node;
+    pb_node_t *bind_node;
     node_bind_kind bind_kind;
     int64_t bind_port;
     int64_t bind_op_port;
@@ -103,11 +103,11 @@ using graph_port_map = std::unordered_map<int64_t, std::pair<op_t *, int64_t>>;
 class match_context_t {
 public:
     // create a inherited context
-    match_context_t(match_context_t *p_parent_ctx, pb_node *p_graph);
+    match_context_t(match_context_t *p_parent_ctx, pb_node_t *p_graph);
     // create a copied context
     match_context_t(const match_context_t &other_ctx) = default;
     match_context_t *get_parent_context() { return parent_ctx; };
-    pb_graph_t *get_graph() { return m_graph; };
+    pb_graph_t *get_graph() { return graph_; };
 
     graph_port_map in_port_map;
     graph_port_map out_port_map;
@@ -115,7 +115,7 @@ public:
 protected:
     match_context_t *parent_ctx;
     // Can be a nullptr if context is a global for holding graph(s)
-    pb_graph_t *m_graph;
+    pb_graph_t *graph_;
 };
 
 //
@@ -123,7 +123,7 @@ protected:
 // paired pattern node, and their inputs and outputs
 //
 bool match_node(const binding_t &b, match_context_t *context,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map);
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 
 //
 // pair pattern node input nodes (producers) with the paired op's
@@ -131,16 +131,16 @@ bool match_node(const binding_t &b, match_context_t *context,
 // of input nodes and input ops are checked until one pair gets
 // matched or all combination are failed
 //
-bool match_node_inputs(op_t *op, pb_node *node, match_context_t *context,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map);
+bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *context,
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 //
 // pair pattern node output nodes (consumers) with the paired op's
 // output ops. If node output has multiple consumers. different combination
 // of output nodes and output ops are checked until one pair gets matched
 // or all combination are failed
 //
-bool match_node_outputs(op_t *op, pb_node *node, match_context_t *context,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map);
+bool match_node_outputs(op_t *op, pb_node_t *node, match_context_t *context,
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 //
 // check if the matched graph causes cycles. Basically if one op in the
 // matched graph has an input value produced by an external op, and the
@@ -149,32 +149,32 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *context,
 // and the match process should not continue.
 //
 bool check_cyclic(
-        op_t *op, const std::unordered_map<op_t *, pb_op *> &matched_op_map);
+        op_t *op, const std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 //
-// match a graph op's attributes using decision_functions of a pb_op node
+// match a graph op's attributes using decision_functions of a pb_op_t node
 //
-bool match_node_attributes(op_t *op, pb_node *node);
+bool match_node_attributes(op_t *op, pb_node_t *node);
 
 //
-// Trigger nested matching for non pb_op nodes
+// Trigger nested matching for non pb_op_t nodes
 //
 bool resolve_node(const binding_t &b, match_context_t *context,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map);
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 
 //
 // Match a graph
 //
 bool match_graph(const binding_t &b, match_context_t *context,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map);
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 
 bool match_graph_helper(const binding_t &local_bind, match_context_t *ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map);
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 //
 // match an alternation
 // iterates alternatives and apply match_graph until a matching one is found.
 //
 bool match_alternation(const binding_t &b, match_context_t *context,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map);
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 
 //
 // match a repetition including optional
@@ -182,7 +182,7 @@ bool match_alternation(const binding_t &b, match_context_t *context,
 // across iterations of matched bodies.
 //
 bool match_repetition(const binding_t &b, match_context_t *context,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map);
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 
 //
 // Entry point of pattern matching.
@@ -196,7 +196,7 @@ bool match_pattern(op_t *first_op, const std::shared_ptr<pb_graph_t> &pattern,
 // reorder the matched ops to make sure they are in topology order
 //
 inline std::vector<op_t *> reorder_matched_list(
-        const std::unordered_map<op_t *, pb_op *> &matched_op_map);
+        const std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 
 //
 // fill the current match_context's in/out port map

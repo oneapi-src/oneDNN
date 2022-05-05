@@ -37,7 +37,7 @@ bool has_commutative_inputs(op_t *op) {
 }
 
 // check if a pb_node is optional and its all consumers are optional
-bool check_is_optional(pb_node *n) {
+bool check_is_optional(pb_node_t *n) {
     if (n->get_node_kind() != pb_node_kind::PB_NODE_KIND_REPETITION)
         return false;
     repetition_t *rep_node = dynamic_cast<repetition_t *>(n);
@@ -59,19 +59,19 @@ bool check_is_optional(pb_node *n) {
 } // namespace
 
 binding_t::binding_t(node_bind_kind p_kind, op_t *p_op, int64_t p_op_port,
-        pb_node *p_node, int64_t p_port)
+        pb_node_t *p_node, int64_t p_port)
     : bind_op {p_op}
     , bind_node {p_node}
     , bind_kind {p_kind}
     , bind_port {p_port}
     , bind_op_port {p_op_port} {}
 
-match_context_t::match_context_t(match_context_t *p_ctx, pb_node *p_graph)
+match_context_t::match_context_t(match_context_t *p_ctx, pb_node_t *p_graph)
     : parent_ctx {p_ctx} {
-    m_graph = dynamic_cast<pb_graph_t *>(p_graph);
+    graph_ = dynamic_cast<pb_graph_t *>(p_graph);
 }
 
-bool match_node_attributes(op_t *op, pb_node *node) {
+bool match_node_attributes(op_t *op, pb_node_t *node) {
     size_t n_func = node->get_num_decision_functions();
     for (size_t i = 0; i < n_func; i++) {
         if (!(node->get_decision_function(i)(op))) { return false; }
@@ -79,18 +79,18 @@ bool match_node_attributes(op_t *op, pb_node *node) {
     return true;
 }
 
-bool match_node_inputs(op_t *op, pb_node *node, match_context_t *ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *ctx,
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     std::vector<std::pair<iport_t, producer_t>> node_inputs
             = node->get_inputs();
     if (node_inputs.empty()) return true;
 
-    std::unordered_map<op_t *, pb_op *> copied_op_map = matched_op_map;
+    std::unordered_map<op_t *, pb_op_t *> copied_op_map = matched_op_map;
 
     // a lambda function to match each of the inputs in op and node
     auto match_input
             = [&](size_t op_input_offset, size_t node_input_offset) -> bool {
-        pb_node *in_node = node_inputs[node_input_offset].second.first;
+        pb_node_t *in_node = node_inputs[node_input_offset].second.first;
         std::shared_ptr<value_t> op_in_value
                 = op->get_input_value(op_input_offset);
         if (!op_in_value->has_producer()) {
@@ -155,8 +155,8 @@ bool match_node_inputs(op_t *op, pb_node *node, match_context_t *ctx,
     return true;
 }
 
-bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+bool match_node_outputs(op_t *op, pb_node_t *node, match_context_t *ctx,
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     std::vector<std::pair<oport_t, consumers_t>> node_outputs
             = node->get_outputs();
     if (node_outputs.empty()) return true;
@@ -167,7 +167,7 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
     bool support_optional = true;
     for (const auto &node_output : node_outputs) {
         for (const auto &con : node_output.second) {
-            pb_node *out_node = con->first;
+            pb_node_t *out_node = con->first;
             bool is_optional = check_is_optional(out_node);
             if (!is_optional) {
                 support_optional = false;
@@ -177,7 +177,7 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
         if (!support_optional) break;
     }
 
-    std::unordered_map<op_t *, pb_op *> copied_op_map = matched_op_map;
+    std::unordered_map<op_t *, pb_op_t *> copied_op_map = matched_op_map;
 
     //match output for node and op
     for (auto &node_output : node_outputs) {
@@ -195,7 +195,7 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
 
             for (size_t k = 0; k < node_output.second.size(); k++) {
                 auto node_consumer = node_output.second[k];
-                pb_node *out_node = node_consumer->first;
+                pb_node_t *out_node = node_consumer->first;
                 // check if the out_node has been matched by previous out_ops
                 if (node_oport_matched_cons.count(k)) continue;
                 binding_t out_bind(BIND_IN, out_op,
@@ -224,7 +224,7 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
                 //if it's the allow_external_output case, then it's fine
                 if (node->get_node_kind() == pb_node_kind::PB_NODE_KIND_OP) {
                     // check external_output
-                    pb_op *p_op = dynamic_cast<pb_op *>(node);
+                    pb_op_t *p_op = dynamic_cast<pb_op_t *>(node);
                     const std::unordered_set<oport_t> &external_outputs
                             = p_op->get_allowed_external_outputs();
                     if (!external_outputs.empty()
@@ -246,7 +246,7 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
 }
 
 bool check_cyclic(
-        op_t *op, const std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+        op_t *op, const std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     // internal_ops: ops that are in the matched graph
     std::unordered_set<op_t *> internal_ops;
     for (const auto &kv : matched_op_map)
@@ -279,7 +279,7 @@ bool check_cyclic(
 }
 
 bool match_node(const binding_t &b, match_context_t *ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     if (b.bind_op == nullptr) return false;
     if (b.bind_node == nullptr) return false;
     if (b.bind_op->get_partition() != nullptr) return false;
@@ -299,7 +299,7 @@ bool match_node(const binding_t &b, match_context_t *ctx,
 }
 
 bool resolve_node(const binding_t &bind_arg, match_context_t *ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     bool success = false;
     switch (bind_arg.bind_node->get_node_kind()) {
         case pb_node_kind::PB_NODE_KIND_ALTERNATION:
@@ -318,7 +318,7 @@ bool match_pattern(op_t *first_op, const std::shared_ptr<pb_graph_t> &pattern,
     match_context_t global_ctx {nullptr, nullptr};
     match_context_t init_ctx {&global_ctx, pattern.get()};
     binding_t init_bind {BIND_NONE, first_op, 0, pattern.get(), 0};
-    std::unordered_map<op_t *, pb_op *> matched_op_map;
+    std::unordered_map<op_t *, pb_op_t *> matched_op_map;
     if (!match_graph(init_bind, &init_ctx, matched_op_map)) { return false; }
 
     fusion_ops = reorder_matched_list(matched_op_map);
@@ -327,13 +327,13 @@ bool match_pattern(op_t *first_op, const std::shared_ptr<pb_graph_t> &pattern,
 }
 
 inline std::vector<op_t *> reorder_matched_list(
-        const std::unordered_map<op_t *, pb_op *> &matched_op_map) {
-    // split ops and pb_ops
+        const std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
+    // split ops and pb_op_ts
     std::vector<op_t *> fusion_ops;
-    std::vector<pb_op *> pb_ops;
+    std::vector<pb_op_t *> pb_op_ts;
     for (auto kv : matched_op_map) {
         fusion_ops.push_back(kv.first);
-        pb_ops.push_back(kv.second);
+        pb_op_ts.push_back(kv.second);
     }
 
     // a deque of op indexes in fusion_ops
@@ -400,16 +400,17 @@ inline std::vector<op_t *> reorder_matched_list(
         // all producers of current op have been visited,
         // then current op is ready
         if (ready) {
-            // need to check if the corresponding pb_op is
+            // need to check if the corresponding pb_op_t is
             // wildcard before adding it to reordered_fusion_ops
             auto iter = std::find(fusion_ops.begin(), fusion_ops.end(), op);
             size_t index = iter - fusion_ops.begin();
-            pb_op *corresponding_pb_op = pb_ops[index];
+            pb_op_t *corresponding_pb_op_t = pb_op_ts[index];
             // create a temp_op to match, only wildcard can match wildcard
             op_t temp_op {op_kind::Wildcard};
             if (fusion_ops.size() == 1 // single op partition
-                    || !match_node_attributes(&temp_op, corresponding_pb_op)) {
-                // pb_op is not a wildcard
+                    || !match_node_attributes(
+                            &temp_op, corresponding_pb_op_t)) {
+                // pb_op_t is not a wildcard
                 op->set_attr<bool>("matched_pattern", true);
                 reordered_fusion_ops.emplace_back(op);
             }
@@ -430,7 +431,7 @@ void fill_parent_io_map(
         auto con_set = inner_cons[i].second;
         if (con_set.empty()) continue;
         int64_t si = static_cast<int64_t>(i);
-        pb_node *con_node = con_set[0]->first;
+        pb_node_t *con_node = con_set[0]->first;
         if (con_node == local_bind.bind_node) {
             parent_ctx->in_port_map[si] = {local_ctx->in_port_map[si].first,
                     local_ctx->in_port_map[si].second};
@@ -439,7 +440,7 @@ void fill_parent_io_map(
     auto inner_prods = pgraph->get_inner_producers();
     for (size_t i = 0; i < inner_prods.size(); i++) {
         auto prod = inner_prods[i];
-        pb_node *prod_node = prod.second.first;
+        pb_node_t *prod_node = prod.second.first;
         int64_t si = static_cast<int64_t>(i);
         if (prod_node == local_bind.bind_node) {
             parent_ctx->out_port_map[si] = {local_ctx->out_port_map[si].first,
@@ -449,19 +450,16 @@ void fill_parent_io_map(
 }
 
 bool match_graph_helper(const binding_t &local_bind, match_context_t *ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     if (local_bind.bind_node->get_node_kind()
             != pb_node_kind::PB_NODE_KIND_OP) {
         if (matched_op_map.count(local_bind.bind_op)) return true;
         if (!resolve_node(local_bind, ctx, matched_op_map)) return false;
     } else {
-        pb_op *bind_pb_op = dynamic_cast<pb_op *>(local_bind.bind_node);
+        pb_op_t *bind_pb_op = dynamic_cast<pb_op_t *>(local_bind.bind_node);
         // if current op has been visited
         if (matched_op_map.count(local_bind.bind_op)) {
-            if (matched_op_map[local_bind.bind_op] != bind_pb_op)
-                return false;
-            else
-                return true;
+            return matched_op_map[local_bind.bind_op] == bind_pb_op;
         }
         // if current op hasn't been visited
         matched_op_map[local_bind.bind_op] = bind_pb_op;
@@ -490,14 +488,12 @@ bool match_graph_helper(const binding_t &local_bind, match_context_t *ctx,
 }
 
 bool match_graph(const binding_t &bind_arg, match_context_t *ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     binding_t local_bind = bind_arg;
     // Get initial internal node to bind
     switch (bind_arg.bind_kind) {
         case BIND_NONE: {
             local_bind.bind_node = ctx->get_graph()->get_nodes().front();
-            if (!match_graph_helper(local_bind, ctx, matched_op_map))
-                return false;
         } break;
         case BIND_IN: {
             auto consumers
@@ -506,29 +502,27 @@ bool match_graph(const binding_t &bind_arg, match_context_t *ctx,
             // But will only traverse from the first consumer
             local_bind.bind_node = (*consumers)[0]->first;
             local_bind.bind_port = (*consumers)[0]->second;
-            if (!match_graph_helper(local_bind, ctx, matched_op_map))
-                return false;
         } break;
         case BIND_OUT: {
             std::shared_ptr<producer_t> prod
                     = ctx->get_graph()->get_inner_producer(bind_arg.bind_port);
             local_bind.bind_node = prod->first;
             local_bind.bind_port = prod->second;
-            if (!match_graph_helper(local_bind, ctx, matched_op_map))
-                return false;
         } break;
-        default: break;
+        default: {
+            return false;
+        } break;
     }
 
-    return true;
+    return match_graph_helper(local_bind, ctx, matched_op_map);
 }
 
 bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     alternation_t *alt_nodes
             = dynamic_cast<alternation_t *>(bind_arg.bind_node);
     for (pb_graph_t *alt_node : alt_nodes->get_alternatives()) {
-        std::unordered_map<op_t *, pb_op *> temp_op_map = matched_op_map;
+        std::unordered_map<op_t *, pb_op_t *> temp_op_map = matched_op_map;
         binding_t temp_bind = bind_arg;
         temp_bind.bind_node = alt_node;
         match_context_t local_ctx {ctx, temp_bind.bind_node};
@@ -542,7 +536,7 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
 }
 
 bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
-        std::unordered_map<op_t *, pb_op *> &matched_op_map) {
+        std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     repetition_t *rep_node = dynamic_cast<repetition_t *>(bind_arg.bind_node);
     port_map pmap = rep_node->get_port_map();
     int64_t min_rep = rep_node->get_min_rep();
@@ -554,7 +548,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
     // First iteration has the same bind_op as the repetition node.
     binding_t temp_bind = bind_arg;
     temp_bind.bind_node = rep_node->get_body();
-    std::unordered_map<op_t *, pb_op *> temp_op_map = matched_op_map;
+    std::unordered_map<op_t *, pb_op_t *> temp_op_map = matched_op_map;
 
     // a merge context to tag on incremental iterations.
     match_context_t speculative_ctx {parent_ctx, temp_bind.bind_node};
@@ -607,7 +601,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
                 // More than 1 consumers. In this case, needs to check
                 // if the last node of previous match accepts external
                 // output. If no, break
-                pb_op *current_pb_op = temp_op_map[current_op];
+                pb_op_t *current_pb_op = temp_op_map[current_op];
                 const std::unordered_set<oport_t> &external_outputs
                         = current_pb_op->get_allowed_external_outputs();
                 if (external_outputs.empty()
@@ -620,7 +614,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
                 iport_t iport = pmap.second;
                 // start op for last round's match
                 op_t *start_op = temp_ctx.in_port_map[iport].first;
-                pb_op *start_pb_op = temp_op_map[start_op];
+                pb_op_t *start_pb_op = temp_op_map[start_op];
                 op_t *next_op = nullptr;
                 for (auto &con : cons) {
                     if (match_node_attributes(&con.get_op(), start_pb_op)) {

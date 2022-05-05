@@ -73,11 +73,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_concat_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     in_edges_t input_edges;
                     for (size_t i = 0; i < VARIADIC_INPUT_NUM; ++i) {
-                        pm::pb_op *dequant
+                        pm::pb_op_t *dequant
                                 = pgraph->append_op(impl::op_kind::Dequantize);
                         input_edges.emplace_back(in_edge(i, dequant, 0));
                     }
-                    pm::pb_op *concat = pgraph->append_op(
+                    pm::pb_op_t *concat = pgraph->append_op(
                             impl::op_kind::Concat, input_edges);
                     concat->append_decision_function(
                             check_scales_zps_all_equal);

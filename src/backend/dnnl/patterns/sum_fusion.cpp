@@ -43,7 +43,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, sum_fusion)
         .set_priority(10.1f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
-                    pm::pb_op *add_base = pgraph->append_op(impl::op_kind::Add);
+                    pm::pb_op_t *add_base
+                            = pgraph->append_op(impl::op_kind::Add);
                     add_base->append_decision_function(
                             [](op_t *graph_op) -> bool {
                                 return !graph_op->has_attr("auto_broadcast")
@@ -53,7 +54,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, sum_fusion)
                             });
 
                     auto addgraph = std::make_shared<pb_graph>();
-                    pm::pb_op *add = addgraph->append_op(impl::op_kind::Add);
+                    pm::pb_op_t *add = addgraph->append_op(impl::op_kind::Add);
                     add->append_decision_function([](op_t *graph_op) -> bool {
                         return !graph_op->has_attr("auto_broadcast")
                                 || graph_op->get_attr<std::string>(

@@ -57,23 +57,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         .set_priority(10.5f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *dequant_data = pgraph->append_op(
+                    pm::pb_op_t *dequant_data = pgraph->append_op(
                             impl::op_kind::Dequantize, "dequant_data");
 
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>(
                             "poptional_quant_weight");
-                    pm::pb_op *pquant = popt_graph->append_op(
+                    pm::pb_op_t *pquant = popt_graph->append_op(
                             impl::op_kind::Quantize, "pquant");
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph, "popt");
 
-                    pm::pb_op *dequant_weight = pgraph->append_op(
+                    pm::pb_op_t *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize,
                             in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
 
-                    pm::pb_op *pconvtranspose
+                    pm::pb_op_t *pconvtranspose
                             = pgraph->append_op(impl::op_kind::ConvTranspose,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)},
@@ -82,7 +82,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     // Optional bias_add
                     auto popt_bias_graph
                             = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op *pbias = popt_graph->append_op(
+                    pm::pb_op_t *pbias = popt_graph->append_op(
                             impl::op_kind::BiasAdd, "pbias");
                     pbias->append_decision_function(
                             check_producer_input_num<2>);
@@ -94,9 +94,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
                     auto padd_graph
                             = std::make_shared<pb_graph_t>("padd_graph");
-                    pm::pb_op *pdequant_add = padd_graph->append_op(
+                    pm::pb_op_t *pdequant_add = padd_graph->append_op(
                             impl::op_kind::Dequantize, "dequant_add");
-                    pm::pb_op *padd = padd_graph->append_op(impl::op_kind::Add,
+                    pm::pb_op_t *padd = padd_graph->append_op(
+                            impl::op_kind::Add,
                             in_edges_t {in_edge(1, pdequant_add, 0)}, "padd");
                     padd->append_decision_function(check_post_ops_only_one_add<
                             impl::op_kind::ConvTranspose>);
@@ -119,7 +120,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
                     auto peltwise_graph
                             = std::make_shared<pb_graph_t>("peltwise_graph");
-                    pm::pb_op *pop = peltwise_graph->append_alternation(
+                    pm::pb_op_t *pop = peltwise_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
@@ -152,7 +153,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     // Optional quant_out
                     auto popt_qout_graph = std::make_shared<pb_graph_t>(
                             "poptional_quant_out");
-                    pm::pb_op *pquant_out = popt_graph->append_op(
+                    pm::pb_op_t *pquant_out = popt_graph->append_op(
                             impl::op_kind::Quantize, "pquant_out");
                     popt_qout_graph->create_input_port(0, pquant_out, 0);
                     popt_qout_graph->create_output_port(0, pquant_out, 0);

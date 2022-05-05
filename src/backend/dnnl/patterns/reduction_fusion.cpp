@@ -53,7 +53,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
         .set_priority(8.3f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *reduction = pgraph->append_alternation(
+                    pm::pb_op_t *reduction = pgraph->append_alternation(
                             {impl::op_kind::ReduceL1, impl::op_kind::ReduceL2,
                                     impl::op_kind::ReduceMax,
                                     impl::op_kind::ReduceMean,
@@ -77,7 +77,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
 
                     auto other_postop_graph = std::make_shared<pb_graph_t>(
                             "pother_postop_graph");
-                    pm::pb_op *pop = other_postop_graph->append_alternation(
+                    pm::pb_op_t *pop = other_postop_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,

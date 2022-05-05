@@ -49,7 +49,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
         .set_priority(8.2f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *peltwise = pgraph->append_alternation(
+                    pm::pb_op_t *peltwise = pgraph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
@@ -82,7 +82,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto chained_relu = std::make_shared<pb_graph_t>();
-                    pm::pb_op *relu
+                    pm::pb_op_t *relu
                             = chained_relu->append_op(impl::op_kind::ReLU);
                     chained_relu->create_input_port(0, relu, 0);
                     chained_relu->create_output_port(0, relu, 0);

@@ -31,8 +31,8 @@ namespace graph {
 namespace impl {
 namespace utils {
 namespace pm {
-class pb_op;
-class pb_node;
+class pb_op_t;
+class pb_node_t;
 class pb_graph_t;
 // Helper types
 // VARIADIC_INPUT_NUM means the num of inputs will be depend on the op
@@ -40,8 +40,8 @@ class pb_graph_t;
 #define VARIADIC_INPUT_NUM 64
 using iport_t = int64_t;
 using oport_t = int64_t;
-using producer_t = std::pair<pb_node *, oport_t>;
-using consumer_t = std::pair<pb_node *, iport_t>;
+using producer_t = std::pair<pb_node_t *, oport_t>;
+using consumer_t = std::pair<pb_node_t *, iport_t>;
 using consumers_t = std::vector<std::shared_ptr<consumer_t>>;
 using in_edge_t = std::pair<iport_t, std::shared_ptr<producer_t>>;
 using in_edges_t = std::vector<std::shared_ptr<in_edge_t>>;
@@ -58,7 +58,6 @@ using decision_function = std::function<bool(op_t *)>;
 
 enum class pb_node_kind {
     PB_NODE_KIND_OP,
-    PB_NODE_KIND_GRAPH,
     PB_NODE_KIND_ALTERNATION,
     PB_NODE_KIND_REPETITION,
 };
@@ -66,9 +65,9 @@ enum class pb_node_kind {
 // Base class for pattern graph with input and output ports (placeholders)
 // Only implements traversal methods and setting commutative input pairs.
 // Suitable for representing topological patterns
-class pb_node {
+class pb_node_t {
 public:
-    virtual ~pb_node() = default;
+    virtual ~pb_node_t() = default;
     // API for traversing
     std::shared_ptr<producer_t> get_producer(iport_t p_port);
     std::shared_ptr<consumers_t> get_consumers(oport_t p_port);
@@ -78,69 +77,62 @@ public:
 
     size_t get_num_decision_functions();
     decision_function get_decision_function(size_t index);
-    pb_node_kind get_node_kind() { return m_node_kind; };
-    virtual std::string get_name() { return m_debug_string; };
+    pb_node_kind get_node_kind() { return node_kind_; };
+    virtual std::string get_name() { return debug_string_; };
     virtual void set_name(std::string &&name) {
-        m_debug_string = std::move(name);
+        debug_string_ = std::move(name);
     };
 
 protected:
     friend class pb_graph_t;
-    pb_node() = default;
+    pb_node_t() = default;
     bool set_producer(iport_t p_port, std::shared_ptr<producer_t> p_producer);
     bool set_consumers(
             oport_t p_port, std::shared_ptr<consumers_t> p_consumers);
     bool add_consumer(
             oport_t p_port, const std::shared_ptr<consumer_t> &p_consumer);
-    std::vector<std::shared_ptr<producer_t>> m_ins;
-    std::vector<std::shared_ptr<consumers_t>> m_outs;
-    std::vector<decision_function> m_decision_functions;
-    std::string m_debug_string = "PB_NODE: ";
-    pb_node_kind m_node_kind = pb_node_kind::PB_NODE_KIND_GRAPH;
+    std::vector<std::shared_ptr<producer_t>> ins_;
+    std::vector<std::shared_ptr<consumers_t>> outs_;
+    std::vector<decision_function> decision_functions_;
+    std::string debug_string_;
+    pb_node_kind node_kind_;
 };
 
-std::shared_ptr<consumer_t> consumer(pb_node *p_node, iport_t i_t);
+std::shared_ptr<consumer_t> consumer(pb_node_t *p_node, iport_t i_t);
 
-std::shared_ptr<consumer_t> producer(pb_node *p_node, oport_t o_t);
+std::shared_ptr<consumer_t> producer(pb_node_t *p_node, oport_t o_t);
 
-std::shared_ptr<in_edge_t> in_edge(iport_t i_t, pb_node *p_node, oport_t o_t);
+std::shared_ptr<in_edge_t> in_edge(iport_t i_t, pb_node_t *p_node, oport_t o_t);
 
 // Helper function for op kind check
 decision_function kind(dnnl::graph::impl::op_kind_t okind);
 decision_function one_of_kind(
         const std::vector<dnnl::graph::impl::op_kind_t> &okind);
 
-// pb_op represents a single dnnl graph  op (and future sub-class) operation
+// pb_op_t represents a single dnnl graph  op (and future sub-class) operation
 // No public constructor
 // Always created by a pb_graph_t
-// pb_op has type and attributes
-// Type and attribute contraint checkers are registered in pb_op
-// Extends "pb_node" to enable attribute matching including op type check.
-class pb_op : public pb_node {
+// pb_op_t has type and attributes
+// Type and attribute contraint checkers are registered in pb_op_t
+// Extends "pb_node_t" to enable attribute matching including op type check.
+class pb_op_t : public pb_node_t {
 public:
-    pb_op() = delete;
+    pb_op_t() = delete;
     // like is_commutative by callback
     bool append_decision_function(const decision_function &p_fn);
 
     // For overriding default side output control
     void allow_external_output(oport_t);
-    // For overriding default unmatched input control
-    void allow_internal_input(iport_t);
 
     const std::unordered_set<oport_t> &get_allowed_external_outputs() {
-        return m_external_outputs;
-    };
-    const std::unordered_set<oport_t> &get_allowed_internal_inputs() {
-        return m_internal_inputs;
+        return external_outputs_;
     };
 
 protected:
     friend class pb_graph_t;
-    pb_op(const decision_function &p_fn);
+    pb_op_t(const decision_function &p_fn);
     // For overriding default side output control
-    std::unordered_set<oport_t> m_external_outputs;
-    // For overriding default unmatched input control
-    std::unordered_set<iport_t> m_internal_inputs;
+    std::unordered_set<oport_t> external_outputs_;
 };
 
 //
@@ -148,7 +140,7 @@ protected:
 // Strutures for extended patterns
 // API may change
 //
-class alternation_t : public pb_node {
+class alternation_t : public pb_node_t {
 public:
     alternation_t() = delete;
     std::vector<pb_graph_t *> get_alternatives();
@@ -156,16 +148,16 @@ public:
 protected:
     friend class pb_graph_t;
     alternation_t(std::vector<std::shared_ptr<pb_graph_t>> p_nodes);
-    std::vector<std::shared_ptr<pb_graph_t>> m_alternatives;
+    std::vector<std::shared_ptr<pb_graph_t>> alternatives_;
 };
 
-class repetition_t : public pb_node {
+class repetition_t : public pb_node_t {
 public:
     repetition_t() = delete;
     pb_graph_t *get_body();
     port_map get_port_map(); // only support single port binding
-    int64_t get_min_rep() const { return m_min_rep; }
-    int64_t get_max_rep() const { return m_max_rep; }
+    int64_t get_min_rep() const { return min_rep_; }
+    int64_t get_max_rep() const { return max_rep_; }
 
 protected:
     friend class pb_graph_t;
@@ -178,18 +170,18 @@ protected:
             int64_t min_rep, int64_t max_rep);
     // Usage case for Optional does not need a port map
     repetition_t(std::shared_ptr<pb_graph_t> p_node);
-    std::shared_ptr<pb_graph_t> m_body;
-    port_map m_port_map;
-    int64_t m_min_rep;
-    int64_t m_max_rep;
+    std::shared_ptr<pb_graph_t> body_;
+    port_map port_map_;
+    int64_t min_rep_;
+    int64_t max_rep_;
 };
 
-// "pb_graph_t" represents a group of pb_ops and also serves as a pb_node
+// "pb_graph_t" represents a group of pb_op_ts and also serves as a pb_node_t
 // anywhere And provides a way to limit interface by limiting ports
 // (placeholders) to outside of pb_graph_t.
 // Nested/Hierarchical pb_nodes are useful for expressing patterns beyond fixed
 // pb_graph_t. Regular expression like extension may works on a unit larger
-// than a single pb_node.
+// than a single pb_node_t.
 // So a concept that represent grouping is going to be useful.
 // pb_graph_t defines a way to forward input/output of the group
 // to input/output of individual pb_nodes.
@@ -217,20 +209,20 @@ protected:
 // G:OUT0->ADD:OUT0
 // G:OUTPUT PORTS = {OUT0}
 
-class pb_graph_t : public pb_node {
+class pb_graph_t : public pb_node_t {
 public:
     pb_graph_t(std::string name = "");
 
-    // Restrict "pb_op" create to a pb_graph_t to avoid dangling "pb_op"s
-    pb_op *append_op(dnnl::graph::impl::op_kind_t p_kind,
+    // Restrict "pb_op_t" create to a pb_graph_t to avoid dangling "pb_op_t"s
+    pb_op_t *append_op(dnnl::graph::impl::op_kind_t p_kind,
             const in_edges_t &p_in_edges, std::string name = "");
-    pb_op *append_op(
+    pb_op_t *append_op(
             dnnl::graph::impl::op_kind_t p_kind, std::string name = "");
 
-    pb_op *append_alternation(
+    pb_op_t *append_alternation(
             const std::vector<dnnl::graph::impl::op_kind_t> &p_kind,
             const in_edges_t &p_in_edges, std::string name = "");
-    pb_op *append_alternation(
+    pb_op_t *append_alternation(
             const std::vector<dnnl::graph::impl::op_kind_t> &p_kind,
             std::string name = "");
 
@@ -258,29 +250,29 @@ public:
     std::shared_ptr<consumers_t> get_inner_consumer(iport_t);
     std::shared_ptr<producer_t> get_inner_producer(oport_t);
 
-    bool create_input_port(iport_t, pb_node *, iport_t);
-    bool create_output_port(oport_t, pb_node *, oport_t);
+    bool create_input_port(iport_t, pb_node_t *, iport_t);
+    bool create_output_port(oport_t, pb_node_t *, oport_t);
 
-    std::vector<pb_node *> get_nodes();
+    std::vector<pb_node_t *> get_nodes();
 
 protected:
-    pb_op *append_op(const decision_function &type_checker,
+    pb_op_t *append_op(const decision_function &type_checker,
             const in_edges_t &p_in_edges, std::string name = "");
-    pb_op *append_op(
+    pb_op_t *append_op(
             const decision_function &type_checker, std::string name = "");
 
     bool set_edge(const std::shared_ptr<consumer_t> &,
             const std::shared_ptr<producer_t> &);
-    bool connect_edges(pb_node *p_node, const in_edges_t &p_in_edges);
+    bool connect_edges(pb_node_t *p_node, const in_edges_t &p_in_edges);
 
     bool create_input_port(iport_t, const std::shared_ptr<consumer_t> &);
     bool create_output_port(oport_t, std::shared_ptr<producer_t>);
 
     // Reference to all internal pb_nodes
-    std::vector<std::shared_ptr<pb_node>> m_nodes;
-    std::unordered_set<oport_t> m_output_ports;
-    std::vector<std::shared_ptr<consumers_t>> m_inner_consumers {nullptr};
-    std::vector<std::shared_ptr<producer_t>> m_inner_producers {nullptr};
+    std::vector<std::shared_ptr<pb_node_t>> nodes_;
+    std::unordered_set<oport_t> output_ports_;
+    std::vector<std::shared_ptr<consumers_t>> inner_consumers_ {nullptr};
+    std::vector<std::shared_ptr<producer_t>> inner_producers_ {nullptr};
 };
 
 } // namespace pm

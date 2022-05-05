@@ -45,7 +45,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_binary_fusion)
         .set_priority(9.9f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op *ppool = pgraph->append_alternation(
+                    pm::pb_op_t *ppool = pgraph->append_alternation(
                             {impl::op_kind::AvgPool, impl::op_kind::MaxPool},
                             "peltwise");
                     pgraph->append_alternation(
