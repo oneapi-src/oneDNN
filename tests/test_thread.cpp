@@ -83,12 +83,12 @@ using EigenThreadPool = Eigen::NonBlockingThreadPool;
 namespace dnnl {
 namespace testing {
 
-class threadpool : public dnnl::threadpool_interop::threadpool_iface {
+class threadpool_t : public dnnl::threadpool_interop::threadpool_iface {
 private:
     std::unique_ptr<EigenThreadPool> tp_;
 
 public:
-    explicit threadpool(int num_threads = 0) {
+    explicit threadpool_t(int num_threads = 0) {
         if (num_threads <= 0) num_threads = read_num_threads_from_env();
         tp_.reset(new EigenThreadPool(num_threads));
     }
@@ -122,9 +122,9 @@ public:
 namespace dnnl {
 namespace testing {
 
-class threadpool : public dnnl::threadpool_interop::threadpool_iface {
+class threadpool_t : public dnnl::threadpool_interop::threadpool_iface {
 public:
-    explicit threadpool(int num_threads = 0) { (void)num_threads; }
+    explicit threadpool_t(int num_threads = 0) { (void)num_threads; }
     int get_num_threads() const override {
         return tbb::this_task_arena::max_concurrency();
     }
@@ -152,11 +152,11 @@ namespace testing {
 // Naiive synchronous threadpool:
 // - Only a single parallel_for is executed at the same time.
 // - Recursive parallel_for results in sequential execution.
-class threadpool : public dnnl::threadpool_interop::threadpool_iface {
+class threadpool_t : public dnnl::threadpool_interop::threadpool_iface {
 public:
     using task_func = std::function<void(int, int)>;
 
-    explicit threadpool(int num_threads = 0) {
+    explicit threadpool_t(int num_threads = 0) {
         if (num_threads <= 0) num_threads = read_num_threads_from_env();
         num_threads_ = num_threads;
         master_sense_ = 0;
@@ -178,7 +178,7 @@ public:
         barrier_wait();
     }
 
-    virtual ~threadpool() {
+    virtual ~threadpool_t() {
         std::unique_lock<std::mutex> l(master_mutex_);
         barrier_init();
         task_submit(nullptr, 0);
@@ -211,7 +211,7 @@ private:
 
     struct worker_data {
         int thread_id;
-        threadpool *tp;
+        threadpool_t *tp;
         std::condition_variable cv;
         std::unique_ptr<std::thread> thread;
     };
@@ -285,7 +285,7 @@ private:
     }
 };
 
-thread_local threadpool::worker_data *threadpool::worker_self_ = nullptr;
+thread_local threadpool_t::worker_data *threadpool_t::worker_self_ = nullptr;
 
 } // namespace testing
 } // namespace dnnl
@@ -296,7 +296,7 @@ namespace dnnl {
 namespace testing {
 // Threadpool singleton
 dnnl::threadpool_interop::threadpool_iface *get_threadpool() {
-    static dnnl::testing::threadpool tp;
+    static dnnl::testing::threadpool_t tp;
     return &tp;
 }
 
