@@ -20,6 +20,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_ENABLE_PRIMITIVE         | **ALL**, PRIMITIVE_NAME                    | Specifies a set of functionality to be available based on primitives
 | ONEDNN_ENABLE_PRIMITIVE_CPU_ISA | **ALL**, CPU_ISA_NAME                      | Specifies a set of functionality to be available for CPU backend based on CPU ISA
 | ONEDNN_ENABLE_PRIMITIVE_GPU_ISA | **ALL**, GPU_ISA_NAME                      | Specifies a set of functionality to be available for GPU backend based on GPU ISA
+| ONEDNN_EXPERIMENTAL             | ON, **OFF**                                | Enables [experimental features](@ref dev_guide_experimental)
 | ONEDNN_VERBOSE                  | **ON**, OFF                                | Enables [verbose mode](@ref dev_guide_verbose)
 | ONEDNN_AARCH64_USE_ACL          | ON, **OFF**                                | Enables integration with Arm Compute Library for AArch64 builds
 | ONEDNN_BLAS_VENDOR              | **NONE**, ARMPL                            | Defines an external BLAS library to link to for GEMM-like operations

@@ -247,6 +247,10 @@ directly.
 
 2. Use in-place operations whenever possible (see caveats in General Notes).
 
+3. GPU implementations support an experimental algorithm with single pass
+   statistics calculations. Please review
+   [experimental features](@ref dev_guide_experimental) for more details.
+
 ## Examples
 
 [Batch Normalization Primitive Example](@ref batch_normalization_example_cpp)

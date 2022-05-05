@@ -10,3 +10,4 @@ Advanced Topics
    dev_guide_primitive_cache
    dev_guide_persistent_cache
    dev_guide_threadpool
+   dev_guide_experimental
