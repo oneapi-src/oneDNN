@@ -65,7 +65,7 @@ public:
         dnnl_graph_logical_tensor_t input;
         dnnl_graph_logical_tensor_t weight;
         dnnl_graph_logical_tensor_t output;
-        uint64_t part_num = 0;
+        size_t part_num = 0;
 
         ASSERT_EQ_SAFE(create_logic_tensor(p.tensor_dims.input_dims, &input,
                                p.data_type, p.tensor_layout.input_layout, 1),

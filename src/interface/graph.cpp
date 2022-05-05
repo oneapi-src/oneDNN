@@ -372,14 +372,14 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_graph_get_partition_num(
-        const graph_t *graph, uint64_t *num) {
+        const graph_t *graph, size_t *num) {
     if (graph == nullptr) { return status::invalid_graph; }
     *num = graph->get_num_partitions();
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
-        graph_t *graph, uint64_t num, partition_t **partition) {
+        graph_t *graph, size_t num, partition_t **partition) {
     if (graph == nullptr) { return status::invalid_graph; }
     std::vector<partition_t *> partitions {partition, partition + num};
     graph->get_ordered_partitions(partitions);

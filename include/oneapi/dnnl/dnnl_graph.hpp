@@ -1384,35 +1384,31 @@ public:
         return static_cast<status>(ret);
     }
 
-    /// Vector to store the partitions
-    using partition_vec = std::vector<partition>;
     /// Get filtered partitions
     ///
     /// @param policy Partition policy, defaults to
     ///     #dnnl::graph::partition::policy::fusion
-    /// @return partition_vec A vector storing the partitions
-    partition_vec get_partitions(
+    /// @return A vector storing the partitions
+    std::vector<partition> get_partitions(
             partition::policy policy = partition::policy::fusion) {
         error::check_succeed(
                 dnnl_graph_graph_filter(get(),
                         static_cast<dnnl_graph_partition_policy_t>(policy)),
                 "filter graph failed");
 
-        uint64_t partitions_no {0};
-        error::check_succeed(
-                dnnl_graph_graph_get_partition_num(get(), &partitions_no),
+        size_t num = 0;
+        error::check_succeed(dnnl_graph_graph_get_partition_num(get(), &num),
                 "could not get number of partitions from the graph");
 
-        partition_vec out_list;
-        out_list.reserve(partitions_no);
+        std::vector<partition> out_list;
+        out_list.reserve(num);
 
-        std::vector<dnnl_graph_partition_t> partitions(partitions_no);
+        std::vector<dnnl_graph_partition_t> partitions(num);
         for (auto &p : partitions) {
             error::check_succeed(dnnl_graph_partition_create(&p),
                     "could not create partition");
         }
-        dnnl_graph_graph_get_partitions(
-                get(), partitions_no, partitions.data());
+        dnnl_graph_graph_get_partitions(get(), num, partitions.data());
 
         for (auto p : partitions) {
             out_list.emplace_back(p);

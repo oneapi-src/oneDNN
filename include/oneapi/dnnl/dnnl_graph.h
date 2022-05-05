@@ -571,7 +571,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_filter(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_get_partition_num(
-        const_dnnl_graph_graph_t graph, uint64_t *num);
+        const_dnnl_graph_graph_t graph, size_t *num);
 
 /// Gets the filtered partitions of the graph.
 ///
@@ -581,7 +581,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_get_partition_num(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_graph_get_partitions(
-        dnnl_graph_graph_t graph, uint64_t num,
+        dnnl_graph_graph_t graph, size_t num,
         dnnl_graph_partition_t *partition);
 
 /// Visualize the graph

@@ -39,7 +39,7 @@ TEST(c_api_test, compile_bn) {
     const int64_t input_dim[] = {1, 16, 64, 64};
     const int64_t bn_param_dim[] = {16};
     const int64_t output_dim[] = {1, 16, 64, 64};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     float epsilon = 0.0;
 
 #define COMPILE_BN_DESTROY \
@@ -167,7 +167,7 @@ TEST(c_api_test, compile_conv2d) {
     const int64_t input_dim[] = {1, 3, 227, 227};
     const int64_t weight_dim[] = {64, 3, 11, 11};
     const int64_t output_dim[] = {1, 64, 55, 55};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     int64_t stride[] = {4, 4};
     int64_t padding[] = {0, 0};
     int64_t dilations[] = {1, 1};
@@ -283,7 +283,7 @@ TEST(c_api_test, compile_grouped_conv2d) {
     const int64_t input_dim[] = {1, 8, 227, 227};
     const int64_t weight_dim[] = {64, 2, 11, 11};
     const int64_t output_dim[] = {1, 64, 55, 55};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     int64_t stride[] = {4, 4};
     int64_t padding[] = {0, 0};
     int64_t dilations[] = {1, 1};
@@ -409,7 +409,7 @@ TEST(c_api_test, compile_conv2d_bias_sum) {
     const int64_t weight_dim[] = {64, 3, 11, 11};
     const int64_t bias_dim[] = {64};
     const int64_t output_dim[] = {1, 64, 55, 55};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     int64_t stride[] = {4, 4};
     int64_t padding[] = {0, 0};
     int64_t dilations[] = {1, 1};
@@ -565,7 +565,7 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
     const int64_t input_dim[] = {128, 3, 227, 227};
     const int64_t weight_dim[] = {16, 3, 11, 11};
     const int64_t output_dim[] = {128, 16, 55, 55};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     int64_t stride[] = {4, 4};
     int64_t padding[] = {0, 0};
     int64_t dilations[] = {1, 1};
@@ -818,7 +818,7 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
     const int64_t input_dim[] = {N, IC, IH, IW};
     const int64_t weight_dim[] = {OC, IC, KH, KW};
     const int64_t output_dim[] = {N, OC, OH, OW};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     int64_t stride[] = {4, 4};
     int64_t padding[] = {0, 0};
     int64_t dilations[] = {1, 1};
@@ -1062,7 +1062,7 @@ TEST(c_api_test, compile_conv2d_with_unknown_shape) {
     const int64_t input_dim[] = {1, 3, 227, 227};
     const int64_t weight_dim[] = {64, 3, 11, 11};
     const int64_t output_dim[] = {-1, -1, -1, -1};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     int64_t stride[] = {4, 4};
     int64_t padding[] = {0, 0};
     int64_t dilations[] = {1, 1};
@@ -1191,7 +1191,7 @@ TEST(c_api_test, compile_maxpool) {
     } while (0);
 
     const int64_t input_dim[] = {1, 2, 2, 1};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     int64_t stride[] = {2, 2};
     int64_t kernel[] = {2, 2};
     int64_t dilations[] = {1, 1};
@@ -1288,7 +1288,7 @@ TEST(c_api_test, compile_maxpool_with_strided_output) {
     } while (0);
 
     const int64_t input_dim[] = {1, 1, 5, 5};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     int64_t stride[] = {1, 1};
     int64_t kernel[] = {3, 3};
     int64_t dilations[] = {1, 1};
@@ -1406,7 +1406,7 @@ TEST(c_api_test, compile_add) {
     const int64_t src1_dim[] = {1, 16, 64, 64};
     const int64_t dst_dim[] = {1, 16, 64, 64};
 
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
     dnnl_graph_op_create(&add, 1, op_kind, "add");
     api_test_dnnl_graph_graph_create(&agraph, engine);
@@ -1507,7 +1507,7 @@ TEST(c_api_test, compile_conv_bn) {
     int64_t dilations[] = {1, 1};
     float epsilon = 0.0;
     int64_t group = 1;
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
     dnnl_graph_op_create(&conv2d, 1, kConvolution, "conv2d");
     dnnl_graph_op_create(&bn, 2, kBatchNormInference, "bn");
@@ -1668,7 +1668,7 @@ TEST(c_api_test, compile_grouped_conv_bn) {
     int64_t dilations[] = {1, 1};
     float epsilon = 0.0;
     int64_t group = 4;
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
     dnnl_graph_op_create(&conv2d, 1, kConvolution, "conv2d");
     dnnl_graph_op_create(&bn, 2, kBatchNormInference, "bn");
@@ -1833,7 +1833,7 @@ TEST(c_api_test, compile_conv_bn_standalone) {
     int64_t dilations[] = {1, 1};
     float epsilon = 0.001f;
     int64_t group = 1;
-    uint64_t part_num = 0;
+    size_t part_num = 0;
     size_t ops[10];
 
     dnnl_graph_op_create(&conv2d, 1, kConvolution, "conv2d");
@@ -2009,7 +2009,7 @@ TEST(c_api_test, compile_matmul_add_1d) {
     const int64_t matmul_output_dim[] = {8, 768};
     const int64_t other_dim[] = {768};
     const int64_t add_output_dim[] = {8, 768};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
     dnnl_graph_op_create(&matmul, 1, kMatMul, "matmul");
     dnnl_graph_op_create(&add, 2, kAdd, "add");
@@ -2117,7 +2117,7 @@ TEST(c_api_test, compile_matmul_add_activation) {
     const int64_t other_dim[] = {768};
     const int64_t add_output_dim[] = {8, 768};
     const int64_t activation_output_dim[] = {8, 768};
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
     std::vector<dnnl_graph_op_kind_t> activation_kinds
             = {kGELU, kReLU, kSigmoid};
@@ -2245,7 +2245,7 @@ TEST(c_api_test, compile_softmax) {
     const int64_t src_dim[] = {1, 4};
     const int64_t dst_dim[] = {1, 4};
 
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
     dnnl_graph_op_create(&softmax, 1, op_kind, "softmax");
     api_test_dnnl_graph_graph_create(&agraph, engine);
@@ -2324,7 +2324,7 @@ TEST(c_api_test, compile_softmax_bwd) {
     const int64_t src1_dim[] = {1, 4};
     const int64_t dst_dim[] = {1, 4};
 
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
     dnnl_graph_op_create(&softmax, 1, op_kind, "softmax_bwd");
     api_test_dnnl_graph_graph_create(&agraph, engine);
@@ -2407,7 +2407,7 @@ TEST(c_api_test, compile_logsoftmax) {
     const int64_t src_dim[] = {1, 4};
     const int64_t dst_dim[] = {1, 4};
 
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
     dnnl_graph_op_create(&logsoftmax, 1, op_kind, "logsoftmax");
     api_test_dnnl_graph_graph_create(&agraph, engine);

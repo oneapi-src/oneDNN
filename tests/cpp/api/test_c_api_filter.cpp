@@ -27,7 +27,7 @@ TEST(c_api_test, filter_conv_bn_standalone) {
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
     dnnl_graph_op_kind_t op_kind = kConvolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
 #define FILTER_CONV_BN_STANDALONE_DESTROY \
     do { \
@@ -152,7 +152,7 @@ TEST(c_api_test, filter_conv_bn_fused) {
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
     dnnl_graph_op_kind_t op_kind = kConvolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
-    uint64_t part_num = 0;
+    size_t part_num = 0;
 
 #define FILETER_CONV_BN_FUSED_DESTROY \
     do { \

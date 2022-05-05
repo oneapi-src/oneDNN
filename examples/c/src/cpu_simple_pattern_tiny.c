@@ -300,7 +300,7 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(
             dnnl_graph_graph_filter(graph, dnnl_graph_partition_policy_fusion));
 
-    uint64_t partitions_num;
+    size_t partitions_num;
     DNNL_GRAPH_CHECK(
             dnnl_graph_graph_get_partition_num(graph, &partitions_num));
     if (partitions_num != 2) {
