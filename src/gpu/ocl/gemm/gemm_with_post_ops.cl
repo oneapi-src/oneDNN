@@ -109,7 +109,7 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
 #endif
 
         // Apply postops
-        float sum_src;
+        float sum_src = 0.0f;
 #if WITH_SUM
         sum_src = DST_TO_ACC(dst[data_idx]);
 #endif
