@@ -41,10 +41,10 @@ endif()
 if(DNNL_TARGET_ARCH STREQUAL "PPC64")
     file(GLOB FILES_REQUIRED_OPT
         ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
-        )
-    foreach(SOURCE_FILE ${FILES_REQUIRED_OPT})
-        list(APPEND SOURCES "${SOURCE_FILE}")
-    endforeach()
+    )
+#    foreach(SOURCE_FILE ${FILES_REQUIRED_OPT})
+#        list(APPEND SOURCES "${SOURCE_FILE}")
+#    endforeach()
     set_source_files_properties(${FILES_REQUIRED_OPT}
         PROPERTIES COMPILE_FLAGS "-O3 -funroll-loops")
 endif()
