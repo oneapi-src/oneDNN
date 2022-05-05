@@ -1400,6 +1400,9 @@ public:
         error::check_succeed(dnnl_graph_graph_get_partition_num(get(), &num),
                 "could not get number of partitions from the graph");
 
+        // return early if there is no partitions in the graph.
+        if (num == 0) return {};
+
         std::vector<partition> out_list;
         out_list.reserve(num);
 
