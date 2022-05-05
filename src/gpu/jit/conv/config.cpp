@@ -1077,10 +1077,6 @@ void conv_config_t::init_allow_slm_tg_slicing(
 std::string conv_config_t::str() const {
     using namespace ir_utils;
 
-    int thread_groups
-            = kernel_grid_dim[0] * kernel_grid_dim[1] * kernel_grid_dim[2];
-    int tg_size = tg_grid_dim[0] * tg_grid_dim[1] * tg_grid_dim[2];
-
     std::ostringstream oss;
     // clang-format off
     oss << "  HW config:                  " << hw_cfg.str() << std::endl;
@@ -1091,7 +1087,9 @@ std::string conv_config_t::str() const {
     oss << bh->brief_str();
     oss << "  Kernel grid:                " << make_seq_print_helper(kernel_grid_dim, " x ") << std::endl;
     oss << "  Thread group:               " << make_seq_print_helper(tg_grid_dim, " x ") << std::endl;
-    oss << "  Threads:                    " << thread_groups * tg_size << std::endl;
+    oss << "  Threads:                    " << get_thread_count() << " (utilization: "
+        << get_thread_utilization() << "% thread, "
+        << get_wave_utilization() << "% wave)" <<  std::endl;
     oss << "  FMA kind:                   " << fma_kind::to_string(fma_kind) << std::endl;
     oss << "  SLM buffering:              " << "A: " << to_string(use_a_slm) << ", B: " << to_string(use_b_slm)
                                             << ", buffers: " << slm_bufs << ", pad: " << to_string(pad_slm) << std::endl;

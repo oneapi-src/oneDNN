@@ -1186,6 +1186,50 @@ private:
         if (make_layout(md) == make_layout(md, blocking_tag)) return false;
         return true;
     }
+
+    int get_thread_groups() const {
+        return kernel_grid_dim[0] * kernel_grid_dim[1] * kernel_grid_dim[2];
+    }
+    int get_thread_group_size() const {
+        return tg_grid_dim[0] * tg_grid_dim[1] * tg_grid_dim[2];
+    }
+    int get_thread_count() const {
+        return get_thread_groups() * get_thread_group_size();
+    }
+
+    // Return thread utilization as a percentage. If this value is low,
+    // parallelism is a fundamental limitation to the current work scheduling.
+    float get_thread_utilization() const {
+        auto arch = convert_ngen_arch_to_dnnl(hw());
+        int slice_eu_count = compute::device_info_t::max_eus_per_wg(arch);
+        int slice_count = hw_cfg.eu_count() / slice_eu_count;
+
+        int min_wg_per_slice_wave
+                = std::max(slice_eu_count / get_thread_group_size(), 1);
+        int min_wg_per_wave = slice_count * min_wg_per_slice_wave;
+
+        int wg = get_thread_groups();
+
+        return ((float)wg / utils::rnd_up(wg, min_wg_per_wave)) * 100;
+    }
+
+    // Return wave utilization as a percentage. If this value is low, memory
+    // latency may be an issue due to limited use of SMT to hide the latency.
+    float get_wave_utilization() const {
+        auto arch = convert_ngen_arch_to_dnnl(hw());
+        int threads_per_eu = compute::device_info_t::threads_per_eu(
+                arch, hw_cfg.large_grf_support());
+        int slice_eu_count = compute::device_info_t::max_eus_per_wg(arch);
+        int slice_count = hw_cfg.eu_count() / slice_eu_count;
+
+        int max_wg_per_slice_wave
+                = slice_eu_count * threads_per_eu / get_thread_group_size();
+        int max_wg_per_wave = slice_count * max_wg_per_slice_wave;
+
+        int wg = get_thread_groups();
+
+        return ((float)wg / utils::rnd_up(wg, max_wg_per_wave)) * 100;
+    }
 };
 
 inline std::ostream &operator<<(std::ostream &out, const conv_config_t &cfg) {
