@@ -53,30 +53,30 @@ status_t DNNL_GRAPH_API dnnl_graph_op_add_output(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_add_attr(op_t *op, const char *name,
-        attribute_kind_t kind, const void *attr, int64_t attr_no) {
+        attribute_kind_t kind, const void *value, size_t value_len) {
     switch (kind) {
         case attribute_kind::i:
-            op->set_attr(name, *static_cast<const int64_t *>(attr));
+            op->set_attr(name, *static_cast<const int64_t *>(value));
             break;
         case attribute_kind::is: {
-            const auto beg = static_cast<const int64_t *>(attr);
-            op->set_attr(
-                    name, std::vector<int64_t> {beg, std::next(beg, attr_no)});
+            const auto beg = static_cast<const int64_t *>(value);
+            op->set_attr(name,
+                    std::vector<int64_t> {beg, std::next(beg, value_len)});
         } break;
         case attribute_kind::f:
-            op->set_attr(name, *static_cast<const float *>(attr));
+            op->set_attr(name, *static_cast<const float *>(value));
             break;
         case attribute_kind::fs: {
-            const auto beg = static_cast<const float *>(attr);
+            const auto beg = static_cast<const float *>(value);
             op->set_attr(
-                    name, std::vector<float> {beg, std::next(beg, attr_no)});
+                    name, std::vector<float> {beg, std::next(beg, value_len)});
         } break;
         case attribute_kind::s: {
-            const auto beg = static_cast<const char *>(attr);
+            const auto beg = static_cast<const char *>(value);
             op->set_attr(name, std::string(beg));
         } break;
         case attribute_kind::b:
-            op->set_attr(name, *static_cast<const bool *>(attr));
+            op->set_attr(name, *static_cast<const bool *>(value));
             break;
         default: return status::unsupported;
     }

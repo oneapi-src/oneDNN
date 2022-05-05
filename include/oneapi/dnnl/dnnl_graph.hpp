@@ -1023,15 +1023,15 @@ public:
     ///
     /// @tparam Type Attribute's type
     /// @param name Attribute's name
-    /// @param a The attribute's value
+    /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, int64_t>::value> = true>
-    op &set_attr(const std::string &name, const Type &a) {
+    op &set_attr(const std::string &name, const Type &value) {
         constexpr auto kind = attr_kind<Type>();
         error::check_succeed(
-                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &a, 0),
-                "setting attribute to the op failed");
+                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &value, 0),
+                "could not set attribute to the op");
         return *this;
     }
 
@@ -1039,14 +1039,14 @@ public:
     ///
     /// @tparam Type Attribute's type
     /// @param name Attribute's name
-    /// @param a The attribute's value
+    /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type, requires<std::is_same<Type, float>::value> = true>
-    op &set_attr(const std::string &name, const Type &a) {
+    op &set_attr(const std::string &name, const Type &value) {
         constexpr auto kind = attr_kind<Type>();
         error::check_succeed(
-                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &a, 0),
-                "setting attribute to the op failed");
+                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &value, 0),
+                "could not set attribute to the op");
         return *this;
     }
 
@@ -1054,14 +1054,14 @@ public:
     ///
     /// @tparam Type Attribute's type
     /// @param name Attribute's name
-    /// @param a The attribute's value
+    /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type, requires<std::is_same<Type, bool>::value> = true>
-    op &set_attr(const std::string &name, const Type &a) {
+    op &set_attr(const std::string &name, const Type &value) {
         constexpr auto kind = attr_kind<Type>();
         error::check_succeed(
-                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &a, 0),
-                "setting attribute to the op failed");
+                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &value, 0),
+                "could not set attribute to the op");
         return *this;
     }
 
@@ -1069,15 +1069,15 @@ public:
     ///
     /// @tparam Type Attribute's type
     /// @param name Attribute's name
-    /// @param a The attribute's value
+    /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::string>::value> = true>
-    op &set_attr(const std::string &name, const Type &a) {
+    op &set_attr(const std::string &name, const Type &value) {
         constexpr auto kind = attr_kind<Type>();
-        error::check_succeed(
-                dnnl_graph_op_add_attr(get(), name.c_str(), kind, a.c_str(), 0),
-                "setting attribute to the op failed");
+        error::check_succeed(dnnl_graph_op_add_attr(get(), name.c_str(), kind,
+                                     value.c_str(), 0),
+                "could not set attribute to the op");
         return *this;
     }
 
@@ -1086,15 +1086,15 @@ public:
     ///
     /// @tparam Type Attribute's type
     /// @param name Attribute's name
-    /// @param a The attribute's value
+    /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
-    op &set_attr(const std::string &name, const Type &a) {
+    op &set_attr(const std::string &name, const Type &value) {
         constexpr auto kind = attr_kind<Type>();
         error::check_succeed(dnnl_graph_op_add_attr(get(), name.c_str(), kind,
-                                     a.data(), static_cast<int64_t>(a.size())),
-                "setting attribute to the op failed");
+                                     value.data(), value.size()),
+                "could not set attribute to the op");
         return *this;
     }
 
@@ -1103,15 +1103,15 @@ public:
     ///
     /// @tparam Type Attribute's type
     /// @param name Attribute's name
-    /// @param a The attribute's value
+    /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::vector<float>>::value> = true>
-    op &set_attr(const std::string &name, const Type &a) {
+    op &set_attr(const std::string &name, const Type &value) {
         constexpr auto kind = attr_kind<Type>();
         error::check_succeed(dnnl_graph_op_add_attr(get(), name.c_str(), kind,
-                                     a.data(), static_cast<int64_t>(a.size())),
-                "setting attribute to the op failed");
+                                     value.data(), value.size()),
+                "could not set attribute to the op");
         return *this;
     }
 

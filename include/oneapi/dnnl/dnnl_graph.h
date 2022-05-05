@@ -249,13 +249,13 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_output(
 /// @param op Input op
 /// @param name Attribute's name
 /// @param kind The attribute's kind
-/// @param attr The attribute's value
-/// @param attr_no The number of attributes
+/// @param value The attribute's value
+/// @param value_len The length of the value
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_op_add_attr(dnnl_graph_op_t op,
-        const char *name, dnnl_graph_attribute_kind_t kind, const void *attr,
-        int64_t attr_no);
+        const char *name, dnnl_graph_attribute_kind_t kind, const void *value,
+        size_t value_len);
 
 /// Returns the unique id of the Op
 ///
