@@ -16,8 +16,8 @@
 
 #ifdef __MMA__
 #include <altivec.h>
-#include "cpu/simple_q10n.hpp"
 #include "cpu/ppc64/ppc64_gemm_s8x8s32.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {
