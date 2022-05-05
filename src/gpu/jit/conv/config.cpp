@@ -122,7 +122,7 @@ status_t conv_config_t::init_common_blocking() {
 status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     using namespace ir_utils;
 
-    maybe_set_ow_kw_grf_cache();
+    init_use_ow_kw_grf_cache();
 
     if (use_ow_kw_grf_cache) {
         bh->set_max_iter_dim("mb", 1);
@@ -318,7 +318,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     bh->compute();
 
     // Try to enable special optimization for strided BWD_D convolution.
-    maybe_set_bwd_d_stride_optimization(bh->thr_blk("iw"));
+    init_bwd_d_optimize_strided(bh->thr_blk("iw"));
 
     if (bwd_d_optimize_strided_iw) {
         int iw_tg_dim0 = bh->tg_dim("iw");
@@ -452,7 +452,7 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
     ic_thr_dim = ir_utils::safe_divide(ic_tg_blk, ic_thr_blk);
     oc_thr_dim = ir_utils::safe_divide(oc_tg_blk, oc_thr_blk);
 
-    maybe_set_allow_tg_slicing(ic_thr_blk, oc_thr_blk, ic_thr_dim, oc_thr_dim);
+    init_allow_slm_tg_slicing(ic_thr_blk, oc_thr_blk, ic_thr_dim, oc_thr_dim);
 
     tg_grid_dim[0] = oc_thr_dim;
     tg_grid_dim[1] = ic_thr_dim;
@@ -901,7 +901,8 @@ bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
     return sp_ratio >= mb_ratio;
 }
 
-void conv_config_t::maybe_set_use_2d_send(const convolution_pd_t *conv_pd) {
+void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
+    use_2d_send = false;
 #ifdef GEN_CONV_DEBUG
     int env_value = getenv_int("use_2d_send", -1);
     if (env_value != -1) {
@@ -935,7 +936,8 @@ void conv_config_t::maybe_set_use_2d_send(const convolution_pd_t *conv_pd) {
     use_2d_send = true;
 }
 
-void conv_config_t::maybe_set_fuse_spatial() {
+void conv_config_t::init_fuse_spatial() {
+    fuse_spatial = false;
 #ifdef GEN_CONV_DEBUG
     int env_value = getenv_int("fuse_spatial", -1);
     if (env_value != -1) {
@@ -955,7 +957,8 @@ void conv_config_t::maybe_set_fuse_spatial() {
     fuse_spatial = true;
 }
 
-void conv_config_t::maybe_set_hoist_masks_from_compute_loop() {
+void conv_config_t::init_hoist_masks_from_compute_loop() {
+    hoist_masks_from_compute_loop = false;
 #ifdef GEN_CONV_DEBUG
     int env_value = getenv_int("hoist_masks_from_compute_loop", -1);
     if (env_value != -1) {
@@ -972,7 +975,9 @@ void conv_config_t::maybe_set_hoist_masks_from_compute_loop() {
     hoist_masks_from_compute_loop = true;
 }
 
-void conv_config_t::maybe_set_bwd_d_stride_optimization(int iw_thr_blk) {
+void conv_config_t::init_bwd_d_optimize_strided(int iw_thr_blk) {
+    bwd_d_optimize_strided = false;
+    bwd_d_optimize_strided_iw = false;
     if (!is_bwd_d) return;
     bwd_d_optimize_strided = true;
     if (is_nhwc("dst")) return;
@@ -982,7 +987,8 @@ void conv_config_t::maybe_set_bwd_d_stride_optimization(int iw_thr_blk) {
     bwd_d_optimize_strided_iw = true;
 }
 
-void conv_config_t::maybe_set_ow_kw_grf_cache() {
+void conv_config_t::init_use_ow_kw_grf_cache() {
+    use_ow_kw_grf_cache = false;
     if (!is_fwd || !is_small_ic() || kw < 3 || is_dw_large_mb()) return;
     if (is_dp_fma()) return;
     if (fuse_spatial) return;
@@ -995,8 +1001,9 @@ void conv_config_t::maybe_set_ow_kw_grf_cache() {
     use_ow_kw_grf_cache = true;
 }
 
-void conv_config_t::maybe_set_allow_tg_slicing(
+void conv_config_t::init_allow_slm_tg_slicing(
         int m_blk, int n_blk, int m_tg_dim, int n_tg_dim) {
+    allow_slm_tg_slicing = false;
     if (!is_bwd_w) return;
     if (!utils::everyone_is(a_data_type, b_data_type, data_type::bf16)) return;
     if (!is_dp_fma()) return;

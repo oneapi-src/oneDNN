@@ -292,16 +292,15 @@ public:
         CHECK(init_acc_data_type());
         CHECK(init_fma_kind_and_simd_size());
 
-        use_2d_send = false;
-        maybe_set_use_2d_send(conv_pd);
+        init_use_2d_send(conv_pd);
         CHECK(init_data_layouts(conv_pd));
 
         if (!data_types_ok()) return status::unimplemented;
 
         CHECK(init_common_config());
 
-        maybe_set_fuse_spatial();
-        maybe_set_hoist_masks_from_compute_loop();
+        init_fuse_spatial();
+        init_hoist_masks_from_compute_loop();
 
         CHECK(init_common_blocking());
 
@@ -358,12 +357,6 @@ public:
         allow_grf_reorder = false;
         do_atomic_update = false;
         reuse_headers = hw() <= ngen::HW::XeLP;
-        bwd_d_optimize_strided = false;
-        bwd_d_optimize_strided_iw = false;
-        use_ow_kw_grf_cache = false;
-        fuse_spatial = false;
-        hoist_masks_from_compute_loop = false;
-        allow_slm_tg_slicing = false;
         a_sub_tiles = 1;
         b_sub_tiles = 1;
 
@@ -853,12 +846,12 @@ private:
     }
 
     bool should_use_spatial_blocking(int d, int h, int w) const;
-    void maybe_set_use_2d_send(const convolution_pd_t *conv_pd);
-    void maybe_set_fuse_spatial();
-    void maybe_set_hoist_masks_from_compute_loop();
-    void maybe_set_bwd_d_stride_optimization(int iw_thr_blk);
-    void maybe_set_ow_kw_grf_cache();
-    void maybe_set_allow_tg_slicing(
+    void init_use_2d_send(const convolution_pd_t *conv_pd);
+    void init_fuse_spatial();
+    void init_hoist_masks_from_compute_loop();
+    void init_bwd_d_optimize_strided(int iw_thr_blk);
+    void init_use_ow_kw_grf_cache();
+    void init_allow_slm_tg_slicing(
             int m_blk, int n_blk, int m_tg_dim, int n_tg_dim);
 
     void init_zero_points_default_config() {
