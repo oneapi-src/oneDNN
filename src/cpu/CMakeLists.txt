@@ -16,8 +16,7 @@
 #limitations under the License.
 #== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
 
-file(GLOB SOURCES ${
-    CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp)
+file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp)
 file(GLOB_RECURSE SOURCES_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/matmul/*.[ch]pp
@@ -43,9 +42,6 @@ if(DNNL_TARGET_ARCH STREQUAL "PPC64")
     file(GLOB FILES_REQUIRED_OPT
         ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
     )
-#    foreach(SOURCE_FILE ${FILES_REQUIRED_OPT})
-#        list(APPEND SOURCES "${SOURCE_FILE}")
-#    endforeach()
     set_source_files_properties(${FILES_REQUIRED_OPT}
         PROPERTIES COMPILE_FLAGS "-O3 -funroll-loops")
 endif()
