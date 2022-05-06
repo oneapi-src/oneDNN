@@ -250,7 +250,7 @@ void jit_sse41_conv_fwd_kernel_f32::width_blk_step(
     L(init_done);
 
     Label skip_kh_loop;
-    mov(kj, reg_kh);
+    mov(kj, ptr[this->param1 + GET_OFF(kh_padding)]);
     if ((jcp.dilate_h >= jcp.ih)
             || (jcp.kh - 1) * (jcp.dilate_h + 1)
                     < nstl::max(jcp.t_pad, jcp.b_pad)) {
@@ -369,7 +369,6 @@ void jit_sse41_conv_fwd_kernel_f32::generate() {
     mov(reg_output, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
     if (jcp.with_bias) mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
-    mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
     mov(reg_ci_flag, ptr[this->param1 + GET_OFF(flags)]);
     mov(reg_oc_blocks, ptr[this->param1 + GET_OFF(oc_blocks)]);
     mov(reg_oc_off, ptr[param1 + GET_OFF(oc_off)]);
