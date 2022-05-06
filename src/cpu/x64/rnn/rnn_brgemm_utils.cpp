@@ -1187,6 +1187,10 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
     tmp_matmul_conf_for_reorder.LDB = diff_wei_conf.LDB;
     tmp_matmul_conf_for_reorder.src_dt = tmp_matmul_conf_for_reorder.wei_dt
             = rnn.is_bf16() ? data_type::bf16 : data_type::f32;
+    tmp_matmul_conf_for_reorder.a_dt_sz = tmp_matmul_conf_for_reorder.tr_a_dt_sz
+            = types::data_type_size(tmp_matmul_conf_for_reorder.src_dt);
+    tmp_matmul_conf_for_reorder.b_dt_sz = tmp_matmul_conf_for_reorder.tr_b_dt_sz
+            = types::data_type_size(tmp_matmul_conf_for_reorder.wei_dt);
     CHECK(matmul::create_brgemm_matmul_copy_b(
             diff_wei.srcatch_gates_reorder_kernel_,
             &tmp_matmul_conf_for_reorder));
