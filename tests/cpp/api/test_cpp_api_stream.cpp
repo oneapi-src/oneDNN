@@ -19,7 +19,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-TEST(api_stream, simple_create) {
+TEST(APIStream, SimpleCreate) {
     using namespace dnnl::graph;
     engine e {engine::kind::cpu, 0};
     stream s {e};

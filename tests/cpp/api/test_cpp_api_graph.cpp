@@ -20,7 +20,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
-TEST(GraphApiTest, GetPartitionsTest) {
+TEST(APIGraph, GetPartitions) {
     using namespace dnnl::graph;
     engine::kind engine_kind = engine::kind::cpu;
     graph g(engine_kind);
@@ -38,7 +38,7 @@ TEST(GraphApiTest, GetPartitionsTest) {
     EXPECT_EQ(partitions.size(), 1);
 }
 
-TEST(GraphApiTest, AddOp) {
+TEST(APIGraph, AddOp) {
     using namespace dnnl::graph;
     engine::kind engine_kind = engine::kind::cpu;
     graph g(engine_kind);

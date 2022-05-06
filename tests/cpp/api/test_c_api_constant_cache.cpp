@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-TEST(c_api_test, constant_cache) {
+TEST(CAPI, ConstantCache) {
     int flag = 0;
     ASSERT_EQ(dnnl_graph_get_constant_cache(&flag), dnnl_graph_result_success);
     ASSERT_EQ(dnnl_graph_set_constant_cache(1), dnnl_graph_result_success);

@@ -21,7 +21,7 @@
 
 #include <vector>
 
-TEST(api_tensor, create_with_shape) {
+TEST(APITensor, CreateWithShape) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using data_type = logical_tensor::data_type;
     using tensor = dnnl::graph::tensor;
@@ -85,7 +85,7 @@ TEST(api_tensor, create_with_shape) {
     ASSERT_EQ(t_5.get_data_handle<float>(), handle5);
 }
 
-TEST(api_tensor, shallow_copy) {
+TEST(APITensor, ShallowCopy) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using tensor = dnnl::graph::tensor;
     using layout_type = logical_tensor::layout_type;
@@ -105,7 +105,7 @@ TEST(api_tensor, shallow_copy) {
     ASSERT_EQ(t_2.get_data_handle<float>(), handle);
 }
 
-TEST(tensor_test, create_with_logical_tensor_f32) {
+TEST(APITensor, CreateWithLogicalTensorF32) {
     using namespace dnnl::graph;
     engine eng {engine::kind::cpu, 0};
 
@@ -117,7 +117,7 @@ TEST(tensor_test, create_with_logical_tensor_f32) {
     ASSERT_EQ(t.get_engine().get_kind(), engine::kind::cpu);
 }
 
-TEST(tensor_test, create_with_logical_tensor_s8) {
+TEST(APITensor, CreateWithLogicalTensorS8) {
     using namespace dnnl::graph;
     engine eng {engine::kind::cpu, 0};
 

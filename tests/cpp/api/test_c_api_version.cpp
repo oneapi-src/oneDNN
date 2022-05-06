@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@
 #define DNNL_GRAPH_VERSION_HASH "N/A"
 #endif
 
-TEST(c_api_test, version) {
+TEST(CAPI, Version) {
     const dnnl_graph_version_t *version = dnnl_graph_version();
     EXPECT_NE(version->major, INT_MAX);
     EXPECT_NE(version->minor, INT_MAX);

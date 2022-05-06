@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-TEST(c_api_test, logical_tensor_init) {
+TEST(CAPI, LogicalTensorInit) {
     dnnl_graph_logical_tensor_t lt;
     const size_t id = 123;
 
@@ -63,7 +63,7 @@ TEST(c_api_test, logical_tensor_init) {
     ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);
 }
 
-TEST(c_api_test, logical_tensor_init_property) {
+TEST(CAPI, LogicalTensorInitProperty) {
     dnnl_graph_logical_tensor_t lt;
     const size_t id = 123;
 
@@ -108,7 +108,7 @@ TEST(c_api_test, logical_tensor_init_property) {
     ASSERT_EQ(lt.property, dnnl_graph_tensor_property_constant);
 }
 
-TEST(c_api_test, logical_tensor_init_with_dims) {
+TEST(CAPI, LogicalTensorInitWithDims) {
     dnnl_graph_logical_tensor_t lt;
     const size_t id = 123;
 
@@ -156,7 +156,7 @@ TEST(c_api_test, logical_tensor_init_with_dims) {
     ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);
 }
 
-TEST(c_api_test, logical_tensor_init_with_strides) {
+TEST(CAPI, LogicalTensorInitWithStrides) {
     dnnl_graph_logical_tensor_t lt;
     const size_t id = 123;
 
@@ -219,7 +219,7 @@ TEST(c_api_test, logical_tensor_init_with_strides) {
     ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);
 }
 
-TEST(c_api_test, logical_tensor_init_full) {
+TEST(CAPI, LogicalTensorInitFull) {
     dnnl_graph_logical_tensor_t lt;
     const size_t id = 123;
 

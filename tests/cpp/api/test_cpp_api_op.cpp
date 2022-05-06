@@ -21,7 +21,7 @@
 
 #include <vector>
 
-TEST(api_op, create_all_ops) {
+TEST(APIOp, CreateAllOps) {
     using namespace dnnl::graph;
     dnnl_graph_op_kind_t first_op = kAbs;
     dnnl_graph_op_kind_t last_op = kLastSymbol;
@@ -130,7 +130,7 @@ TEST(api_op, create_all_ops) {
     }
 }
 
-TEST(api_op, create_with_inputs_list) {
+TEST(APIOp, CreateWithInputList) {
     using namespace dnnl::graph;
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
@@ -143,7 +143,7 @@ TEST(api_op, create_with_inputs_list) {
     op conv {0, op::kind::Convolution, {lt1, lt2}, {lt3}, "Convolution_1"};
 }
 
-TEST(api_op, set_input) {
+TEST(APIOp, SetInput) {
     using namespace dnnl::graph;
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
@@ -156,7 +156,7 @@ TEST(api_op, set_input) {
     conv.add_input(weight);
 }
 
-TEST(api_op, set_output) {
+TEST(APIOp, SetOutput) {
     using namespace dnnl::graph;
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
@@ -167,7 +167,7 @@ TEST(api_op, set_output) {
     conv.add_output(output);
 }
 
-TEST(api_op, set_attr) {
+TEST(APIOp, SetAttr) {
     using namespace dnnl::graph;
     const size_t id = 123;
     op conv {id, op::kind::Convolution, "convolution"};
@@ -179,7 +179,7 @@ TEST(api_op, set_attr) {
     conv.set_attr<float>("float_val", 1.);
 }
 
-TEST(api_op, shallow_copy) {
+TEST(APIOp, ShallowCopy) {
     using namespace dnnl::graph;
     const size_t id = 123;
     op conv {id, op::kind::Convolution, "convolution"};

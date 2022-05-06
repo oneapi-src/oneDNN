@@ -72,6 +72,6 @@ maybe_configure_windows_test("${LIB_NAME}_api_test" TEST)
 # Add GPU test if GPU runtime is enabled
 if(DNNL_GRAPH_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
     add_test("${LIB_NAME}_api_test_gpu" "${LIB_NAME}_api_test" "--engine=gpu"
-    "--gtest_filter=c_api_test.compile*:*Test_CompileConv*:*Test_Max_Pool_Compile*:*Test_Average_Pool_Compile*")
+    "--gtest_filter=CAPI.Compile*:*Test_CompileConv*:*Test_Max_Pool_Compile*:*Test_Average_Pool_Compile*")
     maybe_configure_windows_test("${LIB_NAME}_api_test_gpu" TEST)
 endif()

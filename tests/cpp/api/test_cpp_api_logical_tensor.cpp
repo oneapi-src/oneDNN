@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 
 #include <vector>
 
-TEST(api_logical_tensor, simple_create) {
+TEST(APILogicalTensor, SimpleCreate) {
     using logical_tensor = dnnl::graph::logical_tensor;
     const size_t id = 123;
     logical_tensor lt {id, logical_tensor::data_type::f32,
@@ -29,7 +29,7 @@ TEST(api_logical_tensor, simple_create) {
     ASSERT_EQ(lt.get_id(), id);
 }
 
-TEST(api_logical_tensor, create_with_shape) {
+TEST(APILogicalTensor, CreateWithShape) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
@@ -64,7 +64,7 @@ TEST(api_logical_tensor, create_with_shape) {
     ASSERT_EQ(lt_4.get_dims().size(), 4);
 }
 
-TEST(api_logical_tensor, create_with_strides) {
+TEST(APILogicalTensor, CreateWithStrides) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using data_type = logical_tensor::data_type;
     const size_t id = 123;
@@ -115,7 +115,7 @@ TEST(api_logical_tensor, create_with_strides) {
     ASSERT_EQ(lt_4.get_strides()[3], 1);
 }
 
-TEST(api_logical_tensor, create_with_dtype) {
+TEST(APILogicalTensor, CreateWithDataType) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
@@ -137,7 +137,7 @@ TEST(api_logical_tensor, create_with_dtype) {
     ASSERT_EQ(lt_s8.get_data_type(), data_type::s8);
 }
 
-TEST(api_logical_tensor, shallow_copy) {
+TEST(APILogicalTensor, ShallowCopy) {
     using logical_tensor = dnnl::graph::logical_tensor;
     const size_t id = 123;
     logical_tensor lt_1 {id, logical_tensor::data_type::f32,
@@ -147,7 +147,7 @@ TEST(api_logical_tensor, shallow_copy) {
     ASSERT_EQ(lt_1.get_id(), lt_2.get_id());
 }
 
-TEST(api_logical_tensor, different_lt_with_same_id) {
+TEST(APILogicalTensor, DifferentLogicalTensorWithSameID) {
     using namespace dnnl::graph;
 
     graph g(engine::kind::cpu);
@@ -166,7 +166,7 @@ TEST(api_logical_tensor, different_lt_with_same_id) {
     EXPECT_THROW(g.get_partitions(partition::policy::fusion), error);
 }
 
-TEST(api_logical_tensor, compare_layout_and_dtype) {
+TEST(APILogicalTensor, CompareLayoutAndDataType) {
     using namespace dnnl::graph;
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
@@ -190,7 +190,7 @@ TEST(api_logical_tensor, compare_layout_and_dtype) {
     ASSERT_EQ(lt6.has_same_layout(lt7), false);
 }
 
-TEST(api_logical_tensor, test_property) {
+TEST(APILogicalTensor, TestProperty) {
     using namespace dnnl::graph;
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;

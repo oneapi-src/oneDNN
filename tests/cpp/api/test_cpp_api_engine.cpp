@@ -19,7 +19,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
-TEST(api_engine, simple_create) {
+TEST(APIEngine, SimpleCreate) {
     using namespace dnnl::graph;
     allocator alloc {};
     engine e {engine::kind::cpu, 0, alloc};

@@ -20,7 +20,7 @@
 
 #include "test_api_common.h"
 
-TEST(c_api_test, add_op) {
+TEST(CAPI, AddOp) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t op0 = NULL;
     dnnl_graph_op_t op1 = NULL;

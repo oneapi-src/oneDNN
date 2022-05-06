@@ -20,7 +20,7 @@
 
 #include "test_api_common.h"
 
-TEST(c_api_test, filter_conv_bn_standalone) {
+TEST(CAPI, FilterConBNStandalone) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_op_t bn = NULL;
@@ -145,7 +145,7 @@ TEST(c_api_test, filter_conv_bn_standalone) {
 #undef FILTER_CONV_BN_STANDALONE_DESTROY
 }
 
-TEST(c_api_test, filter_conv_bn_fused) {
+TEST(CAPI, FilterConvBNFused) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_op_t bn = NULL;
@@ -268,7 +268,7 @@ TEST(c_api_test, filter_conv_bn_fused) {
 #undef FILETER_CONV_BN_FUSED_DESTROY
 }
 
-TEST(c_api_test, filter_relu_add) {
+TEST(CAPI, FilterReluAdd) {
     // y = relu(x); z = x + y
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t relu = NULL;
@@ -327,7 +327,7 @@ TEST(c_api_test, filter_relu_add) {
 #undef FILTER_RELU_ADD_DESTROY
 }
 
-TEST(c_api_test, different_lt_with_same_id) {
+TEST(CAPI, DifferentLogicalTensorWithSameID) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t add = NULL;
     dnnl_graph_op_kind_t op_kind = kAdd;

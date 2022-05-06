@@ -34,7 +34,7 @@ dnnl_graph_result_t destory(int *i) {
  * 2. Destroy the handle
  * 3. Expect the deleter to be invoked
  */
-TEST(api_base_test, managed_handle) {
+TEST(APIBase, ManagedHandle) {
 // skip for vs2015
 #if defined(_MSC_VER) && (_MSC_VER == 1900)
     GTEST_SKIP();
@@ -54,7 +54,7 @@ TEST(api_base_test, managed_handle) {
  * 2. Destroy the handle
  * 3. Expect the deleter to be not invoked
  */
-TEST(api_base_test, unmanaged_handle) {
+TEST(APIBase, UnmanagedHandle) {
 // skip for vs2015
 #if defined(_MSC_VER) && (_MSC_VER == 1900)
     GTEST_SKIP();

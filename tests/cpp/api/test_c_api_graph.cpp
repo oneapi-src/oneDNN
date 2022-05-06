@@ -20,18 +20,18 @@
 
 #include "test_api_common.h"
 
-TEST(c_api_test, create_graph_by_device) {
+TEST(CAPI, CreateGraphWithEngine) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
 
-#define CREATE_GRAPH_BY_DEVICE_DESTROY \
+#define CREATE_GRAPH_WITH_ENGINE_DESTROY \
     do { \
         dnnl_graph_graph_destroy(agraph); \
         agraph = NULL; \
     } while (0);
 
     ASSERT_EQ_SAFE(dnnl_graph_graph_create(&agraph, engine),
-            dnnl_graph_result_success, CREATE_GRAPH_BY_DEVICE_DESTROY);
-    CREATE_GRAPH_BY_DEVICE_DESTROY;
-#undef CREATE_GRAPH_BY_DEVICE_DESTROY
+            dnnl_graph_result_success, CREATE_GRAPH_WITH_ENGINE_DESTROY);
+    CREATE_GRAPH_WITH_ENGINE_DESTROY;
+#undef CREATE_GRAPH_WITH_ENGINE_DESTROY
 }
