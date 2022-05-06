@@ -45,6 +45,7 @@ const char *dnnl_dt2str(dnnl_data_type_t v) {
     if (v == dnnl_s8) return "s8";
     if (v == dnnl_u8) return "u8";
     if (v == dnnl_f64) return "f64";
+    if (v == dnnl_data_type_max) return "data_type_max";
     assert(!"unknown dt");
     return "unknown dt";
 }
@@ -1123,6 +1124,7 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_bounded_relu) return "eltwise_bounded_relu";
     if (v == dnnl_eltwise_soft_relu) return "eltwise_soft_relu";
     if (v == dnnl_eltwise_soft_relu_v2) return "eltwise_soft_relu_v2";
+    if (v == dnnl_eltwise_hardsigmoid) return "eltwise_hardsigmoid";
     if (v == dnnl_eltwise_logistic) return "eltwise_logistic";
     if (v == dnnl_eltwise_exp) return "eltwise_exp";
     if (v == dnnl_eltwise_gelu_tanh) return "eltwise_gelu_tanh";
