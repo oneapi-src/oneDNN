@@ -13,6 +13,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_ARCH_OPT_FLAGS           | *compiler flags*                           | Specifies compiler optimization flags (see warning note below)
 | ONEDNN_ENABLE_CONCURRENT_EXEC   | ON, **OFF**                                | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
 | ONEDNN_ENABLE_JIT_PROFILING     | **ON**, OFF                                | Enables [integration with performance profilers](@ref dev_guide_profilers)
+| ONEDNN_ENABLE_ITT_TASKS         | **ON**, OFF                                | Enables [integration with performance profilers](@ref dev_guide_profilers)
 | ONEDNN_ENABLE_PRIMITIVE_CACHE   | **ON**, OFF                                | Enables [primitive cache](@ref dev_guide_primitive_cache)
 | ONEDNN_ENABLE_MAX_CPU_ISA       | **ON**, OFF                                | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
 | ONEDNN_ENABLE_CPU_ISA_HINTS     | **ON**, OFF                                | Enables [CPU ISA hints](@ref dev_guide_cpu_isa_hints)
