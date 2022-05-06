@@ -173,8 +173,8 @@ struct brgemm_matmul_conf_t {
     bool is_amx;
 
     int required_k_granularity;
-    bool is_bf32;
-    bool req_wei_vnni_downconvert;
+    bool is_bf32 = false;
+    bool req_wei_vnni_downconvert = false;
 };
 
 struct brgemm_matmul_conf_utils_t {
