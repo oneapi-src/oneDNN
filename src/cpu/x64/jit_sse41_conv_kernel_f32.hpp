@@ -60,7 +60,6 @@ private:
     reg64_t kj = r10;
     reg64_t oi_iter = r11;
     reg64_t ki_iter = r12;
-    reg64_t reg_kh = abi_not_param1;
     reg64_t simd_iter = r15;
     reg64_t reg_oc_blocks = r14;
     reg64_t imm_addr64 = reg_oc_blocks;
@@ -72,7 +71,7 @@ private:
 
     reg64_t reg_d_weights = imm_addr64;
     reg64_t reg_d_bias = ki_iter;
-    reg64_t reg_oc_off = abi_param1;
+    reg64_t reg_oc_off = abi_not_param1;
 
     Xbyak::Xmm xmm_d_weights = Xbyak::Xmm(14);
     Xbyak::Xmm xmm_d_bias = Xbyak::Xmm(15);
