@@ -174,6 +174,8 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
         const logical_tensor_t **outputs, const engine_t *engine) {
     if (utils::any_null(partition, engine)) { return status::invalid_argument; }
 
+    if (!partition->is_supported()) return status::unsupported;
+
     std::vector<const logical_tensor_t *> in {inputs, inputs + in_num};
     std::vector<const logical_tensor_t *> out {outputs, outputs + out_num};
 

@@ -22,7 +22,7 @@
 #include "test_api_common.h"
 #include "test_api_common.hpp"
 
-TEST(c_api_test, compile_bn) {
+TEST(CAPI, CompileBN) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -140,7 +140,7 @@ TEST(c_api_test, compile_bn) {
 #undef COMPILE_BN_DESTROY
 }
 
-TEST(c_api_test, compile_conv2d) {
+TEST(CAPI, CompileConv2D) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -256,7 +256,7 @@ TEST(c_api_test, compile_conv2d) {
 #undef COMPILED_CONV2D_DESTROY
 }
 
-TEST(c_api_test, compile_grouped_conv2d) {
+TEST(CAPI, CompileGroupedConv2D) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -372,7 +372,7 @@ TEST(c_api_test, compile_grouped_conv2d) {
 #undef COMPILE_GROUND_CONV2D_DESTROY
 }
 
-TEST(c_api_test, compile_conv2d_bias_sum) {
+TEST(CAPI, CompileConv2DBiasSum) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_op_t bias_add = NULL;
@@ -533,7 +533,7 @@ TEST(c_api_test, compile_conv2d_bias_sum) {
 #undef COMPILE_CONV2D_BIAS_SUM_DESTROY
 }
 
-TEST(c_api_test, compile_conv2d_sum_conv2d) {
+TEST(CAPI, CompileConv2DSumConv2D) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv0 = NULL;
     dnnl_graph_op_t conv1 = NULL;
@@ -768,7 +768,7 @@ TEST(c_api_test, compile_conv2d_sum_conv2d) {
 #undef COMPILE_CONV2D_SUM_CONV2D_DESTROY_PLUS
 }
 
-TEST(c_api_test, compile_sum_conv2d_strided_bn) {
+TEST(CAPI, CompileSumConv2DStridedBN) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv0 = NULL;
     dnnl_graph_op_t bn = NULL;
@@ -1035,7 +1035,7 @@ TEST(c_api_test, compile_sum_conv2d_strided_bn) {
 #undef COMPILE_SUM_CONV2D_STRIDED_BN_DESTROY_PLUS
 }
 
-TEST(c_api_test, compile_conv2d_with_unknown_shape) {
+TEST(CAPI, CompileConv2DWithUnknownShape) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -1167,7 +1167,7 @@ TEST(c_api_test, compile_conv2d_with_unknown_shape) {
 #undef COMPILED_CONV2D_WITH_UNKNOWN_SHAPE_DESTROY
 }
 
-TEST(c_api_test, compile_maxpool) {
+TEST(CAPI, CompileMaxPool) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t maxpool = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -1264,7 +1264,7 @@ TEST(c_api_test, compile_maxpool) {
 #undef COMPILED_POOL_DESTROY
 }
 
-TEST(c_api_test, compile_maxpool_with_strided_output) {
+TEST(CAPI, CompileMaxPoolWithStridedOutput) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t maxpool = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -1377,7 +1377,7 @@ TEST(c_api_test, compile_maxpool_with_strided_output) {
 #undef COMPILED_POOL_DESTROY
 }
 
-TEST(c_api_test, compile_add) {
+TEST(CAPI, CompileAdd) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t add = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -1462,7 +1462,7 @@ TEST(c_api_test, compile_add) {
 #undef COMPILE_ADD_DESTROY
 }
 
-TEST(c_api_test, compile_conv_bn) {
+TEST(CAPI, CompileConvBN) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_op_t bn = NULL;
@@ -1623,7 +1623,7 @@ TEST(c_api_test, compile_conv_bn) {
 #undef COMPILE_CONV_BN_DESTROY
 }
 
-TEST(c_api_test, compile_grouped_conv_bn) {
+TEST(CAPI, CompileGroupedConvBN) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_op_t bn = NULL;
@@ -1784,7 +1784,7 @@ TEST(c_api_test, compile_grouped_conv_bn) {
 #undef COMPILE_GROUPED_CONV_BN_DESTROY
 }
 
-TEST(c_api_test, compile_conv_bn_standalone) {
+TEST(CAPI, CompileConvBNStandalone) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_op_t bn = NULL;
@@ -1976,7 +1976,7 @@ TEST(c_api_test, compile_conv_bn_standalone) {
 #undef COMPILE_CONV_BN_STANDALONE_DESTROY
 }
 
-TEST(c_api_test, compile_matmul_add_1d) {
+TEST(CAPI, CompileMatmulAdd1D) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t matmul = NULL;
     dnnl_graph_op_t add = NULL;
@@ -2079,7 +2079,7 @@ TEST(c_api_test, compile_matmul_add_1d) {
 #undef COMPILE_MATMUL_ADD_1D_DESTROY
 }
 
-TEST(c_api_test, compile_matmul_add_activation) {
+TEST(CAPI, CompileMatmulAddActivation) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t matmul = NULL;
     dnnl_graph_op_t add = NULL;
@@ -2218,7 +2218,7 @@ TEST(c_api_test, compile_matmul_add_activation) {
 #undef COMPILE_MATMUL_ADD_ACTIVATION_DESTROY
 }
 
-TEST(c_api_test, compile_softmax) {
+TEST(CAPI, CompileSoftmax) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t softmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -2295,7 +2295,7 @@ TEST(c_api_test, compile_softmax) {
 #undef COMPILE_SOFTMAX_DESTROY
 }
 
-TEST(c_api_test, compile_softmax_bwd) {
+TEST(CAPI, CompileSoftmaxBackward) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t softmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -2380,7 +2380,7 @@ TEST(c_api_test, compile_softmax_bwd) {
 #undef COMPILE_SOFTMAX_BWD_DESTROY
 }
 
-TEST(c_api_test, compile_logsoftmax) {
+TEST(CAPI, CompileLogSoftmax) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t logsoftmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
@@ -2455,4 +2455,81 @@ TEST(c_api_test, compile_logsoftmax) {
 
     COMPILE_LOGSOFTMAX_DESTROY;
 #undef COMPILE_LOGSOFTMAX_DESTROY
+}
+
+TEST(CAPI, CompileWildcard) {
+    dnnl_graph_graph_t agraph = NULL;
+    dnnl_graph_op_t wildcard = NULL;
+    dnnl_graph_engine_kind_t engine = api_test_engine_kind;
+    dnnl_graph_op_kind_t op_kind = kWildcard;
+    dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
+    dnnl_graph_partition_t partition = NULL;
+    dnnl_graph_compiled_partition_t compiled_partition = NULL;
+
+#define COMPILE_WILDCARD_DESTROY \
+    do { \
+        dnnl_graph_graph_destroy(agraph); \
+        agraph = NULL; \
+        dnnl_graph_op_destroy(wildcard); \
+        wildcard = NULL; \
+        dnnl_graph_partition_destroy(partition); \
+        partition = NULL; \
+        dnnl_graph_compiled_partition_destroy(compiled_partition); \
+        compiled_partition = NULL; \
+    } while (0);
+
+    dnnl_graph_logical_tensor_t src;
+    dnnl_graph_logical_tensor_t dst;
+
+    const int64_t src_dim[] = {1, 4};
+    const int64_t dst_dim[] = {1, 4};
+
+    size_t part_num = 0;
+
+    dnnl_graph_op_create(&wildcard, 1, op_kind, "wildcard");
+    api_test_dnnl_graph_graph_create(&agraph, engine);
+
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&src, 0, dnnl_graph_f32, 2,
+                    src_dim, dnnl_graph_layout_type_strided,
+                    dnnl_graph_tensor_property_undef),
+            dnnl_graph_result_success, COMPILE_WILDCARD_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_logical_tensor_init_with_dims(&dst, 1, dnnl_graph_f32, 2,
+                    dst_dim, dnnl_graph_layout_type_strided,
+                    dnnl_graph_tensor_property_undef),
+            dnnl_graph_result_success, COMPILE_WILDCARD_DESTROY);
+
+    dnnl_graph_op_add_input(wildcard, &src);
+    dnnl_graph_op_add_output(wildcard, &dst);
+
+    ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, wildcard),
+            dnnl_graph_result_success, COMPILE_WILDCARD_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_graph_filter(agraph, policy),
+            dnnl_graph_result_success, COMPILE_WILDCARD_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
+            dnnl_graph_result_success, COMPILE_WILDCARD_DESTROY);
+    ASSERT_EQ_SAFE(part_num, 1, COMPILE_WILDCARD_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition),
+            dnnl_graph_result_success, COMPILE_WILDCARD_DESTROY);
+    ASSERT_EQ_SAFE(
+            dnnl_graph_graph_get_partitions(agraph, part_num, &partition),
+            dnnl_graph_result_success, COMPILE_WILDCARD_DESTROY);
+
+    ASSERT_EQ_SAFE(dnnl_graph_compiled_partition_create(
+                           &compiled_partition, partition),
+            dnnl_graph_result_success, COMPILE_WILDCARD_DESTROY);
+
+    dnnl_graph_engine_t e;
+    api_test_dnnl_graph_engine_create(&e, engine);
+    const dnnl_graph_logical_tensor_t *const_inputs[1] = {&src};
+    const dnnl_graph_logical_tensor_t *const_dst[1] = {&dst};
+    ASSERT_EQ_SAFE(dnnl_graph_partition_compile(partition, compiled_partition,
+                           1, const_inputs, 1, const_dst, e),
+            dnnl_graph_result_error_unsupported, COMPILE_WILDCARD_DESTROY);
+
+    COMPILE_WILDCARD_DESTROY;
+#undef COMPILE_WILDCARD_DESTROY
 }

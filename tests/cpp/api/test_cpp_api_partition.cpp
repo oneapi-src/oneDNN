@@ -21,7 +21,7 @@
 
 #include <cstdint>
 
-TEST(api_partition, partition_test) {
+TEST(APIPartition, PartitionTest) {
     using namespace dnnl::graph;
     engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
     engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
@@ -102,7 +102,7 @@ TEST(api_partition, partition_test) {
             lt4_opaque.get_layout_type(), logical_tensor::layout_type::strided);
 }
 
-TEST(api_partition, get_inputs_outputs_ids) {
+TEST(APIPartition, GetInputOutputIDs) {
     using namespace dnnl::graph;
     engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
     engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
@@ -160,7 +160,7 @@ TEST(api_partition, get_inputs_outputs_ids) {
     ASSERT_TRUE(partitions[0].is_supported());
 }
 
-TEST(api_partition, unsupported_partitions) {
+TEST(APIPartition, UnsupportedPartitions) {
     using namespace dnnl::graph;
     engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
     engine eng = cpp_api_test_dnnl_graph_engine_create(engine_kind);
@@ -195,7 +195,7 @@ TEST(api_partition, unsupported_partitions) {
         ASSERT_FALSE(p.is_supported());
 }
 
-TEST(api_partition, add_infer_shape) {
+TEST(APIPartition, AddInferShape) {
     using namespace dnnl::graph;
     engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
     graph g(engine_kind);
@@ -220,7 +220,7 @@ TEST(api_partition, add_infer_shape) {
     ASSERT_EQ(ps.size(), 1);
 }
 
-TEST(api_partition, single_conv_partition) {
+TEST(APIPartition, SingleConvPartition) {
     using namespace dnnl::graph;
     engine::kind engine_kind = static_cast<engine::kind>(api_test_engine_kind);
 
@@ -258,4 +258,31 @@ TEST(api_partition, single_conv_partition) {
 
     // supported?
     ASSERT_TRUE(part.is_supported());
+}
+
+TEST(APIPartition, CompileWildcardPartition) {
+    using namespace dnnl::graph;
+    std::vector<int64_t> data_dims {8, 256, 56, 56};
+
+    logical_tensor lt1 {0, logical_tensor::data_type::f32, data_dims,
+            logical_tensor::layout_type::strided};
+    logical_tensor lt2 {1, logical_tensor::data_type::f32, data_dims,
+            logical_tensor::layout_type::strided};
+
+    op wc(0, op::kind::Wildcard, "wildcard");
+    wc.add_input(lt1);
+    wc.add_output(lt2);
+
+    partition part {wc, engine::kind::cpu};
+
+    // get_ops
+    std::vector<size_t> ops = part.get_ops();
+    ASSERT_EQ(ops.size(), 1);
+
+    // supported?
+    ASSERT_FALSE(part.is_supported());
+
+    // compile
+    engine eng(engine::kind::cpu, 0);
+    EXPECT_THROW(part.compile({lt1}, {lt2}, eng), error);
 }
