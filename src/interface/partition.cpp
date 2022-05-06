@@ -37,6 +37,8 @@
 using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_create(partition_t **partition) {
+    if (partition == nullptr) return status::invalid_argument;
+
     *partition = new partition_t();
     return status::success;
 }
@@ -49,6 +51,9 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_create(partition_t **partition) {
 status_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
         partition_t **partition, const op_t *op, engine_kind_t ekind) {
     using ltw = logical_tensor_wrapper_t;
+
+    if (utils::any_null(partition, op)) return status::invalid_argument;
+
     // new an empty partition
     *partition = new partition_t();
     if (utils::any_null(*partition, op)) return status::invalid_argument;
@@ -141,6 +146,8 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_destroy(partition_t *partition) {
 
 status_t DNNL_GRAPH_API dnnl_graph_partition_get_op_num(
         const partition_t *partition, size_t *num) {
+    if (utils::any_null(partition, num)) return status::invalid_argument;
+
     *num = partition->num_ops();
     return status::success;
 }
@@ -172,7 +179,9 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile(partition_t *partition,
         compiled_partition_t *compiled_partition, uint64_t in_num,
         const logical_tensor_t **inputs, uint64_t out_num,
         const logical_tensor_t **outputs, const engine_t *engine) {
-    if (utils::any_null(partition, engine)) { return status::invalid_argument; }
+    if (utils::any_null(partition, compiled_partition, engine)) {
+        return status::invalid_argument;
+    }
 
     if (!partition->is_supported()) return status::unsupported;
 

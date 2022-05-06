@@ -2533,3 +2533,71 @@ TEST(CAPI, CompileWildcard) {
     COMPILE_WILDCARD_DESTROY;
 #undef COMPILE_WILDCARD_DESTROY
 }
+
+TEST(CAPI, PartitionInvalidArguments) {
+    dnnl_graph_result_t res = dnnl_graph_result_success;
+    size_t num = 0;
+    size_t id = 0;
+    dnnl_graph_engine_kind_t kind = dnnl_graph_cpu;
+    uint8_t supported = 0;
+    dnnl_graph_partition_t part = NULL;
+
+    res = dnnl_graph_partition_create(NULL);
+    ASSERT_EQ(res, dnnl_graph_result_error_invalid_argument);
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_create_with_op(NULL, NULL, kind);
+    ASSERT_EQ(res, dnnl_graph_result_error_invalid_argument);
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_get_op_num(NULL, &num);
+    ASSERT_EQ(res, dnnl_graph_result_error_invalid_argument);
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_get_id(NULL, &id);
+    ASSERT_EQ(res, dnnl_graph_result_error_invalid_argument);
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_is_supported(NULL, &supported);
+    ASSERT_EQ(res, dnnl_graph_result_error_invalid_argument);
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_get_engine_kind(NULL, &kind);
+    ASSERT_EQ(res, dnnl_graph_result_error_invalid_argument);
+
+    res = dnnl_graph_partition_create(&part);
+    if (res != dnnl_graph_result_success) {
+        dnnl_graph_partition_destroy(part);
+        ASSERT_TRUE(false);
+    }
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_create_with_op(&part, NULL, kind);
+    if (res != dnnl_graph_result_error_invalid_argument) {
+        dnnl_graph_partition_destroy(part);
+        ASSERT_TRUE(false);
+    }
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_get_op_num(part, NULL);
+    if (res != dnnl_graph_result_error_invalid_argument) {
+        dnnl_graph_partition_destroy(part);
+        ASSERT_TRUE(false);
+    }
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_is_supported(part, NULL);
+    if (res != dnnl_graph_result_error_invalid_argument) {
+        dnnl_graph_partition_destroy(part);
+        ASSERT_TRUE(false);
+    }
+
+    res = dnnl_graph_result_success;
+    res = dnnl_graph_partition_compile(part, NULL, 0, NULL, 0, NULL, NULL);
+    if (res != dnnl_graph_result_error_invalid_argument) {
+        dnnl_graph_partition_destroy(part);
+        ASSERT_TRUE(false);
+    }
+
+    dnnl_graph_partition_destroy(part);
+}
