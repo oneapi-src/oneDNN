@@ -168,9 +168,6 @@ struct mlp_graph_prb_t : public ::benchdnnext::graph_prb_t {
 
     ~mlp_graph_prb_t() {}
     fill_status_t build_mlp_subgraph(const mlp_graph_spec_t &spec);
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::MatMul;
-    }
     std::map<int, struct lt_info> ltid_desc_lut;
     std::map<std::string, int> desc_ltid_lut;
 

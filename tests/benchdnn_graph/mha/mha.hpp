@@ -265,9 +265,6 @@ private:
     void add_end_op(const std::string src);
 
 public:
-    dnnl::graph::op::kind get_main_op_kind() const noexcept override {
-        return dnnl::graph::op::kind::MatMul;
-    }
     std::map<int, struct lt_info> ltid_desc_lut;
 };
 
