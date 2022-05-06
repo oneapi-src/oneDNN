@@ -178,6 +178,7 @@ void serialize_attr(
                 break;
             case primitive_kind::sum:
                 sstream.write(&entry.sum.scale);
+                sstream.write(&entry.sum.zero_point);
                 sstream.write(&entry.sum.dt);
                 break;
             case primitive_kind::convolution:

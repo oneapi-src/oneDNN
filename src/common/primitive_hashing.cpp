@@ -252,6 +252,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
                 break;
             case primitive_kind::sum:
                 seed = hash_combine(seed, entry.sum.scale);
+                seed = hash_combine(seed, entry.sum.zero_point);
                 seed = hash_combine(seed, static_cast<size_t>(entry.sum.dt));
                 break;
             case primitive_kind::convolution:
