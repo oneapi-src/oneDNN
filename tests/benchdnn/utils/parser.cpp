@@ -590,11 +590,25 @@ static bool parse_mode(
     const auto str2bench_mode = [](const std::string &_str) {
         bench_mode_t mode;
         for (size_t i = 0; i < _str.size(); i++) {
-            if (_str[i] == 'r' || _str[i] == 'R') mode |= RUN;
-            if (_str[i] == 'c' || _str[i] == 'C') mode |= CORR;
-            if (_str[i] == 'p' || _str[i] == 'P') mode |= PERF;
-            if (_str[i] == 'l' || _str[i] == 'L') mode |= LIST;
-            if (_str[i] == 'o' || _str[i] == 'O') mode |= PROF;
+            switch (_str[i]) {
+                case 'r':
+                case 'R': mode |= RUN; break;
+                case 'c':
+                case 'C': mode |= CORR; break;
+                case 'p':
+                case 'P': mode |= PERF; break;
+                case 'l':
+                case 'L': mode |= LIST; break;
+                case 'o':
+                case 'O': mode |= PROF; break;
+                default: {
+                    fprintf(stderr,
+                            "ERROR: Unsupported character for `--mode` "
+                            "option: `%c`.\n",
+                            _str[i]);
+                    exit(2);
+                }
+            }
         }
         if (!(mode & LIST).none() && mode.count() > 1) {
             fprintf(stderr,
