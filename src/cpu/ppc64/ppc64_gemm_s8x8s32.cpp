@@ -61,6 +61,8 @@ dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
         APraw = (short *)malloc((m_cap * k_cap + 15) * sizeof(short), 4096);
         BPraw = (short *)malloc((k_cap * n_cap + 15) * sizeof(short), 4096);
         if (utils::any_null(APraw, BPraw)) {
+            free(Ashort);
+            free(Bshort);
             free(APraw);
             free(BPraw);
             return dnnl_out_of_memory;
@@ -102,6 +104,8 @@ dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
             int b_size = ldb * (BTflag ? k - 1 : n - 1) + (BTflag ? n : k);
             uint8_t *Bflip = (uint8_t *)malloc(b_size * sizeof(uint8_t), 4096);
             if (utils::any_null(Bflip)) {
+                free(APraw);
+                free(BPraw);
                 free(Bflip);
                 return dnnl_out_of_memory;
             }
@@ -122,6 +126,8 @@ dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
         if (flipB_flag) {
             int *comparray = (int *)malloc(m * sizeof(int), 4096);
             if (utils::any_null(comparray)) {
+                free(APraw);
+                free(BPraw);
                 free(comparray);
                 return dnnl_out_of_memory;
             }
