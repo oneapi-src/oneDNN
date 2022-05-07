@@ -321,14 +321,14 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
             // reorder's input has blocked format with group
             // while output has plain format, perhaps for
             // backward path. No such case for now, disable
-            return impl::status::unsupported;
+            return impl::status::unimplemented;
         } else if (in_md.data.ndims + 1 == out_md.data.ndims) {
             // reorder's input has plain format while output
             // has blocked format with group, typically for
             // weight prepacking
             auto group = out_md.data.dims[0];
             if (group * out_md.data.dims[1] != in_md.data.dims[0])
-                return impl::status::compile_fail;
+                return impl::status::invalid_shape;
 
             // insert to_group op
             op_ptr to_group_op
@@ -339,7 +339,7 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
             to_be_inserted_ops.emplace_back(to_group_op);
         } else {
             // illegal shape
-            return impl::status::compile_fail;
+            return impl::status::invalid_shape;
         }
     }
 

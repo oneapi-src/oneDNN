@@ -130,7 +130,7 @@ public:
         UNUSED(inputs);
         UNUSED(outputs);
         UNUSED(g_engine);
-        return status::unsupported;
+        return status::unimplemented;
     }
 
     impl::status_t infer_shape(
@@ -138,7 +138,7 @@ public:
             std::vector<impl::logical_tensor_t *> &outputs) const override {
         UNUSED(inputs);
         UNUSED(outputs);
-        return status::unsupported;
+        return status::unimplemented;
     }
 
     std::string to_string() const override {

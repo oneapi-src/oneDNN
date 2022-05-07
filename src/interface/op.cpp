@@ -78,7 +78,7 @@ status_t DNNL_GRAPH_API dnnl_graph_op_add_attr(op_t *op, const char *name,
         case attribute_kind::b:
             op->set_attr(name, *static_cast<const bool *>(value));
             break;
-        default: return status::unsupported;
+        default: return status::unimplemented;
     }
     return status::success;
 }

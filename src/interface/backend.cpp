@@ -98,13 +98,13 @@ public:
 
 // Constant cache control API
 dnnl::graph::impl::status_t dnnl_graph_set_constant_cache(int flag) {
-    if (flag < 0) return dnnl::graph::impl::status::invalid_argument;
+    if (flag < 0) return dnnl::graph::impl::status::invalid_arguments;
     dnnl::graph::impl::constant_cache_flag_t::get_singleton().store(flag);
     return dnnl::graph::impl::status::success;
 }
 
 dnnl::graph::impl::status_t dnnl_graph_get_constant_cache(int *flag) {
-    if (flag == nullptr) return dnnl::graph::impl::status::invalid_argument;
+    if (flag == nullptr) return dnnl::graph::impl::status::invalid_arguments;
     *flag = dnnl::graph::impl::constant_cache_flag_t::get_singleton().load();
     return dnnl::graph::impl::status::success;
 }

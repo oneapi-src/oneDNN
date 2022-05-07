@@ -25,7 +25,7 @@ TEST(CAPI, LogicalTensorInit) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_f32, -1,
                       dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, -1);
@@ -35,7 +35,7 @@ TEST(CAPI, LogicalTensorInit) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_f32, 0,
                       dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 0);
@@ -45,7 +45,7 @@ TEST(CAPI, LogicalTensorInit) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_f32, 4,
                       dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 4);
@@ -55,7 +55,7 @@ TEST(CAPI, LogicalTensorInit) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_f32, 4,
                       dnnl_graph_layout_type_any,
                       dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 4);
@@ -70,7 +70,7 @@ TEST(CAPI, LogicalTensorInitProperty) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_f32, -1,
                       dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_constant),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, -1);
@@ -80,7 +80,7 @@ TEST(CAPI, LogicalTensorInitProperty) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_f32, 0,
                       dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_constant),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 0);
@@ -90,7 +90,7 @@ TEST(CAPI, LogicalTensorInitProperty) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_f32, 4,
                       dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_constant),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 4);
@@ -100,7 +100,7 @@ TEST(CAPI, LogicalTensorInitProperty) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_f32, 4,
                       dnnl_graph_layout_type_any,
                       dnnl_graph_tensor_property_constant),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 4);
@@ -116,7 +116,7 @@ TEST(CAPI, LogicalTensorInitWithDims) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init_with_dims(&lt, id, dnnl_graph_f32,
                       1, dims, dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 1);
@@ -128,7 +128,7 @@ TEST(CAPI, LogicalTensorInitWithDims) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init_with_dims(&lt, id, dnnl_graph_f32,
                       2, dims, dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 2);
@@ -142,7 +142,7 @@ TEST(CAPI, LogicalTensorInitWithDims) {
     ASSERT_EQ(dnnl_graph_logical_tensor_init_with_dims(&lt, id, dnnl_graph_f32,
                       3, dims, dnnl_graph_layout_type_strided,
                       dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 3);
@@ -165,7 +165,7 @@ TEST(CAPI, LogicalTensorInitWithStrides) {
     ASSERT_EQ(
             dnnl_graph_logical_tensor_init_with_strides(&lt, id, dnnl_graph_f32,
                     1, dims, strides, dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 1);
@@ -177,7 +177,7 @@ TEST(CAPI, LogicalTensorInitWithStrides) {
     ASSERT_EQ(
             dnnl_graph_logical_tensor_init_with_strides(&lt, id, dnnl_graph_f32,
                     2, dims, strides, dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 2);
@@ -191,7 +191,7 @@ TEST(CAPI, LogicalTensorInitWithStrides) {
     ASSERT_EQ(
             dnnl_graph_logical_tensor_init_with_strides(&lt, id, dnnl_graph_f32,
                     2, dims, strides, dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 2);
@@ -205,7 +205,7 @@ TEST(CAPI, LogicalTensorInitWithStrides) {
     ASSERT_EQ(
             dnnl_graph_logical_tensor_init_with_strides(&lt, id, dnnl_graph_f32,
                     3, dims, strides, dnnl_graph_tensor_property_undef),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 3);
@@ -228,7 +228,7 @@ TEST(CAPI, LogicalTensorInitFull) {
     ASSERT_EQ(
             dnnl_graph_logical_tensor_init_with_strides(&lt, id, dnnl_graph_f32,
                     1, dims, strides, dnnl_graph_tensor_property_constant),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 1);
@@ -240,7 +240,7 @@ TEST(CAPI, LogicalTensorInitFull) {
     ASSERT_EQ(
             dnnl_graph_logical_tensor_init_with_strides(&lt, id, dnnl_graph_f32,
                     2, dims, strides, dnnl_graph_tensor_property_constant),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 2);
@@ -254,7 +254,7 @@ TEST(CAPI, LogicalTensorInitFull) {
     ASSERT_EQ(
             dnnl_graph_logical_tensor_init_with_strides(&lt, id, dnnl_graph_f32,
                     2, dims, strides, dnnl_graph_tensor_property_constant),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 2);
@@ -268,7 +268,7 @@ TEST(CAPI, LogicalTensorInitFull) {
     ASSERT_EQ(
             dnnl_graph_logical_tensor_init_with_strides(&lt, id, dnnl_graph_f32,
                     3, dims, strides, dnnl_graph_tensor_property_constant),
-            dnnl_graph_result_success);
+            dnnl_graph_success);
     ASSERT_EQ(lt.id, id);
     ASSERT_EQ(lt.data_type, dnnl_graph_f32);
     ASSERT_EQ(lt.ndims, 3);

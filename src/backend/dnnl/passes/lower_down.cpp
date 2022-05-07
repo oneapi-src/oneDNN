@@ -1470,7 +1470,7 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
 
     assertm(cnt <= max_num_limit + 1,
             "Failed to fuse all post ops since there has unsupported ones.");
-    if (cnt > max_num_limit + 1) return impl::status::unsupported;
+    if (cnt > max_num_limit + 1) return impl::status::unimplemented;
     return status::success;
 }
 
@@ -2837,7 +2837,7 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
     } while (changed && cnt <= max_num_limit);
 
     assertm(cnt <= max_num_limit + 1, "reorder fusion failed.");
-    if (cnt > max_num_limit + 1) return impl::status::unsupported;
+    if (cnt > max_num_limit + 1) return impl::status::unimplemented;
 
     return impl::status::success;
 }
@@ -3340,7 +3340,7 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             auto fwd_algo = get_eltwise_bwd_alg(kind, false);
             if (bwd_algo == algorithm::undef) {
                 DEBUG_PRINT_ERROR("Unsupported etlwise bwd op.");
-                return impl::status::unsupported;
+                return impl::status::unimplemented;
             }
             new_op->set_attr<int64_t>(
                     "alg_kind", static_cast<int64_t>(bwd_algo));
@@ -3544,7 +3544,7 @@ impl::status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
     assertm(cnt <= max_iter_num + 1,
             "Failed to eliminate common reorders since the pass can't "
             "converge.");
-    if (cnt > max_iter_num + 1) return impl::status::unsupported;
+    if (cnt > max_iter_num + 1) return impl::status::unimplemented;
 
     return impl::status::success;
 }

@@ -30,8 +30,8 @@ TEST(CAPI, CreateGraphWithEngine) {
         agraph = NULL; \
     } while (0);
 
-    ASSERT_EQ_SAFE(dnnl_graph_graph_create(&agraph, engine),
-            dnnl_graph_result_success, CREATE_GRAPH_WITH_ENGINE_DESTROY);
+    ASSERT_EQ_SAFE(dnnl_graph_graph_create(&agraph, engine), dnnl_graph_success,
+            CREATE_GRAPH_WITH_ENGINE_DESTROY);
     CREATE_GRAPH_WITH_ENGINE_DESTROY;
 #undef CREATE_GRAPH_WITH_ENGINE_DESTROY
 }

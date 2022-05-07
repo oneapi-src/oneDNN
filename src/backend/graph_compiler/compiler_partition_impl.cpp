@@ -265,7 +265,7 @@ impl::status_t compiler_partition_impl_t::compile(
                 *aengine, inputs, outputs, fptr, graph_engine);
         compiled_partition->init(pimpl);
         return res;
-    } catch (...) { return impl::status::compile_fail; }
+    } catch (...) { return impl::status::unimplemented; }
 }
 
 std::shared_ptr<impl::partition_impl_t>

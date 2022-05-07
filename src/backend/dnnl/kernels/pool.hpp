@@ -92,7 +92,7 @@ public:
         // op schema or primitive supports u8s8/s8u8, then this check can be
         // safely removed.
         if (inputs[0].data_type != outputs[0].data_type)
-            return status::unsupported;
+            return status::unimplemented;
 
         p_engine_ = make_dnnl_engine(*g_engine);
         g_alloc_ = g_engine->get_allocator();

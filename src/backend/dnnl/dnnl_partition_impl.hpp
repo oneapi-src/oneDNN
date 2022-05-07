@@ -52,7 +52,8 @@ inline impl::status_t get_ordered_inputs_outputs(const impl::op_t *work_op,
         }
     }
 
-    if (ordered.size() != expected.size()) return impl::status::miss_ins_outs;
+    if (ordered.size() != expected.size())
+        return impl::status::invalid_arguments;
     return impl::status::success;
 }
 
@@ -192,11 +193,11 @@ public:
                 this->clone());
 
         std::shared_ptr<impl::op_t> fused_op = part->get_fused_op();
-        if (!fused_op) return status::compile_fail;
+        if (!fused_op) return status::invalid_arguments;
 
         // create kernel
         auto kernel = dnnl_backend::get_singleton().create_kernel(*fused_op);
-        if (!kernel) return status::compile_fail;
+        if (!kernel) return status::unimplemented;
 
         status_t ret;
 

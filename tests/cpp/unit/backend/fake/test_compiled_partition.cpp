@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,12 +50,12 @@ TEST(CompiledPartition, Unsupported) {
 
     std::vector<const impl::logical_tensor_t *> lt_ins {&lt_in};
     std::vector<impl::logical_tensor_t *> inferred_output {&lt_out};
-    ASSERT_EQ(
-            p.infer_shape(lt_ins, inferred_output), impl::status::unsupported);
+    ASSERT_EQ(p.infer_shape(lt_ins, inferred_output),
+            impl::status::unimplemented);
 
     std::vector<const impl::logical_tensor_t *> lt_outs {&lt_out};
 
     impl::status_t status = p.compile(&cp, lt_ins, lt_outs, &eng);
-    ASSERT_EQ(status, impl::status::unsupported);
+    ASSERT_EQ(status, impl::status::unimplemented);
     std::cout << p.to_string() << "\n";
 }

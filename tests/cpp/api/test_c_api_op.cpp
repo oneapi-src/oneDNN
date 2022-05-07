@@ -34,7 +34,7 @@ TEST(CAPI, CreateOp) {
     } while (0);
 
     ASSERT_EQ_SAFE(dnnl_graph_op_create(&op, 1, op_kind, "conv2d"),
-            dnnl_graph_result_success, CREATE_OP_DESTROY);
+            dnnl_graph_success, CREATE_OP_DESTROY);
     CREATE_OP_DESTROY;
 #undef CREATE_OP_DESTROY
 }
@@ -53,31 +53,31 @@ TEST(CAPI, OpAttr) {
     } while (0);
 
     ASSERT_EQ_SAFE(dnnl_graph_op_create(&op, 1, op_kind, "conv2d"),
-            dnnl_graph_result_success, OP_ATTR_DESTROY);
+            dnnl_graph_success, OP_ATTR_DESTROY);
 
     int64_t strides[] = {4, 4};
     const char *auto_pad = "same_upper";
     int64_t groups = 2;
     ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op, "strides",
                            dnnl_graph_attribute_kind_is, &strides, 2),
-            dnnl_graph_result_success, OP_ATTR_DESTROY);
+            dnnl_graph_success, OP_ATTR_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op, "auto_pad",
                            dnnl_graph_attribute_kind_s, auto_pad, 1),
-            dnnl_graph_result_success, OP_ATTR_DESTROY);
+            dnnl_graph_success, OP_ATTR_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op, "groups",
                            dnnl_graph_attribute_kind_i, &groups, 1),
-            dnnl_graph_result_success, OP_ATTR_DESTROY);
+            dnnl_graph_success, OP_ATTR_DESTROY);
 
     ASSERT_EQ_SAFE(dnnl_graph_op_create(&matmul_op, 2, kMatMul, "matmul"),
-            dnnl_graph_result_success, OP_ATTR_DESTROY);
+            dnnl_graph_success, OP_ATTR_DESTROY);
     bool transpose_a = true;
     bool transpose_b = false;
     ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(matmul_op, "transpose_a",
                            dnnl_graph_attribute_kind_b, &transpose_a, 1),
-            dnnl_graph_result_success, OP_ATTR_DESTROY);
+            dnnl_graph_success, OP_ATTR_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(matmul_op, "transpose_b",
                            dnnl_graph_attribute_kind_b, &transpose_b, 1),
-            dnnl_graph_result_success, OP_ATTR_DESTROY);
+            dnnl_graph_success, OP_ATTR_DESTROY);
 
     OP_ATTR_DESTROY;
 #undef OP_ATTR_DESTROY

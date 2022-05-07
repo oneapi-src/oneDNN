@@ -334,7 +334,7 @@ TEST(OpSchema, GenerateDefaultAttribute) {
     matmul_op.get_attr<bool>("transpose_a", ret_flag);
     EXPECT_TRUE(ret_flag);
     EXPECT_EQ(matmul_op.get_attr<bool>("transpose_b", ret_flag),
-            status::invalid_argument);
+            status::invalid_arguments);
 
     graph_t agraph;
     ASSERT_EQ(agraph.add_op(&matmul_op), status::success);
@@ -1583,7 +1583,7 @@ TEST(OpSchema, InferIndexOutputShapeUnsupported) {
     std::vector<logical_tensor_t *> out {&lt_out};
 
     auto status = op_schema_->shape_infer(&op_, in, out);
-    EXPECT_EQ(status, status::unsupported);
+    EXPECT_EQ(status, status::unimplemented);
 }
 
 TEST(OpSchema, LayerNorm) {
@@ -2012,7 +2012,7 @@ TEST(OpSchema, InferReduceOutputShapeFromInput) {
         std::vector<logical_tensor_t *> out {&lt_out};
 
         auto ret = op_schema_->shape_infer(&op_, in, out);
-        EXPECT_EQ(ret, status::unsupported);
+        EXPECT_EQ(ret, status::unimplemented);
     }
 }
 
@@ -2380,7 +2380,7 @@ TEST(OpSchema, InferWildcardOutputShape) {
     std::vector<logical_tensor_t *> out {&lt_out};
 
     auto ret = op_schema_->shape_infer(&op_, in, out);
-    EXPECT_EQ(ret, status::unsupported);
+    EXPECT_EQ(ret, status::unimplemented);
 }
 
 TEST(OpSchema, BatchNormOptionalInput) {

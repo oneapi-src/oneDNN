@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,18 +21,21 @@
 
 #include "common/utils.h"
 
-const char *dnnl_graph_result2str(dnnl_graph_result_t v) {
-    if (v == dnnl_graph_result_success) return "success";
-    if (v == dnnl_graph_result_not_ready) return "not ready";
-    if (v == dnnl_graph_result_error_device_not_found)
-        return "device not found";
-    if (v == dnnl_graph_result_error_unsupported) return "unsupported";
-    if (v == dnnl_graph_result_error_invalid_argument)
-        return "invalid argument";
-    if (v == dnnl_graph_result_error_compile_fail) return "compile fail";
-    if (v == dnnl_graph_result_error_invalid_index) return "incalid index";
-    if (v == dnnl_graph_result_error_invalid_graph) return "invalid graph";
-    return "unknown status";
+const char *dnnl_graph_result2str(dnnl_graph_status_t v) {
+    switch (v) {
+        case dnnl_graph_success: return "success";
+        case dnnl_graph_out_of_memory: return "out of memory";
+        case dnnl_graph_invalid_arguments: return "invalid arguments";
+        case dnnl_graph_unimplemented: return "unimplemented";
+        case dnnl_graph_iterator_ends: return "iterator ends";
+        case dnnl_graph_runtime_error: return "runtime error";
+        case dnnl_graph_not_required: return "not required";
+        case dnnl_graph_invalid_graph: return "invalid graph";
+        case dnnl_graph_invalid_graph_op: return "invalid op";
+        case dnnl_graph_invalid_shape: return "invalid shape";
+        case dnnl_graph_invalid_data_type: return "invalid data type";
+        default: return "unknown error";
+    }
 }
 
 const char *example_result2str(example_result_t v) {

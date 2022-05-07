@@ -52,7 +52,7 @@ public:
             dnnl::graph::threadpool_interop::threadpool_iface **threadpool)
             const {
         if (engine_->kind() != dnnl::graph::impl::engine_kind::cpu)
-            return dnnl::graph::impl::status::invalid_argument;
+            return dnnl::graph::impl::status::invalid_arguments;
         *threadpool = threadpool_;
         return dnnl::graph::impl::status::success;
     }

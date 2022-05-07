@@ -42,17 +42,17 @@ void api_test_dnnl_graph_engine_create(
             ASSERT_EQ(
                     dnnl_graph_sycl_interop_allocator_create(
                             &allocator_handle.allocator, sycl_alloc, sycl_free),
-                    dnnl_graph_result_success);
+                    dnnl_graph_success);
             ASSERT_EQ(dnnl_graph_sycl_interop_engine_create_with_allocator(
                               &engine_handle.engine, &dev, &ctx,
                               allocator_handle.allocator),
-                    dnnl_graph_result_success);
+                    dnnl_graph_success);
         };
 #else
         if (!engine_handle) {
             ASSERT_EQ(dnnl_graph_engine_create(
                               &engine_handle.engine, engine_kind, 0),
-                    dnnl_graph_result_success);
+                    dnnl_graph_success);
         }
 #endif
         *engine = engine_handle.engine;
@@ -64,11 +64,11 @@ void api_test_dnnl_graph_engine_create(
             ASSERT_EQ(
                     dnnl_graph_sycl_interop_allocator_create(
                             &allocator_handle.allocator, sycl_alloc, sycl_free),
-                    dnnl_graph_result_success);
+                    dnnl_graph_success);
             ASSERT_EQ(dnnl_graph_sycl_interop_engine_create_with_allocator(
                               &engine_handle.engine, &dev, &ctx,
                               allocator_handle.allocator),
-                    dnnl_graph_result_success);
+                    dnnl_graph_success);
         };
         *engine = engine_handle.engine;
 #endif
@@ -77,8 +77,7 @@ void api_test_dnnl_graph_engine_create(
 
 void api_test_dnnl_graph_graph_create(
         dnnl_graph_graph_t *graph, dnnl_graph_engine_kind_t engine_kind) {
-    ASSERT_EQ(dnnl_graph_graph_create(graph, engine_kind),
-            dnnl_graph_result_success);
+    ASSERT_EQ(dnnl_graph_graph_create(graph, engine_kind), dnnl_graph_success);
 }
 
 dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(

@@ -31,7 +31,7 @@ status_t DNNL_GRAPH_API dnnl_graph_allocator_create(allocator_t **allocator,
     UNUSED(allocator);
     UNUSED(cpu_malloc);
     UNUSED(cpu_free);
-    return status::invalid_argument;
+    return status::invalid_arguments;
 #else
     if (utils::any_null(cpu_malloc, cpu_free)) {
         *allocator = allocator_t::create();
@@ -56,12 +56,12 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_allocator_create(
     UNUSED(allocator);
     UNUSED(sycl_malloc);
     UNUSED(sycl_free);
-    return status::unsupported;
+    return status::unimplemented;
 #endif
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_allocator_destroy(allocator_t *allocator) {
-    if (allocator == nullptr) return status::invalid_argument;
+    if (allocator == nullptr) return status::invalid_arguments;
     allocator->release();
     return status::success;
 }

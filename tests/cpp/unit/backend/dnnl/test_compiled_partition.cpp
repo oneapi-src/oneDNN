@@ -151,7 +151,7 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
     // required inputs and outputs from the given arguments
     impl::status_t status
             = p.compile(&cp, lt_inputs_wrong, lt_outputs_wrong, &eng);
-    ASSERT_EQ(status, impl::status::miss_ins_outs);
+    ASSERT_EQ(status, impl::status::invalid_arguments);
 
     // in/outputs list can contain more logical tensors than required
     std::vector<const impl::logical_tensor_t *> lt_inputs_correct {

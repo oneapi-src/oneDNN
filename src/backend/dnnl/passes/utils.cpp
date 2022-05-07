@@ -218,7 +218,7 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
                                 valid = valid && given.dims[i] != -1;
                             }
                         }
-                        if (!valid) return status::invalid_argument;
+                        if (!valid) return status::invalid_arguments;
                     }
 
                     edge->set_logical_tensor(given);
@@ -227,7 +227,7 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
                 }
             }
 
-            if (!found) return status::miss_ins_outs;
+            if (!found) return status::invalid_arguments;
         }
         return status::success;
     };

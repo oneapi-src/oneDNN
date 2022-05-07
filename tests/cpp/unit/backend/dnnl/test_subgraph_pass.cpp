@@ -503,10 +503,10 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(
                       subgraph, wrong_inputs, outputs),
-            status::miss_ins_outs);
+            status::invalid_arguments);
     ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(
                       subgraph, inputs, wrong_outputs),
-            status::miss_ins_outs);
+            status::invalid_arguments);
 
     // output shape is not must
     ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(subgraph, inputs,

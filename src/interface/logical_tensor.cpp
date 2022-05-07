@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -172,7 +172,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init(
         logical_tensor_t *logical_tensor, size_t tid, data_type_t dtype,
         int32_t ndims, layout_type_t ltype, property_type_t ptype) {
     if (logical_tensor == nullptr || ndims > DNNL_GRAPH_MAX_NDIMS) {
-        return status::invalid_argument;
+        return status::invalid_arguments;
     }
 
     auto val = logical_tensor_t();
@@ -197,7 +197,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
         logical_tensor_t *logical_tensor, size_t tid, data_type_t dtype,
         int32_t ndims, const dims_t dims, layout_type_t ltype,
         property_type_t ptype) {
-    if (!logical_tensor || ndims < 0) return status::invalid_argument;
+    if (!logical_tensor || ndims < 0) return status::invalid_arguments;
 
     auto val = logical_tensor_t();
     val.id = tid;
@@ -210,7 +210,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_dims(
         val.dims[0] = 0;
         if (ltype == layout_type::strided) { val.layout.strides[0] = 0; }
     } else {
-        if (!dims) return status::invalid_argument;
+        if (!dims) return status::invalid_arguments;
 
         std::copy(dims, dims + ndims, val.dims);
         // sanity check for dims
@@ -238,7 +238,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_strides(
         logical_tensor_t *logical_tensor, size_t tid, data_type_t dtype,
         int32_t ndims, const dims_t dims, const dims_t strides,
         property_type_t ptype) {
-    if (!logical_tensor || ndims < 0) return status::invalid_argument;
+    if (!logical_tensor || ndims < 0) return status::invalid_arguments;
 
     auto val = logical_tensor_t();
     val.id = tid;
@@ -251,7 +251,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_strides(
         val.dims[0] = 0;
         val.layout.strides[0] = 0;
     } else {
-        if (utils::any_null(dims, strides)) return status::invalid_argument;
+        if (utils::any_null(dims, strides)) return status::invalid_arguments;
 
         std::copy(dims, dims + ndims, val.dims);
         std::copy(strides, strides + ndims, val.layout.strides);
@@ -263,7 +263,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_init_with_strides(
 
 status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_get_mem_size(
         const logical_tensor_t *logical_tensor, size_t *size) {
-    if (utils::any_null(logical_tensor, size)) return status::invalid_argument;
+    if (utils::any_null(logical_tensor, size)) return status::invalid_arguments;
 
     *size = logical_tensor_wrapper_t(logical_tensor).size();
     return status::success;
@@ -272,7 +272,7 @@ status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_get_mem_size(
 status_t DNNL_GRAPH_API dnnl_graph_logical_tensor_has_same_layout(
         const logical_tensor_t *lt1, const logical_tensor_t *lt2,
         uint8_t *is_same) {
-    if (utils::any_null(lt1, lt2)) return status::invalid_argument;
+    if (utils::any_null(lt1, lt2)) return status::invalid_arguments;
 
     logical_tensor_wrapper_t ltw1 {lt1};
     logical_tensor_wrapper_t ltw2 {lt2};

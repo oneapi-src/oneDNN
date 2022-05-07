@@ -37,7 +37,7 @@ namespace graph {
 
 namespace detail {
 
-template <typename T, dnnl_graph_result_t (*del)(T)>
+template <typename T, dnnl_graph_status_t (*del)(T)>
 class handle {
 public:
     static constexpr auto default_del = del;
@@ -79,9 +79,7 @@ public:
 private:
     std::shared_ptr<typename std::remove_pointer<T>::type> data_ {0};
     /// Dummy destructor
-    static dnnl_graph_result_t dummy_del(T) {
-        return dnnl_graph_result_success;
-    }
+    static dnnl_graph_status_t dummy_del(T) { return dnnl_graph_success; }
 };
 
 #define DNNL_GRAPH_HANDLE_ALIAS(type) \
@@ -106,38 +104,34 @@ DNNL_GRAPH_HANDLE_ALIAS(partition);
 /// This class captures the status returned by a failed C API function and
 /// the error message from the call site.
 struct error : public std::exception {
-    dnnl_graph_result_t result;
+    dnnl_graph_status_t result;
     std::string detailed_message;
 
     /// Constructs an instance of an exception class.
     ///
     /// @param result The error status returned by a C API function.
     /// @param message The error message.
-    error(dnnl_graph_result_t result, const std::string &message)
+    error(dnnl_graph_status_t result, const std::string &message)
         : result(result)
         , detailed_message(message + ": " + result2str(result)) {}
 
-    /// Convert dnnl_graph_result_t to string.
+    /// Convert dnnl_graph_status_t to string.
     ///
     /// @param result The error status returned by a C API function.
     /// @return A string that describes the error status
-    std::string result2str(dnnl_graph_result_t result) {
+    std::string result2str(dnnl_graph_status_t result) {
         switch (result) {
-            case dnnl_graph_result_success: return "success";
-            case dnnl_graph_result_not_ready: return "not ready";
-            case dnnl_graph_result_error_device_not_found:
-                return "device not found";
-            case dnnl_graph_result_error_unsupported: return "unsupported";
-            case dnnl_graph_result_error_invalid_argument:
-                return "invalid argument";
-            case dnnl_graph_result_error_compile_fail: return "compile fail";
-            case dnnl_graph_result_error_invalid_index: return "invalid index";
-            case dnnl_graph_result_error_invalid_graph: return "invalid graph";
-            case dnnl_graph_result_error_invalid_shape: return "invalid shape";
-            case dnnl_graph_result_error_invalid_type: return "invalid type";
-            case dnnl_graph_result_error_invalid_op: return "invalid op";
-            case dnnl_graph_result_error_miss_ins_outs:
-                return "miss inputs or outputs";
+            case dnnl_graph_success: return "success";
+            case dnnl_graph_out_of_memory: return "out of memory";
+            case dnnl_graph_invalid_arguments: return "invalid arguments";
+            case dnnl_graph_unimplemented: return "unimplemented";
+            case dnnl_graph_iterator_ends: return "iterator ends";
+            case dnnl_graph_runtime_error: return "runtime error";
+            case dnnl_graph_not_required: return "not required";
+            case dnnl_graph_invalid_graph: return "invalid graph";
+            case dnnl_graph_invalid_graph_op: return "invalid op";
+            case dnnl_graph_invalid_shape: return "invalid shape";
+            case dnnl_graph_invalid_data_type: return "invalid data type";
             default: return "unknown error";
         }
     }
@@ -154,8 +148,8 @@ struct error : public std::exception {
     /// @param result The error status returned by a C API function.
     /// @param message The error message.
     static void check_succeed(
-            dnnl_graph_result_t result, const std::string &message) {
-        if (result != dnnl_graph_result_success) throw error(result, message);
+            dnnl_graph_status_t result, const std::string &message) {
+        if (result != dnnl_graph_success) throw error(result, message);
     }
 };
 
@@ -209,31 +203,27 @@ constexpr dnnl_graph_data_type_t get_data_type() {
 /// Status values returned by the library functions.
 enum class status {
     /// The operation was successful
-    success = dnnl_graph_result_success,
-    /// The operation was not ready
-    not_ready = dnnl_graph_result_not_ready,
-    /// The operation failed because device was not found
-    not_found = dnnl_graph_result_error_device_not_found,
-    /// The operation failed because requested functionality is not implemented.
-    unsupported = dnnl_graph_result_error_unsupported,
+    success = dnnl_graph_success,
+    /// The operation failed due to an out-of-memory condition
+    out_of_memory = dnnl_graph_out_of_memory,
     /// The operation failed because of incorrect function arguments
-    invalid_argument = dnnl_graph_result_error_invalid_argument,
-    /// The operation failed because of the failed compilation
-    compile_fail = dnnl_graph_result_error_compile_fail,
-    /// The operation failed because of incorrect index
-    invalid_index = dnnl_graph_result_error_invalid_index,
-    /// The operation failed because of incorrect graph
-    invalid_graph = dnnl_graph_result_error_invalid_graph,
-    /// The operation failed because of incorrect shape
-    invalid_shape = dnnl_graph_result_error_invalid_shape,
-    /// The operation failed because of incorrect type
-    invalid_type = dnnl_graph_result_error_invalid_type,
-    /// The operation failed because of incorrect op
-    invalid_op = dnnl_graph_result_error_invalid_op,
-    /// The operation failed because of missing inputs or outputs
-    miss_ins_outs = dnnl_graph_result_error_miss_ins_outs,
-    /// Unknown error
-    unknown = dnnl_graph_result_error_unknown,
+    invalid_arguments = dnnl_graph_invalid_arguments,
+    /// The operation failed because requested functionality is not implemented
+    unimplemented = dnnl_graph_unimplemented,
+    /// Primitive iterator passed over last primitive descriptor
+    interator_ends = dnnl_graph_iterator_ends,
+    /// Primitive or engine failed on execution
+    runtime_error = dnnl_graph_runtime_error,
+    /// Queried element is not required for given primitive
+    not_required = dnnl_graph_not_required,
+    /// The graph is not legitimate
+    invalid_graph = dnnl_graph_invalid_graph,
+    /// The operation is not legitimate according to op schema
+    invalid_graph_op = dnnl_graph_invalid_graph_op,
+    /// The shape cannot be inferred or compiled
+    invalid_shape = dnnl_graph_invalid_shape,
+    /// The data type cannot be inferred or compiled
+    invalid_data_type = dnnl_graph_invalid_data_type,
 };
 
 /// @} dnnl_api_status
@@ -589,7 +579,7 @@ public:
     /// @returns A the dimensions vector
     dims_t get_dims() const {
         if (data.ndims < 0) {
-            error::check_succeed(dnnl_graph_result_error_invalid_argument,
+            error::check_succeed(dnnl_graph_invalid_arguments,
                     "cannot return dims when ndims < 0");
         }
 
@@ -627,7 +617,7 @@ public:
     /// @returns Layout id
     size_t get_layout_id() const {
         if (get_layout_type() != layout_type::opaque) {
-            error::check_succeed(dnnl_graph_result_error_invalid_argument,
+            error::check_succeed(dnnl_graph_invalid_arguments,
                     "layout type should be opaque");
         }
 
@@ -639,12 +629,12 @@ public:
     /// @returns A copy of strides vector
     dims_t get_strides() const {
         if (get_layout_type() != layout_type::strided) {
-            error::check_succeed(dnnl_graph_result_error_invalid_argument,
+            error::check_succeed(dnnl_graph_invalid_arguments,
                     "layout type should be strided");
         }
 
         if (data.ndims < 0) {
-            error::check_succeed(dnnl_graph_result_error_invalid_argument,
+            error::check_succeed(dnnl_graph_invalid_arguments,
                     "cannot return strides when ndims < 0");
         }
 
@@ -1241,8 +1231,8 @@ public:
     compiled_partition compile(const std::vector<logical_tensor> &inputs,
             const std::vector<logical_tensor> &outputs, const engine &e) const {
         if (!is_supported()) {
-            error::check_succeed(dnnl_graph_result_error_unsupported,
-                    "could not compile the partition");
+            error::check_succeed(dnnl_graph_invalid_arguments,
+                    "could not compile an unsupported partition");
         }
 
         return compile_(inputs, outputs, &e);
@@ -1378,7 +1368,7 @@ public:
     ///    to throw an exception if it fails to add the op to the graph.
     /// @returns #success or a status describing the error otherwise.
     status add_op(const op &op, bool allow_exception = true) {
-        dnnl_graph_result_t ret = dnnl_graph_add_op(get(), op.get());
+        dnnl_graph_status_t ret = dnnl_graph_add_op(get(), op.get());
 
         if (allow_exception) {
             error::check_succeed(ret, "could not add op to the graph");

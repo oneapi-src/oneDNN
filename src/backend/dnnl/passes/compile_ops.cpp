@@ -152,7 +152,7 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                     cur_op, p_engine, mgr, pd_cache);
         } else {
             assertm(false, "unimplemented op, can't compile it");
-            return impl::status::compile_fail;
+            return impl::status::unimplemented;
         }
 
         sg->execs_.emplace_back(exec);

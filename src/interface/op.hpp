@@ -237,7 +237,7 @@ public:
     status_t get_attr(const std::string &name, const Attr **attr) const {
         const auto &found = attributes_.find(name);
         if (found == end(attributes_)) {
-            return dnnl::graph::impl::status::invalid_argument;
+            return dnnl::graph::impl::status::invalid_arguments;
         }
 
         Attr &val = found->second.get<Attr>();

@@ -34,11 +34,13 @@ using namespace dnnl::graph::impl;
 
 status_t DNNL_GRAPH_API dnnl_graph_stream_create(
         stream_t **stream, const engine_t *engine) {
-    if (engine->kind() == engine_kind::gpu) { return status::invalid_argument; }
+    if (engine->kind() == engine_kind::gpu) {
+        return status::invalid_arguments;
+    }
 #ifdef DNNL_GRAPH_CPU_SYCL
     UNUSED(stream);
     UNUSED(engine);
-    return status::invalid_argument;
+    return status::invalid_arguments;
 #else
     *stream = new stream_t {engine};
     return status::success;
@@ -49,20 +51,20 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
         stream_t **stream, const engine_t *engine, const void *queue) {
 #ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(stream, engine, queue)) {
-        return status::invalid_argument;
+        return status::invalid_arguments;
     }
     auto &sycl_queue = *static_cast<const cl::sycl::queue *>(queue);
 
     bool is_gpu_engine = engine->kind() == engine_kind::gpu;
     bool is_gpu_queue = sycl_queue.get_device().is_gpu();
-    if (is_gpu_engine != is_gpu_queue) { return status::invalid_argument; }
+    if (is_gpu_engine != is_gpu_queue) { return status::invalid_arguments; }
     if (is_gpu_engine) {
 #ifndef DNNL_GRAPH_GPU_SYCL
-        return status::invalid_argument;
+        return status::invalid_arguments;
 #endif
     } else {
 #ifndef DNNL_GRAPH_CPU_SYCL
-        return status::invalid_argument;
+        return status::invalid_arguments;
 #endif
     }
 
@@ -72,7 +74,7 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
     UNUSED(stream);
     UNUSED(engine);
     UNUSED(queue);
-    return status::unsupported;
+    return status::unimplemented;
 #endif
 }
 
@@ -80,7 +82,7 @@ status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
         stream_t **stream, const engine_t *engine, void *threadpool) {
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
     if (utils::any_null(stream, engine, threadpool)) {
-        return status::invalid_argument;
+        return status::invalid_arguments;
     }
     auto tp = static_cast<dnnl::graph::threadpool_interop::threadpool_iface *>(
             threadpool);
@@ -90,14 +92,14 @@ status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
     UNUSED(stream);
     UNUSED(engine);
     UNUSED(threadpool);
-    return status::unsupported;
+    return status::unimplemented;
 #endif
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_get_threadpool(
         stream_t *astream, void **threadpool) {
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
-    if (utils::any_null(astream, threadpool)) return status::invalid_argument;
+    if (utils::any_null(astream, threadpool)) return status::invalid_arguments;
     dnnl::graph::threadpool_interop::threadpool_iface *tp;
     auto status = astream->get_threadpool(&tp);
     if (status == status::success) *threadpool = static_cast<void *>(tp);
@@ -105,7 +107,7 @@ status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_get_threadpool(
 #else
     UNUSED(astream);
     UNUSED(threadpool);
-    return status::unsupported;
+    return status::unimplemented;
 #endif
 }
 

@@ -1294,7 +1294,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                 exec_args_set_.add_mem_use_internal_persistent(
                         {mem, info.index_});
                 break;
-            default: return status::unknown;
+            default: return status::unimplemented;
         }
     }
 
@@ -1379,7 +1379,7 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                     prepare_args_for_eltwise_bwd(op, p_engine, mgr);
                 } else {
                     assertm(false, "memory planning: unsupported op");
-                    return impl::status::compile_fail;
+                    return impl::status::unimplemented;
                 }
                 return impl::status::success;
             });

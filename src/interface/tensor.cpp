@@ -26,7 +26,7 @@ status_t DNNL_GRAPH_API dnnl_graph_tensor_create(tensor_t **tensor,
         const logical_tensor_t *logical_tensor, const engine_t *eng,
         void *handle) {
     if (utils::any_null(tensor, logical_tensor, eng))
-        return status::invalid_argument;
+        return status::invalid_arguments;
 
     *tensor = new tensor_t {*logical_tensor, eng, handle};
     return status::success;
@@ -39,7 +39,7 @@ status_t DNNL_GRAPH_API dnnl_graph_tensor_destroy(tensor_t *tensor) {
 
 status_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
         const tensor_t *tensor, data_type_t type, void **handle) {
-    if (utils::any_null(tensor, handle)) return status::invalid_argument;
+    if (utils::any_null(tensor, handle)) return status::invalid_arguments;
 
     *handle = tensor->get_data_handle_if_is(type);
     return status::success;
@@ -47,7 +47,7 @@ status_t DNNL_GRAPH_API dnnl_graph_tensor_get_if_type(
 
 status_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
         tensor_t *tensor, void *handle) {
-    if (tensor == nullptr) return status::invalid_argument;
+    if (tensor == nullptr) return status::invalid_arguments;
 
     tensor->set_data_handle(handle);
     return status::success;
@@ -55,7 +55,7 @@ status_t DNNL_GRAPH_API dnnl_graph_tensor_set_data_handle(
 
 status_t DNNL_GRAPH_API dnnl_graph_tensor_get_engine(
         const tensor_t *tensor, engine_t **engine) {
-    if (utils::any_null(tensor, engine)) return status::invalid_argument;
+    if (utils::any_null(tensor, engine)) return status::invalid_arguments;
 
     *engine = const_cast<engine_t *>(tensor->get_engine());
 

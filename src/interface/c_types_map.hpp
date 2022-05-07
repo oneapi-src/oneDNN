@@ -30,20 +30,19 @@ using dim_t = dnnl_graph_dim_t;
 using dims_t = dnnl_graph_dims_t;
 using dims = std::vector<dim_t>;
 
-using status_t = dnnl_graph_result_t;
+using status_t = dnnl_graph_status_t;
 namespace status {
-const status_t success = dnnl_graph_result_success;
-const status_t not_ready = dnnl_graph_result_not_ready;
-const status_t device_not_found = dnnl_graph_result_error_device_not_found;
-const status_t unsupported = dnnl_graph_result_error_unsupported;
-const status_t invalid_argument = dnnl_graph_result_error_invalid_argument;
-const status_t invalid_graph = dnnl_graph_result_error_invalid_graph;
-const status_t invalid_shape = dnnl_graph_result_error_invalid_shape;
-const status_t invalid_type = dnnl_graph_result_error_invalid_type;
-const status_t invalid_op = dnnl_graph_result_error_invalid_op;
-const status_t compile_fail = dnnl_graph_result_error_compile_fail;
-const status_t miss_ins_outs = dnnl_graph_result_error_miss_ins_outs;
-const status_t unknown = dnnl_graph_result_error_unknown;
+const status_t success = dnnl_graph_success;
+const status_t out_of_memory = dnnl_graph_out_of_memory;
+const status_t invalid_arguments = dnnl_graph_invalid_arguments;
+const status_t unimplemented = dnnl_graph_unimplemented;
+const status_t interator_ends = dnnl_graph_iterator_ends;
+const status_t runtime_error = dnnl_graph_runtime_error;
+const status_t not_required = dnnl_graph_not_required;
+const status_t invalid_graph = dnnl_graph_invalid_graph;
+const status_t invalid_op = dnnl_graph_invalid_graph_op;
+const status_t invalid_shape = dnnl_graph_invalid_shape;
+const status_t invalid_data_type = dnnl_graph_invalid_data_type;
 } // namespace status
 
 using data_type_t = dnnl_graph_data_type_t;

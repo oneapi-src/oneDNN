@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ compiled_partition_cache_t &compiled_partition_cache() {
 }
 
 status_t get_compiled_partition_cache_size(int *size) {
-    if (size == nullptr) return status::invalid_argument;
+    if (size == nullptr) return status::invalid_arguments;
     *size = 0;
 #ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
     *size = compiled_partition_cache().get_size();
@@ -268,7 +268,8 @@ void lru_compiled_partition_cache_t::evict(size_t n) {
 // API
 dnnl::graph::impl::status_t dnnl_graph_get_compiled_partition_cache_capacity(
         int *capacity) {
-    if (capacity == nullptr) return dnnl::graph::impl::status::invalid_argument;
+    if (capacity == nullptr)
+        return dnnl::graph::impl::status::invalid_arguments;
     *capacity = 0;
 #ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
     *capacity = dnnl::graph::impl::compiled_partition_cache().get_capacity();
@@ -278,7 +279,7 @@ dnnl::graph::impl::status_t dnnl_graph_get_compiled_partition_cache_capacity(
 
 dnnl::graph::impl::status_t dnnl_graph_set_compiled_partition_cache_capacity(
         int capacity) {
-    if (capacity < 0) return dnnl::graph::impl::status::invalid_argument;
+    if (capacity < 0) return dnnl::graph::impl::status::invalid_arguments;
 #ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
     return dnnl::graph::impl::compiled_partition_cache().set_capacity(capacity);
 #endif

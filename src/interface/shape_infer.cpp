@@ -178,7 +178,7 @@ status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
         pad_end = 0;
     } else if (auto_pad == "SAME_UPPER" || auto_pad == "SAME_LOWER") {
         // TODO(xxx): need to improve?
-        if (1 != dilation) return status::unsupported;
+        if (1 != dilation) return status::unimplemented;
 
         dim_t legacy = (in_dim + stride - 1) / stride;
         dim_t pad_needed = is_deconv ? kernel - stride
@@ -187,7 +187,7 @@ status_t infer_auto_pad(const dim_t in_dim, const dim_t stride,
                                              : (pad_needed / 2);
         pad_end = pad_needed - pad_begin;
     } else {
-        return status::invalid_argument;
+        return status::invalid_arguments;
     }
 
     return status::success;
@@ -314,8 +314,8 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
         output_shape = out.vdims();
     } else {
         // TODO(Xinyu): support shape tensor
-        if (inputs.size() > 2) return status::unsupported;
-        if (!n->has_attr("output_shape")) return status::unsupported;
+        if (inputs.size() > 2) return status::unimplemented;
+        if (!n->has_attr("output_shape")) return status::unimplemented;
         output_shape = n->get_attr<dims>("output_shape");
     };
 
@@ -336,7 +336,7 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
         src_sp.erase(src_sp.begin(), src_sp.begin() + 1);
         src_sp.erase(src_sp.end() - 1, src_sp.end());
     } else {
-        return status::unsupported;
+        return status::unimplemented;
     }
 
     // if paddings are empty vectors?
@@ -467,8 +467,8 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
         filter_shape = out.vdims();
     } else {
         // TODO(Xinyu): support shape tensor
-        if (inputs.size() > 2) return status::unsupported;
-        if (!n->has_attr("filter_shape")) return status::unsupported;
+        if (inputs.size() > 2) return status::unimplemented;
+        if (!n->has_attr("filter_shape")) return status::unimplemented;
         filter_shape = n->get_attr<dims>("filter_shape");
     };
 
@@ -488,7 +488,7 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
     } else if (fil_fmt == "XIO") {
         fil_sp.erase(fil_sp.end() - 2, fil_sp.end());
     } else {
-        return status::unsupported;
+        return status::unimplemented;
     }
 
     // if paddings are empty vectors?
@@ -639,7 +639,7 @@ status_t infer_pool_output_shape(op_t *n,
         auto dilations_tmp = n->get_attr<dims>("dilations");
         dilations_tmp.resize(kernel.size());
         if (dilations_tmp.size() != dilations.size()) {
-            return status::invalid_argument;
+            return status::invalid_arguments;
         } else {
             dilations = dilations_tmp;
         }
@@ -717,8 +717,8 @@ status_t infer_pool_bwd_output_shape(op_t *n,
             diff_src_shape = out0.vdims();
         } else {
             // TODO(Xinyu): support shape tensor
-            if (inputs.size() > 1) return status::unsupported;
-            if (!n->has_attr("input_shape")) return status::unsupported;
+            if (inputs.size() > 1) return status::unimplemented;
+            if (!n->has_attr("input_shape")) return status::unimplemented;
             diff_src_shape = n->get_attr<dims>("input_shape");
         };
         set_shape_and_strides(*outputs[0], diff_src_shape);
@@ -735,7 +735,7 @@ status_t infer_pool_bwd_output_shape(op_t *n,
     if (n->has_attr("dilations")) {
         auto dilations_tmp = n->get_attr<dims>("dilations");
         if (dilations_tmp.size() != dilations.size()) {
-            return status::invalid_argument;
+            return status::invalid_arguments;
         } else {
             dilations = dilations_tmp;
         }
@@ -1117,13 +1117,13 @@ status_t infer_concat_output_shape(op_t *n,
     }
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     auto data_type = in0.data_type();
-    if (data_type != out0.data_type()) return status::unsupported;
+    if (data_type != out0.data_type()) return status::unimplemented;
 
     int64_t axis = n->get_attr<int64_t>("axis");
     auto ndims = in0.ndims();
     auto dims = in0.dims();
     if (axis < -ndims || axis >= ndims) {
-        return status::invalid_argument;
+        return status::invalid_arguments;
     } else if (axis < 0) {
         axis += ndims;
     }
@@ -1133,7 +1133,7 @@ status_t infer_concat_output_shape(op_t *n,
         auto lt_inN = logical_tensor_wrapper_t(*iter);
         const auto &lt_inN_dims = lt_inN.vdims();
         if (lt_inN.ndims() != ndims) { return status::invalid_shape; }
-        if (lt_inN.data_type() != data_type) { return status::unsupported; }
+        if (lt_inN.data_type() != data_type) { return status::unimplemented; }
         for (int32_t i = 0; i < ndims; i++) {
             if (i != axis) {
                 // input dims should be same except axis dim.
@@ -1158,7 +1158,7 @@ status_t infer_unsupported_output_shape(op_t *n,
     UNUSED(n);
     UNUSED(inputs);
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
-    if (out0.is_shape_unknown()) return status::unsupported;
+    if (out0.is_shape_unknown()) return status::unimplemented;
     return status::success;
 }
 
@@ -1186,7 +1186,7 @@ status_t infer_reduce_output_shape(op_t *n,
     if (n->has_attr("axes")) {
         auto axes = n->get_attr<dims>("axes");
         // our backend doesn't support such a case
-        if (axes.empty()) return status::unsupported;
+        if (axes.empty()) return status::unimplemented;
 
         auto shape = logical_tensor_wrapper_t(inputs[0]).vdims();
         auto ndim = static_cast<int64_t>(shape.size());
@@ -1194,7 +1194,7 @@ status_t infer_reduce_output_shape(op_t *n,
         if (std::any_of(axes.begin(), axes.end(), [&ndim](int64_t axis) {
                 return axis < -ndim || axis >= ndim;
             }))
-            return status::unsupported;
+            return status::unimplemented;
 
         // convert negative axis to positive one
         std::transform(axes.begin(), axes.end(), axes.begin(),
@@ -1204,7 +1204,7 @@ status_t infer_reduce_output_shape(op_t *n,
 
         if (std::unordered_set<int64_t>(axes.begin(), axes.end()).size()
                 < axes.size())
-            return status::unsupported;
+            return status::unimplemented;
 
         auto keep_dims = n->has_attr("keep_dims")
                 ? n->get_attr<bool>("keep_dims")
@@ -1229,7 +1229,7 @@ status_t infer_reduce_output_shape(op_t *n,
 
     // since we don't have an access to the second input data,
     // which contain axis indices, we cannot calculate output shape
-    return status::unsupported;
+    return status::unimplemented;
 }
 
 status_t infer_static_reshape_output_shape(op_t *n,
@@ -1374,7 +1374,7 @@ status_t infer_interpolate_output_shape(op_t *n,
     if ((!scales.empty() && !sizes.empty())
             || (scales.empty() && sizes.empty())) {
         // only one of them should be not none
-        return status::invalid_argument;
+        return status::invalid_arguments;
     }
 
     std::string src_fmt = n->get_attr<std::string>("data_format");
@@ -1386,12 +1386,12 @@ status_t infer_interpolate_output_shape(op_t *n,
         // "X" start from in_dims[2]
         spatial_dim_start_axis = 2;
     } else {
-        return status::invalid_argument;
+        return status::invalid_arguments;
     }
 
     if (!scales.empty()) {
         // scales length should equal spatial_ndim
-        if (scales.size() != spatial_ndim) return status::invalid_argument;
+        if (scales.size() != spatial_ndim) return status::invalid_arguments;
 
         // spatial_ndim
         for (size_t i = 0; i < spatial_ndim; i++) {
@@ -1400,7 +1400,7 @@ status_t infer_interpolate_output_shape(op_t *n,
     }
     if (!sizes.empty()) {
         // sizes length should equal spatial_ndim
-        if (sizes.size() != spatial_ndim) return status::invalid_argument;
+        if (sizes.size() != spatial_ndim) return status::invalid_arguments;
 
         for (size_t i = 0; i < spatial_ndim; i++) {
             in_dims[i + spatial_dim_start_axis] = sizes[i];

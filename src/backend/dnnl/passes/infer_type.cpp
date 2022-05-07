@@ -53,14 +53,14 @@ impl::status_t infer_type(std::shared_ptr<subgraph_t> &sg) {
     for (impl::value_t *in : sg->get_input_values()) {
         impl::logical_tensor_t lt = in->get_logical_tensor();
         if (ltw(lt).data_type() == impl::data_type::undef)
-            return impl::status::invalid_type;
+            return impl::status::invalid_data_type;
     }
 
     // Check outputs dtype
     for (impl::value_t *out : sg->get_output_values()) {
         impl::logical_tensor_t lt = out->get_logical_tensor();
         if (ltw(lt).data_type() == impl::data_type::undef)
-            return impl::status::invalid_type;
+            return impl::status::invalid_data_type;
     }
 
     bool changed;

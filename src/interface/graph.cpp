@@ -337,7 +337,7 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_destroy(graph_t *graph) {
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_add_op(graph_t *graph, op_t *op) {
-    if (graph == nullptr || op == nullptr) { return status::invalid_argument; }
+    if (graph == nullptr || op == nullptr) { return status::invalid_arguments; }
     return graph->add_op(op);
 }
 

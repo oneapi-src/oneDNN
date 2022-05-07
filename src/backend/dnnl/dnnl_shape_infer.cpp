@@ -218,7 +218,7 @@ status_t infer_permute_output_shape(op_t *n,
         tmp_dims.emplace_back(in_dims[0]); // O
     } else {
         assertm(false, "should not reach here");
-        return status::unsupported;
+        return status::unimplemented;
     }
 
     // check the given shape
@@ -315,7 +315,7 @@ status_t infer_expand_output_shape(op_t *n,
     if (std::any_of(axes.begin(), axes.end(), [&out_ndim](int64_t axis) {
             return axis < -out_ndim || axis >= out_ndim;
         }))
-        return status::unsupported;
+        return status::unimplemented;
 
     // convert negative axis to positive one
     std::transform(axes.begin(), axes.end(), axes.begin(),
@@ -325,7 +325,7 @@ status_t infer_expand_output_shape(op_t *n,
 
     if (std::unordered_set<int64_t>(axes.begin(), axes.end()).size()
             < axes.size())
-        return status::unsupported;
+        return status::unimplemented;
 
     std::vector<size_t> indices(out_ndim);
     std::iota(indices.begin(), indices.end(), 0);
@@ -365,7 +365,7 @@ status_t infer_squeeze_output_shape(op_t *n,
                 && std::find(axes.begin(), axes.end(), i) != axes.end()) {
             if (in_dims[i] != 1) {
                 // Dimension must be 1
-                return status::invalid_argument;
+                return status::invalid_arguments;
             }
         } else {
             inferred_output_shape.push_back(in_dims[i]);
@@ -477,7 +477,7 @@ status_t infer_dnnl_pool_bwd_output_shape(op_t *n,
     if (n->has_attr("dilations")) {
         auto dilations_tmp = n->get_attr<dims>("dilations");
         if (dilations_tmp.size() != dilations.size()) {
-            return status::invalid_argument;
+            return status::invalid_arguments;
         } else {
             dilations = dilations_tmp;
         }

@@ -21,10 +21,10 @@
 namespace {
 int deletion_counter {0};
 
-dnnl_graph_result_t destory(int *i) {
+dnnl_graph_status_t destory(int *i) {
     ++deletion_counter;
     delete i;
-    return dnnl_graph_result_success;
+    return dnnl_graph_success;
 }
 
 } // namespace

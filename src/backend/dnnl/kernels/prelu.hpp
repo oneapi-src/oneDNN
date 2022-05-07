@@ -48,7 +48,7 @@ public:
             const std::vector<impl::logical_tensor_t> &outputs) override {
         // output tensor should have same data type as input tensor
         if (inputs[0].data_type != outputs[0].data_type)
-            return status::unsupported;
+            return status::unimplemented;
 
         p_engine_ = make_dnnl_engine(*g_engine);
         g_alloc_ = g_engine->get_allocator();

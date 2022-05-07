@@ -38,9 +38,9 @@ extern "C" {
 /// @param engine Engine to create the execution stream on.
 /// @param threadpool Pointer to an instance of a C++ class that implements
 ///     dnnl::graph::threadpool_iface interface.
-/// @returns #dnnl_graph_result_success on success and a status describing the
+/// @returns #dnnl_graph_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
         dnnl_graph_stream_t *stream, const_dnnl_graph_engine_t engine,
         void *threadpool);
 
@@ -50,9 +50,9 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_threadpool_interop_stream_create(
 /// @param threadpool Output pointer to an instance of a C++ class that
 ///     implements dnnl::graph::threadpool_iface interface. Set to NULL if the
 ///     stream was created without threadpool.
-/// @returns #dnnl_graph_result_success on success and a status describing the
+/// @returns #dnnl_graph_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_result_t DNNL_GRAPH_API
+dnnl_graph_status_t DNNL_GRAPH_API
 dnnl_graph_threadpool_interop_stream_get_threadpool(
         dnnl_graph_stream_t astream, void **threadpool);
 

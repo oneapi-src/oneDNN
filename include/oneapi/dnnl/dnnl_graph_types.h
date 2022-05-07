@@ -112,32 +112,28 @@ typedef enum {
 /// Status values returned by the library functions.
 typedef enum {
     /// The operation was successful
-    dnnl_graph_result_success = 0,
-    /// The operation was not ready
-    dnnl_graph_result_not_ready = 1,
-    /// The operation failed because device was not found
-    dnnl_graph_result_error_device_not_found = 2,
-    /// The operation failed because requested functionality is not implemented.
-    dnnl_graph_result_error_unsupported = 3,
+    dnnl_graph_success = 0,
+    /// The operation failed due to an out-of-memory condition
+    dnnl_graph_out_of_memory = 1,
     /// The operation failed because of incorrect function arguments
-    dnnl_graph_result_error_invalid_argument = 4,
-    /// The operation failed because of the failed compilation
-    dnnl_graph_result_error_compile_fail = 5,
-    /// The operation failed because of incorrect index
-    dnnl_graph_result_error_invalid_index = 6,
-    /// The operation failed because of incorrect graph
-    dnnl_graph_result_error_invalid_graph = 7,
-    /// The operation failed because of incorrect shape
-    dnnl_graph_result_error_invalid_shape = 8,
-    /// The operation failed because of incorrect type
-    dnnl_graph_result_error_invalid_type = 9,
-    /// The operation failed because of incorrect op
-    dnnl_graph_result_error_invalid_op = 10,
-    /// The operation failed because of missing inputs or outputs
-    dnnl_graph_result_error_miss_ins_outs = 11,
-    /// Unknown error
-    dnnl_graph_result_error_unknown = 0x7fffffff,
-} dnnl_graph_result_t;
+    dnnl_graph_invalid_arguments = 2,
+    /// The operation failed because requested functionality is not implemented
+    dnnl_graph_unimplemented = 3,
+    /// Primitive iterator passed over last primitive descriptor
+    dnnl_graph_iterator_ends = 4,
+    /// Primitive or engine failed on execution
+    dnnl_graph_runtime_error = 5,
+    /// Queried element is not required for given primitive
+    dnnl_graph_not_required = 6,
+    /// The graph is not legitimate
+    dnnl_graph_invalid_graph = 7,
+    /// The operation is not legitimate according to op schema
+    dnnl_graph_invalid_graph_op = 8,
+    /// The shape cannot be inferred or compiled
+    dnnl_graph_invalid_shape = 9,
+    /// The data type cannot be inferred or compiled
+    dnnl_graph_invalid_data_type = 10,
+} dnnl_graph_status_t;
 
 /// @} dnnl_graph_api_utils
 
