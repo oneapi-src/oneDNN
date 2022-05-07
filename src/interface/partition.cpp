@@ -56,7 +56,6 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_create_with_op(
 
     // new an empty partition
     *partition = new partition_t();
-    if (utils::any_null(*partition, op)) return status::invalid_argument;
 
     status_t ret = status::success;
 

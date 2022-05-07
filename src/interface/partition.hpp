@@ -146,9 +146,6 @@ public:
     friend struct dnnl_graph_partition;
     friend struct impl::utils::partition_info_t;
 
-    using tensor_shape = std::vector<int64_t>;
-    static constexpr tensor_shape::value_type unknown_shape {-1};
-
     dnnl_graph_compiled_partition(const impl::partition_t &src_partition)
         : src_partition_ {src_partition} {}
 
