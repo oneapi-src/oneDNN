@@ -221,6 +221,15 @@ void sc_data_format_t::to_string(std::ostream &os) const {
     os << *this << "\n";
 }
 
+runtime::data_format sc_data_format_t::to_runtime() const {
+    COMPILE_ASSERT(format_code_.ndims() < runtime::data_format::meta::MAX_DIMS,
+            "Cannot convert this sc_data_format_t to runtime data_format");
+    COMPILE_ASSERT(blocks_[0] < 256 && blocks_[1] < 256,
+            "The blocks are too large for runtime data_format");
+    return runtime::data_format(
+            static_cast<uint64_t>(format_code_), blocks_[0], blocks_[1], false);
+}
+
 std::ostream &operator<<(std::ostream &os, const sc_data_format_t &in) {
     if (in.is_any()) { return os << "any"; }
     int out[sc_data_format_kind_t::MAX_DIMS] = {0};
