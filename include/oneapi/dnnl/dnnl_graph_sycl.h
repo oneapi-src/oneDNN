@@ -95,9 +95,9 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 dnnl_graph_result_t DNNL_GRAPH_API
 dnnl_graph_sycl_interop_compiled_partition_execute(
         const_dnnl_graph_compiled_partition_t compiled_partition,
-        const_dnnl_graph_stream_t stream, const uint64_t num_inputs,
-        const_dnnl_graph_tensor_t *inputs, const uint64_t num_outputs,
-        const_dnnl_graph_tensor_t *outputs, const uint64_t num_deps, void *deps,
+        const_dnnl_graph_stream_t stream, size_t num_inputs,
+        const_dnnl_graph_tensor_t *inputs, size_t num_outputs,
+        const_dnnl_graph_tensor_t *outputs, size_t num_deps, void *deps,
         void *sycl_event);
 
 /// @} dnnl_graph_api_sycl_interop

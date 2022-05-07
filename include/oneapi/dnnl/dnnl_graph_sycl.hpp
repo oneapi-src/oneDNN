@@ -140,11 +140,9 @@ inline cl::sycl::event execute(compiled_partition &c_partition, stream &astream,
     cl::sycl::event sycl_event;
     error::check_succeed(
             dnnl_graph_sycl_interop_compiled_partition_execute(
-                    c_partition.get(), astream.get(),
-                    static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
-                    static_cast<uint64_t>(c_outputs.size()), c_outputs.data(),
-                    static_cast<uint64_t>(c_deps.size()), c_deps.data(),
-                    &sycl_event),
+                    c_partition.get(), astream.get(), c_inputs.size(),
+                    c_inputs.data(), c_outputs.size(), c_outputs.data(),
+                    c_deps.size(), c_deps.data(), &sycl_event),
             "could not execute the compiled_partition on a specified sycl "
             "stream");
     return sycl_event;

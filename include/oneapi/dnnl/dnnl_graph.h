@@ -348,8 +348,8 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_id(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_compile(
         dnnl_graph_partition_t partition,
-        dnnl_graph_compiled_partition_t compiled_partition, uint64_t in_num,
-        const dnnl_graph_logical_tensor_t **inputs, uint64_t out_num,
+        dnnl_graph_compiled_partition_t compiled_partition, size_t in_num,
+        const dnnl_graph_logical_tensor_t **inputs, size_t out_num,
         const dnnl_graph_logical_tensor_t **outputs,
         const_dnnl_graph_engine_t engine);
 
@@ -360,7 +360,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_compile(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports_num(
-        const_dnnl_graph_partition_t partition, uint64_t *num);
+        const_dnnl_graph_partition_t partition, size_t *num);
 
 /// Returns a list of input logical tensors from the partition.
 ///
@@ -370,7 +370,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports_num(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports(
-        const_dnnl_graph_partition_t partition, uint64_t num,
+        const_dnnl_graph_partition_t partition, size_t num,
         dnnl_graph_logical_tensor_t *inputs);
 
 /// Returns the number of output logical tensors of the partition.
@@ -380,7 +380,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_in_ports(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports_num(
-        const_dnnl_graph_partition_t partition, uint64_t *num);
+        const_dnnl_graph_partition_t partition, size_t *num);
 
 /// Returns a list of output logical tensors from the partition.
 ///
@@ -390,7 +390,7 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports_num(
 /// @returns #dnnl_graph_result_success on success and a status describing the
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_partition_get_out_ports(
-        const_dnnl_graph_partition_t partition, uint64_t num,
+        const_dnnl_graph_partition_t partition, size_t num,
         dnnl_graph_logical_tensor_t *outputs);
 
 /// Returns the supporting status of the partition
@@ -439,8 +439,8 @@ dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_compiled_partition_create(
 ///     error otherwise.
 dnnl_graph_result_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
         const_dnnl_graph_compiled_partition_t compiled_partition,
-        const_dnnl_graph_stream_t stream, const uint64_t num_inputs,
-        const_dnnl_graph_tensor_t *inputs, const uint64_t num_outputs,
+        const_dnnl_graph_stream_t stream, size_t num_inputs,
+        const_dnnl_graph_tensor_t *inputs, size_t num_outputs,
         const_dnnl_graph_tensor_t *outputs);
 
 /// Destroy the target compiled partition.

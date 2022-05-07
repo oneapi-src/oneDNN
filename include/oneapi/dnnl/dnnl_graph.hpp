@@ -837,8 +837,7 @@ public:
 
         error::check_succeed(
                 dnnl_graph_compiled_partition_execute(get(), astream.get(),
-                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
-                        static_cast<uint64_t>(c_outputs.size()),
+                        c_inputs.size(), c_inputs.data(), c_outputs.size(),
                         c_outputs.data()),
                 "could not execute the compiled_partition");
     }
@@ -1260,7 +1259,7 @@ public:
     ///
     /// @returns A list of input logical tensors
     std::vector<logical_tensor> get_in_ports() const {
-        uint64_t num;
+        size_t num = 0;
         error::check_succeed(dnnl_graph_partition_get_in_ports_num(get(), &num),
                 "could not get number of inputs of the partition");
         if (num == 0) return {};
@@ -1281,7 +1280,7 @@ public:
     ///
     /// @returns A list of output logical tensor
     std::vector<logical_tensor> get_out_ports() const {
-        uint64_t num;
+        size_t num = 0;
         error::check_succeed(
                 dnnl_graph_partition_get_out_ports_num(get(), &num),
                 "cannot get number of outputs of the partition");
@@ -1333,8 +1332,7 @@ private:
                 "could not create compiled_partition");
         error::check_succeed(
                 dnnl_graph_partition_compile(get(), cpartitions,
-                        static_cast<uint64_t>(c_inputs.size()), c_inputs.data(),
-                        static_cast<uint64_t>(c_outputs.size()),
+                        c_inputs.size(), c_inputs.data(), c_outputs.size(),
                         c_outputs.data(), e->get()),
                 "partition compile failed");
 
