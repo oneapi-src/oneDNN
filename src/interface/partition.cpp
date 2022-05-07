@@ -366,8 +366,8 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
     for (size_t i = 0; i < num_deps; ++i)
         sycl_deps.emplace_back(*(sycl_deps_ptr + i));
 
-    return compiled_partition->execute_sycl(
-            stream, ins, outs, static_cast<cl::sycl::event *>(sycl_event));
+    return compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
+            static_cast<cl::sycl::event *>(sycl_event));
 #else
     UNUSED(compiled_partition);
     UNUSED(stream);
@@ -628,6 +628,18 @@ impl::status_t dnnl_graph_partition::compile(
 status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) const {
+    if (astream->get_engine()->kind() == engine_kind::gpu) {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        return execute_sycl(astream, inputs, outputs, {}, nullptr);
+#else
+        return status::runtime_error;
+#endif
+    } else {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        return execute_sycl(astream, inputs, outputs, {}, nullptr);
+#endif
+    }
+
     if (!astream || !astream->get_engine()->match(pimpl_->get_engine()))
         return status::invalid_arguments;
 
@@ -648,7 +660,8 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
 status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
-        const cl::sycl::event *sycl_event) const {
+        const std::vector<cl::sycl::event> &sycl_deps,
+        cl::sycl::event *sycl_event) const {
     if (!astream || !astream->get_engine()->match(pimpl_->get_engine()))
         return status::invalid_arguments;
 
@@ -667,8 +680,8 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         allocator_t *alloc = this->get_engine().get_allocator();
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
         double ms = utils::get_msec();
-        ret = pimpl_->execute_sycl(
-                astream, processed_inputs, processed_outputs, sycl_event);
+        ret = pimpl_->execute_sycl(astream, processed_inputs, processed_outputs,
+                sycl_deps, sycl_event);
         ms = utils::get_msec() - ms;
         printf("onednn_graph_verbose,exec,%s,%g,%zu,%s,%zu,%zu\n", this->info(),
                 ms, alloc->id(),
@@ -678,14 +691,14 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         fflush(stdout);
     } else if (utils::get_verbose()) {
         double ms = utils::get_msec();
-        ret = pimpl_->execute_sycl(
-                astream, processed_inputs, processed_outputs, sycl_event);
+        ret = pimpl_->execute_sycl(astream, processed_inputs, processed_outputs,
+                sycl_deps, sycl_event);
         ms = utils::get_msec() - ms;
         printf("onednn_graph_verbose,exec,%s,%g\n", this->info(), ms);
         fflush(stdout);
     } else {
-        ret = pimpl_->execute_sycl(
-                astream, processed_inputs, processed_outputs, sycl_event);
+        ret = pimpl_->execute_sycl(astream, processed_inputs, processed_outputs,
+                sycl_deps, sycl_event);
     }
 
     return ret;
