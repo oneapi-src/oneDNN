@@ -69,7 +69,7 @@ public:
         const_cast<impl::partition_impl_t *>(pimpl_.get())->set_id(id());
     }
 
-    bool is_initialized() {
+    bool is_initialized() const {
         return (pimpl_ != nullptr) && pimpl_->is_initialized();
     }
 
@@ -160,7 +160,7 @@ public:
         pimpl_ = pimpl;
     }
 
-    bool is_initialized() { return pimpl_ != nullptr; }
+    bool is_initialized() const { return pimpl_ != nullptr; }
 
     const impl::compiled_partition_impl_t *get_pimpl() const {
         return pimpl_.get();
