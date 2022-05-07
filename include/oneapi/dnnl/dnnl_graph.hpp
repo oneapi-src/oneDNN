@@ -1240,6 +1240,11 @@ public:
     /// @returns A compiled partition
     compiled_partition compile(const std::vector<logical_tensor> &inputs,
             const std::vector<logical_tensor> &outputs, const engine &e) const {
+        if (!is_supported()) {
+            error::check_succeed(dnnl_graph_result_error_unsupported,
+                    "could not compile the partition");
+        }
+
         return compile_(inputs, outputs, &e);
     }
 
