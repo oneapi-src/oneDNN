@@ -201,9 +201,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (mayiuse(sse41))
         return gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
                 B, LDB, bo, beta, C, LDC, co, false);
-#endif
-
-#if DNNL_PPC64
+#elif DNNL_PPC64
 #ifdef __MMA__
     int ATflag = (*transa == 'T') || (*transa == 't');
     int BTflag = (*transb == 'T') || (*transb == 't');
