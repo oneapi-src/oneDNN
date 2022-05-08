@@ -1129,8 +1129,13 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
                         || kh_block != kh || kw_block != kw
                         || kd_block_pad != kd || kh_block_pad != kh
                         || kw_block_pad != kw);
+        //if (exec_type == exec_base)
+        //    use_buffer = use_buffer || (maybe_use_buffer && iwp != iw);
+        // WA coredump: ws:2, pl: 1, will result r_pad=-1 and incorrect post ops jit kernel.
+        // case: onednn_verbose,exec,cpu,convolution,brgconv:avx512_core,forward_inference,src_f32::blocked:acb:f0 wei_f32:p:blocked:Acb16a:f0 bia_undef::undef::f0 dst_f32::blocked:acb:f0,attr-post-ops:sum:1:0:f32+eltwise_hardswish+binary_min:f32:0+binary_max:f32:0+binary_mul:f32:0+binary_add:f32:0+eltwise_round_half_to_even+binary_mul:f32:0+binary_add:f32:0 ,alg:convolution_direct,mb2_ic112oc6_iw7ow4kw1sw2dw0pw1,63700.4
         if (exec_type == exec_base)
-            use_buffer = use_buffer || (maybe_use_buffer && iwp != iw);
+            use_buffer = use_buffer || (maybe_use_buffer
+                            && (iwp != iw || (l_pad + nstl::max(0, r_pad)) > 0));
 
         const status_t st = estimate_brgemm_ur();
         if (st != status::success) continue;
