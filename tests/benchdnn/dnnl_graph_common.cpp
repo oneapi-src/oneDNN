@@ -53,8 +53,9 @@ void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res) {
     for (const auto &e : attr.post_ops.entry) {
         if (!e.is_eltwise_kind()) continue;
 
-        if (convert_alg_kind(e.eltwise.alg)
-                == dnnl::graph::op::kind::LastSymbol) {
+        if (e.eltwise.alg != dnnl_eltwise_swish
+                && convert_alg_kind(e.eltwise.alg)
+                        == dnnl::graph::op::kind::LastSymbol) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -522,39 +523,6 @@ int measure_partition_compl(timer::timer_t &ct,
     } else { \
         return fill_status::UNKNOWN_ERROR; \
     }
-
-fill_status_t po_handlers_t::bias_po_handler_t::operator()(
-        graph_prb_t &p, const dnnl::graph::logical_tensor::data_type bia_dt) {
-    using op = dnnl::graph::op;
-
-    const auto &dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
-    const auto dst_dims = dst_lt.get_dims();
-    const auto dst_dt = dst_lt.get_data_type();
-    const dims_t bia_dims = {dst_dims[1]};
-
-    const size_t new_op_id = p.ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    p.tensor_id["bias"].push_back(TENSOR_ID);
-    const std::string BIA_SRC {TENSOR_ID + "_SRC"};
-    const std::string BIA_DST {TENSOR_ID + "_DST"};
-
-    p.tensor_descs_.emplace(BIA_SRC, bia_dt, bia_dims, lt::strided,
-            tensor_descs_t::property_type::constant);
-    BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
-            p.tensor_descs_, BIA_DST, dst_dt, dst_dims, dst_lt);
-
-    op bias(new_op_id, op::kind::BiasAdd,
-            {p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"],
-                    p.tensor_descs_[BIA_SRC]},
-            {p.tensor_descs_[BIA_DST]}, "bias");
-
-    bias.set_attr("data_format", std::string("NCX"));
-
-    p.ops_.emplace_back(bias);
-    p.curr_out_map_ids_.assign({TENSOR_ID});
-
-    return fill_status::DONE;
-}
 
 fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(graph_prb_t &p,
         const attr_t::post_ops_t::entry_t &po_entry, bool allow_swish_fuse) {

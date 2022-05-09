@@ -486,11 +486,6 @@ struct po_handlers_t {
     using lt = dnnl::graph::logical_tensor::layout_type;
 
 private:
-    struct bias_po_handler_t {
-        fill_status_t operator()(graph_prb_t &p,
-                const dnnl::graph::logical_tensor::data_type bia_dt);
-    };
-
     struct eltwise_po_handler_t {
         fill_status_t operator()(graph_prb_t &p,
                 const attr_t::post_ops_t::entry_t &po_entry,
@@ -530,7 +525,6 @@ public:
         } concat;
 
         struct {
-            bias_po_handler_t bias_handler;
             eltwise_po_handler_t eltw_handler;
             sum_po_handler_t sum_handler;
             binary_po_handler_t bin_handler;
@@ -538,7 +532,6 @@ public:
         } conv;
 
         struct {
-            bias_po_handler_t bias_handler;
             eltwise_po_handler_t eltw_handler;
             sum_po_handler_t sum_handler;
             binary_po_handler_t bin_handler;
@@ -546,7 +539,6 @@ public:
         } deconv;
 
         struct {
-            bias_po_handler_t bias_handler;
             eltwise_po_handler_t eltw_handler;
             sum_po_handler_t sum_handler;
             binary_po_handler_t bin_handler;

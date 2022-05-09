@@ -51,6 +51,11 @@ fill_status_t conv_graph_prb_t::handle_main_op_(const ::conv::prb_t *prb) {
     const std::string TENSOR_ID = std::to_string(new_op_id);
     tensor_id["main"].push_back(TENSOR_ID);
 
+    // this is needed to align with po_handlers convention
+    // some patterns like `conv + bias + swish` may want to
+    // reuse bias output via `tensor_id["bias"].back() + "_DST"`
+    if (has_post_bia_) tensor_id["bias"].push_back(TENSOR_ID);
+
     dims_t wei_dims = prb->wei_dims();
     if (prb->has_groups) {
         // group convolution convert
@@ -68,6 +73,7 @@ fill_status_t conv_graph_prb_t::handle_main_op_(const ::conv::prb_t *prb) {
     auto src_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[SRC].dt));
     auto wei_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[WEI].dt));
     auto dst_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[DST].dt));
+    auto bia_dt = convert_dt(prb->cfg[BIA].dt);
 
     std::string op_name {};
     kind op_kind {kind::LastSymbol};
@@ -80,15 +86,20 @@ fill_status_t conv_graph_prb_t::handle_main_op_(const ::conv::prb_t *prb) {
 
         const std::string SRC {TENSOR_ID + "_SRC"};
         const std::string WEI {TENSOR_ID + "_WEI"};
+        const std::string BIA {TENSOR_ID + "_BIA"};
         const std::string DST {TENSOR_ID + "_DST"};
 
         tensor_descs_.emplace(SRC, src_dt, prb->src_dims(), prb->stag);
         tensor_descs_.emplace(WEI, wei_dt, wei_dims, prb->wtag,
                 tensor_descs_t::property_type::constant);
         tensor_descs_.emplace(DST, dst_dt, prb->dst_dims(), prb->dtag);
+        if (has_post_bia_)
+            tensor_descs_.emplace(BIA, bia_dt, prb->bia_dims(), lt::strided,
+                    tensor_descs_t::property_type::constant);
 
         inputs = {tensor_descs_[SRC], tensor_descs_[WEI]};
         outputs = {tensor_descs_[DST]};
+        if (has_post_bia_) inputs.push_back(tensor_descs_[BIA]);
     } else if (prb->dir & FLAG_BWD) {
         if (prb->dir == BWD_D) {
             op_name = "ConvolutionBackpropData";
@@ -208,10 +219,6 @@ fill_status_t conv_graph_prb_t::handle_dw_(const ::conv::prb_t *prb_) {
     curr_out_map_ids_.assign({TENSOR_ID});
 
     return fill_status::DONE;
-}
-
-fill_status_t conv_graph_prb_t::handle_bia_(const ::conv::prb_t *prb) {
-    return po_handler.conv.bias_handler(*this, convert_dt(prb->cfg[BIA].dt));
 }
 
 fill_status_t conv_graph_prb_t::handle_elt_(

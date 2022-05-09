@@ -33,13 +33,10 @@ struct conv_graph_prb_t : public graph_prb_t {
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
         };
 
+        if (prb->dir == FWD_B) has_post_bia_ = true;
+
         ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
-        if (prb->dir == FWD_B) {
-            has_post_bia_ = true;
-            ctor_status = handle_bia_(prb);
-            if (stop_work(ctor_status)) return;
-        }
 
         auto dtypes
                 = {convert_dt(prb->cfg[SRC].dt), convert_dt(prb->cfg[DST].dt)};
@@ -89,7 +86,6 @@ private:
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_(const ::conv::prb_t *prb);
-    fill_status_t handle_bia_(const ::conv::prb_t *prb);
     fill_status_t handle_dw_(const ::conv::prb_t *prb);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_sum_();
