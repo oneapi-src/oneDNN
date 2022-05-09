@@ -140,7 +140,9 @@
 	#include <stdint.h>
 #endif
 
-#if !defined(MFD_CLOEXEC) // defined only linux 3.17 or later
+// MFD_CLOEXEC defined only linux 3.17 or later.
+// Android wraps the memfd_create syscall from API version 30.
+#if !defined(MFD_CLOEXEC) || (defined(__ANDROID__) && __ANDROID_API__ < 30)
 	#undef XBYAK_USE_MEMFD
 #endif
 
