@@ -16,6 +16,7 @@
 
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/injectors/jit_uni_depthwise_injector.hpp"
 
 #include "cpu/x64/jit_gemm_convolution_utils.hpp"
@@ -38,13 +39,23 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
         if (utils::one_of(isa, avx2, sse41)) {
             idx_compute_vreg_start_ += 1;   //  Vmm(0) - for masks
         }
+        size_t prelu_tmp_vmm_idx = 0;
+        if (post_ops_.find(primitive_kind::prelu))  {
+            // prelu need a temp vmm
+            prelu_tmp_vmm_idx = idx_compute_vreg_start_;
+            idx_compute_vreg_start_++;
+        }
 
         bool only_eltwise = true;
+        bool with_binary = false;
         for (int i = 0; i < post_ops_.len(); i++) {
             auto &post_op = post_ops_.entry_[i];
             if (post_op.is_eltwise()) {
                 jit_eltwise_injectors_.push_back(new jit_uni_eltwise_injector_f32<isa>(
                         this, post_op.eltwise, true, eltwise_reserved_1_, eltwise_reserved_2_));
+            } else if (post_op.is_binary()) {
+                with_binary = true;
+                only_eltwise = false;
             } else if (post_op.is_depthwise()) {
                 only_eltwise = false;
                 jit_depthwise_injectors_.push_back(new jit_uni_depthwise_injector_f32<isa>(
@@ -52,6 +63,24 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
             } else {
                 only_eltwise = false;
             }
+        }
+        if (with_binary) {
+#define PARAM_OFF(field) offsetof(ker_args_t, field)
+            static constexpr bool preserve_gpr = true;
+            static constexpr bool preserve_vmm = true;
+            static constexpr size_t helper_vmm_idx = 15;
+            static constexpr size_t tail_size = 0;
+            static constexpr bool use_exact_tail_scalar_bcast = false;
+            const binary_injector::rhs_arg_static_params_t rhs_sp {
+                helper_vmm_idx, r13, r14, r15, preserve_gpr,
+                preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
+                PARAM_OFF(dst_orig), memory_desc_wrapper(pd->dst_md()),
+                tail_size, kreg_rem_mask, use_exact_tail_scalar_bcast, prelu_tmp_vmm_idx};
+#undef PARAM_OFF
+            const binary_injector::static_params_t bsp {this->reg_abi_bak, rhs_sp};
+            jit_binary_injector_ = utils::make_unique<
+                    binary_injector::jit_uni_binary_injector_t<isa>>(
+                    this, bsp);            
         }
         if (post_ops_.len() > 0 && !only_eltwise) {
             vreg_d_weights = Vmm(idx_compute_vreg_max_--);
@@ -76,6 +105,7 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
         for (int oc = 0; oc < oc_work; oc++) {
             ker_args_t args;
             args.dst = dst + oc * oc_stride;
+            args.dst_orig = dst;
             args.bias = bias + oc_start + oc;
             args.len = len;
             args.oc_offset = oc_start + oc;
@@ -93,9 +123,12 @@ private:
         size_t len;
         size_t oc_offset;
         const void *post_ops_binary_rhs_arg_vec;
+        float *dst_orig;
     };
 
     nstl::vector<jit_uni_eltwise_injector_f32<isa> *> jit_eltwise_injectors_;
+    std::unique_ptr<binary_injector::jit_uni_binary_injector_t<isa>>
+            jit_binary_injector_;
     nstl::vector<jit_uni_depthwise_injector_f32<isa> *> jit_depthwise_injectors_;
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
@@ -107,6 +140,7 @@ private:
 
     Xbyak::Reg64 reg_len = r8;
     Xbyak::Reg64 reg_tmp = rcx; // intentional for shifting purposes
+    Xbyak::Reg64 reg_abi_bak = rsi;
     Xbyak::Reg64 reg_oc_offset = r9;
     Xbyak::Reg64 reg_rem_mask = r10;
     Xbyak::Opmask kreg_rem_mask = k1;
@@ -154,6 +188,7 @@ void jit_pp_kernel_t<isa>::generate() {
     preamble();
 
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
+    mov(reg_abi_bak, reg_param);
     mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
     mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
@@ -166,8 +201,9 @@ void jit_pp_kernel_t<isa>::generate() {
         mov(reg_table, l_table);
     }
 
-    auto apply_post_ops = [&]() {
+    auto apply_post_ops = [&](bool apply_mask) {
         int eltwise_inj_idx = 0;
+        int binary_inj_idx = 0;
         int depthwise_inj_idx = 0;
         std::size_t post_ops_data_offset = 0;
         auto vreg_dst_ = vreg_dst(0);
@@ -177,12 +213,24 @@ void jit_pp_kernel_t<isa>::generate() {
             if (post_op.is_eltwise()) {
                 jit_eltwise_injectors_[eltwise_inj_idx]->compute_vector(vreg_dst_.getIdx());
                 eltwise_inj_idx++;
+            } else if (post_op.is_binary()) {
+                binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+                rhs_arg_params.vmm_idx_to_out_reg.emplace(vreg_dst_.getIdx(), reg_dst);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        vreg_dst_.getIdx(), 0 * sizeof(float));
+                if (mayiuse(avx512_core) && apply_mask) 
+                    rhs_arg_params.vmm_tail_idx_.emplace(vreg_dst_.getIdx());
+                jit_binary_injector_->compute_vector(
+                        vreg_dst_.getIdx(), binary_inj_idx, post_op, rhs_arg_params);
+
+                binary_inj_idx++;
             } else if (post_op.is_depthwise()) {
                 mov(reg_d_weights, ptr[reg_post_ops_data + post_ops_data_offset]);
                 lea(reg_d_weights, ptr[reg_d_weights + reg_oc_offset * sizeof(float)]);
                 jit_depthwise_injectors_[depthwise_inj_idx]->compute_vector_range(vreg_dst_.getIdx(), vreg_dst_.getIdx() + 1,
                                                                                   reg_d_weights, reg_d_weights, true);
                 post_ops_data_offset += jit_depthwise_injectors_[depthwise_inj_idx]->memoryStep();
+                binary_inj_idx++;
                 depthwise_inj_idx++;
             } else if (post_op.is_quantization()) {
                 bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
@@ -244,6 +292,7 @@ void jit_pp_kernel_t<isa>::generate() {
                 }
 
                 post_ops_data_offset += sizeof(float*);
+                binary_inj_idx++;
             }
         }
     };
@@ -278,7 +327,7 @@ void jit_pp_kernel_t<isa>::generate() {
             uni_vaddps(vreg_dst_, vreg_dst_, vreg_bias_);
         }
 
-        apply_post_ops();
+        apply_post_ops(apply_mask);
 
         if (isa == avx512_core) {
             uni_vmovups(dst_addr, vreg_dst_);

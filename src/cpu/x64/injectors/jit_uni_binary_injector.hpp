@@ -123,7 +123,7 @@ struct rhs_arg_static_params_t {
 
     bool is_opmask_set() const noexcept { return is_opmask_set_; }
 
-    mutable std::size_t rhs_dt_helper_vmm_idx;
+    mutable std::size_t rhs_dt_helper_vmm_idx = 0;
     Xbyak::Reg64 rhs_addr_reg;
     Xbyak::Reg64 rhs_helper_reg;
     Xbyak::Reg64 rhs_addr_cache_reg;
