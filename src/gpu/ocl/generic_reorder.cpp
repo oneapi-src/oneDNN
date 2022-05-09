@@ -64,84 +64,284 @@ using dimension_t = struct {
 
 using dimensions_t = std::vector<dimension_t>;
 
-bool is_power_of_2(int n) {
-    return ((n & (n - 1)) == 0);
-}
+// Return a description of dimensions sorted by stride, i.e., nesting order.
+dimensions_t dims_by_stride(const memory_desc_wrapper &mdw) {
+    const auto &desc = mdw.blocking_desc();
+    const auto &strides = desc.strides;
 
-using stride_t = struct {
-    dim_t stride;
-    dim_t size;
-    int idx;
-};
+    // Sort blocks by stride.
+    const auto cmp = [&](const dimension_t &a, const dimension_t &b) {
+        // Order by stride. Ties mean that we have at least one dim of size 1.
+        // We don't care about the order of those dims, just that that the dim
+        // with size > 1 is sorted last.
+        const auto a_stride = strides[a.idx];
+        const auto b_stride = strides[b.idx];
+        return a_stride < b_stride || (a_stride == b_stride && a.size < b.size);
+    };
 
-// Stride sorter. Smaller stride = inner dim, bigger stride = outer dim.
-// Dimensions of size 1 are considered outermost regardless of strides and
-// they are sorted by index.
-bool stride_less(const stride_t &a, const stride_t &b) {
-    if (a.size == 1 && b.size == 1) {
-        return a.idx > b.idx;
-    } else if (a.size != 1 && b.size == 1) {
-        return true;
-    } else if (a.size == 1 && b.size != 1) {
-        return false;
-    } else {
-        return a.stride < b.stride;
+    const int ndims = mdw.ndims();
+    dimensions_t dims(ndims);
+    for (int d = 0; d < ndims; ++d) {
+        auto &blk = dims[d];
+        blk.idx = d;
+        blk.size = mdw.padded_dims()[d];
     }
+    std::sort(dims.begin(), dims.end(), cmp);
+    return dims;
 }
 
 // Returns description of blocks and dimensions that constitute the format tag
 // of tensor, starting from innermost. Blocks, if exist, take precedence before
 // dimensions. Order of dimensions is determined by sorting strides; smallest
-// stride is innermost dimension. Dimensions of size 1 are ignored (treated as
-// outermost). Dimensions are treated like blocks, that is they don't report
-// whole tensor size across given axis but rather number of underlying blocks
-// for given dimension.
+// stride is innermost dimension. Dimensions of size 1 are ignored. This may
+// lead to illegal tensor tags, where the innermost dim is the same as the
+// outermost block:
+//     8x8x1x1 aBcd8b becomes cdaB8b (note: "B8b").
+// In such cases, this function combines the last dim with the first block(s),
+// so xB8b becomes xb. Dimensions are treated like blocks, that is they don't
+// report whole tensor size across given axis but rather number of underlying
+// blocks for given dimension.
 // Example: ABcd8b8a2b 32x48x1x7 will return description that amounts to...
 // outermost-> 1c:4a:3b:7d:8b:8a:2b <-innermost
-dimensions_t query_dims_and_blocks(
-        const memory_desc_wrapper &md, int distance = 0) {
-    const int nblks = md.blocking_desc().inner_nblks;
-    const int ndims = md.ndims();
+dimensions_t query_dims_and_blocks(const memory_desc_wrapper &mdw) {
+    auto blocks = dims_by_stride(mdw);
+    const int ndims = mdw.ndims();
+    const auto &desc = mdw.blocking_desc();
+    const int nblks = desc.inner_nblks;
 
-    std::vector<stride_t> strides(ndims);
-    for (int d = 0; d < ndims; ++d) {
-        strides[d].idx = d;
-        strides[d].stride = md.blocking_desc().strides[d];
-        strides[d].size = md.padded_dims()[d];
+    // Calculate info for inner blocks
+    dimensions_t inner_blks(nblks);
+    std::vector<int> steps(ndims, 1);
+    for (int i = 0; i < nblks; ++i) {
+        auto &blk = inner_blks[i];
+        blk.idx = desc.inner_idxs[i];
+        blk.size = desc.inner_blks[i];
+        blk.step = steps[blk.idx];
+        steps[blk.idx] *= blk.size;
     }
-    std::sort(strides.begin(), strides.end(), stride_less);
-    for (int i = 0; i < nblks; i++) {
-        stride_t blk;
-        blk.idx = md.blocking_desc().inner_idxs[i];
-        blk.size = md.blocking_desc().inner_blks[i];
-        if (i == 0 && blk.idx == strides[0].idx) { continue; }
-        strides.insert(strides.begin(), blk);
+
+    // Divide dim by its step to get block size
+    for (auto &blk : blocks) {
+        blk.step = steps[blk.idx];
+        blk.size = utils::div_up(blk.size, blk.step);
     }
-    // calculate step sizes
-    int steps[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
-    dimensions_t dims(strides.size());
-    for (size_t i = 0; i < strides.size(); i++) {
-        dims[i].idx = strides[i].idx;
-        dims[i].size = strides[i].size;
-        dims[i].step = steps[dims[i].idx];
-        steps[strides[i].idx] *= strides[i].size;
-    }
-    // divide last instance of given dim (it's true dim, not a block)
-    // by its step
-    bool idx_done[MAX_NDIMS] = {false, false, false, false, false, false};
-    for (int i = (int)(dims.size() - 1); i >= 0; i--) {
-        if (!idx_done[dims[i].idx]) {
-            dims[i].size = utils::div_up(dims[i].size, dims[i].step);
-            idx_done[dims[i].idx] = true;
+
+    // If we have any dims with block size 1, we ignore them.
+    const auto size_1 = [](const dimension_t &b) { return b.size == 1; };
+    const auto end = blocks.end();
+    blocks.erase(std::remove_if(blocks.begin(), end, size_1), end);
+
+    for (auto &blk : inner_blks) {
+        if (blk.size == 1) continue; // Can safely ignore blocks of size 1
+        if (blocks[0].idx == blk.idx) {
+            // Combine blocks with repeated dimension
+            blk.size *= blocks[0].size;
+            blocks[0] = blk;
+        } else {
+            blocks.insert(blocks.begin(), blk);
         }
     }
-    return dims;
+
+    if (blocks.empty() && ndims > 0) {
+        dimension_t blk;
+        blk.idx = 0;
+        blk.size = 1;
+        blk.step = 1;
+        blocks.push_back(blk);
+    }
+    return blocks;
 }
 
-dimensions_t query_dims_and_blocks(const memory_desc_t &m, int distance = 0) {
-    memory_desc_wrapper mdw(m);
-    return query_dims_and_blocks(mdw, distance);
+dimensions_t query_dims_and_blocks(const memory_desc_t &md) {
+    const memory_desc_wrapper mdw(md);
+    return query_dims_and_blocks(mdw);
 }
+
+struct successor_t {
+    int idx;
+    dim_t size;
+    dim_t last_size;
+
+    successor_t(const dimension_t &a, const dimension_t &b)
+        : idx(b.idx), size(b.size), last_size(a.size) {}
+};
+
+struct block_successor_t {
+    using inner_iter = dimensions_t::const_iterator;
+
+    struct iterator {
+        using value_type = successor_t;
+        bool operator==(const iterator &other) const { return it == other.it; }
+        bool operator!=(const iterator &other) const { return it != other.it; }
+        value_type operator*() const { return {*(it - 1), *it}; }
+        iterator &operator++() { return advance(); }
+        iterator operator++(int) {
+            iterator cpy = *this;
+            advance();
+            return cpy;
+        }
+
+        iterator(inner_iter start, inner_iter end, int idx)
+            : it(start), end(end), idx(idx) {
+            operator++();
+        }
+
+    private:
+        iterator &advance() {
+            while (it != end) {
+                if ((*it++).idx == idx) break;
+            }
+            return *this;
+        }
+
+        inner_iter it;
+        inner_iter end;
+        int idx;
+    };
+
+    iterator begin() const { return {it_start, it_end, idx}; }
+    iterator end() const { return {it_end, it_end, idx}; }
+
+    block_successor_t(const dimensions_t &blks, int idx)
+        : idx(idx), it_start(blks.begin()), it_end(blks.end()) {}
+
+private:
+    int idx;
+    inner_iter it_start;
+    inner_iter it_end;
+};
+
+// Return whether the two blocks represent an equal part of the same dimension.
+bool equal_blocks(const successor_t &a, const successor_t &b) {
+    return (a.idx == b.idx && a.size == b.size && a.last_size == b.last_size);
+}
+
+// Combine dimension j into dimension i.
+void combine(memory_desc_t &md, int i, int j) {
+    const int new_ndims = md.ndims - 1;
+    if (new_ndims == 0) return; // Don't delete the only dimension.
+    auto &desc = md.format_desc.blocking;
+    auto &strides = desc.strides;
+    const int outer = strides[i] < strides[j] ? j : i;
+    const int inner = strides[i] < strides[j] ? i : j;
+
+    const auto outer_stride = strides[outer];
+    const auto outer_size = md.padded_dims[outer];
+    md.offset0 += strides[outer] * md.padded_offsets[outer];
+    md.dims[i] = md.dims[outer] * md.padded_dims[inner];
+    md.padded_dims[i] = md.padded_dims[i] * md.padded_dims[j];
+    md.padded_offsets[i] = md.padded_offsets[inner];
+    strides[i] = strides[inner];
+    for (int k = j; k < new_ndims; ++k) {
+        md.dims[k] = md.dims[k + 1];
+        md.padded_dims[k] = md.padded_dims[k + 1];
+        md.padded_offsets[k] = md.padded_offsets[k + 1];
+        strides[k] = strides[k + 1];
+    }
+    md.dims[new_ndims] = 0;
+    md.padded_dims[new_ndims] = 0;
+    md.padded_offsets[new_ndims] = 0;
+    strides[new_ndims] = 0;
+
+    auto &idxs = desc.inner_idxs;
+    auto &blks = desc.inner_blks;
+    int nblks = desc.inner_nblks;
+    int count = 0;
+    bool last_is_combined = false;
+    dim_t blocks = 1;
+    for (int k = 0; k < nblks; ++k) {
+        if (idxs[k] == i || idxs[k] == j) {
+            blocks *= blks[k];
+            if (last_is_combined) {
+                blks[count] *= blks[k];
+            } else {
+                last_is_combined = true;
+                blks[count] = blks[k];
+                idxs[count] = i;
+            }
+            continue;
+        } else if (last_is_combined) {
+            last_is_combined = false;
+            count++;
+        }
+        blks[count] = blks[k];
+        idxs[count] = (idxs[k] > j ? idxs[k] - 1 : idxs[k]);
+        count++;
+    }
+    for (int k = 0; k < new_ndims; ++k) {
+        if (strides[k] == outer_stride) strides[k] *= outer_size / blocks;
+    }
+    desc.inner_nblks = count;
+    md.ndims = new_ndims;
+}
+
+void remove_bit(int &mask, int bit) {
+    const int lower_bits = (1 << bit) - 1;
+    mask = (mask & lower_bits) | ((mask >> 1) & ~lower_bits);
+}
+
+#define NO_IDX (-1)
+// Find the index of the dimension that ALWAYS follows dimension `idx` in the
+// given block representations. The successor dimension will be combined with
+// the given dimension, or, in the case that the given dimension does not appear
+// in the block representation, it will be deleted.
+int successor(const dimensions_t &a, const dimensions_t &b, int idx) {
+    // If idx is the outermost index, there can be no successor.
+    if (a.back().idx == idx || b.back().idx == idx) return NO_IDX;
+
+    block_successor_t succ_a {a, idx};
+    block_successor_t succ_b {b, idx};
+    auto it_a = succ_a.begin();
+    auto it_b = succ_b.begin();
+    const auto end_a = succ_a.end();
+    const auto end_b = succ_b.end();
+
+    // An index that never appears in the block representation should be
+    // deleted. In that case, return the given index.
+    if (it_a == end_a && it_b == end_b) return idx;
+
+    int prev_idx = NO_IDX;
+    for (; it_a != end_a && it_b != end_b; ++it_a, ++it_b) {
+        if (!equal_blocks(*it_a, *it_b)) return NO_IDX;
+        prev_idx = (*it_a).idx;
+    }
+    return (it_a != end_a || it_b != end_b) ? NO_IDX : prev_idx;
+}
+
+bool can_be_combined(int idx, int mask) {
+    return !(idx == NO_IDX || (mask & (1 << idx)));
+}
+
+bool compress(memory_desc_t &a, memory_desc_t &b, int &mask) {
+    const auto blks_a = query_dims_and_blocks(a);
+    const auto blks_b = query_dims_and_blocks(b);
+
+    const int ndims = a.ndims;
+    std::vector<int> successors(ndims, NO_IDX);
+    std::vector<int> aliases(ndims);
+    for (int i = 0; i < ndims; ++i) {
+        aliases[i] = i;
+        if (mask & (1 << i)) continue;
+        auto succ = successor(blks_a, blks_b, i);
+        if (!can_be_combined(succ, mask)) continue;
+        successors[i] = succ;
+    }
+
+    bool compressed = false;
+    for (int i = ndims - 1; i >= 0; --i) {
+        int succ = successors[i];
+        if (succ == NO_IDX) continue;
+        int from = std::max(i, aliases[succ]);
+        int into = std::min(i, aliases[succ]);
+        combine(a, into, from);
+        combine(b, into, from);
+        remove_bit(mask, from);
+        aliases[from] = into;
+        compressed = true;
+    }
+    return compressed;
+}
+#undef NO_IDX
 
 void fix_steps(dimensions_t &blk, dimensions_t pkt) {
     int steps[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
@@ -512,241 +712,6 @@ bool fill_conf_vld(const memory_desc_wrapper &src,
     return true;
 }
 
-#define IRRELEVANT_DIM 7
-
-bool is_relevant(const dimension_t dim, int idxa, int idxb) {
-    return (dim.idx == idxa || dim.idx == idxb) && (dim.size > 1);
-}
-
-dimension_t get_idx(
-        const dimensions_t &dims, int idxa, int idxb, size_t &iter) {
-    dimension_t ret;
-    if (iter >= dims.size()) {
-        ret.idx = IRRELEVANT_DIM;
-        ret.size = 0;
-        return ret;
-    }
-    // found relevant dim? advance iterator and return that dim
-    if (is_relevant(dims[iter], idxa, idxb)) {
-        ret = dims[iter];
-        iter++;
-        return ret;
-    } else {
-        // found irrelevant dim? consume all subsequent irrelevant dims
-        ret.idx = IRRELEVANT_DIM;
-        ret.size = 0;
-        iter++;
-        while (iter < dims.size() && !is_relevant(dims[iter], idxa, idxb)) {
-            iter++;
-        }
-        return ret;
-    }
-}
-
-bool doesnt_fit(dimension_t a, dimension_t b) {
-    return (a.idx != b.idx) || (a.size != b.size);
-}
-
-// Mode of finding adjacent dimensions to be combined together.
-// adjacent = Every instance of given dim must be a neighbor of the other dim,
-//            this combination doesn't block any other valid combination.
-// any      = Dims don't have to be adjacent. Any such combination may prevent
-//            other 'any' combination, they are mutually exclusive. Need to
-//            write logic to choose best from such possible combinations.
-//            NOT IMPLEMENTED.
-enum mode_t { adjacent, any };
-
-bool check_adjacent(int dim, int &prev_dim, bool &adjacent) {
-    if (prev_dim != IRRELEVANT_DIM && dim != IRRELEVANT_DIM) {
-        adjacent = true;
-    } else if (adjacent == true && dim == IRRELEVANT_DIM) {
-        adjacent = false;
-    } else if (adjacent == false && prev_dim != IRRELEVANT_DIM
-            && dim == IRRELEVANT_DIM) {
-        return false;
-    }
-    return true;
-}
-
-bool compare_formats(const dimensions_t &dims_a, const dimensions_t &dims_b,
-        int dim1, int dim2, mode_t mode) {
-    size_t iter_a = 0;
-    size_t iter_b = 0;
-    dimension_t dim_a;
-    dimension_t dim_b;
-    int prev_dim_a = IRRELEVANT_DIM;
-    int prev_dim_b = IRRELEVANT_DIM;
-    bool a_adj = false;
-    bool b_adj = false;
-    do {
-        dim_a = get_idx(dims_a, dim1, dim2, iter_a);
-        dim_b = get_idx(dims_b, dim1, dim2, iter_b);
-        if (doesnt_fit(dim_a, dim_b)) { return false; }
-        if (mode == mode_t::adjacent) {
-            if (!check_adjacent(dim_a.idx, prev_dim_a, a_adj)) { return false; }
-            if (!check_adjacent(dim_b.idx, prev_dim_b, b_adj)) { return false; }
-        }
-        prev_dim_a = dim_a.idx;
-        prev_dim_b = dim_b.idx;
-    } while (iter_a < dims_a.size() && iter_b < dims_b.size());
-    if (mode == mode_t::adjacent) {
-        if (!check_adjacent(IRRELEVANT_DIM, prev_dim_a, a_adj)) {
-            return false;
-        }
-        if (!check_adjacent(IRRELEVANT_DIM, prev_dim_b, b_adj)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-// Takes memory descriptor and information which two dimension to combine.
-// Returns new memory descriptor with those two dimensions combined into one.
-// TODO: it doesn't understand padded_offsets
-void combine_dims(memory_desc_t &new_a, int dim1, int dim2) {
-    // shorter names
-    dnnl_dim_t *str = &new_a.format_desc.blocking.strides[0];
-    dnnl_dim_t *blks = &new_a.format_desc.blocking.inner_blks[0];
-    dnnl_dim_t *idxs = &new_a.format_desc.blocking.inner_idxs[0];
-
-    for (int i = 0; i < new_a.ndims; i++) {
-        if (i == dim1) {
-            new_a.dims[i] = new_a.padded_dims[i];
-        } else if (i == dim2) {
-            new_a.dims[dim1] *= new_a.padded_dims[i];
-        } else if (i < dim2) {
-            new_a.dims[i] = new_a.dims[i];
-        } else {
-            new_a.dims[i - 1] = new_a.dims[i];
-        }
-    }
-    for (int i = new_a.ndims - 1; i < MAX_NDIMS; i++) {
-        new_a.dims[i] = 0;
-    }
-
-    for (int i = 0; i < new_a.ndims; i++) {
-        if (i == dim1) {
-            new_a.padded_dims[i] = new_a.padded_dims[i];
-        } else if (i == dim2) {
-            new_a.padded_dims[dim1] *= new_a.padded_dims[i];
-        } else if (i < dim2) {
-            new_a.padded_dims[i] = new_a.padded_dims[i];
-        } else {
-            new_a.padded_dims[i - 1] = new_a.padded_dims[i];
-        }
-    }
-    for (int i = new_a.ndims - 1; i < MAX_NDIMS; i++) {
-        new_a.padded_dims[i] = 0;
-    }
-
-    for (int i = 0; i < new_a.ndims; i++) {
-        if (i == dim1) {
-            str[i] = std::min(str[dim1], str[dim2]);
-        } else if (i == dim2) { // already accounted for in the line above
-        } else if (i < dim2) { // do nothing: str[i] = str[i];
-        } else {
-            str[i - 1] = str[i];
-        }
-    }
-    for (int i = new_a.ndims - 1; i < MAX_NDIMS; i++) {
-        str[i] = 0;
-    }
-
-    bool last_is_combined = false;
-    int out_iter = 0;
-    for (int i = 0; i < new_a.format_desc.blocking.inner_nblks; i++) {
-        if (idxs[i] == dim1 || idxs[i] == dim2) {
-            if (last_is_combined) {
-                blks[out_iter - 1] *= blks[i];
-            } else {
-                last_is_combined = true;
-                blks[out_iter] = blks[i];
-                idxs[out_iter] = dim1;
-                out_iter++;
-            }
-        } else {
-            last_is_combined = false;
-            blks[out_iter] = blks[i];
-            idxs[out_iter] = (idxs[i] > dim2 ? idxs[i] - 1 : idxs[i]);
-            out_iter++;
-        }
-    }
-    new_a.format_desc.blocking.inner_nblks = out_iter;
-    new_a.ndims = new_a.ndims - 1;
-}
-
-int shift_mask(int &mask, int dim) {
-    int ret = 0;
-    for (int i = 0; i < dim; i++) {
-        ret |= (mask & (1 << i));
-    }
-    for (int i = dim; i < MAX_NDIMS - 1; i++) {
-        ret |= ((mask & (1 << i)) >> 1);
-    }
-    return ret;
-}
-
-// Returns bit mask with each bit corresponding to dimension that has strides
-// larger than what could be expected according to dimensions sizes.
-int is_padded_by_strides(const memory_desc_wrapper &md) {
-    int ret = 0;
-    const int nblks = md.blocking_desc().inner_nblks;
-    const int ndims = md.ndims();
-
-    std::vector<stride_t> strides(ndims);
-    for (int d = 0; d < ndims; ++d) {
-        strides[d].idx = d;
-        strides[d].stride = md.blocking_desc().strides[d];
-        strides[d].size = md.padded_dims()[d];
-    }
-    std::sort(strides.begin(), strides.end(), stride_less);
-    int blocks_size = 1;
-    for (int i = 0; i < nblks; i++) {
-        blocks_size *= md.blocking_desc().inner_blks[i];
-    }
-    int expected_stride = blocks_size;
-    for (size_t i = 0; i < strides.size(); i++) {
-        if (strides[i].stride != expected_stride) {
-            ret |= 0x1 << strides[i].idx;
-            expected_stride = strides[i].stride * strides[i].size;
-        } else {
-            expected_stride *= strides[i].size;
-        }
-    }
-    return ret;
-}
-
-// Given description of src and dst tensors, try to find a subset of dimensions
-// that are not reordered between src and dst, then try to treat that subset as
-// a single dmension.
-// Example: abcd -> acdb 128x3x7x7; the CD dimensions stay in the same order
-// relative to each other, so operation can be redefined as abz -> azb 128x3x49
-bool try_combine_dims(
-        memory_desc_t &a, memory_desc_t &b, int &mask, mode_t mode) {
-    const dimensions_t a_dims = query_dims_and_blocks(a);
-    const dimensions_t b_dims = query_dims_and_blocks(b);
-    int padded_strides = is_padded_by_strides(a) | is_padded_by_strides(b);
-
-    if (mask != 0) return false;
-
-    for (int i = 0; i < a.ndims; i++) {
-        for (int j = i + 1; j < b.ndims; j++) {
-            if ((mask >> i) & 0x1) { continue; }
-            if ((mask >> j) & 0x1) { continue; }
-            if ((padded_strides >> i) & 0x1) { continue; }
-            if ((padded_strides >> j) & 0x1) { continue; }
-            if (i == j) { continue; }
-            if (compare_formats(a_dims, b_dims, i, j, mode)) {
-                combine_dims(a, i, j);
-                combine_dims(b, i, j);
-                mask = shift_mask(mask, j);
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     using namespace format_tag;
 
@@ -762,7 +727,7 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     memcpy(&new_a, src_md(), sizeof(new_a));
     memcpy(&new_b, dst_md(), sizeof(new_b));
 
-    while (try_combine_dims(new_a, new_b, conf.scale_mask, adjacent)) {}
+    compress(new_a, new_b, conf.scale_mask);
 
     const memory_desc_wrapper src_mdw(new_a);
     const memory_desc_wrapper dst_mdw(new_b);
