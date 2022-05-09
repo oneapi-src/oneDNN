@@ -751,6 +751,8 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
             set_default_format(wei_md, "xba");
             user_wei_tag = "xba";
         }
+        // Allow internal reorder from oihw to more optimal weights layout.
+        if (matches_tag(wei_md, "abx")) user_wei_tag = "abx";
     }
 
     // Select user layouts.
@@ -915,7 +917,9 @@ void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
     if (hw() < ngen::HW::XeHPC) return;
 
     auto &wei_md = *conv_pd->invariant_wei_md();
-    if (wei_md.format_kind != format_kind::any && !matches_tag(wei_md, "xba"))
+    bool wei_hwio = matches_tag(wei_md, "xba");
+    bool wei_oihw = matches_tag(wei_md, "abx");
+    if (wei_md.format_kind != format_kind::any && !wei_hwio && !wei_oihw)
         return;
 
     if (is_fwd || is_bwd_w) {
