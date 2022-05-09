@@ -1163,19 +1163,15 @@ private:
             }
             ir_assert(msg_size_ > 0);
         }
-
-        if (msg_size_ % reg_bytes_ != 0) {
-            int payload_size = utils::rnd_up(msg_size_, reg_bytes_);
-            payload_bytes_per_elem_ *= utils::div_up(payload_size, msg_size_);
-        }
     }
 
     void init_payload_size(int elems) {
         int elems_per_msg = utils::div_up(msg_size_, mem_type_size_);
         int payload_per_msg = elems_per_msg * payload_bytes_per_elem_;
-        payload_per_msg = utils::rnd_up(payload_per_msg, reg_bytes_);
+        int payload_per_msg_grf_aligned
+                = utils::rnd_up(payload_per_msg, reg_bytes_);
         nmsgs_ = utils::div_up(elems * mem_type_size_, msg_size_);
-        payload_size_ = nmsgs_ * payload_per_msg;
+        payload_size_ = nmsgs_ * payload_per_msg_grf_aligned;
     }
 
     void init_header_size() {
