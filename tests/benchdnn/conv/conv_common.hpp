@@ -207,8 +207,7 @@ struct prb_t : public desc_t {
             switch (attr.fpmath_mode) {
                 case dnnl_fpmath_mode_bf16:
                     return conf_f32_with_bf16_fpmath[dk];
-                case dnnl_fpmath_mode_f19:
-                    return conf_f32_with_f19_fpmath[dk];
+                case dnnl_fpmath_mode_f19: return conf_f32_with_f19_fpmath[dk];
                 default: return cfg[dk];
             }
         }

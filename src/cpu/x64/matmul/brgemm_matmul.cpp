@@ -74,7 +74,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     const bool problem_dt_correct = is_int8 || is_bf16 || is_f32;
     bool ok = mayiuse(isa) && problem_dt_correct
             && !has_runtime_dims_or_strides()
-            && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale_runtime
+            && attr()->has_default_values(
+                    primitive_attr_t::skip_mask_t::oscale_runtime
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt,
