@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,10 @@
  * limitations under the License.
  *******************************************************************************/
 #include "reflection.hpp"
+#include <common/compiler_workarounds.hpp>
 #include <compiler/ir/sc_data_type.hpp>
 #include <util/string_utils.hpp>
+
 namespace sc {
 
 // clang-format off
