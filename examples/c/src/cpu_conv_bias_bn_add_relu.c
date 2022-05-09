@@ -185,6 +185,9 @@ int main(int argc, char **argv) {
     DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
             conv0, "groups", dnnl_graph_attribute_kind_i, conv0_groups, 1));
 
+    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
+            bias_add0, "data_format", dnnl_graph_attribute_kind_s, "NCX", 1));
+
     int64_t conv1_stride[] = {CONV1_STRIDE, CONV1_STRIDE};
     int64_t conv1_padding[] = {CONV1_PADDING, CONV1_PADDING};
     int64_t conv1_dilation[] = {CONV1_DILATION, CONV1_DILATION};
@@ -204,6 +207,9 @@ int main(int argc, char **argv) {
             conv1, "filter_format", dnnl_graph_attribute_kind_s, "OIX", 1));
     DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
             conv1, "groups", dnnl_graph_attribute_kind_i, conv1_groups, 1));
+
+    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
+            bias_add1, "data_format", dnnl_graph_attribute_kind_s, "NCX", 1));
 
     float epsilon = 0.0;
 

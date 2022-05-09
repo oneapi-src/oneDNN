@@ -89,6 +89,7 @@ int main(int argc, char **argv) {
 
     op conv0_bias_add(6, op::kind::BiasAdd, {conv0_dst_desc, conv0_bias_desc},
             {conv0_bias_add_dst_desc}, "conv0_bias_add");
+    conv0_bias_add.set_attr<std::string>("data_format", "NCX");
 
     logical_tensor relu0_dst_desc {7, data_type::bf16, 4, layout_type::undef};
 
@@ -121,6 +122,7 @@ int main(int argc, char **argv) {
 
     op conv1_bias_add(14, op::kind::BiasAdd, {conv1_dst_desc, conv1_bias_desc},
             {conv1_bias_add_dst_desc}, "conv1_bias_add");
+    conv1_bias_add.set_attr<std::string>("data_format", "NCX");
 
     logical_tensor relu1_dst_desc {15, data_type::bf16, 4, layout_type::undef};
 

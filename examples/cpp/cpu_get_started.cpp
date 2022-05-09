@@ -129,6 +129,7 @@ void cpu_get_started_tutorial() {
     /// @snippet cpu_get_started.cpp Create first bias_add
     //[Create first bias_add]
     op conv0_bias_add(1, op::kind::BiasAdd, {conv0_dst_desc, conv0_bias_desc}, {conv0_bias_add_dst_desc}, "conv0_bias_add");
+    conv0_bias_add.set_attr<std::string>("data_format", "NCX");
     //[Create first bias_add]
 
     /// Create output logical tensors for first `Relu` op.
@@ -174,6 +175,7 @@ void cpu_get_started_tutorial() {
     /// @snippet cpu_get_started.cpp Create second bias_add
     //[Create second bias_add]
     op conv1_bias_add(4, op::kind::BiasAdd, {conv1_dst_desc, conv1_bias_desc}, {conv1_bias_add_dst_desc}, "conv1_bias_add");
+    conv1_bias_add.set_attr<std::string>("data_format", "NCX");
     //[Create second bias_add]
 
     /// Create output logical tensors for second `Relu` op.

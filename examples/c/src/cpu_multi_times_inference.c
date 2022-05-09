@@ -179,6 +179,8 @@ int main(int argc, char **argv) {
             conv0, "filter_format", dnnl_graph_attribute_kind_s, "OIX", 1));
     DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
             conv0, "groups", dnnl_graph_attribute_kind_i, conv0_groups, 1));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
+            bias_add0, "data_format", dnnl_graph_attribute_kind_s, "NCX", 1));
 
     int64_t conv1_stride[] = {CONV1_STRIDE, CONV1_STRIDE};
     int64_t conv1_padding[] = {CONV1_PADDING, CONV1_PADDING};
@@ -198,6 +200,8 @@ int main(int argc, char **argv) {
             conv1, "filter_format", dnnl_graph_attribute_kind_s, "OIX", 1));
     DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
             conv1, "groups", dnnl_graph_attribute_kind_i, conv1_groups, 1));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
+            bias_add1, "data_format", dnnl_graph_attribute_kind_s, "NCX", 1));
     printf("Success!\n");
 
     /// Step 4: connect dnnl_graph_op by using logical tensor, and then add dnnl_graph_op
