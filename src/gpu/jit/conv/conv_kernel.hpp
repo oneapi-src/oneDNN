@@ -2725,8 +2725,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (src_bf && dst_f) {
         int step = get_step();
         for (int i = 0; i < width; i += step) {
-            int esize = std::min(step, width - i);
-            ir_assert(math::is_pow2(esize));
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
             auto s = src.subregister(
                     i, esize, src_stride_bytes, ngen::DataType::uw);
             auto d = dst.subregister(
@@ -2765,8 +2766,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         auto tmp = scope.alloc_reg_buf_data(
                 utils::div_up(int(step * sizeof(uint32_t)), grf_size));
         for (int i = 0; i < width; i += step) {
-            int esize = std::min(step, width - i);
-            ir_assert(math::is_pow2(esize));
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
 
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
@@ -2807,8 +2809,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         auto tmp = scope.alloc_reg_buf_data(
                 utils::div_up(step * src_type_size * src_stride, grf_size));
         for (int i = 0; i < width; i += step) {
-            int esize = std::min(step, width - i);
-            ir_assert(math::is_pow2(esize));
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
             auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
                     esize, src_stride);
             auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
@@ -2837,7 +2840,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (src_xf || dst_xf) {
         int step = get_step();
         for (int i = 0; i < width; i += step) {
-            int esize = std::min(step, width - i);
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
             ir_assert(math::is_pow2(esize));
             auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
                     esize, src_stride);
@@ -2886,7 +2891,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // Perform regular move.
     int step = get_step();
     for (int i = 0; i < width; i += step) {
-        int esize = std::min(step, width - i);
+        step = std::min(step, width - i);
+        step = utils::rnd_down_pow2(step);
+        int esize = step;
         ir_assert(math::is_pow2(esize));
         auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
                 esize, src_stride);
@@ -3736,6 +3743,7 @@ private:
             }
             auto sub_rd_mov
                     = rd.format(i, ngen::DataType::f, exec_size).reg_data();
+            ir_assert(math::is_pow2(exec_size));
             host_->emov(
                     get_modifier(exec_size), sub_rd_mov, ngen::Immediate(0.0f));
         }
@@ -3839,7 +3847,9 @@ private:
         int step = 2 * grf_size / f_size;
         for (int i = 0; i < elems; i += step) {
             ngen_register_scope_t i_scope(scope.register_allocator());
-            int cur_elems = std::min(step, elems - i);
+            step = std::min(step, elems - i);
+            step = utils::rnd_down_pow2(step);
+            int cur_elems = step;
             auto rd = data_rd.format(i * f_size, ngen::DataType::f);
             // Use temporary storage when needed to ensure:
             // - Eltwise is applied to full register
