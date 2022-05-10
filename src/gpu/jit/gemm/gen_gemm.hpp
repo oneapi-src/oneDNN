@@ -63,14 +63,14 @@ struct gen_gemm_t : public gpu_gemm_t {
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();
 
+            ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             bool check_lda
                     = ((desc()->transa() == dnnl_notrans && desc()->lda() == 1)
                             || (desc()->transa() == dnnl_trans));
             swap_ab_ = (desc()->a_type() == data_type::f16 && desc()->m() == 1
                     && desc()->ldc() == 1 && check_lda);
-
-            ok = set_default_formats();
-            if (!ok) return status::unimplemented;
 
             const auto d = desc();
 
@@ -225,9 +225,28 @@ struct gen_gemm_t : public gpu_gemm_t {
             // Rename memory descriptors following column major format.
             auto &a_desc = desc_.b_desc;
             auto &b_desc = desc_.a_desc;
+            auto &c_desc = desc_.c_desc;
 
             memory_desc_wrapper a_mdw(&a_desc);
             memory_desc_wrapper b_mdw(&b_desc);
+            memory_desc_wrapper c_mdw(&c_desc);
+
+            bool a_any = a_mdw.format_any();
+            bool b_any = b_mdw.format_any();
+            bool c_any = c_mdw.format_any();
+
+            if (!a_any
+                    && a_mdw.matches_one_of_tag(ab, ba, abc, acb, abcd, abdc)
+                            == format_tag::undef)
+                return false;
+            if (!b_any
+                    && b_mdw.matches_one_of_tag(ab, ba, abc, acb, abcd, abdc)
+                            == format_tag::undef)
+                return false;
+            if (!c_any
+                    && c_mdw.matches_one_of_tag(ab, abc, abcd)
+                            == format_tag::undef)
+                return false;
 
             bool is_a_trans = a_mdw.matches_one_of_tag(ba, acb);
             bool is_b_trans = b_mdw.matches_one_of_tag(ba, acb);
@@ -250,8 +269,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             bool use_tn = (m <= 32 || n <= 32) && !ab_4B_aligned
                     && ab_tn_4B_aligned;
 
-            bool a_any = a_mdw.format_any();
-            bool b_any = b_mdw.format_any();
             bool batch = d->is_batched();
 
             auto dotrans = batch ? acb : ba;

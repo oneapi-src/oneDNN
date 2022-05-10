@@ -176,7 +176,19 @@ struct gen9_gemm_t : public gpu_gemm_t {
         }
 
         bool set_default_formats() {
-            return gpu_gemm_pd_t::set_default_formats();
+            using namespace format_tag;
+
+            bool ok = gpu_gemm_pd_t::set_default_formats();
+
+            memory_desc_wrapper a_mdw(&desc_.b_desc);
+            memory_desc_wrapper b_mdw(&desc_.a_desc);
+            memory_desc_wrapper c_mdw(&desc_.c_desc);
+
+            ok = ok && a_mdw.matches_one_of_tag(ab, ba, abc, acb)
+                    && b_mdw.matches_one_of_tag(ab, ba, abc, acb)
+                    && c_mdw.matches_one_of_tag(ab, abc);
+
+            return ok;
         }
 
         // TODO: return a status in case scratchpad allocation fails
