@@ -179,7 +179,8 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         bh->allow_split({osp_name, "mb"});
         bh->reorder({osp_name, "mb"});
     } else {
-        if (!is_dw && ow > 256)
+        const int large_sp_threshold = is_ge_xe_hpc() ? 128 : 256;
+        if (!is_dw && osp > large_sp_threshold)
             bh->set_pref_tg_block("oc");
         else if (is_dp_fma() && mb >= 16)
             bh->set_pref_tg_block(osp_name);
