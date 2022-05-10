@@ -24,7 +24,6 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
-#include "backend/dnnl/passes/infer_type.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
@@ -85,13 +84,11 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, insert_permute);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
@@ -202,7 +199,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {

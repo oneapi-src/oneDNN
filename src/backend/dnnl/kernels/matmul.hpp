@@ -29,7 +29,6 @@
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/constant_propagation.hpp"
-#include "backend/dnnl/passes/infer_type.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
@@ -109,7 +108,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_matmul);
@@ -136,7 +134,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         // do constant propagation here so that we can
         // prepare constant info for other optimizations.
         if (enable_constant_cache_) {

@@ -69,7 +69,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         // bind the memory for each op
@@ -184,7 +183,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {

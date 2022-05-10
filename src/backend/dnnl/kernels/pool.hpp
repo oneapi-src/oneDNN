@@ -111,7 +111,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, remove_unnecessary_quant_dequant);
@@ -125,7 +124,6 @@ public:
                     pipeline, replace_quant_data_with_binary_post_op);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_scales_add_zps);
             BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-            BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         }
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
@@ -134,7 +132,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         // do constant propagation here so that we can
         // prepare constant info for other optimizations.
         if (enable_constant_cache_) {
@@ -306,7 +303,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, pool_bwd_canonicalization);
 
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
 
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);

@@ -33,7 +33,6 @@
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/constant_propagation.hpp"
-#include "backend/dnnl/passes/infer_type.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
@@ -193,7 +192,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_conv_or_deconv);
@@ -212,7 +210,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         // constant propagation
@@ -284,7 +281,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         // constant propagation
@@ -348,7 +344,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
 
         pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
         // bind the memory for each op

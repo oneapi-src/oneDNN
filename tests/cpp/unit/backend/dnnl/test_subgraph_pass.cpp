@@ -27,7 +27,6 @@
 
 #include "backend/dnnl/kernels/large_partition.hpp"
 #include "backend/dnnl/passes/constant_propagation.hpp"
-#include "backend/dnnl/passes/infer_type.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/layout_propagation.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
@@ -204,7 +203,6 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::binary_canonicalization(subgraph);
     dnnl_impl::infer_shape(subgraph);
-    dnnl_impl::infer_type(subgraph);
 
     // 4. fuse post ops to int8 conv
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
@@ -533,7 +531,6 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::binary_canonicalization(subgraph);
     dnnl_impl::infer_shape(subgraph);
-    dnnl_impl::infer_type(subgraph);
 
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
@@ -569,7 +566,6 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     // infer shape/type, layout propagation and memory binding
     ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
 
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
 
@@ -789,7 +785,6 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     }
 
     ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
 
     if (params.constant_weight) {
         dnnl_impl::set_weight_bias_constant(subgraph->get_mutable_ops());
@@ -896,7 +891,6 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
     }
 
     ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
 
     if (params.constant_weight) {
         dnnl_impl::set_weight_bias_constant(subgraph->get_mutable_ops());
@@ -1395,7 +1389,6 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     }
 
     ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
 
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
     // reorder, matmul
@@ -1500,13 +1493,11 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
     ASSERT_EQ(dnnl_impl::binary_canonicalization(subgraph),
             impl::status::success);
     ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::insert_permute(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::insert_to_group_for_conv_or_deconv(subgraph),
             impl::status::success);
     ASSERT_EQ(dnnl_impl::infer_shape(subgraph), impl::status::success);
-    ASSERT_EQ(dnnl_impl::infer_type(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
     ASSERT_EQ(dnnl_impl::common_reorder_elimination(subgraph),
             impl::status::success);
