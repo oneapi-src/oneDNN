@@ -177,8 +177,12 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     // IC tail processing is not implemented yet for NHWC optimized kernels
     // TODO: implement it
+    // The use of NHWC optimized kernels
+    // is limited by XeHPG+ due to performance reasons
     conf.nhwc_optimized = conf.ic % 16 == 0
-            && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc);
+            && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
+            && compute_engine->device_info()->gpu_arch()
+                    >= compute::gpu_arch_t::xe_hpg);
 
     if (conf.nhwc_optimized) {
         conf.ic_block = get_nhwc_ic_block(utils::rnd_up(conf.ic, 16));
