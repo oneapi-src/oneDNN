@@ -115,6 +115,8 @@ typedef struct dt_conf_t {
 } _dt_conf_t[DAT_TOTAL];
 
 extern const _dt_conf_t conf_f32;
+extern const _dt_conf_t conf_f32_with_bf16_fpmath;
+extern const _dt_conf_t conf_f32_with_f19_fpmath;
 
 const dt_conf_t *str2cfg(const char *str);
 std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
@@ -199,6 +201,18 @@ struct prb_t : public desc_t {
     bool is_deconv;
 
     void count_ops();
+
+    const dt_conf_t &get_dt_conf(data_kind_t dk) const {
+        if (cfg == conf_f32) {
+            switch (attr.fpmath_mode) {
+                case dnnl_fpmath_mode_bf16:
+                    return conf_f32_with_bf16_fpmath[dk];
+                case dnnl_fpmath_mode_f19: return conf_f32_with_f19_fpmath[dk];
+                default: return cfg[dk];
+            }
+        }
+        return cfg[dk];
+    }
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 

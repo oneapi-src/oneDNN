@@ -41,6 +41,7 @@ dnnl_data_type_t str2dt(const char *str) {
     CASE(s8);
     CASE(u8);
     CASE(f64);
+    CASE(data_type_max);
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_data_type_undef", str))
         return dnnl_data_type_undef;
@@ -1080,3 +1081,4 @@ const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode) {
 const char *fpmath_mode2str(dnnl_fpmath_mode_t mode) {
     return dnnl_fpmath_mode2str(mode);
 }
+

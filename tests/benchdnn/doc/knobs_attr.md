@@ -20,8 +20,9 @@
 for details.
 
 `--attr-fpmath` specifies the fpmath mode to be used for benchmarking.
-`MATHMODE` values can be any of `strict` (the default), `bf16`, `f16` or `any`.
-Refer to [fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
+`MATHMODE` values can be any of `strict` (the default), `bf16`, `f16`, `f19`,
+or `any`. Refer to
+[fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
 for details.
 
 `--attr-oscale` defines output scale primitive attribute. `POLICY` specifies the
@@ -155,6 +156,7 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `exp_dst`
       - `gelu_erf`
       - `gelu_tanh`
+      - `hardsigmoid`
       - `hardswish`
       - `log`
       - `logistic`

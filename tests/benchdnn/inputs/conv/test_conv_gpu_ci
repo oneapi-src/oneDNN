@@ -17,7 +17,15 @@
 --attr-post-ops=
 --batch=shapes_basic_gpu
 
+## Fpmath-mode
+--dir=FWD_B,BWD_D,BWD_WB
+--cfg=f32
+--attr-fpmath=f19,bf16
+--attr-post-ops=,relu,sum:0.25+relu:0.5
+--batch=shapes_basic_gpu
+
 # Inference
+--reset
 --dir=FWD_I
 --attr-oscale=,common:0.25,per_oc:5,per_oc:5*
 

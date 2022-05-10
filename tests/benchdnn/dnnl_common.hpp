@@ -260,16 +260,16 @@ inline const engine_t &get_test_engine() {
     return instance;
 }
 
-// Engine used to run reference implementations (fast-ref-gpu option).
+// Engine used to run all reference native implementations and CPU
+// implementations used by `--fast-ref-gpu` option.
 inline const engine_t &get_cpu_engine() {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-    fprintf(stderr,
-            "CPU engine is not available for GPU only configurations\n");
-    SAFE_V(FAIL);
-    assert(!"unexpected");
-#endif
+    // In case of lacking CPU engine, just re-use testing one.
+    return get_test_engine();
+#else
     static const engine_t instance(dnnl_cpu);
     return instance;
+#endif
 }
 
 bool is_cpu(const dnnl_engine_t &engine = get_test_engine());

@@ -1,5 +1,14 @@
 # General Notes and Details
 
+**benchdnn** follows the concept of
+[state machine](https://en.wikipedia.org/wiki/Finite-state_machine).
+Command line options either common or driver-specific together with default
+option values form a set of states. Execution iterates over all states when a
+problem descriptor (or dimensions) is parsed. This means that options that are
+specified _after_ descriptor won't be applied for the previous descriptor, only
+for the next one if/when met. By default, each driver has the set of option
+values that results in a single state for a given problem descriptor.
+
 ## Return status
 
 Returns `1` if any submitted tests returned status `FAILED` or `UNIMPLEMENTED`,

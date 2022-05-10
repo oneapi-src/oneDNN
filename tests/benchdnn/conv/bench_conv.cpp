@@ -41,12 +41,14 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_zero_points : s.zero_points)
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for_(const auto &i_fpmath_mode : s.fpmath_mode)
     for (const auto &i_mb : s.mb) {
         attr_t attr;
         attr.insert(i_oscale);
         attr.insert(i_zero_points);
         attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
+        attr.insert(i_fpmath_mode);
         handle_legacy_attr(attr, s.attr);
 
         const prb_t prb(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
@@ -102,6 +104,8 @@ int bench(int argc, char **argv) {
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
+                || parse_attr_fpmath_mode(
+                        s.fpmath_mode, def.fpmath_mode, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv(), argv[0])

@@ -17,6 +17,8 @@
 #ifndef DNNL_MEMORY_HPP
 #define DNNL_MEMORY_HPP
 
+#include "oneapi/dnnl/dnnl.h"
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
 #include "oneapi/dnnl/dnnl_sycl.h"
 #endif

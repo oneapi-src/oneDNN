@@ -128,7 +128,7 @@ int fill_src(
     auto src_nelems = prb->desc_nelems(DNNL_ARG_SRC, src_nelems_mask);
     if (prb->has_groups) src_nelems /= prb->g; // groups are also independent
 
-    const auto &c = prb->cfg[SRC];
+    const auto &c = prb->get_dt_conf(SRC);
     const int range = c.f_max - c.f_min + 1;
     const float sparsity = src_nelems < 100 ? 1.f : c.f_sparsity;
 
@@ -162,12 +162,13 @@ int fill_src(
 
 int fill_wei(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool wino_s8 = prb->alg == WINO && prb->cfg[WEI].dt == dnnl_s8;
+    const bool wino_s8
+            = prb->alg == WINO && prb->get_dt_conf(WEI).dt == dnnl_s8;
     const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
 
     dnnl_data_type_t dt_check = dnnl_s8;
-#if DNNL_AARCH64
+#if defined(DNNL_AARCH64) && (DNNL_AARCH64 == 1)
     /* Note for x64:
     Both data types of src and weight are s8, oneDNN addds 128 to one of the s8
     input to make it of type u8 instead, as explained in
@@ -184,8 +185,8 @@ int fill_wei(
     if (res->impl_name.find("jit", 0) == 0) dt_check = dnnl_u8;
 #endif
 
-    const bool wei_x8x8
-            = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dt_check;
+    const bool wei_x8x8 = prb->get_dt_conf(WEI).dt == dnnl_s8
+            && prb->get_dt_conf(SRC).dt == dt_check;
     const bool check_reorder = (is_bench_mode(CORR)) && diff_data_type
             && !wino_s8 && !wei_x8x8 && is_def_zp;
 
@@ -195,7 +196,7 @@ int fill_wei(
     }
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
-    const auto &c = prb->cfg[WEI];
+    const auto &c = prb->get_dt_conf(WEI);
     const int range = c.f_max - c.f_min + 1;
 
     benchdnn_parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
@@ -246,7 +247,7 @@ int fill_bia(
     const size_t nelems = mem_00.nelems();
     if (nelems == 0) return OK;
 
-    const auto &c = prb->cfg[BIA];
+    const auto &c = prb->get_dt_conf(BIA);
     const int range = c.f_max - c.f_min + 1;
 
     for (size_t i = 0; i < nelems; ++i) {
@@ -317,7 +318,7 @@ int fill_dst(
             = sum_dt != dnnl_data_type_undef && sum_dt != dst_dt;
     bool sum_dt_is_int8 = sum_dt == dnnl_s8 || sum_dt == dnnl_u8;
 
-    const auto &c = prb->cfg[DST];
+    const auto &c = prb->get_dt_conf(DST);
     float f_min = c.f_min;
     float f_max = c.f_max;
     if (diff_sum_dst_types && sum_dt_is_int8) {
@@ -342,14 +343,14 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     dnnl_convolution_desc_t cd;
 
     auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
-            prb->cfg[SRC].dt, normalize_tag(prb->stag, prb->ndims));
+            prb->get_dt_conf(SRC).dt, normalize_tag(prb->stag, prb->ndims));
     auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
-            prb->wei_dims().data(), prb->cfg[WEI].dt,
+            prb->wei_dims().data(), prb->get_dt_conf(WEI).dt,
             normalize_tag(prb->wtag, prb->ndims + prb->has_groups));
     auto bia_d = dnn_mem_t::init_md(
-            1, prb->bia_dims().data(), prb->cfg[BIA].dt, tag::any);
+            1, prb->bia_dims().data(), prb->get_dt_conf(BIA).dt, tag::any);
     auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
-            prb->cfg[DST].dt, normalize_tag(prb->dtag, prb->ndims));
+            prb->get_dt_conf(DST).dt, normalize_tag(prb->dtag, prb->ndims));
 
     dnnl_alg_kind_t alg = dnnl_convolution_direct;
     if (prb->alg == WINO) alg = dnnl_convolution_winograd;
@@ -383,7 +384,7 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
     }
 
-    DNN_SAFE_STATUS(cd.accum_data_type == prb->cfg[ACC].dt
+    DNN_SAFE_STATUS(cd.accum_data_type == prb->get_dt_conf(ACC).dt
                     ? dnnl_success
                     : dnnl_unimplemented);
 
@@ -436,18 +437,19 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 
     skip_unimplemented_data_type(
-            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
-            res);
-    skip_unimplemented_sum_po(prb->attr, res, prb->cfg[DST].dt);
+            {prb->get_dt_conf(SRC).dt, prb->get_dt_conf(WEI).dt,
+                    prb->get_dt_conf(DST).dt},
+            prb->dir, res);
+    skip_unimplemented_sum_po(prb->attr, res, prb->get_dt_conf(DST).dt);
 
     if (is_cpu()) {
         // Specific configurations are not supported.
-        const bool is_f32_src = prb->cfg[SRC].dt == dnnl_f32;
-        const bool is_f32_wei = prb->cfg[WEI].dt == dnnl_f32;
-        const bool is_bf16_src = prb->cfg[SRC].dt == dnnl_bf16;
-        const bool is_bf16_wei = prb->cfg[WEI].dt == dnnl_bf16;
-        const bool is_int8_dst
-                = prb->cfg[DST].dt == dnnl_s8 || prb->cfg[DST].dt == dnnl_u8;
+        const bool is_f32_src = prb->get_dt_conf(SRC).dt == dnnl_f32;
+        const bool is_f32_wei = prb->get_dt_conf(WEI).dt == dnnl_f32;
+        const bool is_bf16_src = prb->get_dt_conf(SRC).dt == dnnl_bf16;
+        const bool is_bf16_wei = prb->get_dt_conf(WEI).dt == dnnl_bf16;
+        const bool is_int8_dst = prb->get_dt_conf(DST).dt == dnnl_s8
+                || prb->get_dt_conf(DST).dt == dnnl_u8;
         const bool is_f32f32x8 = is_f32_src && is_f32_wei && is_int8_dst;
         const bool is_bf16bf16x8 = is_bf16_src && is_bf16_wei && is_int8_dst;
 
@@ -489,12 +491,12 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const bool compare_with_norm = (prb->alg & WINO);
     cmp.set_norm_validation_mode(compare_with_norm);
 
-    float trh = prb->cfg[kind].eps;
+    float trh = prb->get_dt_conf(kind).eps;
     if ((prb->alg & WINO) && (prb->dir & FLAG_WEI)) {
         // This is an empirical equation derived by observing growth error with
         // increasing 'k' dimension in gemm of winograd
         const float log_const = log10(0.125 * prb->mb * prb->oh * prb->ow);
-        trh = prb->cfg[kind].eps * (MAX2(1, pow(10, 0.4 * log_const)));
+        trh = prb->get_dt_conf(kind).eps * (MAX2(1, pow(10, 0.4 * log_const)));
     }
     cmp.set_threshold(trh);
 

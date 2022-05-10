@@ -325,6 +325,8 @@ static po_table_entry_t kind_table[] = {
                 dnnl_eltwise_gelu_erf},
         {pk_t::GELU_TANH, {"gelu_tanh", "eltwise_gelu_tanh"},
                 dnnl_eltwise_gelu_tanh},
+        {pk_t::HARDSIGMOID, {"hardsigmoid", "eltwise_hardsigmoid"},
+                dnnl_eltwise_hardsigmoid},
         {pk_t::HARDSWISH, {"hardswish", "eltwise_hardswish"},
                 dnnl_eltwise_hardswish},
         {pk_t::LINEAR, {"linear", "eltwise_linear"}, dnnl_eltwise_linear},
@@ -833,6 +835,12 @@ dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str) {
 }
 
 dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
+    if (std::strcmp(str, "") == 0) {
+        dnnl_fpmath_mode_t ret;
+        dnnl_get_default_fpmath_mode(&ret);
+        return ret;
+    }
+
 #define CASE(fpm) \
     param = #fpm; \
     if (!strncasecmp(param, str, strlen(param))) return dnnl_fpmath_mode_##fpm;
@@ -842,6 +850,7 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
     CASE(strict);
     CASE(bf16);
     CASE(f16);
+    CASE(f19);
     CASE(any);
 
     assert(!"not expected");
@@ -1361,6 +1370,7 @@ float compute_eltwise_fwd(
         case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
         case pk_t::ROUND: return scale * round_fwd(src);
         case pk_t::HARDSWISH: return scale * hardswish_fwd(src);
+        case pk_t::HARDSIGMOID: return scale * hardsigmoid_fwd(src);
         case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
         case pk_t::TANH_DST: return scale * tanh_fwd(src);
         case pk_t::ELU_DST: return scale * elu_fwd(src, alpha);
@@ -1400,6 +1410,7 @@ float compute_eltwise_bwd(
         case pk_t::POW: return pow_bwd(d_dst, src, alpha, beta);
         case pk_t::GELU_ERF: return gelu_erf_bwd(d_dst, src);
         case pk_t::HARDSWISH: return hardswish_bwd(d_dst, src);
+        case pk_t::HARDSIGMOID: return hardsigmoid_bwd(d_dst, src);
 
         case pk_t::RELU_DST: return relu_bwd_use_dst(d_dst, src, alpha);
         case pk_t::TANH_DST: return tanh_bwd_use_dst(d_dst, src);

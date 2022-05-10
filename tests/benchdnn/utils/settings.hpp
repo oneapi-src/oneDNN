@@ -18,7 +18,9 @@
 #define UTILS_SETTINGS_HPP
 
 struct base_settings_t {
-    base_settings_t() = default;
+    base_settings_t() {
+        dnnl_get_default_fpmath_mode(&(this->fpmath_mode[0]));
+    };
 
     std::vector<int64_t> mb {0};
     std::vector<bool> inplace {false};

@@ -503,27 +503,27 @@ void skip_start(res_t *res) {
 void skip_unimplemented_data_type(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res) {
     bool has_bf16_support = is_gpu();
+    bool has_f64_support = is_gpu(); // f64 is supported on GPU only.
+    // f16 is supported on GPU and for inference only.
+    bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     using namespace dnnl::impl::cpu::platform;
+    // bf16 is supported on AVX512-CORE+
     has_bf16_support = has_bf16_support
             || (is_cpu() && has_data_type_support(dnnl_bf16));
 #endif
 
     for (const auto &i_dt : v_dt) {
-        // bf16 is supported on AVX512-CORE+
-        if (!has_bf16_support && i_dt == dnnl_bf16) {
-            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
-            break;
+        bool need_skip = false;
+        switch (i_dt) {
+            case dnnl_bf16: need_skip = !has_bf16_support; break;
+            case dnnl_f16: need_skip = !has_f16_support; break;
+            case dnnl_f64: need_skip = !has_f64_support; break;
+            default: break;
         }
-        // f16 is supported on GPU only
-        if (i_dt == dnnl_f16 && is_cpu()) {
+        if (need_skip) {
             res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
-            break;
-        }
-        // f16 is supported for inference only
-        if (i_dt == dnnl_f16 && (dir & FLAG_BWD)) {
-            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
-            break;
+            return;
         }
     }
 }

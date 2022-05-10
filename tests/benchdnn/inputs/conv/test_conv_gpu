@@ -1,12 +1,26 @@
 --reset
 
-# f32,f64
---cfg=f32,f64
+# f32
+--cfg=f32
 --mb=2,16
 --dir=FWD_B,BWD_D,BWD_WB
 --batch=set_gpu
 
+# f64
+--cfg=f64
+--mb=2,16
+--dir=FWD_B,BWD_D
+--batch=set_gpu
+
+# fpmath-mode
+--cfg=f32
+--mb=2,16
+--dir=FWD_B,BWD_D,BWD_WB
+--attr-fpmath=f19,bf16
+--batch=set_gpu
+
 # f16
+--reset
 --cfg=f16,f16f16f32
 --mb=2,16
 --dir=FWD_B

@@ -224,6 +224,7 @@ struct attr_t {
             GELU_ERF,
             GELU_TANH,
             HARDSWISH,
+            HARDSIGMOID,
             LINEAR,
             LOG,
             LOGISTIC,
