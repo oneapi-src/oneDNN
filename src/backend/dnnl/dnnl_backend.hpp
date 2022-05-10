@@ -30,6 +30,8 @@
 #include "utils/compatible.hpp"
 #include "utils/pm/pass_manager.hpp"
 
+#include "backend/dnnl/internal_ops.hpp"
+
 #include "common.hpp"
 #include "utils.hpp"
 
@@ -287,6 +289,14 @@ public:
      */
     kernel_ptr create_kernel(const impl::op_t &aop) {
         auto op_kind = aop.get_kind();
+
+        // This internal env var is used for test purpose. When setting
+        // _DNNL_GRAPH_USE_GENERAL_KERNEL to 1, all partitions will be
+        // dispatched to general kernel.
+        if (impl::utils::getenv_int_internal("USE_GENERAL_KERNEL", 0)) {
+            op_kind = dnnl_impl::op_kind::large_partition;
+        }
+
         std::lock_guard<std::mutex> lock(kernel_creator_f_map_.m_);
 
         auto pos = kernel_creator_f_map_.data_.find(op_kind);
