@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -256,6 +257,7 @@ private:
 
     static bool is_dpas(const stmt_t &s, dpas_info_t &info) {
         if (!is_func_call<dpas_t>(s)) return false;
+        if (dpas_t::is_dp4a_call(s)) return false;
         info = dpas_info_t(s);
         return true;
     }
@@ -451,7 +453,7 @@ private:
         auto &a_send = find_send_info(a.send_producer);
         auto new_send_args = a_send.args();
         send_t::arg_mem_off(new_send_args)
-                += (tg_idx0_ % 2) * to_cpp<int64_t>(a.src2_size() / 2);
+                += (tg_idx0_ % 2) * (a.src2_size() / 2);
         a_send.set_new_call(
                 create_half_send(a_send.send()).call(new_send_args));
 
@@ -487,9 +489,10 @@ stmt_t inject_atomic(const stmt_t &stmt) {
     auto stmt_vec = flatten_statements(stmt);
     for (size_t i = 0; i < stmt_vec.size(); i++) {
         bool ok = true;
-        ok &= is_func_call<dpas_t>(stmt_vec[i]);
-        ok &= (i + 1 < stmt_vec.size()
-                && is_func_call<dpas_t>(stmt_vec[i + 1]));
+        ok &= is_func_call<dpas_t>(stmt_vec[i]) // No atomics for DP4As!
+                && !dpas_t::is_dp4a_call(stmt_vec[i]);
+        ok &= (i + 1 < stmt_vec.size()) && is_func_call<dpas_t>(stmt_vec[i + 1])
+                && !dpas_t::is_dp4a_call(stmt_vec[i + 1]);
         if (ok) {
             auto &cur_src1 = dpas_t::arg_src1(stmt_vec[i]);
             auto &next_src1 = dpas_t::arg_src1(stmt_vec[i + 1]);
@@ -531,6 +534,35 @@ stmt_t inject_external_var_let(const stmt_t &_stmt) {
     trace_pass("inject_external_var_let", stmt);
     return stmt;
 }
+
+class slm_zp_mask_extractor_t : public ir_visitor_t {
+public:
+    slm_zp_mask_extractor_t(std::vector<stmt_t> &retn,
+            object_eq_set_t<expr_t> &bufs)
+        : retn_(retn), bufs_(bufs), outer_(true) {}
+
+    void _visit(const store_t &obj) override {
+        if (obj.buf.str().find("zp_mask") == 0) {
+            if (outer_) retn_.emplace_back(obj);
+            bufs_.insert(obj.buf);
+        }
+    }
+
+    void _visit(const let_t &obj) override {
+        if ((obj.var.str().find("zp_mask") == 0)) {
+            if (outer_) retn_.emplace_back(obj);
+            auto outer_prev = outer_;
+            outer_ = false;
+            visit(obj.body);
+            outer_ = outer_prev;
+        }
+    }
+
+private:
+    std::vector<stmt_t> &retn_;
+    object_eq_set_t<expr_t> &bufs_;
+    bool outer_;
+};
 
 class slm_buffer_merger_t : public ir_mutator_t {
 public:
@@ -1864,6 +1896,9 @@ public:
             // Cannot eliminate loop variable, break.
             if (contains_object(inc, loop_var)) break;
 
+            // Not scalar, break.
+            if (!store_value.type().is_scalar()) break;
+
             // Success, replace store by post-increment store.
             init_store_level = level;
 
@@ -2486,7 +2521,8 @@ public:
             auto &var = _let.as<let_t>().var;
             bool is_preload = (count_object(g2s_load_, var) > 0)
                     || (count_object(prefetch_, var) > 0);
-            bool is_mul = count_object(g2r_load_, var) > 0;
+            bool is_mul = count_object(g2r_load_, var) > 0
+                    || count_object(mul_, var) > 0;
             if (is_preload) preload_lets_.insert(_let);
             if (is_mul) mul_lets_.insert(_let);
         }
@@ -3130,9 +3166,10 @@ public:
                 auto sbid = get_sbid(send_t::arg_reg_buf(s), idx);
                 s = update_call_with_sbid(s, sbid);
             } else if (is_func_call<dpas_t>(s)) {
-                auto &attr = s.as<func_call_t>().attr;
-                auto *mod_attr = attr.as_ptr<instruction_modifier_attr_t>();
-                if (!mod_attr || !mod_attr->mod.is_atomic) {
+                auto &c = s.as<func_call_t>();
+                auto *mod_attr = c.attr.as_ptr<instruction_modifier_attr_t>();
+                if (!c.func.as<dpas_t>().is_dp4a() && // dp4a-s do not need SBID
+                        (!mod_attr || !mod_attr->mod.is_atomic)) {
                     // Last dpas in Atomic chain.
                     auto sbid = get_sbid(dpas_t::arg_src1(s));
                     s = update_call_with_sbid(s, sbid);
@@ -3318,6 +3355,14 @@ stmt_t inject_prefetch_pipeline(
     return ret;
 }
 
+stmt_t create_reorder_stmt(const layout_t &src, const layout_t &dst,
+        const expr_t &src_buf, const expr_t &dst_buf) {
+    ir_assert(src.ndims() == dst.ndims()) << "Layouts are incompatible.";
+    ir_assert(src.elems() == dst.elems()) << "Layouts are incompatible.";
+    auto func = reorder_t::make(src, dst);
+    return func.call({dst_buf, src_buf});
+}
+
 class simple_slm_buffering_injector_t {
 public:
     simple_slm_buffering_injector_t(ngen::HW hw, const stmt_t &root,
@@ -3400,6 +3445,13 @@ public:
 
         loop = remove_synchronization(loop);
 
+        object_eq_set_t<expr_t> mask_bufs;
+        std::vector<stmt_t> masks;
+
+        slm_zp_mask_extractor_t(masks, mask_bufs).visit(s2r_mul);
+        if (!mask_bufs.empty())
+            for (auto &m : masks) s2r_mul = substitute(s2r_mul, m, stmt_t());
+
         s2r_mul = sub_slm_bufs(s2r_mul, slm_idx_load(1, 1));
         g2s_store = sub_slm_bufs(g2s_store, slm_idx_load(0, 1));
         g2s_store = g2s_store.append(slm_idx_update);
@@ -3424,6 +3476,27 @@ public:
             s2r_mul_body = funcs::barrier_wait().append(s2r_mul_body);
         }
 
+        alloc_updater_t alloc_updater;
+
+        for (auto &mbuf : mask_bufs) {
+            auto sz = alloc_mgr_.alloc_size(mbuf);
+            alloc_updater.resize(mbuf, sz * cfg_.slm_bufs);
+            for (auto &m : masks)
+                m = substitute(m, mbuf, mbuf[sz * (cfg_.slm_bufs - 1)]);
+            layout_t comp_layout(type_t::u8(), 0, std::vector<dim_t>{sz});
+            for (int b = 1; b < cfg_.slm_bufs; b++) {
+                auto reorder = create_reorder_stmt(comp_layout, comp_layout,
+                        mbuf + b * sz, mbuf + (b - 1) * sz);
+                s2r_mul_body = s2r_mul_body.append(reorder);
+                if ((cfg_.slm_bufs == 3) && (b == 1))
+                    s2r_mul_tail = s2r_mul_tail.append(reorder);
+            }
+        }
+        if (!mask_bufs.empty()) {
+            stmt_t all_masks;
+            for (auto &m : masks) all_masks = all_masks.append(m);
+            s2r_mul_body = all_masks.append(s2r_mul_body);
+        }
         loop = substitute(
                 loop, g2s_store_orig, s2r_mul_body.append(g2s_store), 1);
 
@@ -3435,11 +3508,19 @@ public:
         // Complete the remaining iterations.
         int rem_iters = cfg_.slm_bufs - 1;
         int mul_start = std::max(0, rem_iters - loop_nest_.size());
+        multi_loop_iterator_t multi(loop_nest_.loops());
+        multi.advance(loop_nest_.size() - rem_iters + mul_start);
         for (int i = 0; i < rem_iters; i++) {
             if (cfg_.slm_bufs == 3) loop = loop.append(funcs::barrier_wait());
             if (i >= mul_start) {
+                auto tmp_mul_tail = s2r_mul_tail;
+                loop_nest_.for_each_loop_var([&](const expr_t &v) {
+                            expr_t iter(multi.var_value(v));
+                            tmp_mul_tail = substitute(tmp_mul_tail, v, iter);
+                        });
                 // SLM load/multiplication works as implicit SLM fence.
-                loop = loop.append(s2r_mul_tail);
+                loop = loop.append(tmp_mul_tail);
+                multi.advance();
             } else {
                 loop = loop.append(funcs::slm_fence());
             }
@@ -3452,8 +3533,6 @@ public:
 
         const auto grf_size = ngen::GRF::bytes(hw_);
         loop = alloc_t::make(slm_idx_buf, grf_size, alloc_kind_t::grf, loop);
-
-        alloc_updater_t alloc_updater;
 
         auto slm_buffers = alloc_mgr_.find_buffers(alloc_kind_t::slm);
         ir_assert(slm_buffers.size() == 1);
@@ -3763,6 +3842,9 @@ private:
             g2s_load = const_fold(substitute(g2s_load, v, preload_var_value));
             g2s_store = const_fold(substitute(g2s_store, v, preload_var_value));
             prefetch = const_fold(substitute(prefetch, v, preload_var_value));
+            for (auto &m : mul) {
+                m = const_fold(substitute(m, v, mul_var_value));
+            }
             for (auto &s : g2r_load) {
                 s = const_fold(substitute(s, v, mul_var_value));
             }
@@ -3913,7 +3995,7 @@ private:
         object_eq_set_t<expr_t> seen_dst;
         stmt_t ret = stmt;
         for (auto &s : stmt_vec) {
-            if (is_func_call<dpas_t>(s)) {
+            if (is_func_call<dpas_t>(s) && !dpas_t::is_dp4a_call(s)) {
                 auto &call = s.as<func_call_t>();
 
                 auto &dst = dpas_t::arg_dst(s);
@@ -4669,14 +4751,6 @@ stmt_t inject_dp4a(const stmt_t &s) {
     auto ret = dp4a_injector_t().mutate(s);
     trace_pass("inject_dp4a", ret);
     return ret;
-}
-
-stmt_t create_reorder_stmt(const layout_t &src, const layout_t &dst,
-        const expr_t &src_buf, const expr_t &dst_buf) {
-    ir_assert(src.ndims() == dst.ndims()) << "Layouts are incompatible.";
-    ir_assert(src.elems() == dst.elems()) << "Layouts are incompatible.";
-    auto func = reorder_t::make(src, dst);
-    return func.call({dst_buf, src_buf});
 }
 
 stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
@@ -5940,6 +6014,8 @@ public:
 
     const layout_t &c_layout() const { return c_layout_; }
 
+    bool do_transpose() const { return do_transpose_; }
+
     std::string str() const {
         std::ostringstream oss;
         oss << "A view:    " << a_view_ << std::endl;
@@ -6463,7 +6539,7 @@ public:
             b_reduce_context_t &b_reduce_ctx, const expr_t &ap_buf,
             const expr_t &a_slm_buf, const expr_t &bp_buf,
             const expr_t &b_slm_buf, const view_t &ap_x_view,
-            const view_t &bp_x_view)
+            const view_t &bp_x_view, const kernel_info_t &kernel_info)
         : cfg_(cfg)
         , ir_ctx_(ir_ctx)
         , cset_(cset)
@@ -6472,7 +6548,8 @@ public:
         , ap_buf_(ap_buf)
         , a_slm_buf_(a_slm_buf)
         , bp_buf_(bp_buf)
-        , b_slm_buf_(b_slm_buf) {
+        , b_slm_buf_(b_slm_buf)
+        , kernel_info_(kernel_info) {
         ir_assert(cfg_.a_sub_tiles == 1 || cfg_.b_sub_tiles == 1)
                 << "At most one tensor can be tiled.";
 
@@ -6592,6 +6669,254 @@ private:
         c_reg_layout_ = c_layout;
     }
 
+    expr_t vector2expr(const std::vector<expr_t> &expr,
+            object_eq_map_t<expr_t, expr_t> &vars) {
+        const size_t mask = 0x8000;
+        auto hash = [](const binary_op_t &b) -> size_t {
+            return size_t(b.op_kind) | ((b.b.is<int_imm_t>()) ? mask : 0UL);
+        };
+        if (expr.empty()) return expr_t();
+        // Can only vectorize if the element count is a power of 2
+        ir_assert(math::is_pow2(expr.size())) << "Cannot vectorize.";
+
+        std::unordered_map<size_t, size_t> kind;
+        for (const expr_t &e : expr)
+            if (const auto *bin = e.as_ptr<binary_op_t>()) kind[hash(*bin)]++;
+        if (!kind.empty()) {
+            using k_type = decltype(kind)::value_type;
+            auto k = std::max_element(kind.begin(), kind.end(),
+                    [](k_type &a, k_type &b) { return a.second < b.second; });
+            const auto k_raw = op_kind_t(k->first & (mask - 1));
+            std::vector<expr_t> a, b;
+            for (const expr_t &e : expr) {
+                const auto *bin = e.as_ptr<binary_op_t>();
+                if (bin && (hash(*bin) == k->first)) {
+                    a.emplace_back(bin->a);
+                    b.emplace_back(bin->b);
+                } else {
+                    const int is_mul = (k_raw == op_kind_t::_mul);
+                    ir_assert(is_mul || (k_raw == op_kind_t::_add));
+                    a.emplace_back(e);
+                    b.emplace_back(is_mul);
+                }
+            }
+            auto a_new = vector2expr(a, vars);
+            auto b_new = vector2expr(b, vars);
+            return binary_op_t::make(k_raw, a_new, b_new);
+        }
+
+        size_t num_ints = 0;
+        for (const expr_t &e : expr) num_ints += e.is<int_imm_t>();
+        ir_assert((num_ints == 0) || (num_ints == expr.size()));
+        if (num_ints == expr.size()) {
+            auto offs = shuffle_t::make(expr);
+            if (offs.as<shuffle_t>().is_broadcast()) return offs;
+            if (vars.find(offs) == vars.end()) {
+                auto var = ir_ctx_.create_tmp_var(
+                        type_t::s32(num_ints), "zp_mask");
+                vars.emplace(offs, var);
+            }
+            return vars[offs];
+        }
+
+        size_t num_bools = 0;
+        for (const expr_t &e : expr) num_bools += e.is<bool_imm_t>();
+        ir_assert((num_bools == 0) || (num_bools == expr.size()));
+        if (num_bools == expr.size()) return shuffle_t::make(expr);
+
+        ir_assert(expr.front().is<var_t>());
+        for (const expr_t &e : expr) ir_assert(e.is_same(expr.front()));
+        return shuffle_t::make_broadcast(expr.front(), expr.size());
+    }
+
+    stmt_t maybe_add_src_zps(const view_t &a_view, const view_t &b_view,
+            bool is_transposed) {
+        if (!cfg_.zp_cfg.do_src_compensation) return stmt_t();
+        stmt_t retn;
+        const int m_blk = cfg_.simd_size();
+        const int ic = utils::rnd_up_pow2(cfg_.ic);
+        const bool is_runtime = cfg_.zp_cfg.is_runtime_src_zero_points;
+        const bool is_scalar = cfg_.zp_cfg.is_common_src_zero_point;
+        ir_assert(cfg_.fma_kind != fma_kind_t::mad);
+
+        type_t s_type = b_view.type();
+        type_t d_type = (s_type.is_s8()) ? type_t::s32() : type_t::u32();
+        ir_assert(s_type.is_x8());
+
+        const int vd_size = m_blk * ((is_scalar) ? 2 : 4);
+        auto src_zp = ir_ctx_.create_tmp_var(type_t::byte_ptr());
+        auto acc = src_zp[(vd_size - m_blk) * d_type.size()];
+        register_buffer(src_zp, vd_size * d_type.size(), alloc_kind_t::grf);
+
+        auto tile = gemm_schedule_.a_thr_tile(/*is_relative=*/false);
+        auto a_thr_view = gemm_schedule_.a_view().create_sub_view(tile);
+        auto a_layout = gemm_schedule_.bmnk_mapper().map_to_bmnk(abc_kind_t::a,
+                {bmnk_kind_t::m, bmnk_kind_t::k}, a_view.create_vlayout());
+        auto b_layout = gemm_schedule_.bmnk_mapper().map_to_bmnk(abc_kind_t::b,
+                {bmnk_kind_t::k, bmnk_kind_t::n}, b_view.create_vlayout());
+        if (is_transposed) {
+            a_layout = a_layout.transpose();
+            b_layout = b_layout.transpose();
+            std::swap(a_layout, b_layout);
+        }
+        multiply_desc_t desc(a_layout, b_layout, true);
+
+        bool need_masks = (cfg_.kd * cfg_.kh * cfg_.kw > 1) ||
+            ((cfg_.pd + 1) * (cfg_.ph + 1) * (cfg_.pw + 1) > 1);
+        bool scalar_masks =
+            (tile.dims()[3] * tile.dims()[4] * tile.dims()[5] == 1);
+        auto zp_mask = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "zp_mask");
+        auto var_mask = ir_ctx_.create_tmp_var(type_t::_bool(m_blk));
+
+        if (need_masks) {
+            std::vector<dim_t> a_dims(a_thr_view.vvars().size(), 1);
+            std::vector<dim_t> c_dims(c_sub_tile_layout_.ndims(), 1);
+            ir_assert((a_dims.size() > 2) && (c_dims.size() > 2));
+            a_dims[2] = c_dims[2] = std::min(m_blk, ic);
+
+            std::vector<int> c_to_a(a_dims.size());
+            for (size_t i = 0; i < c_to_a.size(); i++) {
+                const auto &c_vvars = gemm_schedule_.c_view().vvars();
+                for (size_t j = 0; j < c_vvars.size(); j++) {
+                    if (a_thr_view.vvars()[i].is_equal(c_vvars[j])) {
+                        c_to_a[i] = j + 1;
+                        break;
+                    }
+                }
+            }
+            auto mask_tensor = a_thr_view.create_mask_tensor(cset_);
+            mask_tensor_t masks(layout_t(type_t::_bool(), 0,
+                        std::vector<dim_t>{desc.n() * desc.m() / m_blk}));
+            c_sub_tile_layout_.for_each_tile(tensor_t(c_dims),
+                    [&](const std::vector<dim_t> &start) {
+                        std::vector<dim_t> a_start;
+                        std::transform(c_to_a.begin(), c_to_a.end(),
+                                std::back_inserter(a_start),
+                                [&](int i) { return (i) ? start[i - 1] : 0; });
+                        tensor_t a_tensor(a_dims, a_start);
+                        masks.set_mask(c_sub_tile_layout_.offset(start) / m_blk,
+                                mask_tensor.map(a_tensor).to_expr(1));
+                    });
+
+            ir_assert(math::is_pow2(masks.elems()));
+            int ntrue = 0;
+            for (int n = 0; n < desc.n(); n++)
+                ntrue += masks.mask(n).is_equal(expr_t(true));
+            if (ntrue == desc.n()) {
+                need_masks = false;
+            } else if (!scalar_masks) {
+                std::vector<expr_t> exprs;
+                object_eq_map_t<expr_t, expr_t> vars;
+                ir_assert((desc.n() % m_blk == 0) || (m_blk % desc.n() == 0));
+
+                // Here we assume two important things:
+                // - C has exactly one N block like 4c16f8c (where f is ow)
+                // - The innermost block is by M and it matches the SIMD size
+
+                for (int n = 0; n < desc.n(); n += m_blk) {
+                    std::vector<expr_t> e;
+                    int ntrue = 0, nfalse = 0;
+                    for (int m = 0; m < m_blk; m++) {
+                        e.emplace_back(masks.mask((n + m) % masks.elems()));
+                        if (e[m].is<bool_imm_t>()) {
+                            ((e[m].as<bool_imm_t>().value) ? ntrue : nfalse)++;
+                        }
+                    }
+                    ir_assert((ntrue == 0) || (ntrue + nfalse == m_blk));
+                    if ((ntrue == 0) && (nfalse > 0) && (nfalse < m_blk)) {
+                        auto nb = *std::find_if(e.begin(), e.end(),
+                                [](expr_t &x) { return !x.is<bool_imm_t>(); });
+                        for (int m = 0; m < m_blk; m++) {
+                            e[m] = (e[m].is<bool_imm_t>()) ?
+                                (nb & expr_t(false)) : (e[m] & expr_t(true));
+                        }
+                    }
+                    exprs.emplace_back(vector2expr(e, vars));
+                }
+
+                const int sz = m_blk * type_t::s16().size();
+                const int total = (scalar_masks) ? 1 : exprs.size();
+                register_buffer(zp_mask, total * sz, alloc_kind_t::grf);
+                for (int i = 0; i < total; i++) {
+                    auto store = store_t::make(zp_mask, i * sz,
+                            -cast_t::make(type_t::s16(m_blk), exprs[i]));
+                    retn = retn.append(store);
+                }
+                for (auto &v : vars)
+                    retn = let_t::make(v.second, v.first, retn);
+            } else { // scalar_masks == true
+                register_buffer(zp_mask, type_t::s16().size(),
+                        alloc_kind_t::grf);
+                auto expr = -cast_t::make(type_t::s16(), masks.mask(0));
+                retn = retn.append(store_t::make(zp_mask, 0, expr));
+            }
+        }
+
+        const std::vector<dim_t> dims =
+            {m_blk * ((is_scalar || (ic <= m_blk)) ? 1 : 2)};
+        const bool tiny_ic = (ic <= dims[0]);
+        const bool sc_ic = is_scalar || tiny_ic;
+        expr_t offs = (!sc_ic) ? a_thr_view.vstart(2) * d_type.size() : 0;
+        if (is_runtime && !sc_ic &&
+                !cfg_.do_pipeline_unroll && (cfg_.slm_bufs > 1)) {
+            auto buf = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "zp_mask");
+            register_buffer(buf, type_t::u32().size(), alloc_kind_t::grf);
+            retn = retn.append(store_t::make(buf, 0, offs));
+            offs = load_t::make(type_t::u32(), buf, 0);
+        }
+        for (int i = (is_runtime) ? 0 : std::numeric_limits<int>::max();
+                i < dims[0] * ((!sc_ic) ? 2 : 1); i += dims[0]) {
+            const int b = i * d_type.size();
+            view_t zpv(layout_t(d_type, 0, dims));
+            auto acc = make_access_builder(cfg_.hw(), ir_ctx_, cset_, zpv,
+                    kernel_info_.find_arg("src_zero_points")[offs + b],
+                    src_zp[b], send_op_t::load, send_address_t::a64);
+            retn = retn.append(acc.stmt());
+        }
+        if (is_scalar) {
+            expr_t expr = (!is_runtime)
+                ? (cfg_.zp_cfg.common_src_zero_point & 0xFF) * 0x01010101
+                : cast_t::make(type_t::s8(4), shuffle_t::make_broadcast(
+                            load_t::make(s_type, src_zp, 0), 4));
+            retn = retn.append(store_t::make(src_zp, 0, expr));
+        } else {
+            auto ic_s = std::to_string(std::min(32, ic)) + "a";
+            retn = retn.append(create_reorder_stmt(
+                        layout_t(s_type, 0, ic_s + "4b"),
+                        layout_t(s_type, 0, "4b" + ic_s), src_zp, src_zp));
+        }
+        auto _dp4a = dpas_t::make(
+                /*is_dpasw=*/false, m_blk, 1, 1, d_type, d_type, d_type);
+        auto &dp4a = _dp4a.as<dpas_t>();
+        stmt_t loop;
+
+        auto word2bool = [m_blk](expr_t &expr, int off) {
+            auto load = load_t::make(type_t::u16(), expr, off);
+            return cast_t::make(type_t::_bool(m_blk), load);
+        };
+        for (int i_m = 0; i_m < desc.m(); i_m += m_blk) {
+            for (int i_k = 0; i_k < ((!tiny_ic) ? 32 / 4 : cfg_.kw); i_k++) {
+                auto wei = b_buf_ +
+                    (i_m * (32 / 4) + i_k * m_blk) * d_type.size();
+                loop = loop.append(dp4a(acc, (i_k) ? acc : 0, wei,
+                            src_zp[(!sc_ic) ? i_k * d_type.size() : 0]));
+            }
+            for (int i_n = 0; i_n < desc.n(); i_n++) {
+                const int off_n = i_m / m_blk * desc.n() + i_n;
+                auto dst = c_buf_ + off_n * m_blk * d_type.size();
+                auto mask = (!need_masks) ? expr_t() :
+                    (scalar_masks) ? var_mask : word2bool(zp_mask, i_n * 2);
+                type_t vd(d_type.kind(), m_blk);
+                auto sub = binary_op_t::make(op_kind_t::_sub,
+                        load_t::make(vd, dst, 0), load_t::make(vd, acc, 0));
+                loop = loop.append(store_t::make(dst, 0, sub,
+                            store_t::default_stride, mask));
+            }
+        }
+        return retn.append((need_masks && scalar_masks) ?
+                let_t::make(var_mask, word2bool(zp_mask, 0), loop) : loop);
+    }
+
     void build_sub_tile(int i, int j) {
         bool is_first = (i == 0 && j == 0);
 
@@ -6612,12 +6937,16 @@ private:
         multiply_builder_t mul_builder(cfg_, gemm_schedule_.bmnk_mapper(),
                 a_i_view, b_j_view, a_buf_, b_buf_, c_buf_[c_buf_off_]);
         c_sub_tile_layout_ = mul_builder.c_layout();
+
+        auto zero_pts = maybe_add_src_zps(a_i_view, b_j_view,
+                mul_builder.do_transpose());
+
         c_buf_off_ += c_sub_tile_layout_.size();
         ir_trace() << "Multiply (" << i << ", " << j << "):\n"
-                   << mul_builder.str() << std::endl;
+                   << mul_builder.str() << zero_pts.str() << std::endl;
 
         load_mul_stmt_ = load_mul_stmt_.append(stmt_group_t::make(
-                stmt_label_t::mul(i + j), mul_builder.stmt()));
+                stmt_label_t::mul(i + j), mul_builder.stmt().append(zero_pts)));
 
         if (!is_first) {
             ir_assert(mul_builder.c_layout() == c_sub_tile_layout_)
@@ -6818,17 +7147,20 @@ private:
 
     int c_buf_off_ = 0;
     layout_t c_sub_tile_layout_;
+
+    const kernel_info_t &kernel_info_;
 };
 
 class compute_builder_t {
 public:
     compute_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
-            constraint_set_t &cset)
+            constraint_set_t &cset, const kernel_info_t &kernel_info)
         : cfg_(cfg)
         , ir_ctx_(ir_ctx)
         , cset_(cset)
         , b_reduce_ctx_(cfg)
-        , g2s_ctx_(ir_ctx) {}
+        , g2s_ctx_(ir_ctx)
+        , kernel_info_(kernel_info) {}
 
     int ab_slm_size() const { return ab_slm_size_; }
 
@@ -6929,7 +7261,7 @@ public:
 
         load_multiply_builder_t load_mul_builder(cfg_, ir_ctx_, cset_,
                 gemm_schedule_, b_reduce_ctx_, ap_buf_, a_slm_buf, bp_buf_,
-                b_slm_buf, ap_x_view, bp_x_view);
+                b_slm_buf, ap_x_view, bp_x_view, kernel_info_);
 
         load_mul_stmt_ = load_mul_builder.load_mul_stmt();
         compute_allocs_.insert(compute_allocs_.end(),
@@ -7349,6 +7681,8 @@ private:
 
     stmt_t b_reduced_zero_out_stmt_;
     stmt_t b_reduced_store_stmt_;
+
+    const kernel_info_t &kernel_info_;
 };
 
 class compute_loop_label_injector_t : public ir_mutator_t {
@@ -7448,7 +7782,7 @@ void kernel_builder_t::build() {
     gemm_schedule.finalize();
 
     post_op_context_t post_op_ctx(pd_, cfg_, gemm_schedule, kernel_info_);
-    compute_builder_t cb(cfg_, ir_ctx, init_cset);
+    compute_builder_t cb(cfg_, ir_ctx, init_cset, kernel_info_);
 
     cb.set_gemm_schedule(gemm_schedule);
     cb.set_ap_buf(ap_buf);

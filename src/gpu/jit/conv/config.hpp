@@ -390,6 +390,10 @@ public:
     bool zero_points_ok(const convolution_pd_t *pd) const {
         auto *attr = pd->attr();
 
+        // TODO: implement masks for (IC <= 4) && (KDHW > 1), remove this 'if'
+        bool ic_kdhw = (pd->IC() <= 4) && (pd->KD() * pd->KH() * pd->KW() > 1);
+        if (!attr->zero_points_.has_default_values() && ic_kdhw) return false;
+
         using namespace data_type;
         const auto src_type = pd->invariant_src_md()->data_type;
         int mask_src = 0, mask_dst = 0;
@@ -665,24 +669,6 @@ public:
         bool is_common_dst_zero_point;
         int common_src_zero_point;
         int common_dst_zero_point;
-
-        std::string wei_tag;
-
-        int ic_block, oc_block;
-        int ic_inner, oc_inner;
-        int ic_outer, oc_outer;
-        int icb, ocb;
-        int ow_block;
-
-        struct {
-            bool run;
-            bool is_edge;
-            memory_desc_t md;
-            size_t scratch_size;
-
-            size_t gws[3];
-            size_t lws[3];
-        } common, edge;
     } zp_cfg;
 
     // Sub-tiles to split into for the inner A x B multiplication:
@@ -812,19 +798,13 @@ private:
 
     status_t init_extra_tensor_layouts(const convolution_pd_t *conv_pd) {
         auto *attr = conv_pd->attr();
-        if (zp_cfg.do_src_compensation) {
-            if (zp_cfg.common.run) {
-                auto layout = make_layout(zp_cfg.common.md);
-                tensor_config.add_tensor("src_compensation_common",
-                        /*arg_key=*/-1,
-                        /*is_input=*/true, /*is_output=*/false, layout);
-            }
-            if (zp_cfg.edge.run) {
-                auto layout = make_layout(zp_cfg.edge.md);
-                tensor_config.add_tensor("src_compensation_edge",
-                        /*arg_key=*/-1,
-                        /*is_input=*/true, /*is_output=*/false, layout);
-            }
+        if (zp_cfg.do_src_compensation && zp_cfg.is_runtime_src_zero_points) {
+            int zp_ic = (zp_cfg.is_common_src_zero_point) ? 1 : ic;
+            std::vector<dim_t> dims = {zp_ic};
+            layout_t zp_layout(type_t::s32(), 0, dims);
+            int arg_key = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC;
+            tensor_config.add_tensor("src_zero_points", arg_key,
+                    /*is_input=*/true, /*is_output=*/false, zp_layout);
         }
         if (zp_cfg.do_dst_compensation && zp_cfg.is_runtime_dst_zero_points) {
             std::vector<dim_t> dims = {oc};

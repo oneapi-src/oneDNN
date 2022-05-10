@@ -256,21 +256,6 @@ public:
         auto c = add_tensor(/*is_input=*/false, /*is_output=*/false, cp_view_,
                 expr_t(), var_t::make(type_t::f32(), "c"));
 
-        // Handle src zero points.
-        const auto &zp_cfg = cfg.zp_cfg;
-        if (zp_cfg.do_src_compensation && zp_cfg.common.run) {
-            auto view = create_view(zp_cfg.common.md);
-            auto buf = kernel_info.find_arg("src_compensation_common");
-            auto in = add_input_tensor(view, buf);
-            post_ops_.emplace_back(c, c - in);
-        }
-        if (zp_cfg.do_src_compensation && zp_cfg.edge.run) {
-            auto view = create_view(zp_cfg.edge.md);
-            auto buf = kernel_info.find_arg("src_compensation_edge");
-            auto in = add_input_tensor(view, buf);
-            post_ops_.emplace_back(c, c + in);
-        }
-
         // Handle bias.
         if ((pd->is_fwd() || pd->is_bwd_d()) && pd->with_bias()) {
             uint32_t mask = normalize_mask(1 << 1); // Per-channel mask.

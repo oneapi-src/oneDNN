@@ -190,16 +190,6 @@ public:
                                 primitive, engine, cfg.hw_cfg.hw(), cfg,
                                 primitive->pd(), info));
                         break;
-                    case kernel_id_t::compensation_common:
-                        kernels_.push_back(make_kernel<compensation_kernel_t>(
-                                primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                primitive->pd(), info, false));
-                        break;
-                    case kernel_id_t::compensation_edge:
-                        kernels_.push_back(make_kernel<compensation_kernel_t>(
-                                primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                primitive->pd(), info, true));
-                        break;
                     default: ir_error_not_expected();
                 }
                 if (!kernels_[i]) return status::runtime_error;
@@ -313,38 +303,6 @@ private:
                     } else {
                         conv_info.register_resource_arg(make_buffer(t.name));
                     }
-                } else if (t.name == "src_compensation_common"
-                        || t.name == "src_compensation_edge") {
-                    compute_arg_key = int(scratchpad_key);
-                    scratchpad.book(scratchpad_key, compute_size, 1,
-                            ocl::OCL_BUFFER_ALIGNMENT);
-                    conv_info.register_scratchpad_arg(compute_buf,
-                            compute_arg_key,
-                            /*is_input=*/true, compute_size);
-                    scratchpad_key++;
-
-                    const auto &dispatch = (t.name == "src_compensation_common")
-                            ? cfg.zp_cfg.common
-                            : cfg.zp_cfg.edge;
-                    const auto kernel_id = (t.name == "src_compensation_common")
-                            ? kernel_id_t::compensation_common
-                            : kernel_id_t::compensation_edge;
-                    auto &comp_info = create_kernel_info(pd, kernel_id);
-                    if (cfg.zp_cfg.is_runtime_src_zero_points)
-                        comp_info.register_user_arg(make_buffer("src"),
-                                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC,
-                                /*is_input=*/true);
-                    else
-                        comp_info.register_internal_arg(
-                                var_t::make(type_t::u32(), "src"), uint32_t(0));
-                    comp_info.register_user_arg(make_buffer("wei"),
-                            DNNL_ARG_WEIGHTS,
-                            /*is_input=*/true);
-                    comp_info.register_scratchpad_arg(make_buffer("dst"),
-                            compute_arg_key,
-                            /*is_input=*/true, compute_size);
-                    comp_info.set_nd_range(
-                            compute::nd_range_t(dispatch.gws, dispatch.lws));
                 } else {
                     ir_error_not_expected();
                 }

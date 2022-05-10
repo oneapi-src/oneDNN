@@ -74,8 +74,6 @@ enum class kernel_id_t {
     pre_reorder,
     post_reorder,
     zero_out,
-    compensation_common,
-    compensation_edge,
 };
 
 // Kernel information, includes:
@@ -102,8 +100,6 @@ public:
             case kernel_id_t::pre_reorder: return 0;
             case kernel_id_t::post_reorder: return 2;
             case kernel_id_t::zero_out: return 0;
-            case kernel_id_t::compensation_common: return 0;
-            case kernel_id_t::compensation_edge: return 0;
             default: ir_error_not_expected();
         }
         return -1;

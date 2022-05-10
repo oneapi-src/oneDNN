@@ -1510,6 +1510,7 @@ public:
 
     object_t _mutate(const store_t &obj) override {
         auto new_obj = ir_mutator_t::_mutate(obj);
+        if (new_obj.is_empty()) return stmt_t();
 
         auto &store = new_obj.as<store_t>();
         if (!store.value.is<load_t>()) return new_obj;

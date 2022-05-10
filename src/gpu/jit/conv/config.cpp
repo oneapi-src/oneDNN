@@ -259,7 +259,8 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
 
     CHECK(init_zero_points_config(conv_pd));
 
-    if (kd * kh * kw > 9) do_pipeline_unroll = false;
+    const int max_unroll = (zp_cfg.do_src_compensation) ? 3 : 9;
+    if (kd * kh * kw > max_unroll) do_pipeline_unroll = false;
     if (is_small_ic()) {
         reuse_headers = true;
         do_pipeline_unroll = false;
@@ -723,9 +724,6 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     user_dst_tag = ir_utils::getenv_str("user_dtag", user_dst_tag);
 #endif
 
-    // Set weights layout for compensation kernel
-    zp_cfg.wei_tag = wei_tag;
-
     // If src/dst is nhwc then set the other one with any to nhwc too.
     if (matches_tag(src_md, "axb") || matches_tag(dst_md, "axb")) {
         set_default_format(src_md, "axb");
@@ -829,93 +827,6 @@ status_t conv_config_t::init_zero_points_config(convolution_pd_t *conv_pd) {
     zp_cfg.common_dst_zero_point = attr->zero_points_.defined(DNNL_ARG_DST)
             ? *attr->zero_points_.get(DNNL_ARG_DST)
             : 0;
-
-    if (zp_cfg.do_src_compensation) {
-        const auto &dst_md = *conv_pd->invariant_dst_md();
-
-        format_tag_t comp_tag;
-        if (zp_cfg.wei_tag == "ABx4a8b8a4b"
-                || zp_cfg.wei_tag == prepend_groups_to_tag("ABx4a8b8a4b")) {
-            zp_cfg.ic_block = 32;
-            zp_cfg.oc_block = 32;
-            zp_cfg.ic_inner = 4;
-            zp_cfg.oc_inner = 8;
-            zp_cfg.ic_outer = 8;
-            zp_cfg.oc_outer = 4;
-            if (g > 1 && oc % 32 != 0) return status::unimplemented;
-            comp_tag = utils::pick(dst_md.ndims - 3, format_tag::nCw32c,
-                    format_tag::nChw32c, format_tag::nCdhw32c);
-        } else if (zp_cfg.wei_tag == "ABx2a8b16a4b"
-                || zp_cfg.wei_tag == prepend_groups_to_tag("ABx2a8b16a4b")) {
-            zp_cfg.ic_block = 32;
-            zp_cfg.oc_block = 32;
-            zp_cfg.ic_inner = 4;
-            zp_cfg.oc_inner = 16;
-            zp_cfg.ic_outer = 8;
-            zp_cfg.oc_outer = 2;
-            if (g > 1 && oc % 32 != 0) return status::unimplemented;
-            comp_tag = utils::pick(dst_md.ndims - 3, format_tag::nCw32c,
-                    format_tag::nChw32c, format_tag::nCdhw32c);
-        } else if (zp_cfg.wei_tag == "ABx8a4b"
-                || zp_cfg.wei_tag == prepend_groups_to_tag("ABx8a4b")) {
-            zp_cfg.ic_block = zp_cfg.ic_inner = 4;
-            zp_cfg.oc_block = zp_cfg.oc_inner = 8;
-            zp_cfg.ic_outer = zp_cfg.oc_outer = 1;
-            if (g > 1 && oc % 8 != 0) return status::unimplemented;
-            comp_tag = utils::pick(dst_md.ndims - 3, format_tag::nCw8c,
-                    format_tag::nChw8c, format_tag::nCdhw8c);
-        } else {
-            ir_warning() << "Unsupported weights tag for zero points: "
-                         << zp_cfg.wei_tag << "\n";
-            return status::unimplemented;
-        }
-
-        zp_cfg.icb = utils::div_up(ic, zp_cfg.ic_block);
-        zp_cfg.ocb = utils::div_up(oc, zp_cfg.oc_block);
-        zp_cfg.ow_block = 8;
-
-        const bool is_1x1 = (kw * kh * kd == 1)
-                && (iw == ow && ih == oh && id == od)
-                && (pw == 0 && ph == 0 && pd == 0);
-        zp_cfg.common.run = true;
-        zp_cfg.common.is_edge = false;
-        zp_cfg.common.md.ndims = dst_md.ndims;
-        zp_cfg.common.md.data_type = data_type::s32;
-        for (int i = 0; i < zp_cfg.common.md.ndims; ++i)
-            zp_cfg.common.md.dims[i] = 1;
-        zp_cfg.common.md.dims[1] = dst_md.dims[1];
-        CHECK(memory_desc_init_by_tag(zp_cfg.common.md, comp_tag));
-        memory_desc_wrapper common_mdw(&zp_cfg.common.md);
-        zp_cfg.common.scratch_size = common_mdw.size();
-        zp_cfg.common.gws[0] = zp_cfg.ocb * hw_cfg.simd_size();
-        zp_cfg.common.gws[1] = g;
-        zp_cfg.common.gws[2] = 1;
-        zp_cfg.common.lws[0] = hw_cfg.simd_size();
-        zp_cfg.common.lws[1] = 1;
-        zp_cfg.common.lws[2] = 1;
-
-        if (is_1x1) {
-            zp_cfg.edge.run = false;
-        } else {
-            zp_cfg.edge.run = true;
-            zp_cfg.edge.is_edge = true;
-            zp_cfg.edge.md.ndims = dst_md.ndims;
-            zp_cfg.edge.md.data_type = data_type::s32;
-            for (int i = 0; i < zp_cfg.edge.md.ndims; ++i)
-                zp_cfg.edge.md.dims[i] = dst_md.dims[i];
-            zp_cfg.edge.md.dims[0] = 1;
-            CHECK(memory_desc_init_by_tag(zp_cfg.edge.md, comp_tag));
-            memory_desc_wrapper edge_mdw(&zp_cfg.edge.md);
-            zp_cfg.edge.scratch_size = edge_mdw.size();
-            zp_cfg.edge.gws[0] = ow * oh * od * hw_cfg.simd_size();
-            zp_cfg.edge.gws[1] = zp_cfg.ocb;
-            zp_cfg.edge.gws[2] = g;
-            zp_cfg.edge.lws[0] = hw_cfg.simd_size();
-            zp_cfg.edge.lws[1] = 1;
-            zp_cfg.edge.lws[2] = 1;
-        }
-    }
-
     return status::success;
 }
 

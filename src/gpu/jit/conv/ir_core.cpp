@@ -57,6 +57,8 @@ std::string to_string(type_kind_t kind) {
 int type_t::size() const {
     if (is_ptr()) return sizeof(uint64_t);
 
+    if (is_bool()) return utils::div_up(elems(), 8);
+
     if (elems() != 1) return elems() * scalar().size();
 
     switch (kind()) {

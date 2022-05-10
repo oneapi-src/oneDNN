@@ -101,6 +101,11 @@ public:
                 dpas.dst_type, dpas.src1_type, dpas.src2_type));
     }
 
+    static bool is_dp4a_call(const stmt_t &s) {
+        auto call = s.as_ptr<func_call_t>();
+        return call && call->func.as<dpas_t>().is_dp4a();
+    }
+
     bool is_dp4a() const { return rcount == 1 && sdepth == 1; }
 
     bool is_equal(const object_impl_t &obj) const override {
