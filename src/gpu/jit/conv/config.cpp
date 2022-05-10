@@ -244,6 +244,12 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     kernel_grid_dim[1] = g_grid_dim * osp_grid_dim;
     kernel_grid_dim[2] = mb_grid_dim;
 
+    if (use_2d_send && sw != 1 && (kw != 1 || pw != 0)) {
+        ir_assert(osp_thr_blk == 1)
+                << "Can't use 2D block messages for non-trivial "
+                   "strided dimensions.";
+    }
+
     bool is_a_grf_blocked
             = (a_layout().innermost_block_layout().size() % grf_size() == 0);
     if (!is_dp_fma()
@@ -471,6 +477,11 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
     kernel_grid_dim[1] = ic_grid_dim * kd * kh * kw_grid_dim * od_grid_dim
             * oh_grid_dim * ow_grid_dim;
     kernel_grid_dim[2] = g_grid_dim * mb_grid_dim;
+
+    if (use_2d_send && sw != 1 && (kw != 1 || pw != 0)) {
+        ir_assert(ow_blk == 1) << "Can't use 2D block messages for non-trivial "
+                                  "strided dimensions.";
+    }
 
     if (is_dw || is_dp_fma()) allow_grf_reorder = true;
 
@@ -915,6 +926,10 @@ void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
     if (!is_dp_fma()) return;
     if (is_small_ic()) return;
     if (hw() < ngen::HW::XeHPC) return;
+
+    // Can't use 2D block messages for non-trivial strided dimensions.
+    if ((is_fwd || is_bwd_w) && mb < 16 && sw != 1 && (kw != 1 || pw != 0))
+        return;
 
     auto &wei_md = *conv_pd->invariant_wei_md();
     bool wei_hwio = matches_tag(wei_md, "xba");

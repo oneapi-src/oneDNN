@@ -434,6 +434,23 @@ void access_builder_t::build() {
     ir_assert(ok) << "Can't generate send decomposition.";
 }
 
+static bool stride_dimension_ok(const view_t &view, int stride_tidx,
+        int stride_vidx, const std::vector<expr_t> &vstart) {
+    auto &tdim = view.tdim(stride_tidx);
+    auto e = tdim.expr();
+    for (int i = 0; i < tdim.nvargs(); i++) {
+        int vidx = tdim.vidx(i);
+        auto &vvar = view.vvars()[vidx];
+        if (vidx == stride_vidx) {
+            e = substitute(e, vvar, expr_t(0));
+        } else {
+            e = substitute(e, vvar, vstart[vidx]);
+        }
+    }
+    e = simplify(e);
+    return is_zero(e);
+}
+
 bool access_builder_t::try_build_2d() {
     auto vlayout = mem_view_.create_pseudo_vlayout();
     auto &hint = send_hint_.hint_2d;
@@ -493,7 +510,6 @@ bool access_builder_t::try_build_2d() {
         surface_width = tlayout.dim(w_dim_idx);
         surface_height = tlayout.dim(h_dim_idx);
         surface_height = ir_utils::safe_divide(surface_height, h_tstride);
-        surface_pitch *= h_tstride;
     }
     int type_factor = ir_utils::safe_divide(send_type.size(), mem_type_.size());
     surface_width /= type_factor;
@@ -599,18 +615,35 @@ bool access_builder_t::try_build_2d() {
         expr_t x(0);
         expr_t y(0);
 
+        bool skip_send = false;
         if (!use_virtual_surface) {
             std::swap(x, _x);
             std::swap(y, _y);
             if (type_factor != 1) x /= type_factor;
+
+            if (h_tstride != 1) {
+                if (!stride_dimension_ok(
+                            mem_view_, h_dim_idx, b1.dim_idx, vstart)) {
+                    if (send.is_prefetch_2d()) {
+                        skip_send = true;
+                    } else {
+                        ir_error_not_expected()
+                                << "Unexpected mapping for stride dimension: "
+                                << mem_view_.tdim(h_dim_idx).expr();
+                    }
+                }
+                y /= h_tstride;
+            }
         }
 
-        auto off = mem_view_.tlayout().offset_in_bytes(tstart);
-        auto reg_buf = (send.is_prefetch_2d()
-                        ? expr_t()
-                        : reg_buf_ + reg_layout_walker_->offset_bytes());
-        auto send_stmt = send(mem_buf_, off, reg_buf, mask, x, y);
-        stmt_ = stmt_.append(send_stmt);
+        if (!skip_send) {
+            auto off = mem_view_.tlayout().offset_in_bytes(tstart);
+            auto reg_buf = (send.is_prefetch_2d()
+                            ? expr_t()
+                            : reg_buf_ + reg_layout_walker_->offset_bytes());
+            auto send_stmt = send(mem_buf_, off, reg_buf, mask, x, y);
+            stmt_ = stmt_.append(send_stmt);
+        }
 
         reg_layout_walker_->advance(send.access_size() / mem_type_.size());
     });
