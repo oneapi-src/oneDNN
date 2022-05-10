@@ -20,7 +20,7 @@
 #include <functional>
 
 #include "common/c_types_map.hpp"
-#include "cpu/x64/xbyak/xbyak.h"
+#include "cpu/x64/cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {
