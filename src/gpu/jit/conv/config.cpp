@@ -493,8 +493,7 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
 
     // Set BWD_W-specific settings.
     do_b_reduction = with_bias;
-    do_pipeline_unroll
-            = (hw_cfg.hw() >= ngen::HW::XeHPC && is_dp_fma() && mb_blk > 1);
+    do_pipeline_unroll = (is_ge_xe_hpc() && is_dp_fma() && mb_blk > 1);
     do_atomic_update = true;
 
     if (!with_sum_post_op(conv_pd)) {
@@ -671,12 +670,11 @@ void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
     auto common_wei_tag = build_tag({wei_g_blk, wei_o_blk, wei_i_blk},
             {1, wei_o_blk_outer, wei_i_blk_outer}, wei_letters, wei_idxs);
 
-    bool is_ge_xe_hpc = (hw_cfg.hw() >= ngen::HW::XeHPC);
     // Allow internal weights reorder in some cases. The goal is to have
     // aligned weights layouts between fwd/bwd_d/bwd_w to reduce potential
     // weights reorders during training. In general it's more efficient than
     // the external reorder but it has a number of restrictions.
-    bool allow_wei_reorder = is_ge_xe_hpc && !is_mad;
+    bool allow_wei_reorder = is_ge_xe_hpc() && !is_mad;
     // Backward by data requires flipped ic/oc in weights.
     if (is_bwd_d) {
         if (is_mad) {

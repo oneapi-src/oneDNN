@@ -5760,7 +5760,7 @@ private:
         }
 
         // Generate prefetch statements.
-        if (cfg_.hw() >= ngen::HW::XeHPC) {
+        if (cfg_.is_ge_xe_hpc()) {
             for (auto &t : post_op_tensors_) {
                 if (!t.needs_load()) continue;
                 if (t.do_preload()) continue;
