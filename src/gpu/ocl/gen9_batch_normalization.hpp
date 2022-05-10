@@ -41,8 +41,11 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T(impl_name(), gen9_batch_normalization_fwd_t);
 
         const char *impl_name() const {
-            return conf.use_stats_one_pass ? "ocl:gen9:blocked:onepass"
-                                           : "ocl:gen9:blocked";
+            return conf.nhwc_optimized
+                    ? (conf.use_stats_one_pass ? "ocl:gen9:nhwc:onepass"
+                                               : "ocl:gen9:nhwc")
+                    : (conf.use_stats_one_pass ? "ocl:gen9:blocked:onepass"
+                                               : "ocl:gen9:blocked");
         }
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -146,7 +149,11 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
             : gpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_batch_normalization_bwd_t);
+        DECLARE_COMMON_PD_T(impl_name(), gen9_batch_normalization_bwd_t);
+
+        const char *impl_name() const {
+            return conf.nhwc_optimized ? "ocl:gen9:nhwc" : "ocl:gen9:blocked";
+        }
 
         status_t init(engine_t *engine) {
             auto *compute_engine
