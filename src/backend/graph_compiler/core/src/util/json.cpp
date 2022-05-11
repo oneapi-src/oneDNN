@@ -23,17 +23,275 @@
 namespace sc {
 namespace json {
 
+static void json_assert(bool cond, const char *msg) {
+    if (!cond) { throw json_error(msg); }
+}
+
+void json_writer::write_key(const std::string &key) {
+    if (scope_counter_.back() > 0) { *os_ << ","; }
+    write_seperator();
+    *os_ << '\"';
+    *os_ << key;
+    *os_ << "\": ";
+    scope_counter_.back() += 1;
+}
+
+void json_writer::begin_object(bool multi_line) {
+    *os_ << "{";
+    scope_multi_line_.push_back(multi_line);
+    scope_counter_.push_back(0);
+}
+
+void json_writer::write_bool(const bool &v) {
+    *os_ << v;
+}
+
+void json_writer::write_string(const std::string &s) {
+    *os_ << '\"';
+    for (size_t i = 0; i < s.length(); ++i) {
+        char ch = s[i];
+        switch (ch) {
+            case '\r': *os_ << "\\r"; break;
+            case '\n': *os_ << "\\n"; break;
+            case '\\': *os_ << "\\\\"; break;
+            case '\t': *os_ << "\\t"; break;
+            case '\"': *os_ << "\\\""; break;
+            default: *os_ << ch;
+        }
+    }
+    *os_ << '\"';
+}
+
+void json_writer::begin_array(bool multi_line) {
+    *os_ << '[';
+    scope_multi_line_.push_back(multi_line);
+    scope_counter_.push_back(0);
+}
+
+void json_writer::end_array() {
+    json_assert(!scope_counter_.empty() && !scope_multi_line_.empty(),
+            "Unmatched end_array");
+
+    bool newline = scope_multi_line_.back();
+    size_t nelem = scope_counter_.back();
+    scope_multi_line_.pop_back();
+    scope_counter_.pop_back();
+    if (newline && nelem != 0) write_seperator();
+
+    *os_ << ']';
+}
+
+void json_writer::write_array_seperator() {
+    if (scope_counter_.back() != 0) { *os_ << ", "; }
+    scope_counter_.back() += 1;
+    write_seperator();
+}
+
+void json_writer::write_item_seperator() {
+    *os_ << ", ";
+    write_seperator();
+}
+
+void json_writer::end_object() {
+    // TODO(Zhichen): Replace comparison by log check
+    json_assert(!scope_counter_.empty() && !scope_multi_line_.empty(),
+            "Unmatched end_object");
+    bool newline = scope_multi_line_.back();
+    size_t nelem = scope_counter_.back();
+    scope_multi_line_.pop_back();
+    scope_counter_.pop_back();
+    if (newline && nelem != 0) write_seperator();
+    *os_ << '}';
+}
+
+void json_writer::write_seperator() {
+    if (pretty_print_
+            && (scope_multi_line_.empty() || scope_multi_line_.back())) {
+        *os_ << '\n';
+        *os_ << std::string(scope_multi_line_.size() * 2, ' ');
+    }
+}
+
+std::string json_reader::get_error_position_str() const {
+    std::stringstream ss;
+    ss << "json reader error at line " << line_count_n_ + 1 << ':'
+       << line_position_ << " - ";
+    return ss.str();
+}
+
+void json_reader::read_and_expect(char ch) {
+    if (next_nonspace() != ch) {
+        std::stringstream ss;
+        ss << get_error_position_str();
+        ss << "Expecting \'" << ch << '\'';
+        throw json_error(ss.str());
+    }
+}
+
+void json_reader::expect(bool cond, const char *msg) const {
+    if (!cond) { throw json_error(get_error_position_str() + msg); }
+}
+
+int json_reader::next_char() {
+    line_position_++;
+    return is_->get();
+}
+
+int json_reader::peeknext_char() {
+    return is_->peek();
+}
+
+int json_reader::next_nonspace() {
+    int ch;
+    do {
+        ch = next_char();
+        if (ch == '\n') {
+            ++line_count_n_;
+            line_position_ = 0;
+        }
+        if (ch == '\r') ++line_count_r_;
+    } while (isspace(ch));
+    return ch;
+}
+
+int json_reader::peeknext_nonspace() {
+    int ch;
+    while (true) {
+        ch = peeknext_char();
+        if (ch == '\n') {
+            ++line_count_n_;
+            line_position_ = 0;
+        }
+        if (ch == '\r') ++line_count_r_;
+        if (!isspace(ch)) break;
+        next_char();
+    }
+    return ch;
+}
+
+std::string json_reader::read_string() {
+    read_and_expect('\"');
+    std::string output;
+    while (true) {
+        int ch = next_char();
+        if (ch == '\\') {
+            char sch = static_cast<char>(next_char());
+            switch (sch) {
+                case 'r': output += '\r'; break;
+                case 'n': output += '\n'; break;
+                case '\\': output += '\\'; break;
+                case 't': output += '\t'; break;
+                case '\"': output += '\"'; break;
+                default: expect(false, "Unknown string escape character");
+            }
+        } else {
+            if (ch == '\"') break;
+            output += static_cast<char>(ch);
+        }
+        expect(ch != EOF && ch != '\r' && ch != '\n',
+                "Bad character in string");
+    }
+    return output;
+}
+
+bool json_reader::read_bool() {
+    bool out_value;
+    auto old_cnt = is_->tellg();
+    *is_ >> out_value;
+    expect(!is_->fail(), "Bad value");
+    auto new_cnt = is_->tellg();
+    if (new_cnt == -1) new_cnt = old_cnt + std::streamoff(1);
+    line_position_ += (new_cnt - old_cnt);
+    return out_value;
+}
+
+void json_reader::begin_object() {
+    read_and_expect('{');
+    scope_counter_.push_back(0);
+    expect(scope_counter_.size() < recursion_limit_, "Recursion limit reached");
+}
+
+void json_reader::begin_array() {
+    read_and_expect('[');
+    scope_counter_.push_back(0);
+    expect(scope_counter_.size() < recursion_limit_, "Recursion limit reached");
+}
+
+bool json_reader::next_object_item(std::string *out_key) {
+    bool next = true;
+    expect(!scope_counter_.empty(),
+            "next_object_item should be called after begin_object");
+    if (scope_counter_.back() != 0) {
+        int ch = next_nonspace();
+        if (ch == '}') {
+            next = false;
+        } else {
+            expect(ch == ',', "Expecting ,");
+        }
+    } else {
+        int ch = peeknext_nonspace();
+        if (ch == '}') {
+            next_char();
+            next = false;
+        }
+    }
+    if (!next) {
+        scope_counter_.pop_back();
+        return false;
+    } else {
+        scope_counter_.back() += 1;
+        *out_key = read_string();
+        read_and_expect(':');
+        return true;
+    }
+}
+
+bool json_reader::next_array_item() {
+    bool next = true;
+    expect(!scope_counter_.empty(),
+            "next_array_item should be called after begin_array");
+    if (scope_counter_.back() != 0) {
+        int ch = next_nonspace();
+        if (ch == ']') {
+            next = false;
+        } else {
+            expect(ch == ',', "Expecting ,");
+        }
+    } else {
+        int ch = peeknext_nonspace();
+        if (ch == ']') {
+            next_char();
+            next = false;
+        }
+    }
+    if (!next) {
+        scope_counter_.pop_back();
+        return false;
+    } else {
+        scope_counter_.back() += 1;
+        return true;
+    }
+}
+
+#define JSON_ASSERT(reader, cond, ...) \
+    if (!(cond)) { \
+        ::std::stringstream ss; \
+        ss << reader->get_error_position_str(); \
+        ss << __VA_ARGS__ << "\n"; \
+        throw json_error(ss.str()); \
+    }
+
 void json_reader::expect_next_object_key(const std::string &expected_key) {
     std::string key;
     bool has_next = next_object_item(&key);
-    COMPILE_ASSERT(
-            has_next && key == expected_key, "Expecting key=" << expected_key);
+    JSON_ASSERT(this, has_next && key == expected_key,
+            "Expecting key=" << expected_key);
 }
 
 void json_reader::expect_object_ends() {
     std::string key;
     bool has_next = next_object_item(&key);
-    COMPILE_ASSERT(!has_next, "Expecting end of object");
+    expect(!has_next, "Expecting end of object");
 }
 
 void handler<any_t>::write(json_writer *writer, const any_t &data) {
@@ -44,25 +302,25 @@ void handler<any_t>::write(json_writer *writer, const any_t &data) {
     writer->end_object();
 }
 
-void handler<any_t>::read(json_reader *reader, any_t *data) {
+any_t handler<any_t>::read(json_reader *reader) {
     reader->begin_object();
     std::string key, typen;
     bool hasnext = reader->next_object_item(&key);
-    COMPILE_ASSERT(hasnext, "Reading empty JSON object for any");
-    COMPILE_ASSERT(key == "type", "Expecting key=\"type\" for any");
+    reader->expect(hasnext, "Reading empty JSON object for any");
+    reader->expect(key == "type", "Expecting key=\"type\" for any");
     reader->read(&typen);
 
     auto ty = reflection::get_type_by_name(typen);
-    COMPILE_ASSERT(ty, "Cannot find reflection type: " << typen);
+    JSON_ASSERT(reader, ty, "Cannot find reflection type: " << typen);
     any_t ret = any_t::make_by_type(ty);
     reflection::general_ref_t ref {ret.get_raw(), *ty};
     reader->expect_next_object_key("data");
     reader->read(&ref);
 
     hasnext = reader->next_object_item(&key);
-    COMPILE_ASSERT(!hasnext, "Junk data after key=\"data\" for any");
+    reader->expect(!hasnext, "Junk data after key=\"data\" for any");
 
-    *data = std::move(ret);
+    return ret;
 }
 using stdanymap = std::unordered_map<std::string, any_t>;
 static reflection::type general_obj_type
@@ -179,15 +437,21 @@ static void read_object_body(
         json_reader *reader, reflection::general_ref_t *data) {
     std::string key;
     auto meta = data->type_.meta_;
+    std::unordered_set<void *> met;
     while (reader->next_object_item(&key)) {
         auto itr = meta->field_map_.find(key);
-        COMPILE_ASSERT(itr != meta->field_map_.end(),
+        JSON_ASSERT(reader, itr != meta->field_map_.end(),
                 "Cannot find field " << key << " in class " << meta->name_);
         auto &fieldmeta = itr->second;
+        JSON_ASSERT(reader, met.count(fieldmeta) == 0,
+                "The field " << key << " occurs more than once");
+        met.insert(fieldmeta);
         reflection::general_ref_t ref {
                 fieldmeta->addresser_->get(data->data_), fieldmeta->type_};
         reader->read(&ref);
     }
+    reader->expect(
+            met.size() == meta->field_map_.size(), "Missing fields in JSON");
     if (meta->initalizer_) { meta->initalizer_(data->data_); }
 }
 
@@ -195,13 +459,13 @@ static reflection::general_object_t read_tagged_object(json_reader *reader) {
     reader->begin_object();
     std::string key, classname;
     bool hasnext = reader->next_object_item(&key);
-    COMPILE_ASSERT(hasnext,
+    reader->expect(hasnext,
             "Reading empty JSON object for reflection::general_object_t");
-    COMPILE_ASSERT(key == "class",
+    reader->expect(key == "class",
             "The first entry of a tagged object must have the key \"class\"");
     reader->read(&classname);
     auto meta = reflection::get_metadata(classname);
-    COMPILE_ASSERT(meta, "Cannot find class name: " << classname);
+    JSON_ASSERT(reader, meta, "Cannot find class name: " << classname);
     reflection::general_object_t ret = meta->make_instance();
     auto ref = reflection::general_ref_t::from(ret);
     read_object_body(reader, &ref);
@@ -218,7 +482,7 @@ void handler<reflection::general_ref_t>::read(
 
     if (data->type_ == std_anymap_type) {
         auto anymapptr = reinterpret_cast<stdanymap *>(data->data_);
-        handler<stdanymap>::read(reader, anymapptr);
+        *anymapptr = handler<stdanymap>::read(reader);
     } else if (data->type_ == general_obj_type) {
         auto &obj = *reinterpret_cast<reflection::general_object_t *>(
                 data->data_);
@@ -229,20 +493,22 @@ void handler<reflection::general_ref_t>::read(
         reflection::general_object_t obj = read_tagged_object(reader);
         target = std::move(obj);
     } else if (data->type_.array_depth_ >= 1) {
-        assert(data->type_.meta_
-                && data->type_.meta_->vector_kind_
-                        != reflection::vector_kind::not_vector);
+        reader->expect(data->type_.meta_
+                        && data->type_.meta_->vector_kind_
+                                != reflection::vector_kind::not_vector,
+                "Bad reflection metadata");
         auto meta
                 = static_cast<reflection::vector_metadata *>(data->type_.meta_);
         reflection::type elem_type = meta->element_type_;
-        COMPILE_ASSERT(meta->vector_kind_ == reflection::vector_kind::std_array
+        JSON_ASSERT(reader,
+                meta->vector_kind_ == reflection::vector_kind::std_array
                         || meta->size(data->data_) == 0,
                 "Expecting std::array or an empty vector");
-        int cnt = 0;
+        size_t cnt = 0;
         reader->begin_array();
         while (reader->next_array_item()) {
             if (meta->vector_kind_ == reflection::vector_kind::std_array) {
-                COMPILE_ASSERT(cnt < (int)meta->size(data->data_),
+                JSON_ASSERT(reader, cnt < meta->size(data->data_),
                         "Too many values inserted to const sized array");
             } else {
                 meta->push_empty(data->data_);
@@ -256,14 +522,13 @@ void handler<reflection::general_ref_t>::read(
         reader->begin_object();
         read_object_body(reader, data);
     } else {
-        std::string raw;
-        reader->read_string(&raw);
-        COMPILE_ASSERT(!raw.empty(), "Empty string for general ref");
+        std::string raw = reader->read_string();
+        reader->expect(!raw.empty(), "Empty string for general ref");
         std::string rawdata = raw.substr(1);
 #define PUT_VALUE(T, CVT) \
     { \
         auto ty = reflection::type_registry<T>::type_; \
-        COMPILE_ASSERT(data->type_ == ty, \
+        JSON_ASSERT(reader, data->type_ == ty, \
                 "Got " #T " in JSON, expecting " << data->type_.to_string()); \
         *(T *)data->data_ = T(std::CVT(rawdata)); \
         break; \
@@ -279,24 +544,25 @@ void handler<reflection::general_ref_t>::read(
             case 'b': PUT_VALUE(bool, stoul)
             case 's': {
                 auto ty = reflection::type_registry<std::string>::type_;
-                COMPILE_ASSERT(data->type_ == ty,
+                JSON_ASSERT(reader, data->type_ == ty,
                         "Got string in JSON, expecting "
                                 << data->type_.to_string());
                 *(std::string *)data->data_ = rawdata;
                 break;
             }
-            default:
-                COMPILE_ASSERT(0, "bad data tag for general ref: " << raw);
+            default: {
+                throw json_error(reader->get_error_position_str()
+                        + "bad data tag for general ref: " + raw);
                 break;
+            }
         }
 #undef PUT_VALUE
     }
 } // namespace json
 
-void handler<reflection::general_object_t>::read(
-        json_reader *reader, reflection::general_object_t *data) {
-    auto ref = reflection::general_ref_t::from(*data);
-    reader->read(&ref);
+reflection::general_object_t handler<reflection::general_object_t>::read(
+        json_reader *reader) {
+    return read_tagged_object(reader);
 }
 
 } // namespace json

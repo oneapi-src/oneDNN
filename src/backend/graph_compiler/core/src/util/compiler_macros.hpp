@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,27 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_PASS_LOAD_STORE_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_PASS_LOAD_STORE_HPP
 
-#include "../graph.hpp"
-#include <util/json.hpp>
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_COMPILER_MACROS_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_COMPILER_MACROS_HPP
 
-namespace sc {
-sc_graph_t load_graph_from_json(json::json_reader &reader);
-void save_graph_to_json(const sc_graph_t &graph, json::json_writer &writer);
+#if defined(__GNUC__)
+#define SC_GNUC_VERSION_GE(x) (__GNUC__ >= (x))
+#else
+#define SC_GNUC_VERSION_GE(x) 0
+#endif
 
-namespace json {
-template <>
-struct handler<sc_graph_t> {
-    inline static void write(json_writer *writer, const sc_graph_t &data) {
-        save_graph_to_json(data, *writer);
-    }
-    inline static sc_graph_t read(json_reader *reader) {
-        return load_graph_from_json(*reader);
-    }
-};
-} // namespace json
+#if defined(__GNUC__)
+#define SC_GNUC_VERSION_LT(x) (__GNUC__ < (x))
+#else
+#define SC_GNUC_VERSION_LT(x) 0
+#endif
 
-} // namespace sc
 #endif

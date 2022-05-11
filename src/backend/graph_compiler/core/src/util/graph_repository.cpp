@@ -32,11 +32,11 @@ repository repository::load(const context_ptr &ctx, std::istream &is) {
         // begin parsing a single repository_entry
         reader.begin_object();
         auto entry = utils::make_unique<repository_entry>();
-        sc_graph_t g;
+
         reader.expect_next_object_key("name");
-        reader.read_string(&entry->name_);
+        entry->name_ = reader.read_string();
         reader.expect_next_object_key("graph");
-        reader.read(&g);
+        sc_graph_t g = reader.read<sc_graph_t>();
         reader.expect_next_object_key("cost");
         reader.read(&entry->cost_);
         reader.expect_next_object_key("config");

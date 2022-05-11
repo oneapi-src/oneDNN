@@ -148,15 +148,17 @@ struct handler<graph_ltsr_info_t> {
         writer->write_keyvalue("uses", data.uses_);
         writer->end_object();
     }
-    static void read(json_reader *reader, graph_ltsr_info_t *data) {
-        data->init_owned();
+    static graph_ltsr_info_t read(json_reader *reader) {
+        graph_ltsr_info_t data;
+        data.init_owned();
         reader->begin_object();
-        auto ref = reflection::general_ref_t::from(data->details());
+        auto ref = reflection::general_ref_t::from(data.details());
         reader->expect_next_object_key("detail");
-        reader->read(&ref);
+        json::handler<reflection::general_ref_t>::read(reader, &ref);
         reader->expect_next_object_key("uses");
-        reader->read(&data->uses_);
+        reader->read(&data.uses_);
         reader->expect_object_ends();
+        return data;
     }
 };
 
@@ -178,19 +180,21 @@ struct handler<graph_op_info_t> {
         writer->write_keyvalue("attrs", data.attrs().as_map());
         writer->end_object();
     }
-    static void read(json_reader *reader, graph_op_info_t *data) {
+    static graph_op_info_t read(json_reader *reader) {
+        graph_op_info_t data;
         // let graph_op_info take the ownership of the data
-        data->init_owned();
+        data.init_owned();
         reader->begin_object();
         reader->expect_next_object_key("op");
-        reader->read(&data->op_name());
+        reader->read(&data.op_name());
         reader->expect_next_object_key("inputs");
-        reader->read(&data->inputs_);
+        reader->read(&data.inputs_);
         reader->expect_next_object_key("outputs");
-        reader->read(&data->outputs_);
+        reader->read(&data.outputs_);
         reader->expect_next_object_key("attrs");
-        reader->read(&data->attrs().as_map());
+        reader->read(&data.attrs().as_map());
         reader->expect_object_ends();
+        return data;
     }
 };
 } // namespace json

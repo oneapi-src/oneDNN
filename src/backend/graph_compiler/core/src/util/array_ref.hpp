@@ -20,13 +20,8 @@
 #include <array>
 #include <stddef.h>
 #include <vector>
+#include "compiler_macros.hpp"
 #include <initializer_list>
-
-#if defined(__GNUC__)
-#define SC_GNUC_VERSION_GE(x) (__GNUC__ >= (x))
-#else
-#define SC_GNUC_VERSION_GE(x) 0
-#endif
 
 namespace sc {
 

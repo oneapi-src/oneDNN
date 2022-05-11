@@ -33,15 +33,9 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <util/exceptions.hpp>
 #include <util/general_object.hpp>
 
-#if defined(__GNUC__)
-#define ATTRIBUTE_UNUSED __attribute__((unused))
-#else
-#define ATTRIBUTE_UNUSED
-#endif
-#define STR_CONCAT_(__x, __y) __x##__y
-#define STR_CONCAT(__x, __y) STR_CONCAT_(__x, __y)
 namespace sc {
 
 namespace json {
@@ -99,9 +93,9 @@ public:
      * \brief Start beginning of array.
      * \param multi_line whether to start an multi_line array.
      */
-    inline void begin_object(bool multi_line = true);
+    void begin_object(bool multi_line = true);
     /*! \brief Finish writing object. */
-    inline void end_object();
+    void end_object();
     /*!
      * \brief write key value pair in the object.
      * \param key the key of the object.
@@ -123,30 +117,30 @@ public:
      * \brief write a bool
      * \param v the value to be wirtten
      */
-    inline void write_bool(const bool &v);
+    void write_bool(const bool &v);
     /*!
      * \brief write a string that can contain escape characters.
      * \param s the string to be written.
      */
-    inline void write_string(const std::string &s);
+    void write_string(const std::string &s);
     template <typename ValueType>
     inline void write(const ValueType &value);
     /*!
      * \brief Start beginning of array.
      * \param multi_line whether to start an multi_line array.
      */
-    inline void begin_array(bool multi_line = true);
+    void begin_array(bool multi_line = true);
     /*! \brief Finish writing an array. */
-    inline void end_array();
+    void end_array();
     /*!
      * \brief write seperator of array, before writing next element.
      * User can proceed to call writer->write to write next item
      */
-    inline void write_array_seperator();
+    void write_array_seperator();
     /*!
      * \brief write seperator of item, before writing next item
      */
-    inline void write_item_seperator();
+    void write_item_seperator();
     /*!
      * \brief write value into array.
      * \param value The value of to be written.
@@ -155,14 +149,7 @@ public:
     template <typename ValueType>
     inline void write_array_item(const ValueType &value);
 
-    void write_key(const std::string &key) {
-        if (scope_counter_.back() > 0) { *os_ << ","; }
-        write_seperator();
-        *os_ << '\"';
-        *os_ << key;
-        *os_ << "\": ";
-        scope_counter_.back() += 1;
-    }
+    void write_key(const std::string &key);
 
 private:
     std::ostream *os_;
@@ -180,42 +167,44 @@ private:
     /*!
      * \brief write seperating space and newlines
      */
-    inline void write_seperator();
+    void write_seperator();
 };
 
 class SC_INTERNAL_API json_reader {
 public:
+    size_t recursion_limit_;
     /*!
      * \brief Constructor.
      * \param is the input source.
+     * \param recursion_limit the recursion limit of nested arrays/objects
      */
-    explicit json_reader(std::istream *is)
-        : is_(is), line_count_r_(0), line_count_n_(0) {}
+    explicit json_reader(std::istream *is, size_t recursion_limit = 64)
+        : recursion_limit_(recursion_limit)
+        , is_(is)
+        , line_count_r_(0)
+        , line_count_n_(0) {}
     /*!
      * \brief Parse next JSON string.
-     * \param out_str the output string.
      */
-    inline void read_string(std::string *out_str);
+    std::string read_string();
     /*!
      * \brief read Number.
-     * \param out_value output value;
      * \tparam ValueType type of the number
      */
     template <typename ValueType>
-    inline void read_number(ValueType *out_value);
+    ValueType read_number();
     /*
      * \brief read a bool value
-     * \param v the value to be read
      */
-    inline void read_bool(bool *out_value);
+    bool read_bool();
     /*!
      * \brief Begin parsing an object.
      */
-    inline void begin_object();
+    void begin_object();
     /*!
      * \brief Begin parsing an array.
      */
-    inline void begin_array();
+    void begin_array();
     /*!
      * \brief Try to move to next object item.
      *  If this call is successful, user can proceed to call
@@ -224,7 +213,7 @@ public:
      * \return true if the read is successful, false if we are at end of the
      * object.
      */
-    inline bool next_object_item(std::string *out_key);
+    bool next_object_item(std::string *out_key);
     /*!
      * \brief Try to read the next element in the array.
      *  If this call is successful, user can proceed to call
@@ -232,7 +221,7 @@ public:
      * \return true if the read is successful, false if we are at end of the
      * array.
      */
-    inline bool next_array_item();
+    bool next_array_item();
     /*!
      * \brief read next ValueType.
      * \param out_value any STL or json readable type to be read
@@ -240,25 +229,25 @@ public:
      */
     template <typename ValueType>
     inline void read(ValueType *out_value);
+
+    /*!
+     * \brief read next ValueType.
+     * \param out_value any STL or json readable type to be read
+     */
+    template <typename ValueType>
+    inline ValueType read();
     /*!
      * \brief read just before next nonspace but not read that.
      * \return the next nonspace character.
      */
-    inline int peeknext_nonspace();
-    /*!
-     *\brief set field type for any structure
-     */
-    inline void add_field_type(
-            const std::unordered_map<std::string, std::string> &field_type) {
-        field_type_.insert(field_type.begin(), field_type.end());
-    }
-    inline std::unordered_map<std::string, std::string> get_field_type() {
-        return field_type_;
-    }
+    int peeknext_nonspace();
 
     void expect_next_object_key(const std::string &expected_key);
 
     void expect_object_ends();
+
+    std::string get_error_position_str() const;
+    void expect(bool cond, const char *msg) const;
 
 private:
     /*! \brief internal reader stream */
@@ -267,20 +256,21 @@ private:
     size_t line_count_r_;
     /*! \brief "\\n" counter */
     size_t line_count_n_;
+    // position in the line
+    size_t line_position_ = 0;
     /*!
      * \brief record how many element processed in
      *  current array/object scope.
      */
     std::vector<size_t> scope_counter_;
-    /*!
-     * \brief record field type for any structrue
-     */
-    std::unordered_map<std::string, std::string> field_type_;
+    // reads a character and check if it is `ch`
+    void read_and_expect(char ch);
+
     /*!
      * \brief read next nonspace character.
      * \return the next nonspace character.
      */
-    inline int next_nonspace();
+    int next_nonspace();
     // /*!
     //  * \brief read just before next nonspace but not read that.
     //  * \return the next nonspace character.
@@ -290,58 +280,12 @@ private:
      * \brief Takes the next char from the input source.
      * \return the next character.
      */
-    inline int next_char();
+    int next_char();
     /*!
      * \brief Returns the next char from the input source.
      * \return the next character.
      */
-    inline int peeknext_char();
-};
-
-class readhelper {
-public:
-    /*!
-     * \brief Declare field of type T
-     * \param key the key of the of field.
-     * \param addr address of the data type.
-     * \tparam T the data type to be read, must be STL composition of JSON
-     * serializable.
-     */
-    template <typename T>
-    inline void declare_field(const std::string &key, T *addr) {
-        if (map_.count(key) == 0) {
-            entry e;
-            e.func = reader_function<T>;
-            e.addr = static_cast<void *>(addr);
-            map_[key] = e;
-        }
-    }
-    /*!
-     * \brief read in all the declared fields.
-     * \param reader the reader to read the json.
-     */
-    inline void read_fields(json_reader *reader);
-
-private:
-    /*!
-     * \brief The internal reader function.
-     * \param reader The reader to read.
-     * \param addr The memory address to read.
-     */
-    template <typename T>
-    inline static void reader_function(json_reader *reader, void *addr);
-    /*! \brief callback type to reader function */
-    typedef void (*readfunction)(json_reader *reader, void *addr);
-    /*! \brief internal data entry */
-    struct entry {
-        /*! \brief the reader function */
-        readfunction func;
-        /*! \brief the address to read */
-        void *addr;
-    };
-    /*! \brief the internal map of reader callbacks */
-    std::map<std::string, entry> map_;
-    std::unordered_map<std::string, std::string> field_type_;
+    int peeknext_char();
 };
 
 template <typename Then, typename Else>
@@ -359,10 +303,8 @@ struct enum_handler {
     inline static void write(json_writer *writer, const ValueType &value) {
         writer->write_number<int32_t>(static_cast<int32_t>(value));
     }
-    inline static void read(json_reader *reader, ValueType *value) {
-        int32_t tmp_value;
-        reader->read_number<int32_t>(&tmp_value);
-        *value = static_cast<ValueType>(tmp_value);
+    inline static ValueType read(json_reader *reader) {
+        return static_cast<ValueType>(reader->read_number<int32_t>());
     }
 };
 
@@ -371,8 +313,8 @@ struct numeric_handler {
     inline static void write(json_writer *writer, const ValueType &value) {
         writer->write_number<ValueType>(value);
     }
-    inline static void read(json_reader *reader, ValueType *value) {
-        reader->read_number<ValueType>(value);
+    inline static ValueType read(json_reader *reader) {
+        return reader->read_number<ValueType>();
     }
 };
 
@@ -384,10 +326,10 @@ struct common_handler {
                 enum_handler<TReal>, handler<TReal>>::Type t_handler;
         t_handler::write(writer, value);
     }
-    inline static void read(json_reader *reader, TReal *value) {
+    inline static TReal read(json_reader *reader) {
         typedef typename if_else_type<std::is_enum<TReal>::value,
                 enum_handler<TReal>, handler<TReal>>::Type t_handler;
-        t_handler::read(reader, value);
+        return t_handler::read(reader);
     }
 };
 
@@ -398,10 +340,10 @@ struct common_handler<std::shared_ptr<ValueType>> {
         writer->write(*value);
     }
 
-    inline static void read(
-            json_reader *reader, std::shared_ptr<ValueType> *value) {
-        *value = std::make_shared<ValueType>();
-        reader->read(value->get());
+    inline static std::shared_ptr<ValueType> read(json_reader *reader) {
+        auto ret = std::make_shared<ValueType>();
+        *ret = reader->read<ValueType>();
+        return ret;
     }
 };
 
@@ -413,16 +355,15 @@ struct handler<std::pair<K, V>> {
         writer->write_array_item(kv.second);
         writer->end_array();
     }
-    inline static void read(json_reader *reader, std::pair<K, V> *kv) {
+    inline static std::pair<K, V> read(json_reader *reader) {
         reader->begin_array();
-        if (reader->next_array_item() != 1)
-            throw std::runtime_error("JSON: Expect array of length 2");
-        handler<K>::read(reader, &(kv->first));
-        if (reader->next_array_item() != 1)
-            throw std::runtime_error("JSON: Expect array of length 2");
-        handler<V>::read(reader, &(kv->second));
-        if (reader->next_array_item() != 0)
-            throw std::runtime_error("JSON: Expect array of length 2");
+        reader->expect(reader->next_array_item(), "Expect array of length 2");
+        std::pair<K, V> kv;
+        kv.first = handler<K>::read(reader);
+        reader->expect(reader->next_array_item(), "Expect array of length 2");
+        kv.second = handler<V>::read(reader);
+        reader->expect(!reader->next_array_item(), "Expect array of length 2");
+        return kv;
     }
 };
 
@@ -438,14 +379,13 @@ struct arrayhandler {
         }
         writer->end_array();
     }
-    inline static void read(json_reader *reader, ContainerType *array) {
-        array->clear();
+    inline static ContainerType read(json_reader *reader) {
+        ContainerType array;
         reader->begin_array();
         while (reader->next_array_item()) {
-            ElemType value;
-            handler<ElemType>::read(reader, &value);
-            array->insert(array->end(), std::move(value));
+            array.insert(array.end(), handler<ElemType>::read(reader));
         }
+        return array;
     }
 };
 
@@ -459,16 +399,16 @@ struct maphandler {
         }
         writer->end_object();
     }
-    inline static void read(json_reader *reader, ContainerType *map) {
+    inline static ContainerType read(json_reader *reader) {
         typedef typename ContainerType::mapped_type ElemType;
-        map->clear();
+        ContainerType map;
         reader->begin_object();
         std::string key;
         while (reader->next_object_item(&key)) {
-            ElemType value;
-            reader->read(&value);
-            (*map)[key] = std::move(value);
+            map.insert(
+                    std::make_pair(std::move(key), reader->read<ElemType>()));
         }
+        return map;
     }
 };
 
@@ -477,8 +417,8 @@ struct handler<std::string> {
     inline static void write(json_writer *writer, const std::string &value) {
         writer->write_string(value);
     }
-    inline static void read(json_reader *reader, std::string *str) {
-        reader->read_string(str);
+    inline static std::string read(json_reader *reader) {
+        return reader->read_string();
     }
 };
 
@@ -487,9 +427,7 @@ struct handler<bool> {
     inline static void write(json_writer *writer, const bool &value) {
         writer->write_bool(value);
     }
-    inline static void read(json_reader *reader, bool *str) {
-        reader->read_bool(str);
-    }
+    inline static bool read(json_reader *reader) { return reader->read_bool(); }
 };
 
 template <typename T>
@@ -525,15 +463,15 @@ struct SC_INTERNAL_API handler {
     inline static void write(json_writer *writer, const T &data) {
         t_handler::write(writer, data);
     }
-    inline static void read(json_reader *reader, T *data) {
-        t_handler::read(reader, data);
+    inline static T read(json_reader *reader) {
+        return t_handler::read(reader);
     }
 };
 
 template <>
 struct SC_INTERNAL_API handler<any_t> {
     static void write(json_writer *writer, const any_t &data);
-    static void read(json_reader *reader, any_t *data);
+    static any_t read(json_reader *reader);
 };
 
 template <>
@@ -547,7 +485,7 @@ template <>
 struct SC_INTERNAL_API handler<reflection::general_object_t> {
     static void write(
             json_writer *writer, const reflection::general_object_t &data);
-    static void read(json_reader *reader, reflection::general_object_t *data);
+    static reflection::general_object_t read(json_reader *reader);
 };
 
 template <typename T>
@@ -561,41 +499,9 @@ struct SC_INTERNAL_API reflection_handler {
     }
 };
 
-inline void json_writer::begin_object(bool multi_line) {
-    *os_ << "{";
-    scope_multi_line_.push_back(multi_line);
-    scope_counter_.push_back(0);
-}
-
 template <typename ValueType>
 inline void json_writer::write_number(const ValueType &v) {
     *os_ << v;
-}
-
-inline void json_writer::write_bool(const bool &v) {
-    *os_ << v;
-}
-
-inline void json_writer::write_string(const std::string &s) {
-    *os_ << '\"';
-    for (size_t i = 0; i < s.length(); ++i) {
-        char ch = s[i];
-        switch (ch) {
-            case '\r': *os_ << "\\r"; break;
-            case '\n': *os_ << "\\n"; break;
-            case '\\': *os_ << "\\\\"; break;
-            case '\t': *os_ << "\\t"; break;
-            case '\"': *os_ << "\\\""; break;
-            default: *os_ << ch;
-        }
-    }
-    *os_ << '\"';
-}
-
-inline void json_writer::begin_array(bool multi_line) {
-    *os_ << '[';
-    scope_multi_line_.push_back(multi_line);
-    scope_counter_.push_back(0);
 }
 
 template <typename ValueType>
@@ -606,43 +512,10 @@ inline void json_writer::write_keyvalue(
     json::handler<ValueType>::write(this, value);
 }
 
-inline void json_writer::end_array() {
-    if (scope_counter_.size() != 0 && scope_multi_line_.size() != 0) {
-        bool newline = scope_multi_line_.back();
-        size_t nelem = scope_counter_.back();
-        scope_multi_line_.pop_back();
-        scope_counter_.pop_back();
-        if (newline && nelem != 0) write_seperator();
-    }
-    *os_ << ']';
-}
-
-inline void json_writer::write_array_seperator() {
-    if (scope_counter_.back() != 0) { *os_ << ", "; }
-    scope_counter_.back() += 1;
-    write_seperator();
-}
-
-inline void json_writer::write_item_seperator() {
-    *os_ << ", ";
-    write_seperator();
-}
 template <typename ValueType>
 inline void json_writer::write_array_item(const ValueType &value) {
     this->write_array_seperator();
     json::handler<ValueType>::write(this, value);
-}
-
-inline void json_writer::end_object() {
-    // TODO(Zhichen): Replace comparison by log check
-    if (scope_counter_.size() != 0 && scope_multi_line_.size() != 0) {
-        bool newline = scope_multi_line_.back();
-        size_t nelem = scope_counter_.back();
-        scope_multi_line_.pop_back();
-        scope_counter_.pop_back();
-        if (newline && nelem != 0) write_seperator();
-        *os_ << '}';
-    }
 }
 
 template <typename ValueType>
@@ -652,180 +525,31 @@ inline void json_writer::write(const ValueType &value) {
     assert(nscope == scope_multi_line_.size());
 }
 
-inline void json_writer::write_seperator() {
-    if (pretty_print_
-            && (scope_multi_line_.size() == 0 || scope_multi_line_.back())) {
-        *os_ << '\n';
-        *os_ << std::string(scope_multi_line_.size() * 2, ' ');
-    }
-}
-
-inline int json_reader::next_char() {
-    return is_->get();
-}
-
-inline int json_reader::peeknext_char() {
-    return is_->peek();
-}
-
-inline int json_reader::next_nonspace() {
-    int ch;
-    do {
-        ch = next_char();
-        if (ch == '\n') ++line_count_n_;
-        if (ch == '\r') ++line_count_r_;
-    } while (isspace(ch));
-    return ch;
-}
-
-inline int json_reader::peeknext_nonspace() {
-    int ch;
-    while (true) {
-        ch = peeknext_char();
-        if (ch == '\n') ++line_count_n_;
-        if (ch == '\r') ++line_count_r_;
-        if (!isspace(ch)) break;
-        next_char();
-    }
-    return ch;
-}
-
-inline void json_reader::read_string(std::string *out_str) {
-    int ch = next_nonspace();
-    if (ch == '\"') {
-        std::ostringstream output;
-        while (true) {
-            ch = next_char();
-            if (ch == '\\') {
-                char sch = static_cast<char>(next_char());
-                switch (sch) {
-                    case 'r': output << '\r'; break;
-                    case 'n': output << '\n'; break;
-                    case '\\': output << '\\'; break;
-                    case 't': output << '\t'; break;
-                    case '\"': output << '\"'; break;
-                    default:
-                        throw std::runtime_error(
-                                "JSON: unknown string escape.");
-                }
-            } else {
-                if (ch == '\"') break;
-                output << static_cast<char>(ch);
-            }
-            if (ch == EOF || ch == '\r' || ch == '\n') {
-                throw std::runtime_error("JSON: error at!");
-                return;
-            }
-        }
-        *out_str = output.str();
-    } else {
-        return;
-    }
-}
-
 template <typename ValueType>
-inline void json_reader::read_number(ValueType *out_value) {
-    *is_ >> *out_value;
+inline ValueType json_reader::read_number() {
+    ValueType out_value;
+    auto old_cnt = is_->tellg();
+    *is_ >> out_value;
+    expect(!is_->fail(), "Bad value");
+    auto new_cnt = is_->tellg();
+    if (new_cnt == -1) new_cnt = old_cnt + std::streamoff(1);
+    line_position_ += (new_cnt - old_cnt);
+    return out_value;
 }
 
-inline void json_reader::read_bool(bool *out_value) {
-    *is_ >> *out_value;
-}
-
-inline void json_reader::begin_object() {
-    int ch = next_nonspace();
-    if (ch == '{') { scope_counter_.push_back(0); }
-}
-
-inline void json_reader::begin_array() {
-    int ch = next_nonspace();
-    if (ch == '[') { scope_counter_.push_back(0); }
-}
-
-inline bool json_reader::next_object_item(std::string *out_key) {
-    bool next = true;
-    if (scope_counter_.back() != 0) {
-        int ch = next_nonspace();
-        if (ch == EOF) {
-            next = false;
-        } else if (ch == '}') {
-            next = false;
-        } else {
-            assert(ch == ',');
-        }
-    } else {
-        int ch = peeknext_nonspace();
-        if (ch == '}') {
-            next_char();
-            next = false;
-        }
-    }
-    if (!next) {
-        scope_counter_.pop_back();
-        return false;
-    } else {
-        scope_counter_.back() += 1;
-        read_string(out_key);
-        int ch = next_nonspace();
-        return (ch == ':');
-    }
-}
-
-inline bool json_reader::next_array_item() {
-    bool next = true;
-    if (scope_counter_.back() != 0) {
-        int ch = next_nonspace();
-        if (ch == EOF) {
-            next = false;
-        } else if (ch == ']') {
-            next = false;
-        } else {
-            assert(ch == ',');
-        }
-    } else {
-        int ch = peeknext_nonspace();
-        if (ch == ']') {
-            next_char();
-            next = false;
-        }
-    }
-    if (!next) {
-        scope_counter_.pop_back();
-        return false;
-    } else {
-        scope_counter_.back() += 1;
-        return true;
-    }
+template <>
+inline void json_reader::read(reflection::general_ref_t *out_value) {
+    json::handler<reflection::general_ref_t>::read(this, out_value);
 }
 
 template <typename T>
 inline void json_reader::read(T *out_value) {
-    json::handler<T>::read(this, out_value);
-}
-
-inline void readhelper::read_fields(json_reader *reader) {
-    reader->begin_object();
-    std::map<std::string, int> visited;
-    std::string key;
-    while (reader->next_object_item(&key)) {
-        if (map_.count(key) != 0) {
-            entry e = map_[key];
-            (*e.func)(reader, e.addr);
-            visited[key] = 0;
-        }
-    }
-    if (visited.size() != map_.size()) {
-        for (std::map<std::string, entry>::iterator it = map_.begin();
-                it != map_.end(); ++it) {
-            assert(visited.count(it->first) == 1
-                    && "json reader: missing filed ");
-        }
-    }
+    *out_value = json::handler<T>::read(this);
 }
 
 template <typename T>
-inline void readhelper::reader_function(json_reader *reader, void *addr) {
-    json::handler<T>::read(reader, static_cast<T *>(addr));
+inline T json_reader::read() {
+    return json::handler<T>::read(this);
 }
 
 } // namespace json

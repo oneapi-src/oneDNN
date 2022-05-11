@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,9 +21,15 @@
 
 namespace sc {
 struct tuner_recoverable_exception_t : public std::runtime_error {
-    tuner_recoverable_exception_t(const std::string &msg)
-        : std::runtime_error(msg) {}
+    using parent = std::runtime_error;
+    using parent::runtime_error;
 };
+
+class json_error : public std::runtime_error {
+    using parent = std::runtime_error;
+    using parent::runtime_error;
+};
+
 } // namespace sc
 
 #endif

@@ -23,6 +23,7 @@
 #include "pass/pass.hpp"
 #include <runtime/env_vars.hpp>
 #include <unordered_map>
+#include <util/exceptions.hpp>
 #include <util/graph_repository.hpp>
 #include <util/scoped_timer.hpp>
 
@@ -201,8 +202,14 @@ std::unique_ptr<graph::repository> &get_driver_import_repo(
             SC_MODULE_WARN << "Cannot open graph config file: " << import_path;
             return std::unique_ptr<graph::repository> {};
         } else {
-            return utils::make_unique<graph::repository>(
-                    graph::repository::load(ctx, ifs));
+            try {
+                return utils::make_unique<graph::repository>(
+                        graph::repository::load(ctx, ifs));
+            } catch (json_error je) {
+                SC_MODULE_WARN << "Ignored graph config file: " << import_path
+                               << ", error = " << je.what();
+                return std::unique_ptr<graph::repository> {};
+            }
         }
     };
     static std::unique_ptr<graph::repository> repo = make_repo(ctx);
