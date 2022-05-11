@@ -109,6 +109,7 @@ void jit_uni_fork_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward
         par_conv.src = &src[src_off];
         par_conv.dst = &dst[dst_off];
         par_conv.filt = &weights[wei_off];
+        par_conv.dst_orig = dst;
 
         if (bias) par_conv.bias = &bias[bias_d.blk_off(ch*jcp.ch_block)];
 

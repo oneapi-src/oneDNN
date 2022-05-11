@@ -2349,21 +2349,14 @@ typename std::enable_if<!(std::is_same<T, Xbyak::Zmm>::value
                           || std::is_same<T, Xbyak::Address>::value)>::type
 jit_uni_binary_injector_t<isa, Vmm>::execute_prelu_binary(const Vmm &dst,
                                                         const Vmm &lhs, const T &rhs) const {
-    int aux0_idx = static_cast<int>(rhs_arg_static_params_.rhs_prelu_helper_vmm_idx);
-    bool changed;
-    // find an used idx
-    do {
-        changed = false;
-        if (aux0_idx == lhs.getIdx()) {
-            aux0_idx = (aux0_idx + 1) % 16;
-            changed = true;
-        }
-        if (aux0_idx == rhs.getIdx()) {
-            aux0_idx = (aux0_idx + 1) % 16;
-            changed = true;
-        }
-    } while (changed == true);
-    const Vmm vmm_aux0 = Vmm(aux0_idx);
+    // in sse4 vmm_aux0 as mask it's index must be 0
+    Vmm vmm_aux0 = Vmm(rhs_arg_static_params_.rhs_prelu_helper_vmm_idx);
+
+    if (dst == vmm_aux0) {
+        vmm_aux0 = Vmm(14);
+        if (isa == sse41)
+            assert(!"conflict mask register");
+    }
 
     push_vmm(host_, vmm_aux0);
     host_->uni_vmulps(rhs, rhs, lhs);
