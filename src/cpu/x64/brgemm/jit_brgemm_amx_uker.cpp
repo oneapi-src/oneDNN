@@ -731,7 +731,7 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             auto scales_ptr = EVEX_compress_addr(
                     reg_scales, scales_offset(ldb_ind + ldb));
-            vmovups(zmm_scales(ldb), scales_ptr);
+            vmovups(zmm_scales(ldb) | k_mask | T_z, scales_ptr);
         }
     }
 }
