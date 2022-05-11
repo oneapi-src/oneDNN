@@ -201,7 +201,6 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         int src_type_size = (int)types::data_type_size(src_data_type);
         // Use 64-byte reduction step to avoid partial cache line loads.
         bh->set_base_iter_block("ic", 64 / src_type_size);
-        bh->set_base_iter_block("mb", 32);
     }
 
     bh->compute();
@@ -317,7 +316,6 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     if (use_2d_send) {
         int dst_type_size = (int)types::data_type_size(dst_data_type);
         bh->set_base_iter_block("oc", 64 / dst_type_size);
-        bh->set_base_iter_block("mb", 32);
         if (!is_stride1()) bh->allow_split({"mb"});
     }
 
@@ -436,7 +434,6 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
             "mb", math::gcd(16, bh->dim("mb").base_iter_block()));
 
     bh->reorder({"mb", "ow", "oh"});
-    if (use_2d_send) bh->set_base_iter_block("ic", 32);
 
     bh->compute();
 
