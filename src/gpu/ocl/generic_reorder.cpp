@@ -404,55 +404,28 @@ dimensions_t remainder(dimensions_t all, dimensions_t subset) {
 // Examples:
 // For 1024x1024 ab, it will be (16b)
 // for 16x16x16 ABc2a2b, it will be (4c2a2b)
-bool fill_to_vect(int simd_size, dimensions_t all, dimensions_t &subset) {
-    int need = simd_size;
-    int current_size = 1;
+bool fill_to_vect(
+        int simd_size, const dimensions_t &all, dimensions_t &subset) {
+    const int min_full_vecs = 5; // TODO: tune me
+    dim_t current_size = 1;
     subset.clear();
-    for (size_t i = 0; i < all.size(); i++) {
-        if (i == 0 && all[i].size > 3 * simd_size) {
-            // Vectorize innermost dim. Since it's not divisible by simd size,
-            // it will need to be padded. And for that the vectorised dim
+    for (auto &dim : all) {
+        dim_t next_size = current_size * dim.size;
+        int next_full_vecs = next_size / simd_size;
+        if (next_full_vecs >= min_full_vecs || next_size % simd_size == 0) {
+            // Vectorize innermost dim(s). If it's not divisible by simd size,
+            // they will need to be padded. And for that the vectorised dim(s)
             // should be large enough because otherwise the padding would be
             // too significant fraction of tensor and it would hurt perf.
-            dimension_t tmp = all[i];
-            tmp.size = simd_size;
+            dimension_t tmp = dim;
+            tmp.size = simd_size / current_size;
             subset.push_back(tmp);
             return true;
         }
-        if (all[i].size % 2 != 0) {
-            // can't fill packet to exactly 16
-            return false;
-        }
-        if (all[i].size <= need) {
-            if (2 * all[i].size <= simd_size && need % all[i].size != 0) {
-                // Avoid the problematic case where multiple reads are necessary
-                // to read 16 entries and the trailing packet has fewer than
-                // all[i].size entries.
-                return false;
-            }
-            subset.push_back(all[i]);
-            current_size *= all[i].size;
-            need /= all[i].size;
-        } else if ((all[i].size / need) * need == all[i].size) {
-            dimension_t tmp = all[i];
-            tmp.size = need;
-            subset.push_back(tmp);
-            current_size *= tmp.size;
-            need /= tmp.size;
-        } else {
-            // can't fill packet exactly to requested value; either size or
-            // simd was not power-of-2?
-            // TODO: cases where innermost dim is small and odd are not
-            // supported by this kernel because there's no logic to construct
-            // 16-item packet in that case. However, it should be possible to
-            // support cases like ...16a3b: declare packet=5.3a3b, burst=3a,
-            // then on opencl side add logic that will decode it into integer
-            // a,b coordinates. Such change would almost eliminate use of slow,
-            // reference reorder.
-            return false;
-        }
-        if (need == 1) { return true; }
-        if (current_size == 1) { return false; }
+        // No hope of properly filling the vector.
+        if (simd_size % next_size != 0) return false;
+        current_size = next_size;
+        subset.push_back(dim);
     }
     // there was not enough data in tensor to fill even a single packet
     return false;
