@@ -340,12 +340,30 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
     }
 }
 
+template <typename F>
+void iterate(const int repeats, const int ur_ch_blocks, const int ur_w,
+        const bool mask_tail, const F &f) {
+    for (int r = 0; r < repeats; r++)
+        for (int ch = 0; ch < ur_ch_blocks; ch++) {
+            const bool mask_flag = mask_tail && ch + 1 == ur_ch_blocks;
+            for (int ow = 0; ow < ur_w; ow++)
+                f(r, ch, ow, mask_flag);
+        }
+}
+
+template <typename F>
+void iterate(
+        const int repeats, const int ur_ch_blocks, const int ur_w, const F &f) {
+    iterate(repeats, ur_ch_blocks, ur_w, false, f);
+}
+
 template <cpu_isa_t isa>
-void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_blocks, int ur_w) {
+void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_blocks, int ur_w, bool is_ch_tail) {
     int repeats = isa == sse41 ? 2 : 1;
 
     int eltwise_inj_idx = 0;
     int depthwise_inj_idx = 0;
+    int binary_inj_idx = 0;
     int quantization_inj_idx = 0;
     std::size_t post_ops_data_offset = 0;
     const auto &p = attr_.post_ops_;
@@ -358,6 +376,73 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
 
             eltwise_injectors[eltwise_inj_idx]->compute_vector_range(start_idx, end_idx);
             eltwise_inj_idx++;
+        } else if (post_op.is_binary()) {
+            injector_utils::vmm_index_set_t vmm_idxs;
+            binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
+                    rhs_arg_params_tail;
+            const auto dst_layout_nxc = is_dst_layout_nxc();
+            // width per output channel block
+            const auto ch_blk = jcp.ch_block;
+            // ncx: next output channel block stride
+            const auto ocb_stride
+                    = dst_layout_nxc ? ch_blk : jcp.od * jcp.oh * jcp.ow * ch_blk;
+            // ncx: next w inside a output channel block
+            const auto ow_stride = dst_layout_nxc ? jcp.ngroups : ch_blk;
+            // ncx: if has tail
+            const auto mask_tail_blocked_layout
+                    = jcp.oc_without_padding % jcp.ch_block && !dst_layout_nxc;
+            // tail value
+            const int c_tail = jcp.oc_without_padding % jcp.ch_block;    
+            iterate(repeats, ur_ch_blocks, ur_w, mask_tail_blocked_layout,
+                    [&](const int r, const int ch, const int ow,
+                            const bool mask_flag_blocked_layout) {
+                        const int vlen
+                                = cpu_isa_traits<isa>::vlen / sizeof(float);
+                        const bool is_tail_load = check_if_tail_load(
+                                is_ch_tail, c_tail, ch, ur_ch_blocks, vlen, r);
+                        if ((ch + 1 == ur_ch_blocks) && is_ch_tail
+                                && c_tail <= r * vlen)
+                            return;
+                        const size_t o_off = jcp.typesize_out
+                                * (ch * ocb_stride + ow * ow_stride + r * vlen);
+                        const auto vmm_idx = get_acc_reg(
+                                r * ur_ch_blocks * ur_w + ch * ur_w + ow).getIdx();
+                        vmm_idxs.emplace(vmm_idx);
+
+                        rhs_arg_params_tail.vmm_idx_to_out_reg.emplace(
+                                vmm_idx, reg_output);
+                        rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
+                                vmm_idx, o_off);
+                        if (mask_flag_blocked_layout || is_tail_load)
+                            rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
+                    });
+            rhs_arg_params = rhs_arg_params_tail;
+            rhs_arg_params.vmm_tail_idx_.clear();
+
+            Label postops_done;
+            if (mask_tail_blocked_layout) {
+                // mask_tail_blocked_layout approach of dynamic tail handling is
+                // used in blocked layout only. TODO: may be unify?
+                Label postops_no_tail;
+                push(aux_reg_blocks_offset);
+                mov(aux_reg_blocks_offset, ptr[param1 + GET_OFF(load_work)]);
+                cmp(aux_reg_blocks_offset, jcp.nb_ch_blocking * jcp.ch_block);
+                pop(aux_reg_blocks_offset);
+                jge(postops_no_tail, T_NEAR);
+                binary_injector->compute_vector_range(vmm_idxs,
+                    binary_inj_idx, post_op, rhs_arg_params_tail);
+                jmp(postops_done, T_NEAR);
+                L(postops_no_tail);
+            } else if (is_ch_tail) {
+                binary_injector->compute_vector_range(vmm_idxs,
+                    binary_inj_idx, post_op, rhs_arg_params_tail);                
+            }
+            if (!is_ch_tail) {
+                binary_injector->compute_vector_range(vmm_idxs,
+                    binary_inj_idx, post_op, rhs_arg_params);                
+                L(postops_done);
+            }
+            binary_inj_idx++;
         } else if (post_op.is_depthwise()) {
             push(aux_reg_blocks_offset);
             base_post_ops_data_offset += reg64_size;
@@ -382,6 +467,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
 
             post_ops_data_offset += depthwise_injectors[depthwise_inj_idx]->memoryStep();
             depthwise_inj_idx++;
+            binary_inj_idx++;
         } else if (post_op.is_quantization()) {
             push(aux_reg_blocks_offset);
             base_post_ops_data_offset += reg64_size;
@@ -419,6 +505,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(int ur_ch_block
 
             post_ops_data_offset += quantization_injectors[quantization_inj_idx]->memoryStep();
             quantization_inj_idx++;
+            binary_inj_idx++;
         }
     }
 }
@@ -536,7 +623,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::compute_loop(int ur_w, int ur_ch_
         } else {
             apply_filter_unrolled(ur_ch_blocks, ur_w, is_ch_tail);
         }
-        apply_postprocess(ur_ch_blocks, ur_w);
+        apply_postprocess(ur_ch_blocks, ur_w, is_ch_tail);
         store_dst(ur_ch_blocks, ur_w, is_ch_tail);
     };
 
@@ -654,6 +741,7 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::loop_body(int ur_ch_blocks) {
 template <cpu_isa_t isa>
 void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::generate() {
     const auto &p = attr_.post_ops_;
+    bool with_binary = false;
     for (int i = 0; i < p.len(); i++) {
         auto &post_op = p.entry_[i];
         if (post_op.is_eltwise()) {
@@ -661,6 +749,8 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::generate() {
                     this,
                     post_op.eltwise
             ));
+        } else if (post_op.is_binary()) {
+            with_binary = true;
         } else if (post_op.is_depthwise()) {
             depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<isa>(
                     this,
@@ -674,12 +764,29 @@ void jit_uni_fork_dw_conv_fwd_kernel_f32<isa>::generate() {
             ));
         }
     }
+    if (with_binary) {
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = true;
+        static constexpr size_t helper_vmm_idx = 2;
+        size_t tail_size = jcp.oc_without_padding
+                % (cpu_isa_traits<isa>::vlen / sizeof(float));
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+        const binary_injector::rhs_arg_static_params_t rhs_sp {
+            helper_vmm_idx, r10, r11, r12, preserve_gpr,
+            preserve_vmm, GET_OFF(post_ops_binary_rhs_arg_vec),
+            GET_OFF(dst_orig), memory_desc_wrapper(&dst_md_),
+            tail_size, k_oc_tail_mask, use_exact_tail_scalar_bcast};
+        const binary_injector::static_params_t bsp {this->param1, rhs_sp};
+        binary_injector = utils::make_unique<
+                binary_injector::jit_uni_binary_injector_t<isa>>(
+                this, bsp);
+    }
 
     this->preamble();
 
     std::size_t post_ops_pointers_count = 0;
     for (int i = 0; i < p.len(); i++) {
-        if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization()) {
+        if (p.entry_[i].is_depthwise() || p.entry_[i].is_quantization() || p.entry_[i].is_binary()) {
             post_ops_pointers_count++;
         }
     }
