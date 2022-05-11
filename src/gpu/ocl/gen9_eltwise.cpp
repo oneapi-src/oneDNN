@@ -14,12 +14,41 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
+
 #include "gpu/ocl/gen9_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+static status_t init_conf_common(eltwise_conf_t &conf, engine_t *engine,
+        const memory_desc_wrapper data_d) {
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto arch = compute_engine->device_info()->gpu_arch();
+    bool is_pre_xe_lp = arch < compute::gpu_arch_t::xe_lp;
+
+    // Important hw features for code generation
+    const int dt_size = data_d.data_type_size();
+    const int max_load_size = is_pre_xe_lp ? 128 : 256;
+
+    // Heuristics chosen by experimentation
+    const int load_unroll = is_pre_xe_lp ? 4 : 1;
+    const int local_threads = is_pre_xe_lp ? 1 : 4;
+
+    // Prefer loading multiple of max load size to reduce messages
+    const int load_size = load_unroll * max_load_size;
+
+    conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
+
+    // Set simd size
+    conf.sub_group_size = std::max(32 / dt_size, 16);
+    conf.vector_size = load_size / (dt_size * conf.sub_group_size);
+    conf.work_group_size = local_threads * conf.sub_group_size;
+
+    return status::success;
+}
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const eltwise_conf_t &conf, const offsets_t &off,
@@ -52,18 +81,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
 status_t gen9_eltwise_fwd_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper data_d(data_md());
-    conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
-    conf.vector_size = 8;
-    conf.work_group_size = 256;
-    conf.sub_group_size = 16;
-
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    if (compute_engine->is_xe_hpc()) {
-        conf.work_group_size = 1024;
-        conf.sub_group_size = 32;
-    }
-
-    return status::success;
+    return init_conf_common(conf, engine, data_d);
 }
 
 status_t gen9_eltwise_fwd_t::pd_t::init_kernel_ctx(
@@ -113,18 +131,7 @@ status_t gen9_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
     // This kernel supports only matching data and diff formats
     if (data_d != diff_data_d) return status::unimplemented;
 
-    conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
-    conf.vector_size = 8;
-    conf.work_group_size = 256;
-    conf.sub_group_size = 16;
-
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    if (compute_engine->is_xe_hpc()) {
-        conf.work_group_size = 1024;
-        conf.sub_group_size = 32;
-    }
-
-    return status::success;
+    return init_conf_common(conf, engine, data_d);
 }
 
 status_t gen9_eltwise_bwd_t::pd_t::init_kernel_ctx(
