@@ -389,6 +389,52 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     }
 }
 
+void init_brdgemm_conf(brgemm_t *brg, brgemm_batch_kind_t type,
+        impl::data_type_t dt_a, impl::data_type_t dt_b, brgemm_layout_t layout,
+        float alpha, float beta, dim_t LDA, dim_t LDC, dim_t M, dim_t N,
+        const brgemm_strides_t *strides) {
+
+    brg->dt_a = dt_a;
+    brg->dt_b = dt_b;
+
+    brg->is_int8 = utils::one_of(brg->dt_a, data_type::u8, data_type::s8)
+            && (brg->dt_b == data_type::s8);
+    brg->is_bf16
+            = (brg->dt_a == data_type::bf16) && (brg->dt_b == data_type::bf16);
+    brg->is_f32
+            = (brg->dt_a == data_type::f32) && (brg->dt_b == data_type::f32);
+
+    brg->dt_c = brg->is_int8 ? data_type::s32 : data_type::f32;
+    brg->dt_d = brg->dt_c;
+    brg->dt_bias = brg->dt_c;
+
+    brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    brg->is_dgmm = true;
+    brg->type = type;
+    brg->layout = layout;
+    brg->beta = beta;
+    brg->alpha = alpha;
+
+    brg->LDA = static_cast<int>(LDA);
+    brg->LDC = static_cast<int>(LDC);
+    brg->LDD = static_cast<int>(LDC);
+
+    brg->typesize_A = types::data_type_size(brg->dt_a);
+    brg->typesize_B = types::data_type_size(brg->dt_b);
+    brg->typesize_C = types::data_type_size(brg->dt_c);
+    brg->typesize_D = types::data_type_size(brg->dt_d);
+
+    brg->bcast_dim = M;
+    brg->load_dim = N;
+
+    if (strides != nullptr) {
+        brg->stride_a = strides->stride_a;
+        brg->stride_b = strides->stride_b;
+    } else {
+        brg->stride_a = brg->stride_b = 0;
+    }
+}
+
 } // namespace brgemm_utils
 } // namespace x64
 } // namespace cpu

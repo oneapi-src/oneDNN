@@ -205,23 +205,14 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     if (transA || layout != brgemm_row_major || alpha != 1.0f || beta != 0.f)
         return status::unimplemented;
 
+    brgemm_utils::init_brdgemm_conf(brg, type, dt_a, dt_b, layout, alpha, beta,
+            LDA, LDC, M, N, strides);
+
     const bool ldx_check = (LDA < N || LDC < N);
     if (ldx_check) return status::invalid_arguments;
 
-    brg->dt_a = dt_a;
-    brg->dt_b = dt_b;
-
-    brg->is_int8 = one_of(brg->dt_a, data_type::u8, data_type::s8)
-            && (brg->dt_b == data_type::s8);
-    brg->is_bf16
-            = (brg->dt_a == data_type::bf16) && (brg->dt_b == data_type::bf16);
-    brg->is_f32
-            = (brg->dt_a == data_type::f32) && (brg->dt_b == data_type::f32);
     if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
         return status::unimplemented;
-    brg->dt_c = (brg->is_int8) ? data_type::s32 : data_type::f32;
-    brg->dt_d = brg->dt_c;
-    brg->dt_bias = brg->dt_c;
 
     const cpu_isa_t req_isa = brg->is_f32
             ? avx512_core
@@ -229,37 +220,11 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     if (!(is_superset(isa, req_isa) && mayiuse(req_isa)))
         return status::unimplemented;
 
-    brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
-    brg->is_dgmm = true;
-    brg->type = type;
-    brg->layout = layout;
-    brg->alpha = alpha;
-    brg->beta = beta;
-
-    brg->LDA = static_cast<int>(LDA);
-    brg->LDC = static_cast<int>(LDC);
-    brg->LDD = static_cast<int>(LDC);
-
-    brg->typesize_A = types::data_type_size(brg->dt_a);
-    brg->typesize_B = types::data_type_size(brg->dt_b);
-    brg->typesize_C = types::data_type_size(brg->dt_c);
-    brg->typesize_D = types::data_type_size(brg->dt_d);
-
-    brg->bcast_dim = M;
-    brg->load_dim = N;
-
     const int requires_permute_dst_zmm
             = jit_brdgmm_kernel_base_t::is_fast_vnni_int8(*brg);
     const int max_acc_zmms = 32 - 2 /*zmma, zmmb, post-ops, saturation*/
             - requires_permute_dst_zmm;
     CHECK(brdgmm_blocking(brg, max_acc_zmms));
-
-    if (strides != nullptr) {
-        brg->stride_a = strides->stride_a;
-        brg->stride_b = strides->stride_b;
-    } else {
-        brg->stride_a = brg->stride_b = 0;
-    }
 
     return status::success;
 }
