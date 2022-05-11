@@ -457,8 +457,6 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OWB", ow_nchunk);
     kernel_ctx.define_int("OWX", owx);
 
-    kernel_ctx.define_int("DISABLE_DPAS", disable_dpas);
-
     if (conf.is_depthwise)
         kernel_ctx.define_int("WEI_32G", 1);
     else
@@ -747,8 +745,6 @@ status_t xe_lp_x8s8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("LWS_2", conf.lws_d[2]);
 
     kernel_ctx.define_int("IS_NHWC", conf.is_nhwc);
-
-    kernel_ctx.define_int("DISABLE_DPAS", disable_dpas);
 
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");

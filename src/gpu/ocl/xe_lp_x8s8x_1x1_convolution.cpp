@@ -198,8 +198,6 @@ status_t xe_lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
 
     kernel_ctx.define_int("WEI_4O8I8O4I", 1);
 
-    kernel_ctx.define_int("DISABLE_DPAS", disable_dpas);
-
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");
     def_data_type(kernel_ctx, conf.dst_data_type, "DST");

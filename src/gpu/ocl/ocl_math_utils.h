@@ -316,95 +316,6 @@ DECLARE_BLOCK_WRITE(_us, block_write_us_emu, ushort, __local, ushort)
         return acc; \
     }
 
-#if defined(cl_intel_subgroup_matrix_multiply_accumulate) && !DISABLE_DPAS
-
-int8 __attribute__((overloadable)) mmad8x8(uint8 a, int8 b, int8 acc) {
-    return intel_sub_group_u8_i8_matrix_mad_k32(a, b, acc);
-}
-
-int8 __attribute__((overloadable)) mmad8x8(int8 a, int8 b, int8 acc) {
-    return intel_sub_group_i8_i8_matrix_mad_k32(a, b, acc);
-}
-
-int4 __attribute__((overloadable)) mmad8x4(uint4 a, int8 b, int4 acc) {
-    return intel_sub_group_u8_i8_matrix_mad_k32(a, b, acc);
-}
-
-int4 __attribute__((overloadable)) mmad8x4(int4 a, int8 b, int4 acc) {
-    return intel_sub_group_i8_i8_matrix_mad_k32(a, b, acc);
-}
-
-int4 __attribute__((overloadable)) mmad8x4(ushort4 a, int8 b, int4 acc) {
-    return intel_sub_group_u8_i8_matrix_mad_k32(a, b, acc);
-}
-
-int4 __attribute__((overloadable)) mmad8x4(short4 a, int8 b, int4 acc) {
-    return intel_sub_group_i8_i8_matrix_mad_k32(a, b, acc);
-}
-
-int4 __attribute__((overloadable)) mmad8x4(ushort4 a, uint8 b, int4 acc) {
-    return intel_sub_group_u8_u8_matrix_mad_k32(a, b, acc);
-}
-
-int4 __attribute__((overloadable)) mmad8x4(short4 a, uint8 b, int4 acc) {
-    return intel_sub_group_i8_u8_matrix_mad_k32(a, b, acc);
-}
-
-int8 __attribute__((overloadable)) mmad8x8(ushort8 a, int8 b, int8 acc) {
-    return intel_sub_group_u8_i8_matrix_mad_k32(a, b, acc);
-}
-
-int8 __attribute__((overloadable)) mmad8x8(short8 a, int8 b, int8 acc) {
-    return intel_sub_group_i8_i8_matrix_mad_k32(a, b, acc);
-}
-
-float8 __attribute__((overloadable)) mmad8x8_f16(uint8 a, int8 b, float8 acc) {
-    return intel_sub_group_f16_f16_matrix_mad_k16(as_int8(a), b, acc);
-}
-
-float4 __attribute__((overloadable)) mmad8x4_f16(uint4 a, int8 b, float4 acc) {
-    return intel_sub_group_f16_f16_matrix_mad_k16(as_int4(a), b, acc);
-}
-
-float4 __attribute__((overloadable))
-mmad8x4_f16(ushort4 a, int8 b, float4 acc) {
-    return intel_sub_group_f16_f16_matrix_mad_k16(as_short4(a), b, acc);
-}
-
-float8 __attribute__((overloadable))
-mmad8x8_f16(ushort8 a, int8 b, float8 acc) {
-    return intel_sub_group_f16_f16_matrix_mad_k16(as_short8(a), b, acc);
-}
-
-#if MATH_UTILS_DECLARE_BF16
-float8 __attribute__((overloadable)) mmad8x8_bf16(uint8 a, int8 b, float8 acc) {
-    return intel_sub_group_bf16_bf16_matrix_mad_k16(as_int8(a), b, acc);
-}
-
-float8 __attribute__((overloadable))
-mmad8x8_bf16(ushort8 a, int8 b, float8 acc) {
-    return intel_sub_group_bf16_bf16_matrix_mad_k16(as_short8(a), b, acc);
-}
-
-float8 __attribute__((overloadable))
-mmad8x8_bf16(short8 a, int8 b, float8 acc) {
-    return intel_sub_group_bf16_bf16_matrix_mad_k16(a, b, acc);
-}
-
-float4 __attribute__((overloadable))
-mmad8x4_bf16(ushort4 a, int8 b, float4 acc) {
-    return intel_sub_group_bf16_bf16_matrix_mad_k16(as_short4(a), b, acc);
-}
-#ifdef cl_intel_subgroup_split_matrix_multiply_accumulate
-
-float8 mmad8x8_bf16_split(uint4 a, int8 b, float8 acc) {
-    return intel_sub_group_f16_f16_split_matrix_mad_k16(as_int4(a), b, acc);
-}
-
-#endif //cl_intel_subgroup_split_matrix_multiply_accumulate
-#endif //cl_intel_subgroup_matrix_multiply_accumulate
-
-#else
 DECLARE_MMAD_EMU(mmad8x4, idot4, 8, 4, uint4, int8, int4)
 DECLARE_MMAD_EMU(mmad8x4, idot4, 8, 4, int4, int8, int4)
 DECLARE_MMAD_EMU(mmad8x8, idot4, 8, 8, uint8, int8, int8)
@@ -421,8 +332,6 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, uint8, int8, float8)
 DECLARE_MMAD_EMU(mmad8x4_bf16, bf16_dot2, 8, 4, ushort4, int8, float4)
 DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, ushort8, int8, float8)
 DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
-#endif
-
 #endif
 
 // Atomics

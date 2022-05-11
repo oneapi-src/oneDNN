@@ -89,7 +89,6 @@ struct xe_lp_x8s8x_1x1_convolution_fwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             CHECK(attr_.set_default_formats(dst_md(0)));
-            if (compute_engine->is_xe_hpg()) disable_dpas = true;
 
             return status::success;
         }
@@ -99,8 +98,6 @@ struct xe_lp_x8s8x_1x1_convolution_fwd_t : public gpu_primitive_t {
         void init_scratchpad();
 
         const memory_desc_t *scales_md() const { return &scales_md_; }
-
-        bool disable_dpas = false;
 
         conv_conf_t conf;
 

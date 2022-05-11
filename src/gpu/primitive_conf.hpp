@@ -286,25 +286,12 @@ struct conv_conf_t {
     int oc_block, ic_block, nchunk;
     int omb;
     int odb, ohb, owb;
-    size_t wei_block;
     int icb;
     int ocb;
-    int osp_chunk, mb_chunk, mb_block, slm_ic;
+    int osp_chunk, mb_chunk, mb_block;
     int iw_tail;
-    int mb_blk_wg;
-    int max_blk_wg, ic_blk_wg, oc_blk_wg;
-    int ic_blk_sg, oc_blk_sg;
-    int k_blocks, k_block_tail;
     size_t wei_slm_size, src_slm_size, dst_slm_size;
     int sub_group_size;
-    int workgroups_along_k;
-    int num_buffers;
-    int calc_block;
-    int ic_split;
-
-    int oc_group;
-    int ow_group;
-    int sp_group;
 
     size_t gws_d[3], lws_d[3];
     // Original global work sizes, before applying rounding in case when
@@ -313,12 +300,11 @@ struct conv_conf_t {
     compute::dispatch_t dispatch;
 
     bool with_bias, with_groups;
-    bool use_split_barrier;
 
     attr_info_t attr_info;
 
     bool is_depthwise;
-    bool is_nhwc, use_dpasw;
+    bool is_nhwc;
     bool reorder_wei = false;
     bool reorder_bias = false;
     int ver;
@@ -327,7 +313,6 @@ struct conv_conf_t {
     bool is_src_nchw, is_src_nhwc;
     bool is_dst_nhwc;
 
-    bool use_256grf_per_thread;
     int tile_size;
     int wino_m;
     int wino_r;
