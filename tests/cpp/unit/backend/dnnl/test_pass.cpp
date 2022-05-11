@@ -8255,7 +8255,7 @@ TEST(PassPriority, TestInt8PoolAdd) {
              | (u8/s8)
     */
     pass::pass_base_ptr pass1 = get_pass("int8_pool_binary_fusion");
-    pass::pass_base_ptr pass2 = get_pass("pool_binary_fusion");
+    pass::pass_base_ptr pass2 = get_pass("pool_post_ops_fusion");
     pass::pass_base_ptr pass3 = get_pass("quant_pass");
     pass::pass_base_ptr pass4 = get_pass("dequant_pass");
     ASSERT_GT(pass1->get_priority(), pass2->get_priority());
@@ -14074,4 +14074,85 @@ TEST(PassSystem, FuseToInt8ConvTransposeSwishReLU) {
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8);
+}
+
+// TODO(zitian): wait for the implementation of comparison ops:
+//      Gt, Ge, Le, Lt, Eq, Ne
+TEST(Pass, Pool3Postops) {
+    /*
+        0       1
+        \       /
+        [AvgPool, MaxPool]
+            |
+        [Add, Divide, Maximum, Minimum, Multiply, Subtract] * [0, 3]
+    */
+
+    const std::vector<op_kind_t> pooling_op_ts {AvgPool, MaxPool};
+    const std::vector<op_kind_t> binary_op_ts {
+            Add, Divide, Maximum, Minimum, Multiply, Subtract};
+    // select several combinations of post ops
+    const std::vector<std::vector<op_kind_t>> post_op_t_seqs {
+            {Add, Subtract, Divide}, {Minimum, Multiply}, {Add, Maximum},
+            {Divide, Minimum, Multiply}};
+
+    for_(auto &pool_op_t : pooling_op_ts)
+    for (const auto &post_op_t_seq : post_op_t_seqs) {
+        graph_t agraph;
+        std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
+        size_t lt_idx = 0;
+        std::vector<size_t> input_lts = {};
+        std::vector<size_t> output_lts = {};
+
+        std::vector<int64_t> strides = {2, 2};
+        std::vector<int64_t> pads_begin = {0, 0};
+        std::vector<int64_t> pads_end = {0, 0};
+        std::vector<int64_t> kernel = {2, 2};
+        op_t pool_op {0, pool_op_t, "pooling op"};
+        pool_op.set_attr(op_attr::strides, strides);
+        pool_op.set_attr(op_attr::pads_begin, pads_begin);
+        pool_op.set_attr(op_attr::pads_end, pads_end);
+        pool_op.set_attr(op_attr::kernel, kernel);
+        if (pool_op_t == AvgPool)
+            pool_op.set_attr<bool>(op_attr::exclude_pad, false);
+        pool_op.add_input(lt_vec[lt_idx]);
+        input_lts.push_back(lt_idx);
+        pool_op.add_output(lt_vec[++lt_idx]);
+
+        std::vector<op_t> post_ops {};
+        for (size_t i = 0; i < post_op_t_seq.size(); ++i) {
+            auto pop_t = post_op_t_seq[i];
+            post_ops.emplace_back(op_t {i + 1, pop_t, "post op"});
+
+            post_ops.back().add_input(lt_vec[lt_idx]);
+            if (std::find(binary_op_ts.begin(), binary_op_ts.end(), pop_t)
+                    != binary_op_ts.end()) {
+                post_ops.back().add_input(lt_vec[++lt_idx]);
+                input_lts.push_back(lt_idx);
+            }
+            post_ops.back().add_output(lt_vec[++lt_idx]);
+        }
+
+        output_lts.push_back(lt_idx);
+
+        ASSERT_EQ(agraph.add_op(&pool_op), status::success);
+        for (size_t i = 0; i < post_ops.size(); ++i)
+            ASSERT_EQ(agraph.add_op(&post_ops[i]), status::success);
+
+        agraph.build_graph();
+
+        pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        auto partition = agraph.get_partitions()[0];
+        ASSERT_EQ(get_fused_op(partition)->get_kind(),
+                dnnl_impl::op_kind::pool_post_ops_fusion);
+
+        ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
+        for (size_t k = 0; k < input_lts.size(); ++k)
+            ASSERT_EQ(partition->get_inputs()[k].id, input_lts[k]);
+        ASSERT_EQ(partition->get_outputs().size(), output_lts.size());
+        for (size_t k = 0; k < output_lts.size(); ++k)
+            ASSERT_EQ(partition->get_outputs()[k].id, output_lts[k]);
+    }
 }

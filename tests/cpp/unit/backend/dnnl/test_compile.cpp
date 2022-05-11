@@ -17791,7 +17791,7 @@ public:
             g.add_op(&binary_op);
             g.build_graph();
 
-            impl::pass::pass_base_ptr apass = get_pass("pool_binary_fusion");
+            impl::pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1);
             auto part = g.get_partitions()[0];
@@ -25670,5 +25670,140 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
 
         ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
                 /*atol*/ 1.f));
+    }
+}
+
+TEST(ExecuteSubgraphFp32, Pool3Postops) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> pool_src_shape {2, 2, 4, 4};
+    std::vector<int64_t> pool_dst_shape {2, 2, 2, 2};
+
+    std::vector<test::vector<float>> src_datas {};
+    src_datas.emplace_back(product(pool_src_shape));
+    // at most 3 additional input tensors
+    for (size_t i = 0; i < 3; ++i)
+        src_datas.emplace_back(product(pool_dst_shape));
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+    for (auto &data : src_datas)
+        std::generate(data.begin(), data.end(),
+                [&]() { return f32_distribution(generator); });
+
+    std::vector<impl::logical_tensor_t> lt_vec;
+    lt_vec.emplace_back(utils::logical_tensor_init(
+            0, pool_src_shape, impl::data_type::f32));
+    // at most 7 tensors in the whole graph
+    for (size_t i = 0; i < 7; ++i)
+        lt_vec.emplace_back(utils::logical_tensor_init(
+                i + 1, pool_dst_shape, impl::data_type::f32));
+
+    const std::vector<impl::op_kind_t> pool_op_ts {
+            impl::op_kind::AvgPool, impl::op_kind::MaxPool};
+    const std::vector<impl::op_kind_t> binary_op_ts {impl::op_kind::Add,
+            impl::op_kind::Divide, impl::op_kind::Maximum,
+            impl::op_kind::Minimum, impl::op_kind::Multiply,
+            impl::op_kind::Subtract};
+    const std::vector<std::vector<impl::op_kind_t>> post_op_t_seqs {
+            {impl::op_kind::Add, impl::op_kind::Subtract},
+            {impl::op_kind::Minimum, impl::op_kind::Multiply,
+                    impl::op_kind::Maximum},
+            {impl::op_kind::Divide, impl::op_kind::Add, impl::op_kind::Add}};
+
+    for_(auto &pool_op_t : pool_op_ts)
+    for (auto &post_op_ts : post_op_t_seqs) {
+        size_t lt_idx = 0;
+        std::vector<size_t> input_lts {};
+        std::vector<size_t> output_lts {};
+
+        std::vector<int64_t> strides = {2, 2};
+        std::vector<int64_t> pads_begin = {0, 0};
+        std::vector<int64_t> pads_end = {0, 0};
+        std::vector<int64_t> kernel = {2, 2};
+        std::vector<int64_t> dilations = {1, 1};
+        impl::op_t pool_op {0, pool_op_t, "pooling op"};
+        pool_op.set_attr(impl::op_attr::strides, strides);
+        pool_op.set_attr(impl::op_attr::pads_begin, pads_begin);
+        pool_op.set_attr(impl::op_attr::pads_end, pads_end);
+        pool_op.set_attr(impl::op_attr::kernel, kernel);
+        pool_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        if (pool_op_t == impl::op_kind::AvgPool)
+            pool_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
+        else if (pool_op_t == impl::op_kind::MaxPool)
+            pool_op.set_attr(impl::op_attr::dilations, dilations);
+        pool_op.add_input(lt_vec[lt_idx]);
+        input_lts.push_back(lt_idx);
+        pool_op.add_output(lt_vec[++lt_idx]);
+
+        std::vector<impl::op_t> post_ops {};
+        for (size_t i = 0; i < post_op_ts.size(); ++i) {
+            auto pop_t = post_op_ts[i];
+            post_ops.emplace_back(impl::op_t {i + 1, pop_t, "post op"});
+
+            post_ops.back().add_input(lt_vec[lt_idx]);
+            if (std::find(binary_op_ts.begin(), binary_op_ts.end(), pop_t)
+                    != binary_op_ts.end()) {
+                post_ops.back().add_input(lt_vec[++lt_idx]);
+                input_lts.push_back(lt_idx);
+            }
+            post_ops.back().add_output(lt_vec[++lt_idx]);
+        }
+
+        output_lts.push_back(lt_idx);
+
+        impl::graph_t g(engine.kind());
+        g.add_op(&pool_op);
+        for (const auto &pop : post_ops)
+            g.add_op(&pop);
+        g.build_graph();
+
+        std::vector<impl::tensor_t> src_tss {};
+        for (size_t i = 0; i < input_lts.size(); ++i)
+            src_tss.emplace_back(
+                    lt_vec[input_lts[i]], &engine, src_datas[i].data());
+
+        // -------------------------case 1----------------------------------
+        test::vector<float> case1_out_data(product(pool_dst_shape));
+        impl::tensor_t case1_dst_ts(
+                lt_vec[lt_idx], &engine, case1_out_data.data());
+
+        ASSERT_EQ(run_graph(g, src_tss, {case1_dst_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1);
+        auto part = g.get_partitions()[0];
+
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins(input_lts.size());
+        std::transform(input_lts.begin(), input_lts.end(), lt_ins.begin(),
+                [&](size_t idx) -> impl::logical_tensor_t * {
+                    return &lt_vec[idx];
+                });
+        std::vector<const impl::logical_tensor_t *> lt_outs {&lt_vec[lt_idx]};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        test::vector<float> case2_out_data(product(pool_dst_shape));
+        impl::tensor_t case2_dst_ts(
+                lt_vec[lt_idx], &engine, case2_out_data.data());
+
+        cp.execute(&strm, src_tss, {case2_dst_ts});
+        strm.wait();
+
+        std::vector<std::pair<float, float>> out_data;
+        for (size_t i = 0; i < case1_out_data.size(); ++i)
+            out_data.emplace_back(case1_out_data[i], case2_out_data[i]);
+        for (size_t i = 0; i < case1_out_data.size(); ++i) {
+            ASSERT_FLOAT_EQ(case1_out_data[i], case2_out_data[i]);
+        }
     }
 }

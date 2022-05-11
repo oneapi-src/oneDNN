@@ -42,7 +42,8 @@ public:
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         convtranspose_post_ops_fusion, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(bn_relu, 1)>());
-        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(pool_binary, 1)>());
+        fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
+                        pool_post_ops_fusion, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(
                         int8_pool_binary, 1)>());
         fn(get_op_schema<DNNL_GRAPH_OP_SCHEMA_CLASS_NAME(

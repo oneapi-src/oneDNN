@@ -152,7 +152,7 @@ bool dnnl_backend::register_kernels() {
 
     // pooling related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::AvgPool, float_pooling_fwd)
-    DNNL_REGISTER_KERNEL(op_kind::pool_binary, float_pooling_fwd)
+    DNNL_REGISTER_KERNEL(op_kind::pool_post_ops_fusion, float_pooling_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::MaxPool, float_pooling_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::AvgPoolBackprop, pooling_bwd_t)
     DNNL_REGISTER_KERNEL(impl::op_kind::MaxPoolBackprop, pooling_bwd_t)

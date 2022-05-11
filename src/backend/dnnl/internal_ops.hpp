@@ -40,8 +40,8 @@ namespace op_kind {
     X(binary_post_ops_fusion, Binary_post_ops_fusion) \
     X(dnnl_conv_depthwise, Dnnl_conv_depthwise) \
     X(conv_bias_post_ops_fusion, conv_bias_post_ops_fusion) \
-    X(pool_binary, Pool_binary) \
     X(convtranspose_post_ops_fusion, ConvTranspose_post_ops_fusion) \
+    X(pool_post_ops_fusion, Pool_post_ops_chain_fusion) \
     X(int8_conv_post_ops_fusion, INT8_conv_post_ops_chain) \
     X(int8_matmul_post_ops_fusion, INT8_matmul_post_ops_fusion) \
     X(int8_relu, INT8_ReLU) \

@@ -49,12 +49,12 @@ DNNL_GRAPH_OP_SCHEMA(binary_post_ops_fusion, 1,
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(pool_binary, 1,
+DNNL_GRAPH_OP_SCHEMA(pool_post_ops_fusion, 1,
         op_schema_t()
-                .set_num_inputs(2)
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({2, 4}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
-                .set_input(1, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
                 .set_attr(op_attr::strides, "the distance to slide the filter",
                         true, attribute_kind::is)

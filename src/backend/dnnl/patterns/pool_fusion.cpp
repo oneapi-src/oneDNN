@@ -39,26 +39,33 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  */
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(pool_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_binary_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_post_ops_fusion)
         .set_priority(9.9f)
         .set_kind(impl::partition_kind::pooling_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pm::pb_op_t *ppool = pgraph->append_alternation(
+                    auto ppool = pgraph->append_alternation(
                             {impl::op_kind::AvgPool, impl::op_kind::MaxPool},
                             "peltwise");
-                    pgraph->append_alternation(
+                    auto pbinary_subgraph
+                            = std::make_shared<pb_graph_t>("pbinary_subgraph");
+                    auto pbinary = pbinary_subgraph->append_alternation(
                             {impl::op_kind::Add, impl::op_kind::Multiply,
                                     impl::op_kind::Maximum,
                                     impl::op_kind::Minimum,
                                     impl::op_kind::Divide,
                                     impl::op_kind::Subtract},
-                            {in_edge(0, ppool, 0)}, "pbinary");
+                            "pbinary");
+                    pbinary_subgraph->create_input_port(0, pbinary, 0);
+                    pbinary_subgraph->create_output_port(0, pbinary, 0);
+                    pgraph->append_repetition(pbinary_subgraph, {0, 0}, 1,
+                            MAX_REPETITION, {in_edge(0, ppool, 0)},
+                            "prepetition");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
-                    std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::pool_binary);
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::pool_post_ops_fusion);
                     fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
