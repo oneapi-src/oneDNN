@@ -2850,8 +2850,14 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     esize, dst_stride);
             auto d_old = d;
 
-            bool do_d0_align = (esize > 1 && dst_bf
-                    && !utils::one_of(d.byte_offset(), 0, grf_size / 2));
+            bool do_d0_align = false;
+            if (esize > 1 && dst_bf) {
+                bool d_0_aligned = (d.byte_offset() == 0);
+                bool d_half_grf_aligned = (d.byte_offset() == grf_size / 2);
+                if (!d_0_aligned && (!d_half_grf_aligned || dst_stride != 1)) {
+                    do_d0_align = true;
+                }
+            }
             if (do_d0_align) {
                 d = scope.alloc_reg_data(to_ir(dst_type).with_elems(esize));
             }
