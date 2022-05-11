@@ -3433,8 +3433,8 @@ public:
                 || obj.var.type() != obj.value.type()) {
             auto &var_type = obj.var.type();
             auto var_op = (var_type.is_bool())
-                ? ngen_operand_t(scope.alloc_flag())
-                : ngen_operand_t(scope.alloc_reg_data(var_type));
+                    ? ngen_operand_t(scope.alloc_flag())
+                    : ngen_operand_t(scope.alloc_reg_data(var_type));
             eval(obj.value, scope, ngen_operand_t(var_op, var_type.elems()));
             expr_binding_.bind(obj.var, var_op);
         } else {
