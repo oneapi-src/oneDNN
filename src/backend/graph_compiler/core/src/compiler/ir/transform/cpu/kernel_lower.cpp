@@ -666,19 +666,30 @@ const_ir_module_ptr kernel_lowering_cpu_t::operator()(const_ir_module_ptr m) {
                 }
             }
         } else {
-            ret->add_func({ret->make_init_func()});
+            initf = ret->make_init_func();
+            if (initf) ret->add_func({initf});
         }
+
         if (pass.brg_use_bdmask_) {
-            if (auto initf = ret->get_func("__sc_init__")) {
-                for (auto &sts : pass.brg_bd_mask_arr_assignment_) {
-                    for (auto &st : sts) {
-                        initf->body_.checked_as<stmts>()->seq_.push_back(st);
-                    }
+            auto initf = ret->get_func("__sc_init__");
+            if (!initf) {
+                stmts seq = make_stmt<stmts_node_t>(std::vector<stmt>());
+                initf = builder::make_func("__sc_init__", std::vector<expr_c>(),
+                        std::move(seq), datatypes::void_t);
+                ret->add_func({initf});
+            }
+
+            assert(initf && "__sc_init__ func is expected be presented in \
+            the current ir module, but not.");
+
+            for (auto &sts : pass.brg_bd_mask_arr_assignment_) {
+                for (auto &st : sts) {
+                    initf->body_.checked_as<stmts>()->seq_.push_back(st);
                 }
-                for (auto &sts : pass.sc_kernel_cache_assignment_) {
-                    for (auto &st : sts) {
-                        initf->body_.checked_as<stmts>()->seq_.push_back(st);
-                    }
+            }
+            for (auto &sts : pass.sc_kernel_cache_assignment_) {
+                for (auto &st : sts) {
+                    initf->body_.checked_as<stmts>()->seq_.push_back(st);
                 }
             }
         }
