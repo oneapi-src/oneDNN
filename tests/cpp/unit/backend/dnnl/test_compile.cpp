@@ -25480,3 +25480,195 @@ TEST(ExecuteSubgraphInt8, U8u8bf16DivBmm) {
             impl::status::success);
     strm.wait();
 }
+
+TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    const std::vector<impl::op_kind_t> supported_binary_ops {impl::op_kind::Add,
+            impl::op_kind::Divide, impl::op_kind::Maximum,
+            impl::op_kind::Minimum, impl::op_kind::Multiply, impl::op_kind::Pow,
+            impl::op_kind::Subtract};
+    std::vector<std::vector<impl::op_kind_t>> post_op_t_seqs {
+            {impl::op_kind::Abs, impl::op_kind::Sqrt},
+            {impl::op_kind::Elu, impl::op_kind::SoftPlus, impl::op_kind::Tanh},
+            {impl::op_kind::ReLU, impl::op_kind::Log, impl::op_kind::Subtract},
+            {impl::op_kind::Multiply, impl::op_kind::HardSwish}};
+
+    std::vector<size_t> nds = {1, 2, 3};
+    std::vector<int64_t> groups = {1, 4};
+    std::vector<bool> with_biases = {true, false};
+
+    for_(const auto &post_op_ts : post_op_t_seqs)
+    for_(const auto &nd : nds)
+    for_(const auto &g : groups)
+    for (const auto with_bias : with_biases) {
+        // prepare data
+        int64_t in_channel = 8, out_channel = 8;
+        int64_t kernel_size = 3;
+        std::vector<int64_t> src_shape = nd == 1
+                ? std::vector<int64_t> {1, in_channel, 12}
+                : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
+                          : std::vector<int64_t> {1, in_channel, 12, 12, 12};
+        std::vector<int64_t> weight_shape = nd == 1
+                ? std::vector<int64_t> {out_channel / g, in_channel,
+                        kernel_size}
+                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                          kernel_size, kernel_size}
+                          : std::vector<int64_t> {out_channel / g, in_channel,
+                                  kernel_size, kernel_size, kernel_size};
+        std::vector<int64_t> bias_shape {out_channel};
+        std::vector<int64_t> dst_shape = nd == 1
+                ? std::vector<int64_t> {1, out_channel, 14}
+                : nd == 2 ? std::vector<int64_t> {1, out_channel, 14, 14}
+                          : std::vector<int64_t> {1, out_channel, 14, 14, 14};
+        // GPU does not support non-broadcastable binary post ops currently
+        std::vector<int64_t> other_shape = nd == 1
+                ? std::vector<int64_t> {1, out_channel, 1}
+                : nd == 2 ? std::vector<int64_t> {1, out_channel, 1, 14}
+                          : std::vector<int64_t> {1, out_channel, 1, 14, 14};
+
+        std::vector<test::vector<float>> datas {};
+        datas.emplace_back(product(src_shape));
+        datas.emplace_back(product(weight_shape));
+        datas.emplace_back(product(bias_shape));
+        for (size_t i = 0; i < 3; ++i)
+            datas.emplace_back(product(dst_shape));
+        test::vector<float> case1_out_data(product(dst_shape));
+        test::vector<float> case2_out_data(product(dst_shape));
+
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(1.0f, 25.0f);
+        for (auto &data : datas) {
+            std::generate(data.begin(), data.end(),
+                    [&]() { return f32_distribution(generator); });
+        }
+
+        impl::graph_t agraph(engine.kind());
+        std::vector<impl::logical_tensor_t> lt_vec {};
+        size_t lt_idx = 0;
+        std::vector<size_t> input_lts = {};
+        std::vector<size_t> output_lts = {};
+
+        impl::op_t convtranspose_node(
+                0, impl::op_kind::ConvTranspose, "convtranspose_node");
+        SET_CONV_ATTR(convtranspose_node, nd)
+        lt_vec.emplace_back(
+                utils::logical_tensor_init(0, src_shape, impl::data_type::f32));
+        convtranspose_node.add_input(lt_vec.back());
+        input_lts.push_back(lt_idx);
+        ++lt_idx;
+        lt_vec.emplace_back(utils::logical_tensor_init(
+                lt_idx, weight_shape, impl::data_type::f32));
+        convtranspose_node.add_input(lt_vec.back());
+        input_lts.push_back(lt_idx);
+        if (!with_bias) {
+            ++lt_idx;
+            lt_vec.emplace_back(utils::logical_tensor_init(
+                    lt_idx, bias_shape, impl::data_type::f32));
+            convtranspose_node.add_input(lt_vec.back());
+            input_lts.push_back(lt_idx);
+        }
+        ++lt_idx;
+        lt_vec.emplace_back(utils::logical_tensor_init(
+                lt_idx, dst_shape, impl::data_type::f32));
+        convtranspose_node.add_output(lt_vec.back());
+        ASSERT_EQ(agraph.add_op(&convtranspose_node), impl::status::success);
+
+        impl::op_t bias_node(1, impl::op_kind::BiasAdd, "bias_node");
+        bias_node.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        if (with_bias) {
+            bias_node.add_input(lt_vec.back());
+            ++lt_idx;
+            lt_vec.emplace_back(utils::logical_tensor_init(
+                    lt_idx, bias_shape, impl::data_type::f32));
+            bias_node.add_input(lt_vec.back());
+            input_lts.push_back(lt_idx);
+            ++lt_idx;
+            lt_vec.emplace_back(utils::logical_tensor_init(
+                    lt_idx, dst_shape, impl::data_type::f32));
+            bias_node.add_output(lt_vec.back());
+            ASSERT_EQ(agraph.add_op(&bias_node), impl::status::success);
+        }
+
+        for (size_t i = 0; i < post_op_ts.size(); ++i) {
+            auto activation_t = post_op_ts[i];
+            impl::op_t activation {i + 2, activation_t, "post_op_node"};
+            // set additional parameters for specific ops
+            if (activation_t == impl::op_kind::Elu) {
+                activation.set_attr<float>(impl::op_attr::alpha, 1.0f);
+            } else if (activation_t == impl::op_kind::Clamp) {
+                activation.set_attr<float>(impl::op_attr::min, 1.0f);
+                activation.set_attr<float>(impl::op_attr::max, 3.0f);
+            } else if (activation_t == impl::op_kind::HardTanh) {
+                activation.set_attr<float>(impl::op_attr::min, 1.0f);
+                activation.set_attr<float>(impl::op_attr::max, 3.0f);
+            }
+
+            activation.add_input(lt_vec[lt_idx]);
+            if (std::find(supported_binary_ops.begin(),
+                        supported_binary_ops.end(), activation_t)
+                    != supported_binary_ops.end()) {
+                ++lt_idx;
+                lt_vec.emplace_back(utils::logical_tensor_init(
+                        lt_idx, other_shape, impl::data_type::f32));
+                activation.add_input(lt_vec.back());
+                input_lts.push_back(lt_idx);
+            }
+            ++lt_idx;
+            lt_vec.emplace_back(utils::logical_tensor_init(
+                    lt_idx, dst_shape, impl::data_type::f32));
+            activation.add_output(lt_vec.back());
+            ASSERT_EQ(agraph.add_op(&activation), impl::status::success);
+        }
+
+        output_lts.push_back(lt_idx);
+
+        agraph.build_graph();
+
+        impl::tensor_t dst_case1_ts(
+                lt_vec[output_lts[0]], &engine, case1_out_data.data());
+        impl::tensor_t dst_case2_ts(
+                lt_vec[output_lts[0]], &engine, case2_out_data.data());
+        std::vector<impl::tensor_t> src_tss {};
+        for (size_t i = 0; i < input_lts.size(); ++i)
+            src_tss.emplace_back(
+                    lt_vec[input_lts[i]], &engine, datas[i].data());
+
+        // -------------------------case 1----------------------------------
+        ASSERT_EQ(run_graph(agraph, src_tss, {dst_case1_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass
+                = get_pass("convtranspose_post_ops_fusion");
+        ASSERT_TRUE(apass != nullptr);
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        auto part = agraph.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins(input_lts.size());
+        std::transform(input_lts.begin(), input_lts.end(), lt_ins.begin(),
+                [&](size_t idx) -> impl::logical_tensor_t * {
+                    return &lt_vec[idx];
+                });
+        std::vector<const impl::logical_tensor_t *> lt_outs {
+                &lt_vec[output_lts[0]]};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        cp.execute(&strm, src_tss, {dst_case2_ts});
+        strm.wait();
+
+        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                /*atol*/ 1.f));
+    }
+}

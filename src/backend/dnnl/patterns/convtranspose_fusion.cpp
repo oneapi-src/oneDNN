@@ -193,19 +193,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_post_ops_fusion)
                             = pgraph->append_optional(biasadd_subgraph,
                                     {in_edge(0, convtranspose, 0)}, "biasadd");
 
-                    // special post op handle: swish is composed
-                    // by sigmoid and multiply
-                    auto swish_graph
-                            = std::make_shared<pb_graph_t>("swish_graph");
-                    auto psigmoid = swish_graph->append_op(
-                            impl::op_kind::Sigmoid, "psigmoid");
-                    auto pmultiply
-                            = swish_graph->append_op(impl::op_kind::Multiply,
-                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
-                    swish_graph->create_input_port(0, psigmoid, 0);
-                    swish_graph->create_input_port(0, pmultiply, 1);
-                    swish_graph->create_output_port(0, pmultiply, 0);
-
                     auto post_ops = std::make_shared<pb_graph_t>("post_ops");
                     auto alternation = post_ops->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Add,
@@ -226,22 +213,17 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_post_ops_fusion)
                     post_ops->create_input_port(0, alternation, 0);
                     post_ops->create_output_port(0, alternation, 0);
 
-                    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
-                    auto palt = alt_graph->append_alternation(
-                            {swish_graph, post_ops}, "palt");
-                    alt_graph->create_input_port(0, palt, 0);
-                    alt_graph->create_output_port(0, palt, 0);
-
-                    auto optional_post_ops = pgraph->append_optional(alt_graph,
-                            in_edges_t {in_edge(0, optional_biasadd, 0)},
-                            "optional_post_ops");
+                    auto repetition_post_ops = pgraph->append_repetition(
+                            post_ops, {0, 0}, 0, MAX_REPETITION,
+                            {in_edge(0, optional_biasadd, 0)},
+                            "repetition_post_ops");
                     pgraph->create_input_port(0, convtranspose, 0);
-                    pgraph->create_output_port(0, optional_post_ops, 0);
+                    pgraph->create_output_port(0, repetition_post_ops, 0);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
-                            op_kind::convtranspose_fusion);
+                            op_kind::convtranspose_post_ops_fusion);
                     fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });

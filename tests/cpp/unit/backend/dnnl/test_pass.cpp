@@ -13716,8 +13716,6 @@ TEST(PassSystem, FuseBinarySwish) {
     }
 }
 
-// TODO(zitian): add test case for Sigmoid+Multiply in a elegant way
-// TODO(zitian): set addbias optional in test case
 TEST(Pass, ConvtransposePostops) {
     /*
         0       1
@@ -13817,7 +13815,7 @@ TEST(Pass, ConvtransposePostops) {
 
                     auto partition = agraph.get_partitions()[0];
                     ASSERT_EQ(get_fused_op(partition)->get_kind(),
-                            dnnl_impl::op_kind::convtranspose_fusion);
+                            dnnl_impl::op_kind::convtranspose_post_ops_fusion);
 
                     ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
                     for (size_t k = 0; k < input_lts.size(); ++k)
@@ -13828,6 +13826,116 @@ TEST(Pass, ConvtransposePostops) {
                         ASSERT_EQ(
                                 partition->get_outputs()[k].id, output_lts[k]);
                 }
+}
+
+TEST(Pass, Convtranspose3Postops) {
+    /*
+        0       1
+        \       /
+        convtranspose
+            |
+        addbias * [0, 1]
+            |
+        [Abs, Add, Clamp, Divide, Elu, Exp, GELU, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh] * [0, 3]
+    */
+
+    std::vector<bool> with_conv_bias = {true, false};
+    std::vector<bool> with_post_bias = {true, false};
+    std::vector<bool> with_post_activation = {true, false};
+    std::vector<op_kind_t> supported_ops {Abs, Add, Clamp, Divide, Elu, Exp,
+            GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round,
+            Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+    std::vector<op_kind_t> supported_binary_ops {
+            Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
+    std::vector<std::vector<op_kind_t>> post_op_seqs {{Abs, Subtract, Divide},
+            {Round, Multiply}, {Add, Elu}, {Clamp, Minimum, Pow}};
+
+    for_(auto conv_bias_on : with_conv_bias)
+    for_(auto post_bias_on : with_post_bias)
+    for_(auto post_activation_on : with_post_activation)
+    for (auto pop_seq : post_op_seqs) {
+        graph_t agraph;
+        op_t convtranspose {0, ConvTranspose, "convtranspose"};
+        set_conv_common_attr(convtranspose);
+        op_t biasadd {1, BiasAdd, "biasadd"};
+
+        std::vector<logical_tensor_t> lt_vec = create_logical_tensors(11);
+        size_t lt_idx = 0;
+        std::vector<size_t> input_lts = {};
+        std::vector<size_t> output_lts = {};
+
+        convtranspose.add_input(lt_vec[lt_idx]);
+        input_lts.push_back(lt_idx);
+        convtranspose.add_input(lt_vec[++lt_idx]);
+        input_lts.push_back(lt_idx);
+        if (conv_bias_on) {
+            convtranspose.add_input(lt_vec[++lt_idx]);
+            input_lts.push_back(lt_idx);
+        }
+        convtranspose.add_output(lt_vec[++lt_idx]);
+        ASSERT_EQ(agraph.add_op(&convtranspose), status::success);
+
+        if (post_bias_on) {
+            biasadd.add_input(lt_vec[lt_idx]);
+            biasadd.add_input(lt_vec[++lt_idx]);
+            input_lts.push_back(lt_idx);
+            biasadd.add_output(lt_vec[++lt_idx]);
+            ASSERT_EQ(agraph.add_op(&biasadd), status::success);
+        }
+
+        if (post_activation_on) {
+            for (size_t i = 0; i < pop_seq.size(); ++i) {
+                auto activation_t = pop_seq[i];
+                op_t activation {i + 2, activation_t, "activation"};
+                // set additional parameters for specific ops
+                if (activation_t == Elu) {
+                    activation.set_attr<float>(op_attr::alpha, 1.0f);
+                } else if (activation_t == Clamp) {
+                    activation.set_attr<float>(op_attr::min, 1.0f);
+                    activation.set_attr<float>(op_attr::max, 3.0f);
+                } else if (activation_t == HardTanh) {
+                    activation.set_attr<float>(op_attr::min, 1.0f);
+                    activation.set_attr<float>(op_attr::max, 3.0f);
+                }
+
+                activation.add_input(lt_vec[lt_idx]);
+                if (std::find(supported_binary_ops.begin(),
+                            supported_binary_ops.end(), activation_t)
+                        != supported_binary_ops.end()) {
+                    activation.add_input(lt_vec[++lt_idx]);
+                    input_lts.push_back(lt_idx);
+                }
+                activation.add_output(lt_vec[++lt_idx]);
+                ASSERT_EQ(agraph.add_op(&activation), status::success);
+            }
+        }
+
+        if (conv_bias_on && post_bias_on) {
+            // a special case where the matching process
+            // should terminate before biasadd
+            input_lts = std::vector<size_t>(
+                    input_lts.begin(), input_lts.begin() + 3);
+            output_lts.push_back(3);
+        } else
+            output_lts.push_back(lt_idx);
+
+        agraph.build_graph();
+
+        pass::pass_base_ptr apass = get_pass("convtranspose_post_ops_fusion");
+        apass->run(agraph);
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+        auto partition = agraph.get_partitions()[0];
+        ASSERT_EQ(get_fused_op(partition)->get_kind(),
+                dnnl_impl::op_kind::convtranspose_post_ops_fusion);
+
+        ASSERT_EQ(partition->get_inputs().size(), input_lts.size());
+        for (size_t k = 0; k < input_lts.size(); ++k)
+            ASSERT_EQ(partition->get_inputs()[k].id, input_lts[k]);
+        ASSERT_EQ(partition->get_outputs().size(), output_lts.size());
+        for (size_t k = 0; k < output_lts.size(); ++k)
+            ASSERT_EQ(partition->get_outputs()[k].id, output_lts[k]);
+    }
 }
 
 TEST(PassSystem, FuseConvTransposeSwish) {
@@ -13866,7 +13974,7 @@ TEST(PassSystem, FuseConvTransposeSwish) {
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::convtranspose_fusion);
+            dnnl_impl::op_kind::convtranspose_post_ops_fusion);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1);

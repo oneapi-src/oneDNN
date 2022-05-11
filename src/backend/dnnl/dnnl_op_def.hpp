@@ -303,14 +303,14 @@ DNNL_GRAPH_OP_SCHEMA(int8_conv_post_ops_fusion, 1,
 // convtranspose + w/wo bias + relu.
 // Thanks to the unification of the op schema for these patterns,
 // we can reduce the size of the binary.
-DNNL_GRAPH_OP_SCHEMA(convtranspose_fusion, 1,
+DNNL_GRAPH_OP_SCHEMA(convtranspose_post_ops_fusion, 1,
         op_schema_t()
-                .set_num_inputs(std::set<size_t>({2, 3, 4}))
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({2, 6}))
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "weight", "weight tensor")
                 .set_input(2, "bias", "bias tensor")
-                .set_input(3, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
                 .set_attr(op_attr::output_padding,
                         "additional amount of paddings to be added to each "
