@@ -37,6 +37,7 @@ typedef enum {
 
 // The type defines the storage format of matrix
 typedef enum {
+    brgemm_layout_undef = 0,
     brgemm_col_major = 1,
     brgemm_row_major = 2,
 } brgemm_layout_t;
@@ -170,7 +171,7 @@ struct brgemm_t {
     dim_t stride_a = 0; // Offset in bytes
     dim_t stride_b = 0;
 
-    brgemm_layout_t layout;
+    brgemm_layout_t layout = brgemm_layout_undef;
     brgemm_batch_kind_t type;
 
     bool embd_bcst = false;
@@ -198,6 +199,12 @@ struct brgemm_t {
     static constexpr int MAX_VPAD = 100;
 
     int is_M_tail;
+
+    const bool is_row_major() const {
+        assert(layout != brgemm_layout_undef);
+        return layout == brgemm_row_major;
+    }
+
     // Tile register decomposition
     int get_ld_block2() const noexcept {
         return (ldb_tail) ? ld_block2 + 1 : ld_block2;

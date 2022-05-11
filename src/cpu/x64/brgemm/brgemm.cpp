@@ -160,11 +160,10 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     brgemm_utils::init_brgemm_conf(brg, isa, type, dt_a, dt_b, layout, alpha,
             beta, LDA, LDB, LDC, M, N, K, strides);
 
-    auto is_row_major = [&]() { return brg->layout == brgemm_row_major; };
     if (M <= 0 || N <= 0 || K <= 0) return status::invalid_arguments;
 
-    bool ldx_check = (is_row_major()) ? (LDA < K || LDB < N || LDC < N)
-                                      : (LDA < M || LDB < K || LDC < M);
+    bool ldx_check = (brg->is_row_major()) ? (LDA < K || LDB < N || LDC < N)
+                                           : (LDA < M || LDB < K || LDC < M);
     if (ldx_check) return status::invalid_arguments;
 
     if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)

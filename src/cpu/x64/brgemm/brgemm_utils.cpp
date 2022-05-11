@@ -326,9 +326,8 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
 
     brg->layout = layout;
 
-    auto is_row_major = [&]() { return brg->layout == brgemm_row_major; };
-    brg->dt_a = is_row_major() ? dt_a : dt_b;
-    brg->dt_b = is_row_major() ? dt_b : dt_a;
+    brg->dt_a = brg->is_row_major() ? dt_a : dt_b;
+    brg->dt_b = brg->is_row_major() ? dt_b : dt_a;
 
     brg->is_int8 = utils::one_of(brg->dt_a, data_type::u8, data_type::s8)
             && brg->dt_b == data_type::s8;
@@ -347,16 +346,18 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->is_amx = (brg->is_int8_amx || brg->is_bf16_amx);
     brg->req_s8s8_compensation
             = brg->is_int8 && !brg->is_int8_amx && brg->dt_a == data_type::s8;
-    brg->LDA = (is_row_major()) ? static_cast<int>(LDA) : static_cast<int>(LDB);
-    brg->LDB = (is_row_major()) ? static_cast<int>(LDB) : static_cast<int>(LDA);
+    brg->LDA = (brg->is_row_major()) ? static_cast<int>(LDA)
+                                     : static_cast<int>(LDB);
+    brg->LDB = (brg->is_row_major()) ? static_cast<int>(LDB)
+                                     : static_cast<int>(LDA);
 
     brg->LDC = static_cast<int>(LDC);
     brg->LDD = static_cast<int>(LDC);
 
     brg->bcast_dim
-            = (is_row_major()) ? static_cast<int>(M) : static_cast<int>(N);
+            = (brg->is_row_major()) ? static_cast<int>(M) : static_cast<int>(N);
     brg->load_dim
-            = (is_row_major()) ? static_cast<int>(N) : static_cast<int>(M);
+            = (brg->is_row_major()) ? static_cast<int>(N) : static_cast<int>(M);
     brg->reduce_dim = static_cast<int>(K);
 
     brg->with_bias = false;
