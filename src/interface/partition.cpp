@@ -336,8 +336,7 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_execute(
 status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
         const compiled_partition_t *compiled_partition, const stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
-        const tensor_t **outputs, size_t num_deps, void *deps,
-        void *sycl_event) {
+        const tensor_t **outputs, const void *deps, void *sycl_event) {
 #ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(stream, compiled_partition, inputs, outputs))
         return status::invalid_arguments;
@@ -354,20 +353,20 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
     std::vector<tensor_t> ins, outs;
     ins.reserve(num_inputs);
     outs.reserve(num_outputs);
-    std::vector<cl::sycl::event> sycl_deps;
-    sycl_deps.reserve(num_deps);
     for (size_t i = 0; i < num_inputs; ++i) {
         ins.emplace_back(**(inputs + i));
     }
     for (size_t i = 0; i < num_outputs; ++i) {
         outs.emplace_back(**(outputs + i));
     }
-    auto sycl_deps_ptr = static_cast<cl::sycl::event *>(deps);
-    for (size_t i = 0; i < num_deps; ++i)
-        sycl_deps.emplace_back(*(sycl_deps_ptr + i));
+    if (deps != nullptr) {
+        const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
+        return compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
+                static_cast<cl::sycl::event *>(sycl_event));
+    }
 
-    return compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
-            static_cast<cl::sycl::event *>(sycl_event));
+    return compiled_partition->execute_sycl(
+            stream, ins, outs, {}, static_cast<cl::sycl::event *>(sycl_event));
 #else
     UNUSED(compiled_partition);
     UNUSED(stream);
@@ -375,7 +374,6 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
     UNUSED(inputs);
     UNUSED(num_outputs);
     UNUSED(outputs);
-    UNUSED(num_deps);
     UNUSED(deps);
     UNUSED(sycl_event);
     return status::unimplemented;

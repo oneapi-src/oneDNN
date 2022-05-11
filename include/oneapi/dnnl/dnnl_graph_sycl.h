@@ -87,7 +87,6 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
 /// @param inputs A list of input tensors
 /// @param num_outputs The number of output tensors
 /// @param outputs A non-empty list of output tensors
-/// @param num_deps The number of `cl::sycl::event` dependencies.
 /// @param deps Optional handle of list with `cl::sycl::event` dependencies.
 /// @param sycl_event The handle of sycl event.
 /// @returns #dnnl_graph_success on success and a status describing the
@@ -97,8 +96,7 @@ dnnl_graph_sycl_interop_compiled_partition_execute(
         const_dnnl_graph_compiled_partition_t compiled_partition,
         const_dnnl_graph_stream_t stream, size_t num_inputs,
         const_dnnl_graph_tensor_t *inputs, size_t num_outputs,
-        const_dnnl_graph_tensor_t *outputs, size_t num_deps, void *deps,
-        void *sycl_event);
+        const_dnnl_graph_tensor_t *outputs, const void *deps, void *sycl_event);
 
 /// @} dnnl_graph_api_sycl_interop
 

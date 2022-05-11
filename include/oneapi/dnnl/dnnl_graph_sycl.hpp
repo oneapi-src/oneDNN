@@ -131,18 +131,12 @@ inline cl::sycl::event execute(compiled_partition &c_partition, stream &astream,
         c_outputs.push_back(out.get());
     }
 
-    std::vector<void *> c_deps;
-    c_deps.reserve(deps.size());
-    for (auto &event : deps) {
-        c_deps.push_back(const_cast<cl::sycl::event *>(&event));
-    }
-
     cl::sycl::event sycl_event;
     error::check_succeed(
             dnnl_graph_sycl_interop_compiled_partition_execute(
                     c_partition.get(), astream.get(), c_inputs.size(),
-                    c_inputs.data(), c_outputs.size(), c_outputs.data(),
-                    c_deps.size(), c_deps.data(), &sycl_event),
+                    c_inputs.data(), c_outputs.size(), c_outputs.data(), &deps,
+                    &sycl_event),
             "could not execute the compiled_partition on a specified sycl "
             "stream");
     return sycl_event;
