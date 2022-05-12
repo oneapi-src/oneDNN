@@ -717,26 +717,13 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     if (user_wei_tag.empty()) user_wei_tag = wei_tag;
     if (user_dst_tag.empty()) user_dst_tag = dst_tag;
 
-    if (with_groups && !is_dw) {
-        wei_tag = prepend_groups_to_tag(wei_tag);
-        user_wei_tag = prepend_groups_to_tag(user_wei_tag);
-    }
-
-#ifdef GEN_CONV_DEBUG
-    src_tag = ir_utils::getenv_str("stag", src_tag);
-    wei_tag = ir_utils::getenv_str("wtag", wei_tag);
-    dst_tag = ir_utils::getenv_str("dtag", dst_tag);
-
-    user_src_tag = ir_utils::getenv_str("user_stag", user_src_tag);
-    user_wei_tag = ir_utils::getenv_str("user_wtag", user_wei_tag);
-    user_dst_tag = ir_utils::getenv_str("user_dtag", user_dst_tag);
-#endif
-
     // If src/dst is nhwc then set the other one with any to nhwc too.
     if (matches_tag(src_md, "axb") || matches_tag(dst_md, "axb")) {
         set_default_format(src_md, "axb");
         set_default_format(dst_md, "axb");
     }
+
+    bool wei_prepend_groups = (with_groups && !is_dw);
 
     if (is_pure_nhwc(src_md, user_src_tag)
             || is_pure_nhwc(dst_md, user_dst_tag)) {
@@ -756,12 +743,29 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
         }
         if (wei_hwio) wei_tag = "xba";
         if (user_wei_hwio) {
-            set_default_format(wei_md, "xba");
+            auto tag
+                    = wei_prepend_groups ? prepend_groups_to_tag("xba") : "xba";
+            set_default_format(wei_md, tag);
             user_wei_tag = "xba";
         }
         // Allow internal reorder from oihw to more optimal weights layout.
         if (matches_tag(wei_md, "abx")) user_wei_tag = "abx";
     }
+
+    if (wei_prepend_groups) {
+        wei_tag = prepend_groups_to_tag(wei_tag);
+        user_wei_tag = prepend_groups_to_tag(user_wei_tag);
+    }
+
+#ifdef GEN_CONV_DEBUG
+    src_tag = ir_utils::getenv_str("stag", src_tag);
+    wei_tag = ir_utils::getenv_str("wtag", wei_tag);
+    dst_tag = ir_utils::getenv_str("dtag", dst_tag);
+
+    user_src_tag = ir_utils::getenv_str("user_stag", user_src_tag);
+    user_wei_tag = ir_utils::getenv_str("user_wtag", user_wei_tag);
+    user_dst_tag = ir_utils::getenv_str("user_dtag", user_dst_tag);
+#endif
 
     // Select user layouts.
     auto src_user_layout = init_layout(src_md, user_src_tag);
