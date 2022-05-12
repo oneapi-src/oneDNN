@@ -8088,13 +8088,11 @@ void reorder_kernel_builder_t::build() {
     schedule.set_view(dst_view);
 
     std::vector<expr_t> fused_idxs;
-    int block_size = 1;
     for (int i = 0; i < ndims; i++) {
         if (blocks[i] == 1) {
             fused_idxs.push_back(vars[i]);
             continue;
         }
-        block_size *= blocks[i];
         expr_t outer;
         expr_t inner;
         schedule.split(vars[i], blocks[i], outer, inner);
