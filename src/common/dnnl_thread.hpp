@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,30 @@
 
 #include "utils.hpp"
 #include "z_magic.hpp"
+
+// IMPORTANT NOTICE:
+// This header is special in the library since it enables all threading
+// functionality in the product including tests.
+// tests/test_thread.{c,h}pp files rely on this header file by:
+// * Substituting `threadpool_utils` namespace to re-use threadpool functions
+//   and enable a second threadpool different from the library;
+// * Re-defining `DNNL_CPU_THREADING_RUNTIME` macro value when it is supposed
+//   to be `DNNL_RUNTIME_SEQ`, e.g., for CPU_NONE configuration.
+//      1. It implies all parts of code relying on this macro should stay in the
+//         file.
+//      2. It implies there are no function bodies in the translation units
+//         related to the library. Tests threading layer uses dnnl::impl::func
+//         signature, and if library has symbols defined, regardless of
+//         redefinition, it will take those that were compiled with original
+//         macro value.
+//
+// Potential drawback could be increased binary size but it doesn't happen much
+// due to linker optimizations. The newer compiler and C++ standard, the less
+// binary size will be achieved.
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "counting_barrier.hpp"
+#endif
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
 #define DNNL_THR_SYNC 1
@@ -254,70 +278,374 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
  */
 
 /* general parallelization */
-void DNNL_API parallel(int nthr, const std::function<void(int, int)> &f);
+inline int adjust_num_threads(int nthr, dim_t work_amount) {
+    if (nthr == 0) nthr = dnnl_get_current_num_threads();
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+    return (work_amount == 1 || omp_in_parallel()) ? 1 : nthr;
+#else
+    return (int)std::min((dim_t)nthr, work_amount);
+#endif
+}
+
+inline void parallel(int nthr, const std::function<void(int, int)> &f) {
+    nthr = adjust_num_threads(nthr, INT64_MAX);
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
+    for (int i = 0; i < nthr; ++i) {
+        f(i, nthr);
+    }
+#else
+#if defined(DNNL_ENABLE_ITT_TASKS)
+    auto task_primitive_kind = itt::primitive_task_get_current_kind();
+    bool itt_enable = itt::get_itt(itt::__itt_task_level_high);
+#endif
+    if (nthr == 1) {
+        f(0, 1);
+        return;
+    }
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+#pragma omp parallel num_threads(nthr)
+    {
+        int nthr_ = omp_get_num_threads();
+        int ithr_ = omp_get_thread_num();
+        assert(nthr_ == nthr);
+#if defined(DNNL_ENABLE_ITT_TASKS)
+        if (ithr_ && itt_enable) itt::primitive_task_start(task_primitive_kind);
+#endif
+        f(ithr_, nthr_);
+#if defined(DNNL_ENABLE_ITT_TASKS)
+        if (ithr_ && itt_enable) itt::primitive_task_end();
+#endif
+    }
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
+    tbb::parallel_for(
+            0, nthr,
+            [&](int ithr) {
+#if defined(DNNL_ENABLE_ITT_TASKS)
+                bool mark_task = itt::primitive_task_get_current_kind()
+                        == primitive_kind::undefined;
+                if (mark_task && itt_enable)
+                    itt::primitive_task_start(task_primitive_kind);
+#endif
+                f(ithr, nthr);
+#if defined(DNNL_ENABLE_ITT_TASKS)
+                if (mark_task && itt_enable) itt::primitive_task_end();
+#endif
+            },
+            tbb::static_partitioner());
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    using namespace dnnl::impl::threadpool_utils;
+    dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
+    if (!tp || dnnl_in_parallel()) {
+        threadpool_utils::deactivate_threadpool();
+        for (int ithr = 0; ithr < nthr; ithr++) {
+            f(ithr, nthr);
+        }
+        threadpool_utils::activate_threadpool(tp);
+    } else {
+        bool async = tp->get_flags()
+                & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS;
+        counting_barrier_t b;
+        if (async) b.init(nthr);
+        tp->parallel_for(nthr, [&, tp](int ithr, int nthr) {
+            bool is_master = threadpool_utils::get_active_threadpool() == tp;
+            if (!is_master) {
+                threadpool_utils::activate_threadpool(tp);
+#if defined(DNNL_ENABLE_ITT_TASKS)
+                if (itt_enable) itt::primitive_task_start(task_primitive_kind);
+#endif
+            }
+            f(ithr, nthr);
+            if (!is_master) {
+#if defined(DNNL_ENABLE_ITT_TASKS)
+                if (itt_enable) itt::primitive_task_end();
+#endif
+                threadpool_utils::deactivate_threadpool();
+            }
+            if (async) b.notify();
+        });
+        if (async) b.wait();
+    }
+#endif
+#endif
+}
 
 /* for_nd section */
-void for_nd(const int ithr, const int nthr, dim_t D0,
-        const std::function<void(dim_t)> &f);
-void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1,
-        const std::function<void(dim_t, dim_t)> &f);
-void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
-        const std::function<void(dim_t, dim_t, dim_t)> &f);
-void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
-        dim_t D3, const std::function<void(dim_t, dim_t, dim_t, dim_t)> &f);
-void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
+inline void for_nd(const int ithr, const int nthr, dim_t D0,
+        const std::function<void(dim_t)> &f) {
+    dim_t start {0}, end {0};
+    balance211(D0, nthr, ithr, start, end);
+    for (dim_t d0 = start; d0 < end; ++d0)
+        f(d0);
+}
+inline void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1,
+        const std::function<void(dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0};
+    utils::nd_iterator_init(start, d0, D0, d1, D1);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(d0, d1);
+        utils::nd_iterator_step(d0, D0, d1, D1);
+    }
+}
+inline void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
+        const std::function<void(dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0}, d2 {0};
+    utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(d0, d1, d2);
+        utils::nd_iterator_step(d0, D0, d1, D1, d2, D2);
+    }
+}
+inline void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
+        dim_t D3, const std::function<void(dim_t, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0}, d2 {0}, d3 {0};
+    utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2, d3, D3);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(d0, d1, d2, d3);
+        utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3);
+    }
+}
+inline void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
         dim_t D3, dim_t D4,
-        const std::function<void(dim_t, dim_t, dim_t, dim_t, dim_t)> &f);
-void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
+        const std::function<void(dim_t, dim_t, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3 * D4;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0}, d2 {0}, d3 {0}, d4 {0};
+    utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2, d3, D3, d4, D4);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(d0, d1, d2, d3, d4);
+        utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3, d4, D4);
+    }
+}
+inline void for_nd(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
         dim_t D3, dim_t D4, dim_t D5,
-        const std::function<void(dim_t, dim_t, dim_t, dim_t, dim_t, dim_t)> &f);
+        const std::function<void(dim_t, dim_t, dim_t, dim_t, dim_t, dim_t)>
+                &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3 * D4 * D5;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0}, d2 {0}, d3 {0}, d4 {0}, d5 {0};
+    utils::nd_iterator_init(
+            start, d0, D0, d1, D1, d2, D2, d3, D3, d4, D4, d5, D5);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(d0, d1, d2, d3, d4, d5);
+        utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3, d4, D4, d5, D5);
+    }
+}
+
 /* for_nd_ext section */
-void for_nd_ext(const int ithr, const int nthr, dim_t D0,
-        const std::function<void(int, int, dim_t)> &f);
-void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1,
-        const std::function<void(int, int, dim_t, dim_t)> &f);
-void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
-        const std::function<void(int, int, dim_t, dim_t, dim_t)> &f);
-void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
-        dim_t D3,
-        const std::function<void(int, int, dim_t, dim_t, dim_t, dim_t)> &f);
-void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
-        dim_t D3, dim_t D4,
+inline void for_nd_ext(const int ithr, const int nthr, dim_t D0,
+        const std::function<void(int, int, dim_t)> &f) {
+    dim_t start {0}, end {0};
+    balance211(D0, nthr, ithr, start, end);
+    for (dim_t d0 = start; d0 < end; ++d0)
+        f(ithr, nthr, d0);
+}
+inline void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1,
+        const std::function<void(int, int, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0};
+    utils::nd_iterator_init(start, d0, D0, d1, D1);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(ithr, nthr, d0, d1);
+        utils::nd_iterator_step(d0, D0, d1, D1);
+    }
+}
+inline void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1,
+        dim_t D2, const std::function<void(int, int, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0}, d2 {0};
+    utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(ithr, nthr, d0, d1, d2);
+        utils::nd_iterator_step(d0, D0, d1, D1, d2, D2);
+    }
+}
+inline void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1,
+        dim_t D2, dim_t D3,
+        const std::function<void(int, int, dim_t, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0}, d2 {0}, d3 {0};
+    utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2, d3, D3);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(ithr, nthr, d0, d1, d2, d3);
+        utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3);
+    }
+}
+inline void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1,
+        dim_t D2, dim_t D3, dim_t D4,
         const std::function<void(int, int, dim_t, dim_t, dim_t, dim_t, dim_t)>
-                &f);
-void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1, dim_t D2,
-        dim_t D3, dim_t D4, dim_t D5,
+                &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3 * D4;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0}, d2 {0}, d3 {0}, d4 {0};
+    utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2, d3, D3, d4, D4);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(ithr, nthr, d0, d1, d2, d3, d4);
+        utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3, d4, D4);
+    }
+}
+inline void for_nd_ext(const int ithr, const int nthr, dim_t D0, dim_t D1,
+        dim_t D2, dim_t D3, dim_t D4, dim_t D5,
         const std::function<void(
-                int, int, dim_t, dim_t, dim_t, dim_t, dim_t, dim_t)> &f);
+                int, int, dim_t, dim_t, dim_t, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3 * D4 * D5;
+    if (work_amount == 0) return;
+    dim_t start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
+    dim_t d0 {0}, d1 {0}, d2 {0}, d3 {0}, d4 {0}, d5 {0};
+    utils::nd_iterator_init(
+            start, d0, D0, d1, D1, d2, D2, d3, D3, d4, D4, d5, D5);
+    for (dim_t iwork = start; iwork < end; ++iwork) {
+        f(ithr, nthr, d0, d1, d2, d3, d4, d5);
+        utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3, d4, D4, d5, D5);
+    }
+}
+
 /* parallel_nd_ext section */
-void parallel_nd_ext(
-        int nthr, dim_t D0, const std::function<void(int, int, dim_t)> &f);
-void parallel_nd_ext(int nthr, dim_t D0, dim_t D1,
-        const std::function<void(int, int, dim_t, dim_t)> &f);
-void parallel_nd_ext(int nthr, dim_t D0, dim_t D1, dim_t D2,
-        const std::function<void(int, int, dim_t, dim_t, dim_t)> &f);
-void parallel_nd_ext(int nthr, dim_t D0, dim_t D1, dim_t D2, dim_t D3,
-        const std::function<void(int, int, dim_t, dim_t, dim_t, dim_t)> &f);
-void parallel_nd_ext(int nthr, dim_t D0, dim_t D1, dim_t D2, dim_t D3, dim_t D4,
+inline void parallel_nd_ext(
+        int nthr, dim_t D0, const std::function<void(int, int, dim_t)> &f) {
+    const dim_t work_amount = D0;
+    nthr = adjust_num_threads(nthr, work_amount);
+    if (nthr)
+        parallel(nthr,
+                [&](int ithr, int nthr) { for_nd_ext(ithr, nthr, D0, f); });
+}
+inline void parallel_nd_ext(int nthr, dim_t D0, dim_t D1,
+        const std::function<void(int, int, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1;
+    nthr = adjust_num_threads(nthr, work_amount);
+    if (nthr)
+        parallel(nthr,
+                [&](int ithr, int nthr) { for_nd_ext(ithr, nthr, D0, D1, f); });
+}
+inline void parallel_nd_ext(int nthr, dim_t D0, dim_t D1, dim_t D2,
+        const std::function<void(int, int, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2;
+    nthr = adjust_num_threads(nthr, work_amount);
+    if (nthr)
+        parallel(nthr, [&](int ithr, int nthr) {
+            for_nd_ext(ithr, nthr, D0, D1, D2, f);
+        });
+}
+inline void parallel_nd_ext(int nthr, dim_t D0, dim_t D1, dim_t D2, dim_t D3,
+        const std::function<void(int, int, dim_t, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3;
+    nthr = adjust_num_threads(nthr, work_amount);
+    if (nthr)
+        parallel(nthr, [&](int ithr, int nthr) {
+            for_nd_ext(ithr, nthr, D0, D1, D2, D3, f);
+        });
+}
+inline void parallel_nd_ext(int nthr, dim_t D0, dim_t D1, dim_t D2, dim_t D3,
+        dim_t D4,
         const std::function<void(int, int, dim_t, dim_t, dim_t, dim_t, dim_t)>
-                &f);
-void parallel_nd_ext(int nthr, dim_t D0, dim_t D1, dim_t D2, dim_t D3, dim_t D4,
-        dim_t D5,
+                &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3 * D4;
+    nthr = adjust_num_threads(nthr, work_amount);
+    if (nthr)
+        parallel(nthr, [&](int ithr, int nthr) {
+            for_nd_ext(ithr, nthr, D0, D1, D2, D3, D4, f);
+        });
+}
+inline void parallel_nd_ext(int nthr, dim_t D0, dim_t D1, dim_t D2, dim_t D3,
+        dim_t D4, dim_t D5,
         const std::function<void(
-                int, int, dim_t, dim_t, dim_t, dim_t, dim_t, dim_t)> &f);
+                int, int, dim_t, dim_t, dim_t, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3 * D4 * D5;
+    nthr = adjust_num_threads(nthr, work_amount);
+    if (nthr)
+        parallel(nthr, [&](int ithr, int nthr) {
+            for_nd_ext(ithr, nthr, D0, D1, D2, D3, D4, D5, f);
+        });
+}
+
 /* parallel_nd section */
-void DNNL_API parallel_nd(dim_t D0, const std::function<void(dim_t)> &f);
-void DNNL_API parallel_nd(
-        dim_t D0, dim_t D1, const std::function<void(dim_t, dim_t)> &f);
-void DNNL_API parallel_nd(dim_t D0, dim_t D1, dim_t D2,
-        const std::function<void(dim_t, dim_t, dim_t)> &f);
-void DNNL_API parallel_nd(dim_t D0, dim_t D1, dim_t D2, dim_t D3,
-        const std::function<void(dim_t, dim_t, dim_t, dim_t)> &f);
-void DNNL_API parallel_nd(dim_t D0, dim_t D1, dim_t D2, dim_t D3, dim_t D4,
-        const std::function<void(dim_t, dim_t, dim_t, dim_t, dim_t)> &f);
-void DNNL_API parallel_nd(dim_t D0, dim_t D1, dim_t D2, dim_t D3, dim_t D4,
+inline void parallel_nd(dim_t D0, const std::function<void(dim_t)> &f) {
+    int nthr = adjust_num_threads(dnnl_get_current_num_threads(), D0);
+    if (nthr)
+        parallel(nthr, [&](int ithr, int nthr) { for_nd(ithr, nthr, D0, f); });
+}
+inline void parallel_nd(
+        dim_t D0, dim_t D1, const std::function<void(dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1;
+    int nthr = adjust_num_threads(dnnl_get_current_num_threads(), work_amount);
+    if (nthr)
+        parallel(nthr,
+                [&](int ithr, int nthr) { for_nd(ithr, nthr, D0, D1, f); });
+}
+inline void parallel_nd(dim_t D0, dim_t D1, dim_t D2,
+        const std::function<void(dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2;
+    int nthr = adjust_num_threads(dnnl_get_current_num_threads(), work_amount);
+    if (nthr)
+        parallel(nthr,
+                [&](int ithr, int nthr) { for_nd(ithr, nthr, D0, D1, D2, f); });
+}
+inline void parallel_nd(dim_t D0, dim_t D1, dim_t D2, dim_t D3,
+        const std::function<void(dim_t, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3;
+    int nthr = adjust_num_threads(dnnl_get_current_num_threads(), work_amount);
+    if (nthr)
+        parallel(nthr, [&](int ithr, int nthr) {
+            for_nd(ithr, nthr, D0, D1, D2, D3, f);
+        });
+}
+inline void parallel_nd(dim_t D0, dim_t D1, dim_t D2, dim_t D3, dim_t D4,
+        const std::function<void(dim_t, dim_t, dim_t, dim_t, dim_t)> &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3 * D4;
+    int nthr = adjust_num_threads(dnnl_get_current_num_threads(), work_amount);
+    if (nthr)
+        parallel(nthr, [&](int ithr, int nthr) {
+            for_nd(ithr, nthr, D0, D1, D2, D3, D4, f);
+        });
+}
+inline void parallel_nd(dim_t D0, dim_t D1, dim_t D2, dim_t D3, dim_t D4,
         dim_t D5,
-        const std::function<void(dim_t, dim_t, dim_t, dim_t, dim_t, dim_t)> &f);
+        const std::function<void(dim_t, dim_t, dim_t, dim_t, dim_t, dim_t)>
+                &f) {
+    const dim_t work_amount = D0 * D1 * D2 * D3 * D4 * D5;
+    int nthr = adjust_num_threads(dnnl_get_current_num_threads(), work_amount);
+    if (nthr)
+        parallel(nthr, [&](int ithr, int nthr) {
+            for_nd(ithr, nthr, D0, D1, D2, D3, D4, D5, f);
+        });
+}
 /* parallel_nd_in_omp section */
 
 template <typename... Args>
