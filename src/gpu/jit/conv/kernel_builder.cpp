@@ -8007,19 +8007,20 @@ std::vector<int> reorder_kernel_builder_t::compute_blocks(
     }
 
     auto get_block = [&](int dim_idx) {
-        dim_t max_block = 32;
+        dim_t max_block = 16;
         dim_t dim = inner_dims[dim_idx];
         if (dim == 1) dim = dims[dim_idx];
         return (int)utils::max_div(dim, max_block);
     };
 
-    dim_t max_total_block = 1024;
+    dim_t max_total_block = 256;
     dim_t total_block = 1;
     std::vector<int> blocks(ndims, 1);
     for (int idx : candidate_dim_idxs) {
-        blocks[idx] = get_block(idx);
-        total_block *= blocks[idx];
-        if (total_block >= max_total_block) break;
+        int block = get_block(idx);
+        if (total_block * block >= max_total_block) break;
+        blocks[idx] = block;
+        total_block *= block;
     }
 
     threads = 1;
