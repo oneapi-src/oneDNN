@@ -103,6 +103,22 @@ int getenv_int_internal(const char *name, int default_value) {
     return value;
 }
 
+std::string getenv_string_user(const char *name) {
+    // Random number to fit possible string input.
+    std::string value;
+    const int len = 32;
+    char value_str[len]; // NOLINT
+    for (const auto &prefix : {"ONEDNN_", "DNNL_"}) {
+        std::string name_str = std::string(prefix) + std::string(name);
+        if (getenv(name_str.c_str(), value_str, len) > 0) {
+            value = value_str;
+            break;
+        }
+    }
+    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+    return value;
+}
+
 } // namespace utils
 } // namespace impl
 } // namespace graph

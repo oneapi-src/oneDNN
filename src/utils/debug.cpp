@@ -45,6 +45,16 @@ const char *engine_kind2str(engine_kind_t v) {
     return "unknown engine_kind";
 }
 
+const char *fpmath_mode2str(fpmath_mode_t v) {
+    if (v == fpmath_mode::strict) return "strict";
+    if (v == fpmath_mode::bf16) return "bf16";
+    if (v == fpmath_mode::f16) return "f16";
+    if (v == fpmath_mode::any) return "any";
+    if (v == fpmath_mode::f19) return "f19";
+    assert(!"unknown fpmath_mode");
+    return "unknown fpmath_mode";
+}
+
 const char *layout_type2str(layout_type_t v) {
     if (v == layout_type::undef) return "undef";
     if (v == layout_type::any) return "any";

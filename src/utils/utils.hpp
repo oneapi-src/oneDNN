@@ -245,6 +245,7 @@ int getenv(const char *name, char *buffer, int buffer_size);
 int getenv_int(const char *name, int default_value);
 int getenv_int_user(const char *name, int default_value);
 int getenv_int_internal(const char *name, int default_value);
+std::string getenv_string_user(const char *name);
 
 inline std::string thread_id_to_str(std::thread::id id) {
     std::stringstream ss;

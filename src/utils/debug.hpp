@@ -31,6 +31,7 @@ namespace utils {
 
 const char *data_type2str(data_type_t v);
 const char *engine_kind2str(engine_kind_t v);
+const char *fpmath_mode2str(fpmath_mode_t v);
 const char *layout_type2str(layout_type_t v);
 const char *property_type2str(property_type_t v);
 
