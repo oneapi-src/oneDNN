@@ -37,6 +37,43 @@ enum {
     undefined,
 };
 
+impl::data_type_t get_accum_datatype(brgemm_t *brg) {
+    // this assert should check if 'init_kernel_datatype()' was previously
+    // called.
+    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32);
+    return brg->is_int8 ? data_type::s32 : data_type::f32;
+}
+
+void init_kernel_datatype(
+        brgemm_t *brg, impl::data_type_t dt_a, impl::data_type_t dt_b) {
+    assert(dt_a != data_type::undef && dt_b != data_type::undef);
+    brg->is_int8 = utils::one_of(dt_a, data_type::u8, data_type::s8)
+            && (dt_b == data_type::s8);
+    brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
+    brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
+    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32);
+}
+
+void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
+        float beta, const brgemm_strides_t *strides) {
+    brg->beta = beta;
+    brg->alpha = alpha;
+    brg->type = type;
+    brg->with_bias = false;
+    brg->with_eltwise = false;
+    brg->with_sum = false;
+    brg->sum_scale = 0;
+    brg->sum_zp = 0;
+    brg->with_scales = false;
+
+    if (strides != nullptr) {
+        brg->stride_a = strides->stride_a;
+        brg->stride_b = strides->stride_b;
+    } else {
+        brg->stride_a = brg->stride_b = 0;
+    }
+}
+
 namespace brgemm_utils {
 
 bool can_dispatch_uker(const brgemm_t *brg) {
@@ -324,33 +361,36 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
         float alpha, float beta, dim_t LDA, dim_t LDB, dim_t LDC, dim_t M,
         dim_t N, dim_t K, const brgemm_strides_t *strides) {
 
+    init_common_conf(brg, type, alpha, beta, strides);
+
     brg->layout = layout;
 
     brg->dt_a = brg->is_row_major() ? dt_a : dt_b;
     brg->dt_b = brg->is_row_major() ? dt_b : dt_a;
+    init_kernel_datatype(brg, brg->dt_a, brg->dt_b);
 
-    brg->is_int8 = utils::one_of(brg->dt_a, data_type::u8, data_type::s8)
-            && brg->dt_b == data_type::s8;
-    brg->is_bf16 = brg->dt_a == data_type::bf16 && brg->dt_b == data_type::bf16;
-    brg->is_f32 = brg->dt_a == data_type::f32 && brg->dt_b == data_type::f32;
-
-    brg->dt_c = brg->is_int8 ? data_type::s32 : data_type::f32;
+    brg->dt_c = get_accum_datatype(brg);
     brg->dt_d = brg->dt_c;
     brg->dt_bias = brg->dt_c;
+
+    brg->typesize_A = types::data_type_size(brg->dt_a);
+    brg->typesize_B = types::data_type_size(brg->dt_b);
+    brg->typesize_C = types::data_type_size(brg->dt_c);
+    brg->typesize_D = types::data_type_size(brg->dt_d);
 
     brg->is_int8_amx = brg->is_int8 && mayiuse(avx512_core_bf16_amx_int8)
             && IMPLICATION(isa != isa_any, isa == avx512_core_bf16_amx_int8);
     brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16)
             && IMPLICATION(isa != isa_any, isa == avx512_core_bf16_amx_bf16);
-
     brg->is_amx = (brg->is_int8_amx || brg->is_bf16_amx);
+
     brg->req_s8s8_compensation
             = brg->is_int8 && !brg->is_int8_amx && brg->dt_a == data_type::s8;
+
     brg->LDA = (brg->is_row_major()) ? static_cast<int>(LDA)
                                      : static_cast<int>(LDB);
     brg->LDB = (brg->is_row_major()) ? static_cast<int>(LDB)
                                      : static_cast<int>(LDA);
-
     brg->LDC = static_cast<int>(LDC);
     brg->LDD = static_cast<int>(LDC);
 
@@ -360,33 +400,11 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
             = (brg->is_row_major()) ? static_cast<int>(N) : static_cast<int>(M);
     brg->reduce_dim = static_cast<int>(K);
 
-    brg->with_bias = false;
-    brg->with_eltwise = false;
-    brg->with_sum = false;
-    brg->sum_scale = 0;
-    brg->sum_zp = 0;
-    brg->with_scales = false;
-
-    brg->beta = beta;
-    brg->alpha = alpha;
-
-    brg->typesize_A = types::data_type_size(brg->dt_a);
-    brg->typesize_B = types::data_type_size(brg->dt_b);
-    brg->typesize_C = types::data_type_size(brg->dt_c);
-    brg->typesize_D = types::data_type_size(brg->dt_d);
-    brg->type = type;
-
     brg->bd_block2 = 0;
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
 
     brg->ld_step = brg->rd_step = 4 / brg->typesize_A;
-    if (strides != nullptr) {
-        brg->stride_a = strides->stride_a;
-        brg->stride_b = strides->stride_b;
-    } else {
-        brg->stride_a = brg->stride_b = 0;
-    }
 }
 
 void init_brdgemm_conf(brgemm_t *brg, brgemm_batch_kind_t type,
@@ -394,45 +412,32 @@ void init_brdgemm_conf(brgemm_t *brg, brgemm_batch_kind_t type,
         float alpha, float beta, dim_t LDA, dim_t LDC, dim_t M, dim_t N,
         const brgemm_strides_t *strides) {
 
+    init_common_conf(brg, type, alpha, beta, strides);
+
+    brg->layout = layout;
+
     brg->dt_a = dt_a;
     brg->dt_b = dt_b;
+    init_kernel_datatype(brg, brg->dt_a, brg->dt_b);
 
-    brg->is_int8 = utils::one_of(brg->dt_a, data_type::u8, data_type::s8)
-            && (brg->dt_b == data_type::s8);
-    brg->is_bf16
-            = (brg->dt_a == data_type::bf16) && (brg->dt_b == data_type::bf16);
-    brg->is_f32
-            = (brg->dt_a == data_type::f32) && (brg->dt_b == data_type::f32);
-
-    brg->dt_c = brg->is_int8 ? data_type::s32 : data_type::f32;
+    brg->dt_c = get_accum_datatype(brg);
     brg->dt_d = brg->dt_c;
     brg->dt_bias = brg->dt_c;
-
-    brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
-    brg->is_dgmm = true;
-    brg->type = type;
-    brg->layout = layout;
-    brg->beta = beta;
-    brg->alpha = alpha;
-
-    brg->LDA = static_cast<int>(LDA);
-    brg->LDC = static_cast<int>(LDC);
-    brg->LDD = static_cast<int>(LDC);
 
     brg->typesize_A = types::data_type_size(brg->dt_a);
     brg->typesize_B = types::data_type_size(brg->dt_b);
     brg->typesize_C = types::data_type_size(brg->dt_c);
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
+    brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    brg->is_dgmm = true;
+
+    brg->LDA = static_cast<int>(LDA);
+    brg->LDC = static_cast<int>(LDC);
+    brg->LDD = static_cast<int>(LDC);
+
     brg->bcast_dim = M;
     brg->load_dim = N;
-
-    if (strides != nullptr) {
-        brg->stride_a = strides->stride_a;
-        brg->stride_b = strides->stride_b;
-    } else {
-        brg->stride_a = brg->stride_b = 0;
-    }
 }
 
 } // namespace brgemm_utils
