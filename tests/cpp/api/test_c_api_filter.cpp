@@ -25,7 +25,7 @@ TEST(CAPI, FilterConBNStandalone) {
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
-    dnnl_graph_op_kind_t op_kind = kConvolution;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     size_t part_num = 0;
 
@@ -40,7 +40,7 @@ TEST(CAPI, FilterConBNStandalone) {
     } while (0);
 
     dnnl_graph_op_create(&conv2d, 1, op_kind, "conv2d");
-    op_kind = kBatchNormInference;
+    op_kind = dnnl_graph_op_batch_norm_inference;
     dnnl_graph_op_create(&bn, 2, op_kind, "bn");
     dnnl_graph_graph_create(&agraph, engine);
 
@@ -150,7 +150,7 @@ TEST(CAPI, FilterConvBNFused) {
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = dnnl_graph_cpu;
-    dnnl_graph_op_kind_t op_kind = kConvolution;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     size_t part_num = 0;
 
@@ -210,7 +210,7 @@ TEST(CAPI, FilterConvBNFused) {
     ASSERT_EQ_SAFE(dnnl_graph_op_add_output(conv2d, &conv2d_dst_desc),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
 
-    op_kind = kBatchNormInference;
+    op_kind = dnnl_graph_op_batch_norm_inference;
     dnnl_graph_op_create(&bn, 2, op_kind, "bn");
     float epsilon = 0.001f;
     ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(bn, "epsilon",
@@ -272,11 +272,11 @@ TEST(CAPI, FilterReluAdd) {
     // y = relu(x); z = x + y
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t relu = NULL;
-    dnnl_graph_op_kind_t op_kind = kReLU;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_relu;
     dnnl_graph_op_create(&relu, 0, op_kind, "relu");
 
     dnnl_graph_op_t add = NULL;
-    op_kind = kAdd;
+    op_kind = dnnl_graph_op_add;
     dnnl_graph_op_create(&add, 1, op_kind, "add");
 
 #define FILTER_RELU_ADD_DESTROY \
@@ -330,7 +330,7 @@ TEST(CAPI, FilterReluAdd) {
 TEST(CAPI, DifferentLogicalTensorWithSameID) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t add = NULL;
-    dnnl_graph_op_kind_t op_kind = kAdd;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_add;
     dnnl_graph_op_create(&add, 1, op_kind, "add");
 
 #define DIFFERENT_LT_WITH_SAME_ID_DESTROY \

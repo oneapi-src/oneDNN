@@ -118,10 +118,10 @@ dnnl_graph_op_t convert_op(example_op_t *e_op) {
     // dispatch to different op kind
     if (e_op->kind_ == e_kconv2d) {
         DNNL_GRAPH_CHECK(dnnl_graph_op_create(
-                &l_op, e_op->id_, kConvolution, e_op->name_));
+                &l_op, e_op->id_, dnnl_graph_op_convolution, e_op->name_));
     } else if (e_op->kind_ == e_krelu) {
-        DNNL_GRAPH_CHECK(
-                dnnl_graph_op_create(&l_op, e_op->id_, kReLU, e_op->name_));
+        DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+                &l_op, e_op->id_, dnnl_graph_op_relu, e_op->name_));
     } else {
         // TODO(qun) support more op kind
     }

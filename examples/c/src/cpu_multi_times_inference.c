@@ -150,16 +150,18 @@ int main(int argc, char **argv) {
     /// Step 3: create dnnl_graph_op and add attrs
     printf("Step 3: Create op-----------------------");
     dnnl_graph_op_t conv0, relu0, conv1, relu1, bias_add0, bias_add1;
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_op_create(&conv0, CONV0_ID, kConvolution, "conv0"));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_create(&relu0, RELU0_ID, kReLU, "relu0"));
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_op_create(&conv1, CONV1_ID, kConvolution, "conv1"));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_create(&relu1, RELU1_ID, kReLU, "relu1"));
     DNNL_GRAPH_CHECK(dnnl_graph_op_create(
-            &bias_add0, BIAS_ADD0_ID, kBiasAdd, "bias_add0"));
+            &conv0, CONV0_ID, dnnl_graph_op_convolution, "conv0"));
     DNNL_GRAPH_CHECK(dnnl_graph_op_create(
-            &bias_add1, BIAS_ADD1_ID, kBiasAdd, "bias_add1"));
+            &relu0, RELU0_ID, dnnl_graph_op_relu, "relu0"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+            &conv1, CONV1_ID, dnnl_graph_op_convolution, "conv1"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+            &relu1, RELU1_ID, dnnl_graph_op_relu, "relu1"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+            &bias_add0, BIAS_ADD0_ID, dnnl_graph_op_bias_add, "bias_add0"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+            &bias_add1, BIAS_ADD1_ID, dnnl_graph_op_bias_add, "bias_add1"));
 
     int64_t conv0_stride[] = {CONV0_STRIDE, CONV0_STRIDE};
     int64_t conv0_padding[] = {CONV0_PADDING, CONV0_PADDING};

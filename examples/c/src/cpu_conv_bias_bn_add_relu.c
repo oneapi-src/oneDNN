@@ -151,20 +151,22 @@ int main(int argc, char **argv) {
     printf("Step 3: Create op-----------------------");
     dnnl_graph_op_t conv0, conv1, bias_add0, bias_add1, batch_norm0,
             batch_norm1, add0, relu0;
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+            &conv0, CONV0_ID, dnnl_graph_op_convolution, "conv0"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+            &conv1, CONV1_ID, dnnl_graph_op_convolution, "conv1"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+            &bias_add0, BIAS_ADD0_ID, dnnl_graph_op_bias_add, "bias_add0"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
+            &bias_add1, BIAS_ADD1_ID, dnnl_graph_op_bias_add, "bias_add1"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(&batch_norm0, BATCH_NORM0_ID,
+            dnnl_graph_op_batch_norm_inference, "batch_norm0"));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_create(&batch_norm1, BATCH_NORM1_ID,
+            dnnl_graph_op_batch_norm_inference, "batch_norm1"));
     DNNL_GRAPH_CHECK(
-            dnnl_graph_op_create(&conv0, CONV0_ID, kConvolution, "conv0"));
-    DNNL_GRAPH_CHECK(
-            dnnl_graph_op_create(&conv1, CONV1_ID, kConvolution, "conv1"));
+            dnnl_graph_op_create(&add0, ADD0_ID, dnnl_graph_op_add, "add0"));
     DNNL_GRAPH_CHECK(dnnl_graph_op_create(
-            &bias_add0, BIAS_ADD0_ID, kBiasAdd, "bias_add0"));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
-            &bias_add1, BIAS_ADD1_ID, kBiasAdd, "bias_add1"));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
-            &batch_norm0, BATCH_NORM0_ID, kBatchNormInference, "batch_norm0"));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_create(
-            &batch_norm1, BATCH_NORM1_ID, kBatchNormInference, "batch_norm1"));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_create(&add0, ADD0_ID, kAdd, "add0"));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_create(&relu0, RELU0_ID, kReLU, "relu0"));
+            &relu0, RELU0_ID, dnnl_graph_op_relu, "relu0"));
 
     int64_t conv0_stride[] = {CONV0_STRIDE, CONV0_STRIDE};
     int64_t conv0_padding[] = {CONV0_PADDING, CONV0_PADDING};

@@ -36,9 +36,10 @@ TEST(CAPI, AddOp) {
         agraph = NULL; \
     } while (0);
 
-    ASSERT_EQ_SAFE(dnnl_graph_op_create(&op0, 1, kConvolution, "conv2d"),
+    ASSERT_EQ_SAFE(
+            dnnl_graph_op_create(&op0, 1, dnnl_graph_op_convolution, "conv2d"),
             dnnl_graph_success, ADD_OP_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_create(&op1, 2, kLog, "log"),
+    ASSERT_EQ_SAFE(dnnl_graph_op_create(&op1, 2, dnnl_graph_op_log, "log"),
             dnnl_graph_success, ADD_OP_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_graph_create(&agraph, engine), dnnl_graph_success,
             ADD_OP_DESTROY);

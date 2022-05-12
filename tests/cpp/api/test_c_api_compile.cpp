@@ -26,7 +26,7 @@ TEST(CAPI, CompileBN) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t bn = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kBatchNormInference;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_batch_norm_inference;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -144,7 +144,7 @@ TEST(CAPI, CompileConv2D) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kConvolution;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -260,7 +260,7 @@ TEST(CAPI, CompileGroupedConv2D) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kConvolution;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -415,9 +415,9 @@ TEST(CAPI, CompileConv2DBiasSum) {
     int64_t dilations[] = {1, 1};
     int64_t group = 1;
 
-    dnnl_graph_op_create(&conv2d, 1, kConvolution, "conv2d");
-    dnnl_graph_op_create(&bias_add, 2, kBiasAdd, "bias_add");
-    dnnl_graph_op_create(&sum, 3, kAdd, "sum");
+    dnnl_graph_op_create(&conv2d, 1, dnnl_graph_op_convolution, "conv2d");
+    dnnl_graph_op_create(&bias_add, 2, dnnl_graph_op_bias_add, "bias_add");
+    dnnl_graph_op_create(&sum, 3, dnnl_graph_op_add, "sum");
     api_test_dnnl_graph_graph_create(&agraph, engine);
 
     ASSERT_EQ_SAFE(
@@ -571,9 +571,9 @@ TEST(CAPI, CompileConv2DSumConv2D) {
     int64_t dilations[] = {1, 1};
     int64_t group = 1;
 
-    dnnl_graph_op_create(&conv0, 1, kConvolution, "conv0");
-    dnnl_graph_op_create(&conv1, 2, kConvolution, "conv1");
-    dnnl_graph_op_create(&sum, 3, kAdd, "sum");
+    dnnl_graph_op_create(&conv0, 1, dnnl_graph_op_convolution, "conv0");
+    dnnl_graph_op_create(&conv1, 2, dnnl_graph_op_convolution, "conv1");
+    dnnl_graph_op_create(&sum, 3, dnnl_graph_op_add, "sum");
     api_test_dnnl_graph_graph_create(&agraph, engine);
 
     ASSERT_EQ_SAFE(
@@ -824,9 +824,10 @@ TEST(CAPI, CompileSumConv2DStridedBN) {
 
     float epsilon = 0.001f;
 
-    dnnl_graph_op_create(&conv0, 1, kConvolution, "conv0");
-    dnnl_graph_op_create(&bn, 2, kBatchNormInference, "batchnorm");
-    dnnl_graph_op_create(&sum, 3, kAdd, "sum");
+    dnnl_graph_op_create(&conv0, 1, dnnl_graph_op_convolution, "conv0");
+    dnnl_graph_op_create(
+            &bn, 2, dnnl_graph_op_batch_norm_inference, "batchnorm");
+    dnnl_graph_op_create(&sum, 3, dnnl_graph_op_add, "sum");
     api_test_dnnl_graph_graph_create(&agraph, engine);
 
     ASSERT_EQ_SAFE(
@@ -1030,7 +1031,7 @@ TEST(CAPI, CompileConv2DWithUnknownShape) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t conv2d = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kConvolution;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -1146,7 +1147,7 @@ TEST(CAPI, CompileMaxPool) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t maxpool = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kMaxPool;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_max_pool;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -1243,7 +1244,7 @@ TEST(CAPI, CompileMaxPoolWithStridedOutput) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t maxpool = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kMaxPool;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_max_pool;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_max;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -1356,7 +1357,7 @@ TEST(CAPI, CompileAdd) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t add = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kAdd;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_add;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -1484,8 +1485,8 @@ TEST(CAPI, CompileConvBN) {
     int64_t group = 1;
     size_t part_num = 0;
 
-    dnnl_graph_op_create(&conv2d, 1, kConvolution, "conv2d");
-    dnnl_graph_op_create(&bn, 2, kBatchNormInference, "bn");
+    dnnl_graph_op_create(&conv2d, 1, dnnl_graph_op_convolution, "conv2d");
+    dnnl_graph_op_create(&bn, 2, dnnl_graph_op_batch_norm_inference, "bn");
     api_test_dnnl_graph_graph_create(&agraph, engine);
 
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init_with_dims(&conv_input, 1,
@@ -1645,8 +1646,8 @@ TEST(CAPI, CompileGroupedConvBN) {
     int64_t group = 4;
     size_t part_num = 0;
 
-    dnnl_graph_op_create(&conv2d, 1, kConvolution, "conv2d");
-    dnnl_graph_op_create(&bn, 2, kBatchNormInference, "bn");
+    dnnl_graph_op_create(&conv2d, 1, dnnl_graph_op_convolution, "conv2d");
+    dnnl_graph_op_create(&bn, 2, dnnl_graph_op_batch_norm_inference, "bn");
     api_test_dnnl_graph_graph_create(&agraph, engine);
 
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init_with_dims(&conv_input, 1,
@@ -1811,8 +1812,8 @@ TEST(CAPI, CompileConvBNStandalone) {
     size_t part_num = 0;
     size_t ops[10];
 
-    dnnl_graph_op_create(&conv2d, 1, kConvolution, "conv2d");
-    dnnl_graph_op_create(&bn, 2, kBatchNormInference, "bn");
+    dnnl_graph_op_create(&conv2d, 1, dnnl_graph_op_convolution, "conv2d");
+    dnnl_graph_op_create(&bn, 2, dnnl_graph_op_batch_norm_inference, "bn");
     api_test_dnnl_graph_graph_create(&agraph, engine);
 
     ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init_with_dims(&conv_input, 1,
@@ -1986,8 +1987,8 @@ TEST(CAPI, CompileMatmulAdd1D) {
     const int64_t add_output_dim[] = {8, 768};
     size_t part_num = 0;
 
-    dnnl_graph_op_create(&matmul, 1, kMatMul, "matmul");
-    dnnl_graph_op_create(&add, 2, kAdd, "add");
+    dnnl_graph_op_create(&matmul, 1, dnnl_graph_op_matmul, "matmul");
+    dnnl_graph_op_create(&add, 2, dnnl_graph_op_add, "add");
     api_test_dnnl_graph_graph_create(&agraph, engine);
 
     ASSERT_EQ_SAFE(
@@ -2095,10 +2096,10 @@ TEST(CAPI, CompileMatmulAddActivation) {
     size_t part_num = 0;
 
     std::vector<dnnl_graph_op_kind_t> activation_kinds
-            = {kGELU, kReLU, kSigmoid};
+            = {dnnl_graph_op_gelu, dnnl_graph_op_relu, dnnl_graph_op_sigmoid};
     for (size_t i = 0; i < activation_kinds.size(); i++) {
-        dnnl_graph_op_create(&matmul, 1, kMatMul, "matmul");
-        dnnl_graph_op_create(&add, 2, kAdd, "add");
+        dnnl_graph_op_create(&matmul, 1, dnnl_graph_op_matmul, "matmul");
+        dnnl_graph_op_create(&add, 2, dnnl_graph_op_add, "add");
         dnnl_graph_op_create(&activation, 3, activation_kinds[i], "activation");
         api_test_dnnl_graph_graph_create(&agraph, engine);
 
@@ -2182,7 +2183,7 @@ TEST(CAPI, CompileSoftmax) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t softmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kSoftMax;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_softmax;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -2259,7 +2260,7 @@ TEST(CAPI, CompileSoftmaxBackward) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t softmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kSoftMaxBackprop;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_softmax_backprop;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -2344,7 +2345,7 @@ TEST(CAPI, CompileLogSoftmax) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t logsoftmax = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kLogSoftmax;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_log_softmax;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;
@@ -2421,7 +2422,7 @@ TEST(CAPI, CompileWildcard) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t wildcard = NULL;
     dnnl_graph_engine_kind_t engine = api_test_engine_kind;
-    dnnl_graph_op_kind_t op_kind = kWildcard;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_wildcard;
     dnnl_graph_partition_policy_t policy = dnnl_graph_partition_policy_fusion;
     dnnl_graph_partition_t partition = NULL;
     dnnl_graph_compiled_partition_t compiled_partition = NULL;

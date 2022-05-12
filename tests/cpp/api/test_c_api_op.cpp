@@ -25,7 +25,7 @@
 */
 TEST(CAPI, CreateOp) {
     dnnl_graph_op_t op = NULL;
-    dnnl_graph_op_kind_t op_kind = kConvolution;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
 
 #define CREATE_OP_DESTROY \
     do { \
@@ -42,7 +42,7 @@ TEST(CAPI, CreateOp) {
 TEST(CAPI, OpAttr) {
     dnnl_graph_op_t op = NULL;
     dnnl_graph_op_t matmul_op = NULL;
-    dnnl_graph_op_kind_t op_kind = kConvolution;
+    dnnl_graph_op_kind_t op_kind = dnnl_graph_op_convolution;
 
 #define OP_ATTR_DESTROY \
     do { \
@@ -68,7 +68,8 @@ TEST(CAPI, OpAttr) {
                            dnnl_graph_attribute_kind_i, &groups, 1),
             dnnl_graph_success, OP_ATTR_DESTROY);
 
-    ASSERT_EQ_SAFE(dnnl_graph_op_create(&matmul_op, 2, kMatMul, "matmul"),
+    ASSERT_EQ_SAFE(
+            dnnl_graph_op_create(&matmul_op, 2, dnnl_graph_op_matmul, "matmul"),
             dnnl_graph_success, OP_ATTR_DESTROY);
     bool transpose_a = true;
     bool transpose_b = false;
