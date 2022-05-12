@@ -7977,7 +7977,7 @@ void kernel_builder_t::build() {
     stmt_ = inject_bank_conflict_attribute(stmt_);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
-    ir_trace() << "Kernel body:\n" << stmt_ << std::endl;
+    ir_trace() << "Convolution kernel body:\n" << stmt_ << std::endl;
 }
 
 std::vector<int> reorder_kernel_builder_t::compute_blocks(
@@ -8042,6 +8042,10 @@ void reorder_kernel_builder_t::build() {
 
     int threads = 1;
     auto blocks = compute_blocks(src_layout_, dst_layout_, threads);
+
+    ir_info() << "Reorder configuration:" << std::endl;
+    ir_info() << "  Tile size:                  "
+              << ir_utils::make_seq_print_helper(blocks, " x ") << std::endl;
 
     std::array<int, 3> kernel_grid_dims = {threads, 1, 1};
     std::array<int, 3> tg_grid_dims = {1, 1, 1};
@@ -8158,6 +8162,9 @@ void reorder_kernel_builder_t::build() {
     stmt_ = inject_send(stmt_, ir_ctx, init_cset);
     stmt_ = split_wide_stores(hw_cfg_.hw(), stmt_);
     stmt_ = simplify_pass(stmt_, init_cset);
+    stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
+
+    ir_trace() << "Reorder kernel body:\n" << stmt_ << std::endl;
 }
 
 } // namespace jit
