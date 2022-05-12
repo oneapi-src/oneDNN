@@ -2450,8 +2450,8 @@ public:
             }
         }
 
-        int if_size = 0;
-        int stmt_size = 0;
+        size_t if_size = 0;
+        size_t stmt_size = 0;
         if (is_if) {
             if_size = if_stmts_.size() + 1;
             stmt_size = stmt_list.size();
@@ -2464,7 +2464,7 @@ public:
         ir_visitor_t::_visit(obj);
         if (is_if) {
             if_idx_--;
-            for (int i = stmt_size; i < (int)stmt_list.size(); i++) {
+            for (size_t i = stmt_size; i < stmt_list.size(); i++) {
                 if_stmts_[if_size - 1].second.emplace(stmt_list[i].get_hash());
             }
         }
@@ -6674,7 +6674,7 @@ private:
     expr_t vector2expr(const std::vector<expr_t> &expr,
             object_eq_map_t<expr_t, expr_t> &vars) {
         const size_t mask = 0x8000;
-        auto hash = [](const binary_op_t &b) -> size_t {
+        auto hash = [mask](const binary_op_t &b) -> size_t {
             return size_t(b.op_kind) | ((b.b.is<int_imm_t>()) ? mask : 0UL);
         };
         if (expr.empty()) return expr_t();
@@ -6716,7 +6716,7 @@ private:
             if (offs.as<shuffle_t>().is_broadcast()) return offs;
             if (vars.find(offs) == vars.end()) {
                 auto var = ir_ctx_.create_tmp_var(
-                        type_t::s32(num_ints), "zp_mask");
+                        type_t::s32(int(num_ints)), "zp_mask");
                 vars.emplace(offs, var);
             }
             return vars[offs];
@@ -6731,7 +6731,7 @@ private:
         ir_assert(expr.front().is<var_t>());
         for (const expr_t &e : expr)
             ir_assert(e.is_same(expr.front()));
-        return shuffle_t::make_broadcast(expr.front(), expr.size());
+        return shuffle_t::make_broadcast(expr.front(), int(expr.size()));
     }
 
     stmt_t maybe_add_src_zps(
@@ -6784,7 +6784,7 @@ private:
                 const auto &c_vvars = gemm_schedule_.c_view().vvars();
                 for (size_t j = 0; j < c_vvars.size(); j++) {
                     if (a_thr_view.vvars()[i].is_equal(c_vvars[j])) {
-                        c_to_a[i] = j + 1;
+                        c_to_a[i] = int(j + 1);
                         break;
                     }
                 }
@@ -6841,7 +6841,7 @@ private:
                 }
 
                 const int sz = m_blk * type_t::s16().size();
-                const int total = (scalar_masks) ? 1 : exprs.size();
+                const int total = (scalar_masks) ? 1 : int(exprs.size());
                 register_buffer(zp_mask, total * sz, alloc_kind_t::grf);
                 for (int i = 0; i < total; i++) {
                     auto store = store_t::make(zp_mask, i * sz,
