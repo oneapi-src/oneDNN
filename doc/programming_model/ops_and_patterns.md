@@ -285,7 +285,7 @@ It supports a subset of the pattern capability as listed below.
 -
 
 ```text
-     ______________________________________________________
+     ___________________________|__________________________
     |                                                      |
     |             |                                        |           |
   Dequantize   Dequantize                              Dequantize   Dequantize
