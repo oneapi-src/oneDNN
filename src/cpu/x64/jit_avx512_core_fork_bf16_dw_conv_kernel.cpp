@@ -207,10 +207,25 @@ void jit_avx512_fork_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
     L(iter_exit_label);
 }
 
+template <typename F>
+static void iterate(const int ur_ch_blocks, const int ur_w,
+        const bool mask_tail, const F &f) {
+    for (int ch = 0; ch < ur_ch_blocks; ch++) {
+        const bool mask_flag = mask_tail && ch + 1 == ur_ch_blocks;
+        for (int ow = 0; ow < ur_w; ow++)
+            f(ch, ow, mask_flag);
+    }
+}
+template <typename F>
+static void iterate(const int ur_ch_blocks, const int ur_w, const F &f) {
+    iterate(ur_ch_blocks, ur_w, false, f);
+}
+
 void jit_avx512_fork_dw_conv_fwd_kernel_bf16::apply_postprocess(
-        int ur_ch_blocks, int ur_w) {
+        int ur_ch_blocks, int ur_w, bool last_ch_block_flag) {
     int eltwise_inj_idx = 0;
     int depthwise_inj_idx = 0;
+    int binary_inj_idx = 0;
     std::size_t post_ops_data_offset = 0;
     const auto& p = attr_.post_ops_;
 
@@ -222,6 +237,63 @@ void jit_avx512_fork_dw_conv_fwd_kernel_bf16::apply_postprocess(
 
             eltwise_injectors[eltwise_inj_idx]->compute_vector_range(start_idx, end_idx);
             eltwise_inj_idx++;
+        } else if (post_op.is_binary()) {
+            injector_utils::vmm_index_set_t vmm_idxs;
+            binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
+                    rhs_arg_params_tail;
+
+            const auto dst_layout_nxc = is_dst_layout_nxc();
+            // width per output channel block
+            const auto ch_blk = jcp.ch_block;
+            // ncx: next output channel block stride
+            const auto ocb_stride
+                    = dst_layout_nxc ? ch_blk : jcp.od * jcp.oh * jcp.ow * ch_blk;
+            // ncx: next w inside a output channel block
+            const auto ow_stride = dst_layout_nxc ? jcp.ngroups : ch_blk;
+            // ncx: if has tail
+            const auto mask_tail_blocked_layout
+                    = jcp.oc_without_padding % jcp.ch_block && !dst_layout_nxc;
+            // tail value
+            const auto mask_tail = jcp.oc_without_padding % jcp.ch_block;
+
+            iterate(ur_ch_blocks, ur_w, mask_tail,
+                    [&](int ch, int ow, int mask_flag) {
+                        const size_t aux_output_l_off = jcp.typesize_out
+                                * (ch * ocb_stride + ow * ow_stride);
+                        const auto vmm_idx = get_acc_reg(ch * ur_w + ow).getIdx();
+                        vmm_idxs.emplace(vmm_idx);
+
+                        rhs_arg_params_tail.vmm_idx_to_out_reg.emplace(
+                                vmm_idx, reg_output);
+                        rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
+                                vmm_idx, aux_output_l_off);
+                        if (mask_flag)
+                            rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
+                    });
+            rhs_arg_params = rhs_arg_params_tail;
+            rhs_arg_params.vmm_tail_idx_.clear();
+
+            Label postops_done;
+            if (mask_tail_blocked_layout) {              
+                Label postops_no_tail;
+                push(aux_reg_blocks_offset);
+                mov(aux_reg_blocks_offset, ptr[param1 + GET_OFF(load_work)]);
+                cmp(aux_reg_blocks_offset, jcp.nb_ch_blocking * jcp.ch_block);
+                pop(aux_reg_blocks_offset);
+                jge(postops_no_tail, T_NEAR);
+                binary_injector->compute_vector_range(vmm_idxs,
+                    binary_inj_idx, post_op, rhs_arg_params_tail);
+                jmp(postops_done, T_NEAR);
+                L(postops_no_tail);
+            } else if (last_ch_block_flag) {
+                binary_injector->compute_vector_range(vmm_idxs,
+                    binary_inj_idx, post_op, rhs_arg_params_tail);                
+            } else {
+                binary_injector->compute_vector_range(vmm_idxs,
+                    binary_inj_idx, post_op, rhs_arg_params);                
+                L(postops_done);
+            }
+            binary_inj_idx++;
         } else if (post_op.is_depthwise()) {
             push(aux_reg_blocks_offset);
             base_post_ops_data_offset += reg64_size;
@@ -244,6 +316,7 @@ void jit_avx512_fork_dw_conv_fwd_kernel_bf16::apply_postprocess(
 
             post_ops_data_offset += depthwise_injectors[depthwise_inj_idx]->memoryStep();
             depthwise_inj_idx++;
+            binary_inj_idx++;
         }
     }
 }
@@ -373,7 +446,7 @@ void jit_avx512_fork_dw_conv_fwd_kernel_bf16::compute_loop(int ur_w, int ur_ch_b
         } else {
             apply_filter_unrolled(ur_ch_blocks, ur_w, last_ch_block_flag);
         }
-        apply_postprocess(ur_ch_blocks, ur_w);
+        apply_postprocess(ur_ch_blocks, ur_w, last_ch_block_flag);
         store_dst(ur_ch_blocks, ur_w, last_ch_block_flag);
     };
 
@@ -492,6 +565,7 @@ void jit_avx512_fork_dw_conv_fwd_kernel_bf16::loop_ow(int ur_ch_blocks) {
 
 void jit_avx512_fork_dw_conv_fwd_kernel_bf16::generate() {
     const auto& p = attr_.post_ops_;
+    bool with_binary = false;
     for (int i = 0; i < p.len(); i++) {
         auto& post_op = p.entry_[i];
         if (post_op.is_eltwise()) {
@@ -499,6 +573,8 @@ void jit_avx512_fork_dw_conv_fwd_kernel_bf16::generate() {
                 this,
                 post_op.eltwise
                 ));
+        } else if (post_op.is_binary()) {
+            with_binary = true;
         } else if (post_op.is_depthwise()) {
             depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<avx512_core>(
                 this,
@@ -506,7 +582,24 @@ void jit_avx512_fork_dw_conv_fwd_kernel_bf16::generate() {
                 ));
         }
     }
-
+    if (with_binary) {
+        static constexpr bool preserve_gpr = true;
+        // need to tune if no need to preserve it
+        static constexpr bool preserve_vmm = true;
+        static constexpr size_t helper_vmm_idx = 31;
+        const size_t tail_size = jcp.oc_without_padding
+                % (cpu_isa_traits<avx512_core>::vlen / sizeof(float));
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+        const binary_injector::rhs_arg_static_params_t rhs_sp {
+            helper_vmm_idx, r10, r11, r12, preserve_gpr,
+            preserve_vmm, GET_OFF(post_ops_binary_rhs_arg_vec),
+            GET_OFF(dst_orig), memory_desc_wrapper(&dst_md_),
+            tail_size, k_oc_tail_mask, use_exact_tail_scalar_bcast};
+        const binary_injector::static_params_t bsp {this->param1, rhs_sp};
+        binary_injector = utils::make_unique<
+                binary_injector::jit_uni_binary_injector_t<avx512_core>>(
+                this, bsp);
+    }
     this->preamble();
 
     std::size_t post_ops_pointers_count = 0;
