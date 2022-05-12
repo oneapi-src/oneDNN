@@ -1008,9 +1008,13 @@ stmt_t lift_send_2d_header_store(const stmt_t &s) {
 // Represents an expression-candidate to eliminate.
 class cse_expr_t {
 public:
-    cse_expr_t(const expr_t &expr, const ir_path_t &path, int refs = 1,
-            const expr_t &cse_var = {})
-        : expr(expr), path(path), refs(refs), cse_var(cse_var) {
+    cse_expr_t(const expr_t &expr, const expr_t &orig_expr,
+            const ir_path_t &path, int refs = 1, const expr_t &cse_var = {})
+        : expr(expr)
+        , orig_expr(orig_expr)
+        , path(path)
+        , refs(refs)
+        , cse_var(cse_var) {
         ir_trace() << "cse_pass: add expression: " << expr << std::endl;
     }
 
@@ -1023,6 +1027,8 @@ public:
 
     // Expression to eliminate via let.
     expr_t expr;
+    // Original expression to eliminate (doesn't contain any CSEed vars).
+    expr_t orig_expr;
     // Path to the innermost IR node where the expression can be defined.
     ir_path_t path;
     // Number of references to the expression.
@@ -1035,6 +1041,8 @@ public:
 class cse_context_t {
 public:
     cse_context_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
+
+    int memory_usage() const { return memory_usage_; }
 
     ir_context_t &ir_ctx() { return ir_ctx_; }
 
@@ -1061,7 +1069,7 @@ public:
 
     void register_expr(const expr_t &e, const ir_path_t &path) {
         if (e.type().is_bool()) return; // Ignore booleans.
-        auto ret = cse_exprs_.insert({e, cse_expr_t(e, path)});
+        auto ret = cse_exprs_.insert({e, cse_expr_t(e, e, path)});
         ir_assert(ret.second) << e;
         MAYBE_UNUSED(ret);
     }
@@ -1075,6 +1083,7 @@ public:
     expr_t get_or_assign_var(const expr_t &e) {
         auto &cse_expr = find_cse_expr(e);
         if (cse_expr.cse_var.is_empty()) {
+            memory_usage_ += e.type().size();
             cse_expr.cse_var = ir_ctx_.create_tmp_var(e.type());
             ir_trace() << "cse_pass: assigning var: " << e << " -> "
                        << cse_expr.cse_var << std::endl;
@@ -1101,8 +1110,8 @@ public:
         auto it = cse_exprs_.find(old_expr);
         ir_assert(it != cse_exprs_.end()) << old_expr;
         auto &old_cse_expr = it->second;
-        auto new_cse_expr = cse_expr_t(new_expr, old_cse_expr.path,
-                old_cse_expr.refs, old_cse_expr.cse_var);
+        auto new_cse_expr = cse_expr_t(new_expr, old_cse_expr.orig_expr,
+                old_cse_expr.path, old_cse_expr.refs, old_cse_expr.cse_var);
         cse_exprs_.erase(it);
         auto ret = cse_exprs_.insert({new_expr, new_cse_expr});
         ir_assert(ret.second);
@@ -1115,9 +1124,61 @@ public:
             f(kv.first);
     }
 
+    bool should_assign_var(const expr_t &e) const {
+        if (get_refs(e) <= 1) return false;
+        if (skip_exprs_.count(e) != 0) return false;
+        return true;
+    }
+
+    void set_skip_exprs(int limit) {
+        using cost_entry_t = std::pair<const cse_expr_t *, int>;
+        std::vector<cost_entry_t> costs;
+        for (auto &kv : cse_exprs_) {
+            auto &cse_expr = kv.second;
+            costs.emplace_back(&cse_expr, expr_cost(cse_expr.expr));
+        }
+        // Order expressions candidates for CSE by their computation cost.
+        std::sort(costs.begin(), costs.end(),
+                [&](const cost_entry_t &a, const cost_entry_t &b) {
+                    return a.second > b.second;
+                });
+        // Add the most lightweight expressions to the skip list to prepare for
+        // the retry run.
+        int usage = 0;
+        for (auto &e : costs) {
+            auto &expr = e.first->orig_expr;
+            usage += expr.type().size();
+            if (usage > limit) skip_exprs_.insert(expr);
+        }
+    }
+
+    void reset_cse_exprs() {
+        cse_exprs_.clear();
+        memory_usage_ = 0;
+    }
+
 private:
+    static int expr_cost(const expr_t &e) {
+        if (is_var(e)) return 0;
+        if (is_const(e)) return 0;
+        if (e.is<cast_t>()) return 0;
+        if (auto *op = e.as_ptr<binary_op_t>()) {
+            return expr_cost(op->a) + expr_cost(op->b) + 1;
+        }
+        if (auto *op = e.as_ptr<unary_op_t>()) { return expr_cost(op->a) + 1; }
+        if (auto *s = e.as_ptr<shuffle_t>()) {
+            if (s->is_broadcast()) return 0;
+            return s->elems();
+        }
+        ir_error_not_expected() << "Unhandled expression: " << e;
+        return 0;
+    }
+
     ir_context_t &ir_ctx_;
     object_eq_map_t<expr_t, cse_expr_t> cse_exprs_;
+    object_eq_set_t<expr_t> skip_exprs_;
+
+    int memory_usage_ = 0;
 };
 
 // Collects statistics about expressions for common subexpression elimination.
@@ -1364,7 +1425,7 @@ private:
         if (ctx_.has(obj) && !new_obj.is_equal(obj)) {
             ctx_.update_expr(obj, new_obj);
         }
-        if (ctx_.get_refs(new_obj) > 1) {
+        if (ctx_.should_assign_var(new_obj)) {
             bool has_var = ctx_.has_var(new_obj);
             auto var = ctx_.get_or_assign_var(new_obj);
             auto &path = ctx_.get_path(new_obj);
@@ -1397,10 +1458,9 @@ private:
     object_map_t<stmt_t, std::vector<expr_t>> to_update_;
 };
 
-stmt_t eliminate_common_subexprs(const stmt_t &_stmt, ir_context_t &ir_ctx) {
+stmt_t eliminate_common_subexprs_impl(
+        const stmt_t &_stmt, cse_context_t &ctx, int memory_usage_limit) {
     auto stmt = _stmt;
-
-    cse_context_t ctx(ir_ctx);
 
     // Collect statistics.
     cse_visitor_t visitor(ctx);
@@ -1417,6 +1477,37 @@ stmt_t eliminate_common_subexprs(const stmt_t &_stmt, ir_context_t &ir_ctx) {
     cse_mutator_t mutator(ctx);
     stmt = mutator.mutate(stmt);
 
+    // If memory usage exceeds the limit, exclude some
+    // expressions from CSE and retry the whole process from
+    // scratch.
+    int memory_usage = ctx.memory_usage();
+    if (memory_usage > memory_usage_limit) {
+        ir_trace() << "CSE exceeded GRF usage limit. Usage: " << memory_usage
+                   << ", limit: " << memory_usage_limit
+                   << ". Retry CSE and skip some expressions..." << std::endl;
+        ctx.set_skip_exprs(memory_usage_limit);
+        ctx.reset_cse_exprs();
+        return stmt_t();
+    }
+
+    trace_pass("eliminate_common_subexprs", stmt);
+    return stmt;
+}
+
+stmt_t eliminate_common_subexprs(const stmt_t &_stmt, ir_context_t &ir_ctx) {
+    stmt_t stmt;
+    cse_context_t cse_ctx(ir_ctx);
+
+    // Max amount of GRF memory allowed to use for temporary variables.
+    const int memory_usage_limit = 1024;
+
+    stmt = eliminate_common_subexprs_impl(_stmt, cse_ctx, memory_usage_limit);
+    // Retry if statement is empty, rely on the updated
+    // skip_exprs from the CSE context.
+    if (stmt.is_empty()) {
+        stmt = eliminate_common_subexprs_impl(
+                _stmt, cse_ctx, memory_usage_limit);
+    }
     trace_pass("eliminate_common_subexprs", stmt);
     return stmt;
 }
