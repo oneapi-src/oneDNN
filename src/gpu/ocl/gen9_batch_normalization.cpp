@@ -136,6 +136,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     set_offsets(data_mdw, off.src_off);
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto gpu_arch = compute_engine->device_info()->gpu_arch();
 
     conf.mb_block = 1;
 
@@ -157,8 +158,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         return status::unimplemented;
     // IC tail processing performnce boost is not obvious on arch < xe_hpc
     if (conf.ic % 8 == 0 && conf.ic % 16
-            && compute_engine->device_info()->gpu_arch()
-                    < compute::gpu_arch_t::xe_hpc)
+            && gpu_arch < compute::gpu_arch_t::xe_hpc)
         return status::unimplemented;
 
     conf.use_stats_one_pass = experimental::use_bnorm_stats_one_pass();
@@ -181,8 +181,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     // is limited by XeHPG+ due to performance reasons
     conf.nhwc_optimized = conf.ic % 16 == 0
             && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
-            && compute_engine->device_info()->gpu_arch()
-                    >= compute::gpu_arch_t::xe_hpg);
+            && gpu_arch >= compute::gpu_arch_t::xe_hpg;
 
     if (conf.nhwc_optimized) {
         conf.ic_block = get_nhwc_ic_block(utils::rnd_up(conf.ic, 16));
@@ -210,7 +209,6 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             ? utils::div_up(conf.ic, conf.ic_block) * 16
             : utils::rnd_up(conf.ic, 16);
 
-    auto gpu_arch = compute_engine->device_info()->gpu_arch();
     auto eu_count = compute_engine->device_info()->eu_count();
     auto threads_per_eu
             = compute_engine->device_info()->threads_per_eu(gpu_arch, false);
@@ -233,8 +231,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     conf.reduce_stat_nblocks = conf.nn * conf.stat_sp_nblocks;
 
-    conf.vect_size = 8;
-    conf.nhwc_vect_size = get_nhwc_vect_size(conf.ic_block);
+    conf.vect_size
+            = conf.nhwc_optimized ? get_nhwc_vect_size(conf.ic_block) : 8;
 
     conf.dispatch_calc_stat = compute_engine->create_dispatch();
     conf.dispatch_calc_stat.define_dim("STAT_MB", 0, conf.nn);
@@ -318,7 +316,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("REDUCE_IC_SUB_GROUPS", conf.stat_ic / 16);
     kernel_ctx.define_int("USE_STATS_ONE_PASS", conf.use_stats_one_pass);
     kernel_ctx.define_int("NHWC_OPTIMIZED", conf.nhwc_optimized);
-    kernel_ctx.define_int("NHWC_VECT_SIZE", conf.nhwc_vect_size);
 
     if (conf.data_type == data_type::s8)
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
