@@ -1195,7 +1195,9 @@ public:
         int uq_size = sizeof(uint64_t);
 
         auto zero = ra_.alloc_range(bytes_per_store * ud_size / grf_size);
-        auto off_vec = ra_.alloc_range(bytes_per_thr * uq_size / grf_size);
+        auto off_vec = ra_.alloc_range(bytes_per_thr * ud_size / grf_size);
+        auto off_vec_q_strided
+                = ra_.alloc_range(bytes_per_thr * uq_size / grf_size);
         auto ptr_vec = ra_.alloc_range(bytes_per_thr * uq_size / grf_size);
 
         for (int i = 0; i < bytes_per_store * ud_size; i += 64) {
@@ -1207,19 +1209,22 @@ public:
         mov(8, idx_vec, ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
 
         for (int i = 0; i < bytes_per_thr; i += 8) {
-            auto off_sub_vec = get_subregister(
-                    hw, ngen::DataType::ud, off_vec, i * 2)(2);
+            auto off_sub_vec
+                    = get_subregister(hw, ngen::DataType::ud, off_vec, i)(1);
             add3(8, off_sub_vec, off0, idx_vec, i);
             if (use_a64) {
                 auto ptr_sub_vec = get_subregister(
                         hw, ngen::DataType::uq, ptr_vec, i)(1);
-                eadd(8, ptr_sub_vec, ptr, off_sub_vec);
+                auto off_sub_vec_q_strided = get_subregister(
+                        hw, ngen::DataType::ud, off_vec_q_strided, i * 2)(2);
+                emov(8, off_sub_vec_q_strided, off_sub_vec);
+                eadd(8, ptr_sub_vec, ptr, off_sub_vec_q_strided);
             }
         }
 
         for (int i = 0; i < bytes_per_thr; i += bytes_per_store) {
-            auto off_sub_vec = get_subregister(
-                    hw, ngen::DataType::ud, off_vec, i * 2)(2);
+            auto off_sub_vec
+                    = get_subregister(hw, ngen::DataType::ud, off_vec, i)(1);
             cmp(16 | lt | f0[0], off_sub_vec, size);
             if (use_a64) {
                 auto h_a64
