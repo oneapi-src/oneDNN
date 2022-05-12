@@ -90,16 +90,37 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
         return;
 
     bool do_depthwise_ = false;
+    bool with_binary_ = false;
     for (int i = 0; i < post_ops_.len(); i++) {
         auto& post_op = post_ops_.entry_[i];
         if (post_op.is_eltwise()) {
             jit_eltwise_injectors_.push_back(new jit_uni_eltwise_injector_f32<avx512_core>(this,
                                                                                            post_op.eltwise, true, reserved_eltwise_gpr, reserved_eltwise_maskr));
+        } else if (post_op.is_binary()) {
+            with_binary_ = true;
+            do_depthwise_ = false;
         } else if (post_op.is_depthwise()) {
             do_depthwise_ = true;
         }
     }
-
+    if (with_binary_) {
+#define PARAM_OFF(field) offsetof(ker_args, field)
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = true;
+        static constexpr size_t helper_vmm_idx = 15;
+        static constexpr size_t tail_size = 0;
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+        const binary_injector::rhs_arg_static_params_t rhs_sp {
+            helper_vmm_idx, r13, r14, preserve_gpr,
+            preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
+            PARAM_OFF(dst_orig), memory_desc_wrapper(pd->dst_md()),
+            tail_size, kreg_rem_mask, use_exact_tail_scalar_bcast};
+#undef PARAM_OFF
+        const binary_injector::static_params_t bsp {this->param1, rhs_sp};
+        jit_binary_injector_ = utils::make_unique<
+                binary_injector::jit_uni_binary_injector_t<avx512_core>>(
+                this, bsp);            
+    }
     if (do_sum_) {
         compute_reg_step_ = 2;
         vreg_sum_scale = Zmm(data_reg_base_idx_++);
@@ -199,6 +220,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
         }
 
         int eltwise_inj_idx = 0;
+        int binary_inj_idx = 0;
         std::size_t post_ops_data_offset = 0;
         const auto& p = attr_->post_ops_;
         for (int i = 0; i < p.len(); i++) {
@@ -206,6 +228,17 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
             if (post_op.is_eltwise()) {
                 jit_eltwise_injectors_[eltwise_inj_idx]->compute_vector(vreg_dst_idx(idx));
                 eltwise_inj_idx++;
+            } else if (post_op.is_binary()){
+                binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+                rhs_arg_params.vmm_idx_to_out_addr.emplace(idx, dst_addr);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        idx, 0);
+                if (apply_mask) 
+                    rhs_arg_params.vmm_tail_idx_.emplace(idx);
+                jit_binary_injector_->compute_vector(
+                        idx, binary_inj_idx, post_op, rhs_arg_params);
+
+                binary_inj_idx++;
             } else if (post_op.is_depthwise()) {
                 mov(reg_dw, ptr[reg_post_ops_data + post_ops_data_offset]);
                 lea(reg_dw, ptr[reg_dw + reg_oc_offset]);
@@ -228,6 +261,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
                     default: assert(!"unsupported depthwise algorithm");
                 }
 
+                binary_inj_idx++;
                 post_ops_data_offset += sizeof(float*);
             }
         }
