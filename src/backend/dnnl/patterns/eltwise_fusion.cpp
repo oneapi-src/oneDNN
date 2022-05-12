@@ -90,7 +90,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::chained_relu);
+                            = std::make_shared<op_t>(op_kind::large_partition);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });

@@ -81,10 +81,8 @@ bool dnnl_backend::register_kernels() {
     // conv related operators
     DNNL_REGISTER_KERNEL(impl::op_kind::Convolution, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::dnnl_conv_depthwise, float_conv_fwd)
-    DNNL_REGISTER_KERNEL(op_kind::conv_simple_resblock, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::conv_bias_post_ops_fusion, float_conv_fwd)
     DNNL_REGISTER_KERNEL(op_kind::conv_post_ops_fusion, float_conv_fwd)
-    DNNL_REGISTER_KERNEL(op_kind::float_conv_fusion, float_conv_fwd)
 
     DNNL_REGISTER_KERNEL(impl::op_kind::ConvolutionBackpropData, conv_bwd_data)
 
@@ -214,12 +212,9 @@ bool dnnl_backend::register_kernels() {
     // quantized matmul
     DNNL_REGISTER_KERNEL(
             op_kind::int8_matmul_post_ops_fusion, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::int8_MHA, quantized_matmul);
-    DNNL_REGISTER_KERNEL(op_kind::f32_MHA, float_matmul);
 
     //eltwise+binary ops
     DNNL_REGISTER_KERNEL(op_kind::eltwise_binary, float_eltwise_fwd);
-    DNNL_REGISTER_KERNEL(op_kind::chained_relu, float_eltwise_fwd);
 
     // quantized pooling
     DNNL_REGISTER_KERNEL(op_kind::int8_pool_binary, quantized_pooling);
@@ -238,6 +233,9 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::DynamicQuantize, quantize_dequantize_t)
     DNNL_REGISTER_KERNEL(
             impl::op_kind::DynamicDequantize, quantize_dequantize_t)
+
+    // large partition
+    DNNL_REGISTER_KERNEL(op_kind::large_partition, larger_partition_kernel_t)
 
 #undef DNNL_REGISTER_KERNEL
     return true;

@@ -28,17 +28,6 @@
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
-#include "backend/dnnl/kernels/batchnorm.hpp"
-#include "backend/dnnl/kernels/binary.hpp"
-#include "backend/dnnl/kernels/concat.hpp"
-#include "backend/dnnl/kernels/conv.hpp"
-#include "backend/dnnl/kernels/eltwise.hpp"
-#include "backend/dnnl/kernels/layernorm.hpp"
-#include "backend/dnnl/kernels/matmul.hpp"
-#include "backend/dnnl/kernels/pool.hpp"
-#include "backend/dnnl/kernels/quantize.hpp"
-#include "backend/dnnl/kernels/reorder.hpp"
-#include "backend/dnnl/kernels/softmax.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 
 #include "cpp/unit/unit_test_common.hpp"
@@ -10339,12 +10328,12 @@ TEST(Execute, TypecastQuantize) {
     std::vector<const impl::logical_tensor_t *> lt_ins {&src_bf16};
     std::vector<const impl::logical_tensor_t *> lt_outs {&dst_int8};
 
-    p.compile(&cp, lt_ins, lt_outs, &engine);
+    ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, &engine), impl::status::success);
 
     test::vector<int8_t> dst_data(product(src_shape));
     impl::tensor_t src_ts(src_bf16, &engine, src_data.data());
     impl::tensor_t dst_ts(dst_int8, &engine, dst_data.data());
-    cp.execute(&strm, {src_ts}, {dst_ts});
+    ASSERT_EQ(cp.execute(&strm, {src_ts}, {dst_ts}), impl::status::success);
     strm.wait();
 }
 

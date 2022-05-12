@@ -764,6 +764,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
                 // New added attributes
                 .set_attr("kind", "pooling kind, maxpool or avgpool", true,
                         attribute_kind::s)
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
                 .set_shape_inference_function(infer_dnnl_pool_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
@@ -1030,6 +1034,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
                 .set_shape_inference_function(infer_bn_bwd_output_shape))
 
 // This op schema represents all interpolate related fusions.
@@ -1120,6 +1128,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_sum, 1,
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 
@@ -1168,8 +1180,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                         "output of this op is constant",
                         false, attribute_kind::b, false)
                 // Analysis rules
-                .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
+                .set_shape_inference_function(infer_dnnl_binary_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(reorder_sum, 1,
         op_schema_t()
@@ -1288,6 +1299,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_shuffle, 1,
                         "specifies the number of groups to split shuffle "
                         "dimension into",
                         true, attribute_kind::i)
+                .set_attr("is_constant",
+                        "used in constant propagation to identify if the "
+                        "output of this op is constant",
+                        false, attribute_kind::b, false)
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape))
 

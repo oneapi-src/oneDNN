@@ -613,7 +613,7 @@ TEST(OpSchema, AllInternalOps) {
     // we have some internal operators which don't have schema.
     const static std::vector<op_kind_t> no_schema {bn_bwd_relu_bwd,
             conv_simple_resblock, int8_MHA, f32_MHA, chained_relu,
-            float_conv_fusion};
+            float_conv_fusion, large_partition};
 
     for (size_t i = start; i < start + count; i++) {
         op_kind_t kind = static_cast<op_kind_t>(i);

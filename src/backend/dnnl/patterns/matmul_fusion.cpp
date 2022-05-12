@@ -1053,7 +1053,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_MHA_fusion)
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::int8_MHA);
+                            = std::make_shared<op_t>(op_kind::large_partition);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
@@ -1154,7 +1154,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::f32_MHA);
+                            = std::make_shared<op_t>(op_kind::large_partition);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });
@@ -1275,7 +1275,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_bf16_MHA_fusion)
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
-                            = std::make_shared<op_t>(op_kind::int8_MHA);
+                            = std::make_shared<op_t>(op_kind::large_partition);
                     fused_op->set_attr<std::string>("backend", "dnnl");
                     return fused_op;
                 });

@@ -185,9 +185,11 @@ dnnl::memory::desc make_dnnl_memory_desc(const impl::logical_tensor_t &lt) {
                 static_cast<size_t>(ltw.layout_id()));
         return impl::utils::any_cast<memory::desc>(td.value());
     } else if (ltw.is_any()) {
-        return {ltw.vdims(), dtype, dnnl::memory::format_tag::any};
+        auto dims = ltw.ndims() >= 0 ? ltw.vdims() : impl::dims {};
+        return {dims, dtype, dnnl::memory::format_tag::any};
     } else if (ltw.is_strided()) {
-        return {ltw.vdims(), dtype, ltw.vstrides()};
+        auto dims = ltw.ndims() >= 0 ? ltw.vdims() : impl::dims {};
+        return {dims, dtype, ltw.vstrides()};
     } else {
         return {};
     }

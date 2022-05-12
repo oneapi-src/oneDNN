@@ -205,7 +205,7 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
@@ -246,7 +246,7 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
 
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_to_group_for_conv_or_deconv(
@@ -302,7 +302,7 @@ impl::status_t insert_to_group_for_conv_or_deconv(
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
@@ -379,7 +379,7 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_reshape_for_ndx2d_matmul(
@@ -469,7 +469,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_expand_and_squeeze_for_matmul(
@@ -559,7 +559,7 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
@@ -617,7 +617,8 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
-    return impl::status::success;
+
+    return infer_shape(sg);
 }
 
 impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
@@ -679,7 +680,7 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
 
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
@@ -774,7 +775,7 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
 
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_expand_and_squeeze_for_reduction(
@@ -818,6 +819,9 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
                     = impl::empty_logical_tensor_with_default_id();
             auto new_val
                     = std::make_shared<value_t>(*cur_op_ptr, 0, new_lt, true);
+            new_val->set_data_type(cur_op_ptr->get_input_value(0)
+                                           ->get_logical_tensor()
+                                           .data_type);
             cur_op_ptr->connect_output(0, new_val);
             post_op.connect_input(1 - src1_offset, new_val);
 
@@ -837,7 +841,7 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
 
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
@@ -946,7 +950,7 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
                 [op](const op_ptr &tmp) { return op.get() == tmp.get(); });
         if (pos != subgraph.end()) subgraph.erase(pos);
     }
-    return impl::status::success;
+    return infer_shape(sg);
 }
 
 } // namespace dnnl_impl

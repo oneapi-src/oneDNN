@@ -27,13 +27,27 @@ static status_t infer_dnnl_conv_common_bwd_weight_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs,
         const size_t axis_with_groups) {
+    bool canonicalized = n->has_attr("canonicalized")
+            && n->get_attr<bool>("canonicalized");
+    const auto groups = n->get_attr<int64_t>("groups");
+
+    auto out = logical_tensor_wrapper_t(outputs[0]); // diff_wei
+    if (canonicalized && groups > 1 && !out.is_shape_unknown()) {
+        // convert the out shape to uncanonicalized form to reuse the frontend
+        // shape infer function.
+        auto out_dims = out.vdims();
+        auto groups = out_dims[0];
+        out_dims.erase(out_dims.begin());
+        out_dims[axis_with_groups] *= groups;
+        set_shape_and_strides(*outputs[0], out_dims);
+    }
+
     // infer pad and filter shape (groups not included)
     const auto ret = infer_conv_bprop_filters_output_shape(n, inputs, outputs);
     if (ret != status::success) return ret;
 
-    const auto groups = n->get_attr<int64_t>("groups");
     // add groups into weights shape
-    if (groups > 1) {
+    if (canonicalized && groups > 1) {
         auto out_dims = impl::logical_tensor_wrapper_t(outputs[0]).vdims();
         out_dims[axis_with_groups] /= groups;
         out_dims.insert(out_dims.begin(), groups);
@@ -108,10 +122,16 @@ status_t infer_dnnl_convtranspose_output_shape(op_t *n,
     using ltw = impl::logical_tensor_wrapper_t;
 
     auto backup = *inputs[1];
-    if (n->get_attr<int64_t>("groups") > 1) {
+    auto backup_groups = n->get_attr<int64_t>("groups");
+    bool is_canonicalized = n->has_attr("canonicalized")
+            && n->get_attr<bool>("canonicalized");
+    if (is_canonicalized
+            && (ltw(inputs[1]).ndims() == ltw(inputs[0]).ndims() + 1)) {
         // [g, O/g, I/g, H, W]
         auto ndims = ltw(inputs[1]).ndims() - 1;
         auto dims = ltw(inputs[1]).vdims();
+        n->set_attr<int64_t>("groups", static_cast<int64_t>(dims[0]));
+
         dims[2] *= dims[0];
         dims.erase(dims.begin());
 
@@ -123,7 +143,7 @@ status_t infer_dnnl_convtranspose_output_shape(op_t *n,
 
     infer_convtranspose_output_shape(n, inputs, outputs);
     *inputs[1] = backup;
-
+    n->set_attr<int64_t>("groups", backup_groups);
     return status::success;
 }
 
@@ -504,6 +524,15 @@ status_t infer_dnnl_pool_bwd_output_shape(op_t *n,
     }
 
     return status::success;
+}
+
+status_t infer_dnnl_binary_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    bool is_bias_add
+            = n->has_attr("is_bias_add") && n->get_attr<bool>("is_bias_add");
+    if (is_bias_add) { return infer_bias_add_output_shape(n, inputs, outputs); }
+    return infer_elemwise_arithmetic_output_shape(n, inputs, outputs);
 }
 
 } // namespace dnnl_impl

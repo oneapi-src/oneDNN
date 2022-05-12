@@ -133,10 +133,15 @@ public:
     using pass_signature
             = std::function<impl::status_t(std::shared_ptr<subgraph_t> &)>;
 
-    pass_pipeline_t(const subgraph_visualizer_t &vis)
+    pass_pipeline_t() = default;
+
+    pass_pipeline_t(const subgraph_visualizer_t &vis,
+            bool enable_validator = true, bool enable_visualizer = true)
         : visualizer_(vis)
         , is_layout_sensitive_(false)
-        , is_memory_sensitive_(false) {};
+        , is_memory_sensitive_(false)
+        , enable_validator_(enable_validator)
+        , enable_visualizer_(enable_visualizer) {};
 
     // Reset the visualize arguments
     void reset_visualize_arg(
@@ -163,11 +168,13 @@ public:
             if (ret != impl::status::success) { return ret; }
 
             // Dump the subgraph to dot file
-            visualizer_.run(sg, names_[i], is_layout_sensitives_[i],
-                    is_memory_sensitives_[i]);
+            if (enable_visualizer_) {
+                visualizer_.run(sg, names_[i], is_layout_sensitives_[i],
+                        is_memory_sensitives_[i]);
+            }
 
             // Validate the subgraph after each pass
-            ret = validator_.run(sg);
+            if (enable_validator_) { ret = validator_.run(sg); }
             if (ret != impl::status::success) { return ret; }
         }
         return impl::status::success;
@@ -188,6 +195,9 @@ private:
     // The current visualize arguments
     bool is_layout_sensitive_;
     bool is_memory_sensitive_;
+
+    bool enable_validator_;
+    bool enable_visualizer_;
 };
 
 #define BACKEND_DNNL_ADD_PASS(pipeline, pass) pipeline.add_pass(pass, #pass)

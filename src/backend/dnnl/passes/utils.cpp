@@ -126,6 +126,9 @@ void insert_op_before(op_t *inserted_op, op_t *base_op, size_t offset) {
     impl::logical_tensor_t new_lt
             = impl::empty_logical_tensor_with_default_id();
     auto new_val = std::make_shared<value_t>(*inserted_op, 0, new_lt, true);
+    auto in_dtype = in_val->get_logical_tensor().data_type;
+    new_val->set_data_type(in_dtype);
+
     inserted_op->add_output(new_val);
 
     new_val->add_consumer(*base_op, offset);
@@ -141,6 +144,9 @@ void insert_op_before(op_t *inserted_op, op_t *base_op, size_t base_offset,
     impl::logical_tensor_t new_lt
             = impl::empty_logical_tensor_with_default_id();
     auto new_val = std::make_shared<value_t>(*inserted_op, 0, new_lt, true);
+    auto in_dtype = in_val->get_logical_tensor().data_type;
+    new_val->set_data_type(in_dtype);
+
     inserted_op->add_output(new_val);
 
     new_val->add_consumer(*base_op, base_offset);
@@ -165,6 +171,9 @@ void insert_op_after(op_t *inserted_op, op_t *base_op, size_t offset) {
     impl::logical_tensor_t new_lt
             = impl::empty_logical_tensor_with_default_id();
     auto new_val = std::make_shared<value_t>(*base_op, 0, new_lt, true);
+    auto out_type = out_val->get_logical_tensor().data_type;
+    new_val->set_data_type(out_type);
+
     base_op->connect_output(offset, new_val);
 
     new_val->add_consumer(*inserted_op, inserted_op->num_inputs());
@@ -179,6 +188,9 @@ void insert_op_after(op_t *inserted_op, op_t *base_op, size_t output_offset,
     impl::logical_tensor_t new_lt
             = impl::empty_logical_tensor_with_default_id();
     auto new_val = std::make_shared<value_t>(*base_op, 0, new_lt, true);
+    auto out_type = out_val->get_logical_tensor().data_type;
+    new_val->set_data_type(out_type);
+
     base_op->connect_output(output_offset, new_val);
 
     new_val->add_consumer(*inserted_op, input_offset);
@@ -548,6 +560,33 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
             }
         } else {
             // TODO(qun)
+        }
+
+        // Check shape and type (each pass should be shape/type consistent in
+        // static shape scenarios)
+        const auto &in_vals = op->get_input_values();
+        for (size_t i = 0; i < in_vals.size(); i++) {
+            // dnnl_pool_bwd's index 1 and index 2 input are optional
+            if (op->get_kind() == dnnl_impl::op_kind::dnnl_pool_bwd
+                    && (i == 1 || i == 2))
+                continue;
+
+            auto lt = in_vals[i]->get_logical_tensor();
+            impl::logical_tensor_wrapper_t ltw(lt);
+            if (ltw.is_shape_unknown()) { return status::invalid_shape; }
+            if (ltw.data_type() == impl::data_type::undef) {
+                return status::invalid_data_type;
+            }
+        }
+
+        // only check the first output now
+        const auto &out_val = op->get_output_value(0);
+        auto lt = out_val->get_logical_tensor();
+        impl::logical_tensor_wrapper_t ltw(lt);
+
+        if (ltw.is_shape_unknown()) { return status::invalid_shape; }
+        if (ltw.data_type() == impl::data_type::undef) {
+            return status::invalid_data_type;
         }
 
         return status::success;
