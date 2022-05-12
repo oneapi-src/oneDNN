@@ -362,10 +362,10 @@ typedef struct {
 /// @brief In-place pair definition
 typedef struct {
     /// The id of input tensor
-    size_t input;
+    size_t input_id;
 
     /// The id of output tensor
-    size_t output;
+    size_t output_id;
 } dnnl_graph_inplace_pair_t;
 
 /// @} dnnl_graph_api_compiled_partition

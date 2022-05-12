@@ -790,19 +790,20 @@ public:
     /// @returns List of pairs of that indicates input and output use same
     ///     memory buffer.
     std::vector<std::pair<size_t, size_t>> get_inplace_ports() const {
-        size_t num_inplace_pairs = std::numeric_limits<size_t>::max();
+        size_t num = 0;
         const dnnl_graph_inplace_pair_t *inplace_pairs;
 
         error::check_succeed(dnnl_graph_compiled_partition_get_inplace_ports(
-                                     get(), &num_inplace_pairs, &inplace_pairs),
+                                     get(), &num, &inplace_pairs),
                 "could not get the in-place pairs from a compiled partition");
-        if (num_inplace_pairs == 0) return {};
+        if (num == 0) return {};
+
         std::vector<std::pair<size_t, size_t>> inplace_options;
-        inplace_options.reserve(num_inplace_pairs);
-        for (size_t i = 0; i < num_inplace_pairs; ++i) {
+        inplace_options.reserve(num);
+        for (size_t i = 0; i < num; ++i) {
             const dnnl_graph_inplace_pair_t *inplace_pair = inplace_pairs + i;
             inplace_options.emplace_back(
-                    inplace_pair->input, inplace_pair->output);
+                    inplace_pair->input_id, inplace_pair->output_id);
         }
         return inplace_options;
     }

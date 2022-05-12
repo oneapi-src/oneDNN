@@ -1627,8 +1627,8 @@ TEST(Execute, SwapBroadcastAdd) {
 
     // inplace
     auto inplace_pair = cp.get_inplace_pairs();
-    ASSERT_EQ(inplace_pair[0].input, src1_lt.id);
-    ASSERT_EQ(inplace_pair[0].output, dst_lt.id);
+    ASSERT_EQ(inplace_pair[0].input_id, src1_lt.id);
+    ASSERT_EQ(inplace_pair[0].output_id, dst_lt.id);
 
     impl::tensor_t dst_ts2(compiled_dst_lt, &eng, src1.data());
     cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts2});
@@ -6126,8 +6126,8 @@ TEST(Compile, ConvAddInplace) {
     // check inplace pairs
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
     ASSERT_EQ(inplace_pairs.size(), 1);
-    ASSERT_EQ(inplace_pairs[0].input, add_src_lt.id);
-    ASSERT_EQ(inplace_pairs[0].output, add_dst_lt.id);
+    ASSERT_EQ(inplace_pairs[0].input_id, add_src_lt.id);
+    ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 }
 
 TEST(Execute, GroupConvolution) {
@@ -7238,8 +7238,8 @@ TEST(Execute, ConvMultiplePostOps) {
 
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
     ASSERT_EQ(inplace_pairs.size(), 1);
-    ASSERT_EQ(inplace_pairs[0].input, sum_other_lt.id);
-    ASSERT_EQ(inplace_pairs[0].output, add_dst_lt.id);
+    ASSERT_EQ(inplace_pairs[0].input_id, sum_other_lt.id);
+    ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 
     impl::logical_tensor_t lt;
     cp.query_logical_tensor(add_dst_lt.id, &lt);
@@ -8950,8 +8950,8 @@ void test_softmax_bwd_get_inplace_pair_common(impl::op_kind_t op_kind) {
 
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
     ASSERT_EQ(inplace_pairs.size(), 1);
-    ASSERT_EQ(inplace_pairs[0].input, diff_dst_lt.id);
-    ASSERT_EQ(inplace_pairs[0].output, diff_src_lt.id);
+    ASSERT_EQ(inplace_pairs[0].input_id, diff_dst_lt.id);
+    ASSERT_EQ(inplace_pairs[0].output_id, diff_src_lt.id);
 }
 
 TEST(Compile, SoftMaxBackwardGetInplacePair) {
@@ -9673,8 +9673,8 @@ TEST(Execute, LayerNormBackpropFp32) {
 
         auto inplace_pairs = cp.get_inplace_pairs();
         ASSERT_EQ(inplace_pairs.size(), 1);
-        ASSERT_EQ(inplace_pairs[0].input, diff_dst.id);
-        ASSERT_EQ(inplace_pairs[0].output, diff_src.id);
+        ASSERT_EQ(inplace_pairs[0].input_id, diff_dst.id);
+        ASSERT_EQ(inplace_pairs[0].output_id, diff_src.id);
 
         impl::tensor_t src_ts(src, &engine, src_data.data());
         impl::tensor_t diff_dst_ts(diff_dst, &engine,
@@ -12685,8 +12685,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
                 = cp2.get_inplace_pairs();
 
         ASSERT_EQ(inplace_pairs.size(), 1);
-        ASSERT_EQ(inplace_pairs[0].input, dst_s8_2.id);
-        ASSERT_EQ(inplace_pairs[0].output, dst_s8.id);
+        ASSERT_EQ(inplace_pairs[0].input_id, dst_s8_2.id);
+        ASSERT_EQ(inplace_pairs[0].output_id, dst_s8.id);
     }
 }
 
@@ -16689,8 +16689,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
                 = cp2.get_inplace_pairs();
 
         ASSERT_EQ(inplace_pairs.size(), 1);
-        ASSERT_EQ(inplace_pairs[0].input, dst_s8_2.id);
-        ASSERT_EQ(inplace_pairs[0].output, dst_s8.id);
+        ASSERT_EQ(inplace_pairs[0].input_id, dst_s8_2.id);
+        ASSERT_EQ(inplace_pairs[0].output_id, dst_s8.id);
     }
 }
 
@@ -17460,8 +17460,8 @@ TEST(Compile, MatmulAddGetInplacePair) {
 
     std::vector<impl::inplace_pair_t> inplace_pairs = cp1.get_inplace_pairs();
     ASSERT_EQ(inplace_pairs.size(), 1);
-    ASSERT_EQ(inplace_pairs[0].input, lt_mm_out2.id);
-    ASSERT_EQ(inplace_pairs[0].output, lt_add_out.id);
+    ASSERT_EQ(inplace_pairs[0].input_id, lt_mm_out2.id);
+    ASSERT_EQ(inplace_pairs[0].output_id, lt_add_out.id);
 }
 
 TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
@@ -18631,8 +18631,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
                 = cp2.get_inplace_pairs();
 
         ASSERT_EQ(inplace_pairs.size(), 1);
-        ASSERT_EQ(inplace_pairs[0].input, dst_s8_2.id);
-        ASSERT_EQ(inplace_pairs[0].output, dst_s8.id);
+        ASSERT_EQ(inplace_pairs[0].input_id, dst_s8_2.id);
+        ASSERT_EQ(inplace_pairs[0].output_id, dst_s8.id);
     }
 }
 
@@ -18891,8 +18891,8 @@ TEST(Execute, AddAdd) {
 
     // inplace
     auto inplace_pair = cp.get_inplace_pairs();
-    ASSERT_EQ(inplace_pair[0].input, post_src_lt.id);
-    ASSERT_EQ(inplace_pair[0].output, dst_lt.id);
+    ASSERT_EQ(inplace_pair[0].input_id, post_src_lt.id);
+    ASSERT_EQ(inplace_pair[0].output_id, dst_lt.id);
 
     impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
     impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
@@ -22514,8 +22514,8 @@ TEST(Compile, ReorderAddGetInplacePair) {
 
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
     ASSERT_EQ(inplace_pairs.size(), 1);
-    ASSERT_EQ(inplace_pairs[0].input, add_src_lt.id);
-    ASSERT_EQ(inplace_pairs[0].output, add_dst_lt.id);
+    ASSERT_EQ(inplace_pairs[0].input_id, add_src_lt.id);
+    ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 }
 
 TEST(Execute, Int8ReorderAdd) {
@@ -23583,8 +23583,8 @@ TEST(Compile, SoftmaxGetInplacePair) {
 
     auto pairs = cp.get_inplace_pairs();
     ASSERT_EQ(pairs.size(), 1);
-    ASSERT_EQ(pairs[0].input, 0);
-    ASSERT_EQ(pairs[0].output, 1);
+    ASSERT_EQ(pairs[0].input_id, 0);
+    ASSERT_EQ(pairs[0].output_id, 1);
 }
 
 TEST(Compile, EltwiseGetInplacePair) {
@@ -23625,8 +23625,8 @@ TEST(Compile, EltwiseGetInplacePair) {
 
     auto pairs = cp.get_inplace_pairs();
     ASSERT_EQ(pairs.size(), 1);
-    ASSERT_EQ(pairs[0].input, 0);
-    ASSERT_EQ(pairs[0].output, 1);
+    ASSERT_EQ(pairs[0].input_id, 0);
+    ASSERT_EQ(pairs[0].output_id, 1);
 }
 
 TEST(Execute, F32ConvolutionalBottleneckResBlock) {
@@ -23963,8 +23963,8 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
     ASSERT_EQ(p0.compile(&cp0, inputs0, outputs0, &eng), impl::status::success);
     auto pairs = cp0.get_inplace_pairs();
     ASSERT_EQ(pairs.size(), 1);
-    ASSERT_EQ(pairs[0].input, outputs1[0]->id);
-    ASSERT_EQ(pairs[0].output, outputs0[0]->id);
+    ASSERT_EQ(pairs[0].input_id, outputs1[0]->id);
+    ASSERT_EQ(pairs[0].output_id, outputs0[0]->id);
 }
 
 TEST(Execute, F32Resnet50Stage2Block) {

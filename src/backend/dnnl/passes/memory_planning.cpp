@@ -1458,7 +1458,7 @@ impl::status_t memory_planner_t::prepare_subgraph_inplace_pairs(
             // Have shared, not re-do
             bool have_shared = false;
             for (auto &pair : inplace_pairs_) {
-                if (pair.output == out_lt.id || pair.input == in_lt.id)
+                if (pair.output_id == out_lt.id || pair.input_id == in_lt.id)
                     have_shared = true;
             }
             if (have_shared) continue;
