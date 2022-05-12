@@ -674,6 +674,14 @@ subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
     if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }
 }
 
+subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
+        impl::fpmath_mode_t fpm_mode, bool reset_layout)
+    : impl::graph_t(ops, fpm_mode)
+    , p_engine_(&eng)
+    , fusion_info_mgr_(fpm_mode) {
+    if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }
+}
+
 subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, bool reset_layout)
     : impl::graph_t(ops), p_engine_(nullptr) {
     if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }

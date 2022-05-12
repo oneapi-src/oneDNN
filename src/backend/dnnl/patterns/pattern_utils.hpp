@@ -142,7 +142,8 @@ inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
 
         std::shared_ptr<dnnl_partition_impl_t> pimpl
                 = std::make_shared<dnnl_partition_impl_t>(
-                        backend_graph.get_engine_kind());
+                        backend_graph.get_engine_kind(),
+                        backend_graph.get_fpmath_mode());
 
         // use the fused op to initialize the partition_impl, and merge the
         // informations to it.

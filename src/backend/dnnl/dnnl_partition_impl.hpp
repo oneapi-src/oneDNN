@@ -100,8 +100,9 @@ class dnnl_partition_impl_t : public impl::partition_impl_t {
     friend class dnnl_backend;
 
 public:
-    dnnl_partition_impl_t(impl::engine_kind_t engine_kind)
-        : impl::partition_impl_t(engine_kind) {};
+    dnnl_partition_impl_t(impl::engine_kind_t engine_kind,
+            impl::fpmath_mode_t fpmath_mode = impl::fpmath_mode::strict)
+        : impl::partition_impl_t(engine_kind, fpmath_mode) {}
 
     ~dnnl_partition_impl_t() override = default;
 
@@ -167,7 +168,8 @@ public:
     bool is_initialized() const override { return fused_op_ != nullptr; }
 
     std::shared_ptr<impl::partition_impl_t> clone() const override {
-        auto ret = std::make_shared<dnnl_partition_impl_t>(get_engine_kind());
+        auto ret = std::make_shared<dnnl_partition_impl_t>(
+                get_engine_kind(), get_fpmath_mode());
         ret->ops_ = impl::graph_t::deep_copy(ops_);
         ret->inputs_ = inputs_;
         ret->outputs_ = outputs_;

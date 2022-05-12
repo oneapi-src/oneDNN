@@ -66,6 +66,8 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    prm_attr.set_fpmath_mode(
+            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -137,6 +139,8 @@ create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    prm_attr.set_fpmath_mode(
+            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -197,6 +201,8 @@ create_deconv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    prm_attr.set_fpmath_mode(
+            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
 
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -248,6 +254,8 @@ create_deconv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
         int64_t key = op->get_attr<int64_t>("fusion_info_key");
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
+    prm_attr.set_fpmath_mode(
+            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -292,6 +300,8 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    prm_attr.set_fpmath_mode(
+            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -714,6 +724,8 @@ create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    prm_attr.set_fpmath_mode(
+            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
 
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -766,6 +778,8 @@ create_conv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    prm_attr.set_fpmath_mode(
+            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());

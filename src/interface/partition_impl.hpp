@@ -59,13 +59,17 @@ class backend;
 
 class partition_impl_t : public std::enable_shared_from_this<partition_impl_t> {
 public:
-    partition_impl_t(impl::engine_kind_t engine_kind)
-        : engine_kind_(engine_kind) {};
+    partition_impl_t(impl::engine_kind_t engine_kind,
+            impl::fpmath_mode_t fpmath_mode = impl::fpmath_mode::strict)
+        : engine_kind_(engine_kind), fpmath_mode_(fpmath_mode) {}
 
     virtual ~partition_impl_t() = default;
 
     /// The getter for engine_kind_, which is used in C API
     impl::engine_kind_t get_engine_kind() const { return engine_kind_; }
+
+    /// The getter for fpmath_mode_
+    impl::fpmath_mode_t get_fpmath_mode() const { return fpmath_mode_; }
 
     /// The getter for ops_, which is used in C API
     const std::vector<std::shared_ptr<op_t>> &get_ops() const { return ops_; }
@@ -164,6 +168,9 @@ public:
 protected:
     // Engine kind
     impl::engine_kind_t engine_kind_;
+
+    // floating-point math mode
+    impl::fpmath_mode_t fpmath_mode_;
 
     //////////////////////////////////////////////////////
     /// Q: What do the ops_/inputs_/outputs_ represent for?
