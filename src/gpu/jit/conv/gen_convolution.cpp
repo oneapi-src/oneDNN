@@ -48,7 +48,7 @@ static size_t icache_size(ngen::HW arch) {
 }
 
 template <template <ngen::HW> class KernelT, ngen::HW arch, typename... ArgsT>
-std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&...args) {
+std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&... args) {
 
     auto raw_kernel = new KernelT<arch>(std::forward<ArgsT>(args)...);
     if (raw_kernel->getRootStreamLength() > icache_size(arch)) {
@@ -62,7 +62,7 @@ std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&...args) {
 
 template <template <ngen::HW> class KernelT, typename... ArgsT>
 compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
-        gpu_gen_t arch, ArgsT &&...args) {
+        gpu_gen_t arch, ArgsT &&... args) {
     compute::kernel_t kernel;
 
     if (primitive->cache_blob()) {
