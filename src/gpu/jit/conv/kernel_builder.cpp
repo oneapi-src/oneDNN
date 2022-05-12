@@ -7168,6 +7168,7 @@ private:
 
     bool can_use_2d_send() const {
         if (cfg_.use_2d_send) return true;
+        if (cfg_.hw() < ngen::HW::XeHPC) return false;
 
         // Enable 2D load messages for bwd_w for 32n16c layout
         if (cfg_.is_bwd_w) {
