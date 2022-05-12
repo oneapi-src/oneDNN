@@ -996,7 +996,7 @@ status_t infer_norm_bprop_output_shape(op_t *n,
     if (n->has_attr("use_affine") && n->get_attr<bool>("use_affine") == true) {
         // when use_affine parameter is set,
         // there will be two additional outputs
-        identity_shapes_pos.insert(identity_shapes_pos.end(), {{4, 1}, {5, 2}});
+        identity_shapes_pos.insert(identity_shapes_pos.end(), {{4, 1}, {4, 2}});
     }
     return identity_output_shape_on_pos(
             n, inputs, outputs, identity_shapes_pos);

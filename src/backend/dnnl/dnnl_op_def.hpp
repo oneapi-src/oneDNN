@@ -1482,9 +1482,9 @@ DNNL_GRAPH_OP_SCHEMA(quantized_concat_fusion, 1,
 DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm_bwd, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({4, 6}))
+                .set_num_inputs(std::set<size_t>({4, 5, 6}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
-                .set_num_outputs(std::set<size_t>({1, 2, 3, 4}))
+                .set_num_outputs(std::set<size_t>({1, 2, 4}))
                 .set_input(0, "input_forward", "input tensor")
                 .set_input(1, "output_delta",
                         "the gradient with respect to the output")
@@ -1506,12 +1506,13 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm_bwd, 1,
                 .set_output(3, "scratchpad",
                         "(optional) scratchpad tensor, which is a temporary "
                         "output and not connected to any other ops")
-                .set_attr("with_gamma",
+                .set_attr("use_affine",
                         "when set to True, this module has learnable weights",
                         false, attribute_kind::b, true)
-                .set_attr("with_beta",
-                        "when set to True, this module has learnable bias",
-                        false, attribute_kind::b, true)
+                .set_attr("begin_norm_axis",
+                        "used to indicate which axis to perform layer "
+                        "normalization",
+                        false, attribute_kind::i, int64_t(-1))
                 .set_attr("epsilon", "constant to improve numerical stability",
                         false, attribute_kind::f, 1e-5f)
                 .set_attr("fusion_info_key",

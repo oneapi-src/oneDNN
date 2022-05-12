@@ -724,7 +724,7 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
 DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
         op_schema_t()
                 .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({4, 6}))
+                .set_num_inputs(std::set<size_t>({4, 5, 6}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({1, 3}))
                 .set_input(0, "input_tensor", "input tensor", "T1")

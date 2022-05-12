@@ -835,30 +835,32 @@ void memory_planner_t::bind_memory_for_layernorm_bwd(
             op->get_output_value(out_index++).get(), mem);
     args.insert({DNNL_ARG_DIFF_SRC, mem});
 
-    if (op->get_attr<bool>("with_gamma")) {
+    if (op->num_inputs() > 4) {
         exec_args_set_.find_value_mem_map(
                 op->get_input_value(in_index++).get(), mem);
         args.insert({DNNL_ARG_SCALE, mem});
-
-        exec_args_set_.find_value_mem_map(
-                op->get_output_value(out_index++).get(), mem);
-        args.insert({DNNL_ARG_DIFF_SCALE, mem});
     }
-    if (op->get_attr<bool>("with_beta")) {
+    if (op->num_inputs() > 5) {
         exec_args_set_.find_value_mem_map(
                 op->get_input_value(in_index++).get(), mem);
         args.insert({DNNL_ARG_SHIFT, mem});
+    } else {
+        // use scale mem for fake shift
+        args.insert({DNNL_ARG_SHIFT, mem});
+    }
 
+    const bool use_affine = op->get_attr<bool>("use_affine");
+    if (use_affine) {
+        exec_args_set_.find_value_mem_map(
+                op->get_output_value(out_index++).get(), mem);
+        args.insert({DNNL_ARG_DIFF_SCALE, mem});
         exec_args_set_.find_value_mem_map(
                 op->get_output_value(out_index++).get(), mem);
         args.insert({DNNL_ARG_DIFF_SHIFT, mem});
     }
-
-    if (op->num_outputs() > out_index) {
-        exec_args_set_.find_value_mem_map(
-                op->get_output_value(out_index).get(), mem);
-        args.insert({DNNL_ARG_SCRATCHPAD, mem});
-    }
+    exec_args_set_.find_value_mem_map(
+            op->get_output_value(out_index).get(), mem);
+    args.insert({DNNL_ARG_SCRATCHPAD, mem});
 
     exec_args_set_.add_exec_args(args);
 }

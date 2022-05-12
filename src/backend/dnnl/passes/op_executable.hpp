@@ -670,9 +670,11 @@ create_layernorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
 
     auto epsilon = op->get_attr<float>("epsilon");
     auto flags = normalization_flag::none;
-    if (op->get_attr<bool>("with_gamma"))
+    const bool use_affine = op->get_attr<bool>("use_affine");
+    if (use_affine) {
         flags |= normalization_flag::use_scale;
-    if (op->get_attr<bool>("with_beta")) flags |= normalization_flag::use_shift;
+        flags |= normalization_flag::use_shift;
+    }
 
     auto data = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());

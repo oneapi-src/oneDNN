@@ -9586,12 +9586,11 @@ TEST(Execute, LayerNormBackpropFp32) {
     test::vector<float> mean_data {0.0f, 1.0f, 0.0f, 1.0f};
     test::vector<float> var_data {3.9375f, 0.9375f, 0.1875f, 3.9375f};
     test::vector<float> scale_data {0.125f, 0.25f};
-    test::vector<float> shift_data {0.001953125f, 0.00390625f};
 
     // outputs data
     test::vector<float> diff_src_data(src_data.size());
     test::vector<float> diff_scale_data(scale_data.size());
-    test::vector<float> diff_shift_data(shift_data.size());
+    test::vector<float> diff_shift_data(scale_data.size());
 
     // expected outputs data
     test::vector<float> ref_diff_src_data {
@@ -9619,17 +9618,14 @@ TEST(Execute, LayerNormBackpropFp32) {
         impl::logical_tensor_t scale
                 = utils::logical_tensor_init(4, scaleshift_dims,
                         impl::data_type::f32, impl::layout_type::strided);
-        impl::logical_tensor_t shift
-                = utils::logical_tensor_init(5, scaleshift_dims,
-                        impl::data_type::f32, impl::layout_type::strided);
         impl::logical_tensor_t diff_src
-                = utils::logical_tensor_init(6, diff_data_dims,
+                = utils::logical_tensor_init(5, diff_data_dims,
                         impl::data_type::f32, impl::layout_type::strided);
         impl::logical_tensor_t diff_scale
-                = utils::logical_tensor_init(7, scaleshift_dims,
+                = utils::logical_tensor_init(6, scaleshift_dims,
                         impl::data_type::f32, impl::layout_type::strided);
         impl::logical_tensor_t diff_shift
-                = utils::logical_tensor_init(8, scaleshift_dims,
+                = utils::logical_tensor_init(7, scaleshift_dims,
                         impl::data_type::f32, impl::layout_type::strided);
 
         auto &op_factory = get_dnnl_kernel_registry();
@@ -9640,10 +9636,9 @@ TEST(Execute, LayerNormBackpropFp32) {
         ln_bwd_op.add_input(diff_dst);
         ln_bwd_op.add_input(mean);
         ln_bwd_op.add_input(var);
+        ln_bwd_op.add_input(scale);
         ln_bwd_op.add_output(diff_src);
         if (use_affine) {
-            ln_bwd_op.add_input(scale);
-            ln_bwd_op.add_input(shift);
             ln_bwd_op.add_output(diff_scale);
             ln_bwd_op.add_output(diff_shift);
         }
@@ -9662,11 +9657,9 @@ TEST(Execute, LayerNormBackpropFp32) {
         impl::compiled_partition_t cp(p);
 
         std::vector<const impl::logical_tensor_t *> inputs {
-                &src, &diff_dst, &mean, &var};
+                &src, &diff_dst, &mean, &var, &scale};
         std::vector<const impl::logical_tensor_t *> outputs {&diff_src};
         if (use_affine) {
-            inputs.push_back(&scale);
-            inputs.push_back(&shift);
             outputs.push_back(&diff_scale);
             outputs.push_back(&diff_shift);
         }
@@ -9686,7 +9679,6 @@ TEST(Execute, LayerNormBackpropFp32) {
         impl::tensor_t mean_ts(mean, &engine, mean_data.data());
         impl::tensor_t var_ts(var, &engine, var_data.data());
         impl::tensor_t scale_ts(scale, &engine, scale_data.data());
-        impl::tensor_t shift_ts(shift, &engine, shift_data.data());
         impl::tensor_t diff_src_ts(diff_src, &engine, diff_src_data.data());
         impl::tensor_t diff_scale_ts(
                 diff_scale, &engine, diff_scale_data.data());
@@ -9694,11 +9686,9 @@ TEST(Execute, LayerNormBackpropFp32) {
                 diff_shift, &engine, diff_shift_data.data());
 
         std::vector<impl::tensor_t> inputs_ts {
-                src_ts, diff_dst_ts, mean_ts, var_ts};
+                src_ts, diff_dst_ts, mean_ts, var_ts, scale_ts};
         std::vector<impl::tensor_t> outputs_ts {diff_src_ts};
         if (use_affine) {
-            inputs_ts.push_back(scale_ts);
-            inputs_ts.push_back(shift_ts);
             outputs_ts.push_back(diff_scale_ts);
             outputs_ts.push_back(diff_shift_ts);
         }

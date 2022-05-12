@@ -3379,12 +3379,6 @@ impl::status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_concat);
         } else if (cur_op->get_kind() == impl::op_kind::LayerNormBackprop) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_layernorm_bwd);
-            const bool use_affine = cur_op->get_attr<bool>("use_affine");
-            const float eps = cur_op->get_attr<float>("epsilon");
-            new_op->set_attr("with_gamma", use_affine);
-            new_op->set_attr("with_beta", use_affine);
-            new_op->set_attr("epsilon", eps);
-            merge_attr = false;
         } else if (cur_op->get_kind() == impl::op_kind::MatMul) {
             new_op = std::make_shared<op_t>(op_kind::dnnl_matmul);
         } else if (cur_op->get_kind() == impl::op_kind::SoftMax) {
