@@ -62,9 +62,12 @@ void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res);
 void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res);
+void check_graph_zps_support(const attr_t::zero_points_t &zps, res_t *res);
 void check_graph_eltwise_params(res_t *res,
         const attr_t::post_ops_t::kind_t alg, const float alpha,
         const float beta);
+std::vector<float> get_scales(const attr_t::scale_t &scales_info,
+        const float *raw_scales, int64_t channel_size);
 float get_post_eltwise_scale(
         const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept;
 dnnl::graph::logical_tensor::data_type convert_dt(
@@ -392,94 +395,53 @@ protected:
     friend struct po_handlers_t;
 };
 
-struct low_precision_attr {
-    const dt src_dt;
-    const dt wei_dt;
-    const dt dst_dt;
-    const std::string &stag;
-    const std::string &wtag;
-    const std::string &dtag;
-    dims_t wei_strides;
-    const attr_t::policy_t &oscale_policy;
-    std::vector<float> *oscales;
-    const std::vector<int64_t> *src_zp;
-    const std::vector<int64_t> *wei_zp;
-    const std::vector<int64_t> *dst_zp;
+struct quant_data_t {
+    quant_data_t() = default;
+    quant_data_t(dnnl::graph::logical_tensor::data_type q_dt,
+            const std::string &q_tag)
+        : dt(q_dt), tag(q_tag) {}
+    quant_data_t(dnnl::graph::logical_tensor::data_type q_dt,
+            const std::vector<float> &q_scales,
+            const std::vector<int64_t> &q_zps, const std::string &q_tag)
+        : dt(q_dt), scales(q_scales), zps(q_zps), tag(q_tag) {}
+    quant_data_t(dnnl::graph::logical_tensor::data_type q_dt,
+            const std::vector<float> &q_scales,
+            const std::vector<int64_t> &q_zps, const std::string &q_type,
+            int64_t q_axis, const std::string &q_tag)
+        : dt(q_dt)
+        , scales(q_scales)
+        , zps(q_zps)
+        , qtype(q_type)
+        , axis(q_axis)
+        , tag(q_tag) {}
+    quant_data_t(dnnl::graph::logical_tensor::data_type q_dt,
+            const std::vector<float> &q_scales,
+            const std::vector<int64_t> &q_zps, const std::string &q_type,
+            int64_t q_axis, const std::vector<int64_t> &q_strides)
+        : dt(q_dt)
+        , scales(q_scales)
+        , zps(q_zps)
+        , qtype(q_type)
+        , axis(q_axis)
+        , strides(q_strides) {}
 
-    const float *scales;
-    const int n_oc;
-    const bool with_typecast;
-    const bool def_oscales;
-    const float dst_scale;
+    dnnl::graph::logical_tensor::data_type dt {
+            dnnl::graph::logical_tensor::data_type::s8};
+    std::vector<float> scales {1.f};
+    std::vector<int64_t> zps {0L};
+    std::string qtype {"per_tensor"};
+    int64_t axis {0};
 
-    // For matmul, conv and deconv
-    static low_precision_attr lp_attr(const dt src_dt, const dt wei_dt,
-            const dt dst_dt, const std::string &stag, const std::string &wtag,
-            const std::string &dtag, const attr_t::policy_t &oscale_policy,
-            std::vector<float> *oscales, const float &dst_scale,
-            const std::vector<int64_t> *src_zp,
-            const std::vector<int64_t> *wei_zp,
-            const std::vector<int64_t> *dst_zp, const float *scales,
-            const int &n_oc, const bool &def_oscales,
-            const bool &with_typecast = false) {
-        return low_precision_attr(src_dt, wei_dt, dst_dt, stag, wtag, dtag,
-                oscale_policy, oscales, dst_scale, src_zp, wei_zp, dst_zp,
-                scales, n_oc, def_oscales, with_typecast);
-    };
-
-    // For op with no additional attributes e.g. pool
-    static low_precision_attr lp_attr(
-            const dt src_dt, const dt dst_dt, const std::string &common_tag) {
-        return low_precision_attr(
-                src_dt, dt::undef, dst_dt, common_tag, common_tag, common_tag);
-    };
-
-    // For op with src and dst data types and src and data formats e.g. concat
-    static low_precision_attr lp_attr(const dt src_dt, const dt dst_dt,
-            const std::string &stag, const std::string &dtag) {
-        return low_precision_attr(src_dt, dt::undef, dst_dt, stag, "", dtag);
-    };
-
-    // For op with only one data type e.g. eltwise
-    static low_precision_attr lp_attr(
-            const dt data_type, const std::string &common_tag) {
-        return low_precision_attr(data_type, dt::undef, data_type, common_tag,
-                common_tag, common_tag);
-    };
-
-    void set_wei_strides(const dims_t &wei_dims) {
-        this->wei_strides = wei_dims;
-    }
-
-private:
-    low_precision_attr(const dt src_dt, const dt wei_dt, const dt dst_dt,
-            const std::string &stag, const std::string &wtag,
-            const std::string &dtag,
-            const attr_t::policy_t &oscale_policy = attr_t::policy_t::COMMON,
-            std::vector<float> *oscales = nullptr, const float dst_scale = 1.f,
-            const std::vector<int64_t> *src_zp = nullptr,
-            const std::vector<int64_t> *wei_zp = nullptr,
-            const std::vector<int64_t> *dst_zp = nullptr,
-            const float *scales = nullptr, const int n_oc = 0,
-            const bool def_oscales = false, const bool with_typecast = false)
-        : src_dt(src_dt)
-        , wei_dt(wei_dt)
-        , dst_dt(dst_dt)
-        , stag(stag)
-        , wtag(wtag)
-        , dtag(dtag)
-        , wei_strides(0)
-        , oscale_policy(oscale_policy)
-        , oscales(oscales)
-        , src_zp(src_zp)
-        , wei_zp(wei_zp)
-        , dst_zp(dst_zp)
-        , scales(scales)
-        , n_oc(n_oc)
-        , with_typecast(with_typecast)
-        , def_oscales(def_oscales)
-        , dst_scale(dst_scale) {};
+    std::vector<int64_t> strides {};
+    std::string tag {""};
 };
+
+quant_data_t sum_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
+        const std::string &tag,
+        dnnl::graph::logical_tensor::data_type default_dt);
+quant_data_t bin_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
+        const std::string &tag,
+        dnnl::graph::logical_tensor::data_type default_dt);
 
 struct po_handlers_t {
     using dt = dnnl::graph::logical_tensor::data_type;
@@ -502,20 +464,14 @@ private:
     };
 
     struct low_precision_handler_t {
-        fill_status handle_low_precision_src(
-                graph_prb_t &p, const low_precision_attr &lp_attr);
-        fill_status handle_low_precision_srcs(graph_prb_t &p,
-                const low_precision_attr &lp_attr, const size_t num_srcs);
-        fill_status handle_low_precision_wei(
-                graph_prb_t &p, const low_precision_attr &lp_attr);
-        fill_status handle_low_precision_dst(
-                graph_prb_t &p, const low_precision_attr &lp_attr);
-        fill_status handle_low_precision_post_sum(graph_prb_t &p,
-                const low_precision_attr &lp_attr,
-                const std::vector<attr_t::post_ops_t::entry_t> &po_entry);
-        fill_status handle_low_precision_post_bin(graph_prb_t &p,
-                const low_precision_attr &lp_attr,
-                const std::vector<attr_t::post_ops_t::entry_t> &po_entry);
+        fill_status_t insert_dequant_before(const std::string &lt_id,
+                const quant_data_t &qdata, graph_prb_t &p,
+                bool as_constant = false);
+        fill_status_t insert_quant_after(const std::string &lt_id,
+                const quant_data_t &qdata, graph_prb_t &p);
+        fill_status_t handle_quant_dequant_(const std::string &lt_id,
+                const quant_data_t &qdata, graph_prb_t &p, bool as_constant,
+                dnnl::graph::op::kind op_kind);
     };
 
 public:

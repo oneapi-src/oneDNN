@@ -41,6 +41,36 @@ void check_known_skipped_case_graph(
 
     check_graph_eltwise_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return;
+
+    check_graph_zps_support(prb->attr.zero_points, res);
+}
+
+static quant_data_t get_qdata_for(int arg, const ::conv::prb_t *prb) {
+    const auto q_dt = convert_dt(prb->cfg[arg].dt);
+    if (arg == SRC) {
+        const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_SRC)
+                ? 0L
+                : prb->src_zp[0];
+        return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->stag);
+    } else if (arg == WEI) {
+        const auto scales = get_scales(prb->attr.oscale, prb->scales, prb->oc);
+        const std::vector<int64_t> zps(scales.size(), 0L);
+        const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
+                ? "per_tensor"
+                : "per_channel";
+        return quant_data_t(q_dt, scales, zps, q_type, 0, prb->wtag);
+    } else if (arg == DST) {
+        const float scale_val = 1.f
+                * (1.f / get_post_eltwise_scale(prb->attr.post_ops.entry));
+        const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
+                ? 0L
+                : prb->dst_zp[0];
+        return quant_data_t(q_dt, {scale_val}, {zp_val}, prb->dtag);
+    }
+
+    BENCHDNN_PRINT(
+            0, "warning: returning default quant_data_t for arg: %d\n", arg);
+    return quant_data_t();
 }
 
 fill_status_t conv_graph_prb_t::handle_main_op_(const ::conv::prb_t *prb) {
@@ -232,83 +262,59 @@ fill_status_t conv_graph_prb_t::handle_sum_() {
 
 fill_status_t conv_graph_prb_t::handle_low_precision_(
         const ::conv::prb_t *prb) {
+    // if there will be support for x8x8bf16 case, conditionally change
+    // OP_REPR to "typecast"
+    const std::string OP_REPR = "main";
+    const auto src_lt_id = tensor_id[OP_REPR].back() + "_SRC";
+    const auto wei_lt_id = tensor_id[OP_REPR].back() + "_WEI";
+    const auto dst_lt_id = curr_out_map_ids_.back() + "_DST";
 
-    const bool def_oscales = prb->attr.oscale.is_def();
+    fill_status_t status
+            = po_handler.conv.low_precision_handler.insert_dequant_before(
+                    src_lt_id, get_qdata_for(SRC, prb), *this);
+    BENCHDNNEXT_VERIFY(status);
 
-    // currently, only policy_t::COMMON is supported for asymmetric quant
-    // for src and dst, other policy is not suppoted by oneDNN Graph.
-    // zps for src
-    const int64_t common_zp_count = 1;
-    const int64_t dflt_zp_val = 0;
-    src_zero_points.resize(common_zp_count, dflt_zp_val);
-
-    // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb->attr.zero_points.is_def(DNNL_ARG_SRC)) {
-        const auto &src_zp_e = prb->attr.zero_points.get(DNNL_ARG_SRC);
-        if (src_zp_e.policy != policy_t::COMMON)
-            return fill_status::UNSUPPORTED_CONFIG;
-        src_zero_points[0] = prb->src_zp[0];
-    }
-
-    const int64_t oscale_count
-            = prb->attr.oscale.policy == policy_t::COMMON ? 1 : prb->oc;
-    wei_zero_points = std::vector<int64_t>(oscale_count, 0L);
-
-    // zps for dst
-    dst_zero_points.resize(common_zp_count, dflt_zp_val);
-    // if zp is not default, copy values and pass it to oneDNN Graph
-    if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)) {
-        const auto &dst_zp_e = prb->attr.zero_points.get(DNNL_ARG_DST);
-        if (dst_zp_e.policy != policy_t::COMMON)
-            return fill_status::UNSUPPORTED_CONFIG;
-        dst_zero_points[0] = prb->dst_zp[0];
-    }
-
-    const float common_scale = [&prb, this]() {
-        if (has_post_eltwise()) {
-            const float post_eltwise_scale
-                    = get_post_eltwise_scale(prb->attr.post_ops.entry);
-            // benchdnn ext. need to convert post relu scale to quant scale to
-            // get same result as benchdnn primitive did
-            return 1.f * (1 / post_eltwise_scale);
-        } else {
-            return 1.f;
-        }
-    }();
-
-    low_precision_attr lp_attr
-            = low_precision_attr::lp_attr(convert_dt(prb->cfg[SRC].dt),
-                    convert_dt(prb->cfg[WEI].dt), convert_dt(prb->cfg[DST].dt),
-                    prb->stag, prb->wtag, prb->dtag, prb->attr.oscale.policy,
-                    &oscales, common_scale, &src_zero_points, &wei_zero_points,
-                    &dst_zero_points, prb->scales, prb->oc, def_oscales);
-
-    fill_status_t ctor_status
-            = po_handler.conv.low_precision_handler.handle_low_precision_src(
-                    *this, lp_attr);
-    if (ctor_status != fill_status::DONE) return ctor_status;
-
-    ctor_status
-            = po_handler.conv.low_precision_handler.handle_low_precision_wei(
-                    *this, lp_attr);
-    if (ctor_status != fill_status::DONE) return ctor_status;
+    status = po_handler.conv.low_precision_handler.insert_dequant_before(
+            wei_lt_id, get_qdata_for(WEI, prb), *this, true);
+    BENCHDNNEXT_VERIFY(status);
 
     // `with_qdst == false` means that we are dealing
     // with x8s8f32 pattern
-    const bool with_qdst = dt::f32 != convert_dt(prb->cfg[DST].dt);
+    const bool with_qdst = convert_dt(prb->cfg[DST].dt)
+            != dnnl::graph::logical_tensor::data_type::f32;
     if (with_qdst) {
-        ctor_status = po_handler.conv.low_precision_handler
-                              .handle_low_precision_dst(*this, lp_attr);
-    }
-    if (ctor_status != fill_status::DONE) return ctor_status;
-
-    if (has_post_sum()) {
-        ctor_status = po_handler.conv.low_precision_handler
-                              .handle_low_precision_post_sum(
-                                      *this, lp_attr, prb->attr.post_ops.entry);
+        status = po_handler.conv.low_precision_handler.insert_quant_after(
+                dst_lt_id, get_qdata_for(DST, prb), *this);
+        BENCHDNNEXT_VERIFY(status);
     }
 
-    return ctor_status;
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        if (entry.is_sum_kind()) {
+            const auto sum_src1_lt_id = tensor_id["sum"].back() + "_SRC";
+            status = po_handler.conv.low_precision_handler
+                             .insert_dequant_before(sum_src1_lt_id,
+                                     sum_po_entry2quant_data(entry, prb->dtag,
+                                             convert_dt(prb->cfg[DST].dt)),
+                                     *this);
+            BENCHDNNEXT_VERIFY(status);
+            break;
+        }
+    }
+
+    size_t bin_id {0};
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        if (entry.is_binary_kind()) {
+            const auto bin_src1_lt_id = tensor_id["binary"][bin_id++] + "_SRC";
+            status = po_handler.conv.low_precision_handler
+                             .insert_dequant_before(bin_src1_lt_id,
+                                     bin_po_entry2quant_data(entry, prb->dtag,
+                                             convert_dt(prb->cfg[DST].dt)),
+                                     *this);
+            BENCHDNNEXT_VERIFY(status);
+        }
+    }
+
+    return status;
 }
 
 fill_status_t conv_graph_prb_t::handle_bin_(
@@ -478,7 +484,8 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             dnn_mem_t bia_fp_scaled;
             if (prb->dir == FWD_B) {
                 bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
-                scale_bia(bia_fp_scaled, bia_fp, graph_prb.get_oscales());
+                scale_bia(bia_fp_scaled, bia_fp,
+                        get_scales(prb->attr.oscale, prb->scales, prb->oc));
             }
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
 

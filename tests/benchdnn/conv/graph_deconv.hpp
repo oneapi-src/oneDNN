@@ -69,15 +69,8 @@ struct deconv_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
 
-    std::vector<float> &get_oscales() noexcept { return oscales; }
-
 private:
     const std::vector<dt> dt_constraints {dt::bf16, dt::f16, dt::f32};
-
-    std::vector<float> oscales;
-    std::vector<int64_t> src_zero_points;
-    std::vector<int64_t> wei_zero_points;
-    std::vector<int64_t> dst_zero_points;
 
     po_handlers_t po_handler;
 

@@ -65,6 +65,20 @@ void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res) {
     }
 }
 
+void check_graph_zps_support(const attr_t::zero_points_t &zps, res_t *res) {
+    // currently, only policy_t::COMMON is supported for asymmetric quant
+    // for src and dst, other policy is not suppoted by oneDNN Graph.
+    for (const int arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
+        if (!zps.is_def(arg)) {
+            const auto &zp_e = zps.get(arg);
+            if (zp_e.policy != policy_t::COMMON) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+        }
+    }
+}
+
 // Due to differences between oneDNN and oneDNN graph APIs we need
 // to skip cases in which elementwise parameters cannot be set. For
 // example, oneDNN graph API doesn't have alpha parameter for ReLU,
@@ -339,6 +353,15 @@ dims_t calculate_strides(dims_t dims, dt dtype, const std::string &tag) {
             std::begin(md.format_desc.blocking.strides) + dims.size(),
             std::begin(strides));
     return strides;
+}
+
+std::vector<float> get_scales(const attr_t::scale_t &scales_info,
+        const float *raw_scales, int64_t channel_size) {
+    const auto q_vals
+            = scales_info.policy == policy_t::COMMON ? 1 : channel_size;
+    return scales_info.is_def()
+            ? std::vector<float>(q_vals, 1.f)
+            : std::vector<float>(raw_scales, raw_scales + q_vals);
 }
 
 // Get indices, on which post binary ops are located.
@@ -658,235 +681,74 @@ fill_status_t po_handlers_t::sum_po_handler_t::operator()(graph_prb_t &p) {
     return fill_status::DONE;
 }
 
-fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_src(
-        graph_prb_t &p, const low_precision_attr &lp_attr) {
-    using op = dnnl::graph::op;
-
-    const auto src_lt = p.tensor_descs_[p.tensor_id["main"].back() + "_SRC"];
-    const auto src_dims = src_lt.get_dims();
-    const auto src_dt = lp_attr.src_dt;
-
-    const std::string IN_KEY = lp_attr.with_typecast ? "typecast" : "main";
-    const std::string SRC = p.tensor_id[IN_KEY].back() + "_SRC";
-
-    const size_t new_op_id = p.ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    p.tensor_id["dequant_src"].push_back(TENSOR_ID);
-    const std::string QSRC {TENSOR_ID + "_SRC"};
-
-    const std::string qsrc_type = src_dt == dt::u8 ? "uint8" : "int8";
-
-    p.tensor_descs_.emplace(QSRC, src_dt, src_dims, lp_attr.stag);
-
-    op dequant_src(new_op_id, op::kind::Dequantize, {p.tensor_descs_[QSRC]},
-            {p.tensor_descs_[SRC]}, "dequant_src");
-    dequant_src.set_attr("scales", std::vector<float> {1.f})
-            .set_attr("zps",
-                    (lp_attr.src_zp == nullptr) ? std::vector<int64_t> {0L}
-                                                : *lp_attr.src_zp)
-            .set_attr("qtype", std::string("per_tensor"))
-            .set_attr("axis", static_cast<int64_t>(0));
-    p.ops_.emplace_back(dequant_src);
-
-    return fill_status::DONE;
+quant_data_t sum_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
+        const std::string &tag,
+        dnnl::graph::logical_tensor::data_type default_dt) {
+    const auto sum_dt = convert_dt(e.sum.dt);
+    const auto q_dt = sum_dt == dnnl::graph::logical_tensor::data_type::undef
+            ? default_dt
+            : sum_dt;
+    return quant_data_t(
+            q_dt, {e.sum.scale}, {e.sum.zero_point}, "per_tensor", 1, tag);
 }
 
-fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_srcs(
-        graph_prb_t &p, const low_precision_attr &lp_attr,
-        const size_t num_srcs) {
-    using op = dnnl::graph::op;
-
-    for (size_t i = 0; i < num_srcs; i++) {
-        const auto SRC_I_STR = "_SRC" + std::to_string(i);
-        const auto src_lt
-                = p.tensor_descs_[p.tensor_id["main"].back() + SRC_I_STR];
-        const auto src_dims = src_lt.get_dims();
-        const auto src_dt = lp_attr.src_dt;
-
-        const std::string IN_KEY = lp_attr.with_typecast ? "typecast" : "main";
-        const std::string SRC_I = p.tensor_id[IN_KEY].back() + SRC_I_STR;
-
-        const size_t new_op_id = p.ops_.size();
-        const std::string TENSOR_ID = std::to_string(new_op_id);
-        p.tensor_id["dequant_src"].push_back(TENSOR_ID);
-        const std::string QSRC {TENSOR_ID + SRC_I_STR};
-
-        const std::string qsrc_type = src_dt == dt::u8 ? "uint8" : "int8";
-
-        p.tensor_descs_.emplace(QSRC, src_dt, src_dims, lp_attr.stag);
-
-        op dequant_src(new_op_id, op::kind::Dequantize, {p.tensor_descs_[QSRC]},
-                {p.tensor_descs_[SRC_I]}, "dequant_src" + std::to_string(i));
-        dequant_src.set_attr("scales", std::vector<float> {1.f})
-                .set_attr("zps",
-                        (lp_attr.src_zp == nullptr) ? std::vector<int64_t> {0L}
-                                                    : *lp_attr.src_zp)
-                .set_attr("qtype", std::string("per_tensor"))
-                .set_attr("axis", static_cast<int64_t>(0));
-        p.ops_.emplace_back(dequant_src);
-    }
-
-    return fill_status::DONE;
+quant_data_t bin_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
+        const std::string &tag,
+        dnnl::graph::logical_tensor::data_type default_dt) {
+    const auto bin_dt = convert_dt(e.binary.src1_dt);
+    const auto q_dt = bin_dt == dnnl::graph::logical_tensor::data_type::undef
+            ? default_dt
+            : bin_dt;
+    return quant_data_t(q_dt, {1.f}, {0L}, "per_tensor", 1, tag);
 }
 
-fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_wei(
-        graph_prb_t &p, const low_precision_attr &lp_attr) {
-    using op = dnnl::graph::op;
+fill_status_t po_handlers_t::low_precision_handler_t::insert_dequant_before(
+        const std::string &lt_id, const quant_data_t &qdata, graph_prb_t &p,
+        bool as_constant) {
+    return handle_quant_dequant_(
+            lt_id, qdata, p, as_constant, dnnl::graph::op::kind::Dequantize);
+}
 
-    const auto wei_lt = p.tensor_descs_[p.tensor_id["main"].back() + "_WEI"];
-    auto wei_dims = wei_lt.get_dims();
-    const auto wei_dt = lp_attr.wei_dt;
+fill_status_t po_handlers_t::low_precision_handler_t::insert_quant_after(
+        const std::string &lt_id, const quant_data_t &qdata, graph_prb_t &p) {
+    return handle_quant_dequant_(
+            lt_id, qdata, p, false, dnnl::graph::op::kind::Quantize);
+}
 
-    const std::string IN_KEY = lp_attr.with_typecast ? "typecast" : "main";
-    const std::string WEI = p.tensor_id[IN_KEY].back() + "_WEI";
+fill_status_t po_handlers_t::low_precision_handler_t::handle_quant_dequant_(
+        const std::string &lt_id, const quant_data_t &qdata, graph_prb_t &p,
+        bool as_constant, dnnl::graph::op::kind op_kind) {
+    const bool is_quant = op_kind == dnnl::graph::op::kind::Quantize;
+    const std::string id_suffix = is_quant ? "_DST" : "_SRC";
+    const auto ptype = as_constant
+            ? dnnl::graph::logical_tensor::property_type::constant
+            : dnnl::graph::logical_tensor::property_type::undef;
 
-    const size_t new_op_id = p.ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    p.tensor_id["dequant_wei"].push_back(TENSOR_ID);
-    const std::string QWEI {TENSOR_ID + "_WEI"};
+    const auto op_id = p.ops_.size();
+    const auto OP_ID = std::to_string(op_id);
+    const auto QID = OP_ID + id_suffix;
+    if (!qdata.tag.empty())
+        p.tensor_descs_.emplace(QID, qdata.dt,
+                p.tensor_descs_[lt_id].get_dims(), qdata.tag, ptype);
+    else if (!qdata.strides.empty())
+        p.tensor_descs_.emplace(QID, qdata.dt,
+                p.tensor_descs_[lt_id].get_dims(), qdata.strides, ptype);
+    else
+        return fill_status::UNKNOWN_ERROR;
 
-    const std::string qwei_type = wei_dt == dt::u8 ? "uint8" : "int8";
-
-    if (lp_attr.wei_strides.size() > 0) {
-        p.tensor_descs_.emplace(QWEI, wei_dt, wei_dims, lp_attr.wei_strides,
-                tensor_descs_t::property_type::constant);
+    dnnl::graph::op qop(op_id, op_kind, "qdq_" + OP_ID);
+    if (is_quant) {
+        qop.add_input(p.tensor_descs_[lt_id]);
+        qop.add_output(p.tensor_descs_[QID]);
     } else {
-        p.tensor_descs_.emplace(QWEI, wei_dt, wei_dims, lp_attr.wtag,
-                tensor_descs_t::property_type::constant);
+        qop.add_input(p.tensor_descs_[QID]);
+        qop.add_output(p.tensor_descs_[lt_id]);
     }
-
-    const std::string qtype = lp_attr.oscale_policy == policy_t::COMMON
-            ? "per_tensor"
-            : "per_channel";
-    const int64_t count
-            = lp_attr.oscale_policy == policy_t::COMMON ? 1 : lp_attr.n_oc;
-
-    lp_attr.oscales->resize(count, 1.f);
-    if (!lp_attr.def_oscales) {
-        for (int64_t c = 0; c < count; ++c) {
-            (*lp_attr.oscales)[c] = lp_attr.scales[c];
-        }
-    }
-
-    op dequant_wei(new_op_id, op::kind::Dequantize, {p.tensor_descs_[QWEI]},
-            {p.tensor_descs_[WEI]}, "dequant_wei");
-    dequant_wei.set_attr("scales", *lp_attr.oscales)
-            .set_attr("zps",
-                    (lp_attr.wei_zp == nullptr) ? std::vector<int64_t> {0L}
-                                                : *lp_attr.wei_zp)
-            .set_attr("qtype", qtype)
-            .set_attr("axis", static_cast<int64_t>(0));
-    p.ops_.emplace_back(dequant_wei);
-
-    return fill_status::DONE;
-}
-
-fill_status po_handlers_t::low_precision_handler_t::handle_low_precision_dst(
-        graph_prb_t &p, const low_precision_attr &lp_attr) {
-    using op = dnnl::graph::op;
-
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
-    const auto dst_dims = dst_lt.get_dims();
-    const auto dst_dt = lp_attr.dst_dt;
-
-    const std::string DST = p.curr_out_map_ids_.back() + "_DST";
-
-    size_t new_op_id = p.ops_.size();
-    std::string TENSOR_ID = std::to_string(new_op_id);
-    p.tensor_id["quant_dst"].push_back(TENSOR_ID);
-    const std::string QDST {TENSOR_ID + "_DST"};
-
-    const std::string qdst_type = dst_dt == dt::u8 ? "uint8" : "int8";
-
-    p.tensor_descs_.emplace(QDST, dst_dt, dst_dims, lp_attr.dtag);
-
-    op quant_dst(new_op_id, op::kind::Quantize, {p.tensor_descs_[DST]},
-            {p.tensor_descs_[QDST]}, "quant_dst");
-    quant_dst.set_attr("scales", std::vector<float> {lp_attr.dst_scale})
-            .set_attr("zps",
-                    (lp_attr.dst_zp == nullptr) ? std::vector<int64_t> {0L}
-                                                : *lp_attr.dst_zp)
-            .set_attr("qtype", std::string("per_tensor"))
-            .set_attr("axis", static_cast<int64_t>(0));
-    p.ops_.emplace_back(quant_dst);
-
-    p.curr_out_map_ids_.assign({TENSOR_ID});
-
-    return fill_status::DONE;
-}
-
-fill_status
-po_handlers_t::low_precision_handler_t::handle_low_precision_post_sum(
-        graph_prb_t &p, const low_precision_attr &lp_attr,
-        const std::vector<attr_t::post_ops_t::entry_t> &po_entry) {
-    using op = dnnl::graph::op;
-
-    const auto dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
-    const auto dst_dims = dst_lt.get_dims();
-
-    const size_t new_op_id = p.ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    const std::string QPSUM_SRC {TENSOR_ID + "_SUM_SRC1"};
-    const std::string POST_SUM_SRC = p.tensor_id["sum"].back() + "_SRC";
-
-    float sum_scale_val = 1.f;
-    int64_t sum_zp_val = 0L;
-    dt sum_src_dt = dt::undef;
-    for (const attr_t::post_ops_t::entry_t &po : po_entry) {
-        if (po.is_sum_kind()) {
-            sum_scale_val = po.sum.scale;
-            sum_zp_val = po.sum.zero_point;
-            sum_src_dt = convert_dt(po.sum.dt);
-        }
-    }
-    const std::vector<float> sum_scales {sum_scale_val};
-    const std::vector<int64_t> sum_zp {sum_zp_val};
-    if (dt::undef == sum_src_dt) sum_src_dt = lp_attr.dst_dt;
-
-    p.tensor_descs_.emplace(QPSUM_SRC, sum_src_dt, dst_dims, lp_attr.dtag);
-    op dequant_sum(p.ops_.size(), op::kind::Dequantize,
-            {p.tensor_descs_[QPSUM_SRC]}, {p.tensor_descs_[POST_SUM_SRC]},
-            "dequant_sum");
-
-    dequant_sum.set_attr("scales", sum_scales).set_attr("zps", sum_zp);
-    p.ops_.emplace_back(dequant_sum);
-    return fill_status::DONE;
-}
-
-fill_status
-po_handlers_t::low_precision_handler_t::handle_low_precision_post_bin(
-        graph_prb_t &p, const low_precision_attr &lp_attr,
-        const std::vector<attr_t::post_ops_t::entry_t> &po_entry) {
-    using op = dnnl::graph::op;
-
-    const size_t new_op_id = p.ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    const std::string QPBIN_SRC {TENSOR_ID + "_BIN_SRC1"};
-    const std::string POST_BIN_SRC = p.tensor_id["binary"].back() + "_SRC";
-
-    const float bin_scale_val = 1.f;
-    const int64_t bin_zp_val = 0L;
-    dt bin_src_dt = dt::undef;
-    std::string bin_src_tag = "any";
-    for (const attr_t::post_ops_t::entry_t &po : po_entry) {
-        if (po.is_binary_kind()) {
-            bin_src_dt = convert_dt(po.binary.src1_dt);
-            bin_src_tag = po.binary.tag;
-        }
-    }
-
-    const std::vector<float> bin_scales {bin_scale_val};
-    const std::vector<int64_t> bin_zp {bin_zp_val};
-    if (dt::undef == bin_src_dt) bin_src_dt = lp_attr.dst_dt;
-
-    p.tensor_descs_.emplace(QPBIN_SRC, bin_src_dt,
-            p.tensor_descs_[POST_BIN_SRC].get_dims(), bin_src_tag);
-    op dequant_bin(p.ops_.size(), op::kind::Dequantize,
-            {p.tensor_descs_[QPBIN_SRC]}, {p.tensor_descs_[POST_BIN_SRC]},
-            "dequant_bin");
-
-    dequant_bin.set_attr("scales", bin_scales).set_attr("zps", bin_zp);
-    p.ops_.emplace_back(dequant_bin);
+    qop.set_attr("scales", qdata.scales)
+            .set_attr("zps", qdata.zps)
+            .set_attr("qtype", qdata.qtype)
+            .set_attr("axis", qdata.axis);
+    p.ops_.emplace_back(qop);
 
     return fill_status::DONE;
 }

@@ -75,14 +75,7 @@ struct conv_graph_prb_t : public graph_prb_t {
         ctor_status = fill_status::DONE;
     };
 
-    const std::vector<float> &get_oscales() const noexcept { return oscales; }
-
 private:
-    std::vector<float> oscales;
-    std::vector<int64_t> src_zero_points;
-    std::vector<int64_t> wei_zero_points;
-    std::vector<int64_t> dst_zero_points;
-
     po_handlers_t po_handler;
 
     fill_status_t handle_main_op_(const ::conv::prb_t *prb);

@@ -61,6 +61,15 @@ void check_known_skipped_case_graph(
     }
 }
 
+static quant_data_t get_qdata_for(int arg, const ::pool::prb_t *prb) {
+    const auto q_dt = convert_dt(prb->cfg[arg].dt);
+    if (arg == SRC || arg == DST) return quant_data_t(q_dt, prb->tag);
+
+    BENCHDNN_PRINT(
+            0, "warning: returning default quant_data_t for arg: %d\n", arg);
+    return quant_data_t();
+}
+
 fill_status_t pool_graph_prb_t::handle_main_op_(const ::pool::prb_t *prb) {
     using op = dnnl::graph::op;
 
@@ -149,28 +158,33 @@ fill_status_t pool_graph_prb_t::handle_bin_(
 
 fill_status_t pool_graph_prb_t::handle_low_precision_(
         const ::pool::prb_t *prb) {
-    low_precision_attr lp_attr
-            = low_precision_attr::lp_attr(convert_dt(prb->cfg[SRC].dt),
-                    convert_dt(prb->cfg[DST].dt), prb->tag);
+    const std::string OP_REPR = "main";
+    const auto src_lt_id = tensor_id[OP_REPR].back() + "_SRC";
+    const auto dst_lt_id = curr_out_map_ids_.back() + "_DST";
 
-    fill_status_t ctor_status;
-    ctor_status
-            = po_handler.pool.low_precision_handler.handle_low_precision_src(
-                    *this, lp_attr);
-    if (ctor_status != fill_status::DONE) return ctor_status;
+    fill_status_t status
+            = po_handler.pool.low_precision_handler.insert_dequant_before(
+                    src_lt_id, get_qdata_for(SRC, prb), *this);
+    BENCHDNNEXT_VERIFY(status);
 
-    ctor_status
-            = po_handler.pool.low_precision_handler.handle_low_precision_dst(
-                    *this, lp_attr);
-    if (ctor_status != fill_status::DONE) return ctor_status;
+    status = po_handler.pool.low_precision_handler.insert_quant_after(
+            dst_lt_id, get_qdata_for(DST, prb), *this);
+    BENCHDNNEXT_VERIFY(status);
 
-    if (has_post_bin()) {
-        ctor_status = po_handler.pool.low_precision_handler
-                              .handle_low_precision_post_bin(
-                                      *this, lp_attr, prb->attr.post_ops.entry);
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        if (entry.is_binary_kind()) {
+            const auto bin_src1_lt_id = tensor_id["binary"].back() + "_SRC";
+            status = po_handler.pool.low_precision_handler
+                             .insert_dequant_before(bin_src1_lt_id,
+                                     bin_po_entry2quant_data(entry, prb->tag,
+                                             convert_dt(prb->cfg[DST].dt)),
+                                     *this);
+            BENCHDNNEXT_VERIFY(status);
+            break;
+        }
     }
 
-    return ctor_status;
+    return status;
 }
 
 void graph_bwd_check_correctness(const ::pool::prb_t *prb, const args_t &args,

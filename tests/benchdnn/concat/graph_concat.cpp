@@ -92,6 +92,19 @@ void check_known_skipped_case_graph(const ::concat::prb_t *prb, res_t *res) {
     }
 }
 
+static quant_data_t get_qdata_for(
+        int arg, const ::concat::prb_t *prb, size_t occurrence = 0) {
+    if (arg == SRC) {
+        return quant_data_t(convert_dt(prb->sdt), prb->stag[occurrence]);
+    } else if (arg == DST) {
+        return quant_data_t(convert_dt(prb->ddt), prb->dtag);
+    }
+
+    BENCHDNN_PRINT(
+            0, "warning: returning default quant_data_t for arg: %d\n", arg);
+    return quant_data_t();
+}
+
 fill_status_t concat_graph_prb_t::handle_main_op_(const ::concat::prb_t *prb) {
     const size_t new_op_id = ops_.size();
     const std::string TENSOR_ID = std::to_string(new_op_id);
@@ -125,22 +138,23 @@ fill_status_t concat_graph_prb_t::handle_main_op_(const ::concat::prb_t *prb) {
 
 fill_status_t concat_graph_prb_t::handle_low_precision_(
         const ::concat::prb_t *prb) {
-    low_precision_attr lp_attr
-            = low_precision_attr::lp_attr(convert_dt(prb->sdt),
-                    convert_dt(prb->ddt), prb->stag[0], prb->dtag);
+    const std::string OP_REPR = "main";
+    const auto src_base_lt_id = tensor_id[OP_REPR].back() + "_SRC";
+    const auto dst_lt_id = curr_out_map_ids_.back() + "_DST";
 
-    fill_status_t ctor_status;
-    ctor_status
-            = po_handler.concat.low_precision_handler.handle_low_precision_srcs(
-                    *this, lp_attr, prb->n_inputs());
-    if (ctor_status != fill_status::DONE) return ctor_status;
+    fill_status_t status;
+    for (int i = 0; i < prb->n_inputs(); ++i) {
+        const auto src_lt_id = src_base_lt_id + std::to_string(i);
+        status = po_handler.concat.low_precision_handler.insert_dequant_before(
+                src_lt_id, get_qdata_for(SRC, prb, i), *this);
+        BENCHDNNEXT_VERIFY(status);
+    }
 
-    ctor_status
-            = po_handler.concat.low_precision_handler.handle_low_precision_dst(
-                    *this, lp_attr);
-    if (ctor_status != fill_status::DONE) return ctor_status;
+    status = po_handler.concat.low_precision_handler.insert_quant_after(
+            dst_lt_id, get_qdata_for(DST, prb), *this);
+    BENCHDNNEXT_VERIFY(status);
 
-    return ctor_status;
+    return status;
 }
 
 int doit(const ::concat::prb_t *prb, res_t *res) {
