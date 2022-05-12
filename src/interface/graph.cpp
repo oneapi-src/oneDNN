@@ -65,6 +65,20 @@ bool logical_tensor_sanity_check(
 namespace dnnl {
 namespace graph {
 namespace impl {
+fpmath_mode_t get_default_fpmath_mode() {
+    static fpmath_mode_t default_fpmath_mode = fpmath_mode::strict;
+    static std::string val = utils::getenv_string_user("DEFAULT_FPMATH_MODE");
+    if (!val.empty()) {
+        if (val.compare("strict") == 0)
+            default_fpmath_mode = fpmath_mode::strict;
+        if (val.compare("bf16") == 0) default_fpmath_mode = fpmath_mode::bf16;
+        if (val.compare("f16") == 0) default_fpmath_mode = fpmath_mode::f16;
+        if (val.compare("f19") == 0) default_fpmath_mode = fpmath_mode::f19;
+        if (val.compare("any") == 0) default_fpmath_mode = fpmath_mode::any;
+    }
+    return default_fpmath_mode;
+}
+
 // function to do graph rewriting
 void rewrite(impl::graph_t &agraph,
         const std::vector<std::vector<op_t *>> &fusion_ops) {
@@ -328,6 +342,13 @@ std::vector<dnnl_graph_graph::op_ptr> dnnl_graph_graph::deep_copy(
 status_t DNNL_GRAPH_API dnnl_graph_graph_create(
         graph_t **graph, engine_kind_t engine_kind) {
     *graph = new graph_t(engine_kind);
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_graph_create_with_fpmath_mode(
+        graph_t **graph, engine_kind_t engine_kind, fpmath_mode_t fpmath_mode) {
+    if (graph == nullptr) return status::invalid_arguments;
+    *graph = new graph_t(engine_kind, fpmath_mode);
     return status::success;
 }
 

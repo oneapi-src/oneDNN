@@ -536,6 +536,18 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_engine_get_kind(
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_graph_create(
         dnnl_graph_graph_t *graph, dnnl_graph_engine_kind_t engine_kind);
 
+/// Creates a new empty graph.
+///
+/// @param graph The handle of output graph.
+/// @param engine_kind The kind for engine, it can be #dnnl_graph_any_engine,
+///     #dnnl_graph_cpu and #dnnl_graph_gpu.
+/// @param mode Specified floating-point math mode
+/// @returns #dnnl_graph_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_graph_create_with_fpmath_mode(
+        dnnl_graph_graph_t *graph, dnnl_graph_engine_kind_t engine_kind,
+        dnnl_graph_fpmath_mode_t mode);
+
 /// Destroy the target graph.
 ///
 /// @param graph The graph to be destroyed.

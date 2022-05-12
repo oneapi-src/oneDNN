@@ -44,6 +44,7 @@ namespace impl = dnnl::graph::impl;
 namespace dnnl {
 namespace graph {
 namespace impl {
+fpmath_mode_t get_default_fpmath_mode();
 void rewrite(impl::graph_t &agraph,
         const std::vector<std::vector<impl::op_t *>> &fusion_ops);
 }
@@ -68,28 +69,39 @@ private:
     /*! \brief The engine kind on which the operator will be evaluated */
     impl::engine_kind_t engine_kind_ {};
 
+    /*! \brief The floating-point math mode */
+    impl::fpmath_mode_t fpmath_mode_ {};
+
     std::vector<std::shared_ptr<impl::partition_impl_t>> partition_impls_;
 
     bool is_built_ {false};
 
 public:
     dnnl_graph_graph(impl::engine_kind_t kind = impl::engine_kind::cpu)
-        : engine_kind_(kind) {};
+        : engine_kind_(kind), fpmath_mode_(impl::get_default_fpmath_mode()) {}
+
+    dnnl_graph_graph(impl::engine_kind_t kind, impl::fpmath_mode_t fpmath_mode)
+        : engine_kind_(kind), fpmath_mode_(fpmath_mode) {}
 
     // deep copy (except that the partition_impls_ is shallow copy)
     dnnl_graph_graph(const dnnl_graph_graph &other)
         : id_t(other)
         , ops_(deep_copy(other.ops_))
         , engine_kind_(other.engine_kind_)
+        , fpmath_mode_(other.fpmath_mode_)
         , partition_impls_(other.partition_impls_) {};
 
-    dnnl_graph_graph(const std::vector<op_ptr> &ops) : ops_(ops) {};
+    dnnl_graph_graph(const std::vector<op_ptr> &ops,
+            impl::fpmath_mode_t fpmath_mode = impl::fpmath_mode::strict)
+        : ops_(ops), fpmath_mode_(fpmath_mode) {}
 
     dnnl_graph_graph &operator=(const dnnl_graph_graph &other) = delete;
 
     ~dnnl_graph_graph() = default;
 
     impl::engine_kind_t get_engine_kind() const { return engine_kind_; }
+
+    impl::fpmath_mode_t get_fpmath_mode() const { return fpmath_mode_; }
 
     /*!
      * \brief Check whether an operator can be added

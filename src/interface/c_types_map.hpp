@@ -70,6 +70,15 @@ const engine_kind_t cpu = dnnl_graph_cpu;
 const engine_kind_t gpu = dnnl_graph_gpu;
 } // namespace engine_kind
 
+using fpmath_mode_t = dnnl_graph_fpmath_mode_t;
+namespace fpmath_mode {
+const fpmath_mode_t strict = dnnl_graph_fpmath_mode_strict;
+const fpmath_mode_t bf16 = dnnl_graph_fpmath_mode_bf16;
+const fpmath_mode_t f16 = dnnl_graph_fpmath_mode_f16;
+const fpmath_mode_t any = dnnl_graph_fpmath_mode_any;
+const fpmath_mode_t f19 = dnnl_graph_fpmath_mode_f19;
+}; // namespace fpmath_mode
+
 using op_kind_t = dnnl_graph_op_kind_t;
 namespace op_kind {
 const op_kind_t Abs = dnnl_graph_op_abs;

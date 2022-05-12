@@ -1354,6 +1354,20 @@ private:
 /// A graph session to start analysis of computational DAG.
 class graph : public detail::graph_handle {
 public:
+    // floating-point math mode
+    enum class fpmath_mode {
+        /// Default behavior, no downconversions allowed
+        strict = dnnl_graph_fpmath_mode_strict,
+        /// Implicit f32->bf16 or f32->f19 conversions allowed
+        bf16 = dnnl_graph_fpmath_mode_bf16,
+        /// Implicit f32->f16 or f32->f19 conversions allowed
+        f16 = dnnl_graph_fpmath_mode_f16,
+        /// Implicit f32->f16 or f32->bf16 or f32->f19 conversions allowed
+        any = dnnl_graph_fpmath_mode_any,
+        /// Implicit f32->f19 conversions allowed
+        f19 = dnnl_graph_fpmath_mode_f19,
+    };
+
     /// Constructs a graph session using device information
     ///
     /// @param engine_kind Can be cpu, gpu or any supported engine.
@@ -1361,9 +1375,22 @@ public:
         dnnl_graph_graph_t g = nullptr;
         error::check_succeed(
                 dnnl_graph_graph_create(&g, engine::convert_to_c(engine_kind)),
-                "could not create graph with engine kind and device id");
+                "could not create graph with engine kind");
         reset(g);
-    };
+    }
+
+    /// Constructs a graph session using device information and math mode
+    ///
+    /// @param engine_kind Can be cpu, gpu or any supported engine.
+    /// @param mode Specified floating-point math mode.
+    graph(engine::kind engine_kind, fpmath_mode mode) {
+        dnnl_graph_graph_t g = nullptr;
+        error::check_succeed(
+                dnnl_graph_graph_create_with_fpmath_mode(&g,
+                        engine::convert_to_c(engine_kind), convert_to_c(mode)),
+                "could not create graph with engine kind and math mode");
+        reset(g);
+    }
 
     /// Add an op to the graph session to construct DAG for analysis
     ///
@@ -1425,6 +1452,11 @@ public:
     void visualize() const {
         error::check_succeed(dnnl_graph_graph_visualize(get(), 1),
                 "cannot visualize the graph");
+    }
+
+private:
+    static dnnl_graph_fpmath_mode_t convert_to_c(fpmath_mode mode) {
+        return static_cast<dnnl_graph_fpmath_mode_t>(mode);
     }
 };
 
