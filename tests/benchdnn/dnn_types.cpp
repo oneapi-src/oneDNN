@@ -711,6 +711,17 @@ std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, memory_kind_ext_t memory_kind) {
+    switch (memory_kind) {
+        case memory_kind_ext_t::usm: s << "usm"; break;
+        case memory_kind_ext_t::buffer: s << "buffer"; break;
+        case memory_kind_ext_t::usm_device: s << "usm_device"; break;
+        case memory_kind_ext_t::usm_shared: s << "usm_shared"; break;
+        default: assert(!"unexpected"); break;
+    }
+    return s;
+}
+
 std::ostream &dump_global_params(std::ostream &s) {
     s << "--" << driver_name << " ";
     if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
@@ -731,6 +742,8 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (canonical || bench_mode != CORR) s << "--mode=" << bench_mode << " ";
     if (canonical || attr_same_pd_check != false)
         s << "--attr-same-pd-check=" << bool2str(attr_same_pd_check) << " ";
+    if (canonical || memory_kind != default_memory_kind)
+        s << "--memory-kind=" << memory_kind << " ";
 
     return s;
 }
