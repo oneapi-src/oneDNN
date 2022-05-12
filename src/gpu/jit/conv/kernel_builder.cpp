@@ -794,6 +794,7 @@ private:
 stmt_t inject_slm_reorder(
         const stmt_t &s, const conv_config_t &cfg, const grid_info_t &tg_grid) {
     if (cfg.use_a_slm || cfg.use_b_slm) return s;
+    if (cfg.hw() < ngen::HW::XeHPC) return s;
     slm_reorder_injector_t injector(s, cfg, tg_grid);
     stmt_t ret = injector.mutate(s);
 
