@@ -303,8 +303,8 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
 
     size_t bin_id {0};
     for (const auto &entry : prb->attr.post_ops.entry) {
-        if (entry.is_binary_kind()) {
-            const auto bin_src1_lt_id = tensor_id["binary"][bin_id++] + "_SRC";
+        if (is_dequantize_required_for(entry)) {
+            const auto bin_src1_lt_id = tensor_id["binary"][bin_id] + "_SRC";
             status = po_handler.conv.low_precision_handler
                              .insert_dequant_before(bin_src1_lt_id,
                                      bin_po_entry2quant_data(entry, prb->dtag,
@@ -312,6 +312,7 @@ fill_status_t conv_graph_prb_t::handle_low_precision_(
                                      *this);
             BENCHDNNEXT_VERIFY(status);
         }
+        ++bin_id;
     }
 
     return status;
@@ -437,19 +438,16 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         tensors_in.emplace_back(wei_tensor);
     if (prb->dir == FWD_B) tensors_in.emplace_back(bia_tensor);
 
-    graph::tensor sum_src1_tensor;
-    graph::tensor bin_tensor;
-
     size_t bin_dt_idx = 0;
     for (size_t i = 0; i < po_entry.size(); i++) {
         if (po_entry[i].is_sum_kind()) { // Always use in-place operation.
-            sum_src1_tensor = graph::tensor(
+            dnnl::graph::tensor sum_src1_tensor(
                     ins[++idx_ins], eng, static_cast<void *>(dst_dt));
             tensors_in.emplace_back(sum_src1_tensor);
         } else if (po_entry[i].is_binary_kind()) {
-            bin_tensor = graph::tensor(ins[++idx_ins], eng,
+            dnnl::graph::tensor bin_src1_tensor(ins[++idx_ins], eng,
                     static_cast<void *>(binary_po_dt[bin_dt_idx]));
-            tensors_in.emplace_back(bin_tensor);
+            tensors_in.emplace_back(bin_src1_tensor);
             ++bin_dt_idx;
         }
     }

@@ -172,7 +172,7 @@ fill_status_t pool_graph_prb_t::handle_low_precision_(
     BENCHDNNEXT_VERIFY(status);
 
     for (const auto &entry : prb->attr.post_ops.entry) {
-        if (entry.is_binary_kind()) {
+        if (is_dequantize_required_for(entry)) {
             const auto bin_src1_lt_id = tensor_id["binary"].back() + "_SRC";
             status = po_handler.pool.low_precision_handler
                              .insert_dequant_before(bin_src1_lt_id,

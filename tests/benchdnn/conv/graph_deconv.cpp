@@ -279,17 +279,18 @@ fill_status_t deconv_graph_prb_t::handle_low_precision_(
         }
     }
 
+    size_t bin_id {0};
     for (const auto &entry : prb->attr.post_ops.entry) {
-        if (entry.is_binary_kind()) {
-            const auto bin_src1_lt_id = tensor_id["binary"].back() + "_SRC";
+        if (is_dequantize_required_for(entry)) {
+            const auto bin_src1_lt_id = tensor_id["binary"][bin_id] + "_SRC";
             status = po_handler.deconv.low_precision_handler
                              .insert_dequant_before(bin_src1_lt_id,
                                      bin_po_entry2quant_data(entry, prb->dtag,
                                              convert_dt(prb->cfg[DST].dt)),
                                      *this);
             BENCHDNNEXT_VERIFY(status);
-            break;
         }
+        ++bin_id;
     }
 
     return status;
@@ -343,9 +344,10 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
 
     dnn_mem_t bia_fp;
     dnn_mem_t bia_dt;
+    size_t idx_ins = 2;
     if (graph_prb.has_post_bia()) {
-        bia_fp = make_dnn_mem(ins[2], dt::f32, tag::x);
-        bia_dt = make_dnn_mem(ins[2], tag::x);
+        bia_fp = make_dnn_mem(ins[idx_ins], dt::f32, tag::x);
+        bia_dt = make_dnn_mem(ins[idx_ins++], tag::x);
     }
 
     auto wei_tr_dims = prb->wei_dims();
@@ -363,12 +365,15 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     }
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
-    if (graph_prb.has_post_bin()) {
-        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
-        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), tag::abx));
-        const int idx = 0;
-        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx),
-                binary_po_dt.back(), binary_po_fp.back());
+    const auto post_bin_indices
+            = get_post_bin_indices(prb->attr.post_ops.entry);
+    for (size_t i = 0; i < post_bin_indices.size(); ++i) {
+        binary_po_fp.emplace_back(
+                make_dnn_mem(ins[idx_ins], dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins[idx_ins++], tag::abx));
+        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                 static_cast<int>(post_bin_indices[i])),
+                binary_po_dt[i], binary_po_fp[i]);
     }
 
     const dnnl::graph::engine &eng = get_test_engine();
@@ -377,8 +382,6 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     dnnl::graph::tensor wei_tensor(wei_lt, eng, static_cast<void *>(wei_dt));
     dnnl::graph::tensor dst_tensor(dst_lt, eng, static_cast<void *>(dst_dt));
     dnnl::graph::tensor bia_tensor;
-    dnnl::graph::tensor bin_tensor;
-    dnnl::graph::tensor sum_src1_tensor;
 
     std::vector<dnnl::graph::tensor> tensors_in {};
     std::vector<dnnl::graph::tensor> tensors_out {};
@@ -393,19 +396,25 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         tensors_out = {wei_tensor};
     }
 
+    idx_ins = 2;
     if (graph_prb.has_post_bia()) {
-        bia_tensor
-                = dnnl::graph::tensor(ins[2], eng, static_cast<void *>(bia_dt));
+        bia_tensor = dnnl::graph::tensor(
+                ins[idx_ins++], eng, static_cast<void *>(bia_dt));
         tensors_in.emplace_back(bia_tensor);
     }
-    if (graph_prb.has_post_bin()) {
-        bin_tensor = dnnl::graph::tensor(
-                ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
-        tensors_in.emplace_back(bin_tensor);
-    } else if (graph_prb.has_post_sum()) {
-        sum_src1_tensor = dnnl::graph::tensor(
-                ins.back(), eng, static_cast<void *>(dst_dt));
-        tensors_in.emplace_back(sum_src1_tensor);
+
+    size_t bin_dt_idx = 0;
+    for (const auto &po_entry : prb->attr.post_ops.entry) {
+        if (po_entry.is_sum_kind()) {
+            dnnl::graph::tensor sum_src1_tensor(
+                    ins[idx_ins++], eng, static_cast<void *>(dst_dt));
+            tensors_in.emplace_back(sum_src1_tensor);
+        } else if (po_entry.is_binary_kind()) {
+            dnnl::graph::tensor bin_src1_tensor(ins[idx_ins++], eng,
+                    static_cast<void *>(binary_po_dt[bin_dt_idx]));
+            tensors_in.emplace_back(bin_src1_tensor);
+            ++bin_dt_idx;
+        }
     }
 
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
@@ -420,9 +429,10 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         std::swap(prb_tr.iw, prb_tr.ow);
 
         std::vector<int> binary_po_args;
-        for (int idx = 0; idx < binary_po_fp.size(); idx++) {
+        for (const size_t idx_bin : post_bin_indices) {
             binary_po_args.emplace_back(
-                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                    (DNNL_ARG_ATTR_MULTIPLE_POST_OP(static_cast<int>(idx_bin))
+                            | DNNL_ARG_SRC_1));
         }
 
         // re-scale bias

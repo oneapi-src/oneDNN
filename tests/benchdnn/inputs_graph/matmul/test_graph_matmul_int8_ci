@@ -59,3 +59,10 @@
 --attr-oscale=per_oc:2.25
 --attr-post-ops=,div:bf16
 --batch=shapes_int8_2d
+
+# int8 + several binary post-ops
+--reset
+--cfg=s8s8s8
+--bia_dt=undef
+--attr-post-ops=add:s8:common+add:s8:common,add:s8:common+mul:f32:per_oc,mul:f32:common+add:s8:common+div:f32:per_oc
+16x256:256x1:16x1

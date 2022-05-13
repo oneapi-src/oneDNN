@@ -702,6 +702,11 @@ quant_data_t bin_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
     return quant_data_t(q_dt, {1.f}, {0L}, "per_tensor", 1, tag);
 }
 
+bool is_dequantize_required_for(const attr_t::post_ops_t::entry_t &e) {
+    return e.is_binary_kind()
+            && is_low_precision({convert_dt(e.binary.src1_dt)});
+}
+
 fill_status_t po_handlers_t::low_precision_handler_t::insert_dequant_before(
         const std::string &lt_id, const quant_data_t &qdata, graph_prb_t &p,
         bool as_constant) {

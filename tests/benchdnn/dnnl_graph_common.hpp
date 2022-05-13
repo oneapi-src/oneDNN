@@ -443,6 +443,8 @@ quant_data_t bin_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
         const std::string &tag,
         dnnl::graph::logical_tensor::data_type default_dt);
 
+bool is_dequantize_required_for(const attr_t::post_ops_t::entry_t &e);
+
 struct po_handlers_t {
     using dt = dnnl::graph::logical_tensor::data_type;
     using lt = dnnl::graph::logical_tensor::layout_type;

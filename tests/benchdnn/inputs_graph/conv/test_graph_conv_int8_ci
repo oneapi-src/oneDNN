@@ -22,6 +22,13 @@
 --attr-post-ops=relu:0:0:1.2
 g32mb1ic2048ih14iw14oc2048oh14ow14kh3kw3sh1sw1ph1pw1dh0dw0
 
+# int8 + several binary post-ops
+--reset
+--cfg=s8s8s8
+--dir=FWD_I
+--attr-post-ops=add:s8:common+add:s8:common,add:s8:common+mul:f32:per_oc,div:f32:common+add:s8:common+mul:f32:per_oc
+mb50ic64ih56oc64oh56kh1ph0
+
 # x8s8f32 cases
 --reset
 --cfg=u8s8f32

@@ -220,6 +220,20 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
         }
     }
 
+    size_t bin_id {0};
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        if (is_dequantize_required_for(entry)) {
+            const auto bin_src1_lt_id = tensor_id["binary"][bin_id] + "_SRC";
+            status = po_handler.deconv.low_precision_handler
+                             .insert_dequant_before(bin_src1_lt_id,
+                                     bin_po_entry2quant_data(entry, prb->dtag,
+                                             convert_dt(prb->cfg[DST].dt)),
+                                     *this);
+            BENCHDNNEXT_VERIFY(status);
+        }
+        ++bin_id;
+    }
+
     return ctor_status;
 }
 
