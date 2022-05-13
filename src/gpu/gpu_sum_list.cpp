@@ -21,6 +21,7 @@
 #include "gpu/gpu_sum_pd.hpp"
 #include "gpu/jit/gen9_simple_sum.hpp"
 #include "gpu/ocl/gen9_sum.hpp"
+#include "gpu/ocl/many_inputs_sum.hpp"
 #include "gpu/ocl/ref_sum.hpp"
 #include "gpu/ocl/simple_sum.hpp"
 
@@ -39,6 +40,7 @@ namespace {
 // clang-format off
 constexpr impl_list_item_t sum_impl_list[] = REG_SUM_P({
         SUM_INSTANCE(ocl::gen9_sum_t)
+        SUM_INSTANCE(ocl::many_inputs_sum_t)
         SUM_INSTANCE(ocl::simple_sum_t<data_type::f32>)
         SUM_INSTANCE(ocl::ref_sum_t)
         nullptr,

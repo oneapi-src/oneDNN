@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,10 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEN9_SUM_HPP
-#define GPU_OCL_GEN9_SUM_HPP
-
-#include <assert.h>
+#ifndef GPU_OCL_MANY_INPUTS_SUM_HPP
+#define GPU_OCL_MANY_INPUTS_SUM_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
@@ -34,28 +32,23 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen9_sum_t : public gpu_primitive_t {
+struct many_inputs_sum_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_sum_pd_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
 
-        DECLARE_SUM_PD_T("ocl:gen9:any", gen9_sum_t);
+        DECLARE_SUM_PD_T("ocl:many_inputs", many_inputs_sum_t);
 
         status_t init(engine_t *engine) {
             const int n = n_inputs();
 
             if (n > max_num_arrs) return status::unimplemented;
 
-            const memory_desc_wrapper o_d(dst_md());
-
-            // for IO bytes less than 1MB fall back into many_inputs_sum kernel for better performance.
-            size_t io_bytes = (n + 1) * o_d.data_type_size() * o_d.nelems(true);
-            if (io_bytes < 1024 * 1024) return status::unimplemented;
-
-            bool ok = gpu_sum_pd_t::init(engine) == status::success
-                    && !memory_desc_ndims_ok(dst_md());
+            bool ok = gpu_sum_pd_t::init(engine) == status::success;
 
             if (!ok) return status::unimplemented;
+
+            const memory_desc_wrapper o_d(dst_md());
 
             for (int i = 0; i < n; ++i) {
                 const memory_desc_wrapper i_d(src_md(i));
@@ -74,7 +67,6 @@ struct gen9_sum_t : public gpu_primitive_t {
 
         kernel_ctx.set_data_type(data_s.data_type());
 
-        kernel_ctx.define_int("VECT_DT_N", vector_size);
         kernel_ctx.define_int("N_INPUTS", pd()->n_inputs());
         kernel_ctx.define_int("N_ELEMS", data_d.nelems(true));
 
@@ -83,7 +75,7 @@ struct gen9_sum_t : public gpu_primitive_t {
         def_memory_desc_info(
                 kernel_ctx, memory_desc_info_t::create(data_s), "DST");
 
-        create_kernel(engine, &kernel_, "gen9_sum", kernel_ctx);
+        create_kernel(engine, &kernel_, "many_inputs_sum", kernel_ctx);
 
         if (!kernel_) return status::runtime_error;
         return status::success;
@@ -113,8 +105,7 @@ struct gen9_sum_t : public gpu_primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    enum { max_num_arrs = 16 };
-    const int vector_size = 8;
+    enum { max_num_arrs = 94 };
     enum { SCALES_ = 0 };
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
