@@ -3549,7 +3549,7 @@ private:
             const ngen::RegData &_src0, const ngen::RegData &_src1,
             const ngen::RegData &_src2, bool is_dpas = false) {
         int esize = mod.getExecSize();
-        int hw_simd = (cfg.is_ge_xe_hpc() ? 16 : 8);
+        int hw_simd = (hw >= ngen::HW::XeHPC ? 16 : 8);
         auto shift = [](const ngen::RegData &rd, int exec_off) {
             if (exec_off == 0 || rd.isNull()) return rd;
             int type_size = ngen::getBytes(rd.getType());
