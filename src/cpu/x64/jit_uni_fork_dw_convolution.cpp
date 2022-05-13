@@ -310,6 +310,8 @@ void jit_uni_fork_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
             // main loop
             ur_str_w = nstl::min((jcp.iw - jcp.kw + jcp.r_pad - iw)
                  / jcp.stride_w, jcp.iw);
+            while (iw + ur_str_w * jcp.stride_w > jcp.iw)
+                ur_str_w--;
             if (ur_str_w > 0) {
                 jit_conv_call_s par_conv = kernel_params(ur_str_w, iw, oh,
                                              ih, i_t_overflow, i_b_overflow,
