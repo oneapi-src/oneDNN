@@ -6868,14 +6868,18 @@ private:
         }
         multiply_desc_t desc(a_layout, b_layout, true);
 
-        bool need_masks = (cfg_.kd * cfg_.kh * cfg_.kw > 1)
-                || ((cfg_.pd + 1) * (cfg_.ph + 1) * (cfg_.pw + 1) > 1);
-        bool scalar_masks
-                = (tile.dims()[3] * tile.dims()[4] * tile.dims()[5] == 1);
+        const auto &tile_dims = tile.dims();
+        int masks_size = (tile_dims[3] * tile_dims[4] * tile_dims[5] > 1)
+                ? desc.n() * desc.m() / m_blk
+                : 1;
+        masks_size *= ((cfg_.kd * cfg_.kh * cfg_.kw > 1)
+                || ((cfg_.pd + 1) * (cfg_.ph + 1) * (cfg_.pw + 1) > 1));
         auto zp_mask = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "zp_mask");
         auto var_mask = ir_ctx_.create_tmp_var(type_t::_bool(m_blk));
 
-        if (need_masks) {
+        if (masks_size > 0) {
+            ir_assert(math::is_pow2(masks_size));
+
             std::vector<dim_t> a_dims(a_thr_view.vvars().size(), 1);
             std::vector<dim_t> c_dims(c_sub_tile_layout_.ndims(), 1);
             ir_assert((a_dims.size() > 2) && (c_dims.size() > 2));
@@ -6892,26 +6896,51 @@ private:
                 }
             }
             auto mask_tensor = a_thr_view.create_mask_tensor(cset_);
-            mask_tensor_t masks(layout_t(type_t::_bool(), 0,
-                    std::vector<dim_t> {desc.n() * desc.m() / m_blk}));
+            mask_tensor_t masks(layout_t(
+                    type_t::_bool(), 0, std::vector<dim_t> {masks_size}));
+            const auto chnl = std::min(ic, m_blk);
             c_sub_tile_layout_.for_each_tile(
                     tensor_t(c_dims), [&](const std::vector<dim_t> &start) {
+                        auto off = c_sub_tile_layout_.offset(start) / m_blk;
+                        if (off >= masks_size) return;
                         std::vector<dim_t> a_start;
                         std::transform(c_to_a.begin(), c_to_a.end(),
                                 std::back_inserter(a_start),
                                 [&](int i) { return (i) ? start[i - 1] : 0; });
-                        tensor_t a_tensor(a_dims, a_start);
-                        masks.set_mask(c_sub_tile_layout_.offset(start) / m_blk,
-                                mask_tensor.map(a_tensor).to_expr(1));
+                        auto map = mask_tensor.map(tensor_t(a_dims, a_start));
+                        masks.set_mask(off, map.to_expr(chnl));
                     });
+            bool is_simd_mask = true;
+            bool is_const_bool_mask = true;
+            for (int n = 0; n < masks_size; n++) {
+                auto *sh = masks.mask(n).as_ptr<shuffle_t>();
+                is_simd_mask &= !sh || sh->is_broadcast();
+                is_const_bool_mask &= !!sh;
+                for (int v = (sh) ? 0 : chnl; v < chnl; v++)
+                    is_const_bool_mask &= sh->vec[sh->idx[v]].is<bool_imm_t>();
+            }
+            ir_assert(is_simd_mask || is_const_bool_mask);
 
-            ir_assert(math::is_pow2(masks.elems()));
+            for (int n = 0; n < masks_size; n++)
+                if (is_simd_mask) {
+                    object_map_t<expr_t, std::vector<expr_t>> vars;
+                    expr_scalarizer_t sc(chnl, 0, vars);
+                    masks.set_mask(n, sc.mutate(masks.mask(n)));
+                } else {
+                    uint16_t mask = 0;
+                    auto &sh = masks.mask(n).as<shuffle_t>();
+                    for (int v = chnl; v; v--)
+                        mask = mask * 2
+                                + sh.vec[sh.idx[v - 1]].as<bool_imm_t>().value;
+                    masks.set_mask(n, mask);
+                }
+
             int ntrue = 0;
-            for (int n = 0; n < desc.n(); n++)
+            for (int n = 0; n < masks_size; n++)
                 ntrue += masks.mask(n).is_equal(expr_t(true));
-            if (ntrue == desc.n()) {
-                need_masks = false;
-            } else if (!scalar_masks) {
+            if (ntrue == masks_size) {
+                masks_size = 0;
+            } else if (masks_size > 1) {
                 std::vector<expr_t> exprs;
                 object_eq_map_t<expr_t, expr_t> vars;
                 ir_assert((desc.n() % m_blk == 0) || (m_blk % desc.n() == 0));
@@ -6920,14 +6949,13 @@ private:
                 // - C has exactly one N block like 4c16f8c (where f is ow)
                 // - The innermost block is by M and it matches the SIMD size
 
-                for (int n = 0; n < desc.n(); n += m_blk) {
+                for (int n = 0; n < masks_size; n += m_blk) {
                     std::vector<expr_t> e;
                     int ntrue = 0, nfalse = 0;
                     for (int m = 0; m < m_blk; m++) {
-                        e.emplace_back(masks.mask((n + m) % masks.elems()));
-                        if (e[m].is<bool_imm_t>()) {
+                        e.emplace_back(masks.mask((n + m) % masks_size));
+                        if (e[m].is<bool_imm_t>())
                             ((e[m].as<bool_imm_t>().value) ? ntrue : nfalse)++;
-                        }
                     }
                     ir_assert((ntrue == 0) || (ntrue + nfalse == m_blk));
                     if ((ntrue == 0) && (nfalse > 0) && (nfalse < m_blk)) {
@@ -6941,29 +6969,34 @@ private:
                     }
                     exprs.emplace_back(vector2expr(e, vars));
                 }
+                for (; masks_size >= m_blk * 2; masks_size /= 2) {
+                    auto e = [](expr_t &a, expr_t &b) { return a.is_equal(b); };
+                    auto half = exprs.begin() + masks_size / m_blk / 2;
+                    if (!std::equal(exprs.begin(), half, half, e)) break;
+                }
 
-                const int sz = m_blk * type_t::s16().size();
-                const int total = (scalar_masks) ? 1 : int(exprs.size());
-                register_buffer(zp_mask, total * sz, alloc_kind_t::grf);
-                for (int i = 0; i < total; i++) {
-                    auto store = store_t::make(zp_mask, i * sz,
-                            -cast_t::make(type_t::s16(m_blk), exprs[i]));
-                    retn = retn.append(store);
+                const int sz = type_t::s16().size();
+                register_buffer(zp_mask, masks_size * sz, alloc_kind_t::grf);
+                for (int i = 0; i < masks_size / m_blk; i++) {
+                    auto expr = cast_t::make(type_t::s16(m_blk), exprs[i]);
+                    retn = retn.append(store_t::make(zp_mask, i * m_blk * sz,
+                            (is_simd_mask) ? -expr : expr));
                 }
                 for (auto &v : vars)
                     retn = let_t::make(v.second, v.first, retn);
-            } else { // scalar_masks == true
+            } else { // masks_size == 1
                 register_buffer(
                         zp_mask, type_t::s16().size(), alloc_kind_t::grf);
-                auto expr = -cast_t::make(type_t::s16(), masks.mask(0));
-                retn = retn.append(store_t::make(zp_mask, 0, expr));
+                auto expr = cast_t::make(type_t::s16(), masks.mask(0));
+                retn = retn.append(store_t::make(
+                        zp_mask, 0, (is_simd_mask) ? -expr : expr));
             }
         }
 
-        const std::vector<dim_t> dims
-                = {m_blk * ((is_scalar || (ic <= m_blk)) ? 1 : 2)};
-        const bool tiny_ic = (ic <= dims[0]);
-        const bool sc_ic = is_scalar || tiny_ic;
+        const bool sc_ic = is_scalar || (ic <= 32);
+        const int simd_per_ic
+                = utils::div_up(std::min((!is_scalar) ? ic : 1, 32), m_blk);
+        const std::vector<dim_t> dims = {m_blk * std::min(2, simd_per_ic)};
         expr_t offs = (!sc_ic) ? a_thr_view.vstart(2) * d_type.size() : 0;
         if (is_runtime && !sc_ic && !cfg_.do_pipeline_unroll
                 && (cfg_.slm_bufs > 1)) {
@@ -6973,7 +7006,7 @@ private:
             offs = load_t::make(type_t::u32(), buf, 0);
         }
         for (int i = (is_runtime) ? 0 : std::numeric_limits<int>::max();
-                i < dims[0] * ((!sc_ic) ? 2 : 1); i += dims[0]) {
+                i < m_blk * simd_per_ic; i += dims[0]) {
             const int b = i * d_type.size();
             view_t zpv(layout_t(d_type, 0, dims));
             auto acc = make_access_builder(cfg_.hw(), ir_ctx_, cset_, zpv,
@@ -7004,27 +7037,27 @@ private:
             return cast_t::make(type_t::_bool(m_blk), load);
         };
         for (int i_m = 0; i_m < desc.m(); i_m += m_blk) {
-            for (int i_k = 0; i_k < ((!tiny_ic) ? 32 / 4 : cfg_.kw); i_k++) {
-                auto wei = b_buf_
-                        + (i_m * (32 / 4) + i_k * m_blk) * d_type.size();
-                loop = loop.append(dp4a(acc, (i_k) ? acc : 0, wei,
-                        src_zp[(!sc_ic) ? i_k * d_type.size() : 0]));
+            auto gen_mask = [&](int mult, int tail) {
+                if (masks_size <= 1) return (masks_size) ? var_mask : expr_t();
+                auto words = (i_m / m_blk * mult + tail) % masks_size;
+                return word2bool(zp_mask, words * 2);
+            };
+            for (int i_k = 0; i_k < ((ic > 4) ? 32 / 4 : cfg_.kw); i_k++) {
+                loop = loop.append(dp4a(acc, (i_k) ? acc : 0,
+                        b_buf_ + (i_m * (32 / 4) + i_k * m_blk) * d_type.size(),
+                        src_zp[(!is_scalar) ? i_k * d_type.size() : 0]));
             }
             for (int i_n = 0; i_n < desc.n(); i_n++) {
                 const int off_n = i_m / m_blk * desc.n() + i_n;
                 auto dst = c_buf_ + off_n * m_blk * d_type.size();
-                auto mask = (!need_masks)
-                        ? expr_t()
-                        : (scalar_masks) ? var_mask
-                                         : word2bool(zp_mask, i_n * 2);
                 type_t vd(d_type.kind(), m_blk);
                 auto sub = binary_op_t::make(op_kind_t::_sub,
                         load_t::make(vd, dst, 0), load_t::make(vd, acc, 0));
-                loop = loop.append(store_t::make(
-                        dst, 0, sub, store_t::default_stride, mask));
+                loop = loop.append(store_t::make(dst, 0, sub,
+                        store_t::default_stride, gen_mask(desc.n(), i_n)));
             }
         }
-        return retn.append((need_masks && scalar_masks)
+        return retn.append((masks_size == 1)
                         ? let_t::make(var_mask, word2bool(zp_mask, 0), loop)
                         : loop);
     }

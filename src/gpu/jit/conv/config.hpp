@@ -383,8 +383,8 @@ public:
     bool zero_points_ok(const convolution_pd_t *pd) const {
         auto *attr = pd->attr();
 
-        // TODO: implement masks for (IC <= 4) && (KDHW > 1), remove this 'if'
-        bool ic_kdhw = (pd->IC() <= 4) && (pd->KD() * pd->KH() * pd->KW() > 1);
+        // TODO: implement masks for (IC <= 8) && (KDHW > 1), remove this 'if'
+        bool ic_kdhw = (pd->IC() <= 8) && (pd->KD() * pd->KH() * pd->KW() > 1);
         if (!attr->zero_points_.has_default_values() && ic_kdhw) return false;
 
         using namespace data_type;
