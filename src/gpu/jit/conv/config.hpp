@@ -416,6 +416,7 @@ public:
         }
 
         if (!attr->output_scales_.has_default_values()) {
+            if (!is_s32_accumulator()) return false;
             // Only common and per_oc output scales were tested.
             if (!utils::one_of(attr->output_scales_.mask_, 0, (1 << 1)))
                 return false;
