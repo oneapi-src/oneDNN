@@ -905,7 +905,7 @@ static void layout_propagation_for_reshape(op_ptr &op,
         // reorder the in_md first and then reshape the reordered reshapable md.
         if (out_md.is_zero()) {
             dnnl::memory::desc reshapable_md(in_md.dims(), in_md.data_type(),
-                    get_default_format(in_md.data.ndims));
+                    get_ncx_format(in_md.data.ndims));
             insert_reorder_before(op, 0, reshapable_md, reorder_ops);
             out_md = reshapable_md.reshape(target_dims);
         }
@@ -933,8 +933,7 @@ static void layout_propagation_for_reshape(op_ptr &op,
                     = in_md.reshape(target_dims, /* allow empty */ true);
             if (reshaped_in_md.is_zero()) {
                 dnnl::memory::desc reshapable_md(in_md.dims(),
-                        in_md.data_type(),
-                        get_default_format(in_md.data.ndims));
+                        in_md.data_type(), get_ncx_format(in_md.data.ndims));
                 insert_reorder_before(op, 0, reshapable_md, reorder_ops);
                 reshaped_in_md = reshapable_md.reshape(target_dims);
             }

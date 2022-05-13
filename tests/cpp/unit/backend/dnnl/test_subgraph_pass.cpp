@@ -1518,7 +1518,7 @@ TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
         sorted_ops.emplace_back(op);
         return impl::status::success;
     });
-    ASSERT_EQ(sorted_ops[0]->get_kind(), impl::op_kind::Reorder);
+    ASSERT_EQ(sorted_ops[0]->get_kind(), dnnl_impl::op_kind::dnnl_reorder);
 }
 
 TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
@@ -1557,7 +1557,7 @@ TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
         sorted_ops.emplace_back(op);
         return impl::status::success;
     });
-    ASSERT_EQ(sorted_ops[0]->get_kind(), impl::op_kind::Reorder);
+    ASSERT_EQ(sorted_ops[0]->get_kind(), dnnl_impl::op_kind::dnnl_reorder);
 }
 
 TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
