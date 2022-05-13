@@ -109,3 +109,15 @@ TEST(Op, AssignedPartition) {
     conv.set_partition(part.get());
     ASSERT_EQ(conv.get_partition(), part.get());
 }
+
+TEST(Partition, SetFpmathMode) {
+    engine_t eng {};
+    dnnl_impl::dnnl_partition_impl_t p(eng.kind());
+    ASSERT_EQ(p.get_fpmath_mode(), impl::fpmath_mode::strict);
+
+    for (auto m : {impl::fpmath_mode::strict, impl::fpmath_mode::bf16,
+                 impl::fpmath_mode::f16, impl::fpmath_mode::any}) {
+        dnnl_impl::dnnl_partition_impl_t p(eng.kind(), m);
+        ASSERT_EQ(p.get_fpmath_mode(), m);
+    }
+}

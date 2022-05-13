@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include "interface/c_types_map.hpp"
 #include "utils/debug.hpp"
 
-TEST(debug_utils_test, data_type2str) {
+TEST(DebugUtilsTest, DataType2str) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
     EXPECT_STREQ("undef", data_type2str(data_type::undef));
@@ -40,7 +40,7 @@ TEST(debug_utils_test, data_type2str) {
 #endif
 }
 
-TEST(debug_utils_test, engine_kind2str) {
+TEST(DebugUtilsTest, EngineKind2str) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
     EXPECT_STREQ("any", engine_kind2str(engine_kind::any_engine));
@@ -56,7 +56,7 @@ TEST(debug_utils_test, engine_kind2str) {
 #endif
 }
 
-TEST(debug_utils_test, layout_type2str) {
+TEST(DebugUtilsTest, LayoutType2str) {
     using namespace dnnl::graph::impl;
     using namespace dnnl::graph::impl::utils;
     EXPECT_STREQ("undef", layout_type2str(layout_type::undef));
@@ -71,5 +71,23 @@ TEST(debug_utils_test, layout_type2str) {
     EXPECT_STREQ("unknown layout_type",
             layout_type2str(
                     static_cast<layout_type_t>(layout_type::opaque + 1)));
+#endif
+}
+
+TEST(DebugUtilsTest, FpmathMode2str) {
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::impl::utils;
+    EXPECT_STREQ("strict", fpmath_mode2str(fpmath_mode::strict));
+    EXPECT_STREQ("bf16", fpmath_mode2str(fpmath_mode::bf16));
+    EXPECT_STREQ("f16", fpmath_mode2str(fpmath_mode::f16));
+    EXPECT_STREQ("any", fpmath_mode2str(fpmath_mode::any));
+    EXPECT_STREQ("f19", fpmath_mode2str(fpmath_mode::f19));
+#ifndef NDEBUG
+    EXPECT_DEATH(
+            fpmath_mode2str(static_cast<fpmath_mode_t>(fpmath_mode::f19 + 1)),
+            "unknown fpmath_mode");
+#else
+    EXPECT_STREQ("unknown fpmath_mode",
+            fpmath_mode2str(static_cast<fpmath_mode_t>(fpmath_mode::f19 + 1)));
 #endif
 }
