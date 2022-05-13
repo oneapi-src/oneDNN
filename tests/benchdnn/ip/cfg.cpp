@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ const _dt_conf_t conf_f16 = {
                 1e-3},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
                 1e-3},
-        {dnnl_f16},
+        {dnnl_f32},
 };
 
 const _dt_conf_t conf_f16f16s8 = {
@@ -112,7 +112,7 @@ const _dt_conf_t conf_f16f16s8 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
                 1e-3},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
-        {dnnl_f16},
+        {dnnl_f32},
 };
 
 const _dt_conf_t conf_f16f16u8 = {
@@ -123,7 +123,7 @@ const _dt_conf_t conf_f16f16u8 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
                 1e-3},
         {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, .35, 1, 0.},
-        {dnnl_f16},
+        {dnnl_f32},
 };
 
 const _dt_conf_t conf_u8s8f32 = {

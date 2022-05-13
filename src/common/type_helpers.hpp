@@ -235,7 +235,7 @@ inline data_type_t default_accum_data_type(
 
     if (one_of(src_dt, s8, u8) && dst_dt != f32) return s32;
 
-    if (one_of(f16, src_dt, dst_dt)) return f16;
+    if (one_of(f16, src_dt, dst_dt)) return f32;
     if (one_of(bf16, src_dt, dst_dt)) return f32;
     if (one_of(f32, src_dt, dst_dt)) return f32;
     if (one_of(f64, src_dt, dst_dt)) return f64;
@@ -253,24 +253,23 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     using namespace prop_kind;
 
     /* prop_kind doesn't matter */
-    if (everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32, s8, u8))
-        return f16;
     if (everyone_is(f32, src_dt, wei_dt)) return f32;
     if (everyone_is(f64, src_dt, wei_dt)) return f64;
 
     if (one_of(prop_kind, forward_training, forward_inference)) {
         if ((src_dt == u8 || src_dt == s8) && wei_dt == s8) return s32;
+        if (one_of(f16, src_dt, wei_dt)) return f32;
     } else if (prop_kind == backward_data) {
         if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8
                 && one_of(dst_dt, s8, u8, s32))
             return s32;
-        if (everyone_is(f16, dst_dt, wei_dt) && one_of(src_dt, s8, u8))
-            return f16;
+        if (one_of(f16, dst_dt, wei_dt)) return f32;
         if (everyone_is(f32, dst_dt, wei_dt) && one_of(src_dt, s8, u8))
             return f32;
     }
 
     if (one_of(bf16, src_dt, wei_dt, dst_dt)) return f32;
+    if (one_of(f16, src_dt, wei_dt, dst_dt)) return f32;
 
     return data_type::undef;
 }
