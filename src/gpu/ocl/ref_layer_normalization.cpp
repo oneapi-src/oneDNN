@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,9 +51,14 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.sub_group_size = 1;
 
     int c_block = 1;
+    bool c_is_last_physical = false;
     if (src_mdw.blocking_desc().inner_nblks > 0) {
         c_block = src_mdw.blocking_desc()
                           .inner_blks[src_mdw.blocking_desc().inner_nblks - 1];
+        c_is_last_physical
+                = src_mdw.blocking_desc().inner_idxs[ndims - 1] == ndims - 1;
+    } else {
+        c_is_last_physical = src_mdw.blocking_desc().strides[ndims - 1] == 1;
     }
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -63,10 +68,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
     const auto &dims = pd->is_fwd() ? src_mdw.padded_dims() : dst_mdw.dims();
     if (pd->is_fwd()) {
-        if ((conf.norm_axis % 16 == 0) && ndims < 4
-                && (c_block == 1
-                        || (c_block % 16 == 0 && conf.norm_axis % 16 == 0
-                                && ndims == 2)
+        if ((conf.norm_axis % 16 == 0) && ndims < 4 && c_is_last_physical
+                && (c_block == 1 || (c_block % 16 == 0 && ndims == 2)
                         || src_mdw.is_dense())) {
             conf.vectorize_calc_stats = true;
             conf.sub_group_size = 16;
@@ -97,7 +100,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         const int desired_sg_size = 16;
         if (conf.norm_axis % desired_sg_size == 0
                 && (src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
-                        || (ndims == 2 && c_block % desired_sg_size == 0))) {
+                        || (ndims == 2 && c_block % desired_sg_size == 0
+                                && c_is_last_physical))) {
             conf.vectorize_bwd = true;
             conf.sub_group_size = desired_sg_size;
             conf.vect_dt_n = 8;
