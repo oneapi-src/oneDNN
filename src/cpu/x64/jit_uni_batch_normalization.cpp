@@ -575,8 +575,7 @@ struct jit_bnorm_t : public jit_generator {
             for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
                 for (int ch_idx = 0; ch_idx < num_ch_blks; ++ch_idx) {
                     const int offt = ch_idx * vlen_spat_data_;
-                    const int sp_idx = ch_idx + num_ch_blks * (spat_pt + 1);
-                    const Vmm vsrc = Vmm(sp_idx);
+                    const Vmm vsrc = vtmp;
                     uni_vmovups_spat_data(
                             vsrc, vmmword[reg_src + reg_soff_nspc + offt]);
                     uni_vaddps(Vmm(ch_idx), Vmm(ch_idx), vsrc);
@@ -588,14 +587,12 @@ struct jit_bnorm_t : public jit_generator {
         auto variance_compute = [=](int num_ch_blks, int num_spat_pts) {
             for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
                 for (int ch_idx = 0; ch_idx < num_ch_blks; ++ch_idx) {
-                    const int coff = ch_idx * vlen;
                     const int offt = ch_idx * vlen_spat_data_;
-                    const int sp_idx = ch_idx + num_ch_blks * (spat_pt + 1);
-                    const Vmm vsrc = Vmm(sp_idx);
+                    const Vmm vsrc = vtmp;
+                    const Vmm _vmean = Vmm(ch_idx + num_ch_blks);
                     uni_vmovups_spat_data(
                             vsrc, vmmword[reg_src + reg_soff_nspc + offt]);
-                    uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
-                    uni_vsubps(vsrc, vsrc, vmean);
+                    uni_vsubps(vsrc, vsrc, _vmean);
                     uni_vfmadd231ps(Vmm(ch_idx), vsrc, vsrc);
                 }
                 add(reg_soff_nspc, spat_step);
@@ -605,6 +602,11 @@ struct jit_bnorm_t : public jit_generator {
         for (int idx = 0; idx < num_ch_blks; ++idx) {
             const int coff = idx * vlen;
             uni_vmovups(Vmm(idx), vmmword[reg_rbuf1 + reg_coff + coff]);
+            if (!compute_mean) {
+                // pre-load mean to avoid extra data movement during variance
+                const Vmm _vmean = Vmm(idx + num_ch_blks);
+                uni_vmovups_maybe_tail(_vmean, mean_ptr(coff));
+            }
         }
 
         xor_(reg_soff_nspc, reg_soff_nspc);
@@ -630,8 +632,10 @@ struct jit_bnorm_t : public jit_generator {
             jnz(spatial, T_NEAR);
         }
 
-        for (int idx = 0, offt = 0; idx < num_ch_blks; ++idx, offt += vlen)
-            uni_vmovups(vmmword[reg_rbuf1 + reg_coff + offt], Vmm(idx));
+        for (int idx = 0; idx < num_ch_blks; ++idx) {
+            const int coff = idx * vlen;
+            uni_vmovups(vmmword[reg_rbuf1 + reg_coff + coff], Vmm(idx));
+        }
     }
 
     void forward_channels_nspc_compute(const int num_ch_blks) {
@@ -651,6 +655,22 @@ struct jit_bnorm_t : public jit_generator {
             // TODO: spatial blocking
             const int num_spat_pts = 1;
 
+            // pre-compute scale for each channel to avoid costly div and sqrt
+            for (int idx = 0; idx < num_ch_blks; ++idx) {
+                const int coff = idx * vlen;
+                const Vmm vscale = Vmm(idx + num_ch_blks);
+                uni_vmovups_maybe_tail(vsqrtvar, var_ptr(coff));
+                uni_vaddps(vsqrtvar, vsqrtvar, veps);
+                uni_vsqrtps(vsqrtvar, vsqrtvar);
+
+                if (bdesc_->use_scale() || bdesc_->use_scaleshift()) {
+                    uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
+                    uni_vdivps(vscale, vgamma, vsqrtvar, vtmp);
+                } else {
+                    uni_vdivps(vscale, vone, vsqrtvar, vtmp);
+                }
+            }
+
             Label spatial;
             L(spatial);
             {
@@ -658,49 +678,24 @@ struct jit_bnorm_t : public jit_generator {
                     const int coff = idx * vlen;
                     const int offt = idx * vlen_spat_data_;
                     const Vmm vdata = Vmm(idx);
+                    const Vmm vscale = Vmm(idx + num_ch_blks);
                     uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
-                    uni_vmovups_maybe_tail(vsqrtvar, var_ptr(coff));
-                    uni_vaddps(vsqrtvar, vsqrtvar, veps);
-                    uni_vsqrtps(vsqrtvar, vsqrtvar);
 
-                    if (bdesc_->use_scaleshift()) {
-                        uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
+                    if (bdesc_->use_shift() || bdesc_->use_scaleshift()) {
                         uni_vmovups_maybe_tail(vbeta, beta_ptr(coff));
                     }
-                    if (bdesc_->use_scale()) {
-                        uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
-                    }
-                    if (bdesc_->use_shift()) {
-                        uni_vmovups_maybe_tail(vbeta, beta_ptr(coff));
-                    }
-
-                    Vmm vscale
-                            = (bdesc_->use_scaleshift() || bdesc_->use_scale())
-                            ? vgamma
-                            : vone;
-                    Vmm vdiv = (bdesc_->use_scaleshift() || bdesc_->use_scale())
-                            ? vgamma
-                            : vsqrtvar;
-
-                    uni_vdivps(vdiv, vscale, vsqrtvar, vtmp);
 
                     uni_vmovups_spat_data(
                             vdata, vmmword[reg_src + reg_soff_nspc + offt]);
 
                     uni_vsubps(vdata, vdata, vmean);
 
-                    if (bdesc_->use_scaleshift()
-                            || (bdesc_->use_scale() && bdesc_->use_shift())) {
-                        // --flags=S,CH
-                        uni_vfmadd213ps(vdata, vgamma, vbeta);
-                    } else if (bdesc_->use_scale()) {
-                        // --flags=C
-                        uni_vmulps(vdata, vdata, vgamma);
-                    } else if (bdesc_->use_shift()) {
-                        // --flags=H
-                        uni_vfmadd213ps(vdata, vsqrtvar, vbeta);
+                    if (bdesc_->use_shift() || bdesc_->use_scaleshift()) {
+                        // --flags=S,CH,H
+                        uni_vfmadd213ps(vdata, vscale, vbeta);
                     } else {
-                        uni_vmulps(vdata, vdata, vsqrtvar);
+                        // --flags=,C
+                        uni_vmulps(vdata, vdata, vscale);
                     }
 
                     if (with_relu_inf_only) { // --attr=post_ops='relu'
@@ -1262,11 +1257,10 @@ struct jit_bnorm_t : public jit_generator {
             for (int ch_idx = 0; ch_idx < num_ch_blks; ++ch_idx) {
                 const int coff = ch_idx * vlen;
                 const int offt = ch_idx * vlen_spat_data_;
-                const int sp_idx = ch_idx + 2 * num_ch_blks;
                 const Vmm _vdiff_gamma = Vmm(ch_idx);
                 const Vmm _vdiff_beta = Vmm(ch_idx + num_ch_blks);
-                const Vmm vsrc = Vmm(sp_idx);
-                const Vmm vdiff_dst = Vmm(sp_idx + num_ch_blks);
+                const Vmm vsrc = vdiff_gamma;
+                const Vmm vdiff_dst = vdiff_beta;
                 uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
 
                 uni_vmovups_spat_data(
@@ -1304,14 +1298,14 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_coff_max_bwd_copy, reg_coff_max);
 
         Label ch_unroll_label[5];
-        const int max_ch_unroll = 3;
+        const int max_ch_unroll = 4;
 
         // TODO: Spatial and channel unrolling decisions should be made during
         // initialization depending on the problem size
         for (int ch_idx = max_ch_unroll; ch_idx > 0; --ch_idx) {
             L(ch_unroll_label[ch_idx]);
             {
-                const int ch_blk_size = (1 << (ch_idx - 1)); // 4, 2, 1
+                const int ch_blk_size = (1 << (ch_idx - 1)); // 8, 4, 2, 1
                 cmp(reg_coff_max, vlen * ch_blk_size);
                 jl(ch_unroll_label[ch_idx - 1], T_NEAR);
 
@@ -1442,35 +1436,47 @@ struct jit_bnorm_t : public jit_generator {
             // TODO: spatial blocking
             const int num_spat_pts = 1;
 
+            // pre-compute scale for each channel to avoid costly div and sqrt
+            if (!bdesc_->use_global_stats()) {
+                mov(ptr[rsp + stack_off_ws_off_copy], reg_ws);
+                mov(reg_ws, ptr[rsp + stack_off_diff_scale]);
+            }
+            for (int idx = 0; idx < num_ch_blks; ++idx) {
+                const int coff = idx * vlen;
+                const Vmm _vsqrtvar = Vmm(idx);
+                uni_vmovups_maybe_tail(_vsqrtvar, var_ptr(coff));
+                uni_vaddps(_vsqrtvar, _vsqrtvar, veps);
+                uni_vsqrtps(_vsqrtvar, _vsqrtvar);
+                uni_vdivps(_vsqrtvar, vone, _vsqrtvar, vtmp);
+                if (!bdesc_->use_global_stats()) {
+                    const Vmm _vdiff_beta = Vmm(idx + num_ch_blks);
+                    const Vmm _vdiff_gamma = Vmm(idx + 2 * num_ch_blks);
+                    uni_vmovups_maybe_tail(_vdiff_beta,
+                            vmmword[reg_diff_shift + reg_coff + coff]);
+                    uni_vmovups_maybe_tail(
+                            _vdiff_gamma, vmmword[reg_ws + reg_coff + coff]);
+                    uni_vdivps(_vdiff_beta, _vdiff_beta, vchan_size);
+                    uni_vmulps(_vdiff_gamma, _vdiff_gamma, _vsqrtvar);
+                    uni_vdivps(_vdiff_gamma, _vdiff_gamma, vchan_size);
+                }
+            }
+            if (!bdesc_->use_global_stats()) {
+                mov(reg_ws, ptr[rsp + stack_off_ws_off_copy]);
+            }
+
             Label spatial;
             L(spatial);
             {
                 for (int idx = 0; idx < num_ch_blks; ++idx) {
                     const int coff = idx * vlen;
                     const int offt = idx * vlen_spat_data_;
-                    const Vmm vdiff_data = Vmm(idx);
-                    const Vmm vdata = Vmm(idx + num_ch_blks);
+                    const Vmm vdiff_data = vdiff_beta;
+                    const Vmm vdata = vdiff_gamma;
+                    const Vmm _vsqrtvar = Vmm(idx);
                     uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
-                    uni_vmovups_maybe_tail(vsqrtvar, var_ptr(coff));
-
-                    uni_vaddps(vsqrtvar, vsqrtvar, veps);
-                    uni_vsqrtps(vsqrtvar, vsqrtvar);
-                    uni_vdivps(vsqrtvar, vone, vsqrtvar, vtmp);
 
                     if (bdesc_->use_scaleshift() || bdesc_->use_scale())
                         uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
-
-                    mov(ptr[rsp + stack_off_ws_off_copy], reg_ws);
-                    mov(reg_ws, ptr[rsp + stack_off_diff_scale]);
-                    uni_vmovups_maybe_tail(
-                            vdiff_gamma, vmmword[reg_ws + reg_coff + coff]);
-                    uni_vmovups_maybe_tail(vdiff_beta,
-                            vmmword[reg_diff_shift + reg_coff + coff]);
-                    mov(reg_ws, ptr[rsp + stack_off_ws_off_copy]);
-
-                    uni_vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
-                    uni_vdivps(vdiff_beta, vdiff_beta, vchan_size);
-                    uni_vdivps(vdiff_gamma, vdiff_gamma, vchan_size);
 
                     uni_vmovups_spat_data(vdiff_data,
                             vmmword[reg_diff_dst + reg_soff_nspc + offt]);
@@ -1483,15 +1489,17 @@ struct jit_bnorm_t : public jit_generator {
                     }
 
                     if (!bdesc_->use_global_stats()) {
-                        uni_vsubps(vdiff_data, vdiff_data, vdiff_beta);
+                        const Vmm _vdiff_beta = Vmm(idx + num_ch_blks);
+                        const Vmm _vdiff_gamma = Vmm(idx + 2 * num_ch_blks);
+                        uni_vsubps(vdiff_data, vdiff_data, _vdiff_beta);
                         uni_vmovups_spat_data(
                                 vdata, vmmword[reg_src + reg_soff_nspc + offt]);
                         uni_vsubps(vdata, vmean, vdata, vtmp);
-                        uni_vmulps(vdata, vdata, vdiff_gamma);
+                        uni_vmulps(vdata, vdata, _vdiff_gamma);
                         uni_vaddps(vdiff_data, vdiff_data, vdata);
                     }
 
-                    uni_vmulps(vdiff_data, vdiff_data, vsqrtvar);
+                    uni_vmulps(vdiff_data, vdiff_data, _vsqrtvar);
 
                     if (bdesc_->use_scaleshift() || bdesc_->use_scale()) {
                         uni_vmulps(vdiff_data, vdiff_data, vgamma);
@@ -1532,14 +1540,14 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_coff_max_bwd_copy, reg_coff_max);
 
         Label ch_unroll_label[5];
-        const int max_ch_unroll = 4;
+        const int max_ch_unroll = 3;
 
         // TODO: Spatial and channel unrolling decisions should be made during
         // initialization depending on the problem size
         for (int ch_idx = max_ch_unroll; ch_idx > 0; --ch_idx) {
             L(ch_unroll_label[ch_idx]);
             {
-                const int ch_blk_size = (1 << (ch_idx - 1)); // 8, 4, 2, 1
+                const int ch_blk_size = (1 << (ch_idx - 1)); // 4, 2, 1
                 cmp(reg_coff_max, vlen * ch_blk_size);
                 jl(ch_unroll_label[ch_idx - 1], T_NEAR);
 
