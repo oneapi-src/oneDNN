@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@
 
 #ifdef XBYAK_INTEL_CPU_SPECIFIC
 #ifdef _WIN32
-	#if (_MSC_VER < 1400) && defined(XBYAK32)
+	#if defined(_MSC_VER) && (_MSC_VER < 1400) && defined(XBYAK32)
 		static inline __declspec(naked) void __cpuid(int[4], int)
 		{
 			__asm {
@@ -132,11 +132,53 @@ typedef enum {
    CoreLevel = 2
 } IntelCpuTopologyLevel;
 
+namespace local {
+
+class Type {
+	uint64_t L;
+	uint64_t H;
+public:
+	Type(uint64_t L = 0, uint64_t H = 0) : L(L), H(H) { }
+	Type& operator&=(const Type& rhs)
+	{
+		L &= rhs.L;
+		H &= rhs.H;
+		return *this;
+	}
+	Type& operator|=(const Type& rhs)
+	{
+		L |= rhs.L;
+		H |= rhs.H;
+		return *this;
+	}
+	Type operator&(const Type& rhs) const
+	{
+		Type t = *this;
+		t &= rhs;
+		return t;
+	}
+	Type operator|(const Type& rhs) const
+	{
+		Type t = *this;
+		t |= rhs;
+		return t;
+	}
+	// without explicit because backward compatilibity
+	operator bool() const { return (H | L) != 0; }
+	uint64_t getL() const { return L; }
+	uint64_t getH() const { return H; }
+};
+
 /**
 	CPU detection class
+	@note static inline const member is supported by c++17 or later, so use template hack
 */
-class Cpu {
-	uint64_t type_;
+template<int dummy=0>
+class CpuT {
+public:
+	typedef local::Type Type;
+private:
+	Type type_;
 	//system topology
 	bool x2APIC_supported_;
 	static const size_t maxTopologyLevels = 2;
@@ -315,7 +357,7 @@ public:
 	static inline void getCpuidEx(unsigned int eaxIn, unsigned int ecxIn, unsigned int data[4])
 	{
 #ifdef XBYAK_INTEL_CPU_SPECIFIC
-	#ifdef _WIN32
+	#ifdef _MSC_VER
 		__cpuidex(reinterpret_cast<int*>(data), eaxIn, ecxIn);
 	#else
 		__cpuid_count(eaxIn, ecxIn, data[0], data[1], data[2], data[3]);
@@ -342,79 +384,82 @@ public:
 		return 0;
 #endif
 	}
-	typedef uint64_t Type;
 
-	static const Type NONE = 0;
-	static const Type tMMX = 1 << 0;
-	static const Type tMMX2 = 1 << 1;
-	static const Type tCMOV = 1 << 2;
-	static const Type tSSE = 1 << 3;
-	static const Type tSSE2 = 1 << 4;
-	static const Type tSSE3 = 1 << 5;
-	static const Type tSSSE3 = 1 << 6;
-	static const Type tSSE41 = 1 << 7;
-	static const Type tSSE42 = 1 << 8;
-	static const Type tPOPCNT = 1 << 9;
-	static const Type tAESNI = 1 << 10;
-	static const Type tOSXSAVE = 1 << 12;
-	static const Type tPCLMULQDQ = 1 << 13;
-	static const Type tAVX = 1 << 14;
-	static const Type tFMA = 1 << 15;
+	static const Type NONE;
+	static const Type tMMX;
+	static const Type tMMX2;
+	static const Type tCMOV;
+	static const Type tSSE;
+	static const Type tSSE2;
+	static const Type tSSE3;
+	static const Type tSSSE3;
+	static const Type tSSE41;
+	static const Type tSSE42;
+	static const Type tPOPCNT;
+	static const Type tAESNI;
+	static const Type tAVX512_FP16;
+	static const Type tOSXSAVE;
+	static const Type tPCLMULQDQ;
+	static const Type tAVX;
+	static const Type tFMA;
 
-	static const Type t3DN = 1 << 16;
-	static const Type tE3DN = 1 << 17;
-	static const Type tRDTSCP = 1 << 19;
-	static const Type tAVX2 = 1 << 20;
-	static const Type tBMI1 = 1 << 21; // andn, bextr, blsi, blsmsk, blsr, tzcnt
-	static const Type tBMI2 = 1 << 22; // bzhi, mulx, pdep, pext, rorx, sarx, shlx, shrx
-	static const Type tLZCNT = 1 << 23;
+	static const Type t3DN;
+	static const Type tE3DN;
+	static const Type tWAITPKG;
+	static const Type tRDTSCP;
+	static const Type tAVX2;
+	static const Type tBMI1; // andn, bextr, blsi, blsmsk, blsr, tzcnt
+	static const Type tBMI2; // bzhi, mulx, pdep, pext, rorx, sarx, shlx, shrx
+	static const Type tLZCNT;
 
-	static const Type tINTEL = 1 << 24;
-	static const Type tAMD = 1 << 25;
+	static const Type tINTEL;
+	static const Type tAMD;
 
-	static const Type tENHANCED_REP = 1 << 26; // enhanced rep movsb/stosb
-	static const Type tRDRAND = 1 << 27;
-	static const Type tADX = 1 << 28; // adcx, adox
-	static const Type tRDSEED = 1 << 29; // rdseed
-	static const Type tSMAP = 1 << 30; // stac
-	static const Type tHLE = uint64_t(1) << 31; // xacquire, xrelease, xtest
-	static const Type tRTM = uint64_t(1) << 32; // xbegin, xend, xabort
-	static const Type tF16C = uint64_t(1) << 33; // vcvtph2ps, vcvtps2ph
-	static const Type tMOVBE = uint64_t(1) << 34; // mobve
-	static const Type tAVX512F = uint64_t(1) << 35;
-	static const Type tAVX512DQ = uint64_t(1) << 36;
-	static const Type tAVX512_IFMA = uint64_t(1) << 37;
-	static const Type tAVX512IFMA = tAVX512_IFMA;
-	static const Type tAVX512PF = uint64_t(1) << 38;
-	static const Type tAVX512ER = uint64_t(1) << 39;
-	static const Type tAVX512CD = uint64_t(1) << 40;
-	static const Type tAVX512BW = uint64_t(1) << 41;
-	static const Type tAVX512VL = uint64_t(1) << 42;
-	static const Type tAVX512_VBMI = uint64_t(1) << 43;
-	static const Type tAVX512VBMI = tAVX512_VBMI; // changed by Intel's manual
-	static const Type tAVX512_4VNNIW = uint64_t(1) << 44;
-	static const Type tAVX512_4FMAPS = uint64_t(1) << 45;
-	static const Type tPREFETCHWT1 = uint64_t(1) << 46;
-	static const Type tPREFETCHW = uint64_t(1) << 47;
-	static const Type tSHA = uint64_t(1) << 48;
-	static const Type tMPX = uint64_t(1) << 49;
-	static const Type tAVX512_VBMI2 = uint64_t(1) << 50;
-	static const Type tGFNI = uint64_t(1) << 51;
-	static const Type tVAES = uint64_t(1) << 52;
-	static const Type tVPCLMULQDQ = uint64_t(1) << 53;
-	static const Type tAVX512_VNNI = uint64_t(1) << 54;
-	static const Type tAVX512_BITALG = uint64_t(1) << 55;
-	static const Type tAVX512_VPOPCNTDQ = uint64_t(1) << 56;
-	static const Type tAVX512_BF16 = uint64_t(1) << 57;
-	static const Type tAVX512_VP2INTERSECT = uint64_t(1) << 58;
-	static const Type tAMX_TILE = uint64_t(1) << 59;
-	static const Type tAMX_INT8 = uint64_t(1) << 60;
-	static const Type tAMX_BF16 = uint64_t(1) << 61;
-	static const Type tAVX_VNNI = uint64_t(1) << 62;
-	static const Type tAVX512_FP16 = uint64_t(1) << 11;
-	// 18, 63
+	static const Type tENHANCED_REP; // enhanced rep movsb/stosb
+	static const Type tRDRAND;
+	static const Type tADX; // adcx, adox
+	static const Type tRDSEED; // rdseed
+	static const Type tSMAP; // stac
+	static const Type tHLE; // xacquire, xrelease, xtest
+	static const Type tRTM; // xbegin, xend, xabort
+	static const Type tF16C; // vcvtph2ps, vcvtps2ph
+	static const Type tMOVBE; // mobve
+	static const Type tAVX512F;
+	static const Type tAVX512DQ;
+	static const Type tAVX512_IFMA;
+	static const Type tAVX512IFMA;
+	static const Type tAVX512PF;
+	static const Type tAVX512ER;
+	static const Type tAVX512CD;
+	static const Type tAVX512BW;
+	static const Type tAVX512VL;
+	static const Type tAVX512_VBMI;
+	static const Type tAVX512VBMI; // changed by Intel's manual
+	static const Type tAVX512_4VNNIW;
+	static const Type tAVX512_4FMAPS;
+	static const Type tPREFETCHWT1;
+	static const Type tPREFETCHW;
+	static const Type tSHA;
+	static const Type tMPX;
+	static const Type tAVX512_VBMI2;
+	static const Type tGFNI;
+	static const Type tVAES;
+	static const Type tVPCLMULQDQ;
+	static const Type tAVX512_VNNI;
+	static const Type tAVX512_BITALG;
+	static const Type tAVX512_VPOPCNTDQ;
+	static const Type tAVX512_BF16;
+	static const Type tAVX512_VP2INTERSECT;
+	static const Type tAMX_TILE;
+	static const Type tAMX_INT8;
+	static const Type tAMX_BF16;
+	static const Type tAVX_VNNI;
+	static const Type tCLFLUSHOPT;
+	static const Type tCLDEMOTE;
+	static const Type tMOVDIRI;
+	static const Type tMOVDIR64B;
 
-	Cpu()
+	CpuT()
 		: type_(NONE)
 		, x2APIC_supported_(false)
 		, numCores_()
@@ -528,11 +573,16 @@ public:
 			if (EBX & (1U << 18)) type_ |= tRDSEED;
 			if (EBX & (1U << 19)) type_ |= tADX;
 			if (EBX & (1U << 20)) type_ |= tSMAP;
+			if (EBX & (1U << 23)) type_ |= tCLFLUSHOPT;
 			if (EBX & (1U << 4)) type_ |= tHLE;
 			if (EBX & (1U << 11)) type_ |= tRTM;
 			if (EBX & (1U << 14)) type_ |= tMPX;
 			if (EBX & (1U << 29)) type_ |= tSHA;
 			if (ECX & (1U << 0)) type_ |= tPREFETCHWT1;
+			if (ECX & (1U << 5)) type_ |= tWAITPKG;
+			if (ECX & (1U << 25)) type_ |= tCLDEMOTE;
+			if (ECX & (1U << 27)) type_ |= tMOVDIRI;
+			if (ECX & (1U << 28)) type_ |= tMOVDIR64B;
 			if (EDX & (1U << 24)) type_ |= tAMX_TILE;
 			if (EDX & (1U << 25)) type_ |= tAMX_INT8;
 			if (EDX & (1U << 22)) type_ |= tAMX_BF16;
@@ -561,6 +611,84 @@ public:
 		return (type & type_) == type;
 	}
 };
+
+template<int dummy> const Type CpuT<dummy>::NONE = 0;
+template<int dummy> const Type CpuT<dummy>::tMMX = 1 << 0;
+template<int dummy> const Type CpuT<dummy>::tMMX2 = 1 << 1;
+template<int dummy> const Type CpuT<dummy>::tCMOV = 1 << 2;
+template<int dummy> const Type CpuT<dummy>::tSSE = 1 << 3;
+template<int dummy> const Type CpuT<dummy>::tSSE2 = 1 << 4;
+template<int dummy> const Type CpuT<dummy>::tSSE3 = 1 << 5;
+template<int dummy> const Type CpuT<dummy>::tSSSE3 = 1 << 6;
+template<int dummy> const Type CpuT<dummy>::tSSE41 = 1 << 7;
+template<int dummy> const Type CpuT<dummy>::tSSE42 = 1 << 8;
+template<int dummy> const Type CpuT<dummy>::tPOPCNT = 1 << 9;
+template<int dummy> const Type CpuT<dummy>::tAESNI = 1 << 10;
+template<int dummy> const Type CpuT<dummy>::tAVX512_FP16 = 1 << 11;
+template<int dummy> const Type CpuT<dummy>::tOSXSAVE = 1 << 12;
+template<int dummy> const Type CpuT<dummy>::tPCLMULQDQ = 1 << 13;
+template<int dummy> const Type CpuT<dummy>::tAVX = 1 << 14;
+template<int dummy> const Type CpuT<dummy>::tFMA = 1 << 15;
+
+template<int dummy> const Type CpuT<dummy>::t3DN = 1 << 16;
+template<int dummy> const Type CpuT<dummy>::tE3DN = 1 << 17;
+template<int dummy> const Type CpuT<dummy>::tWAITPKG = 1 << 18;
+template<int dummy> const Type CpuT<dummy>::tRDTSCP = 1 << 19;
+template<int dummy> const Type CpuT<dummy>::tAVX2 = 1 << 20;
+template<int dummy> const Type CpuT<dummy>::tBMI1 = 1 << 21; // andn, bextr, blsi, blsmsk, blsr, tzcnt
+template<int dummy> const Type CpuT<dummy>::tBMI2 = 1 << 22; // bzhi, mulx, pdep, pext, rorx, sarx, shlx, shrx
+template<int dummy> const Type CpuT<dummy>::tLZCNT = 1 << 23;
+
+template<int dummy> const Type CpuT<dummy>::tINTEL = 1 << 24;
+template<int dummy> const Type CpuT<dummy>::tAMD = 1 << 25;
+
+template<int dummy> const Type CpuT<dummy>::tENHANCED_REP = 1 << 26; // enhanced rep movsb/stosb
+template<int dummy> const Type CpuT<dummy>::tRDRAND = 1 << 27;
+template<int dummy> const Type CpuT<dummy>::tADX = 1 << 28; // adcx, adox
+template<int dummy> const Type CpuT<dummy>::tRDSEED = 1 << 29; // rdseed
+template<int dummy> const Type CpuT<dummy>::tSMAP = 1 << 30; // stac
+template<int dummy> const Type CpuT<dummy>::tHLE = uint64_t(1) << 31; // xacquire, xrelease, xtest
+template<int dummy> const Type CpuT<dummy>::tRTM = uint64_t(1) << 32; // xbegin, xend, xabort
+template<int dummy> const Type CpuT<dummy>::tF16C = uint64_t(1) << 33; // vcvtph2ps, vcvtps2ph
+template<int dummy> const Type CpuT<dummy>::tMOVBE = uint64_t(1) << 34; // mobve
+template<int dummy> const Type CpuT<dummy>::tAVX512F = uint64_t(1) << 35;
+template<int dummy> const Type CpuT<dummy>::tAVX512DQ = uint64_t(1) << 36;
+template<int dummy> const Type CpuT<dummy>::tAVX512_IFMA = uint64_t(1) << 37;
+template<int dummy> const Type CpuT<dummy>::tAVX512IFMA = tAVX512_IFMA;
+template<int dummy> const Type CpuT<dummy>::tAVX512PF = uint64_t(1) << 38;
+template<int dummy> const Type CpuT<dummy>::tAVX512ER = uint64_t(1) << 39;
+template<int dummy> const Type CpuT<dummy>::tAVX512CD = uint64_t(1) << 40;
+template<int dummy> const Type CpuT<dummy>::tAVX512BW = uint64_t(1) << 41;
+template<int dummy> const Type CpuT<dummy>::tAVX512VL = uint64_t(1) << 42;
+template<int dummy> const Type CpuT<dummy>::tAVX512_VBMI = uint64_t(1) << 43;
+template<int dummy> const Type CpuT<dummy>::tAVX512VBMI = tAVX512_VBMI; // changed by Intel's manual
+template<int dummy> const Type CpuT<dummy>::tAVX512_4VNNIW = uint64_t(1) << 44;
+template<int dummy> const Type CpuT<dummy>::tAVX512_4FMAPS = uint64_t(1) << 45;
+template<int dummy> const Type CpuT<dummy>::tPREFETCHWT1 = uint64_t(1) << 46;
+template<int dummy> const Type CpuT<dummy>::tPREFETCHW = uint64_t(1) << 47;
+template<int dummy> const Type CpuT<dummy>::tSHA = uint64_t(1) << 48;
+template<int dummy> const Type CpuT<dummy>::tMPX = uint64_t(1) << 49;
+template<int dummy> const Type CpuT<dummy>::tAVX512_VBMI2 = uint64_t(1) << 50;
+template<int dummy> const Type CpuT<dummy>::tGFNI = uint64_t(1) << 51;
+template<int dummy> const Type CpuT<dummy>::tVAES = uint64_t(1) << 52;
+template<int dummy> const Type CpuT<dummy>::tVPCLMULQDQ = uint64_t(1) << 53;
+template<int dummy> const Type CpuT<dummy>::tAVX512_VNNI = uint64_t(1) << 54;
+template<int dummy> const Type CpuT<dummy>::tAVX512_BITALG = uint64_t(1) << 55;
+template<int dummy> const Type CpuT<dummy>::tAVX512_VPOPCNTDQ = uint64_t(1) << 56;
+template<int dummy> const Type CpuT<dummy>::tAVX512_BF16 = uint64_t(1) << 57;
+template<int dummy> const Type CpuT<dummy>::tAVX512_VP2INTERSECT = uint64_t(1) << 58;
+template<int dummy> const Type CpuT<dummy>::tAMX_TILE = uint64_t(1) << 59;
+template<int dummy> const Type CpuT<dummy>::tAMX_INT8 = uint64_t(1) << 60;
+template<int dummy> const Type CpuT<dummy>::tAMX_BF16 = uint64_t(1) << 61;
+template<int dummy> const Type CpuT<dummy>::tAVX_VNNI = uint64_t(1) << 62;
+template<int dummy> const Type CpuT<dummy>::tCLFLUSHOPT = uint64_t(1) << 63;
+template<int dummy> const Type CpuT<dummy>::tCLDEMOTE = Type(0, 1 << 0);
+template<int dummy> const Type CpuT<dummy>::tMOVDIRI = Type(0, 1 << 1);
+template<int dummy> const Type CpuT<dummy>::tMOVDIR64B = Type(0, 1 << 2);
+
+} // local
+
+typedef local::CpuT<> Cpu;
 
 #ifndef XBYAK_ONLY_CLASS_CPU
 class Clock {

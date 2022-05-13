@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -189,7 +189,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x6030 /* 0xABCD = A.BC(D) */
+	VERSION = 0x6051 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -338,10 +338,10 @@ inline void SetError(int err) {
 inline void ClearError() {
 	local::GetErrorRef() = 0;
 }
-inline int GetError() { return local::GetErrorRef(); }
+inline int GetError() { return Xbyak::local::GetErrorRef(); }
 
-#define XBYAK_THROW(err) { local::SetError(err); return; }
-#define XBYAK_THROW_RET(err, r) { local::SetError(err); return r; }
+#define XBYAK_THROW(err) { Xbyak::local::SetError(err); return; }
+#define XBYAK_THROW_RET(err, r) { Xbyak::local::SetError(err); return r; }
 
 #else
 class Error : public std::exception {
