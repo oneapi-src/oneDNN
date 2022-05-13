@@ -153,7 +153,7 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
     const int id_end = min(od * SD - PD + KD, ID);
     const int ih_end = min(oh * SH - PH + KH, IH);
     const int iw_end = min(ow * SW - PW + KW, IW);
-    const DATA_T num_summands
+    const int num_summands
             = (ih_end - ih_start) * (iw_end - iw_start) * (id_end - id_start);
     D0 = D0 / num_summands;
     D1 = D1 / num_summands;
@@ -314,7 +314,7 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 const int id_end = min(id - kd + KD, ID);
                 const int ih_end = min(ih - kh + KH, IH);
                 const int iw_end = min(iw - kw + KW, IW);
-                const float num_summands = (ih_end - ih_start)
+                const int num_summands = (ih_end - ih_start)
                         * (iw_end - iw_start) * (id_end - id_start);
                 D0 /= num_summands;
                 D1 /= num_summands;
