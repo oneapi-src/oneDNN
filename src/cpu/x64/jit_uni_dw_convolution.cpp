@@ -283,6 +283,9 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
 
                 // main loop
                 ur_str_w = (aux_w - iw) / jcp.stride_w;
+                // may larger than the actual width and result crash
+                while (iw + ur_str_w * jcp.stride_w > jcp.iw)
+                    ur_str_w--;
                 if (ur_str_w > 0) {
                     jit_conv_call_s par_conv = kernel_params(ur_str_w, iw, oh,
                             ih, i_t_overflow, i_b_overflow, stride_off_h, ch, n,
