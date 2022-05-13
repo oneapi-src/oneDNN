@@ -205,7 +205,7 @@ std::unique_ptr<graph::repository> &get_driver_import_repo(
             try {
                 return utils::make_unique<graph::repository>(
                         graph::repository::load(ctx, ifs));
-            } catch (json_error je) {
+            } catch (json_error &je) {
                 SC_MODULE_WARN << "Ignored graph config file: " << import_path
                                << ", error = " << je.what();
                 return std::unique_ptr<graph::repository> {};
