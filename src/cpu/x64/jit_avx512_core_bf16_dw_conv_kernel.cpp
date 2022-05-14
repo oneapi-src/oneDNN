@@ -416,6 +416,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
     const bool ch_loop = ur_ch_blocks > jcp.nb_ch_blocking;
 
     push(reg_ch_blocks);
+    base_post_ops_data_offset += reg64_size;
 
     if (ch_loop) {
         Label ch_loop_label, ch_tail_label, skip_ch_tail_label;
@@ -473,6 +474,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
     }
 
     pop(reg_ch_blocks);
+    base_post_ops_data_offset -= reg64_size;
 }
 
 void jit_avx512_dw_conv_fwd_kernel_bf16::loop_ow(int ur_ch_blocks) {
