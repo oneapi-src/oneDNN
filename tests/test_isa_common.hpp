@@ -54,6 +54,7 @@ inline impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
         HANDLE_ISA(avx512_core_amx);
         HANDLE_ISA(avx2_vnni);
         HANDLE_ISA(avx512_core_fp16);
+        HANDLE_ISA(avx2_vnni_2);
         default:
             assert(input_isa == cpu_isa::isa_default);
             return impl::cpu::x64::cpu_isa_t::isa_all;
@@ -106,10 +107,10 @@ hints_masked_internal_cpu_isa(cpu_isa_hints hints) {
 
 inline const std::set<cpu_isa> &cpu_isa_list() {
     static const std::set<cpu_isa> isa_list {cpu_isa::sse41, cpu_isa::avx,
-            cpu_isa::avx2, cpu_isa::avx2_vnni, cpu_isa::avx512_core,
-            cpu_isa::avx512_core_vnni, cpu_isa::avx512_core_bf16,
-            cpu_isa::avx512_core_fp16, cpu_isa::avx512_core_amx,
-            cpu_isa::isa_default};
+            cpu_isa::avx2, cpu_isa::avx2_vnni, cpu_isa::avx2_vnni_2,
+            cpu_isa::avx512_core, cpu_isa::avx512_core_vnni,
+            cpu_isa::avx512_core_bf16, cpu_isa::avx512_core_fp16,
+            cpu_isa::avx512_core_amx, cpu_isa::isa_default};
 
     return isa_list;
 }
@@ -124,6 +125,9 @@ inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
             {cpu_isa::avx2_vnni,
                     {cpu_isa::avx2_vnni, cpu_isa::avx2, cpu_isa::avx,
                             cpu_isa::sse41}},
+            {cpu_isa::avx2_vnni_2,
+                    {cpu_isa::avx2_vnni_2, cpu_isa::avx2_vnni, cpu_isa::avx2,
+                            cpu_isa::avx, cpu_isa::sse41}},
             {cpu_isa::avx512_core,
                     {cpu_isa::avx512_core, cpu_isa::avx2, cpu_isa::avx,
                             cpu_isa::sse41}},
@@ -150,8 +154,8 @@ inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
                             cpu_isa::avx512_core_fp16,
                             cpu_isa::avx512_core_bf16,
                             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core,
-                            cpu_isa::avx2_vnni, cpu_isa::avx2, cpu_isa::avx,
-                            cpu_isa::sse41}}};
+                            cpu_isa::avx2_vnni_2, cpu_isa::avx2_vnni,
+                            cpu_isa::avx2, cpu_isa::avx, cpu_isa::sse41}}};
 
     auto iter = isa_cmpt_info.find(input_isa);
     assert(iter != isa_cmpt_info.end());

@@ -59,6 +59,7 @@ enum cpu_isa_bit_t : unsigned {
     avx_bit = 1u << 1,
     avx2_bit = 1u << 2,
     avx_vnni_bit = 1u << 3,
+    avx_vnni_2_bit = 1u << 4,
     avx512_core_bit = 1u << 5,
     avx512_core_vnni_bit = 1u << 6,
     avx512_core_bf16_bit = 1u << 7,
@@ -107,6 +108,7 @@ enum cpu_isa_t : unsigned {
     avx = avx_bit | sse41,
     avx2 = avx2_bit | avx,
     avx2_vnni = avx_vnni_bit | avx2,
+    avx2_vnni_2 = avx2_vnni | avx_vnni_2_bit,
     avx512_core = avx512_core_bit | avx2,
     avx512_core_vnni = avx512_core_vnni_bit | avx512_core,
     avx512_core_bf16 = avx512_core_bf16_bit | avx512_core_vnni,
@@ -248,6 +250,12 @@ struct cpu_isa_traits<avx2_vnni> : public cpu_isa_traits<avx2> {
 };
 
 template <>
+struct cpu_isa_traits<avx2_vnni_2> : public cpu_isa_traits<avx2> {
+    static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx2_vnni_2;
+    static constexpr const char *user_option_env = "avx2_vnni_2";
+};
+
+template <>
 struct cpu_isa_traits<avx512_core> {
     typedef Xbyak::Zmm Vmm;
     static constexpr int vlen_shift = 6;
@@ -318,6 +326,9 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
         case avx: return cpu().has(Cpu::tAVX);
         case avx2: return cpu().has(Cpu::tAVX2);
         case avx2_vnni: return mayiuse(avx2, soft) && cpu().has(Cpu::tAVX_VNNI);
+        case avx2_vnni_2:
+            return mayiuse(avx2_vnni, soft) && cpu().has(Cpu::tAVX_VNNI_INT8)
+                    && cpu().has(Cpu::tAVX_NE_CONVERT);
         case avx512_core:
             return cpu().has(Cpu::tAVX512F) && cpu().has(Cpu::tAVX512BW)
                     && cpu().has(Cpu::tAVX512VL) && cpu().has(Cpu::tAVX512DQ);
@@ -366,6 +377,7 @@ static inline bool isa_has_bf16(cpu_isa_t isa) {
     (isa) == avx ? prefix STRINGIFY(avx) : \
     (isa) == avx2 ? prefix STRINGIFY(avx2) : \
     (isa) == avx2_vnni ? prefix STRINGIFY(avx2_vnni) : \
+    (isa) == avx2_vnni_2 ? prefix STRINGIFY(avx2_vnni_2) : \
     (isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
     (isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
     (isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \

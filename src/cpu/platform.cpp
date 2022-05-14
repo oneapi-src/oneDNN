@@ -109,7 +109,8 @@ bool has_data_type_support(data_type_t data_type) {
     switch (data_type) {
         case data_type::bf16:
 #if DNNL_X64
-            return x64::mayiuse(x64::avx512_core);
+            return x64::mayiuse(x64::avx512_core)
+                    || x64::mayiuse(x64::avx2_vnni_2);
 #elif DNNL_PPC64
 #if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)
             return true;
@@ -119,7 +120,8 @@ bool has_data_type_support(data_type_t data_type) {
 #endif
         case data_type::f16:
 #if DNNL_X64
-            return x64::mayiuse(x64::avx512_core_fp16);
+            return x64::mayiuse(x64::avx512_core_fp16)
+                    || x64::mayiuse(x64::avx2_vnni_2);
 #else
             return false;
 #endif

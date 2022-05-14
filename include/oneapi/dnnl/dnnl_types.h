@@ -2363,6 +2363,10 @@ typedef enum {
     /// Intel AVX2 and Intel Deep Learning Boost (Intel DL Boost) support
     dnnl_cpu_isa_avx2_vnni = 0xf,
 
+    /// Intel AVX2 and Intel Deep Learning Boost (Intel DL Boost)
+    /// with 8-bit integer, float16 and bfloat16 support
+    dnnl_cpu_isa_avx2_vnni_2 = 0x1f,
+
     /// Intel AVX-512 subset for Intel Xeon Scalable processor family
     /// and Intel Core processor family.
     dnnl_cpu_isa_avx512_core = 0x27,

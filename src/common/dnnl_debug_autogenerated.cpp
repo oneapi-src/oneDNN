@@ -1227,6 +1227,7 @@ const char *dnnl_cpu_isa2str(dnnl_cpu_isa_t v) {
     if (v == dnnl_cpu_isa_avx) return "cpu_isa_avx";
     if (v == dnnl_cpu_isa_avx2) return "cpu_isa_avx2";
     if (v == dnnl_cpu_isa_avx2_vnni) return "cpu_isa_avx2_vnni";
+    if (v == dnnl_cpu_isa_avx2_vnni_2) return "cpu_isa_avx2_vnni_2";
     if (v == dnnl_cpu_isa_avx512_core) return "cpu_isa_avx512_core";
     if (v == dnnl_cpu_isa_avx512_core_vnni) return "cpu_isa_avx512_core_vnni";
     if (v == dnnl_cpu_isa_avx512_core_bf16) return "cpu_isa_avx512_core_bf16";

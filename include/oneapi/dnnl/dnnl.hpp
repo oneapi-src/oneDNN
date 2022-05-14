@@ -12595,6 +12595,8 @@ enum class cpu_isa {
     avx2 = dnnl_cpu_isa_avx2,
     /// @copydoc dnnl_cpu_isa_avx2_vnni
     avx2_vnni = dnnl_cpu_isa_avx2_vnni,
+    /// @copydoc dnnl_cpu_isa_avx2_vnni_2
+    avx2_vnni_2 = dnnl_cpu_isa_avx2_vnni_2,
     /// @copydoc dnnl_cpu_isa_avx512_core
     avx512_core = dnnl_cpu_isa_avx512_core,
     /// @copydoc dnnl_cpu_isa_avx512_core_vnni
