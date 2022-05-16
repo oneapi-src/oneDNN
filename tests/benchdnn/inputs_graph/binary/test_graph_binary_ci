@@ -23,3 +23,10 @@
 # post add
 --reset
 --alg=ADD --ddt=f32 --sdt=f32:f32 --attr-post-ops=add:f32:per_tensor --stag=abx:abx 32x32:32x32
+
+# several post binaries
+--reset
+--alg=ADD,DIV,MUL,SUB
+--sdt=f32:f32 --ddt=f32
+--attr-post-ops=add:f32:common+mul:f32:per_oc+sub:f32:per_tensor,div:f32:common+add:f32:per_oc+mul:f32:per_oc
+64x128x28x28:64x128x28x28
