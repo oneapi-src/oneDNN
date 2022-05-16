@@ -60,6 +60,6 @@
 --stag=any,axb
 --dtag=any,axb
 --alg=direct
---dir=FWD_B,BWD_D,BWD_WB
+--dir=FWD_B,BWD_D,BWD_W
 --cfg=f64
 --batch=shapes_basic_gpu

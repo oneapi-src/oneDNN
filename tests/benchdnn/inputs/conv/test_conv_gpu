@@ -9,7 +9,7 @@
 # f64
 --cfg=f64
 --mb=2,16
---dir=FWD_B,BWD_D
+--dir=FWD_B,BWD_D,BWD_W
 --batch=set_gpu
 
 # fpmath-mode

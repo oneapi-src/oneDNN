@@ -252,9 +252,10 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
                     && desc()->alg_kind == alg_kind::convolution_direct
                     && !memory_desc_ndims_ok(src_md(), diff_dst_md())
                     && utils::one_of(
-                            desc()->diff_weights_desc.data_type, f32, bf16)
-                    && utils::one_of(desc()->src_desc.data_type, f32, bf16)
-                    && utils::one_of(desc()->diff_dst_desc.data_type, f32, bf16)
+                            desc()->diff_weights_desc.data_type, f32, bf16, f64)
+                    && utils::one_of(desc()->src_desc.data_type, f32, bf16, f64)
+                    && utils::one_of(
+                            desc()->diff_dst_desc.data_type, f32, bf16, f64)
                     && this->set_default_formats()
                     && attr()->has_default_values()
                     && IMPLICATION(
