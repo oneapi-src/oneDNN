@@ -722,6 +722,32 @@ inline bool is_native_runtime(runtime_kind_t kind) {
             runtime_kind::tbb, runtime_kind::threadpool);
 }
 
+// Convenience wrapper to choose at compile-time between std::unique_ptr's
+// default deleter and a no-op one.
+//
+// This is useful for static pointers to objects with non-trivial destructors.
+// In some environments (e.g. tests where not all threads are joined at exit
+// time) these destructors can result in sanitizer failures (e.g. races in
+// thread sanitizer) when destructing unique_ptr's, but not with raw pointers.
+// Of course in a shared library environment using raw pointers (that are
+// therefore never freed) would result in memory leaks; this is why
+// DNNL_MAYBE_UNIQUE_PTR_IS_UNIQUE defaults to 1.
+#ifndef DNNL_MAYBE_UNIQUE_PTR_IS_UNIQUE
+#define DNNL_MAYBE_UNIQUE_PTR_IS_UNIQUE 1
+#endif
+
+#if DNNL_MAYBE_UNIQUE_PTR_IS_UNIQUE
+template <typename T>
+using maybe_unique_ptr = std::unique_ptr<T>;
+#else
+struct nop_deleter_t {
+    template <typename T>
+    void operator()(T const &) const noexcept {}
+};
+template <typename T>
+using maybe_unique_ptr = std::unique_ptr<T, nop_deleter_t>;
+#endif // DNNL_MAYBE_UNIQUE_PTR_IS_UNIQUE
+
 } // namespace impl
 } // namespace dnnl
 

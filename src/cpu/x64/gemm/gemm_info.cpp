@@ -366,8 +366,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
         bool is_amx = is_int8_amx || is_bf16_amx;
 
-        static std::unique_ptr<jit_generator> copy_a[2][2] = {{nullptr}};
-        static std::unique_ptr<jit_generator> copy_b[2][2] = {{nullptr}};
+        static maybe_unique_ptr<jit_generator> copy_a[2][2] = {{nullptr}};
+        static maybe_unique_ptr<jit_generator> copy_b[2][2] = {{nullptr}};
 
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
@@ -569,7 +569,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         constexpr bool is_b_s8 = data_traits<b_t>::data_type == data_type::s8;
         constexpr bool is_c_s32 = data_traits<c_t>::data_type == data_type::s32;
 
-        static std::unique_ptr<jit_generator> kernel[2][2][2][2]
+        static maybe_unique_ptr<jit_generator> kernel[2][2][2][2]
                 = {{{{nullptr}}}};
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
@@ -674,10 +674,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
             default: break;
         }
 
-        static std::unique_ptr<jit_generator> gemv_kernel[2] = {nullptr};
-        static std::unique_ptr<jit_generator> gemv_s8s8s32_kernel = nullptr;
-        static std::unique_ptr<jit_generator> gemv_s8u8s32_kernel = nullptr;
-        static std::unique_ptr<jit_generator> gemv_u8s8s32_kernel = nullptr;
+        static maybe_unique_ptr<jit_generator> gemv_kernel[2] = {nullptr};
+        static maybe_unique_ptr<jit_generator> gemv_s8s8s32_kernel = nullptr;
+        static maybe_unique_ptr<jit_generator> gemv_s8u8s32_kernel = nullptr;
+        static maybe_unique_ptr<jit_generator> gemv_u8s8s32_kernel = nullptr;
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
                 if (mayiuse(avx512_core)) {

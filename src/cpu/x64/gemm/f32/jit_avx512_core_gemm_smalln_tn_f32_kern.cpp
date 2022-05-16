@@ -727,7 +727,7 @@ dnnl_status_t sgemm_smalln_tn(const dim_t m, const dim_t n, const dim_t k,
         const dim_t ldb, const float beta, float *C, const dim_t ldc) {
     using namespace avx512_core_gemm_smalln_tn_f32;
 
-    static std::unique_ptr<xbyak_gemm_smalln_tn_t> kernels[4][3][3];
+    static maybe_unique_ptr<xbyak_gemm_smalln_tn_t> kernels[4][3][3];
     static std::once_flag initialized;
 
     static dnnl_status_t st = dnnl_success;
