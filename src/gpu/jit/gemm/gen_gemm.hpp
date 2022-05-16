@@ -62,6 +62,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();
+            int stepping = dev_info_->stepping_id();
 
             ok = set_default_formats();
             if (!ok) return status::unimplemented;
@@ -179,7 +180,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && acc_type == data_type::f16)
                 acc_type = data_type::f32;
 
-            auto status = kernel_desc_.select_kernel(arch_,
+            auto status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), batch_dims(), eff_transa(),
                     eff_transb(), with_ab_zero_points(), with_c_zero_points(),
                     with_bias(), alpha(), beta(), attr()->post_ops_,

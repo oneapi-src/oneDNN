@@ -54,7 +54,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     problem_.CO.setAlignment(problem_.Tco.size());
 
     // Parse strategy string.
-    strategy_ = GEMMStrategy(hw_);
+    strategy_ = GEMMStrategy(hw_, stepping_);
     strategy_.unroll[LoopM] = entry_->driverInfo.unroll[LoopM];
     strategy_.unroll[LoopN] = entry_->driverInfo.unroll[LoopN];
     parseStrategy(entry_->strategy, hw_, problem_, strategy_);
@@ -113,7 +113,7 @@ void gen_gemm_kernel_desc_t::update_driver_info() {
 }
 
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
-        int eu_count, int batch_dims, bool trans_a, bool trans_b,
+        int stepping, int eu_count, int batch_dims, bool trans_a, bool trans_b,
         bool ab_offset, bool c_offset, bool bias, float alpha, float beta,
         const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
         data_type_t c_type, data_type_t co_type, data_type_t acc_type,
@@ -124,6 +124,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     arch_ = arch;
     hw_ = convert_dnnl_arch_to_hw(arch);
+    stepping_ = stepping;
     m_ = m;
     n_ = n;
     k_ = k;
@@ -419,6 +420,7 @@ cl_kernel gen_gemm_kernel_t::get_kernel(
 #define ARCH_DISPATCH(arch) \
     case ngen::HW::arch: { \
         gemm_kernel_generator_t<ngen::HW::arch> generator; \
+        generator.setStepping(desc()->stepping_); \
         generator.gemm(*desc()->problem(), *desc()->strategy(), interface_); \
         ocl_kernel = generator.getKernel(context, device); \
         break; \
