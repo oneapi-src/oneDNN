@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,6 +76,13 @@ struct BundleGroup {
         for (int rchunk = 0; rchunk < nmasks; rchunk++)
             reg_masks[rchunk] |= rhs.reg_mask(hw, rchunk);
         return *this;
+    }
+
+    BundleGroup operator~() {
+        auto result = *this;
+        for (int rchunk = 0; rchunk < nmasks; rchunk++)
+            result.reg_masks[rchunk] = ~reg_masks[rchunk];
+        return result;
     }
 
     uint64_t reg_mask(int rchunk) const {

@@ -865,6 +865,8 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                     base = send.src1Reg;
                     len = send.exDescIsReg ? -1 : send.exDesc6_10;
                     break;
+                case 2:
+                case 3: // TODO: May need to track indirect acc usage
                 default: return false;
             }
 
@@ -910,7 +912,6 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 default: return false;
             }
             dt |= (ternary.execType << 3);
-            if (o.direct.regFile == RegFileARF) return false;
             if (op == Opcode::madm) o.direct.subRegNum = 0;
             auto base = GRF(o.direct.regNum).retype(decodeRegTypecode12(dt));
             auto sr = o.direct.subRegNum;
@@ -922,6 +923,12 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 rd = sub(hs);
             else
                 rd = sub((1 << vs) >> 1, hs);
+
+            if (o.direct.regFile == RegFileARF) {
+                rd.setARF(true);
+                if (!autoswsb::trackableARF(rd.getARFType()))
+                    return false;
+            }
             break;
         }
         default: {    // unary/binary
@@ -945,7 +952,6 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 default: return false;
             }
             if (o.direct.addrMode) { region = DependencyRegion(hw); return true; } // indirect
-            if (o.direct.regFile == RegFileARF) return false;
             if (isMathMacro())
                 o.direct.subRegNum = 0;
             auto sr = xeHPC ? ((o.direct.subRegNum << 1) | o.directXeHPC.subRegNum0)
@@ -958,6 +964,12 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 rd = sub(hs);
             else
                 rd = sub((1 << vs) >> 1, 1 << o.direct.width, hs);
+
+            if (o.direct.regFile == RegFileARF) {
+                rd.setARF(true);
+                if (!autoswsb::trackableARF(rd.getARFType()))
+                    return false;
+            }
             break;
         }
     }

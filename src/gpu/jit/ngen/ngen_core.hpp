@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -550,6 +550,7 @@ public:
     constexpr14 RegData &setType(DataType newType)               { type = static_cast<unsigned>(newType); return *this; }
     constexpr14 RegData &setMods(int mods_)                      { mods = mods_; return *this; }
     constexpr14 RegData &setRegion(int vs_, int width_, int hs_) { vs = vs_; width = width_; hs = hs_; return *this; }
+    constexpr14 RegData &setARF(bool arf_)                       { arf = arf_; return *this; }
 
     void invalidate()                     { invalid = true; }
     RegData &operator=(const Invalid &i)  { this->invalidate(); return *this; }
@@ -1525,7 +1526,9 @@ public:
 // Token count.
 constexpr inline int tokenCount(HW hw)
 {
-    return (hw >= HW::XeHPC) ? 32 : 16;
+    return (hw >= HW::XeHPC) ? 32 :
+         (hw >= HW::Gen12LP) ? 16
+                             : 0;
 }
 
 class SBID

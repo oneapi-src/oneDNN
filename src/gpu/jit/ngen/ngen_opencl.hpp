@@ -54,6 +54,9 @@ public:
     inline cl_kernel getKernel(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
     static inline HW detectHW(cl_context context, cl_device_id device);
     static inline void detectHWInfo(cl_context context, cl_device_id device, HW &outHW, int &outStepping);
+
+private:
+    inline std::vector<uint8_t> getPatchTokenBinary(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
 };
 
 #define NGEN_FORWARD_OPENCL(hw) NGEN_FORWARD_ELF(hw)
@@ -112,7 +115,7 @@ inline bool tryZebinFirst(cl_device_id device)
 }; /* namespace detail */
 
 template <HW hw>
-std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_device_id device, const std::string &options)
+std::vector<uint8_t> OpenCLCodeGenerator<hw>::getPatchTokenBinary(cl_context context, cl_device_id device, const std::string &options)
 {
     using super = ELFCodeGenerator<hw>;
     std::ostringstream dummyCL;
@@ -132,6 +135,28 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_d
 }
 
 template <HW hw>
+std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_device_id device, const std::string &options)
+{
+    using super = ELFCodeGenerator<hw>;
+    bool zebinFirst = detail::tryZebinFirst(device);
+
+    for (bool defaultFormat : {true, false}) {
+        bool legacy = defaultFormat ^ zebinFirst;
+
+        if (legacy) {
+            try {
+                return getPatchTokenBinary(context, device, options);
+            } catch (...) {
+                continue;
+            }
+        } else
+            return super::getBinary();
+    }
+
+    return std::vector<uint8_t>();      // Unreachable.
+}
+
+template <HW hw>
 cl_kernel OpenCLCodeGenerator<hw>::getKernel(cl_context context, cl_device_id device, const std::string &options)
 {
     using super = ELFCodeGenerator<hw>;
@@ -146,7 +171,7 @@ cl_kernel OpenCLCodeGenerator<hw>::getKernel(cl_context context, cl_device_id de
 
         if (legacy) {
             try {
-                binary = getBinary(context, device);
+                binary = getPatchTokenBinary(context, device);
             } catch (...) {
                 continue;
             }

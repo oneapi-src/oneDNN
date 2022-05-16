@@ -103,11 +103,12 @@ struct DependencyRegion {
     uint8_t base, size;
     uint8_t unspecified : 1;
     uint8_t checkWAW : 1;
+    uint8_t arf : 1;
     HW hw;
     std::array<uint32_t, 32> masks;
 
     DependencyRegion() : DependencyRegion(HW::Unknown) {}
-    explicit DependencyRegion(HW hw_) : base(0), size(0), unspecified{true}, checkWAW{false}, hw{hw_} {
+    explicit DependencyRegion(HW hw_) : base(0), size(0), unspecified{true}, checkWAW{false}, arf{false}, hw{hw_} {
         for (auto &m: masks) m = 0;
     }
     inline DependencyRegion(HW hw, GRFRange r);
@@ -123,7 +124,7 @@ struct DependencyRegion {
                 return false;
         return true;
     }
-    void clear()        { *this = DependencyRegion(hw); unspecified = false; checkWAW = false; }
+    void clear()        { *this = DependencyRegion(hw); unspecified = false; checkWAW = false; arf = false; }
 
 #ifdef NGEN_DEBUG
     inline void dump() const;
@@ -364,6 +365,7 @@ DependencyRegion::DependencyRegion(HW hw_, GRFRange r)
     hw = hw_;
     unspecified = false;
     checkWAW = false;
+    arf = false;
     base = r.getBase();
     size = r.getLen();
     auto fullMask = ~uint32_t(0);
@@ -380,6 +382,7 @@ DependencyRegion::DependencyRegion(HW hw_, int esize, RegData rr)
     base = rr.getBase();
     unspecified = false;
     checkWAW = false;
+    arf = rr.isARF();
 
     int hs = rr.getHS(), vs = rr.getVS();
     int nh = rr.getWidth();
@@ -429,6 +432,11 @@ DependencyRegion::DependencyRegion(HW hw_, int esize, RegData rr)
 
 void DependencyRegion::intersect(const DependencyRegion &other)
 {
+    if (arf != other.arf) {
+        clear();
+        return;
+    }
+
     if (unspecified || other.unspecified)
         return;
 
@@ -444,6 +452,10 @@ void DependencyRegion::intersect(const DependencyRegion &other)
 // Check whether two regions overlap.
 inline bool intersects(const DependencyRegion &dep1, const DependencyRegion &dep2)
 {
+    // Check register file.
+    if (dep1.arf != dep2.arf)
+        return false;
+
     // Unspecified regions might always overlap.
     if (dep1.unspecified || dep2.unspecified)
         return true;
@@ -465,6 +477,8 @@ inline bool intersects(const DependencyRegion &dep1, const DependencyRegion &dep
 
 void DependencyRegion::subtract(const DependencyRegion &other)
 {
+    if (other.arf != arf)
+        return;
     if (unspecified)
         return;
     if (other.unspecified)
@@ -481,6 +495,7 @@ inline bool contains(const DependencyRegion &dep1, const DependencyRegion &dep2)
 {
     using mtype = decltype(DependencyRegion::masks)::value_type;
 
+    if (dep1.arf != dep2.arf) return false;
     if (dep1.unspecified) return true;
     if (dep2.unspecified) return false;
 
@@ -491,6 +506,12 @@ inline bool contains(const DependencyRegion &dep1, const DependencyRegion &dep2)
             return false;
     }
     return true;
+}
+
+// Check if an ARF type needs SWSB tracking.
+inline bool trackableARF(ARFType type)
+{
+    return (type == ARFType::acc || type == ARFType::a);
 }
 
 // Distance in an in-order pipe after which a dependency can be ignored.
@@ -561,6 +582,7 @@ inline bool intersects(const Dependency<false> &dep1, const Dependency<true> &de
         if (!(dep1.write() && dep2.write() && (dep1.region.checkWAW || dep2.region.checkWAW)))
         if (dep2.write() && (dep1.pipe == dep2.pipe) && (dep1.pipe != GeneralizedPipe::Math()))     return false;
         if (dep1.pipe.inOrder() && (distance(dep1, dep2, dep1.pipe) >= timeout(dep1.pipe)))         return false;
+        if (dep2.region.arf && (dep2.read() || dep2.region.hw == HW::Gen12LP))                      return false;
         return intersects(dep1.region, dep2.region);
     } else {
         // SWSB dependency.
@@ -1738,6 +1760,9 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
                 bb.producers.removeIntersections(consumeOp);
             }
 
+            // Absorb wrdeps.
+            wrdepTokenMaskDst = 0;
+
             // Clear auto-SWSB bit if it was set.
             if (phase == 2)
                 insn.clearAutoSWSB();
@@ -1822,6 +1847,10 @@ inline void analyze(HW hw, Program &program, BasicBlock &bb, int phase)
 
         forceA1 = forceA1Next;
     }
+
+    // Create sync insertion for any outstanding wrdep pseudo-instructions.
+    if (wrdepTokenMaskDst && phase == 2)
+        bb.syncs.push_back({uint32_t(bb.iend), SWSBInfo(), SyncFunction::allwr, wrdepTokenMaskDst});
 
     // Add preconsume dependencies to consume list.
     if (!final) {

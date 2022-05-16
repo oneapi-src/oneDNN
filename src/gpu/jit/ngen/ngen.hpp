@@ -1549,6 +1549,8 @@ template <typename... Targs> void setDefaultAutoSWSB(Targs&&... args) { ngen::Bi
 bool getDefaultNoMask() { return ngen::BinaryCodeGenerator<hw>::getDefaultNoMask(); } \
 bool getDefaultAutoSWSB() { return ngen::BinaryCodeGenerator<hw>::getDefaultAutoSWSB(); } \
 using ngen::BinaryCodeGenerator<hw>::stepping; \
+int getStepping() { return ngen::BinaryCodeGenerator<hw>::getStepping(); } \
+void setStepping(int stepping_) { ngen::BinaryCodeGenerator<hw>::setStepping(stepping_); } \
 NGEN_FORWARD_EXTRA \
 NGEN_FORWARD_OP_NAMES \
 NGEN_FORWARD_MIN_MAX \

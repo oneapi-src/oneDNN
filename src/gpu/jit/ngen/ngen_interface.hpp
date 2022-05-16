@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -531,8 +531,10 @@ std::string InterfaceHandler::generateZeInfo() const
         md << "      has_no_stateless_write: true\n";
     if (needNoPreemption)
         md << "      disable_mid_thread_preemption: true\n";
-    md << "\n";
-    md << "    payload_arguments: \n";
+    if (!assignments.empty()) {
+        md << "\n"
+              "    payload_arguments: \n";
+    }
     for (auto &assignment : assignments) {
         uint32_t size = 0;
         bool skipArg = false;
@@ -554,14 +556,15 @@ std::string InterfaceHandler::generateZeInfo() const
                 md << "      - arg_type: arg_byvalue\n";
                 size = (assignment.reg.getDwords() << 2);
                 break;
-            case ExternalArgumentType::LocalPtr:
             case ExternalArgumentType::GlobalPtr:
-                if (!assignment.globalStatelessAccess())
+                if (!assignment.globalStatelessAccess()) {
                     skipArg = true;
-                else {
-                    md << "      - arg_type: arg_bypointer\n";
-                    size = (assignment.reg.getDwords() << 2);
+                    break;
                 }
+                // fall through
+            case ExternalArgumentType::LocalPtr:
+                md << "      - arg_type: arg_bypointer\n";
+                size = (assignment.reg.getDwords() << 2);
                 break;
             case ExternalArgumentType::Hidden: {
                 explicitArg = false;
@@ -599,28 +602,31 @@ std::string InterfaceHandler::generateZeInfo() const
         md << "\n";
     }
 
-    md << "\n";
-    md << "    binding_table_indices: \n";
-
+    bool firstSurface = true;
     for (auto &assignment : assignments) {
         if (assignment.globalSurfaceAccess()) {
+            if (firstSurface) {
+                md << "\n"
+                      "    binding_table_indices: \n";
+                firstSurface = false;
+            }
             md << "      - bti_value: " << assignment.surface << "\n"
                   "        arg_index: " << assignment.index << "\n"
                   " \n";
         }
     }
 
-    md << "\n";
-    md << "    per_thread_payload_arguments: \n";
-
     if (needLocalID) {
+        md << "\n"
+              "    per_thread_payload_arguments: \n";
+
         if (simd == 1) {
             md << "      - arg_type: packed_local_ids\n"
                   "        offset: 0\n"
                   "        size: 6\n"
                   "  \n";
         } else {
-            auto localIDBytes = grfsPerLID() * 32;
+            auto localIDBytes = grfsPerLID() * GRF::bytes(hw);
             localIDBytes *= 3; // runtime currently supports 0 or 3 localId channels in per thread data
             md << "      - arg_type: local_id\n"
                   "        offset: 0\n"

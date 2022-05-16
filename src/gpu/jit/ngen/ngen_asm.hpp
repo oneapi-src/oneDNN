@@ -319,7 +319,7 @@ bool AsmInstruction::getOperandRegion(autoswsb::DependencyRegion &region, int op
         default: return false;
     }
 
-    if (rd.isARF())
+    if (rd.isARF() && !autoswsb::trackableARF(rd.getARFType()))
         return false;
 
     if (rd.isIndirect())
@@ -1657,16 +1657,16 @@ void AsmCodeGenerator::getCode(std::ostream &out)
     int lineNo = 0;
 
     for (auto &i : streamStack.back()->buffer) {
+        while ((nextSync != syncs.end()) && (nextSync->second->inum == i.inum))
+            outX(out, *(nextSync++)->second, lineNo++);
+
         if (i.isLabel()) {
             i.dst.label.outputText(out, PrintDetail::full, labelManager);
             out << ':' << std::endl;
-        } else if (i.isComment()) {
+        } else if (i.isComment())
             out << "// " << i.comment << std::endl;
-        } else if (i.op != Opcode::wrdep) {
-            while ((nextSync != syncs.end()) && (nextSync->second->inum == i.inum))
-                outX(out, *(nextSync++)->second, lineNo++);
+        else if (i.op != Opcode::wrdep)
             outX(out, i, lineNo++);
-        }
     }
 }
 
