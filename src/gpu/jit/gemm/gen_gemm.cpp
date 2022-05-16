@@ -109,8 +109,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     gws[0] = utils::div_up(m, nocopy_info()->unroll[LoopM]);
     gws[1] = utils::div_up(n, nocopy_info()->unroll[LoopN]);
-    gws[2] = k_parallel ? nstl::max(1, utils::div_up(k, k0))
-                        : pd()->desc()->batch();
+    gws[2] = k_parallel ? nstl::max(1, utils::div_up(k, k0)) : 1;
 
     size_t lws[3] = {size_t(nocopy_info()->wg[0]), size_t(nocopy_info()->wg[1]),
             size_t(nocopy_info()->wg[2])};
@@ -129,7 +128,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         ;
 
     for (int d = 0; d < 3; d++) {
-        if (nocopy_info()->fixedWG || (gws[d] > lws[d]))
+        if (nocopy_info()->fixedWG() || (gws[d] > lws[d]))
             gws[d] = utils::rnd_up(gws[d], lws[d]);
         else {
             // Workaround to avoid local ID reordering until reqd_walk_group_order implemented in UMD.
@@ -141,6 +140,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     lws[1] *= nocopy_info()->wgExpand;
     gws[1] *= nocopy_info()->wgExpand;
+
+    gws[2] *= pd()->desc()->batch();
 
     gemm_linear_order_args(arg_list, argn, lws, gws, m, n, disable_hilbert,
             *nocopy_info(), pd()->dev_info_);

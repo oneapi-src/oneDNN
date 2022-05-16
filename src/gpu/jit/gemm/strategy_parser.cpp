@@ -140,7 +140,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         strategy.prefetchC = 1;
         s >> eat >> accessCPrefetch;
         if (s.peek() == '@') s >> eat >> strategy.prefetchC;
-        getCaching(s, strategy.C);
+        getCaching(s, strategy.C_prefetch);
     }
 
     strategy.A.base = strategy.A_prefetch.base = getAddressBase(asA);
@@ -175,7 +175,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     strategy.B_prefetch.padded |= isPacked(problem.B.layout);
 
     strategy.unroll[LoopK] = 1;
-    strategy.checkAdd32 = !native64Bit(hw);
+    strategy.checkAdd32 = !native64Bit(hw) || (hw >= HW::XeHPC);
     strategy.altCRemainder |= (strategy.C.accessType == AccessType::Block)
             || strategy.kParallel;
 
@@ -194,10 +194,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.registerScheme = GEMMStrategy::ABInterleave;
         else if (mod == "nse")
             strategy.registerScheme = GEMMStrategy::NSeparate;
-        else if (mod == "da")
-            strategy.duplicateA = true;
-        else if (mod == "db")
-            strategy.duplicateB = true;
+        else if (mod == "vav")
+            strategy.registerScheme = GEMMStrategy::VAvoid;
         else if (mod.substr(0, 3) == "grf") {
             mod.erase(0, 3);
             strategy.GRFs = std::stoi(mod);
@@ -221,14 +219,22 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.coopA = CoopSplit::MN;
         else if (mod == "sn")
             strategy.coopB = CoopSplit::MN;
+        else if (mod == "ni")
+            strategy.slmUseIncrCopy = false;
         else if (mod == "ek")
             strategy.slmEarlyKMask = true;
+        else if (mod == "sf")
+            strategy.strictFence = true;
         else if (mod == "ta")
             strategy.slmATrans = true;
         else if (mod == "tb")
             strategy.slmBTrans = true;
         else if (mod == "af")
             strategy.atomicFMA = true;
+        else if (mod == "xaf")
+            strategy.atomicFMA = strategy.extendedAtomicFMA = true;
+        else if (mod == "st")
+            strategy.stallAfterLoad = true;
         else if (mod == "ch")
             strategy.checkAdd32 = true;
         else if (mod == "ws")
@@ -276,6 +282,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.C.atomic = true;
         else if (mod == "xp")
             strategy.xParallel = true;
+        else if (mod == "ff")
+            strategy.forceWGUpdate = WGFixed;
         else if (mod == "wg") {
             char x;
             s >> strategy.wg[LoopM];
@@ -306,7 +314,13 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
                 strategy.nSplitThresh = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "kc")
                 strategy.kChain = stoi(mod.substr(2));
-            else if (mod.substr(0, 2) == "sb") {
+            else if (mod.substr(0, 2) == "ks") {
+                char eat;
+                std::stringstream ms(mod);
+                ms >> eat >> eat >> strategy.unrollKSLM;
+                if (!ms.eof() && (ms.peek() == '/'))
+                    ms >> eat >> strategy.unrollKSLMMasked;
+            } else if (mod.substr(0, 2) == "sb") {
                 strategy.barrierFreq = stoi(mod.substr(2));
                 strategy.splitBarrier = true;
             } else
@@ -327,7 +341,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
                             size_t alt;
                             strategy.blocking[loop] = stoi(mod.substr(2), &alt);
                             if (strategy.blocking[loop] == 0)
-                                strategy.blocking[loop] = 1048576;
+                                strategy.blocking[loop] = 16777216;
                             alt += 3;
                             if (mod.length() > alt)
                                 strategy.blockingAlt[loop]
@@ -359,12 +373,6 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
                         break;
                     }
                     case 'l': strategy.optAlignAB = stoi(mod.substr(1)); break;
-                    case 'r': {
-                        bool isA = (mod[1] == 'a');
-                        (isA ? strategy.ka_repack : strategy.kb_repack)
-                                = stoi(mod.substr(2));
-                        break;
-                    }
                     default:
                         throw std::runtime_error("Unknown strategy modifier.");
                 }
@@ -426,78 +434,6 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy) {
     if (strategy.prefetchC && !isBlock2D(strategy.C_prefetch.accessType))
         strategy.remHandling[LoopM] = strategy.remHandling[LoopN]
                 = RemainderHandling::Split;
-}
-
-void parseStrategy(const char *str, HW hw, const CopyProblem &problem,
-        CopyStrategy &strategy) {
-    std::stringstream s(str);
-
-    strategy.s_load_masked = 0;
-    strategy.d_load_masked = 0;
-
-    char asS, asD, accessS, accessD, eat;
-    s >> std::ws >> asS >> accessS >> strategy.s_load;
-    if (s.peek() == '/') s >> eat >> strategy.s_load_masked;
-    getCaching(s, strategy.S);
-    s >> std::ws >> asD >> accessD >> strategy.d_load;
-    if (s.peek() == '/') s >> eat >> strategy.d_load_masked;
-    getCaching(s, strategy.D);
-
-    strategy.S.base = getAddressBase(asS);
-    strategy.D.base = getAddressBase(asD);
-
-    strategy.S.newDP = bool(std::isupper(accessS));
-    strategy.D.newDP = bool(std::isupper(accessD));
-    strategy.S.accessType = getAccessType(accessS);
-    strategy.D.accessType = getAccessType(accessD);
-    strategy.S.cachingW = CacheSettingsLSC::Default;
-    strategy.barrierFreq = 0;
-    strategy.optionalAlignS = 0;
-    strategy.unrollX = problem.D.packSize;
-    strategy.unrollY = 1;
-    strategy.xLoop = false;
-
-    while (!s.eof()) {
-        std::string mod;
-        s >> mod;
-        if (mod == "lx")
-            strategy.xLoop = true;
-        else if (mod == "ly")
-            strategy.xLoop = false;
-        else if (mod == "np")
-            strategy.S.padded = false;
-        else if (mod == "ps")
-            strategy.S.padded = true;
-        else if (mod == "ws")
-            strategy.wgInSS = true;
-        else if (mod == "zb")
-            strategy.zParallel = true;
-        else if (mod.substr(0, 3) == "grf") {
-            mod.erase(0, 3);
-            strategy.GRFs = std::stoi(mod);
-        } else if (mod.length() >= 2) {
-            switch (mod[0]) {
-                case 'b':
-                    mod.erase(0, 1);
-                    strategy.barrierFreq = stoi(mod);
-                    break;
-                case 'a':
-                    mod.erase(0, 1);
-                    strategy.optionalAlignS = stoi(mod);
-                    break;
-                case 'x':
-                    mod.erase(0, 1);
-                    strategy.unrollX = stoi(mod);
-                    break;
-                case 'y':
-                    mod.erase(0, 1);
-                    strategy.unrollY = stoi(mod);
-                    break;
-                default: throw std::runtime_error("Unknown strategy modifier.");
-            }
-        } else if (!mod.empty())
-            throw std::runtime_error("Unknown strategy modifier.");
-    }
 }
 
 } // namespace jit

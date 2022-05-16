@@ -32,17 +32,29 @@ inline bool layoutMatch(const char *lref, const char *lpattern) {
 }
 
 inline bool precisionMatch(char pref, char ppattern) {
-    return std::toupper(pref) == std::toupper(ppattern);
+    // Fast case-insensitive compare
+    return (pref & ~0x20) == (ppattern & ~0x20);
 }
 
 inline bool precisionMatch(const char *pref, const char *ppattern) {
     bool ok = false;
+    ok = ok || (ppattern[0] == '?');
     ok = ok || precisionMatch(pref[0], ppattern[0]);
     ok = ok || (ppattern[0] == '[' && precisionMatch(pref[0], ppattern[1]));
     if (ok && pref[0] == '[')
         ok = ok && precisionMatch(pref[1], ppattern[1])
                 && precisionMatch(pref[2], ppattern[2]);
     return ok;
+}
+
+inline bool precisionMinimumMatch(const char *pref, char pmin) {
+    uint8_t sizeTable[0x20]
+            = {//         A  B  C  D  E  F  G  H  I  J  K  L  M  N  O
+                    0, 0, 2, 8, 8, 0, 0, 0, 2, 4, 4, 0, 0, 0, 0, 1,
+                    //      P  Q  R  S  T  U  V  W  X  Y  Z
+                    0, 0, 0, 4, 4, 0, 0, 2, 0, 0, 16, 0, 0, 0, 0, 0};
+
+    return (sizeTable[pref[0] & 0x1F] >= sizeTable[pmin & 0x1F]);
 }
 
 inline bool alignmentMatch(int aref, int apattern) {
@@ -72,6 +84,13 @@ bool matches(const kcatalog::Entry &e, const MatchParams &pattern) {
     ok = ok && layoutMatch(e.selector.layouts[0], pattern.selector.layouts[0]);
     ok = ok && layoutMatch(e.selector.layouts[1], pattern.selector.layouts[1]);
     ok = ok && layoutMatch(e.selector.layouts[2], pattern.selector.layouts[2]);
+    ok = ok
+            && precisionMatch(
+                    e.selector.precisions[2], pattern.selector.precisions[2]);
+    if (pattern.precisionCExt)
+        ok = ok
+                && precisionMinimumMatch(
+                        e.selector.precisions[2], pattern.precisionCExt);
     for (int i = 0; i < 3; i++)
         ok = ok
                 && alignmentMatch(
@@ -100,9 +119,6 @@ bool matches(const kcatalog::Entry &e, const MatchParams &pattern) {
     ok = ok
             && precisionMatch(
                     e.selector.precisions[1], pattern.selector.precisions[1]);
-    ok = ok
-            && precisionMatch(
-                    e.selector.precisions[2], pattern.selector.precisions[2]);
 
     return ok;
 }
@@ -202,6 +218,8 @@ MatchParams::MatchParams(ngen::HW hw, const GEMMProblem &problem) {
     selector.layouts[1] = &temp[8];
     selector.layouts[2] = &temp[10];
 
+    precisionCExt = precisionChar(problem.Tc_ext);
+
     alignment[0] = problem.A.alignment;
     alignment[1] = problem.B.alignment;
     alignment[2] = problem.C.alignment;
@@ -213,6 +231,8 @@ MatchParams::MatchParams(ngen::HW hw, const GEMMProblem &problem) {
         *tagPtr++ = ReqBatch;
         if (problem.batchDims > 1) *tagPtr++ = ReqBatchMultiDim;
     }
+
+    if (problem.abOffset != ABOffset::None) *tagPtr++ = ReqABOffset;
 }
 
 } // namespace jit

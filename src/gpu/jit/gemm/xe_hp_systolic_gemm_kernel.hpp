@@ -138,7 +138,7 @@ public:
         info.blocking[LoopM] = 1024;
         info.blocking[LoopN] = eu_count * 6;
         info.blocking[LoopK] = 8192 / getBytes(cfg.a_type);
-        info.fixedWG = true;
+        info.wgUpdate = WGFixed;
         info.kRemainderHandling = false;
         info.kParallel = info.kParallelLocal = false;
         info.slm = 0;

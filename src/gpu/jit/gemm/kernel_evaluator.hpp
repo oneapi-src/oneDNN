@@ -19,6 +19,8 @@
 
 #include "kernel_catalog.hpp"
 
+#include "gen_gemm_kernel_generator.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {

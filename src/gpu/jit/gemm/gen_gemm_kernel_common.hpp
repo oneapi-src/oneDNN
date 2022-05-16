@@ -17,6 +17,8 @@
 #ifndef GPU_JIT_GEMM_GEN_GEMM_KERNEL_COMMON_HPP
 #define GPU_JIT_GEMM_GEN_GEMM_KERNEL_COMMON_HPP
 
+#define STANDALONE 0
+
 #include <string>
 
 namespace dnnl {
@@ -43,6 +45,13 @@ enum LoopType : uint8_t {
     LoopNone = 0xFF
 };
 
+// WG identifiers.
+enum WGType : uint8_t {
+    WGDynamic = 0, // Dynamic work group size (can shrink or expand)
+    WGFixed = 1, // Fixed work group size
+    WGShrinkable = 2 // Work group size can shrink but not expand
+};
+
 // Driver information, shared by all kernel types.
 struct CommonDriverInfo {
     int subgroupSize; // Declared subgroup size (unrelated to actual SIMD lengths in kernel)
@@ -55,7 +64,7 @@ struct CommonDriverInfo {
     int unroll[3]; // m/n/k unrolls.
     int wg[3]; // HW threads per workgroup in m/n/k dimensions.
     int wgExpand; // If > 1, workgroup size needs to be scaled by this factor.
-    bool fixedWG; // True if m/n workgroup size is fixed; false if size may be reduced.
+    WGType wgUpdate; // Work group type showing how/if work group sizes can be updated.
     bool kRemainderHandling; // True if kernel performs k remainder handling (gemm).
     bool kParallel; // True if gemm kernel can be parallelized in the k dimension.
     bool kParallelLocal; // True if gemm kernel can be parallelized in the k dimension inside a workgroup.
@@ -89,6 +98,7 @@ struct CommonDriverInfo {
     bool isPersistent() const {
         return (loopOrder[0] != LoopNone) && (loopOrder[0] & LoopPersistent);
     }
+    bool fixedWG() const { return wgUpdate == WGFixed; }
 
     int wgTile(LoopType l) const { return unroll[l] * wg[l]; }
 };

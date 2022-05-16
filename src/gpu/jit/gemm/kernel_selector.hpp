@@ -33,6 +33,7 @@ namespace jit {
 struct MatchParams {
     kcatalog::Selector selector;
     SizeParams sizes;
+    char precisionCExt = 0;
     bool ignoreSizes = false;
     int stepping = 0;
     int alignment[3] = {0, 0, 0};

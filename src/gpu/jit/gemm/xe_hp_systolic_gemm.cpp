@@ -163,12 +163,12 @@ const nocopy_table_t xe_hp_x8x8s32_nocopy_table[] = {
         {{{384, 384}, {384, 384}}, {{384, 512}, {384, 256}}}};
 
 const nocopy_table_t xe_hpc_f16_nocopy_table[] = {
-        // NN    NT   TN   TT
-        {{{0, 1024}, {2048, 0}}, {{0, 0}, {0, 0}}}};
+        // NN    NT      TN    TT
+        {{{8192, 8192}, {8192, 8192}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_bf16_nocopy_table[] = {
-        // NN    NT   TN   TT
-        {{{0, 1024}, {2048, 0}}, {{0, 0}, {0, 0}}}};
+        // NN    NT      TN    TT
+        {{{8192, 8192}, {8192, 8192}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_x8x8s32_nocopy_table[] = {
         // NN    NT      TN    TT
@@ -219,11 +219,11 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
 
         if (!packed_a_) {
             auto lda_bytes = d->lda() * types::data_type_size(d->a_type());
-            bad_ld |= ((lda_bytes & 0xF) != 0);
+            bad_ld |= ((lda_bytes & 0x3) != 0);
         }
         if (!packed_b_) {
             auto ldb_bytes = d->ldb() * types::data_type_size(d->b_type());
-            bad_ld |= ((ldb_bytes & 0xF) != 0);
+            bad_ld |= ((ldb_bytes & 0x3) != 0);
         }
 
         auto table = all_tables[arch_idx][int(bad_ld)][type_idx];

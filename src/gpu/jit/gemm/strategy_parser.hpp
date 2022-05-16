@@ -26,8 +26,6 @@ namespace jit {
 
 void parseStrategy(const char *str, ngen::HW hw, const GEMMProblem &problem,
         GEMMStrategy &strategy);
-void parseStrategy(const char *str, ngen::HW hw, const CopyProblem &problem,
-        CopyStrategy &strategy);
 
 void adjustStrategy(
         ngen::HW hw, const GEMMProblem &problem, GEMMStrategy &strategy);

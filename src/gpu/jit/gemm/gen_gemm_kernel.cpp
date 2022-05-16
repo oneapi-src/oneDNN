@@ -134,8 +134,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     align_c = nstl::max(align_c, int(types::data_type_size(c_type)));
 
     // Set up problem structure.
-    problem_.Ta = convert_dnnl_to_kernel_type(a_type);
-    problem_.Tb = convert_dnnl_to_kernel_type(b_type);
+    problem_.Ta = problem_.Ta_ext = convert_dnnl_to_kernel_type(a_type);
+    problem_.Tb = problem_.Tb_ext = convert_dnnl_to_kernel_type(b_type);
     problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
     problem_.Tco = convert_dnnl_to_kernel_type(co_type);
     problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
@@ -227,8 +227,8 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     auto ksys = int(32 / types::data_type_size(a_type));
     auto csys = int(4 / types::data_type_size(a_type));
 
-    problem_.Ta = convert_dnnl_to_kernel_type(a_type);
-    problem_.Tb = convert_dnnl_to_kernel_type(b_type);
+    problem_.Ta = problem_.Ta_ext = convert_dnnl_to_kernel_type(a_type);
+    problem_.Tb = problem_.Tb_ext = convert_dnnl_to_kernel_type(b_type);
     problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
     problem_.Tco = convert_dnnl_to_kernel_type(co_type);
     problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
@@ -242,8 +242,10 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     problem_.A.packSize = unroll_m;
     problem_.B.packSize = unroll_n;
     problem_.C.packSize = 0;
-    problem_.A.tileR = osys;
-    problem_.A.tileC = ksys;
+    if (osys < unroll_m) {
+        problem_.A.tileR = osys;
+        problem_.A.tileC = ksys;
+    }
     problem_.A.setAlignment(32);
     problem_.B.setAlignment(32);
     problem_.C.setAlignment(int(types::data_type_size(c_type)));

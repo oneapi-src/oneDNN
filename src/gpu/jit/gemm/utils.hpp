@@ -17,6 +17,9 @@
 #ifndef GPU_JIT_GEMM_UTILS_HPP
 #define GPU_JIT_GEMM_UTILS_HPP
 
+#include "common/math_utils.hpp"
+#include "common/utils.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -55,7 +58,12 @@ static inline int align_up(int value, int factor) {
 }
 
 using dnnl::impl::math::gcd;
-using dnnl::impl::math::lcm;
+
+template <typename T>
+static inline T lcm(T x, T y) {
+    if (x == 0 || y == 0) return 0;
+    return dnnl::impl::math::lcm(x, y);
+}
 
 static inline int largest_pow2_divisor(int x) {
     return x & ~(x - 1);
