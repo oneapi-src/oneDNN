@@ -740,12 +740,12 @@ inline bool is_native_runtime(runtime_kind_t kind) {
 template <typename T>
 using maybe_unique_ptr = std::unique_ptr<T>;
 #else
-struct dnnl_nop_deleter {
+struct nop_deleter_t {
     template <typename T>
     void operator()(T const &) const noexcept {}
 };
 template <typename T>
-using maybe_unique_ptr = std::unique_ptr<T, dnnl_nop_deleter>;
+using maybe_unique_ptr = std::unique_ptr<T, nop_deleter_t>;
 #endif // DNNL_MAYBE_UNIQUE_PTR_IS_UNIQUE
 
 } // namespace impl
