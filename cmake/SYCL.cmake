@@ -74,6 +74,9 @@ if(DNNL_SYCL_CUDA)
         endforeach()
     endif()
 else()
+    # In order to support large shapes.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sycl-id-queries-fit-in-int")
+
     find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
     if(OPENCL_LIBRARY)
         message(STATUS "OpenCL runtime is found in the environment: ${OPENCL_LIBRARY}")
