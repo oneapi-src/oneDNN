@@ -74,7 +74,7 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
             const binary_injector::static_params_t bsp {this->reg_abi_bak, rhs_sp};
             jit_binary_injector_ = utils::make_unique<
                     binary_injector::jit_uni_binary_injector_t<isa>>(
-                    this, bsp);            
+                    this, bsp);
         }
         if (post_ops_.len() > 0 && !only_eltwise) {
             vreg_d_weights = Vmm(idx_compute_vreg_max_--);
