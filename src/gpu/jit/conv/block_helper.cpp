@@ -364,8 +364,9 @@ void block_helper_t::init_bmnk_blocks() {
     int k_inst_blk = 0;
     int bn_inst_blk = 0;
     bool is_ge_hpc = (hw_cfg_.hw() >= ngen::HW::XeHPC);
-    bool reduce_m_block = (m_dim().base_iter_block() == 1
-            || k_dim().base_iter_block() == 1);
+    bool reduce_m_block
+            = (m_dim().base_iter_block() == 1 || k_dim().base_iter_block() == 1)
+            || (is_tf32() && fma_kind_ != fma_kind_t::mad);
     int eu_thr_mul = (!is_ge_hpc && reduce_m_block) ? 2 : 4;
 #ifdef GEN_CONV_DEBUG
     eu_thr_mul = getenv_int("eu_thr_mul", eu_thr_mul);
