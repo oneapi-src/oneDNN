@@ -39,3 +39,11 @@
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+
+# regression
+--reset
+--dir=FWD_D,BWD_DW
+--flags=,GS,S
+--tag=ba,AB16b16a
+64x64
+

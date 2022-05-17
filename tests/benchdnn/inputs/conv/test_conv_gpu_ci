@@ -21,7 +21,7 @@
 --dir=FWD_B,BWD_D,BWD_WB
 --cfg=f32
 --attr-fpmath=f19,bf16
---attr-post-ops=,relu,sum:0.25+relu:0.5
+--attr-post-ops=
 --batch=shapes_basic_gpu
 
 # Inference
@@ -60,6 +60,6 @@
 --stag=any,axb
 --dtag=any,axb
 --alg=direct
---dir=FWD_B,BWD_D,BWD_WB
+--dir=FWD_B,BWD_D,BWD_W
 --cfg=f64
 --batch=shapes_basic_gpu
