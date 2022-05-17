@@ -18,6 +18,7 @@
 #include <functional>
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/jit_gemm_x8s8s32x_conv_zp_src_pad_comp.hpp"
 #include "cpu/x64/jit_gemm_x8s8s32x_convolution_utils.hpp"
 #include "cpu/x64/jit_generator.hpp"
@@ -60,10 +61,14 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
             vreg_zero = Vmm(idx_compute_vreg_start_++);
         }
         bool only_eltwise_or_sum = true;
+        bool with_binary = false;
         for (int idx = 0; idx < post_ops_.len(); ++idx) {
             const auto &e = post_ops_.entry_[idx];
             if (e.is_eltwise(true)) {
                 do_eltwise_ = true;
+            } else if (e.is_binary()) {
+                with_binary = true;
+                only_eltwise_or_sum = false;
             } else if (e.is_sum()) {
                 do_sum_ = true;
                 sum_scale_ = e.sum.scale;
@@ -71,6 +76,24 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
             } else {
                 only_eltwise_or_sum = false;
             }
+        }
+        if (with_binary) {
+#define PARAM_OFF(field) offsetof(ker_args_t, field)
+            static constexpr bool preserve_gpr = true;
+            static constexpr bool preserve_vmm = true;
+            static constexpr size_t helper_vmm_idx = 1;
+            static constexpr size_t tail_size = 0;
+            static constexpr bool use_exact_tail_scalar_bcast = false;
+            const binary_injector::rhs_arg_static_params_t rhs_sp {
+                helper_vmm_idx, r13, r14, preserve_gpr,
+                preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
+                PARAM_OFF(dst_orig), memory_desc_wrapper(pd->dst_md()),
+                tail_size, kreg_rem_mask_short, use_exact_tail_scalar_bcast};
+#undef PARAM_OFF
+            const binary_injector::static_params_t bsp {this->reg_param_bak, rhs_sp};
+            jit_binary_injector_ = utils::make_unique<
+                    binary_injector::jit_uni_binary_injector_t<isa>>(
+                    this, bsp);
         }
         if (post_ops_.len() > 0 && !only_eltwise_or_sum) {
             vreg_d_weights = Vmm(idx_compute_vreg_max_--);
@@ -120,7 +143,7 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
                     int g, size_t start, size_t end,
                     const zero_point_call_params_t &zp,
                     const void * post_ops_binary_rhs_arg_vec,
-                    const void * /* dst_orig */, const exec_ctx_t &ctx,
+                    const void * dst_orig, const exec_ctx_t &ctx,
                     const memory_desc_t &dst_md,
         const single_gemm_conv_chunk_desc_t &chunk_desc) const override {
 
@@ -135,6 +158,7 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
         args.dst = dst
                    + (os_offset * dst_os_stride_ + oc_offset)
                      * dst_data_type_size_;
+        args.dst_orig = dst_orig;
         args.bias = bias + (g * jcp_.oc + oc_offset) * bias_data_type_size_;
         args.scales = scales + scale_idx_mult_ * (g * jcp_.oc + oc_offset);
         args.sum_scale = sum_scale_;
@@ -151,6 +175,7 @@ private:
 
     struct ker_args_t {
         char *dst;
+        const void* dst_orig;
         const acc_data_t *acc;
         const char *bias;
         const float *scales;
@@ -164,11 +189,14 @@ private:
 
     nstl::vector<jit_uni_eltwise_injector_f32<isa> *> jit_eltwise_injectors_;
     nstl::vector<jit_uni_depthwise_injector_f32<isa> *> jit_depthwise_injectors_;
+    std::unique_ptr<binary_injector::jit_uni_binary_injector_t<isa>>
+            jit_binary_injector_;
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
     static const size_t vlen = cpu_isa_traits<isa>::vlen / sizeof(float);
 
     Xbyak::Reg64 reg_param = abi_param1;
+    Xbyak::Reg64 reg_param_bak = r11;
     Xbyak::Reg64 reg_dst = rdx;
     Xbyak::Reg64 reg_acc = rax;
     Xbyak::Reg64 reg_bias = rbx;
@@ -265,6 +293,7 @@ void jit_pp_ker_t<isa>::generate() {
         }
     }
 
+    mov(reg_param_bak, reg_param);
     mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
     mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
@@ -286,10 +315,11 @@ void jit_pp_ker_t<isa>::generate() {
     if (utils::one_of(isa, avx2, sse41))
         mov(reg_table, l_table);
 
-    auto apply_post_ops = [&](size_t offset, int idx) {
+    auto apply_post_ops = [&](size_t offset, int idx, bool apply_mask) {
         std::size_t post_ops_data_offset = 0;
         int eltwise_inj_idx = 0;
         int depthwise_inj_idx = 0;
+        int binary_inj_idx = 0;
         for (int i = 0; i < post_ops_.len(); i++) {
             auto &post_op = post_ops_.entry_[i];
             if (post_op.is_sum()) {
@@ -313,6 +343,18 @@ void jit_pp_ker_t<isa>::generate() {
                     uni_vcvtdq2ps(vreg_prev_dst(idx), vreg_prev_dst(idx));
 
                 uni_vfmadd231ps(vreg_dst(idx), vreg_prev_dst(idx), vreg_sum_scale);
+            } else if (post_op.is_binary()) {
+                binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+                auto dst_addr = ptr[reg_dst + offset * dst_data_type_size_];
+                rhs_arg_params.vmm_idx_to_out_addr.emplace(idx, dst_addr);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        idx, 0 * sizeof(float));
+                if (mayiuse(avx512_core) && apply_mask) 
+                    rhs_arg_params.vmm_tail_idx_.emplace(idx);
+                jit_binary_injector_->compute_vector(
+                        idx, binary_inj_idx, post_op, rhs_arg_params);
+
+                binary_inj_idx++;
             } else if (post_op.is_eltwise()) {
                 jit_eltwise_injectors_[eltwise_inj_idx]->compute_vector_range(vreg_dst(idx).getIdx(),
                                                                               vreg_dst(idx).getIdx() + 1);
@@ -330,6 +372,7 @@ void jit_pp_ker_t<isa>::generate() {
 
                 post_ops_data_offset += jit_depthwise_injectors_[depthwise_inj_idx]->memoryStep();
                 depthwise_inj_idx++;
+                binary_inj_idx++;
             } else if (post_op.is_quantization()) {
                 add(reg_oc_offset, reg_g_offset);
                 bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
@@ -404,6 +447,7 @@ void jit_pp_ker_t<isa>::generate() {
                 sub(reg_oc_offset, reg_g_offset);
 
                 post_ops_data_offset += sizeof(float*);
+                binary_inj_idx++;
             }
         }
     };
@@ -489,7 +533,7 @@ void jit_pp_ker_t<isa>::generate() {
         if (do_scale_)
             uni_vmulps(vreg_dst(idx), vreg_dst(idx), vreg_scale);
 
-        apply_post_ops(offset, idx);
+        apply_post_ops(offset, idx, apply_mask);
 
         if (dst_data_type_ != data_type::f32) {
             if (isa == avx512_core) {
