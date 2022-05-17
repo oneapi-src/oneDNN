@@ -63,8 +63,8 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
                     && utils::one_of(true,
                             expect_data_types(f32, f32, f32, f32, f32),
                             expect_data_types(f32, f32, f32, s8, f32),
-                            expect_data_types(f16, f16, f16, s8, f16),
-                            expect_data_types(f16, f16, f16, f16, f16))
+                            expect_data_types(f16, f16, f16, s8, f32),
+                            expect_data_types(f16, f16, f16, f16, f32))
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(src_data_t == f16,
@@ -158,8 +158,8 @@ struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
                     && utils::one_of(true,
                             expect_data_types(
                                     f32, f32, data_type::undef, f32, f32),
-                            expect_data_types(
-                                    f16, f16, data_type::undef, f16, f16))
+                            expect_data_types(f16, f16, data_type::undef, f16,
+                                    data_type::undef))
                     && IMPLICATION(this->with_bias()
                                     && this->desc()->diff_dst_desc.data_type
                                             != f16,

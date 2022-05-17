@@ -76,7 +76,7 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
                             expect_data_types(
                                     bf16, bf16, data_type::undef, f32, f32),
                             expect_data_types(f32, f32, f32, f32, f32),
-                            expect_data_types(f16, f16, f16, f16, f16))
+                            expect_data_types(f16, f16, f16, f16, f32))
                     && IMPLICATION(with_bias(),
                             utils::one_of(desc()->bias_desc.data_type, u8, s8,
                                     bf16, f16, f32))

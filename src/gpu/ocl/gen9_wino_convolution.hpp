@@ -63,7 +63,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                                     == alg_kind::convolution_auto)
                     && utils::one_of(true,
                             expect_data_types(f32, f32, f32, f32, f32),
-                            expect_data_types(f16, f16, f16, f16, f16))
+                            expect_data_types(f16, f16, f16, f16, f32))
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(src_data_t == f16,

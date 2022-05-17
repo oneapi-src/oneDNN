@@ -192,7 +192,7 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             bool with_sum = attr()->post_ops_.find(primitive_kind::sum) != -1;
             ok = ok
                     && utils::one_of(true,
-                            expect_data_types(f16, f16, f16, f16, f16),
+                            expect_data_types(f16, f16, f16, f16, f32),
                             expect_data_types(f16, f16, f32, f16, f32),
                             expect_data_types(s8, s8, f32, s8, s32),
                             expect_data_types(s8, s8, f32, f32, f32),
