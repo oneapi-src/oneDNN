@@ -431,6 +431,34 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
     return FAIL;
 }
 
+template <typename prb_t>
+int check_skip_impl(const prb_t *prb,
+        const benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pd, res_t *res) {
+    // Query impl name, stash it in `res` and apply skip-impl unless this is
+    // fwd-for-bwd or cpu-for-gpu primitive.
+    // Note: fused conv sub-primitives shouldn't be tested as well, but there's
+    // no reliable mechanism to know if they are sub-primitives.
+    const bool fwd_for_bwd_prim
+            = is_fwd_prop_kind(query_prop_kind(pd)) && (prb->dir & FLAG_BWD);
+    const bool cpu_for_gpu_prim = res == nullptr;
+    if (pd && !fwd_for_bwd_prim && !cpu_for_gpu_prim) {
+        res->impl_name = query_impl_info(pd);
+        if (maybe_skip(res->impl_name)) {
+            BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                    res->impl_name.c_str());
+            res->state = SKIPPED;
+            res->reason = SKIP_IMPL_HIT;
+        } else {
+            BENCHDNN_PRINT(
+                    5, "oneDNN implementation: %s\n", res->impl_name.c_str());
+        }
+
+        // Check that adding attributes doesn't cause a fall back to lower impl.
+        return check_pd_w_and_wo_attr(pd, prb->attr, res);
+    }
+    return OK;
+}
+
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, prb_t *prb, res_t *res,
@@ -475,6 +503,9 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     pd.reset(pd_);
     SAFE(check_dnnl_status(status, prb, res), WARN);
 
+    SAFE(check_skip_impl(prb, pd, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
     // Skip prim creation for empty `pd_` to keep logic in a single place below.
     if (pd_) DNN_SAFE(dnnl_primitive_create(&prim_, pd_), WARN);
     prim.reset(prim_);
@@ -485,28 +516,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     pd.reset(pd_);
     SAFE(check_dnnl_status(status, prb, res), WARN);
 
-    // Query impl name, stash it in `res` and apply skip-impl unless this is
-    // fwd-for-bwd or cpu-for-gpu primitive.
-    // Note: fused conv sub-primitives shouldn't be tested as well, but there's
-    // no reliable mechanism to know if they are sub-primitives.
-    const bool fwd_for_bwd_prim
-            = is_fwd_prop_kind(query_prop_kind(pd)) && (prb->dir & FLAG_BWD);
-    const bool cpu_for_gpu_prim = res == nullptr;
-    if (pd && !fwd_for_bwd_prim && !cpu_for_gpu_prim) {
-        res->impl_name = query_impl_info(pd);
-        if (maybe_skip(res->impl_name)) {
-            BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
-                    res->impl_name.c_str());
-            res->state = SKIPPED;
-            res->reason = SKIP_IMPL_HIT;
-        } else {
-            BENCHDNN_PRINT(
-                    5, "oneDNN implementation: %s\n", res->impl_name.c_str());
-        }
-
-        // Check that adding attributes doesn't cause a fall back to lower impl.
-        SAFE(check_pd_w_and_wo_attr(pd, prb->attr, res), WARN);
-    }
+    SAFE(check_skip_impl(prb, pd, res), WARN);
     if (res->state == SKIPPED) return OK;
 
     // This primitive is expected to come from the cache.
