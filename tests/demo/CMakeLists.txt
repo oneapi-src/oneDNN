@@ -48,6 +48,9 @@ function(register_demo name srcs)
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
         ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include
+        # allow tests to include internal header only utils with, e.g.
+        # include "json.hpp" ...
+        ${PROJECT_SOURCE_DIR}/src/utils
     )
 
     target_link_libraries(${name} 
@@ -59,6 +62,12 @@ function(register_demo name srcs)
 endfunction()
 
 file(GLOB sources src/*.cpp)
+
+# Remove graph serialization tests
+if(NOT DNNL_GRAPH_ENABLE_DUMP)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_graph_serialization.cpp)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_multithreading_graph_serialization.cpp)
+endif()
 
 foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR}/src/ ${src})
