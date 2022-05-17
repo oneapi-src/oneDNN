@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 namespace dnnl {
 namespace graph {
@@ -273,6 +274,29 @@ struct array_json_t {
     }
 };
 
+template <typename CT>
+struct map_json_t {
+    inline static void write(json_writer_t *writer, const CT &map) {
+        writer->begin_object();
+        for (typename CT::const_iterator it = map.begin(); it != map.end();
+                ++it) {
+            writer->write_keyvalue(it->first, it->second);
+        }
+        writer->end_object();
+    }
+    inline static void read(json_reader_t *reader, CT *map) {
+        using elemtype = typename CT::mapped_type;
+        map->clear();
+        reader->begin_object();
+        std::string key;
+        while (reader->next_object_item(&key)) {
+            elemtype value;
+            reader->read(&value);
+            (*map)[key] = value;
+        }
+    }
+};
+
 template <>
 struct json_handler<std::string> {
     inline static void write(json_writer_t *writer, const std::string &value) {
@@ -282,6 +306,14 @@ struct json_handler<std::string> {
         reader->read_string(str);
     }
 };
+
+template <typename T>
+struct json_handler<std::map<std::string, T>>
+    : public map_json_t<std::map<std::string, T>> {};
+
+template <typename T>
+struct json_handler<std::unordered_map<std::string, T>>
+    : public map_json_t<std::unordered_map<std::string, T>> {};
 
 template <typename T>
 struct json_handler<std::vector<T>> : public array_json_t<std::vector<T>> {};
@@ -307,6 +339,7 @@ struct json_handler {
 
 inline void json_writer_t::begin_object() {
     *os_ << "{";
+    scope_multi_line_.push_back(true);
     scope_count_.push_back(0);
 }
 
@@ -373,12 +406,14 @@ inline void json_writer_t::write_array_item(const valuetype &value) {
 }
 
 inline void json_writer_t::end_object() {
-    if (!scope_count_.empty()) {
+    if (!scope_count_.empty() && !scope_multi_line_.empty()) {
+        bool newline = scope_multi_line_.back();
         size_t nelem = scope_count_.back();
+        scope_multi_line_.pop_back();
         scope_count_.pop_back();
-        if (nelem != 0) write_seperator();
-        *os_ << '}';
+        if (newline && nelem != 0) write_seperator();
     }
+    *os_ << '}';
 }
 
 inline void json_writer_t::write_seperator() {
