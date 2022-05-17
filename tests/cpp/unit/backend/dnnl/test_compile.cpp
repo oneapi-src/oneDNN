@@ -3896,6 +3896,74 @@ TEST(Execute, MatmulBiasSigmoidFusion) {
     }
 }
 
+TEST(Execute, MatmulBiasAdd) {
+    impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
+    impl::op_t add_op(1, impl::op_kind::BiasAdd, "add_op");
+    add_op.set_attr<std::string>("data_format", "NXC");
+    impl::engine_t &engine = get_engine();
+
+    test::vector<float> src_data {-2.0, -1.5};
+    test::vector<float> weight_data {2.0, -1.5};
+    test::vector<float> bias_data {1.0};
+    test::vector<float> post_src_data {-2.0};
+    test::vector<float> ref_dst_data {-3.75};
+    test::vector<float> dst_data(ref_dst_data.size(), 0.0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {1, 2}, impl::data_type::f32);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(1, {2, 1}, impl::data_type::f32);
+    impl::logical_tensor_t post_src
+            = utils::logical_tensor_init(3, {1}, impl::data_type::f32);
+    impl::logical_tensor_t dst = utils::logical_tensor_init(
+            4, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t add_dst = utils::logical_tensor_init(
+            5, impl::data_type::f32, impl::layout_type::strided);
+
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_output(dst);
+    add_op.add_input(dst);
+    add_op.add_input(post_src);
+    add_op.add_output(add_dst);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&add_op), impl::status::success);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("matmul_bias_post_ops_chain_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &src, &weight, &post_src};
+    std::vector<const impl::logical_tensor_t *> outputs {&add_dst};
+
+    p.compile(&cp, inputs, outputs, &engine);
+
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t post_src_ts(post_src, &engine, post_src_data.data());
+    impl::tensor_t dst_ts(add_dst, &engine, dst_data.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < ref_dst_data.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst_data[i], ref_dst_data[i]);
+    }
+}
+
 TEST(Execute, MatmulBiasAddFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t add_op(1, impl::op_kind::Add, "add_op");

@@ -924,8 +924,8 @@ status_t infer_bias_add_output_shape(op_t *n,
 
     auto in = logical_tensor_wrapper_t(inputs[0]);
     dims input_dims = in.vdims();
-    if (input_dims.size() < 4) {
-        // bias add: input should have at least 4 dims.
+    if (input_dims.size() < 2) {
+        // bias add: input should have at least 2 dims.
         return status::invalid_shape;
     }
     auto bias = logical_tensor_wrapper_t(inputs[1]);
