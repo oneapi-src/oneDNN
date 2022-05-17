@@ -1468,31 +1468,31 @@ inline const version_t *version() {
 
 /// @} dnnl_api_service
 
-/// @addtogroup dnnl_graph_constant_cache Constant Cache
+/// @addtogroup dnnl_graph_constant_tensor_cache Constant Tensor Cache
 ///
-/// A set of functions that provide constant cache control
+/// A set of functions that provide constant tensor cache control
 ///
 /// @{
 
-/// Control the enabling or disabling of constant cache. This API must be called
-/// once before compilation stage.
+/// Control the enabling or disabling of constant tensor cache. This API must
+/// be called once before compilation stage.
 ///
 /// @param flag Set to positive value to enable the cache and set to 0 to
 /// disable the cache. Negative values are invalid.
-inline void set_constant_cache(int flag) {
-    error::check_succeed(
-            dnnl_graph_set_constant_cache(flag), "fail to set constant cache");
+inline void set_constant_tensor_cache(int flag) {
+    error::check_succeed(dnnl_graph_set_constant_tensor_cache(flag),
+            "fail to set constant tensor cache");
 }
 
-/// Return the enabling status of constant cache.
-inline int get_constant_cache() {
+/// Return the enabling status of constant tensor cache.
+inline int get_constant_tensor_cache() {
     int result = 0;
-    error::check_succeed(dnnl_graph_get_constant_cache(&result),
-            "fail to get constant cache");
+    error::check_succeed(dnnl_graph_get_constant_tensor_cache(&result),
+            "fail to get constant tensor cache");
     return result;
 }
 
-/// @} dnnl_graph_constant_cache
+/// @} dnnl_graph_constant_tensor_cache
 
 } // namespace graph
 } // namespace dnnl

@@ -18,15 +18,16 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-TEST(CAPI, ConstantCache) {
+TEST(CAPI, ConstantTensorCache) {
     int flag = 0;
-    ASSERT_EQ(dnnl_graph_get_constant_cache(&flag), dnnl_graph_success);
-    ASSERT_EQ(dnnl_graph_set_constant_cache(1), dnnl_graph_success);
-    ASSERT_EQ(dnnl_graph_get_constant_cache(&flag), dnnl_graph_success);
+    ASSERT_EQ(dnnl_graph_get_constant_tensor_cache(&flag), dnnl_graph_success);
+    ASSERT_EQ(dnnl_graph_set_constant_tensor_cache(1), dnnl_graph_success);
+    ASSERT_EQ(dnnl_graph_get_constant_tensor_cache(&flag), dnnl_graph_success);
     ASSERT_EQ(flag, 1);
 
     // negative test
-    ASSERT_EQ(dnnl_graph_get_constant_cache(nullptr),
+    ASSERT_EQ(dnnl_graph_get_constant_tensor_cache(nullptr),
             dnnl_graph_invalid_arguments);
-    ASSERT_EQ(dnnl_graph_set_constant_cache(-1), dnnl_graph_invalid_arguments);
+    ASSERT_EQ(dnnl_graph_set_constant_tensor_cache(-1),
+            dnnl_graph_invalid_arguments);
 }

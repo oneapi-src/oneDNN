@@ -1100,7 +1100,7 @@ impl::status_t memory_planner_t::assign_external_outputs_buffer(
 
 // Assign internal constant edges (such as the const weight reorder's output) to
 // persistent buffer. Those persistent buffers will be cached to the global
-// constant cache, so they can't be reused anymore.
+// constant tensor cache, so they can't be reused anymore.
 // Note: Not all constant edges' buffer should be cached. We will find the final
 // output edges of the constant block (a block of ops who output constant
 // tensor), and only cache the constant block's outputs' buffer. Because those

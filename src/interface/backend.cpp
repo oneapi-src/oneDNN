@@ -47,10 +47,11 @@ size_t backend_registry_t::extract_backend_id(size_t layout_id) {
     return layout_id & (size_t)((1 << BACKEND_ID_LENGTH) - 1);
 }
 
-// Backend API used by each backend to check the constant cache enabling status
+// Backend API used by each backend to check the constant tensor cache enabling
+// status
 bool is_constant_cache_enabled() {
     int result = 0;
-    dnnl_graph_get_constant_cache(&result);
+    dnnl_graph_get_constant_tensor_cache(&result);
     return result;
 }
 
@@ -58,13 +59,13 @@ class constant_cache_flag_t {
     std::atomic<bool> constant_cache_enabled_;
 
     // We specialize the constructor so that we can initialize the flag
-    // according to the env var. Because, with the new constant cache control
-    // API, the cache is enabled by default. If we want to run examples without
-    // caching, we need to change the code to call set_constant_cache(0)
-    // explicitly and rebuild it, which makes testing both two configrations in
-    // pre-CI inconvenient. So we add the internal env var
-    // _ONEDNN_GRAPH_CONSTANT_CACHE. If it's set by users, the initial status
-    // will equal to the env var value.
+    // according to the env var. Because, with the new constant tensor cache
+    // control API, the cache is enabled by default. If we want to run examples
+    // without caching, we need to change the code to call
+    // set_constant_tensor_cache(0) explicitly and rebuild it, which makes
+    // testing both two configrations in pre-CI inconvenient. So we add the
+    // internal env var _ONEDNN_GRAPH_CONSTANT_CACHE. If it's set by users, the
+    // initial status will equal to the env var value.
     constant_cache_flag_t() {
         // If env var is set, use it. Otherwise, use flag=1 by default.
         int flag = utils::getenv_int_internal("CONSTANT_CACHE", 1);
@@ -97,13 +98,13 @@ public:
 } // namespace dnnl
 
 // Constant cache control API
-dnnl::graph::impl::status_t dnnl_graph_set_constant_cache(int flag) {
+dnnl::graph::impl::status_t dnnl_graph_set_constant_tensor_cache(int flag) {
     if (flag < 0) return dnnl::graph::impl::status::invalid_arguments;
     dnnl::graph::impl::constant_cache_flag_t::get_singleton().store(flag);
     return dnnl::graph::impl::status::success;
 }
 
-dnnl::graph::impl::status_t dnnl_graph_get_constant_cache(int *flag) {
+dnnl::graph::impl::status_t dnnl_graph_get_constant_tensor_cache(int *flag) {
     if (flag == nullptr) return dnnl::graph::impl::status::invalid_arguments;
     *flag = dnnl::graph::impl::constant_cache_flag_t::get_singleton().load();
     return dnnl::graph::impl::status::success;

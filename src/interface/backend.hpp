@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -221,7 +221,8 @@ private:
     std::unordered_map<size_t, const backend *> backends_;
 };
 
-// Backend API used by each backend to check the constant cache enabling status
+// Backend API used by each backend to check the constant tensor cache enabling
+// status.
 bool is_constant_cache_enabled();
 
 } // namespace impl
