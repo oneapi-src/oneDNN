@@ -48,6 +48,10 @@
 #include "counting_barrier.hpp"
 #endif
 
+#if defined(DNNL_ENABLE_ITT_TASKS)
+#include "common/ittnotify.hpp"
+#endif
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
 #define DNNL_THR_SYNC 1
 inline int dnnl_get_max_threads() {
