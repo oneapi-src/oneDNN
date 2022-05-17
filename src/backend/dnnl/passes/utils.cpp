@@ -676,7 +676,8 @@ subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
 
 subgraph_t::subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
         impl::fpmath_mode_t fpm_mode, bool reset_layout)
-    : impl::graph_t(ops, fpm_mode)
+    : impl::graph_t(
+            ops, static_cast<impl::engine_kind_t>(eng.get_kind()), fpm_mode)
     , p_engine_(&eng)
     , fusion_info_mgr_(fpm_mode) {
     if (reset_layout) { set_all_layout_to_any(get_mutable_ops()); }

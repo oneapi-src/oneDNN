@@ -18,6 +18,7 @@
 #include <cstring>
 #include <limits>
 #include <set>
+#include <sstream>
 #include <thread>
 
 #include "oneapi/dnnl/dnnl_graph.h"
@@ -504,6 +505,30 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
 
     ret = pre_process(tmp_outputs, outputs, backend);
     if (status::success != ret) return ret;
+
+#ifdef DNNL_GRAPH_ENABLE_DUMP
+    if (utils::getenv_int_user("DUMP", 0) > 1) {
+        if (!is_supported()) return status::unimplemented;
+        // deep copy for graph serialization
+        auto part = pimpl_->clone();
+        const std::vector<std::shared_ptr<op_t>> &fused_op = part->get_ops();
+        if (fused_op.empty()) return status::invalid_arguments;
+        auto agraph = graph_t(fused_op, get_engine_kind(), get_fpmath_mode());
+        // set user given logical tensors and infer shape
+        agraph.set_user_inputs_outputs(tmp_inputs, tmp_outputs);
+        agraph.infer_shape();
+        // hash logical tensors to generate unique filename
+        impl::partition_hashing::key_t key(this, inputs, outputs);
+        size_t seed = 0;
+        seed = impl::partition_hashing::get_unordered_array_hash(
+                seed, key.ins_);
+        seed = impl::partition_hashing::get_unordered_array_hash(
+                seed, key.outs_);
+        std::stringstream filename;
+        filename << "graph-" << id() << "-" << seed << ".json";
+        agraph.serialize(filename.str());
+    }
+#endif
 
     // The impl's compile will generate the compiled_partition_impl and
     // modify the given inputs outputs logical tensor

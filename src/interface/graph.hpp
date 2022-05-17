@@ -17,6 +17,10 @@
 #ifndef INTERFACE_GRAPH_HPP
 #define INTERFACE_GRAPH_HPP
 
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <limits>
 #include <memory>
 #include <set>
 #include <string>
@@ -36,7 +40,9 @@
 #include "interface/value.hpp"
 
 #include "utils/compatible.hpp"
+#include "utils/debug.hpp"
 #include "utils/id.hpp"
+#include "utils/json.hpp"
 #include "utils/utils.hpp"
 
 namespace impl = dnnl::graph::impl;
@@ -92,8 +98,9 @@ public:
         , partition_impls_(other.partition_impls_) {};
 
     dnnl_graph_graph(const std::vector<op_ptr> &ops,
+            impl::engine_kind_t kind = impl::engine_kind::cpu,
             impl::fpmath_mode_t fpmath_mode = impl::fpmath_mode::strict)
-        : ops_(ops), fpmath_mode_(fpmath_mode) {}
+        : ops_(ops), engine_kind_(kind), fpmath_mode_(fpmath_mode) {}
 
     dnnl_graph_graph &operator=(const dnnl_graph_graph &other) = delete;
 
@@ -304,6 +311,87 @@ public:
 
             return impl::status::success;
         });
+    }
+
+    // This function is used to set user given logical tensors for inputs and
+    // outputs of a graph.
+    impl::status_t set_user_inputs_outputs(
+            const std::vector<impl::logical_tensor_t> &inputs,
+            const std::vector<impl::logical_tensor_t> &outputs) {
+        // set the inputs's layout to subgraph's inputs value
+        auto graph_in_vals = get_input_values();
+        auto graph_out_vals = get_output_values();
+
+        auto set_logical_tensors =
+                [](std::vector<value_t *> &edges,
+                        const std::vector<impl::logical_tensor_t> &givens,
+                        bool check_given, bool must_have_shape) {
+                    for (auto &edge : edges) {
+                        size_t edge_id = edge->get_logical_tensor().id;
+
+                        // partition in/outs should not have default id. There
+                        // must be some errors in previous graph transformation
+                        // stage
+                        if (edge_id == std::numeric_limits<size_t>::max())
+                            return impl::status::invalid_graph;
+
+                        bool found = false;
+                        for (const auto &given : givens) {
+                            if (edge_id == given.id) {
+                                if (check_given) {
+                                    // check given lts
+                                    bool valid = given.data_type
+                                            != impl::data_type::undef;
+                                    if (must_have_shape) {
+                                        valid = valid && given.ndims > 0;
+                                        for (size_t i = 0; i < given.ndims;
+                                                i++) {
+                                            valid = valid
+                                                    && given.dims[i] != -1;
+                                        }
+                                    }
+                                    if (!valid)
+                                        return impl::status::invalid_arguments;
+                                }
+
+                                edge->set_logical_tensor(given);
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (!found) return impl::status::invalid_arguments;
+                    }
+                    return impl::status::success;
+                };
+
+        impl::status_t ret;
+        ret = set_logical_tensors(graph_in_vals, inputs, true, true);
+        if (ret != impl::status::success) return ret;
+
+        ret = set_logical_tensors(graph_out_vals, outputs, true, false);
+        return ret;
+    }
+
+    // This function is used to serialize graph to a JSON file
+    impl::status_t serialize(const std::string &filename) const {
+        printf("onednn_graph_verbose,info,serialize graph to a json file %s\n",
+                filename.c_str());
+        std::ofstream of(filename);
+        impl::utils::json::json_writer_t writer(&of);
+        writer.begin_object();
+        std::string version = std::to_string(dnnl_graph_version()->major) + "."
+                + std::to_string(dnnl_graph_version()->minor) + "."
+                + std::to_string(dnnl_graph_version()->patch);
+        writer.write_keyvalue("version", version);
+        writer.write_keyvalue("engine_kind",
+                std::string(impl::utils::engine_kind2str(get_engine_kind())));
+        writer.write_keyvalue("fpmath_mode",
+                std::string(impl::utils::fpmath_mode2str(get_fpmath_mode())));
+        writer.write_keyvalue("graph", get_ops());
+        writer.end_object();
+
+        return impl::status::success;
     }
 
     static std::vector<op_ptr> deep_copy(const std::vector<op_ptr> &ops);

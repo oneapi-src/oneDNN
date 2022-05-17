@@ -85,6 +85,10 @@ public:
         return pimpl_->get_engine_kind();
     }
 
+    impl::fpmath_mode_t get_fpmath_mode() const {
+        return pimpl_->get_fpmath_mode();
+    }
+
     const std::vector<std::shared_ptr<impl::op_t>> &get_ops() const {
         return pimpl_->get_ops();
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "interface/c_types_map.hpp"
+#include "utils/json.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -176,6 +177,33 @@ public:
         if (orig.value_cell_) {
             this->value_cell_ = orig.value_cell_->duplicate();
         }
+    }
+
+    // Serialize
+    status_t save(dnnl::graph::impl::utils::json::json_writer_t *writer) const {
+        writer->begin_object();
+        if (check_type<bool>()) {
+            writer->write_keyvalue("type", std::string("bool"));
+            writer->write_keyvalue("value", get<bool>());
+        } else if (check_type<int64_t>()) {
+            writer->write_keyvalue("type", std::string("s64"));
+            writer->write_keyvalue("value", get<int64_t>());
+        } else if (check_type<float>()) {
+            writer->write_keyvalue("type", std::string("f32"));
+            writer->write_keyvalue("value", get<float>());
+        } else if (check_type<std::vector<float>>()) {
+            writer->write_keyvalue("type", std::string("f32[]"));
+            writer->write_keyvalue("value", get<std::vector<float>>());
+        } else if (check_type<std::vector<int64_t>>()) {
+            writer->write_keyvalue("type", std::string("s64[]"));
+            writer->write_keyvalue("value", get<std::vector<int64_t>>());
+        } else if (check_type<std::string>()) {
+            writer->write_keyvalue("type", std::string("string"));
+            writer->write_keyvalue("value", get<std::string>());
+        } else {
+        }
+        writer->end_object();
+        return impl::status::success;
     }
 
     template <typename value_type>

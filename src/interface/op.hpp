@@ -33,6 +33,7 @@
 
 #include "utils/attribute_value.hpp"
 #include "utils/compatible.hpp"
+#include "utils/json.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -408,6 +409,24 @@ public:
 
     const std::unordered_map<size_t, pair_t> &get_output_tensor_map() const {
         return output_tensor_map_;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Serialize
+    status_t save(dnnl::graph::impl::utils::json::json_writer_t *writer) const {
+        writer->begin_object();
+        writer->write_keyvalue("id", get_id());
+        writer->write_keyvalue("name", get_name());
+        writer->write_keyvalue("kind", kind2str(get_kind()));
+        auto attrs = get_attributes();
+        std::unordered_map<std::string, attribute_value_t> copied_attrs;
+        copied_attrs.insert(attrs.begin(), attrs.end());
+        copied_attrs.erase("matched_pattern");
+        writer->write_keyvalue("attrs", copied_attrs);
+        writer->write_keyvalue("inputs", get_input_values());
+        writer->write_keyvalue("outputs", get_output_values());
+        writer->end_object();
+        return dnnl::graph::impl::status::success;
     }
 
 private:

@@ -20,12 +20,15 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "c_types_map.hpp"
 #include "logical_tensor.hpp"
 #include "utils/compatible.hpp"
+#include "utils/debug.hpp"
+#include "utils/json.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -160,6 +163,36 @@ public:
             // Not all ops have been added through build_graph
             consumers_.erase(pos);
         }
+    }
+
+    // Serialize
+    status_t save(impl::utils::json::json_writer_t *writer) const {
+        writer->begin_object();
+        auto lt = get_logical_tensor();
+        auto ltw = impl::logical_tensor_wrapper_t(lt);
+        writer->write_keyvalue("id", ltw.id());
+        writer->write_keyvalue("dtype",
+                std::string(impl::utils::data_type2str(ltw.data_type())));
+        // set {-1} when shape is not well inferred
+        if (!ltw.is_shape_unknown()) {
+            writer->write_keyvalue("shape", ltw.vdims());
+        } else {
+            const std::vector<dim_t> unknown {-1};
+            writer->write_keyvalue("shape", unknown);
+        }
+        if (!ltw.is_stride_unknown()) {
+            writer->write_keyvalue("stride", ltw.vstrides());
+        } else {
+            const std::vector<dim_t> unknown {-1};
+            writer->write_keyvalue("stride", unknown);
+        }
+        writer->write_keyvalue("layout_type",
+                std::string(impl::utils::layout_type2str(ltw.layout_type())));
+        writer->write_keyvalue("property_type",
+                std::string(
+                        impl::utils::property_type2str(ltw.property_type())));
+        writer->end_object();
+        return impl::status::success;
     }
 
 private:
