@@ -19613,6 +19613,14 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
+    // The below case will be skipped on GPU:
+    // benchdnn --matmul --reset --allow-enum-tags-only=0 --engine=gpu
+    // --cfg=u8s8bf16  --stag=acbd --wtag=adbc --dtag=abcd
+    // --attr-post-ops=binary_div:bf16:common --attr-oscale=common:3.087849e-05
+    // --attr-zero-points=src:common:110+wei:common:114 --attr-scratchpad=user
+    // 1x4x16x8:1x4x8x16:1x4x16x16
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     std::vector<std::string> dtypes = {"uint8", "int8"};
 
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
