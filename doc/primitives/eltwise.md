@@ -131,7 +131,7 @@ The eltwise primitive supports the following combinations of data types:
 | Propagation        | Source / Destination | Intermediate data type
 | :--                | :--                  | :--
 | forward / backward | f32, bf16            | f32
-| forward            | f16                  | f16
+| forward            | f16                  | f32
 | forward            | s32 / s8 / u8        | f32
 
 @warning

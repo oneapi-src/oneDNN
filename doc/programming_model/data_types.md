@@ -156,5 +156,8 @@ types that oneDNN recognizes.
 | f16       | GEN9
 
 @note 
-  f64 configurations are only supported on the GPU engines with HW capability 
+  - f64 configurations are only supported on the GPU engines with HW capability
   for double-precision floating-point.
+
+  - f16 operations may accumulate to f16 on the GPU architectures older than
+  Xe-HP. Newer architectures accumulate to f32.
