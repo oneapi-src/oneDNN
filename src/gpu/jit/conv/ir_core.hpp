@@ -193,6 +193,7 @@ enum class type_kind_t {
     f16,
     tf32,
     f32,
+    f64,
 
     // Message data types.
     byte,
@@ -252,6 +253,7 @@ public:
         return type_t(type_kind_t::tf32, elems);
     }
     static type_t f32(int elems = 1) { return type_t(type_kind_t::f32, elems); }
+    static type_t f64(int elems = 1) { return type_t(type_kind_t::f64, elems); }
 
     static type_t byte(int elems = 1) {
         return type_t(type_kind_t::byte, elems);
@@ -279,6 +281,7 @@ public:
 
         CASE(bool, _bool);
         CASE(float, f32);
+        CASE(double, f64);
         CASE(int16_t, s16);
         CASE(int32_t, s32);
         CASE(int64_t, s64);
@@ -349,6 +352,7 @@ public:
             CASE(f16);
             CASE(tf32);
             CASE(f32);
+            CASE(f64);
             CASE(s32);
             CASE(s8);
             CASE(u8);
@@ -384,13 +388,14 @@ public:
 
     bool is_fp() const {
         return utils::one_of(kind(), type_kind_t::bf16, type_kind_t::f16,
-                type_kind_t::tf32, type_kind_t::f32);
+                type_kind_t::tf32, type_kind_t::f32, type_kind_t::f64);
     }
 
     bool is_bf16() const { return kind() == type_kind_t::bf16; }
     bool is_f16() const { return kind() == type_kind_t::f16; }
     bool is_tf32() const { return kind() == type_kind_t::tf32; }
     bool is_f32() const { return kind() == type_kind_t::f32; }
+    bool is_f64() const { return kind() == type_kind_t::f64; }
 
     bool is_int() const {
         return utils::one_of(kind(), type_kind_t::u8, type_kind_t::s8,
@@ -868,6 +873,7 @@ public:
 
     explicit expr_t(bool v);
     expr_t(float v);
+    expr_t(double v);
     expr_t(int16_t v);
     expr_t(int32_t v);
     expr_t(int64_t v);
@@ -1561,6 +1567,7 @@ expr_t to_expr(T value, const type_t &type) {
 
     CASE(_bool, bool);
     CASE(f32, float);
+    CASE(f64, double);
     CASE(s16, int16_t);
     CASE(s32, int32_t);
     CASE(s64, int64_t);

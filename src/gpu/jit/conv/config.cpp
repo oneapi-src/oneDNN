@@ -90,7 +90,8 @@ status_t conv_config_t::init_common_blocking() {
 
     // Set base blocks to align kernel blocking with layout blocking.
     if (is_fwd) {
-        bh->set_base_iter_block("mb", src_layout.inner_block(0));
+        bh->set_base_iter_block(
+                "mb", is_f64_conv() ? 1 : src_layout.inner_block(0));
         int src_g_blk = src_layout.inner_block(1);
         int wei_g_blk = wei_layout.inner_block(0);
         bh->set_base_iter_block("g", src_g_blk, wei_g_blk);
@@ -126,6 +127,15 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
 
     init_use_ow_kw_grf_cache();
 
+    const char *osp_name = fuse_spatial ? "osp" : "ow";
+
+    if (is_f64_conv()) {
+        bh->set_max_iter_dim("mb", 1);
+        bh->set_max_iter_dim(osp_name, 1);
+        bh->set_pref_tg_block("mb");
+        bh->set_max_m_tg_dim(8);
+    }
+
     if (use_ow_kw_grf_cache) {
         bh->set_max_iter_dim("mb", 1);
         bh->set_max_m_tg_dim(2);
@@ -144,8 +154,6 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
             bh->set_max_k_tg_dim(8);
         }
     }
-
-    const char *osp_name = fuse_spatial ? "osp" : "ow";
 
     bh->set_block_dims({"g", "oc", "ic", "mb", osp_name});
     bh->set_vector_dim(is_dw ? "g" : "oc");
@@ -178,7 +186,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         if (is_dw) bh->set_pref_tg_block(osp_name);
         bh->allow_split({osp_name, "mb"});
         bh->reorder({osp_name, "mb"});
-    } else {
+    } else if (!is_f64_conv()) {
         const int large_sp_threshold = is_ge_xe_hpc() ? 128 : 256;
         if (!is_dw && osp > large_sp_threshold) bh->set_pref_tg_block("oc");
         bh->reorder({"mb", osp_name});
@@ -245,7 +253,9 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
 
     bool is_a_grf_blocked
             = (a_layout().innermost_block_layout().size() % grf_size() == 0);
-    if (!is_dp_fma()
+    if (is_f64_conv()) {
+        allow_grf_reorder = false;
+    } else if (!is_dp_fma()
             && !utils::everyone_is(a_data_type, b_data_type, data_type::f32)) {
         allow_grf_reorder = true;
     } else if (is_small_ic() && is_dp_fma()) {

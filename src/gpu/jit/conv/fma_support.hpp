@@ -186,10 +186,10 @@ class mad_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(mad_t, func_impl_t)
 
-    static func_t make(const type_t &dst_type, int exec_size,
+    static func_t make(ngen::HW hw, const type_t &dst_type, int exec_size,
             const type_t &src1_type, int src1_stride, const type_t src2_type,
             int src2_stride) {
-        return func_t(new mad_t(dst_type, exec_size, src1_type, src1_stride,
+        return func_t(new mad_t(hw, dst_type, exec_size, src1_type, src1_stride,
                 src2_type, src2_stride));
     }
 
@@ -240,9 +240,10 @@ public:
             ngen::HW hw, const type_t &a, const type_t &b, const type_t &c);
 
     static const int max_exec_size = 32;
-    static const int max_exec_size_bytes = 64;
-    static int get_simd_size(
+    static const int get_max_exec_size_bytes(ngen::HW hw) {return hw >= ngen::HW::XeHPC ? 128 : 64 ;}
+    static int get_simd_size(ngen::HW hw,
             const type_t &a, const type_t &b, const type_t &c) {
+        int max_exec_size_bytes = get_max_exec_size_bytes(hw);
         int max_size = max_exec_size;
         if (max_exec_size_bytes / a.size() < max_size)
             max_size = max_exec_size_bytes / a.size();
@@ -263,7 +264,7 @@ public:
     int src2_stride;
 
 private:
-    mad_t(const type_t &dst_type, int exec_size, const type_t &src1_type,
+    mad_t(ngen::HW hw, const type_t &dst_type, int exec_size, const type_t &src1_type,
             int src1_stride, const type_t &src2_type, int src2_stride)
         : dst_type(dst_type)
         , src1_type(src1_type)
@@ -271,7 +272,7 @@ private:
         , exec_size(exec_size)
         , src1_stride(src1_stride)
         , src2_stride(src2_stride) {
-
+        int max_exec_size_bytes = get_max_exec_size_bytes(hw);
         ir_assert(math::is_pow2(exec_size));
 
         ir_assert(exec_size <= max_exec_size);

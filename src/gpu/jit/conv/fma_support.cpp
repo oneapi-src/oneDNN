@@ -58,18 +58,19 @@ fma_kind_t fma_kind::get_supported_kind(
 int fma_kind::get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c) {
     int max_simd_size = 16;
+    int min_simd_size = hw >= ngen::HW::XeHPC ? 16 : 8;
     int ret = 0;
     switch (kind) {
         case fma_kind_t::dp4a:
-            ret = mad_t::get_simd_size(a.with_elems(4), b.with_elems(4), c);
+            ret = mad_t::get_simd_size(hw, a.with_elems(4), b.with_elems(4), c);
             break;
         case fma_kind_t::dpas:
         case fma_kind_t::dpasw: ret = hw >= ngen::HW::XeHPC ? 16 : 8; break;
-        case fma_kind_t::mad: ret = mad_t::get_simd_size(a, b, c); break;
+        case fma_kind_t::mad: ret = mad_t::get_simd_size(hw, a, b, c); break;
         default: break;
     }
     ir_assert(ret != 0);
-    ret = std::min(ret, max_simd_size);
+    ret = std::max(std::min(ret, max_simd_size), min_simd_size);
     return ret;
 }
 
@@ -84,6 +85,7 @@ type_t multiply_desc_t::get_c_type(
     if (a == type_t::bf16() && b == type_t::bf16()) return type_t::f32();
     if (a == type_t::tf32() && b == type_t::tf32()) return type_t::f32();
     if (a == type_t::f32() && b == type_t::f32()) return type_t::f32();
+    if (a == type_t::f64() && b == type_t::f64()) return type_t::f64();
 
     if (utils::one_of(a, type_t::f16(), type_t::bf16()) && b == type_t::f32()) {
         return type_t::f32();
@@ -164,6 +166,7 @@ bool mad_t::matches_types(
         ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
     if (a != b) return false;
 
+    if (a.is_f64() && c.is_f64()) return true;
     if (a.is_f32() && c.is_f32()) return true;
     if (a.is_f16() && c.is_f16()) return true;
     if (a.is_f16() && c.is_f32()) return true;

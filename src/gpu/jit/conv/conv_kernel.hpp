@@ -75,6 +75,7 @@ ngen::DataType to_ngen(const type_t &type) {
     CASE(f16, hf);
     CASE(tf32, tf32);
     CASE(f32, f);
+    CASE(f64, df);
     CASE(s16, w);
     CASE(s32, d);
     CASE(s64, q);
@@ -99,6 +100,7 @@ type_t to_ir(ngen::DataType type) {
     CASE(bf16, bf);
     CASE(f16, hf);
     CASE(f32, f);
+    CASE(f64, df);
     CASE(s16, w);
     CASE(s32, d);
     CASE(s64, q);

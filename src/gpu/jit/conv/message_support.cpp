@@ -182,8 +182,8 @@ public:
 
     int remaining_elems() const { return remaining_size_ / type_size_; }
 
-    bool is_dense_and_aligned(int off, int size, int alignment) const {
-        if (size % type_size_ != 0) return false;
+    bool is_dense_and_aligned(
+            int off, int size, int alignment) const {
         if (off + size > remaining_size_) return false;
         if (size == 0) return true;
         int beg = cur_off_ + off;
@@ -199,7 +199,9 @@ public:
             int off = i * slot_size;
             // Overflow is fine, expect it to be handled by proper masking.
             if (off >= remaining_size_) return true;
-            if (!is_dense_and_aligned(off, slot_size, alignment)) return false;
+            if ((slot_size * slots) % type_size_ != 0) return false;
+            if (!is_dense_and_aligned(off, slot_size, alignment))
+                return false;
         }
         return true;
     }

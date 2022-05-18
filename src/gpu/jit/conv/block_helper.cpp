@@ -365,9 +365,9 @@ void block_helper_t::init_bmnk_blocks() {
     int bn_inst_blk = 0;
     bool is_ge_hpc = (hw_cfg_.hw() >= ngen::HW::XeHPC);
     bool reduce_m_block = false;
-    if (m_dim().base_iter_block() == 1 && !use_a_2d_send_)
+    if (m_dim().base_iter_block() == 1 && (!m_dim().pref_tg_block() || !use_a_2d_send_))
         reduce_m_block = true;
-    if (k_dim().base_iter_block() == 1 && !use_a_2d_send_)
+    if (k_dim().base_iter_block() == 1 && (!m_dim().pref_tg_block() || !use_a_2d_send_))
         reduce_m_block = true;
     if (is_tf32() && fma_kind_ != fma_kind_t::mad) reduce_m_block = true;
     int eu_thr_mul = (!is_ge_hpc && reduce_m_block) ? 2 : 4;
@@ -387,7 +387,8 @@ void block_helper_t::init_bmnk_blocks() {
             bool small_m_tg = m_dim().base_iter_block() == 1
                     && hw_cfg_.hw() == ngen::HW::XeHPG
                     && !m_dim().pref_tg_block();
-            m_dim().set_max_dim(tile_level_t::tg, small_m_tg ? 1 : 4);
+            if (!m_dim().pref_tg_block())
+                m_dim().set_max_dim(tile_level_t::tg, small_m_tg ? 1 : 4);
             bn_blk = hw_cfg_.vec_size();
             k_blk = compute_mad_k_block();
             if (!allow_k_grid_slicing_ && !allow_k_tg_slicing_) {
@@ -463,7 +464,6 @@ void block_helper_t::init_bmnk_blocks() {
         bn_blk = getenv_int("n_iter_blk", bn_blk);
     }
 #endif
-
     m_dim().set_iter_dim(m_blk);
     bn_dim.set_iter_dim(bn_blk);
     k_dim().set_iter_dim(k_blk);

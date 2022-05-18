@@ -43,6 +43,7 @@ std::string to_string(type_kind_t kind) {
         CASE(f16);
         CASE(tf32);
         CASE(f32);
+        CASE(f64);
         CASE(byte);
         CASE(dword);
         CASE(qword);
@@ -75,6 +76,7 @@ int type_t::size() const {
         case type_kind_t::tf32:
         case type_kind_t::f32:
         case type_kind_t::dword: return 4;
+        case type_kind_t::f64:
         case type_kind_t::u64:
         case type_kind_t::s64:
         case type_kind_t::qword: return 8;
@@ -93,6 +95,7 @@ data_type_t to_dnnl(const type_t &type) {
         case type_kind_t::f16: return data_type::f16;
         case type_kind_t::tf32: return data_type::tf32;
         case type_kind_t::f32: return data_type::f32;
+        case type_kind_t::f64: return data_type::f64;
         case type_kind_t::s32: return data_type::s32;
         case type_kind_t::s8: return data_type::s8;
         case type_kind_t::u8: return data_type::u8;
@@ -313,6 +316,7 @@ expr_t expr_t::operator[](const expr_t &off) const {
 
 expr_t::expr_t(bool value) : object_t(new bool_imm_t(value)) {}
 expr_t::expr_t(float value) : object_t(new float_imm_t(value)) {}
+expr_t::expr_t(double value) : object_t(new float_imm_t(value)) {}
 expr_t::expr_t(int16_t value) : object_t(new int_imm_t(value)) {}
 expr_t::expr_t(int32_t value) : object_t(new int_imm_t(value)) {}
 expr_t::expr_t(int64_t value) : object_t(new int_imm_t(value)) {}

@@ -402,6 +402,7 @@ public:
 
     bool post_ops_ok(const convolution_pd_t *pd) const {
         auto *attr = pd->attr();
+        if (is_f64_conv() && !attr->has_default_values()) return false;
 
         if (is_fwd || is_bwd_d) {
             auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops
@@ -457,8 +458,9 @@ public:
     bool data_types_ok() const {
         bool is_bf16 = utils::one_of(data_type::bf16, src_data_type,
                 wei_data_type, dst_data_type, bia_data_type);
+        if (!is_f64_conv() && utils::one_of(data_type::f64, src_data_type, wei_data_type, dst_data_type, bia_data_type)) return false;
         if (is_bf16 && hw() <= ngen::HW::XeLP) return false;
-
+        if (is_f64_conv() && (!is_fwd || with_bias)) return false;
         if (is_fwd) return true;
         if (is_bwd_d) return true;
         if (is_bwd_w) {
@@ -485,6 +487,9 @@ public:
     bool is_s32_accumulator() const { return acc_data_type == data_type::s32; }
     bool is_f32_conv() const {
         return utils::everyone_is(src_data_type, wei_data_type, data_type::f32);
+    }
+    bool is_f64_conv() const {
+        return utils::everyone_is(src_data_type, wei_data_type, data_type::f64);
     }
     bool is_int8_dst() const {
         return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
@@ -777,6 +782,8 @@ private:
             acc_data_type = data_type::f32;
         } else if (utils::everyone_is(data_type::f32, a, b)) {
             acc_data_type = data_type::f32;
+        } else if (utils::everyone_is(data_type::f64, a, b)) {
+            acc_data_type = data_type::f64;
         }
         if (acc_data_type == data_type::undef) return status::unimplemented;
         acc_data_type_size = (int)types::data_type_size(acc_data_type);
