@@ -694,7 +694,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                     return is_fpsubtype(data_type::bf16, dt_to);
                 case fpmath_mode::f16:
                     return is_fpsubtype(data_type::f16, dt_to);
-                case fpmath_mode::f19:
+                case fpmath_mode::tf32:
                     return is_fpsubtype(data_type::tf32, dt_to);
                 default: return false;
             }

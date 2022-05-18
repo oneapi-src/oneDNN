@@ -92,7 +92,7 @@ const _dt_conf_t conf_f32_with_bf16_fpmath = {
         {dnnl_f32},
 };
 
-const _dt_conf_t conf_f32_with_f19_fpmath = {
+const _dt_conf_t conf_f32_with_tf32_fpmath = {
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},

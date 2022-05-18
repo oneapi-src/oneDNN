@@ -31,7 +31,7 @@ void init_fpmath_mode() {
         if (val.compare("strict") == 0) default_fpmath.set(fpmath_mode::strict);
         if (val.compare("bf16") == 0) default_fpmath.set(fpmath_mode::bf16);
         if (val.compare("f16") == 0) default_fpmath.set(fpmath_mode::f16);
-        if (val.compare("f19") == 0) default_fpmath.set(fpmath_mode::f19);
+        if (val.compare("tf32") == 0) default_fpmath.set(fpmath_mode::tf32);
         if (val.compare("any") == 0) default_fpmath.set(fpmath_mode::any);
     }
     if (!default_fpmath.initialized()) default_fpmath.set(default_fpmath.get());
@@ -39,7 +39,7 @@ void init_fpmath_mode() {
 
 status_t check_fpmath_mode(fpmath_mode_t mode) {
     if (utils::one_of(mode, fpmath_mode::strict, fpmath_mode::bf16,
-                fpmath_mode::f16, fpmath_mode::f19, fpmath_mode::any))
+                fpmath_mode::f16, fpmath_mode::tf32, fpmath_mode::any))
         return status::success;
     return status::invalid_arguments;
 }

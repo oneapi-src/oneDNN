@@ -36,7 +36,7 @@ TEST_F(attr_test_t, TestFPMathMode) {
     ASSERT_EQ(attr.get_fpmath_mode(), fpmath_mode::strict);
 
     for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
-                 fpmath_mode::f19, fpmath_mode::any}) {
+                 fpmath_mode::tf32, fpmath_mode::any}) {
         attr.set_fpmath_mode(m);
         ASSERT_EQ(m, attr.get_fpmath_mode());
     }
@@ -46,7 +46,7 @@ TEST_F(attr_test_t, TestFPMathModeDefault) {
     ASSERT_EQ(fpmath_mode::strict, get_default_fpmath_mode());
 
     for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
-                 fpmath_mode::f19, fpmath_mode::any}) {
+                 fpmath_mode::tf32, fpmath_mode::any}) {
         set_default_fpmath_mode(m);
         ASSERT_EQ(m, get_default_fpmath_mode());
         dnnl::primitive_attr attr;

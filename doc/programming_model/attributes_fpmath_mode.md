@@ -13,15 +13,15 @@ allow implicit down-conversions of floating-point types.
 When passed to a primitive creation, the @ref dnnl::fpmath_mode
 primitive attribute specifies which implicit down-conversions are
 allowed for that given primitive. Only down-conversions from f32 to
-narrower data-types (f16, bf16, or f19) are currently allowed. Furthermore
+narrower data-types (f16, bf16, or tf32) are currently allowed. Furthermore
 these down-conversions are allowed only during computation, and do not
 affect the storage datatype (which must remain f32).
 
 The @ref dnnl::fpmath_mode primitive attribute can take 3 types of values:
 - the `strict` mode disables any down-conversion.
 - the `any` mode allows all conversions from f32 to a smaller
-  floating-point datatype (f16, bf16, or f19).
-- a specific datatype (f16, bf16, or f19) which specifically allows
+  floating-point datatype (f16, bf16, or tf32).
+- a specific datatype (f16, bf16, or tf32) which specifically allows
   down-conversion only from f32 to a datatype at least as accurate as
   the specified data-type (at least same number of exponent and
   mantissa bits).

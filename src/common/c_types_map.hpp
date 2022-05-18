@@ -168,7 +168,7 @@ namespace fpmath_mode {
 const fpmath_mode_t strict = dnnl_fpmath_mode_strict;
 const fpmath_mode_t bf16 = dnnl_fpmath_mode_bf16;
 const fpmath_mode_t f16 = dnnl_fpmath_mode_f16;
-const fpmath_mode_t f19 = dnnl_fpmath_mode_f19;
+const fpmath_mode_t tf32 = dnnl_fpmath_mode_tf32;
 const fpmath_mode_t any = dnnl_fpmath_mode_any;
 } // namespace fpmath_mode
 

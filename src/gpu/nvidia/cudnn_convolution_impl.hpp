@@ -236,7 +236,7 @@ public:
                 case dnnl_fpmath_mode_f16:
                     cudnn_math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
                     break;
-                case dnnl_fpmath_mode_f19:
+                case dnnl_fpmath_mode_tf32:
                     cudnn_math_type = CUDNN_DEFAULT_MATH;
                     break;
                 case dnnl_fpmath_mode_any:

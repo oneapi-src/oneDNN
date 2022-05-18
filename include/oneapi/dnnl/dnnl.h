@@ -343,7 +343,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_fpmath_mode(
 ///     #dnnl_fpmath_mode_strict (default),
 ///     #dnnl_fpmath_mode_bf16,
 ///     #dnnl_fpmath_mode_f16,
-///     #dnnl_fpmath_mode_f19,
+///     #dnnl_fpmath_mode_tf32,
 ///     #dnnl_fpmath_mode_any.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
@@ -3826,7 +3826,7 @@ dnnl_status_t DNNL_API dnnl_get_default_fpmath_mode(dnnl_fpmath_mode_t *mode);
 ///     #dnnl_fpmath_mode_strict,
 ///     #dnnl_fpmath_mode_bf16,
 ///     #dnnl_fpmath_mode_f16,
-///     #dnnl_fpmath_mode_f19,
+///     #dnnl_fpmath_mode_tf32,
 ///     #dnnl_fpmath_mode_any.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.

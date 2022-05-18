@@ -1216,7 +1216,7 @@ const char *dnnl_fpmath_mode2str(dnnl_fpmath_mode_t v) {
     if (v == dnnl_fpmath_mode_bf16) return "bf16";
     if (v == dnnl_fpmath_mode_f16) return "f16";
     if (v == dnnl_fpmath_mode_any) return "any";
-    if (v == dnnl_fpmath_mode_f19) return "f19";
+    if (v == dnnl_fpmath_mode_tf32) return "tf32";
     assert(!"unknown fpmath_mode");
     return "unknown fpmath_mode";
 }

@@ -116,7 +116,7 @@ typedef struct dt_conf_t {
 
 extern const _dt_conf_t conf_f32;
 extern const _dt_conf_t conf_f32_with_bf16_fpmath;
-extern const _dt_conf_t conf_f32_with_f19_fpmath;
+extern const _dt_conf_t conf_f32_with_tf32_fpmath;
 
 const dt_conf_t *str2cfg(const char *str);
 std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
@@ -197,7 +197,8 @@ struct prb_t : public desc_t {
             switch (attr.fpmath_mode) {
                 case dnnl_fpmath_mode_bf16:
                     return conf_f32_with_bf16_fpmath[dk];
-                case dnnl_fpmath_mode_f19: return conf_f32_with_f19_fpmath[dk];
+                case dnnl_fpmath_mode_tf32:
+                    return conf_f32_with_tf32_fpmath[dk];
                 default: return cfg[dk];
             }
         }
