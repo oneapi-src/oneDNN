@@ -60,6 +60,20 @@
 --attr-post-ops=,div:bf16
 --batch=shapes_int8_2d
 
+# x8s8bf16 - matmul + add
+--reset
+--cfg=u8s8bf16 
+--attr-oscale=per_oc:2.25 
+--attr-post-ops=add:bf16 
+16x13:13x512:16x512
+
+#x8s8bf16 - matmul + several binary post-ops
+--reset
+--cfg=u8s8bf16 
+--attr-oscale=per_oc:2.25 
+--attr-post-ops=div:bf16+add:bf16 
+16x13:13x512:16x512
+
 # int8 + several binary post-ops
 --reset
 --cfg=s8s8s8

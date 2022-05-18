@@ -619,7 +619,8 @@ fill_status_t po_handlers_t::binary_po_handler_t::operator()(
     const auto dst_dt = dst_lt.get_data_type();
     const auto bin_src_dims
             = convert_bin_policy(dst_dims, po_entry.binary.policy);
-    const auto bin_src_dt = p.with_quantization()
+    const auto bin_src_dt
+            = (p.with_quantization() && (po_entry.binary.src1_dt != dnnl_bf16))
             ? dt::f32
             : convert_dt(po_entry.binary.src1_dt);
 
