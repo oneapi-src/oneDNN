@@ -68,7 +68,6 @@ inline void host_task(H &cgh, F &&f) {
     host_task_impl(cgh, f, 0);
 }
 
-bool is_fp64_supported(const ::sycl::device &dev);
 uint64_t init_extensions(const ::sycl::device &dev);
 
 #if DNNL_USE_SYCL121_API

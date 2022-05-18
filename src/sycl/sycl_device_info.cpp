@@ -74,10 +74,6 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         assert(!"not_expected");
     }
 
-    // XXX: temporary WA for different Xe_HP devices
-    if (gpu_arch_ == gpu::compute::gpu_arch_t::xe_hpg
-            && !compat::is_fp64_supported(device))
-        gpu_arch_ = gpu::compute::gpu_arch_t::xe_hpg;
     return status::success;
 }
 

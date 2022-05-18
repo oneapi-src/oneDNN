@@ -262,14 +262,6 @@ std::function<void(void *)> get_program_list_deleter() {
 #endif
 }
 
-bool is_fp64_supported(const ::sycl::device &dev) {
-#if DNNL_USE_SYCL121_API
-    return dev.has_extension(ext2cl_str(device_ext_t::khr_fp64));
-#else
-    return dev.has(::sycl::aspect::fp64);
-#endif
-}
-
 uint64_t init_extensions(const ::sycl::device &dev) {
     uint64_t extensions = 0;
 #if DNNL_USE_SYCL121_API
