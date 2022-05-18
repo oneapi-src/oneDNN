@@ -248,7 +248,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     } else {
         conf.skip_final_phase = false;
         initial_n_chunks_padded = conf.initial_n_chunks;
-        initial_c_padded = conf.src_dims[1];
+        initial_c_padded = utils::rnd_up(conf.src_dims[1], conf.c_block_size);
     }
 
     conf.dispatch.define_dim("INITIAL_N", 0, initial_n_chunks_padded, 1);
