@@ -19,6 +19,7 @@
 #include <cctype>
 
 #include "common/type_helpers.hpp"
+#include "gpu/jit/conv/block_2d_utils.hpp"
 #include "gpu/jit/conv/block_helper.hpp"
 
 namespace dnnl {
@@ -944,10 +945,21 @@ void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
 
     int a_width = (is_fwd || is_bwd_w) ? ic : oc;
     int b_width = oc;
+    int a_max_height = std::max((is_fwd || is_bwd_w) ? iw : ow, mb);
+    int b_max_height = (is_fwd || is_bwd_d) ? ic : std::max(ow, mb);
+    int a_max_pitch
+            = (is_fwd || is_bwd_w) ? (ic * id * ih * iw) : (oc * od * oh * ow);
+    int b_max_pitch = (is_fwd || is_bwd_d) ? oc : (oc * od * oh * ow);
 
-    // 2D block message limitations, width must be a multiple of 64 bytes.
-    if (a_width * a_data_type_size % 64 != 0) return;
-    if (b_width * b_data_type_size % 64 != 0) return;
+    // 2D block message limitations.
+    if (!block_2d_width_ok(a_width, a_data_type_size)) return;
+    if (!block_2d_width_ok(b_width, b_data_type_size)) return;
+    if (!block_2d_height_ok(a_max_height)) return;
+    if (!block_2d_height_ok(b_max_height)) return;
+    if (!block_2d_pitch_ok(a_width, a_data_type_size)) return;
+    if (!block_2d_pitch_ok(b_width, b_data_type_size)) return;
+    if (!block_2d_pitch_ok(a_max_pitch, a_data_type_size)) return;
+    if (!block_2d_pitch_ok(b_max_pitch, b_data_type_size)) return;
 
     use_2d_send = true;
 }

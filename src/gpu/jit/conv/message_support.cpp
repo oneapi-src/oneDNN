@@ -16,6 +16,7 @@
 
 #include "gpu/jit/conv/message_support.hpp"
 
+#include "gpu/jit/conv/block_2d_utils.hpp"
 #include "gpu/jit/conv/ir.hpp"
 
 namespace dnnl {
@@ -654,11 +655,15 @@ bool access_builder_t::try_build_2d() {
 bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
         bool transpose, int &W, int &H, int &P, int &w, int &h, int &c) {
     int surface_width_size = W * send_type.size();
+    auto whp_ok = [&]() {
+        return block_2d_width_ok(W, send_type.size()) && block_2d_height_ok(H)
+                && block_2d_pitch_ok(P, send_type.size());
+    };
 
     // Surface width must be >= 64 bytes. For smaller width we can apply
     // reshape, e.g. [16a] x [16b] -> [8a] x [2a16b] to have block with larger
     // width.
-    if (surface_width_size >= 64) return surface_width_size % 64 == 0;
+    if (surface_width_size >= 64) return whp_ok();
 
     // Reshape is only expected/supported with VNNI.
     if (!vnni || transpose) return false;
@@ -671,7 +676,7 @@ bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
     H /= factor;
     h /= factor;
     c = factor;
-    return true;
+    return whp_ok();
 }
 
 bool access_builder_t::check_2d_mask(const tensor_t &tile, int w_dim_idx,
