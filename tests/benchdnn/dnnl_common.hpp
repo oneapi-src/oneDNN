@@ -277,6 +277,7 @@ bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_sycl_engine(const dnnl_engine_t &engine = get_test_engine());
 bool is_opencl_engine(const dnnl_engine_t &engine = get_test_engine());
 bool is_nvidia_gpu(const dnnl_engine_t &engine = get_test_engine());
+bool is_f64_supported(const dnnl_engine_t &engine = get_test_engine());
 
 // Extended version of dnnl_sycl_interop_memory_kind_t enumeration.
 enum class memory_kind_ext_t {

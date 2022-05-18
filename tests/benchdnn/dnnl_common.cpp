@@ -496,7 +496,7 @@ void skip_start(res_t *res) {
 void skip_unimplemented_data_type(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res) {
     bool has_bf16_support = is_gpu();
-    bool has_f64_support = is_gpu(); // f64 is supported on GPU only.
+    bool has_f64_support = is_f64_supported();
     // f16 is supported on GPU and for inference only.
     bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
@@ -681,6 +681,40 @@ bool is_nvidia_gpu(const dnnl_engine_t &engine) {
     const auto eng_vendor_id
             = device.get_info<::sycl::info::device::vendor_id>();
     return eng_vendor_id == nvidia_vendor_id;
+#endif
+    return false;
+}
+
+bool is_f64_supported(const dnnl_engine_t &engine) {
+    if (!is_gpu(engine)) return false;
+    if (is_nvidia_gpu(engine)) return false;
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+    if (is_sycl_engine(engine)) {
+        auto eng = dnnl::engine(engine, true);
+        auto dev = dnnl::sycl_interop::get_device(eng);
+#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
+        return dev.has_extension("cl_khr_fp64");
+#else
+        return dev.has(::sycl::aspect::fp64);
+#endif
+    }
+#endif
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    if (is_opencl_engine(engine)) {
+        auto eng = dnnl::engine(engine, true);
+        cl_device_id dev = dnnl::ocl_interop::get_device(eng);
+        size_t param_size = 0;
+        cl_int err = clGetDeviceInfo(
+                dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &param_size);
+        if (err != CL_SUCCESS) return false;
+
+        std::string extension_string(param_size, '\0');
+        err = clGetDeviceInfo(dev, CL_DEVICE_EXTENSIONS, param_size,
+                &extension_string[0], &param_size);
+        if (err != CL_SUCCESS) return false;
+
+        return extension_string.find("cl_khr_fp64") != std::string::npos;
+    }
 #endif
     return false;
 }
