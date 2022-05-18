@@ -9,3 +9,7 @@
 #typecast+quantize fusion op
 --reset
 --sdt=bf16 --ddt=u8,s8  --attr-oscale=,common:0.5 --attr-zero-points=,src:common:0+dst:common:2 2x64x3x3
+
+#dequantize+reorder+quantize fusion op
+--reset
+--sdt=s8,u8 --ddt=s8,u8 --stag=abx,axb --dtag=abx,axb --attr-oscale=,common:0.5 --attr-zero-points=,src:common:0+dst:common:2 2x64x3x3
