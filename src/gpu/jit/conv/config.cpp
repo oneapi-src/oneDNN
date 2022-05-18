@@ -411,10 +411,6 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
     if (is_small_ic() && !is_dw) {
         bh->set_block_dims({"kw"});
         bh->set_max_tg_dim("kw", 1);
-        if (is_dp_fma()) {
-            int wei_ic_blk = wei_layout.inner_block(2);
-            if (kw != 1) bh->set_max_iter_dim("ic", wei_ic_blk);
-        }
     }
 
     // Avoid 2D spatial blocking when possible (when 1D blocking can be
