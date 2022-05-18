@@ -654,6 +654,10 @@ public:
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 
+    // GRF usage for kernel arguments, local work IDs/sizes, signal header,
+    // temporary expressions, etc.
+    static const int reserved_regs = 16;
+
     // Specific to FWD int8
     struct zero_points_config_t {
         bool do_src_compensation;

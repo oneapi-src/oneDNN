@@ -1290,22 +1290,7 @@ public:
         regs += slm_load_usage;
         regs += reorder_usage;
         regs += max_reuse_header_regs;
-
-        bool is_src_nhwc = cfg_.is_nhwc("src");
-        bool is_dst_nhwc = cfg_.is_nhwc("dst");
-        bool is_nhwc = false;
-        if ((cfg_.is_fwd || cfg_.is_bwd_w) && is_src_nhwc) is_nhwc = true;
-        if ((cfg_.is_bwd_d || cfg_.is_bwd_w) && is_dst_nhwc) is_nhwc = true;
-
-        // GRF usage for kernel arguments, local work IDs/sizes, signal
-        // headers, etc.
-        int service_usage = 8;
-        // Estimation for let-related usage (when IR expressions are assigned
-        // to variables to reuse or precompute them).
-        int let_usage = (is_nhwc && !cfg_.use_2d_send ? 16 : 8);
-
-        regs += service_usage;
-        regs += let_usage;
+        regs += cfg_.reserved_regs;
 
         return regs;
     }

@@ -1038,12 +1038,195 @@ public:
     expr_t cse_var;
 };
 
+// Helper class for CSE variables to query computational cost
+// while tracking dependencies to other potential CSE
+// variables.
+class cse_var_entry_t {
+public:
+    cse_var_entry_t(const cse_expr_t *cse_expr) : cse_expr_(cse_expr) {}
+
+    const cse_expr_t *cse_expr() const { return cse_expr_; }
+
+    bool allocated() const { return allocated_; }
+
+    int size() const { return cse_expr_->cse_var.type().size(); }
+
+    int cost() const { return cost_; }
+
+    void set_var2entry(
+            const object_map_t<expr_t, cse_var_entry_t *> &var2entry) {
+        var2entry_ = &var2entry;
+    }
+
+    void add_back_ref(cse_var_entry_t *e) {
+        ir_assert(e != this);
+        back_refs_.insert(e);
+    }
+
+    void mark_as_allocated() {
+        allocated_ = true;
+        update_back_ref_cost();
+    }
+
+    void recompute_cost() {
+        cost_ = expr_cost(cse_expr_->expr) * cse_expr_->refs;
+    }
+
+private:
+    void update_back_ref_cost() {
+        for (auto *e : back_refs_) {
+            e->recompute_cost();
+            e->update_back_ref_cost();
+        }
+    }
+
+    int expr_cost(const expr_t &e) {
+        if (is_var(e)) {
+            auto it = var2entry_->find(e);
+            if (it == var2entry_->end()) return 0;
+            if (it->second->allocated_) return 0;
+            // If variable is not allocated, its value
+            // has to be recomputed every time.
+            return it->second->cost();
+        }
+        if (is_const(e)) return 0;
+        if (e.is<cast_t>()) return 0;
+        if (auto *op = e.as_ptr<binary_op_t>()) {
+            return expr_cost(op->a) + expr_cost(op->b) + 1;
+        }
+        if (auto *op = e.as_ptr<unary_op_t>()) { return expr_cost(op->a) + 1; }
+        if (auto *s = e.as_ptr<shuffle_t>()) {
+            if (s->is_broadcast()) return 0;
+            return s->elems();
+        }
+        ir_error_not_expected() << "Unhandled expression: " << e;
+        return 0;
+    }
+
+    const cse_expr_t *cse_expr_ = nullptr;
+    int cost_ = 0;
+    bool allocated_ = false;
+
+    std::unordered_set<cse_var_entry_t *> back_refs_;
+    const object_map_t<expr_t, cse_var_entry_t *> *var2entry_ = nullptr;
+};
+
+// Helper class for IR nodes where CSE variables may be
+// generated. Entry stores the peak GRF usage and propagates
+// additional memory usage up and down the IR tree.
+class cse_stmt_entry_t {
+public:
+    bool visited() const { return visited_; }
+
+    void set_usage(int usage) {
+        usage_ = usage;
+        visited_ = true;
+    };
+
+    void set_parent(cse_stmt_entry_t *parent) {
+        parent_ = parent;
+        parent_->childs_.push_back(this);
+    }
+
+    bool try_allocate(int size, int limit) {
+        if (usage_ + size > limit) return false;
+        propagate_usage_down(size);
+        if (parent_) parent_->propagate_usage_up(this);
+        return true;
+    }
+
+    void propagate_usage_up() {
+        for (auto *c : childs_) {
+            propagate_usage_up(c);
+        }
+    }
+
+private:
+    void propagate_usage_up(const cse_stmt_entry_t *child) {
+        if (child->usage_ <= usage_) return;
+        usage_ = child->usage_;
+        if (parent_) parent_->propagate_usage_up(this);
+    }
+
+    void propagate_usage_down(int size) {
+        usage_ += size;
+        for (auto *c : childs_)
+            c->propagate_usage_down(size);
+    }
+
+    int usage_ = 0;
+    bool visited_ = false;
+    cse_stmt_entry_t *parent_ = nullptr;
+    std::vector<cse_stmt_entry_t *> childs_;
+};
+
+class cse_memory_usage_visitor_t : public ir_visitor_t {
+public:
+    cse_memory_usage_visitor_t(
+            std::unordered_map<const object_impl_t *, cse_stmt_entry_t>
+                    &entries,
+            const object_eq_map_t<expr_t, cse_expr_t> &cse_exprs, int grf_size)
+        : entries_(entries), grf_size_(grf_size) {
+        for (auto &kv : cse_exprs) {
+            auto &cse_expr = kv.second;
+            if (cse_expr.cse_var.is_empty()) continue;
+            auto *obj = cse_expr.path.back();
+            entries_.emplace(obj, cse_stmt_entry_t());
+        }
+    }
+
+    ~cse_memory_usage_visitor_t() override {
+        for (auto &kv : entries_) {
+            ir_assert(kv.second.visited()) << *kv.first;
+        }
+    }
+
+#define HANDLE_IR_OBJECT(type) \
+    void _visit(const type &obj) override { visit_stmt(obj); }
+
+    HANDLE_STMT_IR_OBJECTS()
+
+#undef HANDLE_IR_OBJECT
+
+private:
+    mem_usage_guard_t grf_usage_guard(int size) {
+        return mem_usage_guard_t(&cur_usage_, size);
+    }
+
+    template <typename T>
+    void visit_stmt(const T &obj) {
+        int obj_usage = 0;
+        if (auto *alloc = obj.template as_ptr<alloc_t>()) {
+            if (alloc->kind == alloc_kind_t::grf)
+                obj_usage = utils::rnd_up(alloc->size, grf_size_);
+        } else if (auto *let = obj.template as_ptr<let_t>()) {
+            obj_usage = let->var.type().size();
+        }
+
+        auto guard = grf_usage_guard(obj_usage);
+        cse_stmt_entry_t *entry = nullptr;
+        auto it = entries_.find(&obj);
+        if (it != entries_.end()) entry = &it->second;
+        if (entry) {
+            entry->set_usage(cur_usage_);
+            if (!path_.empty()) entry->set_parent(path_.back());
+            path_.push_back(entry);
+        }
+        ir_visitor_t::_visit(obj);
+        if (entry) path_.pop_back();
+    }
+
+    std::unordered_map<const object_impl_t *, cse_stmt_entry_t> &entries_;
+    int grf_size_;
+
+    int cur_usage_ = 0;
+    std::vector<cse_stmt_entry_t *> path_;
+};
+
 // Stores information about all expressions subject to CSEing.
 class cse_context_t {
 public:
     cse_context_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
-
-    int memory_usage() const { return memory_usage_; }
 
     ir_context_t &ir_ctx() { return ir_ctx_; }
 
@@ -1084,7 +1267,6 @@ public:
     expr_t get_or_assign_var(const expr_t &e) {
         auto &cse_expr = find_cse_expr(e);
         if (cse_expr.cse_var.is_empty()) {
-            memory_usage_ += e.type().size();
             cse_expr.cse_var = ir_ctx_.create_tmp_var(e.type());
             ir_trace() << "cse_pass: assigning var: " << e << " -> "
                        << cse_expr.cse_var << std::endl;
@@ -1126,60 +1308,90 @@ public:
     }
 
     bool should_assign_var(const expr_t &e) const {
-        if (get_refs(e) <= 1) return false;
-        if (skip_exprs_.count(e) != 0) return false;
+        if (!has(e)) return false;
+        auto &cse_expr = find_cse_expr(e);
+        if (cse_expr.refs <= 1) return false;
+        if (skip_exprs_.count(cse_expr.orig_expr) != 0) return false;
         return true;
     }
 
-    void set_skip_exprs(int limit) {
-        using cost_entry_t = std::pair<const cse_expr_t *, int>;
-        std::vector<cost_entry_t> costs;
+    void set_skip_exprs(const stmt_t &root, int limit, int grf_size) {
+        // Initialize variable-entry for each potential CSE variable.
+        std::vector<cse_var_entry_t> var_entries;
         for (auto &kv : cse_exprs_) {
             auto &cse_expr = kv.second;
-            costs.emplace_back(&cse_expr, expr_cost(cse_expr.expr));
+            if (cse_expr.cse_var.is_empty()) continue;
+            var_entries.emplace_back(&cse_expr);
         }
-        // Order expressions candidates for CSE by their computation cost.
-        std::sort(costs.begin(), costs.end(),
-                [&](const cost_entry_t &a, const cost_entry_t &b) {
-                    return a.second > b.second;
-                });
-        // Add the most lightweight expressions to the skip list to prepare for
-        // the retry run.
-        int usage = 0;
-        for (auto &e : costs) {
-            auto &expr = e.first->orig_expr;
-            usage += expr.type().size();
-            if (usage > limit) skip_exprs_.insert(expr);
+        // Create mapping from CSE var to entry.
+        object_map_t<expr_t, cse_var_entry_t *> var2entry;
+        for (auto &e : var_entries) {
+            var2entry.emplace(e.cse_expr()->cse_var, &e);
+            e.set_var2entry(var2entry);
+        }
+        // Initialize back references.
+        for (auto &e : var_entries) {
+            auto vars = find_objects<var_t>(e.cse_expr()->expr);
+            for (auto &v : vars) {
+                auto it = var2entry.find(v);
+                if (it == var2entry.end()) continue;
+                it->second->add_back_ref(&e);
+            }
+            var2entry.emplace(e.cse_expr()->cse_var, &e);
+        }
+        // Initialize cost.
+        for (auto &e : var_entries) {
+            e.recompute_cost();
+        }
+        // Initialize statement-entry for each potential statement of CSE
+        // variable attachement.
+        std::unordered_map<const object_impl_t *, cse_stmt_entry_t>
+                stmt_entries;
+        cse_memory_usage_visitor_t mem_usage_visitor(
+                stmt_entries, cse_exprs_, grf_size);
+        mem_usage_visitor.visit(root);
+        for (auto &kv : stmt_entries)
+            kv.second.propagate_usage_up();
+
+        // Greedily find the variable with the highest current complexity that
+        // won't exceed the usage limit, mark it as allocated and recompute
+        // complexity for other dependent vars. Stop once there are no
+        // such variables.
+        std::vector<cse_var_entry_t *> sorted_var_entries;
+        for (auto &e : var_entries)
+            sorted_var_entries.push_back(&e);
+
+        for (auto it = sorted_var_entries.begin();
+                it != sorted_var_entries.end();) {
+            std::sort(it, sorted_var_entries.end(),
+                    [&](const cse_var_entry_t *a, const cse_var_entry_t *b) {
+                        return a->cost() > b->cost();
+                    });
+            while (it != sorted_var_entries.end()) {
+                auto &e = **it;
+                auto &stmt_entry = stmt_entries.at(e.cse_expr()->path.back());
+                if (stmt_entry.try_allocate(e.size(), limit)) {
+                    e.mark_as_allocated();
+                    ++it;
+                    break;
+                }
+                ++it;
+            }
+        }
+
+        // Skip not allocated variables.
+        for (auto &e : var_entries) {
+            if (e.allocated()) continue;
+            skip_exprs_.insert(e.cse_expr()->orig_expr);
         }
     }
 
-    void reset_cse_exprs() {
-        cse_exprs_.clear();
-        memory_usage_ = 0;
-    }
+    void reset_cse_exprs() { cse_exprs_.clear(); }
 
 private:
-    static int expr_cost(const expr_t &e) {
-        if (is_var(e)) return 0;
-        if (is_const(e)) return 0;
-        if (e.is<cast_t>()) return 0;
-        if (auto *op = e.as_ptr<binary_op_t>()) {
-            return expr_cost(op->a) + expr_cost(op->b) + 1;
-        }
-        if (auto *op = e.as_ptr<unary_op_t>()) { return expr_cost(op->a) + 1; }
-        if (auto *s = e.as_ptr<shuffle_t>()) {
-            if (s->is_broadcast()) return 0;
-            return s->elems();
-        }
-        ir_error_not_expected() << "Unhandled expression: " << e;
-        return 0;
-    }
-
     ir_context_t &ir_ctx_;
     object_eq_map_t<expr_t, cse_expr_t> cse_exprs_;
     object_eq_set_t<expr_t> skip_exprs_;
-
-    int memory_usage_ = 0;
 };
 
 // Collects statistics about expressions for common subexpression elimination.
@@ -1459,8 +1671,8 @@ private:
     object_map_t<stmt_t, std::vector<expr_t>> to_update_;
 };
 
-stmt_t eliminate_common_subexprs_impl(
-        const stmt_t &_stmt, cse_context_t &ctx, int memory_usage_limit) {
+stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
+        int grf_size, int memory_usage_limit, int run_idx) {
     auto stmt = _stmt;
 
     // Collect statistics.
@@ -1478,36 +1690,40 @@ stmt_t eliminate_common_subexprs_impl(
     cse_mutator_t mutator(ctx);
     stmt = mutator.mutate(stmt);
 
+    // The second run is the last run.
+    if (run_idx != 0) return stmt;
+
     // If memory usage exceeds the limit, exclude some
     // expressions from CSE and retry the whole process from
     // scratch.
-    int memory_usage = ctx.memory_usage();
+    int memory_usage = get_peak_grf_usage(stmt, grf_size) * grf_size;
     if (memory_usage > memory_usage_limit) {
         ir_trace() << "CSE exceeded GRF usage limit. Usage: " << memory_usage
                    << ", limit: " << memory_usage_limit
                    << ". Retry CSE and skip some expressions..." << std::endl;
-        ctx.set_skip_exprs(memory_usage_limit);
+        ctx.set_skip_exprs(_stmt, memory_usage_limit, grf_size);
         ctx.reset_cse_exprs();
         return stmt_t();
     }
 
-    trace_pass("eliminate_common_subexprs", stmt);
     return stmt;
 }
 
-stmt_t eliminate_common_subexprs(const stmt_t &_stmt, ir_context_t &ir_ctx) {
+stmt_t eliminate_common_subexprs(
+        const stmt_t &_stmt, const conv_config_t &cfg, ir_context_t &ir_ctx) {
     stmt_t stmt;
     cse_context_t cse_ctx(ir_ctx);
 
     // Max amount of GRF memory allowed to use for temporary variables.
-    const int memory_usage_limit = 1024;
-
-    stmt = eliminate_common_subexprs_impl(_stmt, cse_ctx, memory_usage_limit);
+    int grf_size = cfg.grf_size();
+    int memory_usage_limit = (cfg.regs() - cfg.reserved_regs) * grf_size;
+    stmt = eliminate_common_subexprs_impl(
+            _stmt, cse_ctx, grf_size, memory_usage_limit, 0);
     // Retry if statement is empty, rely on the updated
     // skip_exprs from the CSE context.
     if (stmt.is_empty()) {
         stmt = eliminate_common_subexprs_impl(
-                _stmt, cse_ctx, memory_usage_limit);
+                _stmt, cse_ctx, grf_size, memory_usage_limit, 1);
     }
     trace_pass("eliminate_common_subexprs", stmt);
     return stmt;
@@ -8003,7 +8219,7 @@ void kernel_builder_t::build() {
     stmt_ = lift_alloc(stmt_, cfg_);
     stmt_ = lift_send_2d_header_store(stmt_);
     stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false);
-    stmt_ = eliminate_common_subexprs(stmt_, ir_ctx);
+    stmt_ = eliminate_common_subexprs(stmt_, cfg_, ir_ctx);
     stmt_ = hoist_exprs(stmt_, ir_ctx);
     if (cfg_.do_pipeline_unroll) stmt_ = loop_strength_reduce(stmt_);
     stmt_ = optimize_alloc_let(stmt_);

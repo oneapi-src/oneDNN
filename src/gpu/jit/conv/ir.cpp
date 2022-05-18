@@ -30,17 +30,6 @@ using namespace ir_utils;
 
 namespace {
 
-struct mem_usage_guard_t {
-    mem_usage_guard_t(int *mem_usage, int size) : ptr(mem_usage), size(size) {
-        *ptr += size;
-    }
-
-    ~mem_usage_guard_t() { *ptr -= size; }
-
-    int *ptr;
-    int size;
-};
-
 // Helper class to print IR objects.
 class ir_printer_t : public ir_visitor_t {
 public:
