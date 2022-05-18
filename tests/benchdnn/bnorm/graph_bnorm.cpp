@@ -172,8 +172,6 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
     auto cp = compile_partition(::bnorm::init_pd, prb, res, par, ins, outs);
 
-    dnnl_dim_t data_dims[] = {prb->mb, prb->ic, prb->ih, prb->iw};
-
     static const engine_t cpu_engine(dnnl_cpu);
 
     auto src_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
@@ -182,8 +180,8 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     auto mean_fp = make_dnn_mem(ins[3], dt::f32, tag::abx);
     auto var_fp = make_dnn_mem(ins[4], dt::f32, tag::abx);
     dnn_mem_t &dst_fp = src_fp; // in-place reference
-    dnn_mem_t src_hat_fp(4, data_dims, dnnl_f32, tag::abx, cpu_engine);
-    dnn_mem_t ws_fp(4, data_dims, dnnl_u8, tag::abx, cpu_engine);
+    auto src_hat_fp = make_dnn_mem(ins[0], dt::f32, tag::abx);
+    auto ws_fp = make_dnn_mem(ins[0], dt::u8, tag::abx);
 
     const auto placeholder_dst_dt = make_dnn_mem(outs[0], tag::abx);
     auto src_dt = make_dnn_mem(ins[0], tag::abx);
@@ -198,11 +196,12 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         scale_fp = make_dnn_mem(is_fwd ? ins[1] : ins[2], dt::f32, tag::abx);
         scale_dt = make_dnn_mem(is_fwd ? ins[1] : ins[2], dt::f32, tag::abx);
     } else {
-        dnnl_dim_t dims_ss[2];
-        dims_ss[0] = 2;
-        dims_ss[1] = prb->ic;
-        scale_fp = dnn_mem_t(2, dims_ss, dnnl_f32, tag::abx, cpu_engine);
-        scale_dt = dnn_mem_t(2, dims_ss, dnnl_f32, tag::abx, cpu_engine);
+        // scale and shift are combined in a single 2D tensor of shape 2xC
+        // this logical_tensor is used to indicate the memory size for scale
+        dnnl::graph::logical_tensor lt {0, dt::f32, {2, prb->ic},
+                dnnl::graph::logical_tensor::layout_type::strided};
+        scale_fp = make_dnn_mem(lt, dt::f32, tag::abx);
+        scale_dt = make_dnn_mem(lt, dt::f32, tag::abx);
     }
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
@@ -217,7 +216,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         the data in scale and shift. Hence this explicit copy. */
     if (!(use_sc || use_sh)) {
         for (int64_t i = 0; i < prb->ic; i++) {
-            ((float *)shift_fp)[i] = ((float *)scale_fp)[prb->ic + i];
+            shift_fp.set_elem(i, scale_fp.get_elem(prb->ic + i));
         }
     }
     SAFE(src_dt.reorder(src_fp), WARN);
@@ -293,11 +292,12 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
             d_scale_fp = make_dnn_mem(outs[1], dt::f32, tag::abx);
             d_scale_dt = make_dnn_mem(outs[1], dt::f32, tag::abx);
         } else {
-            dnnl_dim_t dims_ss[2];
-            dims_ss[0] = 2;
-            dims_ss[1] = prb->ic;
-            d_scale_fp = dnn_mem_t(2, dims_ss, dnnl_f32, tag::abx, cpu_engine);
-            d_scale_dt = dnn_mem_t(2, dims_ss, dnnl_f32, tag::abx, cpu_engine);
+            // scale and shift are combined in a single 2D tensor of shape 2xC
+            // this logical_tensor is used to indicate the memory size for scale
+            dnnl::graph::logical_tensor lt {0, dt::f32, {2, prb->ic},
+                    dnnl::graph::logical_tensor::layout_type::strided};
+            d_scale_fp = make_dnn_mem(lt, dt::f32, tag::abx);
+            d_scale_dt = make_dnn_mem(lt, dt::f32, tag::abx);
         }
         auto d_shift_fp
                 = make_dnn_mem(outs[2], dt::f32, use_sh ? tag::x : tag::axb);

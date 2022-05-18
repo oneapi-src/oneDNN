@@ -1,0 +1,19 @@
+# main op
+--reset
+--dir=FWD_I
+--dt=f32 --inplace=false,true --attr-post-ops=,relu mb96_ic192_ih71iw71_n
+
+# main op
+--reset
+--dir=BWD_D,BWD_DW
+--dt=f32 --inplace=false,true mb96_ic192_ih71iw71_n
+
+# bf16 fwd op
+--reset
+--dir=FWD_I
+--dt=bf16 --inplace=false,true --attr-post-ops=,relu mb96_ic192_ih71iw71_n
+
+# bf16 bwd op
+--reset
+--dir=BWD_D,BWD_DW
+--dt=bf16 --inplace=false,true mb96_ic192_ih71iw71_n

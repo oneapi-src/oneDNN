@@ -212,16 +212,18 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         var_fp = make_dnn_mem(var_lt, dt::f32, tag::abx);
     }
 
-    const size_t ndims_ss = 2;
-    dnnl_dim_t dims_ss[ndims_ss] = {prb->c, prb->c};
-
-    dnn_mem_t ss_fp(ndims_ss, dims_ss, dnnl_f32, tag::abx, cpu_engine);
-    dnn_mem_t ss_dt(ndims_ss, dims_ss, dnnl_f32, tag::abx, cpu_engine);
-    dnnl_dim_t dims_sh[] = {prb->c};
+    // scale and shift are combined in a single 2D tensor of shape 2xC
+    // this logical_tensor is used to indicate the memory size for scale
+    dnnl::graph::logical_tensor lt_ss {3, dt::f32, {2, prb->c},
+            dnnl::graph::logical_tensor::layout_type::strided};
+    auto ss_fp = make_dnn_mem(lt_ss, dt::f32, tag::abx);
+    auto ss_dt = make_dnn_mem(lt_ss, dt::f32, tag::abx);
     // We use ss mem descriptor for both gamma and beta, so below sh is not used
     // and its declaration is needed only to pass it to native benchdnn
     // function, which fills the data.
-    dnn_mem_t sh_fp(1, dims_sh, dnnl_f32, tag::abx, cpu_engine);
+    dnnl::graph::logical_tensor lt_sh {4, dt::f32, dims_t {prb->c},
+            dnnl::graph::logical_tensor::layout_type::strided};
+    auto sh_fp = make_dnn_mem(lt_sh, dt::f32, tag::x);
 
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
@@ -250,16 +252,17 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
                 dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
         tensors_out.emplace_back(
                 dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
-        std::vector<float> gamma_v(prb->c, 0.f), beta_v(prb->c, 0.f);
+        auto gamma_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
+        auto beta_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
         if (prb->use_ss()) {
             for (int64_t i = 0; i < prb->c; i++) {
-                gamma_v[i] = ss_dt.get_elem(i);
-                beta_v[i] = ss_dt.get_elem(prb->c + i);
+                gamma_v.set_elem(i, ss_dt.get_elem(i));
+                beta_v.set_elem(i, ss_dt.get_elem(prb->c + i));
             }
-            tensors_in.emplace_back(
-                    dnnl::graph::tensor(ins[1], eng, gamma_v.data()));
-            tensors_in.emplace_back(
-                    dnnl::graph::tensor(ins[2], eng, beta_v.data()));
+            tensors_in.emplace_back(dnnl::graph::tensor(
+                    ins[1], eng, static_cast<void *>(gamma_v)));
+            tensors_in.emplace_back(dnnl::graph::tensor(
+                    ins[2], eng, static_cast<void *>(beta_v)));
         }
 
         if (keep_stats) {
@@ -294,8 +297,8 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
                     prb, kinds, args, ref_args, ::lnorm::setup_cmp, res);
         }
     } else {
-        dnn_mem_t d_ss_fp(ndims_ss, dims_ss, dnnl_f32, tag::abx, cpu_engine);
-        dnn_mem_t d_ss_dt(ndims_ss, dims_ss, dnnl_f32, tag::abx, cpu_engine);
+        auto d_ss_fp = make_dnn_mem(lt_ss, dt::f32, tag::abx);
+        auto d_ss_dt = make_dnn_mem(lt_ss, dt::f32, tag::abx);
 
         dnn_mem_t placeholder_d_src_dt;
         // backward pass
@@ -336,21 +339,23 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         dnnl::graph::tensor gamma_tensor, beta_tensor, d_gamma_tensor,
                 d_beta_tensor;
 
-        std::vector<float> gamma_v(prb->c, 0.f), beta_v(prb->c, 0.f),
-                d_gamma_v(prb->c, 0.f), d_beta_v(prb->c, 0.f);
+        auto gamma_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
+        auto beta_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
+        auto d_gamma_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
+        auto d_beta_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
         if (prb->use_ss()) {
             for (int64_t i = 0; i < prb->c; i++) {
-                gamma_v[i] = ss_dt.get_elem(i);
-                beta_v[i] = ss_dt.get_elem(prb->c + i);
+                gamma_v.set_elem(i, ss_dt.get_elem(i));
+                beta_v.set_elem(i, ss_dt.get_elem(prb->c + i));
             }
             gamma_tensor = dnnl::graph::tensor(
-                    ins[4], eng, static_cast<void *>(gamma_v.data()));
+                    ins[4], eng, static_cast<void *>(gamma_v));
             beta_tensor = dnnl::graph::tensor(
-                    ins[5], eng, static_cast<void *>(beta_v.data()));
+                    ins[5], eng, static_cast<void *>(beta_v));
             d_gamma_tensor = dnnl::graph::tensor(
-                    outs[1], eng, static_cast<void *>(d_gamma_v.data()));
+                    outs[1], eng, static_cast<void *>(d_gamma_v));
             d_beta_tensor = dnnl::graph::tensor(
-                    outs[2], eng, static_cast<void *>(d_beta_v.data()));
+                    outs[2], eng, static_cast<void *>(d_beta_v));
         }
 
         tensors_in.push_back(src_tensor);
@@ -372,8 +377,8 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
         if (prb->use_ss()) {
             for (int64_t i = 0; i < prb->c; i++) {
-                d_ss_dt.set_elem(i, d_gamma_v[i]);
-                d_ss_dt.set_elem(prb->c + i, d_beta_v[i]);
+                d_ss_dt.set_elem(i, d_gamma_v.get_elem(i));
+                d_ss_dt.set_elem(prb->c + i, d_beta_v.get_elem(i));
             }
         }
 
