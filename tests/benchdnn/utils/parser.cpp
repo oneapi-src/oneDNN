@@ -74,9 +74,15 @@ bool parse_multi_dt(std::vector<std::vector<dnnl_data_type_t>> &dt,
         const std::vector<std::vector<dnnl_data_type_t>> &def_dt,
         const char *str, const std::string &option_name /* = "sdt"*/) {
     static const std::string help
-            = "DT0:DT1[:DTi]    (Default: `f32` for all)\n    Specifies data "
-              "type `DTi` for source i.\n    `DT` values can be `f32`, `bf16`, "
-              "`f16`, `s32`, `s8`, `u8`.\n";
+            = "DT0:DT1[:DTi]    (Default: `f32` for all)\n    When the driver "
+              "supports the notion of multiple sources, the option specifies a "
+              "data type `DTi` for a source `i`.\n    When the driver supports "
+              "the notion of source, weights (optional), and destination, the "
+              "option specifies data types for source, weights (optional) and "
+              "destination correspondently.\n    The option may support "
+              "broadcast semantics (check the driver online documentation), "
+              "when a single value will be used for all inputs.\n    `DT` "
+              "values can be `f32`, `bf16`, `f16`, `s32`, `s8`, `u8`.\n";
     return parse_multivector_option(dt, def_dt, str2dt, str, option_name, help);
 }
 

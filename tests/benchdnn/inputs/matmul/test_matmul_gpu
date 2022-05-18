@@ -61,6 +61,8 @@
 3x30x1:3x1x20:3x30x20
 
 # test regressions
+--batch=harness_matmul_regression_f32
+
 --reset
 --cfg=f32
 --stag=ab --wtag=ab --dtag=ab

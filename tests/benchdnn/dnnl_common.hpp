@@ -660,4 +660,9 @@ memory_kind_ext_t str2memory_kind(const char *str);
 float reorder_rescale_factor();
 dims_t md2dims(const dnnl_memory_desc_t &md);
 
+// Function adjusts data type if fpmath mode is present or sum_dt is different
+// from destination_dt. It is used in `cfg` objects that regulate filling.
+dnnl_data_type_t deduce_cfg_data_type(
+        dnnl_data_type_t in_dt, const attr_t &attr, data_kind_t dk);
+
 #endif

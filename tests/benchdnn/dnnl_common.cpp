@@ -1034,3 +1034,27 @@ dims_t md2dims(const dnnl_memory_desc_t &md) {
         dims[d] = md.dims[d];
     return dims;
 }
+
+dnnl_data_type_t deduce_cfg_data_type(
+        dnnl_data_type_t in_dt, const attr_t &attr, data_kind_t dk) {
+    dnnl_data_type_t dt_ = in_dt;
+
+    if ((dk == SRC || dk == WEI) && dt_ == dnnl_f32) {
+        // Update data type based on fpmath-mode attribute
+        switch (attr.fpmath_mode) {
+            case dnnl_fpmath_mode_strict: break;
+            case dnnl_fpmath_mode_bf16: dt_ = dnnl_bf16; break;
+            case dnnl_fpmath_mode_tf32: dt_ = dnnl_bf16; break;
+            default: assert(!"unsupported_fpmath_mode"); SAFE_V(CRIT);
+        }
+    } else if (dk == DST) {
+        // Sum post-op defines the type of filling destination.
+        const int sum_idx = attr.post_ops.find(attr_t::post_ops_t::SUM);
+        if (sum_idx >= 0) {
+            auto sum_dt = attr.post_ops.entry[sum_idx].sum.dt;
+            if (sum_dt != dnnl_data_type_undef) dt_ = sum_dt;
+        }
+    }
+
+    return dt_;
+}
