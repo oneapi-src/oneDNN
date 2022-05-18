@@ -157,6 +157,24 @@ dimensions_t query_dims_and_blocks(const memory_desc_t &md) {
     return query_dims_and_blocks(mdw);
 }
 
+bool is_generic_faster_than_ref(
+        const memory_desc_t &src_md, const memory_desc_t &dst_md) {
+    const dim_t max_1d_ref_nelems = 512;
+    const dim_t max_nd_ref_nelems = 512 * 512;
+    auto nelems
+            = std::max(utils::array_product(src_md.padded_dims, src_md.ndims),
+                    utils::array_product(dst_md.padded_dims, dst_md.ndims));
+    if (src_md.ndims == 1 && dst_md.ndims == 1)
+        return nelems > max_1d_ref_nelems;
+    auto src_blks = query_dims_and_blocks(src_md);
+    auto dst_blks = query_dims_and_blocks(dst_md);
+    if (src_blks.empty() || dst_blks.empty()) return false;
+    auto src_inner_idx = src_blks[0].idx;
+    auto dst_inner_idx = dst_blks[0].idx;
+    auto scale = (src_inner_idx != dst_inner_idx) ? 2 : 1;
+    return nelems > scale * max_nd_ref_nelems;
+}
+
 struct successor_t {
     int idx;
     dim_t size;
@@ -699,8 +717,9 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     memory_desc_t new_b;
     memcpy(&new_a, src_md(), sizeof(new_a));
     memcpy(&new_b, dst_md(), sizeof(new_b));
-
     compress(new_a, new_b, conf.scale_mask);
+
+    if (!is_generic_faster_than_ref(new_a, new_b)) return status::unimplemented;
 
     const memory_desc_wrapper src_mdw(new_a);
     const memory_desc_wrapper dst_mdw(new_b);
