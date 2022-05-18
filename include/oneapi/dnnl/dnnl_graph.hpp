@@ -847,6 +847,7 @@ class op : public detail::op_handle {
 public:
     enum class kind {
         Abs = dnnl_graph_op_abs,
+        AbsBackprop = dnnl_graph_op_abs_backprop,
         Add = dnnl_graph_op_add,
         AvgPool = dnnl_graph_op_avg_pool,
         AvgPoolBackprop = dnnl_graph_op_avg_pool_backprop,
@@ -895,6 +896,8 @@ public:
         MaxPool = dnnl_graph_op_max_pool,
         MaxPoolBackprop = dnnl_graph_op_max_pool_backprop,
         Minimum = dnnl_graph_op_minimum,
+        Mish = dnnl_graph_op_mish,
+        MishBackprop = dnnl_graph_op_mish_backprop,
         Multiply = dnnl_graph_op_multiply,
         Negative = dnnl_graph_op_negative,
         Pow = dnnl_graph_op_pow,

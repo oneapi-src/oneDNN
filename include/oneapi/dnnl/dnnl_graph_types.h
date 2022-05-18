@@ -158,6 +158,7 @@ typedef enum {
 /// Enumeration for op kind
 typedef enum {
     dnnl_graph_op_abs,
+    dnnl_graph_op_abs_backprop,
     dnnl_graph_op_add,
     dnnl_graph_op_avg_pool,
     dnnl_graph_op_avg_pool_backprop,
@@ -205,6 +206,8 @@ typedef enum {
     dnnl_graph_op_max_pool,
     dnnl_graph_op_max_pool_backprop,
     dnnl_graph_op_minimum,
+    dnnl_graph_op_mish,
+    dnnl_graph_op_mish_backprop,
     dnnl_graph_op_multiply,
     dnnl_graph_op_negative,
     dnnl_graph_op_pow,

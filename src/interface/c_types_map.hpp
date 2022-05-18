@@ -73,6 +73,7 @@ const engine_kind_t gpu = dnnl_graph_gpu;
 using op_kind_t = dnnl_graph_op_kind_t;
 namespace op_kind {
 const op_kind_t Abs = dnnl_graph_op_abs;
+const op_kind_t AbsBackprop = dnnl_graph_op_abs_backprop;
 const op_kind_t Add = dnnl_graph_op_add;
 const op_kind_t AvgPool = dnnl_graph_op_avg_pool;
 const op_kind_t AvgPoolBackprop = dnnl_graph_op_avg_pool_backprop;
@@ -125,6 +126,8 @@ const op_kind_t Maximum = dnnl_graph_op_maximum;
 const op_kind_t MaxPool = dnnl_graph_op_max_pool;
 const op_kind_t MaxPoolBackprop = dnnl_graph_op_max_pool_backprop;
 const op_kind_t Minimum = dnnl_graph_op_minimum;
+const op_kind_t Mish = dnnl_graph_op_mish;
+const op_kind_t MishBackprop = dnnl_graph_op_mish_backprop;
 const op_kind_t Multiply = dnnl_graph_op_multiply;
 const op_kind_t Negative = dnnl_graph_op_negative;
 const op_kind_t Pow = dnnl_graph_op_pow;

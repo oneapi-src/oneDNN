@@ -897,6 +897,17 @@ TEST(OpSchema, Abs) {
             expected_attr_size, attrs_data);
 }
 
+TEST(OpSchema, AbsBackprop) {
+    const op_kind_t op_kind_ = op_kind::AbsBackprop;
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<std::string, bool> attrs_data {};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
 TEST(OpSchema, Add) {
     const op_kind_t op_kind_ = op_kind::Add;
     const size_t expected_in_size = 2;
@@ -1877,6 +1888,40 @@ TEST(OpSchema, InferMinimumOutputShapeWithBroadcast) {
     const op_kind_t op_kind_ = op_kind::Minimum;
 
     verify_shape_infer_for_arithmetic_op_with_broadcast(op_kind_);
+}
+
+TEST(OpSchema, Mish) {
+    const op_kind_t op_kind_ = op_kind::Mish;
+    const size_t expected_in_size = 1;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<std::string, bool> attrs_data = {};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferMishOutputShape) {
+    const op_kind_t op_kind_ = op_kind::Mish;
+
+    verify_single_in_identity_shape_infer(op_kind_);
+}
+
+TEST(OpSchema, MishBackprop) {
+    const op_kind_t op_kind_ = op_kind::MishBackprop;
+    const size_t expected_in_size = 2;
+    const size_t expected_out_size = 1;
+    const size_t expected_attr_size = 0;
+    const std::map<std::string, bool> attrs_data = {};
+
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
+}
+
+TEST(OpSchema, InferMishBackpropOutputShape) {
+    const op_kind_t op_kind_ = op_kind::MishBackprop;
+
+    verify_single_in_identity_shape_infer(op_kind_);
 }
 
 TEST(OpSchema, Multiply) {

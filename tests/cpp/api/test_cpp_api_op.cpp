@@ -31,6 +31,7 @@ TEST(APIOp, CreateAllOps) {
     // clang-format off
     std::vector<op::kind> all_kind_enums {
             op::kind::Abs,
+            op::kind::AbsBackprop,
             op::kind::Add,
             op::kind::AvgPool,
             op::kind::AvgPoolBackprop,
@@ -78,6 +79,8 @@ TEST(APIOp, CreateAllOps) {
             op::kind::MaxPool,
             op::kind::MaxPoolBackprop,
             op::kind::Minimum,
+            op::kind::Mish,
+            op::kind::MishBackprop,
             op::kind::Multiply,
             op::kind::Negative,
             op::kind::Pow,
