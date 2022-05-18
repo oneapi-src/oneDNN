@@ -6775,8 +6775,8 @@ private:
 
     expr_t vector2expr(const std::vector<expr_t> &expr,
             object_eq_map_t<expr_t, expr_t> &vars) {
-        const size_t mask = 0x8000;
-        auto hash = [mask](const binary_op_t &b) -> size_t {
+        constexpr size_t mask = 0x8000;
+        auto hash = [](const binary_op_t &b) -> size_t {
             return size_t(b.op_kind) | ((b.b.is<int_imm_t>()) ? mask : 0UL);
         };
         if (expr.empty()) return expr_t();
