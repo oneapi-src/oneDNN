@@ -482,8 +482,8 @@ void inject_dpasw(ngen::HW hw, stmt_t &load_mul_stmt, const expr_t &c_buf,
         const expr_t &tg_idx0) {
     dpasw_injector_t injector(
             hw, load_mul_stmt, c_buf, c_store_stmt, alloc_updater, tg_idx0);
-    injector.inject();
 
+    injector.inject();
     load_mul_stmt = injector.load_mul_stmt();
     c_store_stmt = injector.c_store_stmt();
 }
@@ -6436,7 +6436,7 @@ private:
         auto ret = fma_helper_.convert_to_fma_friendly_layout(layout, abc_kind,
                 /*is_slm=*/true, gemm_schedule_.bmnk_mapper());
         if (cfg_.pad_slm) ret = pad_slm_layout(ret, load_grid);
-        return ret;
+        return ret.normalize();
     }
 
     // SLM has 65 dword-granularity banks (Xe_HP):
