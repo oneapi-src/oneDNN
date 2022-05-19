@@ -62,7 +62,7 @@ void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res);
 void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res);
-void check_graph_zps_support(const attr_t::zero_points_t &zps, res_t *res);
+void check_graph_scales_and_zps_support(const attr_t &attr, res_t *res);
 void check_graph_eltwise_params(res_t *res,
         const attr_t::post_ops_t::kind_t alg, const float alpha,
         const float beta);

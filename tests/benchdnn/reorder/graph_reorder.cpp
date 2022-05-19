@@ -60,14 +60,22 @@ void check_known_skipped_case_graph(
             res->state = SKIPPED;
         }
     }
-    if (prb->attr.oscale.policy == attr_t::policy_t::PER_DIM_01) {
-        res->state = SKIPPED;
-    }
+
     //TODO: Currently  Skip test cases for zps with per-channel quantization.
     if (prb->attr.zero_points.points.size() > 0
             && prb->attr.oscale.policy != attr_t::policy_t::COMMON) {
         res->state = SKIPPED;
     }
+
+    check_graph_scales_and_zps_support(prb->attr, res);
+}
+
+bool is_quantize(graph_dt src_dt, graph_dt dst_dt) {
+    return src_dt == graph_dt::f32 && is_low_precision({dst_dt});
+}
+
+bool is_dequantize(graph_dt src_dt, graph_dt dst_dt) {
+    return dst_dt == graph_dt::f32 && is_low_precision({src_dt});
 }
 
 void set_quant_op_attr(dnnl::graph::op &op_, const std::string &qtype,
@@ -81,6 +89,86 @@ void set_quant_op_attr(dnnl::graph::op &op_, const std::string &qtype,
     if (qtype == "per_channel") op_.set_attr("axis", axis);
 }
 
+int fill_zps(const ::reorder::prb_t *prb, const int64_t axis,
+        std::vector<int64_t> &src_zps, std::vector<int64_t> &dst_zps) {
+    if (prb->attr.oscale.policy == attr_t::policy_t::COMMON) {
+        if (prb->attr.zero_points.is_def()) {
+            src_zps.emplace_back(0);
+            dst_zps.emplace_back(0);
+        } else if (prb->conf_out->dt == dnnl_s8
+                || prb->conf_out->dt == dnnl_u8) {
+            //Quantize Op
+            dst_zps.emplace_back(prb->dst_zp[0]);
+        } else if ((prb->conf_in->dt == dnnl_s8 || prb->conf_in->dt == dnnl_u8)
+                && prb->conf_out->dt == dnnl_f32) {
+            //Dequantize Op
+            src_zps.emplace_back(prb->src_zp[0]);
+        }
+    } else {
+        //TODO: needs update for PER_DIM_01
+        for (int i = 0; i < prb->dims[axis]; i++) {
+            //TODO: src_zps and dst_zps could be different.
+            //Need to modify depending on spec - NOT SUPPORTED
+            src_zps.emplace_back(0);
+            dst_zps.emplace_back(0);
+        }
+    }
+
+    return OK;
+}
+
+int fill_scales(const ::reorder::prb_t *prb, const int64_t axis,
+        std::vector<float> &scales) {
+    if (prb->attr.oscale.policy == attr_t::policy_t::COMMON) {
+        scales.emplace_back(prb->scales[0]);
+    } else {
+        //TODO: needs update for PER_DIM_01
+        for (int i = 0; i < prb->dims[axis]; i++) {
+            scales.emplace_back(prb->scales[i]);
+        }
+    }
+    //Need to inverse scale
+    if (prb->conf_out->dt == dnnl_s8 || prb->conf_out->dt == dnnl_u8) {
+        for (int i = 0; i < scales.size(); i++) {
+            scales[i] = 1.f / scales[i];
+        }
+    }
+    return OK;
+}
+
+void prepare_runtime_scales(const ::reorder::prb_t *prb, dnn_mem_t &scales_dt,
+        const dnnl::graph::logical_tensor &in, std::vector<float> scales,
+        int64_t axis) {
+    // scales is required input for dynamic q/deq
+    scales_dt = make_dnn_mem(in, dt::f32, tag::x);
+    fill_scales(prb, axis, scales);
+    for (int i = 0; i < scales.size(); i++) {
+        scales_dt.set_elem(i, scales[i]);
+    }
+}
+
+void maybe_prepare_runtime_zero_points(const ::reorder::prb_t *prb,
+        dnn_mem_t &zps_dt, const dnnl::graph::logical_tensor &in,
+        std::vector<int64_t> src_zps, std::vector<int64_t> dst_zps,
+        int64_t axis) {
+    // zps is optional input for dynamic q/deq
+    if (prb->attr.zero_points.is_def()) return;
+
+    zps_dt = make_dnn_mem(in, dt::s32, tag::x);
+    fill_zps(prb, axis, src_zps, dst_zps);
+
+    if (is_quantize(
+                convert_dt(prb->conf_in->dt), convert_dt(prb->conf_out->dt))) {
+        for (int i = 0; i < dst_zps.size(); i++) {
+            zps_dt.set_elem(i, static_cast<int32_t>(dst_zps[i]));
+        }
+    } else {
+        for (int i = 0; i < src_zps.size(); i++) {
+            zps_dt.set_elem(i, static_cast<int32_t>(src_zps[i]));
+        }
+    }
+}
+
 fill_status_t reorder_graph_prb_t::handle_main_op_(
         const ::reorder::prb_t *prb) {
     using op = dnnl::graph::op;
@@ -90,54 +178,29 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
     tensor_id["main"].push_back(TENSOR_ID);
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string DST {TENSOR_ID + "_DST"};
+    // specific for dynamic q/deq
+    const std::string SCALES {TENSOR_ID + "_SCALES"};
+    const std::string ZPS {TENSOR_ID + "_ZPS"};
 
     const auto src_dt = convert_dt(prb->conf_in->dt);
     const auto dst_dt = convert_dt(prb->conf_out->dt);
     const auto qtype = convert_attr_policy(prb->attr.oscale.policy);
-    int64_t axis;
-    // PER_DIM_01 not supported
-    switch (prb->attr.oscale.policy) {
-        case (attr_t::policy_t::PER_DIM_0): axis = 0; break;
-        case (attr_t::policy_t::PER_DIM_1): axis = 1; break;
-        default: break;
-    }
+    bool runtime = prb->attr.oscale.runtime;
+    // axis is used only for PER_DIM_0 and PER_DIM_1 policies
+    int64_t axis
+            = prb->attr.oscale.policy == attr_t::policy_t::PER_DIM_1 ? 1 : 0;
+
     std::vector<float> scales;
     std::vector<float> default_scales({1.0});
     std::vector<int64_t> src_zps, dst_zps;
-    if (qtype == "per_channel") {
-        //TODO: needs update for PER_DIM_01
-        for (int i = 0; i < prb->dims[axis]; i++) {
-            scales.emplace_back(prb->scales[i]);
-            //TODO: src_zps and dst_zps could be different.
-            //Need to modify depending on spec - NOT SUPPORTED
-            src_zps.emplace_back(0);
-            dst_zps.emplace_back(0);
-        }
-    } else {
-        scales.emplace_back(prb->scales[0]);
-        //Quantize Op
-        if (dst_dt == graph_dt::s8 || dst_dt == graph_dt::u8) {
-            if (prb->attr.zero_points.is_def(DNNL_ARG_DST)) {
-                dst_zps.emplace_back(0);
-            } else {
-                dst_zps.emplace_back(prb->dst_zp[0]);
-            }
-        }
-        //Dequantize Op
-        if ((src_dt == graph_dt::s8 || src_dt == graph_dt::u8)) {
-            if (prb->attr.zero_points.is_def(DNNL_ARG_SRC)) {
-                src_zps.emplace_back(0);
-            } else {
-                src_zps.emplace_back(prb->src_zp[0]);
-            }
-        }
+
+    if (!runtime) {
+        fill_scales(prb, axis, scales);
+        fill_zps(prb, axis, src_zps, dst_zps);
     }
-    //Need to inverse scale
-    if (dst_dt == graph_dt::s8 || dst_dt == graph_dt::u8) {
-        for (int i = 0; i < scales.size(); i++) {
-            scales[i] = 1.f / scales[i];
-        }
-    }
+
+    const auto sz_dims
+            = qtype == "per_channel" ? dims_t {prb->dims[axis]} : dims_t {1};
 
     tensor_descs_.emplace(SRC, src_dt, prb->dims, prb->stag);
     tensor_descs_.emplace(DST, dst_dt, prb->dims, prb->dtag);
@@ -172,16 +235,49 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
         op typecast_op(new_op_id, op::kind::TypeCast, {tensor_descs_[SRC]},
                 {tensor_descs_[DST]}, "typecast");
         ops_.emplace_back(typecast_op);
-    } else if (src_dt == graph_dt::f32 && is_low_precision({dst_dt})) {
-        op quantize_op(new_op_id, op::kind::Quantize, {tensor_descs_[SRC]},
-                {tensor_descs_[DST]}, "quantize");
-        set_quant_op_attr(quantize_op, qtype, scales, dst_zps, axis);
-        ops_.emplace_back(quantize_op);
-    } else if (is_low_precision({src_dt}) && dst_dt == graph_dt::f32) {
-        op dequantize_op(new_op_id, op::kind::Dequantize, {tensor_descs_[SRC]},
-                {tensor_descs_[DST]}, "dequantize");
-        set_quant_op_attr(dequantize_op, qtype, scales, src_zps, axis);
-        ops_.emplace_back(dequantize_op);
+    } else if (is_quantize(src_dt, dst_dt)) {
+        if (!runtime) {
+            op quantize_op(new_op_id, op::kind::Quantize, {tensor_descs_[SRC]},
+                    {tensor_descs_[DST]}, "quantize");
+            set_quant_op_attr(quantize_op, qtype, scales, dst_zps, axis);
+            ops_.emplace_back(quantize_op);
+        } else {
+            tensor_descs_.emplace(SCALES, graph_dt::f32, sz_dims, lt::strided);
+            std::vector<dnnl::graph::logical_tensor> inputs
+                    = {tensor_descs_[SRC], tensor_descs_[SCALES]};
+            if (!prb->attr.zero_points.is_def()) {
+                tensor_descs_.emplace(ZPS, graph_dt::s32, sz_dims, lt::strided);
+                inputs.push_back(tensor_descs_[ZPS]);
+            }
+            op dync_quantize(new_op_id, op::kind::DynamicQuantize, inputs,
+                    {tensor_descs_[DST]}, "dynamic_quantize");
+            dync_quantize.set_attr<std::string>("qtype", qtype);
+            if (qtype == "per_channel")
+                dync_quantize.set_attr<int64_t>("axis", axis);
+            ops_.emplace_back(dync_quantize);
+        }
+    } else if (is_dequantize(src_dt, dst_dt)) {
+        if (!runtime) {
+            op dequantize_op(new_op_id, op::kind::Dequantize,
+                    {tensor_descs_[SRC]}, {tensor_descs_[DST]}, "dequantize");
+            set_quant_op_attr(dequantize_op, qtype, scales, src_zps, axis);
+            ops_.emplace_back(dequantize_op);
+        } else {
+            tensor_descs_.emplace(SCALES, graph_dt::f32, sz_dims, lt::strided);
+            std::vector<dnnl::graph::logical_tensor> inputs
+                    = {tensor_descs_[SRC], tensor_descs_[SCALES]};
+
+            if (!prb->attr.zero_points.is_def()) {
+                tensor_descs_.emplace(ZPS, graph_dt::s32, sz_dims, lt::strided);
+                inputs.push_back(tensor_descs_[ZPS]);
+            }
+            op dync_dequantize(new_op_id, op::kind::DynamicDequantize, inputs,
+                    {tensor_descs_[DST]}, "dynamic_dequantize");
+            dync_dequantize.set_attr<std::string>("qtype", qtype);
+            if (qtype == "per_channel")
+                dync_dequantize.set_attr<int64_t>("axis", axis);
+            ops_.emplace_back(dync_dequantize);
+        }
     } else if (src_dt == graph_dt::bf16 && is_low_precision({dst_dt})) {
         const std::string SRC_F32 {TENSOR_ID + "_SRC_F32"};
         tensor_descs_.emplace(SRC_F32, graph_dt::f32, prb->dims, prb->stag);
@@ -248,14 +344,34 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     SAFE(fill_memory(prb, SRC, src_fp), WARN);
     SAFE(src_dt.reorder(src_fp), WARN);
 
-    //TODO: fill for sum / zeropoints
+    dnn_mem_t scales_dt, zps_dt;
+    std::vector<float> scales;
+    std::vector<int64_t> src_zps, dst_zps;
+    if (prb->attr.oscale.runtime) {
+        // axis is used only for PER_DIM_0 and PER_DIM_1 policies
+        int64_t axis = prb->attr.oscale.policy == attr_t::policy_t::PER_DIM_1
+                ? 1
+                : 0;
 
+        prepare_runtime_scales(prb, scales_dt, ins[1], scales, axis);
+        maybe_prepare_runtime_zero_points(
+                prb, zps_dt, ins[2], src_zps, dst_zps, axis);
+    }
+
+    //TODO: fill for sum / zeropoints
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
     const dnnl::graph::engine &eng = get_test_engine();
 
     tensors_in.emplace_back(
             dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
+    if (prb->attr.oscale.runtime) {
+        tensors_in.emplace_back(dnnl::graph::tensor(
+                ins[1], eng, static_cast<void *>(scales_dt)));
+        if (!prb->attr.zero_points.is_def())
+            tensors_in.emplace_back(dnnl::graph::tensor(
+                    ins[2], eng, static_cast<void *>(zps_dt)));
+    }
     tensors_out.emplace_back(
             dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
 

@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <algorithm>
+#include <set>
 #include <vector>
 
 #include <oneapi/dnnl/dnnl_debug.h>
@@ -65,12 +66,26 @@ void check_graph_eltwise_post_ops(const attr_t &attr, res_t *res) {
     }
 }
 
-void check_graph_zps_support(const attr_t::zero_points_t &zps, res_t *res) {
+void check_graph_scales_and_zps_support(const attr_t &attr, res_t *res) {
+    // oneDNN Graph q/deq supports only following oscale policies
+    const std::set<policy_t> supported_policy = {policy_t::PER_OC,
+            policy_t::PER_DIM_0, policy_t::PER_DIM_1, policy_t::COMMON};
+
+    bool oscale_ok = attr.oscale.is_def()
+            || std::any_of(supported_policy.cbegin(), supported_policy.cend(),
+                    [&](const policy_t policy) {
+                        return attr.oscale.policy == policy;
+                    });
+    if (!oscale_ok) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     // currently, only policy_t::COMMON is supported for asymmetric quant
     // for src and dst, other policy is not suppoted by oneDNN Graph.
     for (const int arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
-        if (!zps.is_def(arg)) {
-            const auto &zp_e = zps.get(arg);
+        if (!attr.zero_points.is_def(arg)) {
+            const auto &zp_e = attr.zero_points.get(arg);
             if (zp_e.policy != policy_t::COMMON) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
                 return;

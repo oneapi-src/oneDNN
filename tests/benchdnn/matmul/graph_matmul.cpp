@@ -38,7 +38,7 @@ void check_known_skipped_case_graph(
     check_graph_eltwise_post_ops(prb->attr, res);
     if (res->state == SKIPPED) return;
 
-    check_graph_zps_support(prb->attr.zero_points, res);
+    check_graph_scales_and_zps_support(prb->attr, res);
 }
 
 static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {

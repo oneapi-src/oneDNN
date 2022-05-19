@@ -55,7 +55,7 @@ void check_known_skipped_case_graph(
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
     }
 
-    check_graph_zps_support(prb->attr.zero_points, res);
+    check_graph_scales_and_zps_support(prb->attr, res);
 }
 
 static dims_t get_graph_compatible_wei_dims(const dims_t &wei_dims) {
