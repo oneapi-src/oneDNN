@@ -17029,6 +17029,89 @@ INSTANTIATE_TEST_SUITE_P(Execute, EltwiseBinary,
                 dnnl_graph_test_eltwise_binary_params {impl::op_kind::Tanh,
                         impl::op_kind::Add, {1}, {2.0}, true}));
 
+TEST(Execute, Eltwise3BinaryPostops) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src = {-2.0, -1.5, 1.0, 0.5};
+    test::vector<float> binary_src1 = {1.0, 2.0, 3.0, 4.0};
+    test::vector<float> binary_src2 = {2.0, 3.0, 4.0, 5.0};
+    test::vector<float> binary_src3 = {3.0, 4.0, 5.0, 6.0};
+    test::vector<float> dst = {0.0, 0.0, 0.0, 0.0};
+
+    impl::op_t relu(0, impl::op_kind::ReLU, "relu");
+    impl::op_t div(1, impl::op_kind::Divide, "div");
+    impl::op_t max(2, impl::op_kind::Maximum, "max");
+    impl::op_t sub(3, impl::op_kind::Subtract, "sub");
+
+    impl::logical_tensor_t relu_src_lt
+            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t relu_dst_lt = utils::logical_tensor_init(
+            1, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t div_src_lt
+            = utils::logical_tensor_init(2, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t div_dst_lt = utils::logical_tensor_init(
+            3, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t max_src_lt
+            = utils::logical_tensor_init(4, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t max_dst_lt = utils::logical_tensor_init(
+            5, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+    impl::logical_tensor_t sub_src_lt
+            = utils::logical_tensor_init(6, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t sub_dst_lt = utils::logical_tensor_init(
+            7, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::strided);
+
+    relu.add_input(relu_src_lt);
+    relu.add_output(relu_dst_lt);
+    div.add_input(relu_dst_lt);
+    div.add_input(div_src_lt);
+    div.add_output(div_dst_lt);
+    max.add_input(div_dst_lt);
+    max.add_input(max_src_lt);
+    max.add_output(max_dst_lt);
+    sub.add_input(max_dst_lt);
+    sub.add_input(sub_src_lt);
+    sub.add_output(sub_dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&relu);
+    g.add_op(&div);
+    g.add_op(&max);
+    g.add_op(&sub);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {
+            &relu_src_lt, &div_src_lt, &max_src_lt, &sub_src_lt};
+
+    std::vector<const impl::logical_tensor_t *> outputs {&sub_dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    impl::tensor_t relu_src_ts(relu_src_lt, &eng, src.data());
+    impl::tensor_t div_src_ts(div_src_lt, &eng, binary_src1.data());
+    impl::tensor_t max_src_ts(max_src_lt, &eng, binary_src2.data());
+    impl::tensor_t sub_src_ts(sub_src_lt, &eng, binary_src3.data());
+    impl::tensor_t sub_dst_ts(sub_dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+
+    ASSERT_EQ(
+            cp.execute(&strm, {relu_src_ts, div_src_ts, max_src_ts, sub_src_ts},
+                    {sub_dst_ts}),
+            impl::status::success);
+    strm.wait();
+}
+
 struct dnnl_graph_test_pool_binary_params {
     impl::op_kind_t pool_kind;
     impl::op_kind_t binary_kind;

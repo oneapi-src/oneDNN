@@ -58,13 +58,23 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
                                     impl::op_kind::Sqrt, impl::op_kind::Square,
                                     impl::op_kind::Tanh},
                             "peltwise");
-                    pgraph->append_alternation(
+                    auto pbinary_graph
+                            = std::make_shared<pb_graph_t>("pbinary_graph");
+                    pm::pb_op_t *pbinary_op = pbinary_graph->append_alternation(
                             {impl::op_kind::Add, impl::op_kind::Multiply,
                                     impl::op_kind::Maximum,
                                     impl::op_kind::Minimum,
                                     impl::op_kind::Divide,
                                     impl::op_kind::Subtract},
-                            {in_edge(0, peltwise, 0)}, "pbinary");
+                            "pbinary_op");
+                    pbinary_graph->create_input_port(0, pbinary_op, 0);
+                    pbinary_graph->create_input_port(1, pbinary_op, 1);
+                    pbinary_graph->create_output_port(0, pbinary_op, 0);
+
+                    pgraph->append_repetition(pbinary_graph, {0, 0}, 1,
+                            MAX_REPETITION,
+                            in_edges_t {in_edge(0, peltwise, 0)},
+                            "prepetition");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

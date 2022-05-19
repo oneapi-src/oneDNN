@@ -1815,6 +1815,85 @@ TEST(Pass, FuseBinaryEltwise) {
     }
 }
 
+TEST(Pass, FuseEltwiseBinary3PostOps) {
+    /*
+           |
+        eltwise
+           \     /
+            binary
+    */
+    graph_t agraph;
+
+    op_t relu {0, ReLU, "relu"};
+    op_t add {1, Add, "add"};
+    op_t mul {2, Multiply, "mul"};
+    op_t div {3, Divide, "div"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
+    relu.add_input(lt_vec[0]);
+    relu.add_output(lt_vec[1]);
+    add.add_input(lt_vec[1]);
+    add.add_input(lt_vec[2]);
+    add.add_output(lt_vec[3]);
+    mul.add_input(lt_vec[3]);
+    mul.add_input(lt_vec[4]);
+    mul.add_output(lt_vec[5]);
+    div.add_input(lt_vec[5]);
+    div.add_input(lt_vec[6]);
+    div.add_output(lt_vec[7]);
+
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&mul), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    agraph.build_graph();
+
+    pass::pass_base_ptr pass = get_pass("eltwise_binary_fusion");
+    pass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(), dnnl_impl::op_kind::eltwise_binary);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 4);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 6);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
+}
+
+TEST(Pass, FuseEltwiseBinaryFail) {
+    /*
+           |
+          eltwise
+        \   /
+         div
+    */
+    graph_t agraph;
+
+    op_t relu {0, ReLU, "relu"};
+    op_t div {1, Divide, "div"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+    relu.add_input(lt_vec[0]);
+    relu.add_output(lt_vec[1]);
+    div.add_input(lt_vec[2]);
+    div.add_input(lt_vec[1]);
+    div.add_output(lt_vec[3]);
+
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    agraph.build_graph();
+
+    pass::pass_base_ptr pass = get_pass("eltwise_binary_fusion");
+    pass->run(agraph);
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0);
+}
+
 TEST(Pass, ReciprocalMultiply2Divide) {
     /* convert the following pattern to division
                 1
