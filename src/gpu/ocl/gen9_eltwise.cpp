@@ -34,8 +34,10 @@ static status_t init_conf_common(eltwise_conf_t &conf, engine_t *engine,
     const int max_load_size = is_pre_xe_lp ? 128 : 256;
 
     // Heuristics chosen by experimentation
+    // load_unroll hides computation overhead associated with kernel start
+    // local_threads hides workgroup scheduling overhead
     const int load_unroll = is_pre_xe_lp ? 4 : 1;
-    const int local_threads = is_pre_xe_lp ? 1 : 4;
+    const int local_threads = is_pre_xe_lp ? 1 : 16;
 
     // Prefer loading multiple of max load size to reduce messages
     const int load_size = load_unroll * max_load_size;
@@ -43,8 +45,10 @@ static status_t init_conf_common(eltwise_conf_t &conf, engine_t *engine,
     conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
 
     // Set simd size
-    conf.sub_group_size = std::max(32 / dt_size, 16);
-    conf.vector_size = load_size / (dt_size * conf.sub_group_size);
+    conf.sub_group_size = is_pre_xe_lp ? 16 : std::max(32 / dt_size, 16);
+
+    // VECT_DATA_T only supports vector sizes up to 8
+    conf.vector_size = std::min(load_size / (dt_size * conf.sub_group_size), 8);
     conf.work_group_size = local_threads * conf.sub_group_size;
 
     return status::success;
