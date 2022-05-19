@@ -17,11 +17,12 @@
 #include <altivec.h>
 #include "cpu/simple_q10n.hpp"
 
-#define memcpy_4(_d, _s) *((int *)(_d)) = *((int *)(_s));
+typedef int int_A1 __attribute__((aligned(1)));
+#define memcpy_4(_d, _s) *((int_A1 *)(_d)) = *((int_A1 *)(_s));
 
 #define memcpy_14(_d, _s) \
     { \
-        int *_di, *_si; \
+        int_A1 *_di, *_si; \
         _di = (int *)(_d); \
         _si = (int *)(_s); \
         *_di++ = *_si++; \
@@ -32,7 +33,7 @@
 
 #define memcpy_16(_d, _s) \
     { \
-        int *_di, *_si; \
+        int_A1 *_di, *_si; \
         _di = (int *)(_d); \
         _si = (int *)(_s); \
         _di[0] = _si[0]; \
@@ -43,7 +44,7 @@
 
 #define memcpy_32(_d, _s) \
     { \
-        int *_di, *_si; \
+        int_A1 *_di, *_si; \
         _di = (int *)(_d); \
         _si = (int *)(_s); \
         _di[0] = _si[0]; \
@@ -78,7 +79,7 @@
 
 #define memcpy_64(_d, _s) \
     { \
-        int *_di, *_si; \
+        int_A1 *_di, *_si; \
         _di = (int *)(_d); \
         _si = (int *)(_s); \
         _di[0] = _si[0]; \
@@ -111,7 +112,7 @@
 
 uint64_t mker;
 
-typedef short vec_i16 __attribute__((vector_size(16)));
+typedef __vector short vec_i16 __attribute__((aligned(2)));
 
 int pack_N16_16bit(int k, int m, short *a, int lda, short *ap) {
     int i, j;
@@ -419,7 +420,7 @@ int pack_T16_16bit(int k, int m, short *a, int lda, short *ap) {
         a_offset += 16;
 
         i = (k >> 1);
-        while (i) {
+        while (i > 1) {
             vtemp01 = *(vec_i16 *)(a_offset1);
             vtemp02 = *(vec_i16 *)(a_offset1 + 8);
             vtemp03 = *(vec_i16 *)(a_offset2);
@@ -434,6 +435,47 @@ int pack_T16_16bit(int k, int m, short *a, int lda, short *ap) {
 
             i--;
         } // end of while (i)
+        if (i == 1) {
+            if ((j > 1) || (!m_skip)) {
+                vtemp01 = *(vec_i16 *)(a_offset1);
+                vtemp02 = *(vec_i16 *)(a_offset1 + 8);
+                vtemp03 = *(vec_i16 *)(a_offset2);
+                vtemp04 = *(vec_i16 *)(a_offset2 + 8);
+                *(vec_i16 *)(ap_offset + 0) = vec_mergeh(vtemp01, vtemp03);
+                *(vec_i16 *)(ap_offset + 8) = vec_mergel(vtemp01, vtemp03);
+                *(vec_i16 *)(ap_offset + 16) = vec_mergeh(vtemp02, vtemp04);
+                *(vec_i16 *)(ap_offset + 24) = vec_mergel(vtemp02, vtemp04);
+            } else {
+                for (int i16 = 0; i16 < 13; ++i16) {
+                    *(ap_offset + 2 * i16 + 0) = *(a_offset1 + i16);
+                    *(ap_offset + 2 * i16 + 1) = *(a_offset2 + i16);
+                }
+                if (m_cap - m < 3) {
+                    *(ap_offset + 26) = *(a_offset1 + 13);
+                    *(ap_offset + 27) = *(a_offset2 + 13);
+                } else {
+                    *(ap_offset + 26) = 0;
+                    *(ap_offset + 27) = 0;
+                }
+                if (m_cap - m < 2) {
+                    *(ap_offset + 28) = *(a_offset1 + 14);
+                    *(ap_offset + 29) = *(a_offset2 + 14);
+                } else {
+                    *(ap_offset + 28) = 0;
+                    *(ap_offset + 29) = 0;
+                }
+                if (m_cap - m < 1) {
+                    *(ap_offset + 30) = *(a_offset1 + 15);
+                    *(ap_offset + 31) = *(a_offset2 + 15);
+                } else {
+                    *(ap_offset + 30) = 0;
+                    *(ap_offset + 31) = 0;
+                }
+            }
+            a_offset1 += 2 * lda;
+            a_offset2 += 2 * lda;
+            ap_offset += 32;
+        }
 
         if (k < k_cap) {
             vtemp01 = *(vec_i16 *)(a_offset1);
@@ -639,16 +681,27 @@ int pack_T8_16bit(int k, int n, short *b, int ldb, short *bp) {
             *(bp_offset2 + 14) = *(b_offset3 + 3);
             *(bp_offset2 + 15) = *(b_offset4 + 3);
 
-            *(bp_offset2 + 16) = *(b_offset5 + 0);
-            *(bp_offset2 + 17) = *(b_offset6 + 0);
-            *(bp_offset2 + 18) = *(b_offset5 + 1);
-            *(bp_offset2 + 19) = *(b_offset6 + 1);
-            *(bp_offset2 + 20) = *(b_offset5 + 2);
-            *(bp_offset2 + 21) = *(b_offset6 + 2);
-            *(bp_offset2 + 22) = *(b_offset5 + 3);
-            *(bp_offset2 + 23) = *(b_offset6 + 3);
-
             // same story here, if n is less than n_cap, we have to be careful with accessing b_offset8
+            *(bp_offset2 + 16) = *(b_offset5 + 0);
+            if (fastpath) {
+                *(bp_offset2 + 17) = *(b_offset6 + 0);
+                *(bp_offset2 + 18) = *(b_offset5 + 1);
+                *(bp_offset2 + 19) = *(b_offset6 + 1);
+                *(bp_offset2 + 20) = *(b_offset5 + 2);
+                *(bp_offset2 + 21) = *(b_offset6 + 2);
+                *(bp_offset2 + 22) = *(b_offset5 + 3);
+                *(bp_offset2 + 23) = *(b_offset6 + 3);
+            } else {
+                *(bp_offset2 + 17) = *(b_offset6 + 0);
+                *(bp_offset2 + 18) = *(b_offset5 + 1);
+                *(bp_offset2 + 19) = *(b_offset6 + 1);
+                *(bp_offset2 + 20) = *(b_offset5 + 2);
+                *(bp_offset2 + 21) = *(b_offset6 + 2);
+                *(bp_offset2 + 22) = *(b_offset5 + 3);
+                if (!k_skip || j > 1)
+                    *(bp_offset2 + 23)
+                            = *(b_offset6 + ((n_cap - n < 3) ? 3 : 0));
+            }
             *(bp_offset2 + 24) = *(b_offset7 + 0);
             if (fastpath) {
                 *(bp_offset2 + 25) = *(b_offset8 + 0);
@@ -664,11 +717,19 @@ int pack_T8_16bit(int k, int n, short *b, int ldb, short *bp) {
                 if (!k_skip || j > 1)
                     *(bp_offset2 + 27)
                             = *(b_offset8 + ((n_cap - n < 3) ? 1 : 0));
-                *(bp_offset2 + 28) = *(b_offset7 + 2);
+
+                if (!k_skip || j > 1)
+                    *(bp_offset2 + 28)
+                            = *(b_offset7 + ((n_cap - n < 3) ? 2 : 0));
+
                 if (!k_skip || j > 1)
                     *(bp_offset2 + 29)
                             = *(b_offset8 + ((n_cap - n < 2) ? 2 : 0));
-                *(bp_offset2 + 30) = *(b_offset7 + 3);
+
+                if (!k_skip || j > 1)
+                    *(bp_offset2 + 30)
+                            = *(b_offset7 + ((n_cap - n < 2) ? 3 : 0));
+
                 if (!k_skip || j > 1)
                     *(bp_offset2 + 31)
                             = *(b_offset8 + ((n_cap - n < 1) ? 3 : 0));
@@ -896,18 +957,22 @@ int pack_T8_16bit(int k, int n, short *b, int ldb, short *bp) {
             if (n_cap & 4) {
                 *(bp_offset2 + 0) = *(b_offset1 + 0);
                 if (!k_skip) *(bp_offset2 + 1) = *(b_offset2 + 0);
-                *(bp_offset2 + 2) = *(b_offset1 + 1);
+
+                *(bp_offset2 + 2) = *(b_offset1 + ((n_cap - n < 3) ? 1 : 0));
                 if (!k_skip)
                     *(bp_offset2 + 3)
                             = *(b_offset2 + ((n_cap - n < 3) ? 1 : 0));
-                *(bp_offset2 + 4) = *(b_offset1 + 2);
+
+                *(bp_offset2 + 4) = *(b_offset1 + ((n_cap - n < 2) ? 2 : 0));
                 if (!k_skip)
                     *(bp_offset2 + 5)
                             = *(b_offset2 + ((n_cap - n < 2) ? 2 : 0));
-                *(bp_offset2 + 6) = *(b_offset1 + 3);
+
+                *(bp_offset2 + 6) = *(b_offset1 + ((n_cap - n < 1) ? 3 : 0));
                 if (!k_skip)
                     *(bp_offset2 + 7)
                             = *(b_offset2 + ((n_cap - n < 1) ? 3 : 0));
+
                 b_offset1 += 4;
                 b_offset2 += 4;
                 bp_offset2 += 8;
@@ -2027,7 +2092,7 @@ int pack_T8_8bit(
 }
 
 typedef __vector unsigned char vec_t;
-typedef __vector signed int v4si_t;
+typedef __vector signed int v4si_t __attribute__((aligned(4)));
 
 #define SWIZZLE_4x4 \
     { \
