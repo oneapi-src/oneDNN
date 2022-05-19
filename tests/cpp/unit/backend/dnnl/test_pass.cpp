@@ -12565,6 +12565,65 @@ TEST(PassSystem, FuseReduceSwish) {
     }
 }
 
+TEST(PassSystem, FuseReduceWith3PostOps) {
+    /*       reducel1
+               |
+             relu
+               |
+             sigmoid
+               \     /
+               multiply
+    */
+    op_t reduce {0, ReduceL1, "reduce"};
+    reduce.set_attr<bool>(op_attr::keep_dims, false);
+    reduce.set_attr<std::vector<int64_t>>(op_attr::axes, {0});
+    op_t relu {1, ReLU, "relu"};
+    op_t sigmoid {2, Sigmoid, "sigmoid"};
+    op_t multiply {3, Multiply, "mul"};
+
+    logical_tensor_t reduce_src = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t reduce_dst = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t relu_dst = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t sigmoid_dst = logical_tensor_init(3, data_type::f32);
+    logical_tensor_t mul_src = logical_tensor_init(4, data_type::f32);
+    logical_tensor_t mul_dst = logical_tensor_init(5, data_type::f32);
+
+    reduce.add_input(reduce_src);
+    reduce.add_output(reduce_dst);
+
+    relu.add_input(reduce_dst);
+    relu.add_output(relu_dst);
+
+    sigmoid.add_input(relu_dst);
+    sigmoid.add_output(sigmoid_dst);
+
+    multiply.add_input(mul_src);
+    multiply.add_input(sigmoid_dst);
+    multiply.add_output(mul_dst);
+
+    graph_t agraph;
+    ASSERT_EQ(agraph.add_op(&reduce), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    agraph.build_graph();
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+
+    const auto fused_op = get_fused_op(agraph.get_partitions()[0]);
+    ASSERT_EQ(fused_op->get_kind(),
+            dnnl_impl::op_kind::reduction_post_ops_fusion);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 4);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
+}
+
 TEST(Pass, FailToFuseReduceWithEmptyScales) {
     const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
             ReduceMean, ReduceMin, ReduceProd, ReduceSum};
