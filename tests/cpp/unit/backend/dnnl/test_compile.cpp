@@ -15217,6 +15217,81 @@ TEST(Execute, InterpolateSwish) {
     strm.wait();
 }
 
+TEST(Execute, Interpolate3PostOps) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5};
+    test::vector<float> src_div {
+            1.0, -1.0, -1.0, -1.5, 2.0, 3.0, 4.0, 5.0, 6.0};
+    test::vector<float> dst_div(9, 1.0);
+
+    impl::op_t interpolate_node(0, impl::op_kind::Interpolate, "interpolate");
+    interpolate_node.set_attr<std::string>(impl::op_attr::mode, "nearest");
+    interpolate_node.set_attr(
+            impl::op_attr::sizes, std::vector<int64_t> {3, 3});
+    interpolate_node.set_attr<std::string>(
+            impl::op_attr::coordinate_transformation_mode, "half_pixel");
+    interpolate_node.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+
+    impl::op_t relu_node(1, impl::op_kind::ReLU, "relu_node");
+    impl::op_t sigmoid_node(2, impl::op_kind::Sigmoid, "sigmoid_node");
+    impl::op_t div_node(3, impl::op_kind::Divide, "div_node");
+
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t dst_relu_lt = utils::logical_tensor_init(
+            2, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t dst_sigmoid_lt = utils::logical_tensor_init(
+            3, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t src_div_lt = utils::logical_tensor_init(
+            4, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t dst_div_lt = utils::logical_tensor_init(
+            5, {1, 1, 3, 3}, impl::data_type::f32, impl::layout_type::strided);
+
+    interpolate_node.add_input(src_lt);
+    interpolate_node.add_output(dst_lt);
+    relu_node.add_input(dst_lt);
+    relu_node.add_output(dst_relu_lt);
+    sigmoid_node.add_input(dst_relu_lt);
+    sigmoid_node.add_output(dst_sigmoid_lt);
+    div_node.add_input(dst_sigmoid_lt);
+    div_node.add_input(src_div_lt);
+    div_node.add_output(dst_div_lt);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&interpolate_node), impl::status::success);
+    ASSERT_EQ(g.add_op(&relu_node), impl::status::success);
+    ASSERT_EQ(g.add_op(&sigmoid_node), impl::status::success);
+    ASSERT_EQ(g.add_op(&div_node), impl::status::success);
+    ASSERT_EQ(g.build_graph(), impl::status::success);
+    ASSERT_EQ(g.num_ops(), 4);
+
+    impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+    ASSERT_TRUE(part != nullptr);
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+    std::vector<const impl::logical_tensor_t *> lt_ins {&src_lt, &src_div_lt};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_div_lt};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    impl::tensor_t src_ts(src_lt, &engine, src.data());
+    impl::tensor_t src_div_ts(src_div_lt, &engine, src_div.data());
+    impl::tensor_t dst_div_ts(dst_div_lt, &engine, dst_div.data());
+    cp.execute(&strm, {src_ts, src_div_ts}, {dst_div_ts});
+    strm.wait();
+}
+
 TEST(Execute, InterpolatePostOps) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();

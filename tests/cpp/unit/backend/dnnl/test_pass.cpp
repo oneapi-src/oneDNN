@@ -12219,6 +12219,7 @@ TEST(Pass, FuseInterpolateSwish) {
     pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
             impl::dnnl_impl::op_kind::interpolate_post_ops_fusion);
 
@@ -12226,7 +12227,7 @@ TEST(Pass, FuseInterpolateSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
 }
 
 TEST(PassSystem, FuseInterpolateSwish) {
@@ -12268,17 +12269,66 @@ TEST(PassSystem, FuseInterpolateSwish) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
-    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
             impl::dnnl_impl::op_kind::interpolate_post_ops_fusion);
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(),
-            impl::op_kind::ReLU);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4);
+}
+
+TEST(Pass, FuseInterpolate3PostOps) {
+    /*    interpolate
+               |
+           sigmoid
+               |
+             relu
+               |    /
+              multiply
+    */
+    graph_t agraph;
+    op_t interpolate {0, Interpolate, "interpolate"};
+    interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr(op_attr::mode, std::string("linear"));
+    interpolate.set_attr(
+            op_attr::coordinate_transformation_mode, std::string("half_pixel"));
+    op_t sigmoid {1, Sigmoid, "sigmoid"};
+    op_t relu {2, ReLU, "relu"};
+    op_t multiply {3, Multiply, "mul"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    interpolate.add_input(lt_vec[0]);
+    interpolate.add_output(lt_vec[1]);
+    sigmoid.add_input(lt_vec[1]);
+    sigmoid.add_output(lt_vec[2]);
+    relu.add_input(lt_vec[2]);
+    relu.add_output(lt_vec[3]);
+    multiply.add_input(lt_vec[3]);
+    multiply.add_input(lt_vec[4]);
+    multiply.add_output(lt_vec[5]);
+
+    ASSERT_EQ(agraph.add_op(&interpolate), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    agraph.build_graph();
+    ASSERT_EQ(agraph.num_ops(), 4);
+
+    pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+            impl::dnnl_impl::op_kind::interpolate_post_ops_fusion);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 4);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
 TEST(Pass, FuseInterpolateSum) {
@@ -12327,10 +12377,10 @@ TEST(Pass, FuseInterpolateMul) {
     */
     graph_t agraph;
     op_t interpolate {0, Interpolate, "interpolate"};
-    interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
-    interpolate.set_attr(op_attr::mode, std::string("linear"));
-    interpolate.set_attr(
-            op_attr::coordinate_transformation_mode, std::string("half_pixel"));
+    interpolate.set_attr<std::vector<int64_t>>(op_attr::sizes, {2, 3, 4});
+    interpolate.set_attr<std::string>(op_attr::mode, "linear");
+    interpolate.set_attr<std::string>(
+            op_attr::coordinate_transformation_mode, "half_pixel");
     op_t mul {1, Multiply, "mul"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);

@@ -56,22 +56,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_post_ops_fusion)
                             = pgraph->append_op(impl::op_kind::Interpolate);
                     interpolate->append_decision_function(check_attributes);
 
-                    // special post op handle: swish is composed
-                    // by sigmoid and multiply
-                    auto swish_graph
-                            = std::make_shared<pb_graph_t>("swish_graph");
-                    auto psigmoid = swish_graph->append_op(
-                            impl::op_kind::Sigmoid, "psigmoid");
-                    auto pmultiply
-                            = swish_graph->append_op(impl::op_kind::Multiply,
-                                    {in_edge(0, psigmoid, 0)}, "pmultiply");
-                    swish_graph->create_input_port(0, psigmoid, 0);
-                    swish_graph->create_input_port(0, pmultiply, 1);
-                    swish_graph->create_output_port(0, pmultiply, 0);
-
-                    auto other_postop_graph = std::make_shared<pb_graph_t>(
-                            "pother_postop_graph");
-                    pm::pb_op_t *pop = other_postop_graph->append_alternation(
+                    auto postop_graph
+                            = std::make_shared<pb_graph_t>("postop_graph");
+                    pm::pb_op_t *pop = postop_graph->append_alternation(
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
@@ -87,14 +74,15 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_post_ops_fusion)
                                     impl::op_kind::Minimum,
                                     impl::op_kind::Divide,
                                     impl::op_kind::Subtract},
-                            "pother_post_op");
-                    other_postop_graph->create_input_port(0, pop, 0);
-                    other_postop_graph->create_output_port(0, pop, 0);
+                            "pother_postop");
+                    postop_graph->create_input_port(0, pop, 0);
+                    postop_graph->create_input_port(1, pop, 1);
+                    postop_graph->create_output_port(0, pop, 0);
 
-                    pgraph->append_alternation(
-                            {swish_graph, other_postop_graph},
+                    pgraph->append_repetition(postop_graph, {0, 0}, 1,
+                            MAX_REPETITION,
                             in_edges_t {in_edge(0, interpolate, 0)},
-                            "ppost_op");
+                            "prepetition");
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

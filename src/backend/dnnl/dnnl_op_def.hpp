@@ -1429,8 +1429,8 @@ DNNL_GRAPH_OP_SCHEMA(reduction_post_ops_fusion, 1,
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_resampling, 1,
         op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({1, 2}))
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({1, 32}))
                 .set_num_outputs(2)
                 .set_input(
                         0, "data", "Input tensor with data for interpolation")
