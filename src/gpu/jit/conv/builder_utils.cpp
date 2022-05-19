@@ -21,6 +21,13 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+#ifdef GEN_CONV_DEBUG
+ir_utils::debug_profiler_t &get_trace_profiler() {
+    static thread_local ir_utils::debug_profiler_t profiler("Trace Profile");
+    return profiler;
+}
+#endif
+
 // Performs the following operation:
 //     buf = alpha * buf + beta
 stmt_t create_mul_add_stmt(ngen::HW hw, const expr_t &buf, int size,

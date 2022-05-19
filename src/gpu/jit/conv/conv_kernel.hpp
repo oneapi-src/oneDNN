@@ -3939,23 +3939,31 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     // the issue.
     if (cfg_.is_bwd_w && hw < ngen::HW::XeHPC) emu_strategy.emulate64 = true;
 
+    ir_utils::debug_profiler_t profile("Conv Kernel Construction Profile");
     // Build IR for the kernel.
     kernel_builder_t builder(cfg, pd, kernel_info);
     stmt_t body = builder.stmt();
+    profile.stamp("Kernel Builder");
 
     alloc_manager_t alloc_mgr(body);
+    profile.stamp("Alloc_Mgr Construct");
 
     setup_interface(body);
+    profile.stamp("Setup Interface");
 
     this->require_signal_header_ = true;
     generate_prologue();
+
+    profile.stamp("Prologue");
 
     // Bind "external" variables.
     expr_binding_t expr_binding(hw);
     bind_external_vars(
             body, builder.kernel_grid(), builder.local_id(), expr_binding);
+    profile.stamp("Bind Variables");
 
 #ifdef GEN_CONV_DEBUG
+    profile.stop();
     int grf_size = ngen::GRF::bytes(hw);
     ir_trace() << "Register usage estimate:         "
                << cfg_.estimated_peak_grf_usage << std::endl;
@@ -3964,15 +3972,19 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     ir_trace() << "IR register usage (without let): "
                << get_peak_grf_usage(body, grf_size, /*skip_let=*/true)
                << std::endl;
+    profile.start();
 #endif
 
     // Generate assembly from IR.
     ir_to_ngen_t<hw> visitor(this, expr_binding);
     visitor.visit(body);
+    profile.stamp("Generate Assembly");
 
     generate_epilogue();
+    profile.stop("Epilogue");
 
 #ifdef GEN_CONV_DEBUG
+    ir_perf_no_trace() << profile << "\n";
     ir_trace() << "Actual register usage:           "
                << ra_.get_peak_grf_usage() << std::endl;
     if (ra_.get_peak_grf_usage() > cfg_.estimated_peak_grf_usage) {

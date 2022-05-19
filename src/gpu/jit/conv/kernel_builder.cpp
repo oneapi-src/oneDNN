@@ -522,6 +522,7 @@ public:
 };
 
 stmt_t inject_external_var_let(const stmt_t &_stmt) {
+    trace_start();
     auto stmt = _stmt;
     external_var_visitor_t v;
     v.visit(stmt);
@@ -604,6 +605,7 @@ private:
 
 // Merges all SLM buffers into a single one.
 stmt_t merge_slm_buffers(const stmt_t &_stmt) {
+    trace_start();
     stmt_t stmt = _stmt;
     slm_buffer_merger_t merger;
     stmt = merger.mutate(stmt);
@@ -632,6 +634,7 @@ public:
 };
 
 stmt_t lift_buffer_offsets_in_send(const stmt_t &s) {
+    trace_start();
     buffer_offset_lifter_t lifter;
     auto ret = lifter.mutate(s);
     trace_pass("lift_buffer_offsets_in_send", ret);
@@ -639,6 +642,7 @@ stmt_t lift_buffer_offsets_in_send(const stmt_t &s) {
 }
 
 stmt_t simplify_pass(const stmt_t &s, const constraint_set_t &cset) {
+    trace_start();
     auto ret = simplify(s, cset);
     trace_pass("simplify_pass", ret);
     return ret;
@@ -791,6 +795,7 @@ private:
 // Replaces some heavy GRF reorders by reorder through SLM (store and load).
 stmt_t inject_slm_reorder(
         const stmt_t &s, const conv_config_t &cfg, const grid_info_t &tg_grid) {
+    trace_start();
     if (cfg.use_a_slm || cfg.use_b_slm) return s;
     if (cfg.hw() < ngen::HW::XeHPC) return s;
     slm_reorder_injector_t injector(s, cfg, tg_grid);
@@ -881,6 +886,7 @@ private:
 
 stmt_t inject_send(
         const stmt_t &s, ir_context_t &ir_ctx, const constraint_set_t &cset) {
+    trace_start();
     auto ret = send_injector_t(ir_ctx, cset).mutate(s);
     trace_pass("inject_send", ret);
     return ret;
@@ -943,6 +949,7 @@ private:
 
 // Lifts alloc statements out of loops.
 stmt_t lift_alloc(const stmt_t &s, const conv_config_t &cfg) {
+    trace_start();
     auto ret = alloc_lifter_t(s, cfg.reuse_headers).mutate(s);
     trace_pass("lift_alloc", ret);
     return ret;
@@ -997,6 +1004,7 @@ private:
 
 // Lifts loop-invariant header assignments related to block 2D messages.
 stmt_t lift_send_2d_header_store(const stmt_t &s) {
+    trace_start();
     auto ret = send_2d_header_store_lifter_t(s).mutate(s);
     trace_pass("lift_send_2d_header_store", ret);
     return ret;
@@ -1202,6 +1210,7 @@ private:
 
 // Moves invariant expressions out of loops.
 stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx) {
+    trace_start();
     auto ret = hoist_exprs_mutator_t(ir_ctx).mutate(s);
     trace_pass("hoist_exprs", ret);
     return ret;
@@ -1368,6 +1377,7 @@ private:
 // sub-masks for other masks.
 stmt_t hoist_send_masks(const stmt_t &s, ir_context_t &ir_ctx,
         const stmt_label_t &label, bool split_by_and) {
+    trace_start();
     hoist_send_masks_mutator_t mutator(ir_ctx, label, split_by_and);
 
     auto ret = mutator.mutate(s);
@@ -1400,6 +1410,7 @@ private:
 // previous mask hoisting.
 stmt_t remove_spurious_send_mask_cast(const stmt_t &s) {
     spurious_send_mask_cast_remover_t mutator;
+    trace_start();
     auto ret = mutator.mutate(s);
     trace_pass("remove_spurious_send_mask_cast", ret);
     return ret;
@@ -1635,6 +1646,7 @@ private:
 //         off += K;
 //     }
 stmt_t loop_strength_reduce(const stmt_t &s) {
+    trace_start();
     auto ret = loop_strength_reducer_t().mutate(s);
     trace_pass("loop_strength_reduce", ret);
     return ret;
@@ -1763,6 +1775,7 @@ private:
 };
 
 stmt_t optimize_alloc_let(const stmt_t &s) {
+    trace_start();
     auto ret = alloc_let_optimizer_t().mutate(s);
     trace_pass("optimize_alloc_let", ret);
     return ret;
@@ -1840,6 +1853,7 @@ private:
 //         }
 //     }
 stmt_t update_loops_for_unrolling(const stmt_t &s, const conv_config_t &cfg) {
+    trace_start();
     auto ret = s;
     if (cfg.do_pipeline_unroll) ret = unrolling_updater_t().mutate(s);
     trace_pass("update_loops_for_unrolling", ret);
@@ -2931,6 +2945,7 @@ private:
 
 stmt_t inject_prefetch_pipeline(
         const stmt_t &s, const conv_config_t &cfg, ir_context_t &ir_ctx) {
+    trace_start();
     auto ret = prefetch_pipeliner_t(s, cfg, ir_ctx).inject();
     trace_pass("inject_prefetch_pipeline", ret);
     return ret;
@@ -3169,6 +3184,7 @@ public:
 // Injects SLM buffering without unrolling based on the config.
 stmt_t inject_simple_slm_buffering(ngen::HW hw, const stmt_t &s,
         const conv_config_t &cfg, ir_context_t &ir_ctx, int ab_slm_size) {
+    trace_start();
     auto ret = simple_slm_buffering_injector_t(hw, s, cfg, ir_ctx, ab_slm_size)
                        .inject();
     trace_pass("inject_simple_slm_buffering", ret);
@@ -3669,6 +3685,7 @@ private:
 // - With prefetch
 stmt_t inject_unrolling(const stmt_t &s, const conv_config_t &cfg,
         ir_context_t &ir_ctx, int ab_slm_size) {
+    trace_start();
     auto ret = unrolling_injector_t(s, cfg, ir_ctx, ab_slm_size).inject();
     trace_pass("inject_unrolling", ret);
     return ret;
@@ -3719,6 +3736,7 @@ private:
 
 // Splits wide GRF stores otherwise unsupported in HW.
 stmt_t split_wide_stores(ngen::HW hw, const stmt_t &s) {
+    trace_start();
     auto ret = store_splitter_t(hw).mutate(s);
     trace_pass("split_wide_stores", ret);
     return ret;
@@ -3955,6 +3973,7 @@ private:
 // After:
 //     c.u64 = u64(c_ptr) + s64(a.s32) * b.s32
 stmt_t fix_int32_overflow(const stmt_t &s, const constraint_set_t &cset) {
+    trace_start();
     auto ret = overflow_fixer_t(cset).mutate(s);
     trace_pass("fix_int32_overflow", ret);
     return ret;
@@ -4044,6 +4063,7 @@ private:
 };
 
 stmt_t optimize_peephole(const stmt_t &s) {
+    trace_start();
     auto ret = peephole_optimizer_t().mutate(s);
     trace_pass("optimize_peephole", ret);
     return ret;
@@ -4083,6 +4103,7 @@ private:
 };
 
 stmt_t optimize_barrier(const stmt_t &s) {
+    trace_start();
     auto ret = barrier_optimizer_t().mutate(s);
     trace_pass("optimize_barrier", ret);
     return ret;
@@ -4109,6 +4130,7 @@ private:
 // After (for SIMD8):
 //     if (bcast8(cond)) { ... }
 stmt_t fixup_if_conditions(const stmt_t &s, const conv_config_t &cfg) {
+    trace_start();
     auto ret = if_condition_fixer_t(cfg.simd_size()).mutate(s);
     trace_pass("fixup_if_conditions", ret);
     return ret;
@@ -4177,6 +4199,7 @@ private:
 //     body(0);
 //     body(1);
 stmt_t unroll_loops(const stmt_t &s, ir_context_t &ir_ctx) {
+    trace_start();
     auto ret = loop_unroller_t(ir_ctx).mutate(s);
     trace_pass("unroll_loops", ret);
     return ret;
@@ -4257,6 +4280,7 @@ private:
 // instructions. This information is used during nGEN lowering to avoid bank
 // conflicts in allocated buffers.
 stmt_t inject_bank_conflict_attribute(const stmt_t &s) {
+    trace_start();
     auto ret = bank_conflict_attribute_injector_t().mutate(s);
     trace_pass("inject_bank_conflict_attribute", ret);
     return ret;
@@ -4323,6 +4347,7 @@ private:
 
 // Converts dpas to dp4a.
 stmt_t inject_dp4a(const stmt_t &s) {
+    trace_start();
     auto ret = dp4a_injector_t().mutate(s);
     trace_pass("inject_dp4a", ret);
     return ret;
@@ -6432,6 +6457,8 @@ void kernel_builder_t::build() {
     ir_context_t ir_ctx;
     constraint_set_t init_cset;
 
+    trace_reset();
+
     init_kernel_grid(cfg_.kernel_grid_dim, cfg_.tg_grid_dim, cfg_.simd_size(),
             init_cset, kernel_grid_, tg_grid_, local_id_);
 
@@ -6474,6 +6501,8 @@ void kernel_builder_t::build() {
 
     gemm_schedule.finalize();
 
+    trace_stamp("GEMM Schedule");
+
     post_op_context_t post_op_ctx(pd_, cfg_, gemm_schedule, kernel_info_);
     compute_builder_t cb(cfg_, ir_ctx, init_cset, kernel_info_);
 
@@ -6487,6 +6516,8 @@ void kernel_builder_t::build() {
     cb.set_reduce_condition(b_reduction_condition);
 
     cb.build();
+
+    trace_stamp("Compute Builder");
 
     std::vector<stmt_t> allocs;
     for (int i = 0; i < kernel_info_.nargs(); i++) {
@@ -6514,6 +6545,7 @@ void kernel_builder_t::build() {
     stmt_ = gemm_schedule.create_bind_stmt(stmt_);
     stmt_ = inject_let_stmts(stmt_, init_stmts);
     stmt_ = inject_alloc_stmts(stmt_, allocs);
+    trace_stop("Create Inital IR");
 
     stmt_ = inject_external_var_let(stmt_);
     stmt_ = merge_slm_buffers(stmt_);
@@ -6560,6 +6592,7 @@ void kernel_builder_t::build() {
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
     ir_trace() << "Convolution kernel body:\n" << stmt_ << std::endl;
+    trace_perf();
 }
 
 std::vector<int> reorder_kernel_builder_t::compute_blocks(

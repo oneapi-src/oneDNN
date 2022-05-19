@@ -738,6 +738,7 @@ stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
 
 stmt_t eliminate_common_subexprs(
         const stmt_t &_stmt, const conv_config_t &cfg, ir_context_t &ir_ctx) {
+    trace_start();
     stmt_t stmt;
     cse_context_t cse_ctx(ir_ctx);
 

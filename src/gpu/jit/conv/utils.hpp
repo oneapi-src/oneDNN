@@ -29,6 +29,10 @@
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
 
+#ifdef GEN_CONV_DEBUG
+#include "common/profiler.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -38,6 +42,7 @@ namespace ir_utils {
 const int LOG_OFF = 0;
 const int LOG_WARNING = 100;
 const int LOG_INFO = 150;
+const int LOG_PERF = 170;
 const int LOG_TRACE = 200;
 
 #ifdef GEN_CONV_DEBUG
@@ -250,6 +255,16 @@ private:
     bool is_first_print_ = true;
 };
 
+#define ir_perf() \
+    ir_utils::logger_t<ir_utils::LOG_PERF>::is_enabled() \
+            && ir_utils::logger_t<ir_utils::LOG_PERF>()
+
+// Trace can result in overhead making measurement meaningless
+#define ir_perf_no_trace() \
+    ir_utils::logger_t<ir_utils::LOG_PERF>::is_enabled() \
+            && !ir_utils::logger_t<ir_utils::LOG_TRACE>::is_enabled() \
+            && ir_utils::logger_t<ir_utils::LOG_PERF>()
+
 #define ir_info() \
     ir_utils::logger_t<ir_utils::LOG_INFO>::is_enabled() \
             && ir_utils::logger_t<ir_utils::LOG_INFO>()
@@ -412,6 +427,35 @@ template <typename T, typename F>
 void for_each(const std::vector<T> &bounds, const F &f) {
     std::vector<T> idx(bounds.size());
     for_each_impl(0, idx, bounds, f);
+}
+
+struct debug_profiler_t {
+#ifdef GEN_CONV_DEBUG
+    debug_profiler_t(std::string profile_name) : profile(profile_name) {};
+    void start() { profile.start(); };
+    void stamp(const char *name) { profile.stamp(name); };
+    void stop(const char *name) { profile.stop(name); };
+    void stop() { profile.stop(); };
+    void reset() { profile.reset(); };
+    std::string str() const { return profile.str(); };
+
+private:
+    profiler_t profile;
+#else
+    debug_profiler_t(std::string) {};
+    void start() {};
+    void stamp(const char *name) {};
+    void stop(const char *name) {};
+    void stop() {};
+    void reset() {};
+    std::string str() const { return ""; };
+#endif
+};
+
+inline std::ostream &operator<<(
+        std::ostream &out, const debug_profiler_t &profile) {
+    out << profile.str();
+    return out;
 }
 
 } // namespace ir_utils

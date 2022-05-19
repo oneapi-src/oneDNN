@@ -27,10 +27,36 @@ namespace gpu {
 namespace jit {
 
 // Trace for debugging purposes.
+#ifdef GEN_CONV_DEBUG
+ir_utils::debug_profiler_t &get_trace_profiler();
+inline void trace_start() {
+    get_trace_profiler().start();
+}
+inline void trace_reset() {
+    get_trace_profiler().reset();
+}
+inline void trace_stamp(const char *pass_name) {
+    get_trace_profiler().stamp(pass_name);
+}
+inline void trace_stop(const char *pass_name) {
+    get_trace_profiler().stop(pass_name);
+}
+inline void trace_perf() {
+    ir_perf() << get_trace_profiler() << std::endl;
+}
 inline void trace_pass(const char *pass_name, const stmt_t &stmt) {
+    trace_stop(pass_name);
     ir_trace() << "=== After " << pass_name << std::endl;
     ir_trace() << stmt << std::endl;
 }
+#else
+inline void trace_start() {};
+inline void trace_reset() {};
+inline void trace_stamp(const char *) {};
+inline void trace_stop(const char *) {};
+inline void trace_perf() {};
+inline void trace_pass(const char *pass_name, const stmt_t &stmt) {};
+#endif
 
 // Performs the following operation:
 //     buf = alpha * buf + beta
