@@ -590,6 +590,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
         // prepare for the next round of matching
         // Forward matching
         if (forward_match) {
+            temp_bind.bind_kind = BIND_IN;
             oport_t oport = pmap.first;
             op_t *current_op = temp_ctx.out_port_map[oport].first;
             if (oport >= current_op->num_outputs()) break;
@@ -599,7 +600,7 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
             if (cons.size() == 1) {
                 op_t *next_op = &(cons[0].get_op());
                 temp_bind.bind_op = next_op;
-                temp_bind.bind_op_port = oport;
+                temp_bind.bind_op_port = cons[0].get_offset();
             } else {
                 // More than 1 consumers. In this case, needs to check
                 // if the last node of previous match accepts external
@@ -619,25 +620,27 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
                 op_t *start_op = temp_ctx.in_port_map[iport].first;
                 pb_op_t *start_pb_op = temp_op_map[start_op];
                 op_t *next_op = nullptr;
+                size_t next_op_iport = 0;
                 for (auto &con : cons) {
                     if (match_node_attributes(&con.get_op(), start_pb_op)) {
-                        next_op = &con.get_op();
+                        next_op = &(con.get_op());
+                        next_op_iport = con.get_offset();
                         break;
                     }
                 }
                 if (!next_op) break;
                 temp_bind.bind_op = next_op;
-                temp_bind.bind_op_port = oport;
+                temp_bind.bind_op_port = next_op_iport;
             }
         } else { // backward matching
+            temp_bind.bind_kind = BIND_OUT;
             iport_t iport = pmap.second;
             op_t *current_op = temp_ctx.in_port_map[iport].first;
             if (iport >= current_op->num_inputs()) break;
-            op_t *next_op
-                    = &(current_op->get_input_value(static_cast<size_t>(iport))
-                                    ->get_producer());
-            temp_bind.bind_op = next_op;
-            temp_bind.bind_op_port = iport;
+            auto in_value
+                    = current_op->get_input_value(static_cast<size_t>(iport));
+            temp_bind.bind_op = &(in_value->get_producer());
+            temp_bind.bind_op_port = in_value->get_offset();
         }
     }
 

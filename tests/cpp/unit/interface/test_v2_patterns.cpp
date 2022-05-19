@@ -776,6 +776,56 @@ TEST(PatternMatcherV2, Repetition) {
     ASSERT_EQ(fusion_ops.size(), 4);
 }
 
+TEST(PatternMatcherV2, RepetitionFail) {
+    /* 
+    Pattern:
+     MatMul
+       \    /
+      [Add/Div]*[1,3]
+
+     Graph:
+          MatMul
+            \   /
+             Add
+          \  /
+          Div
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+    auto pmatmul = graphp->append_op(MatMul, "pmatmul");
+    auto repbody = std::make_shared<pb_graph_t>("prepetitionbody");
+    auto paddordiv = repbody->append_alternation({Add, Divide}, "paddormul");
+    repbody->create_input_port(IN0, paddordiv, IN0);
+    repbody->create_output_port(OUT0, paddordiv, OUT0);
+
+    graphp->append_repetition(repbody, {OUT0, IN0}, 2, 3,
+            {in_edge(IN0, pmatmul, OUT0)}, "prepetition");
+
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+    op_t add {1, Add, "add"};
+    op_t div {2, Divide, "div"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    matmul.add_input(lt_vec[0]);
+    matmul.add_input(lt_vec[1]);
+    matmul.add_output(lt_vec[2]);
+    add.add_input(lt_vec[2]);
+    add.add_input(lt_vec[3]);
+    add.add_output(lt_vec[4]);
+    // incorrect order for div
+    div.add_input(lt_vec[5]);
+    div.add_input(lt_vec[4]);
+    div.add_output(lt_vec[6]);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&div), status::success);
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_FALSE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+}
+
 //
 // "Optional" is a special case of repetition that repeats one or zero times
 // and constructed with append_optional.
