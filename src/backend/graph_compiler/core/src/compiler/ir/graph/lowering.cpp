@@ -86,7 +86,7 @@ struct result_dump_config_t {
     }
 };
 
-static expr make_gloabl_string(
+static expr make_global_string(
         const ir_module_ptr &mod, const std::string &v, int &counter) {
     std::string name = "__gstring";
     name += std::to_string(counter++);
@@ -112,7 +112,7 @@ static void make_dump_tensor_call(const std::vector<expr> &outs,
         std::stringstream tensor_name;
         tensor_name << callee->name_ << '.' << tsr->name_ << '.'
                     << graph_tsr->details_.get_format();
-        auto namestr = make_gloabl_string(
+        auto namestr = make_global_string(
                 ret_mod, tensor_name.str(), global_str_counter);
         std::stringstream shape_name;
         size_t total_shape1 = utils::get_sizeof_type(tsr->elem_dtype_);
@@ -121,7 +121,7 @@ static void make_dump_tensor_call(const std::vector<expr> &outs,
             total_shape1 *= dim;
             shape_name << dim << ',';
         }
-        auto shapestr = make_gloabl_string(
+        auto shapestr = make_global_string(
                 ret_mod, shape_name.str(), global_str_counter);
         auto the_call = builtin::call_dump_tensor(out, namestr, shapestr,
                 total_shape1, dump_config.bytes_per_dump_, dump_out_path,
@@ -138,7 +138,7 @@ static void make_value_check_call(const std::vector<expr> &outs,
     for (auto &out : outs) {
         auto tsr = out.checked_as<tensor>();
         if (tsr->elem_dtype_.type_code_ != sc_data_etype::F32) { continue; }
-        auto namestr = make_gloabl_string(
+        auto namestr = make_global_string(
                 ret_mod, callee->name_ + "." + tsr->name_, global_str_counter);
         size_t total_shape1 = utils::get_sizeof_type(tsr->elem_dtype_);
         for (auto &dimv : tsr->dims_) {
@@ -401,7 +401,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     expr dump_out_path;
     int global_str_counter = 0;
     if (dump_config.enabled_) {
-        dump_out_path = make_gloabl_string(
+        dump_out_path = make_global_string(
                 ret_mod, dump_config.path_, global_str_counter);
     }
 
