@@ -2001,6 +2001,16 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
     }
 
+    // For padding shapes, we calculate the comp along with the computation
+    // inside brgemm kernel when output size is small to get optimal perf
+    // Or we calculate the comp using brgemm_coomp_pad kernel
+    const auto output_sz = static_cast<dim_t>(jcp.mb) * jcp.ngroups * jcp.oc
+            * jcp.od * jcp.oh * jcp.ow;
+    const auto comp_with_pads = (jcp.src_zero_point || jcp.s8s8_avx512)
+            && IMPLICATION(jcp.exec_type == exec_vpad, with_pad);
+    jcp.req_brg_comp_pad = comp_with_pads && output_sz <= 8192 && jcp.oc < 512;
+    jcp.req_cal_comp_pad = comp_with_pads && !jcp.req_brg_comp_pad;
+
     // estimate the number of kernel range combination for compensation
     const auto kd_cnt = 1 + utils::div_up(abs(jcp.f_pad), jcp.dilate_d + 1)
             + utils::div_up(abs(jcp.back_pad), jcp.dilate_d + 1);
@@ -2013,24 +2023,11 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                                       abs(jcp.r_pad), jcp.dilate_w + 1)))
             * 2;
 
-    jcp.comp_with_vpads = (jcp.src_zero_point || jcp.s8s8_avx512)
-            && IMPLICATION(jcp.exec_type == exec_vpad, with_pad);
     jcp.ker_ranges_size = jcp.exec_type == exec_base ? kd_cnt * kh_cnt * kw_cnt
                                                      : kd_cnt * kh_cnt;
     jcp.comp_a_buffer_size
             = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size * jcp.oc_block;
     jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
-
-    // The threshold for the shapes with padding is experimental
-    // TODO: Remove the restriction after optimize the compensation work
-    // for the shapes with padding
-    const auto odhw_amount = static_cast<dim_t>(jcp.mb) * jcp.ngroups
-            * jcp.nb_oc * jcp.od * jcp.oh * jcp.ow;
-    const auto comp_work_amount = static_cast<dim_t>(jcp.ngroups) * jcp.nb_oc
-            * jcp.ker_ranges_size * jcp.ic;
-    if (jcp.comp_with_vpads && odhw_amount <= 382 && comp_work_amount >= 768
-            && comp_work_amount >= 2 * odhw_amount)
-        return status::unimplemented;
 
     return status::success;
 }
@@ -2188,7 +2185,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                 |= memory_extra_flags::compensation_conv_asymmetric_src;
         weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
     }
-    jcp.comp_with_vpads = false;
+    jcp.req_cal_comp_pad = false;
     jcp.s8s8_comp_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
     jcp.comp_a_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
 
@@ -2227,11 +2224,11 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_conv_amx_tile_buffer,
                 jcp.nthr * jcp.amx_buf_size_per_thread, sizeof(char), 0, P4K);
     }
-    if (jcp.s8s8_avx512 && jcp.comp_with_vpads) {
+    if (jcp.s8s8_avx512 && jcp.req_cal_comp_pad) {
         scratchpad.book(key_brgemm_primitive_buffer_comp,
                 jcp.s8s8_comp_buffer_size, sizeof(int32_t), 0, P4K);
     }
-    if (jcp.src_zero_point && jcp.comp_with_vpads && !is_amx(jcp.isa)) {
+    if (jcp.src_zero_point && jcp.req_cal_comp_pad && !is_amx(jcp.isa)) {
         scratchpad.book(key_brgemm_primitive_zp_comp_a, jcp.comp_a_buffer_size,
                 sizeof(int32_t), 0, P4K);
     }

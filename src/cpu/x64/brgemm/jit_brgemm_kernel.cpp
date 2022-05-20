@@ -342,6 +342,7 @@ private:
 
     bool n_bcast_1_load = false;
     bool vpad_exist = false;
+    bool need_comp_pads = false;
 };
 
 int jit_brgemm_kernel_t::A_offset(int bd, int rd, bool is_amx) const noexcept {
@@ -1076,7 +1077,7 @@ void jit_brgemm_kernel_t::apply_compensation(
     // to avoid the loss of accuracy when converting s32 to f32
     auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
-    if (brg.zp_type_a != brgemm_broadcast_t::none) {
+    if (!brg.req_cal_comp_pads && brg.zp_type_a != brgemm_broadcast_t::none) {
         auto zmm_zp_a_val = zmm_tmp_2();
         mov(reg_zp_a_val, ptr[rsp + reg_zp_a_val_offs_]);
         vpbroadcastd(zmm_zp_a_val, reg_zp_a_val.cvt32());
@@ -1112,7 +1113,7 @@ void jit_brgemm_kernel_t::apply_compensation(
         }
     }
 
-    if (brg.req_s8s8_compensation) {
+    if (!brg.req_cal_comp_pads && brg.req_s8s8_compensation) {
         mov(reg_aux_compensation, ptr[rsp + reg_aux_comp_offs_]);
         for (int ld = 0; ld < ld_block2; ld++) {
             auto zmm_comp = zmm_tmp_1();
@@ -1451,7 +1452,9 @@ void jit_brgemm_kernel_t::gemm_microkernel_avx512(int bd_block2,
     int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
     const auto bd_b = nstl::max(0, vpad);
     const auto bd_e = nstl::min(bd_block, bd_block + vpad);
-    if (bd_b >= bd_e + static_cast<int>(brg.with_comp_pads)) return;
+    const auto is_valid_bd
+            = need_comp_pads && vpad != 0 ? bd_b <= bd_e : bd_b < bd_e;
+    if (!is_valid_bd) return;
 
     bool is_emdbd = brg.embd_bcst;
 
@@ -1484,27 +1487,44 @@ void jit_brgemm_kernel_t::gemm_microkernel_avx512(int bd_block2,
         if (brg.req_s8s8_compensation) vpaddb(z1, z1, zmm_inp_shift());
     };
 
-    auto compensation_padding = [=](Zmm z1, int ld, int bd_b, int bd_e) {
-        if (brg.req_s8s8_compensation) {
-            for (int bd = bd_b; bd < bd_e; bd++) {
-                auto zmm = accm(ld_block2, bd, ld);
-                dot_product(zmm, load(), zmm_inp_shift());
-            }
-        }
+    auto compensation_padding
+            = [=](Zmm zmm_load, Zmm zmm_tmp, int ld, int bd_b, int bd_e) {
+                  /* req_cal_comp_pads -> only calculate compensation along with computation
+         * and do not use pre-calculate compensation, calculate comp padding as: 
+         * accum - inp_shift * conv(1, wei_s32) */
+                  if (brg.req_s8s8_compensation) {
+                      if (brg.req_cal_comp_pads) {
+                          vpxord(zmm_tmp, zmm_tmp, zmm_tmp);
+                          dot_product(zmm_tmp, zmm_load, zmm_inp_shift());
+                      }
 
-        if (brg.zp_type_a != brgemm_broadcast_t::none) {
-            vpxord(z1, z1, z1);
-            dot_product(z1, load(), zmm_one_bytes());
-            vpmulld(z1, z1, zmm_zp_a_shift());
+                      for (int bd = bd_b; bd < bd_e; bd++) {
+                          auto zmm = accm(ld_block2, bd, ld);
+                          if (brg.req_cal_comp_pads) {
+                              vpsubd(zmm, zmm, zmm_tmp);
+                          } else {
+                              dot_product(zmm, zmm_load, zmm_inp_shift());
+                          }
+                      }
+                  }
 
-            for (int bd = bd_b; bd < bd_e; bd++) {
-                auto zmm = accm(ld_block2, bd, ld);
-                vpaddd(zmm, zmm, z1);
-            }
-        }
-    };
+                  if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                      vpxord(zmm_tmp, zmm_tmp, zmm_tmp);
+                      dot_product(zmm_tmp, zmm_load, zmm_one_bytes());
+                      vpmulld(zmm_tmp, zmm_tmp, zmm_zp_a_shift());
 
-    if (brg.with_comp_pads && vpad != 0) {
+                      for (int bd = bd_b; bd < bd_e; bd++) {
+                          auto zmm = accm(ld_block2, bd, ld);
+                          if (brg.req_cal_comp_pads) {
+                              vpsubd(zmm, zmm, zmm_tmp);
+                          } else {
+                              vpaddd(zmm, zmm, zmm_tmp);
+                          }
+                      }
+                  }
+              };
+
+    if (IMPLICATION(vpad == 0, brg.req_cal_comp_pads)) {
         if (n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
             mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
             const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
@@ -1517,16 +1537,17 @@ void jit_brgemm_kernel_t::gemm_microkernel_avx512(int bd_block2,
 
         for_(int rd = 0; rd < rd_loop; rd += brg.rd_step)
         for (int ld = 0; ld < ld_block2; ++ld) {
-            if (is_ld_tail) {
-                vmovups(load() | ld_tail_mask | T_z,
-                        ptr[reg_aux_B + B_offset(ld, rd)]);
-            } else {
-                vmovups(load(), ptr[reg_aux_B + B_offset(ld, rd)]);
-            }
+            auto zmm_store = is_ld_tail ? load() | ld_tail_mask | T_z : load();
+            vmovups(zmm_store, ptr[reg_aux_B + B_offset(ld, rd)]);
 
-            if (bd_b > 0) compensation_padding(bcst(), ld, 0, bd_b);
-            if (bd_e < bd_block)
-                compensation_padding(bcst(), ld, bd_e, bd_block);
+            if (brg.req_cal_comp_pads) {
+                compensation_padding(zmm_store, bcst(), ld, bd_b, bd_e);
+            } else if (vpad != 0) {
+                if (bd_b > 0)
+                    compensation_padding(zmm_store, bcst(), ld, 0, bd_b);
+                if (bd_e < bd_block)
+                    compensation_padding(zmm_store, bcst(), ld, bd_e, bd_block);
+            }
         }
     }
 
@@ -1618,7 +1639,9 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
         const auto bd_b = nstl::max(0, vpad);
         const auto bd_e = nstl::min(bd_block, bd_block + vpad);
-        if (bd_b >= bd_e + static_cast<int>(brg.with_comp_pads)) return;
+        const auto is_valid_bd
+                = need_comp_pads && vpad != 0 ? bd_b <= bd_e : bd_b < bd_e;
+        if (!is_valid_bd) return;
 
         if (brg.is_amx) {
             const bool is_rd_tail = false;
@@ -1685,8 +1708,7 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
                 vpbroadcastb(zmm_inp_shift(), reg_s8_input_shift.cvt8());
                 mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
             }
-            if (brg.with_comp_pads
-                    && brg.zp_type_a != brgemm_broadcast_t::none) {
+            if (need_comp_pads && brg.zp_type_a != brgemm_broadcast_t::none) {
                 mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
                 const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
                 mov(reg32_scratch, 0x1010101);
@@ -2003,6 +2025,9 @@ void jit_brgemm_kernel_t::generate() {
             = (brg.brgattr.max_top_vpad > 0 || brg.brgattr.max_bottom_vpad > 0)
             ? true
             : false;
+    need_comp_pads = IMPLICATION(brg.zp_type_a == brgemm_broadcast_t::none,
+                             brg.req_s8s8_compensation)
+            && IMPLICATION(!vpad_exist, brg.req_cal_comp_pads);
 
     reg64_t reg_mask = rax;
 

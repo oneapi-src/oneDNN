@@ -902,7 +902,8 @@ struct jit_brgemm_conv_conf_t {
     bool s8s8_avx512;
     bool src_zero_point;
     bool dst_zero_point;
-    bool comp_with_vpads;
+    bool req_brg_comp_pad;
+    bool req_cal_comp_pad;
 };
 
 struct jit_shuffle_conf_t {

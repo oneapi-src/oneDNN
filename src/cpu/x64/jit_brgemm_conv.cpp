@@ -211,7 +211,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                 brgemm_strides_t brg_strides;
                 brg_strides.stride_a = jcp_.brg_stride_a;
                 brg_strides.stride_b = jcp_.brg_stride_b;
-                brg->with_comp_pads = jcp_.max_vpad > 0
+                brg->req_cal_comp_pads = jcp_.req_brg_comp_pad
                         && (jcp_.src_zero_point || jcp_.s8s8_avx512);
                 const auto strides_ptr = (jcp_.brg_type == brgemm_strd)
                         ? &brg_strides
@@ -431,7 +431,7 @@ int brgemm_convolution_fwd_t<isa, use_inversion>::get_comp_ker_idx(
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 
-    if (!jcp.comp_with_vpads) return 0;
+    if (!jcp.req_cal_comp_pad) return 0;
 
     assert(kd_e > kd_b && kh_e > kh_b);
     for (int k = 0; k < jcp.ker_ranges_size; k++) {
@@ -454,9 +454,9 @@ int brgemm_convolution_fwd_t<isa, use_inversion>::get_comp_offset(const int g,
     if (!jcp.src_zero_point && !jcp.s8s8_avx512) return 0;
 
     const auto comp_idx = get_comp_ker_idx(kd_b, kd_e, kh_b, kh_e, kw_b, kw_e);
-    assert(IMPLICATION(jcp.comp_with_vpads, comp_idx >= 0));
+    assert(IMPLICATION(jcp.req_cal_comp_pad, comp_idx >= 0));
 
-    return jcp.comp_with_vpads
+    return jcp.req_cal_comp_pad
             ? g * comp_ocb_sz + ocb * comp_ker_sz + comp_idx * comp_kw_sz
             : (g * jcp.nb_oc + ocb) * jcp.oc_block;
 }
@@ -533,11 +533,12 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     comp_ker_sz = jcp.ker_ranges_size * comp_kw_sz;
     comp_ocb_sz = jcp.nb_oc * comp_ker_sz;
 
+    need_compensation
+            = (jcp.src_zero_point || jcp.s8s8_avx512) && !jcp.req_brg_comp_pad;
     need_postwork = jcp.with_bias || jcp.with_eltwise || jcp.with_binary
             || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
             || (jcp.dst_dt != jcp.acc_dt) || jcp.with_sum || jcp.use_M_mask
             || jcp.src_zero_point || jcp.dst_zero_point;
-    need_compensation = jcp.src_zero_point || jcp.s8s8_avx512;
 
     // ---- Initialize arrays ---------------------
     brg_kernels_.resize(_pd->brgs_sz_);
@@ -726,7 +727,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     }
 
     // pre-calculate unique kernel combination
-    if (jcp.comp_with_vpads) {
+    if (jcp.req_cal_comp_pad) {
         std::set<std::vector<int>> unique_kernels;
         size_t k = 0;
         kd_bs.resize(jcp.ker_ranges_size);
@@ -828,7 +829,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
     const auto extra_data_offset
             = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<char *>(brgemm_ctx.weights);
-    const auto s8s8_comp_offset = jcp.comp_with_vpads
+    const auto s8s8_comp_offset = jcp.req_cal_comp_pad
             ? jcp.ngroups * jcp.nb_oc * jcp.kd * jcp.kh * jcp.kw * jcp.oc_block
             : jcp.ngroups * jcp.nb_oc * jcp.oc_block;
     int32_t *s8s8_compensation = jcp.s8s8_avx512
@@ -856,19 +857,18 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
             ? scratchpad.template get<uint8_t>(key_conv_brgemm_inp_buffer_mask)
             : nullptr;
     int32_t *src_zp_comp_base = jcp.src_zero_point
-            ? (jcp.comp_with_vpads ? scratchpad.template get<int32_t>(
+            ? (jcp.req_cal_comp_pad ? scratchpad.template get<int32_t>(
                        key_brgemm_primitive_zp_comp_a)
-                                   : zp_compensation)
+                                    : zp_compensation)
             : nullptr;
     int32_t *s8s8_comp_base = jcp.s8s8_avx512
-            ? (jcp.comp_with_vpads ? scratchpad.template get<int32_t>(
+            ? (jcp.req_cal_comp_pad ? scratchpad.template get<int32_t>(
                        key_brgemm_primitive_buffer_comp)
-                                   : s8s8_compensation)
+                                    : s8s8_compensation)
             : nullptr;
     const auto dst_zp_vals = jcp.dst_zero_point ? &dst_zero_point : nullptr;
     const auto src_zp_vals = src_zero_point;
 
-    // TODO: optimize the compensation calculation work
     cal_compensation(wei, src_zp_comp_base, s8s8_comp_base);
 
     char *const wsp_tile_global = is_amx
@@ -1007,7 +1007,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 
-    if (!jcp.comp_with_vpads) return status::success;
+    if (!jcp.req_cal_comp_pad) return status::success;
 
     if (jcp.src_zero_point)
         std::memset(src_zp_buffer, 0, sizeof(int32_t) * jcp.comp_a_buffer_size);
@@ -1166,10 +1166,10 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::call_brgemm_kernel(
         }
     }
 
-    const auto do_pass_comp
-            = !do_postops && jcp.src_zero_point && jcp.max_vpad > 0;
+    const auto do_only_pass_comp = !do_postops && jcp.src_zero_point
+            && (jcp.req_brg_comp_pad || jcp.max_vpad > 0);
     const auto maybe_do_postops
-            = one_of(true, do_postops, do_only_comp, do_pass_comp);
+            = one_of(true, do_postops, do_only_comp, do_only_pass_comp);
     if (maybe_do_postops) {
         const brgemm_post_ops_data_t post_ops_data {
                 static_cast<const char *>(bias_w),
@@ -1177,7 +1177,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::call_brgemm_kernel(
                 static_cast<size_t>(g_oc), 0, btc.brgemm_ctx.dst, 0,
                 static_cast<void *>(src_zp_ptr), nullptr,
                 static_cast<void *>(dst_zp_ptr), false, src_zp_vals,
-                do_only_comp, do_pass_comp};
+                do_only_comp, do_only_pass_comp};
 
         void *scratch = is_amx ? static_cast<void *>(btc.wsp_tile)
                                : static_cast<void *>(s8s8_comp);

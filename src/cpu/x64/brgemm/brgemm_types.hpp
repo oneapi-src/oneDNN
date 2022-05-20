@@ -184,7 +184,7 @@ struct brgemm_t {
     bool with_eltwise = false;
     bool with_binary = false;
     bool with_scales = false;
-    bool with_comp_pads = false;
+    bool req_cal_comp_pads = false;
     bool req_s8s8_compensation = false;
     brgemm_broadcast_t zp_type_a = brgemm_broadcast_t::none;
     brgemm_broadcast_t zp_type_b = brgemm_broadcast_t::none;

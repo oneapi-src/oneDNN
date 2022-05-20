@@ -121,7 +121,9 @@ status_t brgemm_blocking(brgemm_t *brg) {
         const int max_bcst_regs = 1;
         const bool req_compensation = brg->req_s8s8_compensation
                 || brg->zp_type_a != brgemm_broadcast_t::none;
-        const bool req_pre_load_zp_a = brg->with_comp_pads
+        const bool req_zp_a_comp_pads
+                = (brg->req_cal_comp_pads || brg->brgattr.max_top_vpad > 0
+                          || brg->brgattr.max_bottom_vpad > 0)
                 && brg->zp_type_a != brgemm_broadcast_t::none;
         int max_regs = max_avx512_regs - (adj_ld_block + max_bcst_regs);
         int max_block
@@ -130,8 +132,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
                                                   ? max_regs
                                                   : max_regs - 1));
         max_block -= req_compensation;
-        max_block -= req_pre_load_zp_a;
-        if (req_pre_load_zp_a) max_block = nstl::min(max_block, 27);
+        max_block -= req_zp_a_comp_pads;
+        if (req_zp_a_comp_pads) max_block = nstl::min(max_block, 27);
         if (brg->is_bf16_emu) max_block = nstl::min(max_block, 28);
         max_block /= adj_ld_block;
         int min_block = 1;
