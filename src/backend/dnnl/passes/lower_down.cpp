@@ -2786,6 +2786,11 @@ impl::status_t binary_broadcast_swap(std::shared_ptr<subgraph_t> &sg) {
 
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != op_kind::dnnl_binary) continue;
+        const auto alg_kind = static_cast<dnnl::algorithm>(
+                cur_op->get_attr<int64_t>("alg_kind"));
+        if (alg_kind != dnnl::algorithm::binary_add
+                && alg_kind != dnnl::algorithm::binary_mul)
+            continue;
 
         // check doable
         auto src0_lt = cur_op->get_input_value(0)->get_logical_tensor();

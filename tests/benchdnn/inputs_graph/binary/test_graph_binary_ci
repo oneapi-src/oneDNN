@@ -3,6 +3,9 @@
 --alg=ADD,DIV,MUL,MAX,MIN,SUB --stag=abx:abx --dtag=abx 64x128x28x28:64x128x28x28
 
 --reset
+--alg=ADD,DIV,MUL,MAX,MIN,SUB --stag=abx:abx --dtag=abx 1x1x1x1:64x128x28x28
+
+--reset
 --alg=ADD,DIV,MUL,MAX,MIN,SUB --stag=axb:axb --dtag=axb 64x128x28x28:64x128x28x28
 
 # post binary
