@@ -589,10 +589,10 @@ struct jit_bnorm_t : public jit_generator {
                 for (int ch_idx = 0; ch_idx < num_ch_blks; ++ch_idx) {
                     const int offt = ch_idx * vlen_spat_data_;
                     const Vmm vsrc = vtmp;
-                    const Vmm _vmean = Vmm(ch_idx + num_ch_blks);
+                    const Vmm vmean_ch = Vmm(ch_idx + num_ch_blks);
                     uni_vmovups_spat_data(
                             vsrc, vmmword[reg_src + reg_soff_nspc + offt]);
-                    uni_vsubps(vsrc, vsrc, _vmean);
+                    uni_vsubps(vsrc, vsrc, vmean_ch);
                     uni_vfmadd231ps(Vmm(ch_idx), vsrc, vsrc);
                 }
                 add(reg_soff_nspc, spat_step);
@@ -604,8 +604,8 @@ struct jit_bnorm_t : public jit_generator {
             uni_vmovups(Vmm(idx), vmmword[reg_rbuf1 + reg_coff + coff]);
             if (!compute_mean) {
                 // pre-load mean to avoid extra data movement during variance
-                const Vmm _vmean = Vmm(idx + num_ch_blks);
-                uni_vmovups_maybe_tail(_vmean, mean_ptr(coff));
+                const Vmm vmean_ch = Vmm(idx + num_ch_blks);
+                uni_vmovups_maybe_tail(vmean_ch, mean_ptr(coff));
             }
         }
 
@@ -1233,10 +1233,10 @@ struct jit_bnorm_t : public jit_generator {
     void backward_sh_channels_nspc_compute(const int num_ch_blks) {
         for (int idx = 0; idx < num_ch_blks; ++idx) {
             const int offt = idx * vlen;
-            const Vmm _vdiff_gamma = Vmm(idx);
-            const Vmm _vdiff_beta = Vmm(idx + num_ch_blks);
-            uni_vmovups(_vdiff_gamma, vmmword[reg_rbuf1 + reg_coff + offt]);
-            uni_vmovups(_vdiff_beta, vmmword[reg_rbuf2 + reg_coff + offt]);
+            const Vmm vdiff_gamma_ch = Vmm(idx);
+            const Vmm vdiff_beta_ch = Vmm(idx + num_ch_blks);
+            uni_vmovups(vdiff_gamma_ch, vmmword[reg_rbuf1 + reg_coff + offt]);
+            uni_vmovups(vdiff_beta_ch, vmmword[reg_rbuf2 + reg_coff + offt]);
         }
 
         xor_(reg_soff_nspc, reg_soff_nspc);
@@ -1257,8 +1257,9 @@ struct jit_bnorm_t : public jit_generator {
             for (int ch_idx = 0; ch_idx < num_ch_blks; ++ch_idx) {
                 const int coff = ch_idx * vlen;
                 const int offt = ch_idx * vlen_spat_data_;
-                const Vmm _vdiff_gamma = Vmm(ch_idx);
-                const Vmm _vdiff_beta = Vmm(ch_idx + num_ch_blks);
+                const Vmm vdiff_gamma_ch = Vmm(ch_idx);
+                const Vmm vdiff_beta_ch = Vmm(ch_idx + num_ch_blks);
+                // vdiff_beta and vdiff_gamma are free registers for nspc
                 const Vmm vsrc = vdiff_gamma;
                 const Vmm vdiff_dst = vdiff_beta;
                 uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
@@ -1276,8 +1277,8 @@ struct jit_bnorm_t : public jit_generator {
                 }
 
                 uni_vsubps(vsrc, vsrc, vmean);
-                uni_vfmadd231ps(_vdiff_gamma, vsrc, vdiff_dst);
-                uni_vaddps(_vdiff_beta, _vdiff_beta, vdiff_dst);
+                uni_vfmadd231ps(vdiff_gamma_ch, vsrc, vdiff_dst);
+                uni_vaddps(vdiff_beta_ch, vdiff_beta_ch, vdiff_dst);
             }
             add(reg_soff_nspc, spat_step);
             sub(reg_ctr, num_spat_pts);
@@ -1285,11 +1286,11 @@ struct jit_bnorm_t : public jit_generator {
         }
 
         for (int idx = 0; idx < num_ch_blks; ++idx) {
-            const Vmm _vdiff_gamma = Vmm(idx);
-            const Vmm _vdiff_beta = Vmm(idx + num_ch_blks);
+            const Vmm vdiff_gamma_ch = Vmm(idx);
+            const Vmm vdiff_beta_ch = Vmm(idx + num_ch_blks);
             const int offt = idx * vlen;
-            uni_vmovups(vmmword[reg_rbuf1 + reg_coff + offt], _vdiff_gamma);
-            uni_vmovups(vmmword[reg_rbuf2 + reg_coff + offt], _vdiff_beta);
+            uni_vmovups(vmmword[reg_rbuf1 + reg_coff + offt], vdiff_gamma_ch);
+            uni_vmovups(vmmword[reg_rbuf2 + reg_coff + offt], vdiff_beta_ch);
         }
     }
 
@@ -1443,21 +1444,21 @@ struct jit_bnorm_t : public jit_generator {
             }
             for (int idx = 0; idx < num_ch_blks; ++idx) {
                 const int coff = idx * vlen;
-                const Vmm _vsqrtvar = Vmm(idx);
-                uni_vmovups_maybe_tail(_vsqrtvar, var_ptr(coff));
-                uni_vaddps(_vsqrtvar, _vsqrtvar, veps);
-                uni_vsqrtps(_vsqrtvar, _vsqrtvar);
-                uni_vdivps(_vsqrtvar, vone, _vsqrtvar, vtmp);
+                const Vmm vsqrtvar_ch = Vmm(idx);
+                uni_vmovups_maybe_tail(vsqrtvar_ch, var_ptr(coff));
+                uni_vaddps(vsqrtvar_ch, vsqrtvar_ch, veps);
+                uni_vsqrtps(vsqrtvar_ch, vsqrtvar_ch);
+                uni_vdivps(vsqrtvar_ch, vone, vsqrtvar_ch, vtmp);
                 if (!bdesc_->use_global_stats()) {
-                    const Vmm _vdiff_beta = Vmm(idx + num_ch_blks);
-                    const Vmm _vdiff_gamma = Vmm(idx + 2 * num_ch_blks);
-                    uni_vmovups_maybe_tail(_vdiff_beta,
+                    const Vmm vdiff_beta_ch = Vmm(idx + num_ch_blks);
+                    const Vmm vdiff_gamma_ch = Vmm(idx + 2 * num_ch_blks);
+                    uni_vmovups_maybe_tail(vdiff_beta_ch,
                             vmmword[reg_diff_shift + reg_coff + coff]);
                     uni_vmovups_maybe_tail(
-                            _vdiff_gamma, vmmword[reg_ws + reg_coff + coff]);
-                    uni_vdivps(_vdiff_beta, _vdiff_beta, vchan_size);
-                    uni_vmulps(_vdiff_gamma, _vdiff_gamma, _vsqrtvar);
-                    uni_vdivps(_vdiff_gamma, _vdiff_gamma, vchan_size);
+                            vdiff_gamma_ch, vmmword[reg_ws + reg_coff + coff]);
+                    uni_vdivps(vdiff_beta_ch, vdiff_beta_ch, vchan_size);
+                    uni_vmulps(vdiff_gamma_ch, vdiff_gamma_ch, vsqrtvar_ch);
+                    uni_vdivps(vdiff_gamma_ch, vdiff_gamma_ch, vchan_size);
                 }
             }
             if (!bdesc_->use_global_stats()) {
@@ -1470,9 +1471,10 @@ struct jit_bnorm_t : public jit_generator {
                 for (int idx = 0; idx < num_ch_blks; ++idx) {
                     const int coff = idx * vlen;
                     const int offt = idx * vlen_spat_data_;
+                    // vdiff_beta and vdiff_gamma are free registers for nspc
                     const Vmm vdiff_data = vdiff_beta;
                     const Vmm vdata = vdiff_gamma;
-                    const Vmm _vsqrtvar = Vmm(idx);
+                    const Vmm vsqrtvar_ch = Vmm(idx);
                     uni_vmovups_maybe_tail(vmean, mean_ptr(coff));
 
                     if (bdesc_->use_scaleshift() || bdesc_->use_scale())
@@ -1489,17 +1491,17 @@ struct jit_bnorm_t : public jit_generator {
                     }
 
                     if (!bdesc_->use_global_stats()) {
-                        const Vmm _vdiff_beta = Vmm(idx + num_ch_blks);
-                        const Vmm _vdiff_gamma = Vmm(idx + 2 * num_ch_blks);
-                        uni_vsubps(vdiff_data, vdiff_data, _vdiff_beta);
+                        const Vmm vdiff_beta_ch = Vmm(idx + num_ch_blks);
+                        const Vmm vdiff_gamma_ch = Vmm(idx + 2 * num_ch_blks);
+                        uni_vsubps(vdiff_data, vdiff_data, vdiff_beta_ch);
                         uni_vmovups_spat_data(
                                 vdata, vmmword[reg_src + reg_soff_nspc + offt]);
                         uni_vsubps(vdata, vmean, vdata, vtmp);
-                        uni_vmulps(vdata, vdata, _vdiff_gamma);
+                        uni_vmulps(vdata, vdata, vdiff_gamma_ch);
                         uni_vaddps(vdiff_data, vdiff_data, vdata);
                     }
 
-                    uni_vmulps(vdiff_data, vdiff_data, _vsqrtvar);
+                    uni_vmulps(vdiff_data, vdiff_data, vsqrtvar_ch);
 
                     if (bdesc_->use_scaleshift() || bdesc_->use_scale()) {
                         uni_vmulps(vdiff_data, vdiff_data, vgamma);
