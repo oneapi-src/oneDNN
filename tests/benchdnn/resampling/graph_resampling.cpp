@@ -190,12 +190,22 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     // important because there may be small differences in the result
     // between the expected value and the gotten value with this algorithm.
     const bool only_positive_values = prb->alg == ::resampling::linear;
-    if (graph_prb.has_post_bin()) {
-        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
-        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), prb->tag));
-        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
-        ::binary::fill_mem(po_idx, binary_po_dt.back(), binary_po_fp.back(),
-                only_positive_values);
+
+    size_t idx_ins = graph_prb.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR
+            ? 1
+            : 0;
+    const auto post_bin_indices
+            = get_post_bin_indices(prb->attr.post_ops.entry);
+
+    for (size_t i = 0; i < post_bin_indices.size(); ++i) {
+        binary_po_fp.emplace_back(
+                make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins[idx_ins], prb->tag));
+        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                   static_cast<int>(post_bin_indices[i]))
+                | DNNL_ARG_SRC_1;
+        ::binary::fill_mem(
+                po_idx, binary_po_dt[i], binary_po_fp[i], only_positive_values);
         binary_po_args.push_back(po_idx);
     }
 
@@ -209,22 +219,24 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
 
         std::vector<dnnl::graph::tensor> tensors_in {src_tensor};
         dnnl::graph::tensor sizes_tensor;
-        dnnl::graph::tensor bin_tensor;
-        dnnl::graph::tensor sum_src1_tensor;
         std::vector<int64_t> sizes_v = get_sizes(prb->dst_dims());
+        idx_ins = 0;
         if (graph_prb.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
             sizes_tensor = dnnl::graph::tensor(
-                    ins[1], eng, static_cast<void *>(sizes_v.data()));
+                    ins[++idx_ins], eng, static_cast<void *>(sizes_v.data()));
             tensors_in.emplace_back(sizes_tensor);
         }
-        if (graph_prb.has_post_bin()) {
-            bin_tensor = dnnl::graph::tensor(
-                    ins.back(), eng, static_cast<void *>(binary_po_dt.back()));
-            tensors_in.emplace_back(bin_tensor);
-        } else if (graph_prb.has_post_sum()) {
-            sum_src1_tensor = dnnl::graph::tensor(
-                    ins.back(), eng, static_cast<void *>(dst_dt));
-            tensors_in.emplace_back(sum_src1_tensor);
+        size_t bin_dt_idx = 0;
+        for (const auto &po_entry : prb->attr.post_ops.entry) {
+            if (po_entry.is_binary_kind()) {
+                dnnl::graph::tensor bin_tensor(ins[++idx_ins], eng,
+                        static_cast<void *>(binary_po_dt[bin_dt_idx++]));
+                tensors_in.emplace_back(bin_tensor);
+            } else if (po_entry.is_sum_kind()) {
+                dnnl::graph::tensor sum_src1_tensor(
+                        ins[++idx_ins], eng, static_cast<void *>(dst_dt));
+                tensors_in.emplace_back(sum_src1_tensor);
+            }
         }
         std::vector<dnnl::graph::tensor> tensors_out {dst_tensor};
 
