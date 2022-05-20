@@ -470,21 +470,6 @@ private:
         return Xbyak::Zmm(m * n_block + n);
     };
 
-    void advance_mb_post_ops_regs(int m_block) {
-        if (brg.alpha != 0) {
-            if (brg.zp_type_a != brgemm_broadcast_t::none) {
-                mov(reg_zp_a_comp, ptr[rsp + reg_zp_a_comp_offs_]);
-                add(reg_zp_a_comp, mb_zp_comp_a_offset(m_block));
-                mov(ptr[rsp + reg_zp_a_comp_offs_], reg_zp_a_comp);
-            }
-            if (brg.req_s8s8_compensation) {
-                mov(reg_s8s8_comp, ptr[rsp + reg_s8s8_comp_offs_]);
-                add(reg_s8s8_comp, mb_compensation_offset(m_block));
-                mov(ptr[rsp + reg_s8s8_comp_offs_], reg_s8s8_comp);
-            }
-        }
-    }
-
     void inject_attr_postops(int m_block, int n_block, int tail = 0) {
         const auto &p = attr.post_ops_;
         const int sum_idx = p.find(primitive_kind::sum);
@@ -561,13 +546,6 @@ private:
                 vpmulld(zmm_zp_comp_a, zmm_zp_a_val, zp_comp_a_addr);
 
                 for (int m = 0; m < m_block; m++) {
-                    if (brg.with_comp_pads) {
-                        auto zp_comp_a_vpad_offs = zp_comp_a_vpad_offset(n, m);
-                        auto zp_comp_a_vpad_addr = zword[aux_reg_zp_a_comp
-                                + zp_comp_a_vpad_offs];
-                        vmovups(zmm_zp_comp_a, zp_comp_a_vpad_addr);
-                        vpmulld(zmm_zp_comp_a, zmm_zp_comp_a, zmm_zp_a_val);
-                    }
                     auto zmm = vector(m, n, n_block);
                     vpaddd(zmm, zmm, zmm_zp_comp_a);
                 }
@@ -584,12 +562,6 @@ private:
                 vmovups(zmm_comp, comp_addr);
 
                 for (int m = 0; m < m_block; m++) {
-                    if (brg.with_comp_pads) {
-                        auto comp_vpad_offs = compensation_vpad_offset(n, m);
-                        auto comp_vpad_addr
-                                = zword[aux_reg_s8s8_comp + comp_vpad_offs];
-                        vmovups(zmm_comp, comp_vpad_addr);
-                    }
                     auto zmm = vector(m, n, n_block);
                     vpaddd(zmm, zmm, zmm_comp);
                 }
@@ -948,7 +920,6 @@ private:
 
             if (brg.alpha != 0)
                 add(reg_in, inp_typesize_ * (m_block * brg.LDC));
-            advance_mb_post_ops_regs(m_block);
             add(reg_out, out_typesize_ * (m_block * LDD_));
         }
         if (mb_tail > 0) loop_by_N(mb_tail, nb2, nb2_tail, nb_tail);
