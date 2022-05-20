@@ -55,9 +55,18 @@ public:
         return oss.str();
     }
 
-    static expr_t x() { return pexpr_t::make(0); }
-    static expr_t y() { return pexpr_t::make(1); }
-    static expr_t z() { return pexpr_t::make(2); }
+    static expr_t x() {
+        static expr_t x = pexpr_t::make(0);
+        return x;
+    }
+    static expr_t y() {
+        static expr_t y = pexpr_t::make(1);
+        return y;
+    }
+    static expr_t z() {
+        static expr_t z = pexpr_t::make(2);
+        return z;
+    }
 
     IR_DECLARE_TRAVERSERS()
 
@@ -76,6 +85,15 @@ public:
     // Matches an integer constant with the given value.
     static expr_t make(int64_t value) {
         return expr_t(new pint_imm_t(-1, value));
+    }
+
+    static expr_t _0() {
+        static expr_t ret = pint_imm_t::make(0);
+        return ret;
+    }
+    static expr_t _1() {
+        static expr_t ret = pint_imm_t::make(1);
+        return ret;
     }
 
     // Matches any integer constant.
@@ -250,16 +268,16 @@ expr_t rewrite(const expr_t &expr, const expr_t &from, const expr_t &to,
     return expr;
 }
 
-expr_t simplify_try_rules(const expr_t &_e) {
-    static auto x = pexpr_t::x();
-    static auto y = pexpr_t::y();
-    static auto z = pexpr_t::z();
-
-    static auto _0 = pint_imm_t::make(0);
-    static auto _1 = pint_imm_t::make(1);
-    static auto _2 = pint_imm_t::make(2);
-
-    auto e = _e;
+expr_t rewrite_binary(const expr_t &expr, const expr_t &from, const expr_t &to,
+        bool *rewritten = nullptr) {
+    match_context_t ctx;
+    if (match_binary(from, expr, ctx)) {
+        if (rewritten) *rewritten = true;
+        return ctx.sub(to);
+    }
+    if (rewritten) *rewritten = false;
+    return expr;
+}
 
 #define REWRITE(a, b) \
     do { \
@@ -270,45 +288,113 @@ expr_t simplify_try_rules(const expr_t &_e) {
         if (rewritten) return e; \
     } while (false)
 
-#define REWRITE_NO_STATIC(a, b) \
+#define REWRITE_BINARY(a, b) \
+    do { \
+        bool rewritten; \
+        static auto _a = a; \
+        static auto _b = b; \
+        e = rewrite_binary(e, _a, _b, &rewritten); \
+        if (rewritten) return e; \
+    } while (false)
+
+#define REWRITE_BINARY_NO_STATIC(a, b) \
     do { \
         bool rewritten; \
         e = rewrite(e, a, b, &rewritten); \
         if (rewritten) return e; \
     } while (false)
 
-    // Addition rules.
-    REWRITE(x + _0, x);
-    REWRITE(_0 + x, x);
-    REWRITE(x + x, 2 * x);
+expr_t simplify_rewrite_add(const expr_t &_e) {
+    auto x = pexpr_t::x();
+    auto _0 = pint_imm_t::_0();
 
-    // Subtraction rules.
-    REWRITE(x - _0, x);
-    REWRITE(_0 - x, -x);
-    REWRITE(x - x, 0);
+    auto &obj = _e.as<binary_op_t>();
+    ir_assert(obj.op_kind == op_kind_t::_add);
 
-    // Multiplication rules.
-    REWRITE(x * _0, 0);
-    REWRITE(_0 * x, 0);
-    REWRITE(x * _1, x);
-    REWRITE(_1 * x, x);
+    auto e = _e;
 
-    // Division rules.
-    REWRITE(_0 / x, 0);
-    REWRITE(x / _1, x);
-    REWRITE(x / x, 1);
-    REWRITE(x * y / y, x);
+    REWRITE_BINARY(x + _0, x);
+    REWRITE_BINARY(_0 + x, x);
+    REWRITE_BINARY(x + x, 2 * x);
 
-    REWRITE(x * y % y, 0);
-    REWRITE(y * x % y, 0);
+    return _e;
+}
 
-    REWRITE(x % _1, 0);
-    REWRITE(0 % x, 0);
+expr_t simplify_rewrite_sub(const expr_t &_e) {
+    auto x = pexpr_t::x();
+    auto _0 = pint_imm_t::_0();
 
-    // Ternary operation rules.
-    REWRITE(iif_t::make(expr_t(true), x, y), x);
-    REWRITE(iif_t::make(expr_t(false), x, y), y);
-    REWRITE(iif_t::make(x, y, y), y);
+    auto &obj = _e.as<binary_op_t>();
+    ir_assert(obj.op_kind == op_kind_t::_sub);
+
+    auto e = _e;
+
+    REWRITE_BINARY(x - _0, x);
+    REWRITE_BINARY(_0 - x, -x);
+    REWRITE_BINARY(x - x, 0);
+
+    return e;
+}
+
+expr_t simplify_rewrite_mul(const expr_t &_e) {
+    auto x = pexpr_t::x();
+    auto _0 = pint_imm_t::_0();
+    auto _1 = pint_imm_t::_1();
+
+    auto &obj = _e.as<binary_op_t>();
+    ir_assert(obj.op_kind == op_kind_t::_mul);
+
+    auto e = _e;
+
+    REWRITE_BINARY(x * _0, 0);
+    REWRITE_BINARY(_0 * x, 0);
+    REWRITE_BINARY(x * _1, x);
+    REWRITE_BINARY(_1 * x, x);
+
+    return e;
+}
+
+expr_t simplify_rewrite_div(const expr_t &_e) {
+    auto x = pexpr_t::x();
+    auto y = pexpr_t::y();
+    auto _0 = pint_imm_t::_0();
+    auto _1 = pint_imm_t::_1();
+
+    auto &obj = _e.as<binary_op_t>();
+    ir_assert(obj.op_kind == op_kind_t::_div);
+
+    auto e = _e;
+
+    REWRITE_BINARY(_0 / x, 0);
+    REWRITE_BINARY(x / _1, x);
+    REWRITE_BINARY(x / x, 1);
+
+    return e;
+}
+
+expr_t simplify_rewrite_mod(const expr_t &_e) {
+    auto x = pexpr_t::x();
+    auto _0 = pint_imm_t::_0();
+    auto _1 = pint_imm_t::_1();
+
+    auto &obj = _e.as<binary_op_t>();
+    ir_assert(obj.op_kind == op_kind_t::_mod);
+
+    auto e = _e;
+
+    REWRITE_BINARY(x % _1, 0);
+    REWRITE_BINARY(0 % x, 0);
+
+    return e;
+}
+
+expr_t simplify_rewrite_and(const expr_t &_e) {
+    auto x = pexpr_t::x();
+
+    auto &obj = _e.as<binary_op_t>();
+    ir_assert(obj.op_kind == op_kind_t::_and);
+
+    auto e = _e;
 
     // Boolean rules.
     if (e.type().is_bool()) {
@@ -320,19 +406,33 @@ expr_t simplify_try_rules(const expr_t &_e) {
                         ? expr_t(false)
                         : shuffle_t::make_broadcast(
                                 expr_t(false), e.type().elems()));
-        REWRITE_NO_STATIC(_true & x, x);
-        REWRITE_NO_STATIC(x & _true, x);
-        REWRITE_NO_STATIC(_false & x, _false);
-        REWRITE_NO_STATIC(x & _false, _false);
+        REWRITE_BINARY_NO_STATIC(_true & x, x);
+        REWRITE_BINARY_NO_STATIC(x & _true, x);
+        REWRITE_BINARY_NO_STATIC(_false & x, _false);
+        REWRITE_BINARY_NO_STATIC(x & _false, _false);
     }
 
     return e;
 }
 
+expr_t simplify_rewrite_iif(const expr_t &_e) {
+    auto x = pexpr_t::x();
+    auto y = pexpr_t::y();
+
+    auto e = _e;
+
+    // Ternary operation rules.
+    REWRITE(iif_t::make(expr_t(true), x, y), x);
+    REWRITE(iif_t::make(expr_t(false), x, y), y);
+    REWRITE(iif_t::make(x, y, y), y);
+
+    return e;
+}
+
 expr_t simplify_try_ternary_rules(const expr_t &_e) {
-    static auto x = pexpr_t::x();
-    static auto y = pexpr_t::y();
-    static auto z = pexpr_t::z();
+    auto x = pexpr_t::x();
+    auto y = pexpr_t::y();
+    auto z = pexpr_t::z();
 
     auto e = _e;
 
@@ -355,16 +455,20 @@ expr_t simplify_try_ternary_rules(const expr_t &_e) {
 class term_rewrite_transformer_t : public ir_mutator_t {
 public:
     object_t _mutate(const binary_op_t &obj) override {
-        return mutate_expr(obj);
+        auto e = ir_mutator_t::_mutate(obj);
+        switch (obj.op_kind) {
+            case op_kind_t::_add: return simplify_rewrite_add(e);
+            case op_kind_t::_sub: return simplify_rewrite_sub(e);
+            case op_kind_t::_mul: return simplify_rewrite_mul(e);
+            case op_kind_t::_div: return simplify_rewrite_div(e);
+            case op_kind_t::_mod: return simplify_rewrite_mod(e);
+            case op_kind_t::_and: return simplify_rewrite_and(e);
+            default: return e;
+        }
     }
-    object_t _mutate(const iif_t &obj) override { return mutate_expr(obj); }
-
-    template <typename T>
-    expr_t mutate_expr(const T &obj) {
-        auto e_old = ir_mutator_t::_mutate(obj);
-        auto e = simplify_try_rules(e_old);
-        if (e.is_same(e_old)) return e_old;
-        return mutate(e);
+    object_t _mutate(const iif_t &obj) override {
+        auto e = ir_mutator_t::_mutate(obj);
+        return simplify_rewrite_iif(e);
     }
 };
 
