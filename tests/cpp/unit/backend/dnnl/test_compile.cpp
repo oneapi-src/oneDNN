@@ -2558,6 +2558,56 @@ TEST(Execute, BinaryOpAddFusion) {
     }
 }
 
+TEST(Execute, BinarySub) {
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src0 {2.0};
+    test::vector<float> src1 {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    test::vector<float> dst(src1.size(), 0.0);
+    test::vector<float> ref {1.0, 0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0};
+
+    impl::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(0, {1}, impl::data_type::f32);
+    impl::logical_tensor_t src1_lt
+            = utils::logical_tensor_init(1, {2, 1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {2, 1, 2, 2}, impl::data_type::f32);
+
+    impl::op_t bin_op(0, impl::op_kind::Subtract, "bin");
+
+    bin_op.add_input(src0_lt);
+    bin_op.add_input(src1_lt);
+    bin_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&bin_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("sub_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1);
+    auto part = g.get_partitions()[0];
+
+    impl::partition_t p;
+    p.init(part);
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src0_lt, &src1_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::tensor_t src0_ts(src0_lt, &eng, src0.data());
+    impl::tensor_t src1_ts(src1_lt, &eng, src1.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src0_ts, src1_ts}, {dst_ts});
+    strm.wait();
+    for (size_t i = 0; i < ref.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref[i]);
+    }
+}
+
 TEST(Execute, MinEltwise) {
     impl::engine_t &eng = get_engine();
 
