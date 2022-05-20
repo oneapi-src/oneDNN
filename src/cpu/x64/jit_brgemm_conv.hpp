@@ -201,7 +201,7 @@ private:
             int batch_size, char *ptr_C, char *ptr_D, const char *bias_w,
             int g_oc, bool do_postops, const void *binary_post_ops_rhs,
             int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
-            int32_t *s8s8_comp) const;
+            int32_t *s8s8_comp, bool do_only_comp) const;
 
     void maybe_conv_inp(int ithr, const char *__restrict src,
             char *__restrict inp_buffer, uint8_t *__restrict inp_buffer_mask,
@@ -217,10 +217,10 @@ private:
     status_t cal_compensation(const char *__restrict weights,
             int32_t *src_zp_buffer, int32_t *s8s8_comp_buffer) const;
     int get_comp_ker_idx(const int kd_b, const int kd_e, const int kh_b,
-            const int kh_e) const;
+            const int kh_e, const int kw_b, const int kw_e) const;
     int get_comp_offset(const int g, const int ocb, const int ow,
-            const int kd_b, const int kd_e, const int kh_b,
-            const int kh_e) const;
+            const int kd_b, const int kd_e, const int kh_b, const int kh_e,
+            const int kw_b, const int kw_e) const;
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
@@ -243,7 +243,7 @@ private:
     // pre - calculated values
     std::vector<dim_t> owb_kw_top_vpads;
     std::vector<dim_t> owb_kw_bottom_vpads;
-    std::vector<dim_t> kd_bs, kd_es, kh_bs, kh_es;
+    std::vector<dim_t> kd_bs, kd_es, kh_bs, kh_es, kw_bs, kw_es;
 
     int KD, KH, KW, EXT_KD, EXT_KH, EXT_KW, KS, KD_BLOCK, KH_BLOCK, KW_BLOCK,
             KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP, OD, OH, OW,
@@ -255,6 +255,7 @@ private:
 
     int ic_chunks;
     bool need_postwork;
+    bool need_compensation;
     bool is_amx;
 };
 

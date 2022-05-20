@@ -252,6 +252,7 @@ struct brgemm_kernel_params_t {
     void *ptr_buf;
 
     size_t do_post_ops;
+    size_t do_apply_comp;
     size_t BS;
 
     /*
@@ -348,7 +349,8 @@ struct brgemm_post_ops_data_t {
             const void *a_zp_compensations = nullptr,
             const void *b_zp_compensations = nullptr,
             const void *c_zp_values = nullptr, bool skip_accumulation = false,
-            int32_t zp_a_val = 1)
+            int32_t zp_a_val = 1, bool do_only_comp = false,
+            bool do_only_zp_a_val = false)
         : bias(bias)
         , scales(scales)
         , binary_post_ops_rhs(binary_post_ops_rhs)
@@ -360,7 +362,9 @@ struct brgemm_post_ops_data_t {
         , b_zp_compensations(b_zp_compensations)
         , c_zp_values(c_zp_values)
         , skip_accumulation(skip_accumulation)
-        , zp_a_val {zp_a_val} {}
+        , zp_a_val {zp_a_val}
+        , do_only_comp {do_only_comp}
+        , do_only_zp_a_val {do_only_zp_a_val} {}
 
     const void *bias = nullptr;
     const float *scales = nullptr;
@@ -374,6 +378,8 @@ struct brgemm_post_ops_data_t {
     const void *c_zp_values = nullptr;
     const bool skip_accumulation = false;
     int32_t zp_a_val = 1;
+    const bool do_only_comp = false;
+    const bool do_only_zp_a_val = false;
 };
 
 } // namespace x64

@@ -30,9 +30,9 @@ struct jit_brgemm_conv_comp_pad_call_s {
     const void *ptr_in;
     void *ptr_zp_out;
     void *ptr_cp_out;
-    size_t kd_l;
+    size_t kw_l;
     size_t kh_l;
-    size_t ow_l;
+    size_t kd_l;
 };
 
 struct jit_avx512_core_brgemm_conv_comp_pad_kernel_t : public jit_generator {
@@ -51,10 +51,9 @@ protected:
     const int out_dsz_;
     const size_t nb_ic_;
     const size_t inp_ic_sz_;
+    const size_t inp_kw_sz_;
     const size_t inp_kh_sz_;
     const size_t inp_kd_sz_;
-    const size_t inp_ocb_sz_;
-    const size_t out_ow_sz_;
 
     // Register decomposition
     const reg64_t param1 = abi_param1;
@@ -62,40 +61,42 @@ protected:
     const reg64_t reg_comp_out = r14;
     const reg64_t reg_zp_comp_out = r13;
 
-    const reg64_t reg_mb_count = r12;
-    const reg64_t reg_kd_l = r11;
-    const reg64_t reg_kh_l = r10;
-    const reg64_t reg_ow_l = r9;
-    const reg64_t reg_icb = r8;
+    const reg64_t reg_kd_l = r12;
+    const reg64_t reg_kh_l = r11;
+    const reg64_t reg_kw_l = r10;
+    const reg64_t reg_icb = r9;
 
-    const reg64_t reg_aux_in = rsi;
-    const reg64_t reg_aux_kd_in = rbx;
+    const reg64_t reg_aux_in = r8;
+    const reg64_t reg_aux_kh_in = rbx;
+    const reg64_t reg_aux_kw_in = rsi;
     const reg64_t reg_tmp = rax;
 
-    const reg64_t reg_aux_comp_out = rsi;
-    const reg64_t reg_aux_zp_comp_out = rdx;
-
     Xbyak::Zmm zmm_one_bytes = Xbyak::Zmm(30);
-    Xbyak::Zmm zmm_zp_shift = Xbyak::Zmm(28);
-    Xbyak::Zmm zmm_cp_shift = Xbyak::Zmm(29);
+    Xbyak::Zmm zmm_zp_shift = Xbyak::Zmm(29);
+    Xbyak::Zmm zmm_cp_shift = Xbyak::Zmm(28);
 
     const int last_ic_block_ = 4;
     const int n_block2_ = 4;
     const int m_block2_ = 16;
-    const int max_regs_ = 28;
     const int n_max_regs_ = 4;
 
     const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm31; }
 
     Xbyak::Zmm accum(const int n_block, const int m, const int n) const;
-    size_t out_oc_offset(const int m, const int n) const;
-    size_t inp_ic_offset(const int icb, const int m, const int n) const;
+    size_t out_oc_offset(const int n) const;
+    size_t inp_ic_offset(
+            const int m_block, const int icb, const int m, const int n) const;
+    int compute_ic_step(
+            const int m_max_regs, const int m_block, const int n_block);
 
     void store_accumulators(const int m_block, const int n_block);
     void zero_accumulators(const int m_block, const int n_block);
-    void store(const int m_block, const int n_block);
-    void compute(const int m_block, const int n_block);
-    void kdh_loop(const int m_block, const int n_block);
+    void compute(const int ic_step, const int m_block, const int n_block,
+            const int m_tail, const bool is_mb_tail);
+    void icb_loop(const int icb, const int icb_tail, const int ic_step,
+            const int m_block, const int mb_tail, const int n_block);
+    void khw_loop(const int icb, const int icb_tail, const int ic_step,
+            const int m_block, const int mb_tail, const int n_block);
     void load_params();
     void generate() override;
 };

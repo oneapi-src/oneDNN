@@ -131,6 +131,7 @@ private:
     const reg64_t reg_stride_ldb = reg_ldb_loop;
     const reg64_t reg_stride_ld_block = reg_ldb_loop;
     const reg64_t reg_s8_input_shift = reg_bdb_loop;
+    const reg64_t reg_zp_a_input_shift = reg_bdb_loop;
 
     const reg64_t reg_BS_loop = rax;
     const reg64_t reg_rdb_loop = rbx;
@@ -162,6 +163,7 @@ private:
 
     const reg64_t reg_aux_scales = reg_aux_B;
     const reg64_t reg_do_post_ops = reg_rdb_loop;
+    const reg64_t reg_do_comp = reg_rdb_loop;
     const reg64_t reg_skip_accm = reg_rdb_loop;
     const reg64_t reg_tmp_gpr = reg_rdb_loop;
     const reg64_t reg_ptr_sum_scale = reg_rdb_loop;
@@ -206,7 +208,8 @@ private:
     constexpr static int reg_data_C_ptr_ = 184;
     constexpr static int reg_skip_accm_offs_ = 192;
     constexpr static int reg_zp_a_val_offs_ = 200;
-    constexpr static int stack_space_needed_ = 208;
+    constexpr static int reg_do_comp_offs_ = 208;
+    constexpr static int stack_space_needed_ = 216;
 
     bool is_ldb_loop_ = false;
     bool handle_binary_po_offset_ = false;
@@ -246,6 +249,8 @@ private:
     const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm0; }
     const Xbyak::Zmm &zmm_tmp_2() const noexcept { return this->zmm1; }
     const Xbyak::Zmm &zmm_tmp_3() const noexcept { return this->zmm2; }
+    const Xbyak::Zmm &zmm_one_bytes() const noexcept { return this->zmm3; }
+    const Xbyak::Zmm &zmm_zp_a_shift() const noexcept { return this->zmm2; }
     const Xbyak::Zmm &zmm_inp_shift() const noexcept { return this->zmm1; }
 
     /* bf16 emulation */
@@ -674,16 +679,6 @@ void jit_brgemm_kernel_t::advance_bd_block2_post_op_regs(int bd_block2) {
         add(reg_zp_comp_b, bdb_zp_comp_b_offset(bd_block2));
         mov(ptr[rsp + reg_zp_comp_b_offs_], reg_zp_comp_b);
     }
-    if (brg.with_comp_pads && brg.zp_type_a != brgemm_broadcast_t::none) {
-        mov(reg_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
-        add(reg_zp_comp_a, bdb_zp_comp_a_offset(bd_block2));
-        mov(ptr[rsp + reg_zp_comp_a_offs_], reg_zp_comp_a);
-    }
-    if (brg.with_comp_pads && brg.req_s8s8_compensation) {
-        mov(reg_compensation, ptr[rsp + reg_comp_offs_]);
-        add(reg_compensation, bdb_compensation_offset(bd_block2));
-        mov(ptr[rsp + reg_comp_offs_], reg_compensation);
-    }
 }
 
 void jit_brgemm_kernel_t::copy_post_ops_stack_values_to_aux(bool is_reg_tail) {
@@ -823,6 +818,9 @@ void jit_brgemm_kernel_t::read_params() {
 
     mov(reg_zp_a_val, ptr[param1 + GET_OFF(zp_a_val)]);
     mov(ptr[rsp + reg_zp_a_val_offs_], reg_zp_a_val);
+
+    mov(reg_do_comp, ptr[param1 + GET_OFF(do_apply_comp)]);
+    mov(ptr[rsp + reg_do_comp_offs_], reg_do_comp);
 }
 
 void jit_brgemm_kernel_t::zero_accumulators(int bd_block2, bool is_bdb_tail,
@@ -1095,13 +1093,6 @@ void jit_brgemm_kernel_t::apply_compensation(
             vpmulld(zmm_zp_comp_a, zmm_zp_comp_a, zmm_zp_a_val);
 
             for (int bd = 0; bd < bd_block; bd++) {
-                if (brg.with_comp_pads) {
-                    auto zp_comp_a_vpad_offs = zp_comp_a_vpad_offset(ld, bd);
-                    auto zp_comp_a_vpad_addr
-                            = zword[reg_aux_zp_comp_a + zp_comp_a_vpad_offs];
-                    vmovups(zmm_zp_comp_a, zp_comp_a_vpad_addr);
-                    vpmulld(zmm_zp_comp_a, zmm_zp_comp_a, zmm_zp_a_val);
-                }
                 auto zmm = accm(ld_block2, bd, ld);
                 vpaddd(zmm, zmm, zmm_zp_comp_a);
             }
@@ -1132,12 +1123,6 @@ void jit_brgemm_kernel_t::apply_compensation(
             vmovups(zmm_comp, comp_addr);
 
             for (int bd = 0; bd < bd_block; bd++) {
-                if (brg.with_comp_pads) {
-                    auto comp_vpad_offs = compensation_vpad_offset(ld, bd);
-                    auto comp_vpad_addr
-                            = zword[reg_aux_compensation + comp_vpad_offs];
-                    vmovups(zmm_comp, comp_vpad_addr);
-                }
                 auto zmm = accm(ld_block2, bd, ld);
                 vpaddd(zmm, zmm, zmm_comp);
             }
@@ -1292,8 +1277,8 @@ void jit_brgemm_kernel_t::store_accumulators(int bd_block2, bool is_bdb_tail,
 
         if (brg.is_int8 && (brg.req_s8s8_compensation || has_zero_points)) {
             Label label_store_without_comp;
-            mov(reg_do_post_ops, ptr[rsp + reg_do_post_ops_offs_]);
-            cmp(reg_do_post_ops, 0);
+            mov(reg_do_comp, ptr[rsp + reg_do_comp_offs_]);
+            cmp(reg_do_comp, 0);
             jz(label_store_without_comp, T_NEAR);
             apply_compensation(bd_block, ld_block2, is_ld_tail);
 
@@ -1466,7 +1451,7 @@ void jit_brgemm_kernel_t::gemm_microkernel_avx512(int bd_block2,
     int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
     const auto bd_b = nstl::max(0, vpad);
     const auto bd_e = nstl::min(bd_block, bd_block + vpad);
-    if (bd_b >= bd_e) return;
+    if (bd_b >= bd_e + static_cast<int>(brg.with_comp_pads)) return;
 
     bool is_emdbd = brg.embd_bcst;
 
@@ -1498,6 +1483,52 @@ void jit_brgemm_kernel_t::gemm_microkernel_avx512(int bd_block2,
 
         if (brg.req_s8s8_compensation) vpaddb(z1, z1, zmm_inp_shift());
     };
+
+    auto compensation_padding = [=](Zmm z1, int ld, int bd_b, int bd_e) {
+        if (brg.req_s8s8_compensation) {
+            for (int bd = bd_b; bd < bd_e; bd++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                dot_product(zmm, load(), zmm_inp_shift());
+            }
+        }
+
+        if (brg.zp_type_a != brgemm_broadcast_t::none) {
+            vpxord(z1, z1, z1);
+            dot_product(z1, load(), zmm_one_bytes());
+            vpmulld(z1, z1, zmm_zp_a_shift());
+
+            for (int bd = bd_b; bd < bd_e; bd++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                vpaddd(zmm, zmm, z1);
+            }
+        }
+    };
+
+    if (brg.with_comp_pads && vpad != 0) {
+        if (n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
+            mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+            const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
+            mov(reg32_scratch, 0x1010101);
+            vpbroadcastd(zmm_one_bytes(), reg32_scratch);
+            mov(reg32_scratch, ptr[rsp + reg_zp_a_val_offs_]);
+            vpbroadcastd(zmm_zp_a_shift(), reg32_scratch);
+            mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
+        }
+
+        for_(int rd = 0; rd < rd_loop; rd += brg.rd_step)
+        for (int ld = 0; ld < ld_block2; ++ld) {
+            if (is_ld_tail) {
+                vmovups(load() | ld_tail_mask | T_z,
+                        ptr[reg_aux_B + B_offset(ld, rd)]);
+            } else {
+                vmovups(load(), ptr[reg_aux_B + B_offset(ld, rd)]);
+            }
+
+            if (bd_b > 0) compensation_padding(bcst(), ld, 0, bd_b);
+            if (bd_e < bd_block)
+                compensation_padding(bcst(), ld, bd_e, bd_block);
+        }
+    }
 
     bool maybe_load_bytes = (rows_for_rd_tail > 0 || brg.brgattr.wary_tail_read)
             && is_rd_tail && rd_tail_size != 0 && (brg.is_bf16 || brg.is_int8);
@@ -1587,7 +1618,7 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
         const auto bd_b = nstl::max(0, vpad);
         const auto bd_e = nstl::min(bd_block, bd_block + vpad);
-        if (bd_b >= bd_e) return;
+        if (bd_b >= bd_e + static_cast<int>(brg.with_comp_pads)) return;
 
         if (brg.is_amx) {
             const bool is_rd_tail = false;
@@ -1652,6 +1683,16 @@ void jit_brgemm_kernel_t::ldb_loop(int bd_block2, bool is_bdb_tail,
                 mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
                 mov(reg_s8_input_shift, 128);
                 vpbroadcastb(zmm_inp_shift(), reg_s8_input_shift.cvt8());
+                mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
+            }
+            if (brg.with_comp_pads
+                    && brg.zp_type_a != brgemm_broadcast_t::none) {
+                mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+                const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
+                mov(reg32_scratch, 0x1010101);
+                vpbroadcastd(zmm_one_bytes(), reg32_scratch);
+                mov(reg32_scratch, ptr[rsp + reg_zp_a_val_offs_]);
+                vpbroadcastd(zmm_zp_a_shift(), reg32_scratch);
                 mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
             }
 
@@ -1810,7 +1851,6 @@ void jit_brgemm_kernel_t::bdb_loop() {
                 && ((brg.bd_block * (ld_block2 + 1) < 32)
                         && (bd_blocks_for_rd_tail == 0)
                         && (rows_for_rd_tail == 0));
-        // loop order may be specified in brgemm attributes
         if (brg.brgattr.hint_loop_order != brgemm_lo_default)
             n_bcast_1_load = (brg.brgattr.hint_loop_order == brgemm_lo_bl_1load)
                     ? true

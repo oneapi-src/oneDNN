@@ -1989,38 +1989,48 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     }
 
     const bool with_pad = jcp.f_pad > 0 || jcp.back_pad > 0 || jcp.t_pad > 0
-            || jcp.b_pad > 0 || jcp.l_pad > 0 || jcp.r_pad > 0;
+            || jcp.b_pad > 0;
 
-    if (jcp.s8s8_avx512 && !with_pad) {
+    if (jcp.s8s8_avx512) {
         weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
         weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
     }
-    if (jcp.src_zero_point && !is_amx(jcp.isa) && !with_pad) {
+    if (jcp.src_zero_point && !is_amx(jcp.isa)) {
         weights_md.extra.flags
                 |= memory_extra_flags::compensation_conv_asymmetric_src;
         weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
     }
-
-    // The threshold for the shapes with padding is experimental
-    // TODO: Remove the restriction after optimize the compensation work
-    // for the shapes with padding
-    jcp.comp_with_vpads = (jcp.src_zero_point || jcp.s8s8_avx512) && with_pad;
-    const dim_t work_amount = static_cast<dim_t>(jcp.mb) * jcp.ngroups
-            * jcp.nb_oc * jcp.od * jcp.oh * jcp.ow * jcp.icp;
-    if (jcp.comp_with_vpads && !is_support_group_int8
-            && work_amount < 0.85 * brg_blocking_t::L2)
-        return status::unimplemented;
 
     // estimate the number of kernel range combination for compensation
     const auto kd_cnt = 1 + utils::div_up(abs(jcp.f_pad), jcp.dilate_d + 1)
             + utils::div_up(abs(jcp.back_pad), jcp.dilate_d + 1);
     const auto kh_cnt = 1 + utils::div_up(abs(jcp.t_pad), jcp.dilate_h + 1)
             + utils::div_up(abs(jcp.b_pad), jcp.dilate_h + 1);
+    const auto kw_cnt
+            = (1
+                      + (utils::div_up(abs(jcp.l_pad), jcp.dilate_w + 1)
+                              + utils::div_up(
+                                      abs(jcp.r_pad), jcp.dilate_w + 1)))
+            * 2;
 
-    jcp.ker_ranges_size = kd_cnt * kh_cnt;
-    jcp.comp_a_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size
-            * jcp.ow * jcp.oc_block;
+    jcp.comp_with_vpads = (jcp.src_zero_point || jcp.s8s8_avx512)
+            && IMPLICATION(jcp.exec_type == exec_vpad, with_pad);
+    jcp.ker_ranges_size = jcp.exec_type == exec_base ? kd_cnt * kh_cnt * kw_cnt
+                                                     : kd_cnt * kh_cnt;
+    jcp.comp_a_buffer_size
+            = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size * jcp.oc_block;
     jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
+
+    // The threshold for the shapes with padding is experimental
+    // TODO: Remove the restriction after optimize the compensation work
+    // for the shapes with padding
+    const auto odhw_amount = static_cast<dim_t>(jcp.mb) * jcp.ngroups
+            * jcp.nb_oc * jcp.od * jcp.oh * jcp.ow;
+    const auto comp_work_amount = static_cast<dim_t>(jcp.ngroups) * jcp.nb_oc
+            * jcp.ker_ranges_size * jcp.ic;
+    if (jcp.comp_with_vpads && odhw_amount <= 382 && comp_work_amount >= 768
+            && comp_work_amount >= 2 * odhw_amount)
+        return status::unimplemented;
 
     return status::success;
 }

@@ -51,6 +51,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
+    brgemm_p.do_apply_comp = 0;
     brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
 
@@ -72,6 +73,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
+    brgemm_p.do_apply_comp = 0;
     brgemm_p.skip_accm = 0;
     brgemm_p.BS = bs;
     assert(brg_kernel);
@@ -91,7 +93,10 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = post_ops_data.bias;
     brgemm_p.ptr_scales = post_ops_data.scales;
-    brgemm_p.do_post_ops = 1;
+    brgemm_p.do_post_ops
+            = post_ops_data.do_only_comp || post_ops_data.do_only_zp_a_val ? 0
+                                                                           : 1;
+    brgemm_p.do_apply_comp = post_ops_data.do_only_zp_a_val ? 0 : 1;
     brgemm_p.skip_accm = post_ops_data.skip_accumulation ? 1 : 0;
     brgemm_p.BS = bs;
     brgemm_p.zp_a_val = post_ops_data.zp_a_val;
@@ -121,7 +126,10 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = post_ops_data.bias;
     brgemm_p.ptr_scales = post_ops_data.scales;
-    brgemm_p.do_post_ops = 1;
+    brgemm_p.do_post_ops
+            = post_ops_data.do_only_comp || post_ops_data.do_only_zp_a_val ? 0
+                                                                           : 1;
+    brgemm_p.do_apply_comp = post_ops_data.do_only_zp_a_val ? 0 : 1;
     brgemm_p.skip_accm = post_ops_data.skip_accumulation ? 1 : 0;
     brgemm_p.BS = bs;
     brgemm_p.zp_a_val = post_ops_data.zp_a_val;
