@@ -60,8 +60,9 @@ public:
                     tensor_t tile(base_tile.dims(), start);
                     int off = reg_layout(start) * reg_layout.type().size();
                     auto mask = create_mask(reg_layout, tile);
+                    auto zero = to_expr(0, reg_layout.type());
                     auto store = store_t::make(reg_buf, off,
-                            shuffle_t::make_broadcast(0.0f, tile.elems()),
+                            shuffle_t::make_broadcast(zero, tile.elems()),
                             store_t::default_stride, -mask);
                     stmt = stmt.append(store);
                 });
@@ -174,7 +175,9 @@ public:
 
     bool needs_masked_update() const { return info_.needs_masked_update(); }
 
-    bool needs_f32_convert() const { return !mem_view().type().is_f32(); }
+    bool needs_f32_convert() const {
+        return !mem_view().type().is_f32() && !mem_view().type().is_f64();
+    }
 
     bool needs_reduction() const {
         if (!info_.is_output()) return false;
@@ -480,9 +483,10 @@ public:
         auto inner_layout = lhs_tensor.reg_layout().map(base_inner_tile);
         ir_assert(inner_dim_idx != -1);
 
-        // All post-ops are performed in f32.
+        // All post-ops are performed in f32 except f64 bias.
         for (auto &kv : args) {
-            ir_assert(kv.second->reg_layout().type().is_f32());
+            ir_assert(kv.second->reg_layout().type().is_f32()
+                    || kv.second->reg_layout().type().is_f64());
         }
 
         // Handle one inner tile at a time. Inner tile covers a single block
@@ -798,6 +802,8 @@ private:
         auto c_mem_tile_view = c_mem_view_.create_sub_view(tile);
         auto tmp_reg_buf = make_c_tmp_buffer();
 
+        type_t post_op_type
+                = c_tile_layout.type().is_f64() ? type_t::f64() : type_t::f32();
         bool create_zero_pad_builder = restore_zero_padding_;
         for (auto &t : post_op_tensors_) {
             if (t.needs_masked_update()) {
@@ -822,7 +828,7 @@ private:
         // Initialize C stages.
         std::vector<c_stage_t> c_stages;
 
-        auto c_f32_layout = r2g.reg_layout().retype(type_t::f32()).make_dense();
+        auto c_fx_layout = r2g.reg_layout().retype(post_op_type).make_dense();
         bool with_post_ops = !post_op_builders_.empty();
         int npost_ops = int(post_op_builders_.size());
 
@@ -832,11 +838,11 @@ private:
         c_stages.emplace_back(c_tile_layout, c_reg_buf); // M_x
         if (with_post_ops) {
             c_f32_stage_idx = int(c_stages.size());
-            c_stages.emplace_back(c_f32_layout, make_c_tmp_buffer()); // R_f32
+            c_stages.emplace_back(c_fx_layout, make_c_tmp_buffer()); // R_f32
         }
         if (restore_zero_padding_) {
             c_zero_pad_stage_idx = int(c_stages.size());
-            c_stages.emplace_back(c_f32_layout, make_c_tmp_buffer()); // Z_f32
+            c_stages.emplace_back(c_fx_layout, make_c_tmp_buffer()); // Z_f32
         }
         c_stages.emplace_back(r2g.reg_layout(), tmp_reg_buf, r2g.stmt()); // S_y
 

@@ -4664,7 +4664,7 @@ private:
 
         int block = block_loop.block;
         auto _mad = mad_t::make(
-                c_type, block, a_type, a_stride, b_type, b_stride);
+                hw_, c_type, block, a_type, a_stride, b_type, b_stride);
         auto &mad = _mad.as<mad_t>();
 
         c_layout_ = compute_mad_c_layout(c_type, loops, block_loop);

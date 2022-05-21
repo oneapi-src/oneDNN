@@ -402,6 +402,8 @@ public:
 
     bool post_ops_ok(const convolution_pd_t *pd) const {
         auto *attr = pd->attr();
+
+        // No post-ops are supported for f64
         if (is_f64_conv() && !attr->has_default_values()) return false;
 
         if (is_fwd || is_bwd_d) {
@@ -460,7 +462,7 @@ public:
                 wei_data_type, dst_data_type, bia_data_type);
         if (!is_f64_conv() && utils::one_of(data_type::f64, src_data_type, wei_data_type, dst_data_type, bia_data_type)) return false;
         if (is_bf16 && hw() <= ngen::HW::XeLP) return false;
-        if (is_f64_conv() && (!is_fwd || with_bias)) return false;
+        if (is_f64_conv() && !is_fwd) return false;
         if (is_fwd) return true;
         if (is_bwd_d) return true;
         if (is_bwd_w) {
