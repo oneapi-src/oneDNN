@@ -316,7 +316,7 @@ expr_t expr_t::operator[](const expr_t &off) const {
 
 expr_t::expr_t(bool value) : object_t(new bool_imm_t(value)) {}
 expr_t::expr_t(float value) : object_t(new float_imm_t(value)) {}
-expr_t::expr_t(double value) : object_t(new float_imm_t(value)) {}
+expr_t::expr_t(double value) : object_t(new float_imm_t(value, type_t::f64())) {}
 expr_t::expr_t(int16_t value) : object_t(new int_imm_t(value)) {}
 expr_t::expr_t(int32_t value) : object_t(new int_imm_t(value)) {}
 expr_t::expr_t(int64_t value) : object_t(new int_imm_t(value)) {}

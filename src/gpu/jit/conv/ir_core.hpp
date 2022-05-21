@@ -1102,7 +1102,9 @@ public:
     friend class expr_t;
     IR_DECL_EXPR_TYPE_ID(float_imm_t)
 
-    static expr_t make(float value) { return expr_t(new float_imm_t(value)); }
+    static expr_t make(double value, const type_t &type = type_t::undef()) {
+        return expr_t(new float_imm_t(value, type));
+    }
 
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;
@@ -1115,47 +1117,13 @@ public:
 
     IR_DECLARE_TRAVERSERS()
 
-    float value;
+    double value;
 
 private:
-    float_imm_t(float value) : expr_impl_t(type_t::f32()), value(value) {}
-};
+    float_imm_t(double value, const type_t &type = type_t::undef())
+        : expr_impl_t(type.is_undef() ? type_t::f32() : type)
+        , value(value) {}
 
-// Immediate if or the conditional (ternary) operator.
-// C++ equivalent: (cond ? true_expr : false_expr).
-class iif_t : public expr_impl_t {
-public:
-    IR_DECL_EXPR_TYPE_ID(iif_t);
-
-    static expr_t make(const expr_t &cond, const expr_t &true_expr,
-            const expr_t &false_expr) {
-        return expr_t(new iif_t(cond, true_expr, false_expr));
-    }
-
-    bool is_equal(const object_impl_t &obj) const override {
-        if (!obj.is<self_type>()) return false;
-        auto &other = obj.as<self_type>();
-
-        return cond.is_equal(other.cond) && true_expr.is_equal(other.true_expr)
-                && false_expr.is_equal(other.false_expr);
-    }
-
-    size_t get_hash() const override {
-        return ir_utils::get_hash(cond, true_expr, false_expr);
-    }
-
-    IR_DECLARE_TRAVERSERS()
-
-    expr_t cond;
-    expr_t true_expr;
-    expr_t false_expr;
-
-private:
-    iif_t(const expr_t &cond, const expr_t &true_expr, const expr_t &false_expr)
-        : expr_impl_t(common_type(true_expr.type(), false_expr.type()))
-        , cond(cond)
-        , true_expr(true_expr)
-        , false_expr(false_expr) {}
 };
 
 // Integer immediate value.
@@ -1207,6 +1175,44 @@ private:
         return type_t::s64();
     }
 };
+
+// Immediate if or the conditional (ternary) operator.
+// C++ equivalent: (cond ? true_expr : false_expr).
+class iif_t : public expr_impl_t {
+public:
+    IR_DECL_EXPR_TYPE_ID(iif_t);
+
+    static expr_t make(const expr_t &cond, const expr_t &true_expr,
+            const expr_t &false_expr) {
+        return expr_t(new iif_t(cond, true_expr, false_expr));
+    }
+
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
+
+        return cond.is_equal(other.cond) && true_expr.is_equal(other.true_expr)
+                && false_expr.is_equal(other.false_expr);
+    }
+
+    size_t get_hash() const override {
+        return ir_utils::get_hash(cond, true_expr, false_expr);
+    }
+
+    IR_DECLARE_TRAVERSERS()
+
+    expr_t cond;
+    expr_t true_expr;
+    expr_t false_expr;
+
+private:
+    iif_t(const expr_t &cond, const expr_t &true_expr, const expr_t &false_expr)
+        : expr_impl_t(common_type(true_expr.type(), false_expr.type()))
+        , cond(cond)
+        , true_expr(true_expr)
+        , false_expr(false_expr) {}
+};
+
 
 // Updates `base_expr` and `off` so that after return:
 // - base_expr contains a variable of a pointer type
