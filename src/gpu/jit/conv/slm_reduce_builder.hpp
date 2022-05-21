@@ -50,6 +50,8 @@ public:
 
     const std::vector<stmt_t> &allocs() const { return allocs_; }
 
+    const expr_t &reduce_cond() const { return reduce_cond_; }
+
     stmt_t stmt() const {
         stmt_t ret;
         ret = ret.append(funcs::barrier());
@@ -91,6 +93,7 @@ private:
 
     stmt_t store_stmt_;
     stmt_t load_stmt_;
+    expr_t reduce_cond_;
 
     std::vector<stmt_t> allocs_;
 };

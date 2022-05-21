@@ -6128,6 +6128,7 @@ public:
         auto c_thr_reg_layout = load_mul_builder.c_reg_layout();
         auto thr_tile = gemm_schedule_.c_thr_tile(/*is_relative=*/false);
 
+        auto reduce_cond = expr_t();
         if (gemm_schedule_.with_thread_group_k_slicing()) {
             slm_reduce_builder_t slm_reduce_builder(cfg_.hw_cfg, ir_ctx_, cset_,
                     gemm_schedule_.tg_grid(), c_buf, c_thr_reg_layout,
@@ -6135,17 +6136,19 @@ public:
             c_store_stmt_ = c_store_stmt_.append(slm_reduce_builder.stmt());
             c_thr_reg_layout = slm_reduce_builder.reg_layout();
             thr_tile = slm_reduce_builder.thr_tile();
+            reduce_cond = slm_reduce_builder.reduce_cond();
         }
 
         auto c_thr_mem_view = gemm_schedule_.c_view().create_sub_view(thr_tile);
         auto c_m2g_stmt = create_epilogue_stmt(cfg_, ir_ctx_, cset_,
                 gemm_schedule_, post_op_ctx_, thr_tile, c_thr_mem_view,
                 c_thr_reg_layout, cp_buf_, c_buf);
+        if (!reduce_cond.is_empty())
+            c_m2g_stmt = if_t::make(reduce_cond, c_m2g_stmt);
         ir_trace() << "C GRF to GMEM store:\n" << c_m2g_stmt << std::endl;
 
         c_zero_out_stmt_ = stmt_group_t::make(stmt_label_t::c_zero_out(),
                 create_zero_out_stmt(cfg_.hw(), c_buf, c_size));
-
         c_store_stmt_ = c_store_stmt_.append(c_m2g_stmt);
 
         if (cfg_.do_b_reduction) {

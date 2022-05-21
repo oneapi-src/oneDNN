@@ -88,6 +88,11 @@ void slm_reduce_builder_t::build(
     for (int i = 0; i < ndims; i++) {
         read_dims[i] = local_thr_tile(i);
         read_start[i] = local_thr_tile.start(i);
+        auto cond = read_start[i] < slm_layout.dims()[i];
+        if (reduce_cond_.is_empty())
+            reduce_cond_ = cond;
+        else
+            reduce_cond_ &= cond;
     }
     read_dims[ndims + dim_] = tg_grid_.dim(dim_);
     for (int i = 0; i < tg_ndims_; i++) {
@@ -113,6 +118,8 @@ void slm_reduce_builder_t::build(
     allocs_.push_back(
             alloc_t::make(tmp_reg_buf_, tmp_reg_buf_size_, alloc_kind_t::grf));
 
+    if (!reduce_cond_.is_empty())
+        load_stmt_ = if_t::make(reduce_cond_, load_stmt_);
     if (!thr_tile_.is_empty()) {
         thr_tile_ = thr_tile_.create_sub_tensor(local_thr_tile);
     }
