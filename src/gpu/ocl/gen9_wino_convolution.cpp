@@ -99,6 +99,9 @@ static void fwd_compute_block_sizes(
         conf.wino_ic_block = 32;
     else if (is_pre_gen12 && conf.ow * conf.oh <= 256)
         conf.wino_ic_block = 32;
+    else if (arch >= compute::gpu_arch_t::xe_hpc)
+        // XeHPC does not support subgroup size 8;
+        conf.wino_ic_block = 32;
     else
         conf.wino_ic_block = 16;
 
