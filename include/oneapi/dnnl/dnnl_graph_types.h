@@ -178,7 +178,7 @@ typedef enum {
 /// @addtogroup dnnl_graph_api_op
 /// @{
 
-/// Enumeration for op kind
+/// Kinds of operations
 typedef enum {
     dnnl_graph_op_abs,
     dnnl_graph_op_abs_backprop,
@@ -271,6 +271,64 @@ typedef enum {
     dnnl_graph_op_wildcard,
     dnnl_graph_op_last_symbol,
 } dnnl_graph_op_kind_t;
+
+/// Attributes of operations
+typedef enum {
+    dnnl_graph_op_attr_undef = 0,
+
+    // float32 attributes
+    dnnl_graph_op_attr_alpha = 1,
+    dnnl_graph_op_attr_beta,
+    dnnl_graph_op_attr_epsilon,
+    dnnl_graph_op_attr_max,
+    dnnl_graph_op_attr_min,
+    dnnl_graph_op_attr_momentum,
+
+    // float32 vector attributes
+    dnnl_graph_op_attr_scales,
+
+    // int64_t attributes
+    dnnl_graph_op_attr_axis = 0x20,
+    dnnl_graph_op_attr_begin_norm_axis,
+    dnnl_graph_op_attr_groups,
+
+    // int64_t vector attributes
+    dnnl_graph_op_attr_axes,
+    dnnl_graph_op_attr_dilations,
+    dnnl_graph_op_attr_filter_shape,
+    dnnl_graph_op_attr_input_shape,
+    dnnl_graph_op_attr_kernel,
+    dnnl_graph_op_attr_order,
+    dnnl_graph_op_attr_output_padding,
+    dnnl_graph_op_attr_output_shape,
+    dnnl_graph_op_attr_pads_begin,
+    dnnl_graph_op_attr_pads_end,
+    dnnl_graph_op_attr_shape,
+    dnnl_graph_op_attr_sizes,
+    dnnl_graph_op_attr_strides,
+    dnnl_graph_op_attr_zps,
+
+    // bool attributes
+    dnnl_graph_op_attr_exclude_pad = 0x40,
+    dnnl_graph_op_attr_keep_dims,
+    dnnl_graph_op_attr_keep_stats,
+    dnnl_graph_op_attr_per_channel_broadcast,
+    dnnl_graph_op_attr_special_zero,
+    dnnl_graph_op_attr_transpose_a,
+    dnnl_graph_op_attr_transpose_b,
+    dnnl_graph_op_attr_use_affine,
+    dnnl_graph_op_attr_use_dst,
+
+    // string attributes
+    dnnl_graph_op_attr_auto_broadcast = 0x60,
+    dnnl_graph_op_attr_auto_pad,
+    dnnl_graph_op_attr_coordinate_transformation_mode,
+    dnnl_graph_op_attr_data_format,
+    dnnl_graph_op_attr_filter_format,
+    dnnl_graph_op_attr_mode,
+    dnnl_graph_op_attr_qtype,
+    dnnl_graph_op_attr_rounding_type,
+} dnnl_graph_op_attr_t;
 
 /// Kind for op's attributes
 typedef enum {

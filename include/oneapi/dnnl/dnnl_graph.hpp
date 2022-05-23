@@ -849,6 +849,7 @@ public:
 /// A op contains kind, attribute, and the input and output logical tensor(s).
 class op : public detail::op_handle {
 public:
+    /// Kinds of operations
     enum class kind {
         Abs = dnnl_graph_op_abs,
         AbsBackprop = dnnl_graph_op_abs_backprop,
@@ -942,6 +943,65 @@ public:
         Wildcard = dnnl_graph_op_wildcard,
         // Sentinel
         LastSymbol = dnnl_graph_op_last_symbol,
+    };
+
+    /// Attributes of operations
+    enum class attr {
+        undef = dnnl_graph_op_attr_undef,
+
+        // float32 attributes
+        alpha = dnnl_graph_op_attr_alpha,
+        beta = dnnl_graph_op_attr_beta,
+        epsilon = dnnl_graph_op_attr_epsilon,
+        max = dnnl_graph_op_attr_max,
+        min = dnnl_graph_op_attr_min,
+        momentum = dnnl_graph_op_attr_momentum,
+
+        // float32 vector attributes
+        scales = dnnl_graph_op_attr_scales,
+
+        // int64_t attributes
+        axis = dnnl_graph_op_attr_axis,
+        begin_norm_axis = dnnl_graph_op_attr_begin_norm_axis,
+        groups = dnnl_graph_op_attr_groups,
+
+        // int64_t vector attributes
+        axes = dnnl_graph_op_attr_axes,
+        dilations = dnnl_graph_op_attr_dilations,
+        filter_shape = dnnl_graph_op_attr_filter_shape,
+        input_shape = dnnl_graph_op_attr_input_shape,
+        kernel = dnnl_graph_op_attr_kernel,
+        order = dnnl_graph_op_attr_order,
+        output_padding = dnnl_graph_op_attr_output_padding,
+        output_shape = dnnl_graph_op_attr_output_shape,
+        pads_begin = dnnl_graph_op_attr_pads_begin,
+        pads_end = dnnl_graph_op_attr_pads_end,
+        shape = dnnl_graph_op_attr_shape,
+        sizes = dnnl_graph_op_attr_sizes,
+        strides = dnnl_graph_op_attr_strides,
+        zps = dnnl_graph_op_attr_zps,
+
+        // bool attributes
+        exclude_pad = dnnl_graph_op_attr_exclude_pad,
+        keep_dims = dnnl_graph_op_attr_keep_dims,
+        keep_stats = dnnl_graph_op_attr_keep_stats,
+        per_channel_broadcast = dnnl_graph_op_attr_per_channel_broadcast,
+        special_zero = dnnl_graph_op_attr_special_zero,
+        transpose_a = dnnl_graph_op_attr_transpose_a,
+        transpose_b = dnnl_graph_op_attr_transpose_b,
+        use_affine = dnnl_graph_op_attr_use_affine,
+        use_dst = dnnl_graph_op_attr_use_dst,
+
+        // string attributes
+        auto_broadcast = dnnl_graph_op_attr_auto_broadcast,
+        auto_pad = dnnl_graph_op_attr_auto_pad,
+        coordinate_transformation_mode
+        = dnnl_graph_op_attr_coordinate_transformation_mode,
+        data_format = dnnl_graph_op_attr_data_format,
+        filter_format = dnnl_graph_op_attr_filter_format,
+        mode = dnnl_graph_op_attr_mode,
+        qtype = dnnl_graph_op_attr_qtype,
+        rounding_type = dnnl_graph_op_attr_rounding_type,
     };
 
     /// Constructs an OP object

@@ -19,6 +19,7 @@
 
 #include <string>
 #include <vector>
+#include <type_traits>
 
 #include "oneapi/dnnl/dnnl_graph_types.h"
 
@@ -177,6 +178,60 @@ const op_kind_t TypeCast = dnnl_graph_op_type_cast;
 const op_kind_t Wildcard = dnnl_graph_op_wildcard;
 const op_kind_t LastSymbol = dnnl_graph_op_last_symbol;
 } // namespace op_kind
+
+using op_attr_t = typename std::underlying_type<dnnl_graph_op_attr_t>::type;
+namespace op_attr {
+const op_attr_t undef = dnnl_graph_op_attr_undef;
+
+const op_attr_t alpha = dnnl_graph_op_attr_alpha;
+const op_attr_t beta = dnnl_graph_op_attr_beta;
+const op_attr_t epsilon = dnnl_graph_op_attr_epsilon;
+const op_attr_t max = dnnl_graph_op_attr_max;
+const op_attr_t min = dnnl_graph_op_attr_min;
+const op_attr_t momentum = dnnl_graph_op_attr_momentum;
+
+const op_attr_t scales = dnnl_graph_op_attr_scales;
+
+const op_attr_t axis = dnnl_graph_op_attr_axis;
+const op_attr_t begin_norm_axis = dnnl_graph_op_attr_begin_norm_axis;
+const op_attr_t groups = dnnl_graph_op_attr_groups;
+
+const op_attr_t axes = dnnl_graph_op_attr_axes;
+const op_attr_t dilations = dnnl_graph_op_attr_dilations;
+const op_attr_t filter_shape = dnnl_graph_op_attr_filter_shape;
+const op_attr_t input_shape = dnnl_graph_op_attr_input_shape;
+const op_attr_t kernel = dnnl_graph_op_attr_kernel;
+const op_attr_t order = dnnl_graph_op_attr_order;
+const op_attr_t output_padding = dnnl_graph_op_attr_output_padding;
+const op_attr_t output_shape = dnnl_graph_op_attr_output_shape;
+const op_attr_t pads_begin = dnnl_graph_op_attr_pads_begin;
+const op_attr_t pads_end = dnnl_graph_op_attr_pads_end;
+const op_attr_t shape = dnnl_graph_op_attr_shape;
+const op_attr_t sizes = dnnl_graph_op_attr_sizes;
+const op_attr_t strides = dnnl_graph_op_attr_strides;
+const op_attr_t zps = dnnl_graph_op_attr_zps;
+
+const op_attr_t exclude_pad = dnnl_graph_op_attr_exclude_pad;
+const op_attr_t keep_dims = dnnl_graph_op_attr_keep_dims;
+const op_attr_t keep_stats = dnnl_graph_op_attr_keep_stats;
+const op_attr_t per_channel_broadcast
+        = dnnl_graph_op_attr_per_channel_broadcast;
+const op_attr_t special_zero = dnnl_graph_op_attr_special_zero;
+const op_attr_t transpose_a = dnnl_graph_op_attr_transpose_a;
+const op_attr_t transpose_b = dnnl_graph_op_attr_transpose_b;
+const op_attr_t use_affine = dnnl_graph_op_attr_use_affine;
+const op_attr_t use_dst = dnnl_graph_op_attr_use_dst;
+
+const op_attr_t auto_broadcast = dnnl_graph_op_attr_auto_broadcast;
+const op_attr_t auto_pad = dnnl_graph_op_attr_auto_pad;
+const op_attr_t coordinate_transformation_mode
+        = dnnl_graph_op_attr_coordinate_transformation_mode;
+const op_attr_t data_format = dnnl_graph_op_attr_data_format;
+const op_attr_t filter_format = dnnl_graph_op_attr_filter_format;
+const op_attr_t mode = dnnl_graph_op_attr_mode;
+const op_attr_t qtype = dnnl_graph_op_attr_qtype;
+const op_attr_t rounding_type = dnnl_graph_op_attr_rounding_type;
+} // namespace op_attr
 
 using logical_tensor_t = dnnl_graph_logical_tensor_t;
 
