@@ -26,6 +26,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/visitor.hpp>
+#include <microkernel/builtin.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
@@ -33,6 +34,7 @@
 SC_MODULE(pass.buffer_schedule);
 
 namespace sc {
+using namespace special_ticks;
 
 // a visitor which has "instruction counter". Every visit on any expr will
 // increase the tick_ by 1. Note that by default, all tick_visitor visits exprs
@@ -95,11 +97,6 @@ public:
     }
 };
 
-// the tensor is never accessed
-static constexpr int64_t TICK_NOT_EXIST = -2;
-// the tensor has complicated access pattern: have you assigned a tensor to a
-// pointer?
-static constexpr int64_t COMPLICATED_ACCESS = -1;
 // the tensor is not thread local
 static constexpr uint64_t NOT_THREAD_LOCAL = 0;
 struct tensor_tick_info_t {
@@ -199,7 +196,13 @@ public:
                 auto hint_last_access_tick = t->attr_->get_or_else(
                         attr_keys::hint_last_access_tick, TICK_NOT_EXIST);
                 // update tick
-                if (hint_first_access_tick != TICK_NOT_EXIST
+                if (hint_first_access_tick == HINT_IN_LOOP
+                        || hint_last_access_tick == HINT_IN_LOOP) {
+                    if (itr->second.first_access_ >= for_start_tick) {
+                        itr->second.first_access_ = for_start_tick;
+                    }
+                    last_access_tick = for_end_tick;
+                } else if (hint_first_access_tick != TICK_NOT_EXIST
                         && hint_first_access_tick != COMPLICATED_ACCESS) {
                     assert(hint_last_access_tick != TICK_NOT_EXIST
                             && hint_last_access_tick != COMPLICATED_ACCESS);
@@ -412,7 +415,6 @@ public:
     }
     expr_c visit(tensor_c v) override {
         tick_visitor_t::visit(v);
-
         if (!good_tensor_) {
             // complex use of tensor. Normal use of tensor in
             // indexing/function call will not go here
@@ -441,6 +443,7 @@ public:
 
     // if a tensor/tensorptr is passed in function args, set the r/w ticks
     expr_c visit(call_c v) override {
+        if (v->func_ == builtin::get_mem_set_func()) { good_tensor_ = true; }
         dispatch_args(v->args_);
         if (auto ex = std::dynamic_pointer_cast<expr_base>(v->func_)) {
             dispatch(expr_c(ex));

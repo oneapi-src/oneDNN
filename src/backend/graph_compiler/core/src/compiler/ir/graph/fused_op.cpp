@@ -731,6 +731,7 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
     } else {
         fuse_outs = real_outs;
     }
+    if (!just_check) { mgr_->transform_graph(ctx, true); }
     out_failed = mgr_->prepare_and_check(ctx, fstate);
     if (!out_failed.empty()) {
         mgr_->clear_anchor();
@@ -740,7 +741,8 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
         mgr_->clear_anchor();
         return nullptr;
     }
-    bool can_in_brg = mgr_->can_register_brgemm_fusion(body);
+    bool can_in_brg = ctx->flags_.brgemm_backend_ == scflags_t::brgemm_t::dnnl
+            && mgr_->can_register_brgemm_fusion(body);
     if (!can_in_brg) { mgr_->break_brgemm_fusion(); }
     mgr_->commit(modu, fstate, fuse_outs, additional_ins);
     // register fusion in brgemm.

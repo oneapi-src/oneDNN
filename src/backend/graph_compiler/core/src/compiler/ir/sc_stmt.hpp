@@ -238,8 +238,8 @@ using returns_c = node_ptr<const returns_node_t, stmt_base_t>;
  * @param var the var or tensor
  * @param linkage
  * @param init the initial value. When \p var is a \c tensor_node , and init_ is
- * not null, it means that the tensor is a "view" over another tensor. @see
- * tensor_node
+ * not null, it means that the tensor is a "view" over another tensor or it is
+ * zero initialized. @see tensor_node
  * */
 class define_node_t : public stmt_base_t,
                       public visitable_t<define_node_t, stmt_base_t> {

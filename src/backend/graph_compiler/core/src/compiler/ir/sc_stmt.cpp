@@ -184,8 +184,10 @@ void define_node_t::to_string(ostream &os, int indent) const {
         os << "tensor ";
         t->to_string_full(os);
         if (t->init_value_) {
-            os << " = [addr=" << t->init_value_->data_
-               << ", size=" << t->init_value_->size_ << ']';
+            if (t->init_value_ != tensor_node::get_zero_tensor_initializer()) {
+                os << " = [addr=" << t->init_value_->data_
+                   << ", size=" << t->init_value_->size_ << ']';
+            }
         }
         if (init_.defined()) { os << " = " << init_; }
         return;

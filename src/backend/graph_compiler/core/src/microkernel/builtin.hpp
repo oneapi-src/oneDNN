@@ -293,6 +293,7 @@ void brgemm_list_update(const expr &A, const expr &B, const expr &C,
  * @param dtype sc_data_type_t
  * */
 void mem_zero(expr C, const expr &size, sc_data_type_t dtype);
+func_t get_mem_set_func();
 
 /**
  * Generates a call node to convert multiple buffers(like scales, bias) to one

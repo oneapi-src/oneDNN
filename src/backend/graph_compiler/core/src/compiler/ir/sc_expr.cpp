@@ -648,6 +648,16 @@ void tensor_node::to_string_full(ostream &os) {
             default: assert(0); break;
         }
     }
+    if (init_value_ == tensor_node::get_zero_tensor_initializer()) {
+        os << "{zero_init}";
+    }
+}
+
+const std::shared_ptr<static_data_t> &
+tensor_node::get_zero_tensor_initializer() {
+    static std::shared_ptr<static_data_t> ret
+            = std::make_shared<static_data_t>(nullptr, 0);
+    return ret;
 }
 
 expr tensor_node::remake() const {

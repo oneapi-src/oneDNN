@@ -40,6 +40,17 @@ constexpr int BUF_SCHED_SIZE = 2;
 constexpr int BUF_SCHED_HOT = 3;
 } // namespace attr_keys
 
+namespace special_ticks {
+// the tensor is never accessed
+static constexpr int64_t TICK_NOT_EXIST = -2;
+// the tensor has complicated access pattern: have you assigned a tensor to a
+// pointer?
+static constexpr int64_t COMPLICATED_ACCESS = -1;
+// the tensor was declared in for loop, and its lifetime is complicated. But can
+// be merged with other buffers with hints
+static constexpr int64_t HINT_IN_LOOP = -3;
+} // namespace special_ticks
+
 /**
  * Schedule tensor buffers to reuse them if they are no longer needed.
  * This pass should only work on 1D tensors. It should be placed after

@@ -82,7 +82,7 @@ protected:
             std::vector<fslice_map> &fsmap_list, bool use_one_anchor = false);
 
     // allocates a temp tensor for the result of the op
-    void allocate_tensor(graph_tensor_ptr, fdata_map &);
+    expr allocate_tensor(graph_tensor_ptr, fdata_map &);
 
     bool is_allocated_tensor(const tensor &tsr);
 
@@ -179,6 +179,12 @@ public:
 
     // copy fusion mgr, return shared_ptr of fusion_mgr
     std::shared_ptr<fusion_manager> copy() const;
+
+    /**
+     * transform the graph if necessary before really committing code
+     * @param has_main_op if the fusion happens after another main op
+     * */
+    void transform_graph(const context_ptr &ctx, bool has_main_op);
 };
 
 // todo: remove and use standard graph::make

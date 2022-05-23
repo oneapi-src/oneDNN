@@ -1157,6 +1157,9 @@ enum class address_space {
  * large, the tensor will be allocated on heap via memory pool
  * @note The dtype_ of tensor node should be a pointer, which can be mapped to
  * `T*` in C++. The type of the elements is stored in the field elem_dtype_
+ * @note if the tensor's \p init_value_ has an special init value from
+ * \p get_zero_tensor_initializer , it means that the tensor should be
+ * initialzied with 0
  * */
 class tensor_node : public expr_base,
                     public visitable_t<tensor_node, expr_base> {
@@ -1173,7 +1176,7 @@ public:
     std::string name_;
     address_space address_space_;
     // the initial raw value of the tensor. Currently this field is valid only
-    // when the tensor is defined in a global scope
+    // when the tensor is defined in a global scope, or is zero-initialized
     std::shared_ptr<static_data_t> init_value_;
     std::vector<expr> strides_;
     void to_string(ostream &os) const override;
@@ -1185,6 +1188,7 @@ public:
      * @param os the output stream
      * */
     void to_string_full(ostream &os);
+    static const std::shared_ptr<static_data_t> &get_zero_tensor_initializer();
 };
 SC_DEFINE_EXPR_NODE_PTR(tensor)
 

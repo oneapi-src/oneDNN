@@ -392,12 +392,16 @@ void brgemm_init(
             dtypeC, std::move(value));
 }
 
-void mem_zero(expr C, const expr &size, sc_data_type_t dtype) {
+func_t get_mem_set_func() {
     static func_t memzerofunc = _decl_func("memset", datatypes::pointer,
             {_arg_("ptr", datatypes::pointer), _arg_("v", datatypes::s32),
                     _arg_("len", datatypes::index)});
-    _evaluate_call_(
-            memzerofunc, std::move(C), 0, size * utils::get_sizeof_type(dtype));
+    return memzerofunc;
+}
+
+void mem_zero(expr C, const expr &size, sc_data_type_t dtype) {
+    _evaluate_call_(get_mem_set_func(), std::move(C), 0,
+            size * utils::get_sizeof_type(dtype));
 }
 
 func_t get_brgemm_postops_data_init_func() {

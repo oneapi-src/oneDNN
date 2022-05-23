@@ -59,6 +59,12 @@ public:
     void collect_shrinked_axes_map(
             int bw_size, gt2axes_map &bw_axes_map) override;
 
+    // returns true if the reduce_op can be splitted into reduce_compute +
+    // reduce_collect
+    bool can_split_op() const;
+    // split into reduce_compute + reduce_collect
+    void split_op(const context_ptr &ctx, sc_graph_t &graph);
+
 private:
     // the axis which need reduction
     std::vector<int> plain_rd_axis_;
@@ -92,6 +98,75 @@ public:
             bool need_mean = true)
         : reduce_op_t(std::move(v), rd_name, rd_axis, reduce_operator::mul,
                 keep_dims, need_mean) {}
+};
+
+class reduce_impl_op_t : public fusible_op_t {
+public:
+    void prepare_fusion_data(fdata_map &fdmap) override;
+    void query_format(context_ptr ctx,
+            std::vector<std::vector<format_stride_pair>> &supported_ins,
+            std::vector<std::vector<format_stride_pair>> &supported_outs)
+            override;
+    void pre_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+
+    reduce_impl_op_t(const graph_tensor_ptr &in,
+            const graph_tensor_ptr &old_out, const std::string &rd_name,
+            const std::vector<int> &rd_axis, reduce_operator rd_op,
+            bool keep_dims, bool need_mean, uint64_t reduce_mean_num);
+    // get real sorted reduce axis
+    const std::vector<int> &get_rd_axis() const;
+
+protected:
+    // the axis which need reduction
+    std::vector<int> real_rd_axis_;
+    // type of reduction
+    reduce_operator rd_op_;
+    // name of reduce_op_t
+    std::string rd_name_;
+    // if keep_dims=True, if will retain length=1 even though be reduced.
+    bool keep_dims_;
+    // whether need to compute mean
+    bool need_mean_;
+    // use vectorized
+    vectorized_info_t vx_info_;
+    uint64_t reduce_mean_num_;
+};
+
+/**
+ * Reduce Op will be replace by reduce_compute_op + reduce_collect_op.
+ * If there is no parallelism in the reduction axis, reduce_compute_op will do
+ * elementwise reduction on the result tensor. reduce_collect_op will be a
+ * no-op, and is just a placeholder to tell fusion manager to place the
+ * computation after the reduce_op in an outer-loop anchor.
+ *
+ * If there is parallelism in the reduction axis, reduce_compute_op will do
+ * partial reduction on the thread-local tensor. reduce_collect_op will collect
+ * the result and do final reduction.
+ * */
+class reduce_compute_op_t : public reduce_impl_op_t {
+public:
+    void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
+            const std::vector<const tensor_slice *> &inputs) override;
+    reduce_compute_op_t(const graph_tensor_ptr &in,
+            const graph_tensor_ptr &old_out, const std::string &rd_name,
+            const std::vector<int> &rd_axis, reduce_operator rd_op,
+            bool keep_dims, bool need_mean, uint64_t reduce_mean_num);
+};
+
+class reduce_collect_op_t : public reduce_impl_op_t {
+public:
+    void infer_slice_ranges(
+            fslice_map &fsmap, infer_status_map_t &stat_map) override;
+    void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,
+            const std::vector<const tensor_slice *> &inputs) override;
+    reduce_collect_op_t(const graph_tensor_ptr &in,
+            const graph_tensor_ptr &old_out, const std::string &rd_name,
+            const std::vector<int> &rd_axis, reduce_operator rd_op,
+            bool keep_dims, bool need_mean, uint64_t reduce_mean_num);
+    bool is_place_holder_op() const;
 };
 } // namespace sc
 #endif

@@ -75,13 +75,16 @@ std::vector<int> transform_axis_plain2blocking(
 
 // compute the output data format after reduction given the plain reduction
 // axes
-static sc_data_format_t get_reduced_format(
-        const sc_data_format_t &in_fmt, const std::vector<int> &rd_axis) {
+static sc_data_format_t get_reduced_format(const sc_data_format_t &in_fmt,
+        const std::vector<int> &rd_axis, size_t nlogical_dims) {
     auto base_fmt = in_fmt;
     // we should set the blocking of the reduce axies to 1
+    int ax_offset = in_fmt.format_code_.is_batch_format()
+            ? (nlogical_dims - in_fmt.format_code_.norig_dims())
+            : 0;
     for (int ax : rd_axis) {
         for (int blocking_idx :
-                in_fmt.format_code_.collect_blocking_index(ax)) {
+                in_fmt.format_code_.collect_blocking_index(ax - ax_offset)) {
             base_fmt.blocks_[blocking_idx] = 1;
         }
     }
@@ -128,8 +131,9 @@ reduce_op_t::reduce_op_t(const std::vector<graph_tensor_ptr> &ins,
         logical_tensor_t out;
         if (keep_dims_) {
             out = logical_tensor_t(
-                    get_reduced_format(
-                            ins[0]->details_.get_format(), plain_rd_axis_),
+                    get_reduced_format(ins[0]->details_.get_format(),
+                            plain_rd_axis_,
+                            ins[0]->details_.get_plain_dims().size()),
                     new_reduce_dims, ins[0]->details_.dtype_);
         } else {
             out = logical_tensor_t(
@@ -165,7 +169,8 @@ void reduce_op_t::query_format(context_ptr ctx,
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
     const auto &in_fmt = info_.inputs_[0]->details_.get_format();
     if (keep_dims_) {
-        out_formats.push_back({get_reduced_format(in_fmt, plain_rd_axis_)});
+        out_formats.push_back({get_reduced_format(in_fmt, plain_rd_axis_,
+                info_.inputs_[0]->details_.get_plain_dims().size())});
     } else {
         auto out_shape_size = info_.inputs_[0]->details_.get_plain_dims().size()
                 - plain_rd_axis_.size();
@@ -223,33 +228,21 @@ void reduce_op_t::prepare_fusion_data(fdata_map &fdmap) {
             "Unexpected reduction axis found");
 }
 
-void reduce_op_t::infer_slice_ranges(
-        fslice_map &fsmap, infer_status_map_t &stat_map) {
-    // search known ranges from any input of cur fusbile op
-    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
-    // set the other unknown slice range by achieved known_ranges_list
-    slice_range_list known_ranges_list = known_ranges_map[0];
-    // COMPILE_ASSERT(known_ranges_list.size() == 1,
-    //         "Reduce Op should not accept inconsequent or irruglar
-    //         slice");
+static slice_range_list infer_output_slice_range(bool is_reduce_compute,
+        uint64_t vec_step, const slice_range_list &known_ranges_list,
+        const std::vector<int> &real_rd_axis, bool keep_dims) {
     slice_range_list reduce_ranges_list;
-    auto real_rd_axis = get_rd_axis();
-    auto &src_dim = get_inputs()[0]->details_.get_blocking_dims();
-    // check the slice range whether meet the least demand of reduce op
-    for (auto &src_range : fsmap.get(get_inputs()[0])) {
-        if (!slice_full_on_axes(src_dim, src_range, real_rd_axis)) {
-            attrs_.set(
-                    op_attr_key::fused_mode_hint, op_attr_key::break_pre_fuse);
-            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
-        }
-    }
     for (auto &known_ranges : known_ranges_list) {
         slice_range reduce_range;
         // additional process is needed.
         for (size_t i = 0; i < known_ranges.size(); i++) {
             if (real_rd_axis.end()
                     != std::find(real_rd_axis.begin(), real_rd_axis.end(), i)) {
-                if (keep_dims_) {
+                // last-axis reduce
+                if (is_reduce_compute && i == known_ranges.size() - 1) {
+                    reduce_range.emplace_back(
+                            std::pair<expr, expr> {0, vec_step});
+                } else if (keep_dims) {
                     reduce_range.emplace_back(std::pair<expr, expr> {0, 1});
                 }
             } else {
@@ -261,8 +254,37 @@ void reduce_op_t::infer_slice_ranges(
             reduce_range.emplace_back(std::pair<expr, expr> {0, 1});
         reduce_ranges_list.emplace_back(reduce_range);
     }
+    return reduce_ranges_list;
+}
 
-    fsmap.get(get_outputs()[0]) = std::move(reduce_ranges_list);
+void update_reduce_op_fsmap(sc_op *ths, const graph_tensor_ptr &input,
+        fslice_map &fsmap, infer_status_map_t &stat_map,
+        const std::vector<int> &real_rd_axis) {
+    auto &src_dim = input->details_.get_blocking_dims();
+    // check the slice range whether meet the least demand of reduce op
+    for (auto &src_range : fsmap.get(input)) {
+        if (!slice_full_on_axes(src_dim, src_range, real_rd_axis)) {
+            ths->attrs_.set(
+                    op_attr_key::fused_mode_hint, op_attr_key::break_pre_fuse);
+            stat_map.append_ops_by_status(ths, infer_status_code::RETRY);
+        }
+    }
+}
+
+void reduce_op_t::infer_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    // search known ranges from any input of cur fusbile op
+    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    // set the other unknown slice range by achieved known_ranges_list
+    slice_range_list &known_ranges_list = known_ranges_map[0];
+    // COMPILE_ASSERT(known_ranges_list.size() == 1,
+    //         "Reduce Op should not accept inconsequent or irruglar
+    //         slice");
+    auto real_rd_axis = get_rd_axis();
+    update_reduce_op_fsmap(
+            this, get_inputs()[0], fsmap, stat_map, real_rd_axis);
+    fsmap.get(get_outputs()[0]) = infer_output_slice_range(
+            false, 0, known_ranges_list, real_rd_axis, keep_dims_);
 }
 
 void reduce_op_t::pre_slice_ranges(
@@ -552,6 +574,293 @@ size_t reduce_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
     return wkld;
 }
 
+// assume that the first axis is parallel. we currently can use
+// reduce_compute+reduce_collect when reduction axis is not outside of the
+// parallel axis and is not last axis reduction(for performance)
+bool reduce_op_t::can_split_op() const {
+    auto ax = get_rd_axis();
+    int last_dim = get_inputs()[0]->details_.get_blocking_dims().size() - 1;
+    for (auto i : ax) {
+        if (i == 0) return false;
+    }
+    return true;
+}
+
+void reduce_op_t::split_op(const context_ptr &ctx, sc_graph_t &graph) {
+    auto rd_ax = get_rd_axis();
+
+    int last_dim = get_inputs()[0]->details_.get_blocking_dims().size() - 1;
+    bool last_axis = false;
+    for (auto i : rd_ax) {
+        if (last_dim == i) {
+            last_axis = true;
+            break;
+        }
+    }
+
+    auto first_out = get_outputs()[0]->copy();
+    first_out->producer_owner_ = nullptr;
+    auto second_out = get_outputs()[0]->copy();
+    second_out->producer_owner_ = nullptr;
+
+    if (last_axis) {
+        auto vec_step
+                = vectorize_step(ctx, first_out->details_.dtype_.type_code_);
+        auto new_dims = first_out->details_.get_blocking_dims();
+        if (keep_dims_) {
+            new_dims.back() = vec_step;
+        } else {
+            new_dims.push_back(vec_step);
+        }
+        first_out->details_.set_blocking_dims(new_dims);
+    }
+    uint64_t reduce_mean_num = 1;
+    if (need_mean_) {
+        for (auto ax : plain_rd_axis_) {
+            reduce_mean_num *= get_inputs()[0]->details_.get_plain_dims()[ax];
+        }
+    }
+    auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
+            rd_name_, rd_ax, rd_op_, keep_dims_, need_mean_, reduce_mean_num);
+    auto second = graph.make<reduce_collect_op_t>(first_out, second_out,
+            rd_name_, rd_ax, rd_op_, keep_dims_, need_mean_, reduce_mean_num);
+    get_outputs()[0]->replace_with(second_out);
+    remove();
+}
+
 OP_REGISTER(reduce_op_t, reduce)
+
+void reduce_impl_op_t::prepare_fusion_data(fdata_map &fdmap) {
+    fdmap.get(info_.inputs_[0]).use_count_++;
+}
+void reduce_impl_op_t::query_format(context_ptr ctx,
+        std::vector<std::vector<format_stride_pair>> &supported_ins,
+        std::vector<std::vector<format_stride_pair>> &supported_outs) {
+    throw std::runtime_error("Cannot query_format for this internal op");
+}
+void reduce_impl_op_t::pre_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    throw std::runtime_error("Cannot pre_slice_ranges for this internal op");
+}
+
+reduce_impl_op_t::reduce_impl_op_t(const graph_tensor_ptr &in,
+        const graph_tensor_ptr &old_out, const std::string &rd_name,
+        const std::vector<int> &rd_axis, reduce_operator rd_op, bool keep_dims,
+        bool need_mean, uint64_t reduce_mean_num)
+    : real_rd_axis_(rd_axis)
+    , rd_op_(rd_op)
+    , rd_name_(rd_name)
+    , keep_dims_(keep_dims)
+    , need_mean_(need_mean)
+    , reduce_mean_num_(reduce_mean_num) {
+    info_.inputs_ = {in};
+    info_.outputs_ = {old_out};
+    std::sort(real_rd_axis_.begin(), real_rd_axis_.end());
+}
+// get real reduce axis, generaly, you should set rd_axis on plain format
+// semantics.
+const std::vector<int> &reduce_impl_op_t::get_rd_axis() const {
+    return real_rd_axis_;
+}
+
+reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
+        const graph_tensor_ptr &old_out, const std::string &rd_name,
+        const std::vector<int> &rd_axis, reduce_operator rd_op, bool keep_dims,
+        bool need_mean, uint64_t reduce_mean_num)
+    : reduce_impl_op_t(in, old_out, rd_name, rd_axis, rd_op, keep_dims,
+            need_mean, reduce_mean_num) {
+    op_name_ = "reduce_compute";
+    COMPILE_ASSERT(!(rd_op == reduce_operator::mul && need_mean),
+            "Cannot compute mean on reduce_mul");
+}
+
+void reduce_compute_op_t::infer_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    // set the other unknown slice range by achieved known_ranges_list
+    slice_range_list &known_ranges_list = known_ranges_map[0];
+
+    auto real_rd_axis = get_rd_axis();
+    // if is last axis reduce, the last dim is the vec step
+    auto vec_step = get_outputs()[0]->details_.get_blocking_dims().back();
+    fsmap.get(get_outputs()[0]) = infer_output_slice_range(
+            true, vec_step, known_ranges_list, real_rd_axis, keep_dims_);
+}
+
+void reduce_compute_op_t::compute_block(context_ptr ctx,
+        const std::vector<tensor_slice *> &dst,
+        const std::vector<const tensor_slice *> &inputs) {
+    size_t wkld = compute_fusible_workload(ctx, dst, inputs);
+    // set default vectorized information
+    auto &real_rd_axis = get_rd_axis();
+    auto last_axis = get_inputs()[0]->details_.get_blocking_dims().size() - 1;
+    bool last_axis_reduce
+            = static_cast<unsigned>(real_rd_axis.back()) == last_axis;
+    vx_info_.axis = inputs[0]->get_shape().size() - 1;
+    vx_info_.lanes
+            = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
+    int64_t reduce_num = reduce_mean_num_;
+    auto ths = this;
+    auto func = [&](const std::vector<expr> &in,
+                        std::vector<expr::lvalue_proxy_t> &out) -> stmt {
+        indexing indexing_nd = out[0].get().checked_as<indexing>();
+        auto lanes = indexing_nd->dtype_.lanes_;
+        // if keep dims, set reduction axis to 0, else remove the axis from
+        // indexing node
+        if (ths->keep_dims_) {
+            for (auto ax : real_rd_axis) {
+                indexing_nd->idx_.at(ax) = 0;
+            }
+        } else {
+            std::vector<expr> new_idx;
+            for (auto itr = indexing_nd->idx_.begin();
+                    itr != indexing_nd->idx_.end(); ++itr) {
+                bool remove = false;
+                for (auto ax : real_rd_axis) {
+                    // if the axis is reduced and is not last axis, remove
+                    if (itr - indexing_nd->idx_.begin() == ax) {
+                        if (ax == static_cast<int>(last_axis)) {
+                            // if is last axis reduction, set index to 0
+                            *itr = 0;
+                        } else {
+                            remove = true;
+                            break;
+                        }
+                    }
+                }
+                if (!remove) { new_idx.emplace_back(std::move(*itr)); }
+            }
+            indexing_nd->idx_ = std::move(new_idx);
+        }
+        expr result;
+        expr operand;
+        switch (ths->rd_op_) {
+            case reduce_operator::add:
+                operand = in[0];
+                if (ths->need_mean_) {
+                    auto the_const = make_expr<constant_node>(
+                            1.0f / reduce_num, sc_data_type_t::f32(lanes));
+                    if (lanes > 1) {
+                        result = builder::make_fmadd(
+                                operand, the_const, indexing_nd);
+                    } else {
+                        result = indexing_nd + operand * the_const;
+                    }
+                } else {
+                    result = indexing_nd + operand;
+                }
+                break;
+            case reduce_operator::mul:
+                operand = in[0];
+                result = indexing_nd + operand;
+                break;
+            default: assert(0); break;
+        }
+
+        return builder::make_assign_unattached(indexing_nd, result);
+    };
+
+    compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
+            mask_compute_func_t(func), mask_compute_func_t(func), attrs_, wkld,
+            false, inputs[0]);
+}
+
+reduce_collect_op_t::reduce_collect_op_t(const graph_tensor_ptr &in,
+        const graph_tensor_ptr &old_out, const std::string &rd_name,
+        const std::vector<int> &rd_axis, reduce_operator rd_op, bool keep_dims,
+        bool need_mean, uint64_t reduce_mean_num)
+    : reduce_impl_op_t(in, old_out, rd_name, rd_axis, rd_op, keep_dims,
+            need_mean, reduce_mean_num) {
+    op_name_ = "reduce_collect";
+    if (in->details_.get_blocking_dims()
+            == old_out->details_.get_blocking_dims()) {
+        info_.tensor_share_info_[0] = {0};
+    } else {
+        info_.tensor_share_info_ = {};
+    }
+}
+
+void reduce_collect_op_t::infer_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    slice_range_map known_ranges_map = search_known_slice_ranges(this, fsmap);
+    // set the other unknown slice range by achieved known_ranges_list
+    slice_range_list &known_ranges_list = known_ranges_map[0];
+    COMPILE_ASSERT(get_inputs()[0]->producer_owner_->isa<reduce_compute_op_t>(),
+            "reduce_collect_op_t can only be placed after reduce_compute_op_t");
+    auto &input = get_inputs()[0]->producer_owner_->get_inputs().at(0);
+    auto &real_rd_axis = get_rd_axis();
+    update_reduce_op_fsmap(this, input, fsmap, stat_map, real_rd_axis);
+    if (!is_place_holder_op()) {
+        if (!keep_dims_) {
+            // if is not placeholder op, and don't keep dims, we will add an
+            // additional axis at the end, when in reduce_compute. need to drop
+            // the last axis
+            for (auto &range : known_ranges_list) {
+                range.pop_back();
+            }
+        } else {
+            for (auto &range : known_ranges_list) {
+                range.back().second = 1;
+            }
+        }
+    }
+    fsmap.get(get_outputs()[0]) = known_ranges_list;
+}
+
+bool reduce_collect_op_t::is_place_holder_op() const {
+    bool last_axis_reduce = get_inputs()[0]->details_.get_blocking_dims()
+            != get_outputs()[0]->details_.get_blocking_dims();
+    return !last_axis_reduce;
+}
+
+void reduce_collect_op_t::compute_block(context_ptr ctx,
+        const std::vector<tensor_slice *> &dst,
+        const std::vector<const tensor_slice *> &inputs) {
+    bool last_axis_reduce = !is_place_holder_op();
+    if (last_axis_reduce) {
+        // set default vectorized information
+        auto &real_rd_axis = get_rd_axis();
+        auto last_axis
+                = get_inputs()[0]->details_.get_blocking_dims().size() - 1;
+        vx_info_.axis = dst[0]->get_shape().size() - 1;
+        auto vec_lanes = vectorize_step(
+                ctx, info_.inputs_[0]->details_.dtype_.type_code_);
+        vx_info_.lanes = 1;
+        int64_t reduce_num = vec_lanes;
+        auto ths = this;
+        auto func = [&](const std::vector<expr> &in,
+                            std::vector<expr::lvalue_proxy_t> &out) -> stmt {
+            indexing in_nd = in[0].checked_as<indexing>();
+            out[0]->dtype_.lanes_ = 1;
+            auto lanes = vec_lanes;
+            in_nd->dtype_.lanes_ = lanes;
+            // if keep dims, set reduction axis to 0, else remove the axis from
+            // indexing node
+            if (!ths->keep_dims_) { in_nd->idx_.emplace_back(0); }
+            expr result;
+            expr operand;
+            switch (ths->rd_op_) {
+                case reduce_operator::add:
+                    operand = builder::make_reduce_add(in_nd);
+                    result = operand;
+                    break;
+                case reduce_operator::mul:
+                    operand = builder::make_reduce_mul(in_nd);
+                    result = operand;
+                    break;
+                default: assert(0); break;
+            }
+
+            return builder::make_assign_unattached(out[0], result);
+        };
+
+        compute_vectorized_op(inputs, *dst[0], info_, vx_info_,
+                mask_compute_func_t(func), mask_compute_func_t(func), attrs_, 0,
+                false, dst[0]);
+    } else {
+        builder::get_current_builder()->emit(
+                builder::make_stmts_unattached({}));
+    }
+}
 
 } // namespace sc

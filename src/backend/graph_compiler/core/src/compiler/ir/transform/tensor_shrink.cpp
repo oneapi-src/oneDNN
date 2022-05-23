@@ -108,7 +108,10 @@ public:
     stmt_c visit(define_c v) override {
         if (is_tensor_and_should_shrink(v->var_)) {
             auto tsr = v->var_.static_as<tensor>();
-            COMPILE_ASSERT(!tsr->init_value_ && !v->init_.defined()
+            bool no_init = !tsr->init_value_
+                    || tsr->init_value_
+                            == tensor_node::get_zero_tensor_initializer();
+            COMPILE_ASSERT(no_init && !v->init_.defined()
                             && v->linkage_ == linkage::local,
                     "The tensor to shrink should not have init value or be "
                     "re-scheduled. And it should be a local tensor: "
@@ -123,7 +126,7 @@ public:
             auto replacer = copy_attr(*tsr,
                     builder::make_tensor(tsr->name_ + "_shr",
                             shrink_info.shape_, tsr->elem_dtype_,
-                            tsr->address_space_));
+                            tsr->address_space_, tsr->init_value_));
             replacer->attr_->remove(tensor_shrinker_attrs::should_shrink);
             replace_map[tsr] = replacer;
             auto ret = builder::make_var_tensor_def_unattached(

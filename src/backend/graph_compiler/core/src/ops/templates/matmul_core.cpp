@@ -524,7 +524,6 @@ void gen_matmul_core_t::schedule_loops(context_ptr ctx,
       fors[0] = fors[0]->fuse(fors[i]);
     }
     stmts matmul_body = fors[0]->body_.static_as<stmts>();
-    scope_flatten(matmul_body, -1);
     fors[0]->fuse(matmul_body->seq_[0].static_as<for_loop>());
   }
 }

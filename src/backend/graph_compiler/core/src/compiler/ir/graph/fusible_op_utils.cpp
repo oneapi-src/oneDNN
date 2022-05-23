@@ -290,7 +290,8 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
         const vectorized_info_t &vx_info,
         const mask_compute_func_t &compute_lanes,
         const mask_compute_func_t &compute_scalar, any_map_t &attrs,
-        size_t wkld, bool use_mask) {
+        size_t wkld, bool use_mask, const tensor_slice *expand_loop_by) {
+    if (!expand_loop_by) { expand_loop_by = &dst; }
     // nested loop vars
     std::vector<expr> iter_vars;
     // the indices for multiple inputs. First dim: the input, Second dim:
@@ -300,7 +301,7 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
     // the indices for the output tensor
     std::vector<expr> dst_idx_floor;
     std::vector<expr> dst_idx_tail;
-    for (unsigned i = 0; i < dst.nslice_dims(); i++) {
+    for (unsigned i = 0; i < expand_loop_by->nslice_dims(); i++) {
         // make the loop var for the for-loop
         iter_vars.emplace_back(builder::make_var(datatypes::index,
                 std::string("_fuseiter") + std::to_string(idx++)));
@@ -341,7 +342,7 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
     std::vector<expr::lvalue_proxy_t> target_tail
             = {expr::lvalue_proxy_t(indexed_target_tail, false)};
     auto slice_len = get_const_as_int(
-            dst.get_shape().at(vx_info.axis).static_as<constant>());
+            expand_loop_by->get_shape().at(vx_info.axis).static_as<constant>());
     int floor = slice_len / vx_info.lanes * vx_info.lanes;
     int tail = slice_len % vx_info.lanes;
     int last_axis_mask = -1;
@@ -359,12 +360,12 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
     }
     std::vector<stmt> tcur;
     stmt cur;
+    int loop_size = static_cast<int>(expand_loop_by->get_shape().size());
     // recover schedule loop
-    for (int i = static_cast<int>(dst.get_shape().size() - 1); i >= 0; i--) {
+    for (int i = loop_size - 1; i >= 0; i--) {
         stmt body;
         // currently vx_axis should be last axis
-        if (static_cast<int>(dst.get_shape().size()) == vx_info.axis + 1
-                && i == vx_info.axis) {
+        if (loop_size == vx_info.axis + 1 && i == vx_info.axis) {
             if (floor) {
                 bld->push_scope();
                 auto cond_it = conditions.find(iter_vars[i]);
@@ -412,14 +413,14 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                 tcur.clear();
                 // address special condition, like temp_buffer is used
                 cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                        expr(0), dst.get_shape().at(i), expr(1),
+                        expr(0), expand_loop_by->get_shape().at(i), expr(1),
                         std::move(body), true, for_type::NORMAL);
             } else if (cur.defined()) {
                 body = make_stmt<stmts_node_t>(
                         std::vector<stmt> {std::move(cur)});
                 // address special condition, like temp_buffer is used
                 cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                        expr(0), dst.get_shape().at(i), expr(1),
+                        expr(0), expand_loop_by->get_shape().at(i), expr(1),
                         std::move(body), true, for_type::NORMAL);
             } else {
                 // if cur not defined, means last axis of tensor slice has range
@@ -439,13 +440,13 @@ void compute_vectorized_op(const std::vector<const tensor_slice *> &src,
                         = wkld;
                 bld->emit(cur);
                 cur = make_stmt<for_loop_node_t>(iter_vars.at(i), expr(0),
-                        dst.get_shape().at(i), expr(1), bld->pop_scope(), true,
-                        for_type::NORMAL);
+                        expand_loop_by->get_shape().at(i), expr(1),
+                        bld->pop_scope(), true, for_type::NORMAL);
             }
         }
     }
     if (!tcur.empty() && tcur[0].defined()) {
-        assert(dst.get_shape().size() == 1UL);
+        assert(expand_loop_by->get_shape().size() == 1UL);
         // TODO(xxx): currenly we don't add merge_loop attribute for this
         // special case, need stronger loop analysis.
         for (auto &it : tcur) {

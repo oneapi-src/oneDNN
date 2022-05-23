@@ -34,6 +34,7 @@
 #include <compiler/ir/visitor.hpp>
 #include <microkernel/builtin.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <util/any_map.hpp>
 
@@ -234,10 +235,10 @@ fusion_manager::fusion_manager(fusion_manager &&other)
     , output_idx_map_(std::move(other.output_idx_map_)) {}
 
 /**
- * This function pre-aloocate tensor, whether used indeedly is decided in
+ * This function pre-allocate tensor, whether used indeedly is decided in
  * schedule tensor pass
  * */
-void fusion_manager::allocate_tensor(
+expr fusion_manager::allocate_tensor(
         graph_tensor_ptr output, fdata_map &fdmap) {
     auto &fdetail = fdmap.get(output);
     fusible_op_t *fop = output->producer_owner_->dyn_cast<fusible_op_t>();
@@ -263,14 +264,15 @@ void fusion_manager::allocate_tensor(
                 }
 
                 fdetail.set_buffer(tsr);
+                return tsr;
             };
     // TODO(xxx): remove this reorder judgement
     if (auto const_op = fop->dyn_cast<constant_op_t>()) {
         auto const_value = const_op->get_constant_values();
-        allocate_("_const_buf_", output->details_, address_space::automatic,
-                const_value, true);
+        return allocate_("_const_buf_", output->details_,
+                address_space::automatic, const_value, true);
     } else {
-        allocate_("_" + fop->op_name_ + "_buf_", output->details_);
+        return allocate_("_" + fop->op_name_ + "_buf_", output->details_);
     }
 }
 
@@ -435,6 +437,12 @@ void set_buffer_reuse_hint(buffer_identity_count &buf_cnt_map,
                 || (node->isa<unary_elementwise_op_t>()
                         && !node->isa<cast_op_t>())
                 || node->isa<binary_elementwise_op_t>())) {
+        if (tsr.defined()) {
+            tsr->attr().set(attr_keys::hint_first_access_tick,
+                    special_ticks::HINT_IN_LOOP);
+            tsr->attr().set(attr_keys::hint_last_access_tick,
+                    special_ticks::HINT_IN_LOOP);
+        }
         return;
     }
 
@@ -570,6 +578,15 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 // output will inplace the last buffer, so we need to clear it
                 // firstly.
                 output_cur_in_detail.set_buffer(tsr);
+
+                auto owner_op = cur->get_inputs()[0]->producer_owner_;
+                if (auto coll_op = owner_op->dyn_cast<reduce_collect_op_t>()) {
+                    if (coll_op->is_place_holder_op()) {
+                        tsr.checked_as<tensor>()->init_value_
+                                = tensor_node::get_zero_tensor_initializer();
+                        fdmap.get(owner_op->get_inputs()[0]).set_buffer(tsr);
+                    }
+                }
             }
             // update tensors' last_access
             set_buffer_reuse_hint(
@@ -651,7 +668,11 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                 }
                 // no node can share buffer with the current node
                 if (out_i_detail.need_alloc_) {
-                    allocate_tensor(outputs[i], fdmap);
+                    auto tsr = allocate_tensor(outputs[i], fdmap);
+                    if (cur->isa<reduce_compute_op_t>()) {
+                        tsr.checked_as<tensor>()->init_value_
+                                = tensor_node::get_zero_tensor_initializer();
+                    }
                 }
                 assert(out_i_detail.buffer_allocated());
                 // set buffer reuse hint for loop lifetime analysis
@@ -1497,6 +1518,16 @@ fusion_manager::get_output_tsr_slices_list(
         result.emplace_back(std::move(tmp));
     }
     return result;
+}
+
+void fusion_manager::transform_graph(const context_ptr &ctx, bool has_main_op) {
+    if (!has_main_op) { return; }
+    auto old_ops = graph_.ops_;
+    for (auto &op : old_ops) {
+        if (auto rd = op->dyn_cast<reduce_op_t>()) {
+            if (rd->can_split_op()) { rd->split_op(ctx, graph_); }
+        }
+    }
 }
 
 } // namespace sc

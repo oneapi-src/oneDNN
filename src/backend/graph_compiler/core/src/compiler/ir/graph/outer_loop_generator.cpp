@@ -407,6 +407,7 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
         if (i == base_inp_idx) continue;
         additional_args.emplace_back(ins[i]);
     }
+    if (!just_check) { fmgr->transform_graph(ctx, false); }
     fuse_state_t fstate;
     out_failed = fmgr->prepare_and_check(ctx, fstate);
     if (!out_failed.empty()) {

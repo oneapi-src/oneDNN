@@ -574,7 +574,9 @@ static void check_var_tensor_def(
         }
     }
     if (!is_global && v->var_.isa<tensor>()) {
-        COMPILE_ASSERT(v->var_.static_as<tensor>()->init_value_ == nullptr,
+        auto &init = v->var_.static_as<tensor>()->init_value_;
+        COMPILE_ASSERT(init == nullptr
+                        || init == tensor_node::get_zero_tensor_initializer(),
                 "The tensor defined in function cannot have init value: " << v);
     }
 }
