@@ -9233,7 +9233,7 @@ void gemm_kernel_generator_t<hw>::gemmCheck32(
 
     auto &m = state.inputs.m;
     auto &n = state.inputs.n;
-    auto &k = state.inputs.k;
+    auto &k = state.fullK.isValid() ? state.fullK : state.inputs.k;
     auto &lda = state.inputs.lda;
     auto &ldb = state.inputs.ldb;
     auto temp1GRF = state.ra.alloc();
