@@ -14381,8 +14381,9 @@ void gemm_kernel_generator_t<hw>::gemmHilbertlikeOrder(
         auto qFP = temp3.f();
         mov(1, divisorFP, divisor);
         mov(1, qFP, q);
-        mov(1, bias, -0.4990234375f); // -1/2 + 1/1024
+        mov(1, bias, -0.499996185302734375f); // -1/2 + 2^(-18)
         einv(1, divisorFP, divisorFP, strategy, state);
+        add(1, divisorFP.ud(), divisorFP.ud(), 1);
         mad(1, qqot.f(), bias, qFP, divisorFP);
         mov(1, qqot, qqot.f());
         mad(1, qrem, q, -qqot.uw(), divisor.uw());
@@ -14458,7 +14459,7 @@ void gemm_kernel_generator_t<hw>::gemmBoustrophedonOrder(
         } else {
             mov(1, denomFP, denom);
             mov(1, numFP, num);
-            mov(1, bias, -0.499996185302734375f); // -1/2 + 2^(-17)
+            mov(1, bias, -0.499996185302734375f); // -1/2 + 2^(-18)
             einv(1, denomFP, denomFP, strategy, state);
             add(1, denomFP.ud(), denomFP.ud(), 1);
             mad(1, qot.f(), bias, numFP, denomFP);
