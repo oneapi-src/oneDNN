@@ -368,17 +368,19 @@ DEFINE_BINARY_ASSIGN_OPERATOR(&)
 object_t object_impl_t::_mutate(ir_mutator_t &mutator) const {
     return *this;
 }
+void object_impl_t::_visit(ir_visitor_t &visitor) const {}
 
-#define DECL_MUTATE_LEAF(name) \
-    object_t ir_mutator_t::_mutate(const name &obj) { return obj; }
+#define DECL_TRAVERSE_LEAF(name) \
+    object_t ir_mutator_t::_mutate(const name &obj) { return obj; } \
+    void ir_visitor_t::_visit(const name &obj) {}
 
-DECL_MUTATE_LEAF(bool_imm_t)
-DECL_MUTATE_LEAF(float_imm_t)
-DECL_MUTATE_LEAF(func_impl_t)
-DECL_MUTATE_LEAF(int_imm_t)
-DECL_MUTATE_LEAF(var_t)
+DECL_TRAVERSE_LEAF(bool_imm_t)
+DECL_TRAVERSE_LEAF(float_imm_t)
+DECL_TRAVERSE_LEAF(func_impl_t)
+DECL_TRAVERSE_LEAF(int_imm_t)
+DECL_TRAVERSE_LEAF(var_t)
 
-#undef DECL_MUTATE_LEAF
+#undef DECL_TRAVERSE_LEAF
 
 object_t ir_mutator_t::_mutate(const alloc_t &obj) {
     auto buf = mutate(obj.buf);
@@ -387,6 +389,11 @@ object_t ir_mutator_t::_mutate(const alloc_t &obj) {
     if (buf.is_same(obj.buf) && body.is_same(obj.body)) return obj;
 
     return alloc_t::make(buf, obj.size, obj.kind, obj.attrs, body);
+}
+
+void ir_visitor_t::_visit(const alloc_t &obj) {
+    visit(obj.buf);
+    visit(obj.body);
 }
 
 object_t ir_mutator_t::_mutate(const binary_op_t &obj) {
@@ -398,12 +405,21 @@ object_t ir_mutator_t::_mutate(const binary_op_t &obj) {
     return binary_op_t::make(obj.op_kind, a, b);
 }
 
+void ir_visitor_t::_visit(const binary_op_t &obj) {
+    visit(obj.a);
+    visit(obj.b);
+}
+
 object_t ir_mutator_t::_mutate(const cast_t &obj) {
     auto expr = mutate(obj.expr);
 
     if (expr.is_same(obj.expr)) return obj;
 
     return cast_t::make(obj.type, expr, obj.saturate);
+}
+
+void ir_visitor_t::_visit(const cast_t &obj) {
+    visit(obj.expr);
 }
 
 object_t ir_mutator_t::_mutate(const for_t &obj) {
@@ -419,6 +435,13 @@ object_t ir_mutator_t::_mutate(const for_t &obj) {
     return for_t::make(var, init, bound, body, obj.unroll);
 }
 
+void ir_visitor_t::_visit(const for_t &obj) {
+    visit(obj.var);
+    visit(obj.init);
+    visit(obj.bound);
+    visit(obj.body);
+}
+
 object_t ir_mutator_t::_mutate(const func_call_t &obj) {
     auto func = mutate(obj.func);
     auto args = mutate(obj.args);
@@ -426,6 +449,11 @@ object_t ir_mutator_t::_mutate(const func_call_t &obj) {
     if (func.is_same(obj.func) && ir_utils::is_same(args, obj.args)) return obj;
 
     return func_call_t::make(func, args, obj.attr);
+}
+
+void ir_visitor_t::_visit(const func_call_t &obj) {
+    visit(obj.func);
+    visit(obj.args);
 }
 
 object_t ir_mutator_t::_mutate(const if_t &obj) {
@@ -440,6 +468,12 @@ object_t ir_mutator_t::_mutate(const if_t &obj) {
     return if_t::make(cond, body, else_body);
 }
 
+void ir_visitor_t::_visit(const if_t &obj) {
+    visit(obj.cond);
+    visit(obj.body);
+    visit(obj.else_body);
+}
+
 object_t ir_mutator_t::_mutate(const iif_t &obj) {
     auto cond = mutate(obj.cond);
     auto true_expr = mutate(obj.true_expr);
@@ -450,6 +484,12 @@ object_t ir_mutator_t::_mutate(const iif_t &obj) {
         return obj;
 
     return iif_t::make(cond, true_expr, false_expr);
+}
+
+void ir_visitor_t::_visit(const iif_t &obj) {
+    visit(obj.cond);
+    visit(obj.true_expr);
+    visit(obj.false_expr);
 }
 
 object_t ir_mutator_t::_mutate(const let_t &obj) {
@@ -464,6 +504,12 @@ object_t ir_mutator_t::_mutate(const let_t &obj) {
     return let_t::make(var, value, body);
 }
 
+void ir_visitor_t::_visit(const let_t &obj) {
+    visit(obj.var);
+    visit(obj.value);
+    visit(obj.body);
+}
+
 object_t ir_mutator_t::_mutate(const load_t &obj) {
     auto buf = mutate(obj.buf);
     auto off = mutate(obj.off);
@@ -471,6 +517,11 @@ object_t ir_mutator_t::_mutate(const load_t &obj) {
     if (buf.is_same(obj.buf) && off.is_same(obj.off)) return obj;
 
     return load_t::make(obj.type, buf, off, obj.stride);
+}
+
+void ir_visitor_t::_visit(const load_t &obj) {
+    visit(obj.buf);
+    visit(obj.off);
 }
 
 object_t ir_mutator_t::_mutate(const ptr_t &obj) {
@@ -482,12 +533,21 @@ object_t ir_mutator_t::_mutate(const ptr_t &obj) {
     return ptr_t::make(base, off);
 }
 
+void ir_visitor_t::_visit(const ptr_t &obj) {
+    visit(obj.base);
+    visit(obj.off);
+}
+
 object_t ir_mutator_t::_mutate(const shuffle_t &obj) {
     auto vec = mutate(obj.vec);
 
     if (ir_utils::is_same(vec, obj.vec)) return obj;
 
     return shuffle_t::make(vec, obj.idx);
+}
+
+void ir_visitor_t::_visit(const shuffle_t &obj) {
+    visit(obj.vec);
 }
 
 object_t ir_mutator_t::_mutate(const stmt_group_t &obj) {
@@ -498,6 +558,10 @@ object_t ir_mutator_t::_mutate(const stmt_group_t &obj) {
     return stmt_group_t::make(obj.label, body);
 }
 
+void ir_visitor_t::_visit(const stmt_group_t &obj) {
+    visit(obj.body);
+}
+
 object_t ir_mutator_t::_mutate(const stmt_seq_t &obj) {
     auto head = mutate(obj.head);
     auto tail = mutate(obj.tail);
@@ -505,6 +569,11 @@ object_t ir_mutator_t::_mutate(const stmt_seq_t &obj) {
     if (head.is_same(obj.head) && tail.is_same(obj.tail)) return obj;
 
     return stmt_seq_t::make(head, tail);
+}
+
+void ir_visitor_t::_visit(const stmt_seq_t &obj) {
+    visit(obj.head);
+    visit(obj.tail);
 }
 
 object_t ir_mutator_t::_mutate(const store_t &obj) {
@@ -520,6 +589,13 @@ object_t ir_mutator_t::_mutate(const store_t &obj) {
     return store_t::make(buf, off, value, obj.stride, mask);
 }
 
+void ir_visitor_t::_visit(const store_t &obj) {
+    visit(obj.buf);
+    visit(obj.off);
+    visit(obj.value);
+    visit(obj.mask);
+}
+
 object_t ir_mutator_t::_mutate(const ternary_op_t &obj) {
     auto a = mutate(obj.a);
     auto b = mutate(obj.b);
@@ -530,10 +606,20 @@ object_t ir_mutator_t::_mutate(const ternary_op_t &obj) {
     return ternary_op_t::make(obj.op_kind, a, b, c);
 }
 
+void ir_visitor_t::_visit(const ternary_op_t &obj) {
+    visit(obj.a);
+    visit(obj.b);
+    visit(obj.c);
+}
+
 object_t ir_mutator_t::_mutate(const unary_op_t &obj) {
     auto a = mutate(obj.a);
     if (a.is_same(obj.a)) return obj;
     return unary_op_t::make(obj.op_kind, a);
+}
+
+void ir_visitor_t::_visit(const unary_op_t &obj) {
+    visit(obj.a);
 }
 
 // Catch missing mutates that are not expected to dispatch to the base
@@ -542,9 +628,15 @@ object_t ir_mutator_t::_mutate(const nary_op_t &obj) {
     ir_error_not_expected() << "Can't handle type: nary_op_t";
     return {};
 }
+void ir_visitor_t::_visit(const nary_op_t &obj) {
+    ir_error_not_expected() << "Can't handle type: nary_op_t";
+}
 object_t ir_mutator_t::_mutate(const pexpr_t &obj) {
     ir_error_not_expected() << "Can't handle type: pexpr_t";
     return {};
+}
+void ir_visitor_t::_visit(const pexpr_t &obj) {
+    ir_error_not_expected() << "Can't handle type: pexpr_t";
 }
 
 } // namespace jit

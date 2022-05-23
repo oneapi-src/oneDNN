@@ -35,15 +35,6 @@ class ir_printer_t : public ir_visitor_t {
 public:
     ir_printer_t(std::ostream &out) : out_(out) {}
 
-    void visit(const object_t &obj) override {
-        if (is_supported(obj)) {
-            ir_visitor_t::visit(obj);
-            return;
-        }
-        // Only expressions/functions are expected here.
-        out_ << obj.str();
-    }
-
     void _visit(const alloc_t &obj) override {
         auto guard
                 = mem_usage_guard(obj.kind == alloc_kind_t::grf ? obj.size : 0);
@@ -256,7 +247,7 @@ public:
         return ir_mutator_t::_mutate(obj); \
     };
 
-    HANDLE_MUTATE_TARGETS()
+    HANDLE_TRAVERSE_TARGETS()
 
 #undef HANDLE_IR_OBJECT
 
@@ -360,7 +351,6 @@ private:
 std::string object_impl_t::str() const {
     std::ostringstream oss;
     ir_printer_t printer(oss);
-    ir_assert(printer.is_supported(this));
     printer.visit(this);
     return oss.str();
 }

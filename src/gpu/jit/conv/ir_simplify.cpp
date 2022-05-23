@@ -692,20 +692,7 @@ class nary_op_visitor_t : public ir_visitor_t {
 public:
     using ir_visitor_t::_visit;
 
-    virtual dispatch_func_type find_dispatch_func(int64_t ti) const {
-        if (ti == nary_op_t::_dispatch_type_id())
-            return &nary_op_visitor_t::call<nary_op_t>;
-        return ir_visitor_t::find_dispatch_func(ti);
-    }
-
     virtual void _visit(const nary_op_t &obj) { visit(obj.args); }
-
-private:
-    template <typename T>
-    static void call(ir_visitor_t *visitor, const object_impl_t &obj) {
-        auto *this_visitor = (nary_op_visitor_t *)visitor;
-        this_visitor->_visit((const nary_op_t &)obj);
-    }
 };
 
 class nary_op_mutator_t : public ir_mutator_t {

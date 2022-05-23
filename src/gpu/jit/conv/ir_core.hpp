@@ -55,7 +55,7 @@
     HANDLE_IR_OBJECT(stmt_seq_t) \
     HANDLE_IR_OBJECT(store_t)
 
-#define HANDLE_MUTATE_TARGETS() \
+#define HANDLE_TRAVERSE_TARGETS() \
     HANDLE_EXPR_IR_OBJECTS() \
     HANDLE_STMT_IR_OBJECTS() \
     HANDLE_IR_OBJECT(func_impl_t) \
@@ -125,8 +125,14 @@ enum ir_type_id_t {
     object_t _mutate(mutator_template &mutator) const override { \
         return mutator._mutate(*this); \
     }
+#define IR_DECL_VISIT(visitor_template) \
+    void _visit(visitor_template &visitor) const override { \
+        visitor._visit(*this); \
+    }
 
-#define IR_DECLARE_TRAVERSERS() IR_DECL_MUTATE(ir_mutator_t)
+#define IR_DECLARE_TRAVERSERS() \
+    IR_DECL_MUTATE(ir_mutator_t) \
+    IR_DECL_VISIT(ir_visitor_t)
 
 // Defines getter for a function argument.
 #define IR_DEFINE_ARG_GET(name, index) \
@@ -511,8 +517,10 @@ private:
 // Forward Declare IR objects
 class object_t;
 class ir_mutator_t;
+class ir_visitor_t;
+
 #define HANDLE_IR_OBJECT(type) class type;
-HANDLE_MUTATE_TARGETS()
+HANDLE_TRAVERSE_TARGETS()
 #undef HANDLE_IR_OBJECT
 
 // Base class for all IR objects. Implemented as an intrusive pointer, with
@@ -579,6 +587,7 @@ public:
     virtual std::string str() const;
 
     virtual object_t _mutate(ir_mutator_t &mutator) const;
+    virtual void _visit(ir_visitor_t &visitor) const;
     IR_DEFINE_DUMP()
 
 private:
@@ -783,7 +792,40 @@ public:
     }
 
 #define HANDLE_IR_OBJECT(type) virtual object_t _mutate(const type &obj);
-    HANDLE_MUTATE_TARGETS()
+    HANDLE_TRAVERSE_TARGETS()
+#undef HANDLE_IR_OBJECT
+};
+
+// Helper class to walk through IR tree.
+class ir_visitor_t {
+public:
+    virtual ~ir_visitor_t() = default;
+
+    void visit(const object_t &obj) {
+        const object_impl_t *impl = obj.impl();
+        if (impl) {
+            pre_visit(*impl);
+            impl->_visit(*this);
+            post_visit(*impl);
+        };
+    }
+
+    template <typename T>
+    void visit(const std::vector<T> &v) {
+        for (auto &e : v)
+            visit(e);
+    }
+
+    virtual void pre_visit(const object_impl_t &obj) {}
+    virtual void post_visit(const object_impl_t &obj) {}
+
+    // To catch missing _visit() handlers in ir_visitor_t.
+    void _visit(const object_impl_t &obj) {
+        ir_error_not_expected() << "Can't handle type: " << object_t(obj);
+    }
+
+#define HANDLE_IR_OBJECT(type) virtual void _visit(const type &obj);
+    HANDLE_TRAVERSE_TARGETS()
 #undef HANDLE_IR_OBJECT
 };
 
