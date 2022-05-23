@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,11 +51,6 @@ void func_base::to_string(ostream &os) const {
     }
     os << "): " << ret_type_ << ' ';
     if (body_.defined()) { body_->to_string(os, 0); }
-}
-
-any_map_t &func_base::attr() {
-    if (!attr_) { attr_ = utils::make_unique<any_map_t>(); }
-    return *attr_;
 }
 
 func_t::func_t(func_base *ptr) : std::shared_ptr<func_base>(ptr) {}

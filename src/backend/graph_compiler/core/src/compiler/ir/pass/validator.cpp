@@ -242,20 +242,33 @@ void validate_impl_t::view(call_c v) {
     for (auto &arg : v->args_) {
         dispatch(arg);
     }
+    func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
+    func_t proto_func;
+    if (!the_func) {
+        auto the_expr = std::dynamic_pointer_cast<expr_base>(v->func_);
+        COMPILE_ASSERT(the_expr, "Expecting expr or func in call node");
+        proto_func = the_expr->attr().get_or_else("prototype", func_t());
+        COMPILE_ASSERT(proto_func,
+                "Expecting attr prototype in the expr of call node");
+        COMPILE_ASSERT(the_expr->dtype_ == datatypes::pointer,
+                "Expecting the callee to be a pointer typed value");
+    } else {
+        proto_func = the_func;
+    }
     COMPILE_ASSERT(v->dtype_ != datatypes::undef, "Met undef. " << v);
-    COMPILE_ASSERT(v->args_.size() == v->func_->params_.size(),
+    COMPILE_ASSERT(v->args_.size() == proto_func->params_.size(),
             "Wrong number of parameters, given "
                     << v->args_.size() << ", expecting "
-                    << v->func_->params_.size() << ". Expr = " << v);
+                    << proto_func->params_.size() << ". Expr = " << v);
     for (size_t i = 0; i < v->args_.size(); i++) {
         sc_data_type_t ty1 = v->args_.at(i)->dtype_;
-        sc_data_type_t ty2 = v->func_->params_.at(i)->dtype_;
+        sc_data_type_t ty2 = proto_func->params_.at(i)->dtype_;
         COMPILE_ASSERT(ty1 == ty2,
                 "Unmatched types for parameter " << i + 1 << " : given " << ty1
                                                  << ", expecting " << ty2
                                                  << ". Expr = " << v);
     }
-    COMPILE_ASSERT(v->dtype_ == v->func_->ret_type_,
+    COMPILE_ASSERT(v->dtype_ == proto_func->ret_type_,
             "Unmatched types of call node and the func_t: " << v);
 }
 

@@ -189,7 +189,8 @@ static constexpr sc_data_type_t u8 = sc_data_type_t::u8();
 static constexpr sc_data_type_t index = sc_data_type_t::index();
 static constexpr sc_data_type_t boolean = sc_data_type_t::boolean();
 static constexpr sc_data_type_t generic = sc_data_type_t::generic();
-// void* type
+// void* type. The opaque pointer type. Any pointers (including tensor/tensor
+// ptr) can be auto-cast to a pointer value. But casting back is not allowed
 static constexpr sc_data_type_t pointer = sc_data_type_t::pointer();
 static constexpr sc_data_type_t void_t = sc_data_type_t::void_t();
 } // namespace datatypes

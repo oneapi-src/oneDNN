@@ -33,7 +33,8 @@ public:
     using ir_inplace_visitor_t::dispatch_impl;
     expr visit_impl(call c) override {
         auto ret = ir_inplace_visitor_t::visit_impl(std::move(c)).as<call>();
-        func_t callee = ret->func_;
+        func_t callee = std::dynamic_pointer_cast<func_base>(ret->func_);
+        if (!callee) { return ret; }
         // if the callee has a function body, unlink the call_node with the
         // function with body. Use the decl_ instead
         if (callee->body_.defined()) {

@@ -305,13 +305,20 @@ expr ir_visitor_base_impl_t<is_inplace>::visit_impl(low_level_intrin v) {
 template <bool is_inplace>
 expr ir_visitor_base_impl_t<is_inplace>::visit_impl(call v) {
     std::vector<expr> new_arr;
-    changed_ = dispatch_expr_vector(v->args_, new_arr);
+    bool changed = dispatch_expr_vector(v->args_, new_arr);
+    auto new_callee = v->func_;
+    if (auto ex = std::dynamic_pointer_cast<expr_base>(v->func_)) {
+        new_callee = dispatch_impl(expr(ex)).impl;
+    }
+    changed |= (new_callee != v->func_);
+    changed_ = changed;
     if (is_inplace) {
         return std::move(v);
     } else {
-        if (changed_) {
+        if (changed) {
             auto ret = v->remake().static_as<call>();
             ret->args_ = std::move(new_arr);
+            ret->func_ = new_callee;
             return copy_attr(*v, std::move(ret));
         } else {
             return std::move(v);

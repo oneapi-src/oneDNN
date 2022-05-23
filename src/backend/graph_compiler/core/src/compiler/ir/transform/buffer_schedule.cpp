@@ -442,11 +442,15 @@ public:
     // if a tensor/tensorptr is passed in function args, set the r/w ticks
     expr_c visit(call_c v) override {
         dispatch_args(v->args_);
+        if (auto ex = std::dynamic_pointer_cast<expr_base>(v->func_)) {
+            dispatch(expr_c(ex));
+        }
         // now tick_ is the tick when the last parameter is calculated. set the
         // tick for referenced tensors
+        auto prototype = v->get_prototype();
         for (unsigned i = 0; i < v->args_.size(); i++) {
             auto &p = v->args_[i];
-            auto &funcp = v->func_->params_[i];
+            auto &funcp = prototype->params_[i];
             tensor_c tsr;
             if (p.isa<tensor>()) {
                 tsr = p.static_as<tensor_c>();

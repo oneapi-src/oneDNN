@@ -226,16 +226,22 @@ public:
     }
 
     expr_c visit(call_c v) override {
-        std::vector<expr_c> newargs;
+        std::vector<expr> newargs;
         bool changed = dispatch_expr_vector(v->args_, newargs);
-        assert(v->args_.size() == v->func_->params_.size());
+        func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
+        func_t proto_func = v->get_prototype();
+        assert(v->args_.size() == proto_func->params_.size());
         for (size_t i = 0; i < newargs.size(); i++) {
             expr_c idx_c = newargs[i];
-            changed |= cast_to(idx_c, v->func_->params_[i]->dtype_, v);
-            newargs[i] = std::move(idx_c);
+            changed |= cast_to(idx_c, proto_func->params_[i]->dtype_, v);
+            newargs[i] = idx_c.remove_const();
         }
         if (changed) {
-            return builder::remake_call(v->func_, newargs, v);
+            if (the_func) {
+                return builder::remake_call(the_func, newargs, v);
+            } else {
+                return copy_attr(*v, make_expr<call_node>(v->func_, newargs));
+            }
         } else {
             return std::move(v);
         }

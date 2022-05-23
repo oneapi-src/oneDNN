@@ -55,6 +55,9 @@ enum class sc_data_etype : uint32_t {
     /// the max enum value + 1
     MAX_VALUE = 13,
     /// general pointer type, also used as a pointer bit mask
+    /// void* type. The opaque pointer type. Any pointers (including tensor /
+    /// tensor ptr) can be auto-cast to a pointer value. But casting back
+    /// is not allowed
     POINTER = 0x100,
 };
 

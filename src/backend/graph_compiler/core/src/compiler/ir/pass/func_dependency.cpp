@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,10 +30,12 @@ public:
             std::vector<func_t> &dep, std::unordered_set<func_t> &set)
         : set_(set), dep_(dep) {}
     void view(call_c v) override {
-        auto f = v->func_;
-        if (set_.find(f) == set_.end()) {
-            set_.insert(f);
-            dep_.push_back(f);
+        func_t f = std::dynamic_pointer_cast<func_base>(v->func_);
+        if (f) {
+            if (set_.find(f) == set_.end()) {
+                set_.insert(f);
+                dep_.push_back(f);
+            }
         }
         for (auto &arg : v->args_) {
             dispatch(arg);

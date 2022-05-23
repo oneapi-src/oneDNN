@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -195,16 +195,17 @@ public:
 
     expr_c inline_at(call_c site,
             const std::vector<define> &module_vars = std::vector<define>()) {
+        auto the_func = std::dynamic_pointer_cast<func_base>(site->func_);
         // if the callee is a declaration, skip inlining
-        if (!site->func_->body_.defined()) { return site; }
+        if (!the_func || !the_func->body_.defined()) { return site; }
         recursions++;
         COMPILE_ASSERT(recursions < 20, "Reached max inline recursion depth");
 
         // fill in the replace map
         std::unordered_map<expr_c, expr> rmap;
         for (size_t i = 0; i < site->args_.size(); i++) {
-            rmap.insert(std::make_pair(
-                    site->func_->params_.at(i), site->args_.at(i)));
+            rmap.insert(
+                    std::make_pair(the_func->params_.at(i), site->args_.at(i)));
         }
         for (size_t i = 0; i < module_vars.size(); i++) {
             rmap.insert(
@@ -214,10 +215,10 @@ public:
         // a "simple" function is a function with only one statement: return ...
         // we can extract and inline the returned expression
         stmt the_only_stmt;
-        if (!site->func_->body_.isa<stmts>()) {
-            the_only_stmt = site->func_->body_;
+        if (!the_func->body_.isa<stmts>()) {
+            the_only_stmt = the_func->body_;
         } else {
-            auto &thestmts = site->func_->body_.static_as<stmts>()->seq_;
+            auto &thestmts = the_func->body_.static_as<stmts>()->seq_;
             if (thestmts.size() == 1) { the_only_stmt = thestmts.front(); }
         }
         // if the function has only one stmt and it is a return, then it is
@@ -246,8 +247,7 @@ public:
                         + 1;
             }
             func_body_copier_t impl(rmap, outvar);
-            stmt_c new_body
-                    = impl.copy(promote_stmt_to_stmts(site->func_->body_));
+            stmt_c new_body = impl.copy(promote_stmt_to_stmts(the_func->body_));
             // then recursively inline the "call_node"s in the body
             new_body = dispatch(std::move(new_body));
             // push the new stmt in the insertion point

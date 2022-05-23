@@ -48,7 +48,9 @@ public:
     std::unordered_map<expr_c, expr> global_symbol_replace_map_;
 
     expr_c visit(call_c v) override {
-        auto itr = map->find(v->func_->name_);
+        func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
+        if (!the_func) { return ir_visitor_t::visit(v); }
+        auto itr = map->find(the_func->name_);
         if (itr == map->end()) {
             // if is parallel-call function
             if (v->func_ == get_parallel_call_func()) {
@@ -75,7 +77,7 @@ public:
                     std::vector<expr> newargs;
                     dispatch_expr_vector(v->args_, newargs);
                     newargs.back() = current_rtl_ctx;
-                    return copy_attr(*v, builder::make_call(v->func_, newargs));
+                    return copy_attr(*v, builder::make_call(the_func, newargs));
                 }
             }
             return ir_visitor_t::visit(v);

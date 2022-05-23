@@ -136,6 +136,7 @@ std::ostream &operator<<(std::ostream &os, linkage val) {
     return os;
 }
 
+node_base::~node_base() = default;
 expr_base::~expr_base() = default;
 
 expr_base::expr_base() = default;
@@ -490,8 +491,28 @@ bool indexing_node::equals(expr_c v, ir_comparer &ctx) const {
             && ctx.check_equals_may_null(mask_, other->mask_);
 }
 
-call_node::call_node(const func_t &func, const std::vector<expr> &args)
-    : call_node(func, args, {}) {}
+static sc_data_type_t get_func_type(node_base *func) {
+    if (auto f = dynamic_cast<func_base *>(func)) {
+        return f->ret_type_;
+    } else {
+        auto e = dynamic_cast<expr_base *>(func);
+        assert(e);
+        return e->attr().get<func_t>("prototype")->ret_type_;
+    }
+}
+
+call_node::call_node(const std::shared_ptr<node_base> &func,
+        const std::vector<expr> &args, std::vector<parallel_attr_t> &&para_attr)
+    : expr_base(get_func_type(func.get()), sc_expr_type::call)
+    , func_(func)
+    , args_(args)
+    , para_attr_(std::move(para_attr)) {}
+
+call_node::call_node(const expr &func, const std::vector<expr> &args)
+    : expr_base(func->attr().get<func_t>("prototype")->ret_type_,
+            sc_expr_type::call)
+    , func_(func.impl)
+    , args_(args) {}
 
 call_node::call_node(const func_t &func, const std::vector<expr> &args,
         std::vector<parallel_attr_t> &&para_attr)
@@ -505,8 +526,28 @@ call_node::parallel_attr_t::parallel_attr_t(expr begin_, expr end_, expr step_)
     , end_(std::move(end_))
     , step_(std::move(step_)) {}
 
+func_t call_node::get_prototype() const {
+    func_t the_func = std::dynamic_pointer_cast<func_base>(func_);
+    func_t proto_func;
+    if (!the_func) {
+        auto the_expr = std::dynamic_pointer_cast<expr_base>(func_);
+        assert(the_expr);
+        proto_func = the_expr->attr().get<func_t>("prototype");
+    } else {
+        proto_func = the_func;
+    }
+    return proto_func;
+}
+
 void call_node::to_string(ostream &os) const {
-    os << func_->name_ << '(';
+    if (auto func = std::dynamic_pointer_cast<func_base>(func_)) {
+        os << func->name_;
+    } else {
+        auto theexpr = std::dynamic_pointer_cast<expr_base>(func_);
+        assert(theexpr);
+        os << theexpr.get();
+    }
+    os << '(';
     if (!args_.empty()) {
         for (unsigned i = 0; i < args_.size() - 1; i++) {
             os << args_.at(i) << ", ";
@@ -524,18 +565,33 @@ void call_node::to_string(ostream &os) const {
 }
 
 expr call_node::remake() const {
-    return copy_attr(*this, builder::make_call(func_, args_));
+    return copy_attr(*this, make_expr<call_node>(func_, args_));
 }
 
 // for the callee, just check if pointer is same
 bool call_node::equals(expr_c v, ir_comparer &ctx) const {
     ASCAST_OR_RETURN(v, other);
     auto shared = node_ptr_from_this();
-    if (ctx.cmp_callee_) {
-        if (!func_->equals(other->func_, ctx)) return false;
-    } else {
-        if (!ctx.set_result(shared, v, func_.ptr_same(other->func_)))
+    auto &ths_func = *func_;
+    auto &other_func = *other->func_;
+    if (typeid(ths_func) != typeid(other_func)) { return false; }
+    if (auto e = dynamic_cast<expr_base *>(func_.get())) {
+        // if is expr, compare the callee by equals()
+        if (!e->equals(
+                    expr_c(std::static_pointer_cast<expr_base>(other->func_)),
+                    ctx)) {
             return false;
+        }
+    } else {
+        if (ctx.cmp_callee_) {
+            auto f = dynamic_cast<func_base *>(func_.get());
+            assert(f);
+            if (!f->equals(
+                        std::static_pointer_cast<func_base>(other->func_), ctx))
+                return false;
+        } else {
+            if (!ctx.set_result(shared, v, func_ == other->func_)) return false;
+        }
     }
     if (para_attr_.size() != other->para_attr_.size()) { RETURN(false); }
     for (unsigned i = 0; i < para_attr_.size(); i++) {
@@ -547,7 +603,7 @@ bool call_node::equals(expr_c v, ir_comparer &ctx) const {
         }
     }
     RETURN(ctx.expr_arr_equals(args_, other->args_));
-}
+} // namespace sc
 
 static std::vector<expr> dims_to_dense_stride(const std::vector<expr> &v) {
     std::vector<expr> stride(v.size(), 1);

@@ -557,6 +557,8 @@ struct node_base {
     // returns attr_ if is defined or creates and sets a new any_map_t if not
     // defined
     any_map_t &attr();
+
+    virtual ~node_base();
 };
 
 /**
@@ -1109,12 +1111,16 @@ public:
         parallel_attr_t(expr begin_, expr end_, expr step_);
     };
     static constexpr sc_expr_type type_code_ = sc_expr_type::call;
-    call_node(const func_t &func, const std::vector<expr> &args);
+    call_node(const std::shared_ptr<node_base> &func,
+            const std::vector<expr> &args,
+            std::vector<parallel_attr_t> &&para_attr = {});
+    call_node(const expr &func, const std::vector<expr> &args);
     call_node(const func_t &func, const std::vector<expr> &args,
-            std::vector<parallel_attr_t> &&para_attr);
-    func_t func_;
+            std::vector<parallel_attr_t> &&para_attr = {});
+    std::shared_ptr<node_base> func_;
     std::vector<expr> args_;
     std::vector<parallel_attr_t> para_attr_;
+    func_t get_prototype() const;
     void to_string(ostream &os) const override;
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;

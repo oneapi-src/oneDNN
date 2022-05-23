@@ -123,15 +123,20 @@ public:
         return c.checked_as<tensor>()->name_;
     }
 
-    Function *get_or_create_func(const func_c &v) {
-        auto itr = name_to_func_.find(v->name_);
-        if (itr != name_to_func_.end()) { return itr->second; }
+    FunctionType *create_func_type(const func_c &v) {
         std::vector<Type *> tys;
         for (auto &param : v->params_) {
             tys.push_back(get_type(param->dtype_));
         }
         FunctionType *FT
                 = FunctionType::get(get_type(v->ret_type_), tys, false);
+        return FT;
+    }
+
+    Function *get_or_create_func(const func_c &v) {
+        auto itr = name_to_func_.find(v->name_);
+        if (itr != name_to_func_.end()) { return itr->second; }
+        auto FT = create_func_type(v);
         bool is_private = v->attr_ && v->attr_->get_or_else("private", false);
         Function *F = Function::Create(FT,
                 is_private ? Function::InternalLinkage
@@ -1065,11 +1070,28 @@ public:
     }
     void view(call_c v) override {
         std::vector<Value *> args;
-        auto ll_func = get_or_create_func(v->func_);
+        auto the_func = std::dynamic_pointer_cast<func_base>(v->func_);
+        Value *ll_func;
+        FunctionType *ft;
+        if (the_func) {
+            ll_func = get_or_create_func(the_func);
+            ft = &llvm::cast<FunctionType>(
+                    *ll_func->getType()->getPointerElementType());
+        } else {
+            auto the_expr = std::dynamic_pointer_cast<expr_base>(v->func_);
+            assert(the_expr);
+            auto proto_func
+                    = the_expr->attr().get_or_else("prototype", func_t());
+            COMPILE_ASSERT(
+                    proto_func, "Call node expects an expr with prototype");
+            ft = create_func_type(proto_func);
+            ll_func = generate_expr(expr_c(the_expr));
+            ll_func = builder_.CreatePointerCast(ll_func, ft->getPointerTo());
+        }
         for (size_t i = 0; i < v->args_.size(); i++) {
             auto &val = v->args_[i];
             auto ll_value = generate_expr(val);
-            auto target_type = (ll_func->arg_begin() + i)->getType();
+            auto target_type = *(ft->param_begin() + i);
             if (ll_value->getType() != target_type) {
                 COMPILE_ASSERT(target_type == builder_.getInt8PtrTy(),
                         "LLVM can only handle autocast to pointer");
@@ -1077,7 +1099,7 @@ public:
             }
             args.push_back(ll_value);
         }
-        current_val_ = builder_.CreateCall(get_or_create_func(v->func_), args);
+        current_val_ = builder_.CreateCall(ft, ll_func, args);
     }
     void view(tensor_c v) override { current_val_ = get_defined_var_ptr(v); }
 

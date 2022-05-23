@@ -189,7 +189,16 @@ public:
             }
         } else {
             // if is global variable, add a "load instance"
-            return add_def(ret->current_value);
+            auto newret = add_def(ret->current_value);
+            // copy the function pointer prototype
+            if (newret->dtype_ == datatypes::pointer
+                    && ret->current_value->attr_) {
+                if (auto proto = ret->current_value->attr_->get_or_else(
+                            "prototype", func_t())) {
+                    newret->attr()["prototype"] = proto;
+                }
+            }
+            return newret;
         }
         return ret->current_value;
     }

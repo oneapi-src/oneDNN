@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,19 +37,14 @@ namespace sc {
  * @param body_ the body of the function
  * @param ret_type_ the return type of the function
  * */
-class func_base : public std::enable_shared_from_this<func_base> SC_LEAK_CHECK(
-                          func_base) {
+class func_base : public node_base,
+                  public std::enable_shared_from_this<func_base>
+                  SC_LEAK_CHECK(func_base) {
 public:
     std::string name_;
     std::vector<expr> params_;
     stmt body_;
     sc_data_type_t ret_type_;
-    // optional attributes, nullable. In most cases, use attr() to get the
-    // attributes
-    std::unique_ptr<any_map_t> attr_;
-    // returns attr_ if is defined or creates and sets a new any_map_t if not
-    // defined
-    any_map_t &attr();
     // the function declaration. It has the same prototype of this function
     // will be non-null only when body is not empty
     func_t decl_;

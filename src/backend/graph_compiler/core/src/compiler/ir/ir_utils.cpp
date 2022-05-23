@@ -82,7 +82,14 @@ void get_direct_dependency_of_expr(
             callback(val->idx_);
             if (val->mask_.defined()) { callback(&val->mask_); }
         } break;
-        case sc_expr_type::call: callback(v.static_as<call>()->args_); break;
+        case sc_expr_type::call: {
+            auto the_call = v.static_as<call>();
+            if (auto ex
+                    = std::dynamic_pointer_cast<expr_base>(the_call->func_)) {
+                callback({expr(ex)});
+            }
+            callback(the_call->args_);
+        } break;
         case sc_expr_type::tensorptr: {
             auto val = v.static_as<tensorptr>();
             callback(&val->base_->ptr_);

@@ -528,10 +528,17 @@ void codegen_c_vis::view(tensorptr_c v) {
 }
 
 void codegen_c_vis::view(call_c v) {
+    func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
+    expr the_expr;
+    if (!the_func) {
+        the_expr = expr(std::dynamic_pointer_cast<expr_base>(v->func_));
+        assert(the_expr.defined());
+    }
     if (!v->para_attr_.empty()) {
         assert(v->args_.size() == 1);
         assert(v->para_attr_.size() == 1);
-        *os << "sc_parallel_call_cpu(" << v->func_->name_ << ", ";
+        assert(the_func);
+        *os << "sc_parallel_call_cpu(" << the_func->name_ << ", ";
         dispatch(v->para_attr_[0].begin_);
         *os << ", ";
         dispatch(v->para_attr_[0].end_);
@@ -540,9 +547,27 @@ void codegen_c_vis::view(call_c v) {
         *os << ", ";
         *os << v->args_[0] << ')';
     } else {
-        *os << v->func_->name_;
-        if (default_external_symbol_resolve(v->func_->name_)) {
-            *os << "_fptr";
+        if (the_func) {
+            *os << the_func->name_;
+            if (default_external_symbol_resolve(the_func->name_)) {
+                *os << "_fptr";
+            }
+        } else {
+            auto func = the_expr->attr().get_or_else("prototype", func_t());
+            COMPILE_ASSERT(func, "Call node expects an expr with prototype");
+            *os << '(' << '(';
+            print_type(func->ret_type_);
+            *os << "(*)(";
+            if (!func->params_.empty()) {
+                for (size_t i = 0; i < func->params_.size() - 1; i++) {
+                    print_type(func->params_[i]->dtype_);
+                    *os << ',' << ' ';
+                }
+                print_type(func->params_.back()->dtype_);
+            }
+            *os << ')' << ')';
+            dispatch(the_expr);
+            *os << ')';
         }
         *os << '(';
         if (!v->args_.empty()) {
