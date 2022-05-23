@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,30 @@
  *******************************************************************************/
 
 #include <set>
-
+#include <vector>
 #include "../fusible_op.hpp"
 #include "../graph_op.hpp"
 #include "../pass/pass.hpp"
 #include "../visitor.hpp"
 #include "transform.hpp"
+#include <unordered_map>
 
 namespace sc {
 
 static void do_inline_graph(
         sc_graph_t &full_graph, sc_op_ptr &cur_node, sc_graph_t &sub_graph) {
+    std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> *tunable_op_map;
+    sc_op_ptr corresponding_node;
+    bool need_tuning = full_graph.attrs_.has_key("op_map");
+    if (need_tuning) {
+        tunable_op_map = full_graph.attrs_.get_or_null<
+                std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>>>(
+                "op_map");
+        if (tunable_op_map->find(cur_node) != tunable_op_map->end()) {
+            corresponding_node = (*tunable_op_map)[cur_node][0];
+            (*tunable_op_map)[corresponding_node].clear();
+        }
+    }
     int cur_op_id = cur_node->logical_op_id_;
     for (auto &op : sub_graph.ops_) {
         if (op->isa<input_op>()) {
@@ -81,6 +94,9 @@ static void do_inline_graph(
             }
             op->remove();
         } else {
+            if (op->isa<op_traits::configurable_t>() && need_tuning) {
+                (*tunable_op_map)[corresponding_node].push_back(op);
+            }
             full_graph.ops_.emplace_back(op);
         }
     }

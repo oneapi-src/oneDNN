@@ -17,6 +17,7 @@
 #include "graph_config.hpp"
 #include <utility>
 #include <vector>
+#include "graph_op.hpp"
 #include "traits.hpp"
 #include "tunable_op.hpp"
 #include "util/utils.hpp"

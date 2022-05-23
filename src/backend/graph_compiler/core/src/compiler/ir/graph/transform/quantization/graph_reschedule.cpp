@@ -75,19 +75,10 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                     vis.update_state_for_visited(node);
                     return;
                 }
-                std::vector<graph_tensor_ptr> quantize_calculate_inputs
-                        = node->get_inputs();
-                std::vector<graph_tensor_ptr> quantize_calculate_outputs
-                        = {node->get_outputs()[0]->copy()};
-                quantize_calculate_outputs[0]->details_.dtype_.type_code_
+                node->get_outputs()[0]->details_.dtype_.type_code_
                         = sc_data_etype::S32;
                 may_quantize_node->is_quantized_ = true;
-                auto quantized_calculate_node
-                        = node->dyn_cast<op_traits::copyable_t>()->copy(
-                                quantize_calculate_inputs,
-                                quantize_calculate_outputs, mgr);
-                quantized_calculate_node->op_name_
-                        = "quantized_" + quantized_calculate_node->op_name_;
+                node->op_name_ = "quantized_" + node->op_name_;
                 assert(node->attrs_.has_key("data_scales")
                         && node->attrs_.has_key("weight_scales"));
                 auto data_scales
@@ -112,7 +103,7 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                 }
                 for (auto &child : node->get_outputs()[0]->uses_) {
                     auto cur_child = child;
-                    auto cur_parent = quantized_calculate_node;
+                    auto cur_parent = node;
                     while (cur_child.second
                                     ->dyn_cast<op_traits::may_quantize_t>()) {
                         cur_child.second->replace_input(
@@ -133,7 +124,6 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                             cur_child.first, dequantize_node->get_outputs()[0]);
                     vis.update_state_for_visited(dequantize_node);
                 }
-                node->remove();
             } else {
                 // align output datatype with input
                 for (auto &out : node->get_outputs()) {
