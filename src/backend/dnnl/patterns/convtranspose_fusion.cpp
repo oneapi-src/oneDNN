@@ -44,7 +44,9 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(convtranspose_fusion)
          \              /
            convtranspose
                 |
-              [bias]*                     [dequant_add]
+              [bias]*                      [dequant]*
+                |                       for Add/Multiply/Maximum/
+                |                        Minimum/Divide/Subtract
                 |                             /
         [ Abs/Clamp/Elu/GELU/HardTanh/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
@@ -93,16 +95,26 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             in_edges_t {in_edge(0, pconvtranspose, 0)},
                             "popt_bias");
 
-                    auto padd_graph
-                            = std::make_shared<pb_graph_t>("padd_graph");
-                    pm::pb_op_t *pdequant_add = padd_graph->append_op(
-                            impl::op_kind::Dequantize, "dequant_add");
-                    pm::pb_op_t *padd = padd_graph->append_op(
-                            impl::op_kind::Add,
-                            in_edges_t {in_edge(1, pdequant_add, 0)}, "padd");
-                    padd_graph->create_input_port(0, padd, 0);
-                    padd_graph->create_input_port(1, pdequant_add, 1);
-                    padd_graph->create_output_port(0, padd, 0);
+                    auto pint8_binary_graph = std::make_shared<pb_graph_t>(
+                            "pint8_binary_graph");
+                    pm::pb_op_t *pdequant_binary
+                            = pint8_binary_graph->append_op(
+                                    impl::op_kind::Dequantize, "dequant");
+                    pm::pb_op_t *pbinary
+                            = pint8_binary_graph->append_alternation(
+                                    {impl::op_kind::Add,
+                                            impl::op_kind::Multiply,
+                                            impl::op_kind::Maximum,
+                                            impl::op_kind::Minimum,
+                                            impl::op_kind::Divide,
+                                            impl::op_kind::Subtract},
+                                    in_edges_t {in_edge(1, pdequant_binary, 0)},
+                                    "pbinary");
+                    pint8_binary_graph->create_input_port(0, pbinary, 0);
+                    pint8_binary_graph->create_input_port(
+                            1, pdequant_binary, 0);
+                    pint8_binary_graph->create_output_port(0, pbinary, 0);
+
                     auto postop_graph
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
@@ -115,7 +127,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,
                                     impl::op_kind::Sqrt, impl::op_kind::Square,
-                                    impl::op_kind::Tanh,
+                                    impl::op_kind::Tanh, impl::op_kind::Add,
                                     impl::op_kind::Multiply,
                                     impl::op_kind::Maximum,
                                     impl::op_kind::Minimum,
@@ -129,7 +141,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto prep_graph
                             = std::make_shared<pb_graph_t>("prep_graph");
                     auto palt = prep_graph->append_alternation(
-                            {padd_graph, postop_graph}, "palternation");
+                            {pint8_binary_graph, postop_graph}, "palternation");
                     prep_graph->create_input_port(0, palt, 0);
                     prep_graph->create_input_port(1, palt, 1);
                     prep_graph->create_output_port(0, palt, 0);

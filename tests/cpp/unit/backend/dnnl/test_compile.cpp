@@ -12508,6 +12508,227 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
     }
 }
 
+TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dMultiply) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<size_t> nds = {1, 2, 3};
+    std::vector<int64_t> groups = {1, 4};
+    std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
+    std::vector<std::string> src_qtypes = {"symmetric", "asymmetric"};
+    std::vector<std::string> other_qtypes = {"symmetric", "asymmetric"};
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+
+    for_(const auto &nd : nds)
+    for_(const auto &g : groups)
+    for_(const auto &src_qtype : src_qtypes)
+    for_(const auto &other_qtype : other_qtypes)
+    for (const auto &wei_qtype : weight_qtypes) {
+        if (((isa < dnnl_cpu_isa_avx512_core_vnni
+                     && engine.kind() == impl::engine_kind::cpu)
+                    || engine.kind() == impl::engine_kind::gpu)
+                && src_qtype == "asymmetric")
+            continue;
+
+        // prepare data
+        int64_t in_channel = 8, out_channel = 8;
+        int64_t kernel_size = 3;
+        std::vector<int64_t> src_shape = nd == 1
+                ? std::vector<int64_t> {1, in_channel, 12}
+                : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
+                          : std::vector<int64_t> {1, in_channel, 12, 12, 12};
+        std::vector<int64_t> weight_shape = nd == 1
+                ? std::vector<int64_t> {out_channel / g, in_channel,
+                        kernel_size}
+                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                          kernel_size, kernel_size}
+                          : std::vector<int64_t> {out_channel / g, in_channel,
+                                  kernel_size, kernel_size, kernel_size};
+        std::vector<int64_t> bias_shape {out_channel};
+        std::vector<int64_t> dst_shape = nd == 1
+                ? std::vector<int64_t> {1, out_channel, 14}
+                : nd == 2 ? std::vector<int64_t> {1, out_channel, 14, 14}
+                          : std::vector<int64_t> {1, out_channel, 14, 14, 14};
+        std::vector<int64_t> other_shape {1, 1, 1};
+
+        test::vector<uint8_t> src_u8_data(product(src_shape));
+        test::vector<int8_t> weight_s8_data(product(weight_shape));
+        test::vector<int8_t> other_s8_data(product(other_shape));
+        test::vector<float> bias_data(product(bias_shape));
+        test::vector<int8_t> case1_out_data(product(dst_shape));
+        test::vector<int8_t> case2_out_data(product(dst_shape));
+
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 25.0f);
+        std::uniform_real_distribution<float> s8_distribution(-1.0f, 25.0f);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+        std::generate(weight_s8_data.begin(), weight_s8_data.end(), [&]() {
+            return static_cast<int8_t>(s8_distribution(generator));
+        });
+        std::generate(other_s8_data.begin(), other_s8_data.end(), [&]() {
+            return static_cast<int8_t>(s8_distribution(generator));
+        });
+
+        std::generate(bias_data.begin(), bias_data.end(),
+                [&]() { return f32_distribution(generator); });
+
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support int deconv with oscales: "./tests/benchdnn/benchdnn --deconv
+        // --engine=gpu --mode=c --api=P --dir=FWD_B --cfg=u8s8s8 --stag=acdb
+        // --wtag=ABcd2b8a4b --dtag=acdb --attr-oscale=common:0.000031
+        // mb1_ic8oc8_ih12oh14kh3sh1dh0ph0_iw12ow14kw3sw1dw0pw0"
+        float scale_src = engine.kind() == impl::engine_kind::gpu
+                ? 1.f
+                : 1 / 255.f; // map to 0~255
+        float scale_other = 1 / 127.f;
+        float scale_out = 1;
+        int64_t zp_src = src_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : -4;
+        int64_t zp_other = other_qtype == "symmetric"
+                        || engine.kind() == impl::engine_kind::gpu
+                ? 0
+                : -4;
+        // The following cmd will be skiped by benchdnn, since oneDNN didn't
+        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
+        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
+        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
+
+        size_t scale_size = wei_qtype == "per_tensor" ? 1 : (out_channel / g);
+        std::vector<float> scale_wei(scale_size,
+                engine.kind() == impl::engine_kind::gpu ? 1.f : 1 / 127.f);
+        std::vector<int64_t> zp_wei(scale_size, 0);
+
+        impl::op_t dqdata_node(0, impl::op_kind::Dequantize, "dqdata_node");
+        SET_Q_DQ_DATA_ATTR(dqdata_node)
+
+        impl::op_t dqweight_node(1, impl::op_kind::Dequantize, "dqweight_node");
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+
+        impl::op_t convtranspose_node(
+                2, impl::op_kind::ConvTranspose, "convtranspose_node");
+        SET_CONV_ATTR(convtranspose_node, nd)
+
+        impl::op_t dqother_node(3, impl::op_kind::Dequantize, "dqother_node");
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+        impl::op_t binary_node(4, impl::op_kind::Multiply, "binary_node");
+
+        impl::op_t qout_node(5, impl::op_kind::Quantize, "qout_node");
+        SET_Q_DQ_OUT_ATTR(qout_node)
+
+        auto src_u8
+                = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
+        auto src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, impl::data_type::f32);
+        auto weight_s8 = utils::logical_tensor_init(
+                2, weight_shape, impl::data_type::s8);
+        auto weight_f32_dq = utils::logical_tensor_init(
+                3, weight_shape, impl::data_type::f32);
+        auto dst_f32 = utils::logical_tensor_init(
+                5, dst_shape, impl::data_type::f32);
+        auto other_s8 = utils::logical_tensor_init(
+                6, other_shape, impl::data_type::s8);
+        auto other_f32_dq = utils::logical_tensor_init(
+                7, other_shape, impl::data_type::f32);
+        auto dst_add_f32 = utils::logical_tensor_init(
+                8, dst_shape, impl::data_type::f32);
+        auto dst_s8
+                = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
+        impl::logical_tensor_t bias_f32 = utils::logical_tensor_init(
+                4, bias_shape, impl::data_type::f32);
+
+        dqdata_node.add_input(src_u8);
+        dqdata_node.add_output(src_f32_dq);
+
+        dqweight_node.add_input(weight_s8);
+        dqweight_node.add_output(weight_f32_dq);
+
+        convtranspose_node.add_input(src_f32_dq);
+        convtranspose_node.add_input(weight_f32_dq);
+        convtranspose_node.add_input(bias_f32);
+        convtranspose_node.add_output(dst_f32);
+
+        dqother_node.add_input(other_s8);
+        dqother_node.add_output(other_f32_dq);
+
+        binary_node.add_input(dst_f32);
+        binary_node.add_input(other_f32_dq);
+        binary_node.add_output(dst_add_f32);
+
+        qout_node.add_input(dst_add_f32);
+        qout_node.add_output(dst_s8);
+
+        impl::graph_t graph(engine.kind());
+        graph.add_op(&dqdata_node);
+        graph.add_op(&dqweight_node);
+        graph.add_op(&convtranspose_node);
+        graph.add_op(&dqother_node);
+        graph.add_op(&binary_node);
+        graph.add_op(&qout_node);
+        graph.build_graph();
+
+        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
+        impl::tensor_t other_s8_ts(other_s8, &engine, other_s8_data.data());
+        impl::tensor_t bias_f32_ts
+                = impl::tensor_t(bias_f32, &engine, bias_data.data());
+
+        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
+        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
+
+        // -------------------------case 1----------------------------------
+        ASSERT_EQ(run_graph(graph,
+                          {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
+                          {dst_s8_ts}, engine, strm),
+                impl::status::success);
+
+        // -------------------------case 2----------------------------------
+        impl::pass::pass_base_ptr apass
+                = get_pass("int8_convtranspose_post_ops_fusion");
+        ASSERT_TRUE(apass != nullptr);
+        apass->run(graph);
+        ASSERT_EQ(graph.get_num_partitions(), 1);
+        auto part = graph.get_partitions()[0];
+
+        // compile
+        impl::partition_t p;
+        p.init(part);
+
+        impl::compiled_partition_t cp(p);
+
+        std::vector<const impl::logical_tensor_t *> lt_ins {
+                &src_u8, &weight_s8, &bias_f32, &other_s8};
+        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
+
+        p.compile(&cp, lt_ins, lt_outs, &engine);
+
+        cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
+                {dst_s8_case2_ts});
+        strm.wait();
+
+        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
+    }
+}
+
 TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
     using dims = impl::dnnl_impl::dims;
 

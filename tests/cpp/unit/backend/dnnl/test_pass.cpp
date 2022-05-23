@@ -8562,7 +8562,7 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
 }
 
-TEST(PassSystem, FuseToInt8MatmulBiasAdd) {
+TEST(PassSystem, FuseToInt8MatmulBiasBinary) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -8572,90 +8572,97 @@ TEST(PassSystem, FuseToInt8MatmulBiasAdd) {
              |     | (s8)
              |   dequant
              |  / (f32)
-            add
+            binary
              | (f32)
            quant
              | (u8/s8)
     */
-    graph_t agraph;
-    std::vector<int64_t> zps {0, 1};
-    std::vector<float> scales {3.1f, 3.1f};
-    op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr(op_attr::scales, scales);
-    dequant1.set_attr(op_attr::zps, zps);
-    op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr(op_attr::scales, scales);
-    dequant2.set_attr(op_attr::zps, zps);
-    op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr(op_attr::scales, scales);
-    dequant3.set_attr(op_attr::zps, zps);
-    op_t matmul {3, MatMul, "matmul"};
-    matmul.set_attr<bool>(op_attr::transpose_a, false);
-    matmul.set_attr<bool>(op_attr::transpose_b, false);
-    op_t add {4, Add, "add"};
-    op_t quant {5, Quantize, "quant"};
-    quant.set_attr(op_attr::scales, scales);
-    quant.set_attr(op_attr::zps, zps);
+    std::vector<op_kind_t> binary_kinds
+            = {Add, Multiply, impl::op_kind::Maximum, impl::op_kind::Minimum,
+                    impl::op_kind::Divide, impl::op_kind::Subtract};
+    for (const auto &binary_kind : binary_kinds) {
+        graph_t agraph;
+        std::vector<int64_t> zps {0, 1};
+        std::vector<float> scales {3.1f, 3.1f};
+        op_t dequant1 {0, Dequantize, "dequant"};
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
+        op_t dequant2 {1, Dequantize, "dequant"};
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
+        op_t dequant3 {2, Dequantize, "dequant"};
+        dequant3.set_attr(op_attr::scales, scales);
+        dequant3.set_attr(op_attr::zps, zps);
+        op_t matmul {3, MatMul, "matmul"};
+        matmul.set_attr<bool>(op_attr::transpose_a, false);
+        matmul.set_attr<bool>(op_attr::transpose_b, false);
+        op_t binary {4, binary_kind, "binary"};
+        op_t quant {5, Quantize, "quant"};
+        quant.set_attr(op_attr::scales, scales);
+        quant.set_attr(op_attr::zps, zps);
 
-    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
-    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
-    dequant1.add_input(int8_data);
-    dequant1.add_output(fp32_data);
+        logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+        logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+        dequant1.add_input(int8_data);
+        dequant1.add_output(fp32_data);
 
-    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
-    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
-    dequant2.add_input(s8_weight);
-    dequant2.add_output(fp32_weight);
+        logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+        logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+        dequant2.add_input(s8_weight);
+        dequant2.add_output(fp32_weight);
 
-    logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
-    logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
-    dequant3.add_input(int8_other);
-    dequant3.add_output(fp32_other);
+        logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
+        logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
+        dequant3.add_input(int8_other);
+        dequant3.add_output(fp32_other);
 
-    logical_tensor_t fp32_bias = logical_tensor_init(6, data_type::f32);
-    logical_tensor_t fp32_matmul_out = logical_tensor_init(7, data_type::f32);
-    matmul.add_input(fp32_data);
-    matmul.add_input(fp32_weight);
-    matmul.add_input(fp32_bias);
-    matmul.add_output(fp32_matmul_out);
+        logical_tensor_t fp32_bias = logical_tensor_init(6, data_type::f32);
+        logical_tensor_t fp32_matmul_out
+                = logical_tensor_init(7, data_type::f32);
+        matmul.add_input(fp32_data);
+        matmul.add_input(fp32_weight);
+        matmul.add_input(fp32_bias);
+        matmul.add_output(fp32_matmul_out);
 
-    logical_tensor_t fp32_add_out = logical_tensor_init(8, data_type::f32);
-    add.add_input(fp32_matmul_out);
-    add.add_input(fp32_other);
-    add.add_output(fp32_add_out);
+        logical_tensor_t fp32_binary_out
+                = logical_tensor_init(8, data_type::f32);
+        binary.add_input(fp32_matmul_out);
+        binary.add_input(fp32_other);
+        binary.add_output(fp32_binary_out);
 
-    logical_tensor_t int8_out = logical_tensor_init(9, data_type::u8);
-    quant.add_input(fp32_add_out);
-    quant.add_output(int8_out);
+        logical_tensor_t int8_out = logical_tensor_init(9, data_type::u8);
+        quant.add_input(fp32_binary_out);
+        quant.add_output(int8_out);
 
-    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
-    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
-    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
-    ASSERT_EQ(agraph.add_op(&matmul), status::success);
-    ASSERT_EQ(agraph.add_op(&add), status::success);
-    ASSERT_EQ(agraph.add_op(&quant), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+        ASSERT_EQ(agraph.add_op(&matmul), status::success);
+        ASSERT_EQ(agraph.add_op(&binary), status::success);
+        ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.build_graph();
+        agraph.build_graph();
 
-    auto &backend_ptr
-            = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = dnnl::graph::impl::pass::pass_manager_t(
-            backend_ptr.get_pass_registry());
+        auto &backend_ptr
+                = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = dnnl::graph::impl::pass::pass_manager_t(
+                backend_ptr.get_pass_registry());
 
-    pm.run_passes(agraph, "no_config");
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
+        pm.run_passes(agraph, "no_config");
+        ASSERT_EQ(agraph.get_num_partitions(), 1);
 
-    ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-            dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 6);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4);
+        ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+                dnnl_impl::op_kind::int8_matmul_post_ops_fusion);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 6);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4);
 
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9);
+    }
 }
 
 TEST(PassSystem, FuseReluAdd) {
