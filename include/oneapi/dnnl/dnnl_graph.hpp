@@ -1080,15 +1080,23 @@ public:
     /// Sets the attribute according to the name and type (int64_t)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute's name
+    /// @param name Attribute
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, int64_t>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
-        constexpr auto kind = attr_kind<Type>();
-        error::check_succeed(
-                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &value, 0),
+        dnnl_graph_op_attr_t attr = convert_to_c(str2attr(name));
+        error::check_succeed(dnnl_graph_op_set_attr_s64(get(), attr, &value, 0),
+                "could not set attribute to the op");
+        return *this;
+    }
+
+    template <typename Type,
+            requires<std::is_same<Type, int64_t>::value> = true>
+    op &set_attr(attr name, const Type &value) {
+        dnnl_graph_op_attr_t attr = convert_to_c(name);
+        error::check_succeed(dnnl_graph_op_set_attr_s64(get(), attr, &value, 0),
                 "could not set attribute to the op");
         return *this;
     }
@@ -1096,14 +1104,21 @@ public:
     /// Sets the attribute according to the name and type (float)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute's name
+    /// @param name Attribute
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type, requires<std::is_same<Type, float>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
-        constexpr auto kind = attr_kind<Type>();
-        error::check_succeed(
-                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &value, 0),
+        dnnl_graph_op_attr_t attr = convert_to_c(str2attr(name));
+        error::check_succeed(dnnl_graph_op_set_attr_f32(get(), attr, &value, 0),
+                "could not set attribute to the op");
+        return *this;
+    }
+
+    template <typename Type, requires<std::is_same<Type, float>::value> = true>
+    op &set_attr(attr name, const Type &value) {
+        dnnl_graph_op_attr_t attr = convert_to_c(name);
+        error::check_succeed(dnnl_graph_op_set_attr_f32(get(), attr, &value, 0),
                 "could not set attribute to the op");
         return *this;
     }
@@ -1111,14 +1126,23 @@ public:
     /// Sets the attribute according to the name and type (bool)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute's name
+    /// @param name Attribute
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type, requires<std::is_same<Type, bool>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
-        constexpr auto kind = attr_kind<Type>();
-        error::check_succeed(
-                dnnl_graph_op_add_attr(get(), name.c_str(), kind, &value, 0),
+        dnnl_graph_op_attr_t attr = convert_to_c(str2attr(name));
+        const uint8_t val = value;
+        error::check_succeed(dnnl_graph_op_set_attr_bool(get(), attr, &val, 0),
+                "could not set attribute to the op");
+        return *this;
+    }
+
+    template <typename Type, requires<std::is_same<Type, bool>::value> = true>
+    op &set_attr(attr name, const Type &value) {
+        dnnl_graph_op_attr_t attr = convert_to_c(name);
+        const uint8_t val = value;
+        error::check_succeed(dnnl_graph_op_set_attr_bool(get(), attr, &val, 0),
                 "could not set attribute to the op");
         return *this;
     }
@@ -1126,15 +1150,25 @@ public:
     /// Sets the attribute according to the name and type (string)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute's name
+    /// @param name Attribute
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::string>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
-        constexpr auto kind = attr_kind<Type>();
-        error::check_succeed(dnnl_graph_op_add_attr(get(), name.c_str(), kind,
-                                     value.c_str(), 0),
+        dnnl_graph_op_attr_t attr = convert_to_c(str2attr(name));
+        error::check_succeed(dnnl_graph_op_set_attr_str(
+                                     get(), attr, value.c_str(), value.size()),
+                "could not set attribute to the op");
+        return *this;
+    }
+
+    template <typename Type,
+            requires<std::is_same<Type, std::string>::value> = true>
+    op &set_attr(attr name, const Type &value) {
+        dnnl_graph_op_attr_t attr = convert_to_c(name);
+        error::check_succeed(dnnl_graph_op_set_attr_str(
+                                     get(), attr, value.c_str(), value.size()),
                 "could not set attribute to the op");
         return *this;
     }
@@ -1143,15 +1177,25 @@ public:
     /// (std::vector<int64_t>)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute's name
+    /// @param name Attribute
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
-        constexpr auto kind = attr_kind<Type>();
-        error::check_succeed(dnnl_graph_op_add_attr(get(), name.c_str(), kind,
-                                     value.data(), value.size()),
+        dnnl_graph_op_attr_t attr = convert_to_c(str2attr(name));
+        error::check_succeed(dnnl_graph_op_set_attr_s64(
+                                     get(), attr, value.data(), value.size()),
+                "could not set attribute to the op");
+        return *this;
+    }
+
+    template <typename Type,
+            requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
+    op &set_attr(attr name, const Type &value) {
+        dnnl_graph_op_attr_t attr = convert_to_c(name);
+        error::check_succeed(dnnl_graph_op_set_attr_s64(
+                                     get(), attr, value.data(), value.size()),
                 "could not set attribute to the op");
         return *this;
     }
@@ -1160,15 +1204,25 @@ public:
     /// (std::vector<float>)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute's name
+    /// @param name Attribute
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::vector<float>>::value> = true>
     op &set_attr(const std::string &name, const Type &value) {
-        constexpr auto kind = attr_kind<Type>();
-        error::check_succeed(dnnl_graph_op_add_attr(get(), name.c_str(), kind,
-                                     value.data(), value.size()),
+        dnnl_graph_op_attr_t attr = convert_to_c(str2attr(name));
+        error::check_succeed(dnnl_graph_op_set_attr_f32(
+                                     get(), attr, value.data(), value.size()),
+                "could not set attribute to the op");
+        return *this;
+    }
+
+    template <typename Type,
+            requires<std::is_same<Type, std::vector<float>>::value> = true>
+    op &set_attr(attr name, const Type &value) {
+        dnnl_graph_op_attr_t attr = convert_to_c(name);
+        error::check_succeed(dnnl_graph_op_set_attr_f32(
+                                     get(), attr, value.data(), value.size()),
                 "could not set attribute to the op");
         return *this;
     }
@@ -1176,6 +1230,10 @@ public:
 private:
     dnnl_graph_op_kind_t convert_to_c(kind akind) {
         return static_cast<dnnl_graph_op_kind_t>(akind);
+    }
+
+    dnnl_graph_op_attr_t convert_to_c(attr aattr) {
+        return static_cast<dnnl_graph_op_attr_t>(aattr);
     }
 
     template <typename Type,
@@ -1210,6 +1268,57 @@ private:
     template <typename Attr, requires<std::is_same<Attr, bool>::value> = true>
     constexpr static dnnl_graph_attribute_kind_t attr_kind() noexcept {
         return dnnl_graph_attribute_kind_b;
+    }
+
+    attr str2attr(const std::string &name) {
+#define IF_HANDLE(x) \
+    if (name == #x) return attr::x
+
+        IF_HANDLE(alpha);
+        IF_HANDLE(beta);
+        IF_HANDLE(epsilon);
+        IF_HANDLE(max);
+        IF_HANDLE(min);
+        IF_HANDLE(momentum);
+        IF_HANDLE(scales);
+        IF_HANDLE(axis);
+        IF_HANDLE(begin_norm_axis);
+        IF_HANDLE(groups);
+        IF_HANDLE(axes);
+        IF_HANDLE(dilations);
+        IF_HANDLE(filter_shape);
+        IF_HANDLE(input_shape);
+        IF_HANDLE(kernel);
+        IF_HANDLE(order);
+        IF_HANDLE(output_padding);
+        IF_HANDLE(output_shape);
+        IF_HANDLE(pads_begin);
+        IF_HANDLE(pads_end);
+        IF_HANDLE(shape);
+        IF_HANDLE(sizes);
+        IF_HANDLE(strides);
+        IF_HANDLE(zps);
+        IF_HANDLE(exclude_pad);
+        IF_HANDLE(keep_dims);
+        IF_HANDLE(keep_stats);
+        IF_HANDLE(per_channel_broadcast);
+        IF_HANDLE(special_zero);
+        IF_HANDLE(transpose_a);
+        IF_HANDLE(transpose_b);
+        IF_HANDLE(use_affine);
+        IF_HANDLE(use_dst);
+        IF_HANDLE(auto_broadcast);
+        IF_HANDLE(auto_pad);
+        IF_HANDLE(coordinate_transformation_mode);
+        IF_HANDLE(data_format);
+        IF_HANDLE(filter_format);
+        IF_HANDLE(mode);
+        IF_HANDLE(qtype);
+        IF_HANDLE(rounding_type);
+
+#undef IF_HANDLE
+
+        return attr::undef;
     }
 };
 

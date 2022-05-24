@@ -253,8 +253,21 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_add_output(
 /// @param value_len The length of the value
 /// @returns #dnnl_graph_success on success and a status describing the
 ///     error otherwise.
-dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_add_attr(dnnl_graph_op_t op,
-        const char *name, dnnl_graph_attribute_kind_t kind, const void *value,
+
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_f32(
+        dnnl_graph_op_t op, dnnl_graph_op_attr_t name, const float *value,
+        size_t value_len);
+
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_bool(
+        dnnl_graph_op_t op, dnnl_graph_op_attr_t name, const uint8_t *value,
+        size_t value_len);
+
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_s64(
+        dnnl_graph_op_t op, dnnl_graph_op_attr_t name, const int64_t *value,
+        size_t value_len);
+
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_str(
+        dnnl_graph_op_t op, dnnl_graph_op_attr_t name, const char *value,
         size_t value_len);
 
 /// Returns the unique id of the Op

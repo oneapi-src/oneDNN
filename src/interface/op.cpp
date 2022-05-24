@@ -52,34 +52,55 @@ status_t DNNL_GRAPH_API dnnl_graph_op_add_output(
     return status::success;
 }
 
-status_t DNNL_GRAPH_API dnnl_graph_op_add_attr(op_t *op, const char *name,
-        attribute_kind_t kind, const void *value, size_t value_len) {
-    switch (kind) {
-        case attribute_kind::i:
-            op->set_attr(name, *static_cast<const int64_t *>(value));
-            break;
-        case attribute_kind::is: {
-            const auto beg = static_cast<const int64_t *>(value);
-            op->set_attr(name,
-                    std::vector<int64_t> {beg, std::next(beg, value_len)});
-        } break;
-        case attribute_kind::f:
-            op->set_attr(name, *static_cast<const float *>(value));
-            break;
-        case attribute_kind::fs: {
-            const auto beg = static_cast<const float *>(value);
-            op->set_attr(
-                    name, std::vector<float> {beg, std::next(beg, value_len)});
-        } break;
-        case attribute_kind::s: {
-            const auto beg = static_cast<const char *>(value);
-            op->set_attr(name, std::string(beg));
-        } break;
-        case attribute_kind::b:
-            op->set_attr(name, *static_cast<const bool *>(value));
-            break;
-        default: return status::unimplemented;
+status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_f32(op_t *op,
+        dnnl_graph_op_attr_t name, const float *value, size_t value_len) {
+    if (utils::any_null(op, value)) return status::invalid_arguments;
+
+    // value_len = 0 means a single float value, while value_len = 1 means a
+    // float vector with size = 1.
+    if (value_len == 0) {
+        op->set_attr(name, *value);
+    } else {
+        std::vector<float> val(value, value + value_len);
+        op->set_attr(name, val);
     }
+
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_bool(op_t *op,
+        dnnl_graph_op_attr_t name, const uint8_t *value, size_t value_len) {
+    if (utils::any_null(op, value)) return status::invalid_arguments;
+    if (value_len != 0) return status::invalid_arguments;
+
+    op->set_attr(name, *reinterpret_cast<const bool *>(value));
+
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_s64(op_t *op,
+        dnnl_graph_op_attr_t name, const int64_t *value, size_t value_len) {
+    if (utils::any_null(op, value)) return status::invalid_arguments;
+
+    // value_len = 0 means a single integer value, while value_len = 1 means a
+    // integer vector with size = 1.
+    if (value_len == 0) {
+        op->set_attr(name, *value);
+    } else {
+        std::vector<int64_t> val(value, value + value_len);
+        op->set_attr(name, val);
+    }
+
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_str(op_t *op,
+        dnnl_graph_op_attr_t name, const char *value, size_t value_len) {
+    if (utils::any_null(op, value)) return status::invalid_arguments;
+    if (value_len == 0) return status::invalid_arguments;
+
+    op->set_attr(name, std::string(value));
+
     return status::success;
 }
 

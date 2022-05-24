@@ -69,6 +69,7 @@ class partition_impl_t;
 struct dnnl_graph_op : public std::enable_shared_from_this<dnnl_graph_op> {
 public:
     using op_kind_t = dnnl::graph::impl::op_kind_t;
+    using op_attr_t = dnnl::graph::impl::op_attr_t;
     using logical_tensor_t = dnnl::graph::impl::logical_tensor_t;
     using attribute_kind_t = dnnl::graph::impl::attribute_kind_t;
     using status_t = dnnl::graph::impl::status_t;
@@ -216,6 +217,12 @@ public:
         return *this;
     }
 
+    template <typename Attr>
+    dnnl_graph_op &set_attr(op_attr_t name, const Attr &a) {
+        std::string str = attr2str(name);
+        return set_attr(str, a);
+    }
+
     dnnl_graph_op &set_attr(
             const std::string &name, const attribute_value_t &a) {
         auto it = attributes_.find(name);
@@ -225,6 +232,11 @@ public:
             attributes_.insert({name, a});
         }
         return *this;
+    }
+
+    dnnl_graph_op &set_attr(op_attr_t name, const attribute_value_t &a) {
+        std::string str = attr2str(name);
+        return set_attr(str, a);
     }
 
     template <typename value_type>
@@ -280,6 +292,58 @@ public:
                             ? true
                             : is_same_attr_value(op_b, attr.first);
                 });
+    }
+
+    static std::string attr2str(op_attr_t attr) {
+        using namespace dnnl::graph::impl::op_attr;
+#define CASE(a) \
+    case (a): return #a
+
+        switch (attr) {
+            CASE(alpha);
+            CASE(beta);
+            CASE(epsilon);
+            CASE(max);
+            CASE(min);
+            CASE(momentum);
+            CASE(scales);
+            CASE(axis);
+            CASE(begin_norm_axis);
+            CASE(groups);
+            CASE(axes);
+            CASE(dilations);
+            CASE(filter_shape);
+            CASE(input_shape);
+            CASE(kernel);
+            CASE(order);
+            CASE(output_padding);
+            CASE(output_shape);
+            CASE(pads_begin);
+            CASE(pads_end);
+            CASE(shape);
+            CASE(sizes);
+            CASE(strides);
+            CASE(zps);
+            CASE(exclude_pad);
+            CASE(keep_dims);
+            CASE(keep_stats);
+            CASE(per_channel_broadcast);
+            CASE(special_zero);
+            CASE(transpose_a);
+            CASE(transpose_b);
+            CASE(use_affine);
+            CASE(use_dst);
+            CASE(auto_broadcast);
+            CASE(auto_pad);
+            CASE(coordinate_transformation_mode);
+            CASE(data_format);
+            CASE(filter_format);
+            CASE(mode);
+            CASE(qtype);
+            CASE(rounding_type);
+            default: return "undefined_attr";
+        }
+#undef CASE
     }
 
     static std::string kind2str(op_kind_t kind) {
