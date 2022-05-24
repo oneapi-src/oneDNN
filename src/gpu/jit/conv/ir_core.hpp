@@ -29,6 +29,10 @@
 #include "gpu/jit/conv/ngen_proxy.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
+#ifndef NDEBUG
+#define SANITY_CHECK 1
+#endif
+
 // All IR expression objects.
 #define HANDLE_EXPR_IR_OBJECTS() \
     HANDLE_IR_OBJECT(binary_op_t) \
@@ -599,7 +603,7 @@ class object_t {
 public:
     object_t(object_impl_t *impl = nullptr) : impl_(impl) {
         increment(impl_);
-#ifndef NDEBUG
+#ifdef SANITY_CHECK
         sanity_check();
 #endif
     }
@@ -610,18 +614,22 @@ public:
     object_t(const object_t &obj) : object_t(obj.impl()) {}
     object_t(object_t &&obj) : impl_(obj.impl_) {
         obj.impl_ = nullptr;
-#ifndef NDEBUG
+#ifdef SANITY_CHECK
         sanity_check();
 #endif
     }
 
+#ifdef SANITY_CHECK
     virtual ~object_t() { decrement_and_maybe_destroy(impl_); }
+#else
+    ~object_t() { decrement_and_maybe_destroy(impl_); }
+#endif
 
     object_t &operator=(const object_t &other) {
         increment(other.impl());
         decrement_and_maybe_destroy(impl_);
         impl_ = other.impl();
-#ifndef NDEBUG
+#ifdef SANITY_CHECK
         sanity_check();
 #endif
         return *this;
@@ -629,7 +637,7 @@ public:
 
     object_t &operator=(object_t &&other) {
         std::swap(impl_, other.impl_);
-#ifndef NDEBUG
+#ifdef SANITY_CHECK
         sanity_check();
 #endif
         return *this;
@@ -700,7 +708,9 @@ public:
     IR_DEFINE_DUMP()
 
 protected:
+#ifdef SANITY_CHECK
     virtual void sanity_check() const {}
+#endif
 
 private:
     static void increment(object_impl_t *impl) {
@@ -887,10 +897,12 @@ public:
     expr_t operator[](const expr_t &off) const;
 
 private:
+#ifdef SANITY_CHECK
     void sanity_check() const override {
         ir_assert(dynamic_cast<const expr_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
+#endif
 };
 
 // Helper functions.
@@ -1675,10 +1687,12 @@ public:
     stmt_t append(const stmt_t &s) const;
 
 private:
+#ifdef SANITY_CHECK
     void sanity_check() const override {
         ir_assert(dynamic_cast<const stmt_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
+#endif
 };
 
 enum class alloc_kind_t {
@@ -1707,10 +1721,12 @@ public:
     }
 
 private:
+#ifdef SANITY_CHECK
     void sanity_check() const override {
         ir_assert(dynamic_cast<const alloc_attr_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
+#endif
 };
 
 class grf_permutation_t;
@@ -2212,10 +2228,12 @@ public:
     stmt_t apply_to(const stmt_t &s) const;
 
 private:
+#ifdef SANITY_CHECK
     void sanity_check() const override {
         ir_assert(dynamic_cast<const func_call_attr_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
+#endif
 };
 
 // Instruction modifier, relies on nGEN API.
@@ -2294,10 +2312,12 @@ public:
     }
 
 private:
+#ifdef SANITY_CHECK
     void sanity_check() const override {
         ir_assert(dynamic_cast<const func_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
+#endif
 };
 
 // Function call.
@@ -2380,6 +2400,14 @@ public:
 private:
     builtin_t(const std::string &name) : name(name) {}
 };
+
+#ifndef SANITY_CHECK
+// The following types are intrusive pointers and, as such, should have the same
+// size as a pointer.
+static_assert(sizeof(object_t) <= sizeof(void *));
+static_assert(sizeof(expr_t) <= sizeof(void *));
+static_assert(sizeof(stmt_t) <= sizeof(void *));
+#endif
 
 } // namespace jit
 } // namespace gpu
