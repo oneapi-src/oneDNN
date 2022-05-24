@@ -814,10 +814,10 @@ enum class CoopSplit {
 struct GEMMStrategy : public CommonStrategy {
     int blocking[3] = {
             0}; // Recommended block size in each dimension (m/n/k) -- for driver.
-    int blockingAlt[3]
-            = {0}; // Alternate block size in each dimension (m/n/k) -- for driver.
-            //     m/n alternates are for Hilbert-ordered kernels when Hilbert ordering disabled.
-            //     k alternate is for multi-tile execution with implicit scaling.
+    int blockingAlt[3] = {
+            0}; // Alternate block size in each dimension (m/n/k) -- for driver.
+    //     m/n alternates are for Hilbert-ordered kernels when Hilbert ordering disabled.
+    //     k alternate is for multi-tile execution with implicit scaling.
     int unroll[3]; // Unrolls in each dimension (m/n/k), indexed by LoopType.
     int unrollK_masked = 0; // k unroll to use when masking.
     LoopType loopOrder[3] = {LoopM, LoopN,

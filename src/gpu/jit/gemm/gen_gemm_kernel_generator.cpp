@@ -14440,7 +14440,7 @@ void gemm_kernel_generator_t<hw>::gemmBoustrophedonOrder(
 
     auto s0 = state.inputs
                       .bslice; // Slice width/height in WGs. Sign interpretation:
-            //   + means slice in m dimension, - means n dimension
+    //   + means slice in m dimension, - means n dimension
     auto thresh = state.inputs.bthresh; // Slice size adjustment threshold
             //   + means increase slice size by 1 starting with this row/column
             //   - means decrease slice size by 1 starting with this row/column

@@ -40,8 +40,7 @@ double evaluateW(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     static constexpr double maxPriority = 10000.;
     double priority = e.model.params[kcatalog::ParamWPriority];
 
-    if (priority > maxPriority)
-        /* no op */
+    if (priority > maxPriority) /* no op */
         ; // Don't adjust very high values -- these are last resort kernels (lowest priority)
     else if (e.driverInfo.kParallel) {
         int wgCountK = std::max(1, int(dp.hwThreadCapacity / dp.threadCount));
