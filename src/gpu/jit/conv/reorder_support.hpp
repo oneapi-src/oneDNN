@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -108,6 +108,14 @@ private:
     reorder_t(const layout_t &src_layout, const layout_t &dst_layout)
         : src_layout(src_layout), dst_layout(dst_layout) {}
 };
+
+inline stmt_t create_reorder_stmt(const layout_t &src, const layout_t &dst,
+        const expr_t &src_buf, const expr_t &dst_buf) {
+    ir_assert(src.ndims() == dst.ndims()) << "Layouts are incompatible.";
+    ir_assert(src.elems() == dst.elems()) << "Layouts are incompatible.";
+    auto func = reorder_t::make(src, dst);
+    return func.call({dst_buf, src_buf});
+}
 
 } // namespace jit
 } // namespace gpu

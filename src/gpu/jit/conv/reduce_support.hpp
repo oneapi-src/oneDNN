@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,11 @@
 
 #ifndef GPU_JIT_CONV_REDUCE_SUPPORT_HPP
 #define GPU_JIT_CONV_REDUCE_SUPPORT_HPP
+
+#include "gpu/jit/conv/tensor.hpp"
+
+#include <sstream>
+#include <string>
 
 namespace dnnl {
 namespace impl {
@@ -59,6 +64,11 @@ private:
     reduce_t(const layout_t &src_layout, const layout_t &dst_layout)
         : src_layout(src_layout), dst_layout(dst_layout) {}
 };
+
+stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
+        const expr_t &src_buf, const expr_t &dst_buf, const tensor_t &_sub_tile,
+        uint32_t reduction_mask, bool drop_dims = true);
+
 } // namespace jit
 } // namespace gpu
 } // namespace impl
