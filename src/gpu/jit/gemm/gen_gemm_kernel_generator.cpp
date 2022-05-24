@@ -11263,7 +11263,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
             if (strategy.splitBarrier)
                 kLoopBarrier(false, KBarrierType::Signal);
         }
-        sync.nop(SWSB(Pipe::A, 1));
+        if (hw >= HW::Gen12LP) sync.nop(SWSB(Pipe::A, 1));
         jmpi(1 | state.flagAP, lBottom);
         mark(lTop);
         state.wipeActiveVFlags();
