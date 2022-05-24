@@ -97,6 +97,19 @@ int device_info_t::max_eus_per_wg(gpu_arch_t gpu_arch) {
     return 8;
 }
 
+int device_info_t::max_subgroup_size(gpu_arch_t gpu_arch) {
+    switch (gpu_arch) {
+        case gpu::compute::gpu_arch_t::gen9: return 16;
+        case gpu::compute::gpu_arch_t::gen11:
+        case gpu::compute::gpu_arch_t::xe_hpc: return 32;
+        case gpu::compute::gpu_arch_t::xe_lp:
+        case gpu::compute::gpu_arch_t::xe_hp:
+        case gpu::compute::gpu_arch_t::xe_hpg:
+        case gpu::compute::gpu_arch_t::unknown: return 16;
+    }
+    return 16;
+}
+
 int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::gen9:
@@ -154,6 +167,7 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     hw_threads_[1] = eu_count_ * threads_per_eu(gpu_arch_, true);
 
     max_eus_per_wg_ = max_eus_per_wg(gpu_arch_);
+    max_subgroup_size_ = max_subgroup_size(gpu_arch_);
 
     mayiuse_non_uniform_work_groups_ = ocl_backend;
 

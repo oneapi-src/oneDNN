@@ -27,17 +27,17 @@ static status_t init_conf_common(eltwise_conf_t &conf, engine_t *engine,
         const memory_desc_wrapper data_d) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto arch = compute_engine->device_info()->gpu_arch();
-    bool is_pre_xe_lp = arch < compute::gpu_arch_t::xe_lp;
+    bool is_pre_xe_hp = arch < compute::gpu_arch_t::xe_hp;
 
     // Important hw features for code generation
-    const int dt_size = data_d.data_type_size();
-    const int max_load_size = is_pre_xe_lp ? 128 : 256;
+    const int dt_size = (int)data_d.data_type_size();
+    const int max_load_size = is_pre_xe_hp ? 128 : 256;
 
     // Heuristics chosen by experimentation
     // load_unroll hides computation overhead associated with kernel start
     // local_threads hides workgroup scheduling overhead
-    const int load_unroll = is_pre_xe_lp ? 4 : 1;
-    const int local_threads = is_pre_xe_lp ? 1 : 16;
+    const int load_unroll = is_pre_xe_hp ? 4 : 1;
+    const int local_threads = is_pre_xe_hp ? 1 : 16;
 
     // Prefer loading multiple of max load size to reduce messages
     const int load_size = load_unroll * max_load_size;
@@ -45,7 +45,7 @@ static status_t init_conf_common(eltwise_conf_t &conf, engine_t *engine,
     conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
 
     // Set simd size
-    conf.sub_group_size = is_pre_xe_lp ? 16 : std::max(32 / dt_size, 16);
+    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
 
     // VECT_DATA_T only supports vector sizes up to 8
     conf.vector_size = std::min(load_size / (dt_size * conf.sub_group_size), 8);
