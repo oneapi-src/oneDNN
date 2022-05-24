@@ -496,7 +496,7 @@ void block_helper_t::init_bmnk_blocks() {
             int target_blk = i_max_tg_dim * d.iter_dim();
             int tg_dim = compute_block(d.size(), target_blk, d.iter_dim())
                     / d.iter_dim();
-            tg_dim = utils::rnd_down_pow2(tg_dim);
+            tg_dim = std::min(utils::rnd_down_pow2(tg_dim), 8);
             tg_dims[i] = tg_dim;
             if (d.pref_tg_block()) {
                 //only one preferred dim allowed
@@ -517,7 +517,7 @@ void block_helper_t::init_bmnk_blocks() {
         };
 
         // Reduce thread group size until it fits the target size.
-        while (total_tg_dim() > target_tg_size || max_tg_dim() >= 16) {
+        while (total_tg_dim() > target_tg_size) {
             max_tg_dim() /= 2;
         }
 
