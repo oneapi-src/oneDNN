@@ -93,8 +93,7 @@ public:
     }
 };
 
-class sub_op_t : public binary_elementwise_op_impl_t,
-                 public op_traits::may_quantize_t {
+class sub_op_t : public binary_elementwise_op_impl_t {
 public:
     sub_op_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
             bool vectorized = false, int inplace = 0)

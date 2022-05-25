@@ -36,12 +36,14 @@ static std::vector<std::pair<int, sc_op_ptr>> find_quantize_aware_nodes(
         const sc_op_ptr &node) {
     if (node == nullptr) { return std::vector<std::pair<int, sc_op_ptr>>(); }
     std::vector<std::pair<int, sc_op_ptr>> aware_nodes;
-    auto child_lt = node->get_outputs()[0];
-    for (const auto &child_op : child_lt->uses_) {
-        if ((child_op.second->dyn_cast<op_traits::may_quantize_t>()
-                    && child_op.second->attrs_.get_or_else("quantize", true))
-                || child_op.second->isa<cast_op_t>()) {
-            aware_nodes.emplace_back(child_op);
+    for (auto &child_lt : node->get_outputs()) {
+        for (const auto &child_op : child_lt->uses_) {
+            if ((child_op.second->dyn_cast<op_traits::may_quantize_t>()
+                        && child_op.second->attrs_.get_or_else(
+                                "quantize", true))
+                    || child_op.second->isa<cast_op_t>()) {
+                aware_nodes.emplace_back(child_op);
+            }
         }
     }
     return aware_nodes;
@@ -80,9 +82,22 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
                 prefix + "per_channel", qinfos.per_channel_);
         aware_node.second->attrs_.set(
                 prefix + "channel_axis", qinfos.channel_axis_);
-        aware_node.second->dyn_cast<op_traits::may_quantize_t>()
-                ->should_quantized_
-                = true;
+        if (quantize_node->isa<dequantize_op_t>()
+                || quantize_node->attrs_.get_or_else("may_quantize", false)) {
+            if (!aware_node.second->attrs_.has_key("may_quantize")) {
+                aware_node.second->attrs_.set("may_quantize", true);
+            }
+            if (aware_node.second->attrs_.get<bool>("may_quantize")) {
+                aware_node.second->dyn_cast<op_traits::may_quantize_t>()
+                        ->should_quantized_
+                        = true;
+            }
+        } else {
+            aware_node.second->attrs_.set("may_quantize", false);
+            aware_node.second->dyn_cast<op_traits::may_quantize_t>()
+                    ->should_quantized_
+                    = false;
+        }
     } else {
         has_key_and_set<std::vector<float>>(
                 quantize_node->attrs_, "scales", aware_node.second);
@@ -119,9 +134,14 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
                 quantize_node->attrs_, "data_channel_axis", aware_node.second);
         has_key_and_set<int>(quantize_node->attrs_, "weight_channel_axis",
                 aware_node.second);
-        if (auto may_quantize_node
-                = aware_node.second->dyn_cast<op_traits::may_quantize_t>()) {
-            may_quantize_node->should_quantized_ = true;
+        if (quantize_node->isa<dequantize_op_t>()
+                || quantize_node->attrs_.get_or_else("may_quantize", false)) {
+            aware_node.second->attrs_.set("may_quantize", true);
+            if (auto may_quantize_node
+                    = aware_node.second
+                              ->dyn_cast<op_traits::may_quantize_t>()) {
+                may_quantize_node->should_quantized_ = true;
+            }
         }
     }
 }
