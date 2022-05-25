@@ -29,6 +29,8 @@
 #include <utils/utils.hpp>
 
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/internal_attrs.hpp"
+
 #include "backend/dnnl/passes/fusion_info.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/passes/utils.hpp"
@@ -53,16 +55,16 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     }
 
     // prepare the operator attributes
-    auto strides = op->get_attr<dims>("strides");
-    auto dilates = op->get_attr<dims>("dilations");
-    auto pads_begin = op->get_attr<dims>("pads_begin");
-    auto pads_end = op->get_attr<dims>("pads_end");
+    auto strides = op->get_attr<dims>(op_attr::strides);
+    auto dilates = op->get_attr<dims>(op_attr::dilations);
+    auto pads_begin = op->get_attr<dims>(op_attr::pads_begin);
+    auto pads_end = op->get_attr<dims>(op_attr::pads_end);
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -95,7 +97,8 @@ create_conv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     dst = to_nxc_format(dst);
 
     dnnl::convolution_forward::primitive_desc pd;
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
         auto bias = make_dnnl_memory_desc(
                 op->get_input_value(2)->get_logical_tensor());
         bias = to_format_any(bias);
@@ -126,16 +129,16 @@ create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     }
 
     // prepare the operator attributes
-    auto strides = op->get_attr<dims>("strides");
-    auto dilates = op->get_attr<dims>("dilations");
-    auto pads_begin = op->get_attr<dims>("pads_begin");
-    auto pads_end = op->get_attr<dims>("pads_end");
+    auto strides = op->get_attr<dims>(op_attr::strides);
+    auto dilates = op->get_attr<dims>(op_attr::dilations);
+    auto pads_begin = op->get_attr<dims>(op_attr::pads_begin);
+    auto pads_end = op->get_attr<dims>(op_attr::pads_end);
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -153,7 +156,8 @@ create_deconv_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     dst = to_format_any(dst);
 
     dnnl::deconvolution_forward::primitive_desc pd;
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
         auto bias = make_dnnl_memory_desc(
                 op->get_input_value(2)->get_logical_tensor());
         bias = to_format_any(bias);
@@ -188,16 +192,16 @@ create_deconv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     // prepare the operator attributes
-    auto strides = op->get_attr<dims>("strides");
-    auto dilates = op->get_attr<dims>("dilations");
-    auto pads_begin = op->get_attr<dims>("pads_begin");
-    auto pads_end = op->get_attr<dims>("pads_end");
+    auto strides = op->get_attr<dims>(op_attr::strides);
+    auto dilates = op->get_attr<dims>(op_attr::dilations);
+    auto pads_begin = op->get_attr<dims>(op_attr::pads_begin);
+    auto pads_end = op->get_attr<dims>(op_attr::pads_end);
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -243,15 +247,15 @@ create_deconv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     // prepare the operator attributes
-    auto strides = op->get_attr<dims>("strides");
-    auto dilates = op->get_attr<dims>("dilations");
-    auto pads_begin = op->get_attr<dims>("pads_begin");
-    auto pads_end = op->get_attr<dims>("pads_end");
+    auto strides = op->get_attr<dims>(op_attr::strides);
+    auto dilates = op->get_attr<dims>(op_attr::dilations);
+    auto pads_begin = op->get_attr<dims>(op_attr::pads_begin);
+    auto pads_end = op->get_attr<dims>(op_attr::pads_end);
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_fpmath_mode(
@@ -294,9 +298,9 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -320,7 +324,8 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     dst = to_format_any(dst);
 
     dnnl::matmul::primitive_desc pd;
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
         auto bias = make_dnnl_memory_desc(
                 op->get_input_value(2)->get_logical_tensor());
         bias = to_format_any(bias);
@@ -345,20 +350,20 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
                 false};
     }
 
-    dims strides = op->get_attr<dims>("strides");
-    dims kernel = op->get_attr<dims>("kernel");
-    dims pads_begin = op->get_attr<dims>("pads_begin");
-    dims pads_end = op->get_attr<dims>("pads_end");
+    dims strides = op->get_attr<dims>(op_attr::strides);
+    dims kernel = op->get_attr<dims>(op_attr::kernel);
+    dims pads_begin = op->get_attr<dims>(op_attr::pads_begin);
+    dims pads_end = op->get_attr<dims>(op_attr::pads_end);
     dims dilations(strides.size(), 0);
-    if (op->has_attr("dilations")
-            && (op->get_attr<std::string>("kind") == "maxpool")) {
-        dilations = op->get_attr<dims>("dilations");
+    if (op->has_attr(op_attr::dilations)
+            && (op->get_attr<std::string>(op_attr::kind) == "maxpool")) {
+        dilations = op->get_attr<dims>(op_attr::dilations);
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -373,8 +378,8 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
     dims new_pads_end(pads_end);
     bool adj_pad = false;
     std::string rounding_type = "floor";
-    if (op->has_attr("rounding_type")) {
-        rounding_type = op->get_attr<std::string>("rounding_type");
+    if (op->has_attr(op_attr::rounding_type)) {
+        rounding_type = op->get_attr<std::string>(op_attr::rounding_type);
     }
     if (rounding_type == "ceil") {
         dims src_sp = src.dims();
@@ -383,7 +388,8 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
         output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
         for (size_t i = 0; i < kernel.size(); ++i) {
             dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-            if (op->get_attr<std::string>("kind") == "avgpool") dilated += 1;
+            if (op->get_attr<std::string>(op_attr::kind) == "avgpool")
+                dilated += 1;
             dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
                     - src_sp[i] - pads_begin[i];
             new_pads_end[i] = cur_pads_end;
@@ -393,15 +399,15 @@ inline std::pair<dnnl::pooling_v2_forward::primitive_desc, bool> create_pool_pd(
 
     algorithm algo = algorithm::undef;
     prop_kind prop = prop_kind::forward_inference;
-    if (op->get_attr<std::string>("kind") == "maxpool") {
+    if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
         algo = algorithm::pooling_max;
         dilations = get_compatible_dilates(dilations, src.dims().size());
         if (op->num_outputs() == 3) {
             prop = prop_kind::forward_training;
-            op->set_attr<bool>("is_training", true);
+            op->set_attr<bool>(op_attr::is_training, true);
         }
-    } else if (op->get_attr<std::string>("kind") == "avgpool") {
-        const bool exclude_pad = op->get_attr<bool>("exclude_pad");
+    } else if (op->get_attr<std::string>(op_attr::kind) == "avgpool") {
+        const bool exclude_pad = op->get_attr<bool>(op_attr::exclude_pad);
         algo = (exclude_pad || adj_pad)
                 ? algorithm::pooling_avg_exclude_padding
                 : algorithm::pooling_avg_include_padding;
@@ -431,18 +437,18 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
                 false};
     }
 
-    dims strides = op->get_attr<dims>("strides");
-    dims kernel = op->get_attr<dims>("kernel");
-    dims pads_begin = op->get_attr<dims>("pads_begin");
-    dims pads_end = op->get_attr<dims>("pads_end");
+    dims strides = op->get_attr<dims>(op_attr::strides);
+    dims kernel = op->get_attr<dims>(op_attr::kernel);
+    dims pads_begin = op->get_attr<dims>(op_attr::pads_begin);
+    dims pads_end = op->get_attr<dims>(op_attr::pads_end);
     dims dilations(strides.size(), 0);
-    if (op->has_attr("dilations")) {
-        dilations = op->get_attr<dims>("dilations");
+    if (op->has_attr(op_attr::dilations)) {
+        dilations = op->get_attr<dims>(op_attr::dilations);
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -452,7 +458,7 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    auto src = op->get_attr<std::string>("kind") == "maxpool"
+    auto src = op->get_attr<std::string>(op_attr::kind) == "maxpool"
             ? make_dnnl_memory_desc(
                     op->get_input_value(2)->get_logical_tensor())
             : dnnl::memory::desc(diff_src.dims(), diff_src.data_type(),
@@ -462,8 +468,8 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
     dims new_pads_end(pads_end);
     bool adj_pad = false;
     std::string rounding_type = "floor";
-    if (op->has_attr("rounding_type")) {
-        rounding_type = op->get_attr<std::string>("rounding_type");
+    if (op->has_attr(op_attr::rounding_type)) {
+        rounding_type = op->get_attr<std::string>(op_attr::rounding_type);
     }
     if (rounding_type == "ceil") {
         dims src_sp = src.dims();
@@ -472,7 +478,8 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
         output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
         for (size_t i = 0; i < kernel.size(); ++i) {
             dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
-            if (op->get_attr<std::string>("kind") == "avgpool") dilated += 1;
+            if (op->get_attr<std::string>(op_attr::kind) == "avgpool")
+                dilated += 1;
             dim_t cur_pads_end = (output_sp[i] - 1) * strides[i] + dilated
                     - src_sp[i] - pads_begin[i];
             new_pads_end[i] = cur_pads_end;
@@ -481,11 +488,11 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     algorithm algo = algorithm::undef;
-    if (op->get_attr<std::string>("kind") == "maxpool") {
+    if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
         algo = algorithm::pooling_max;
         dilations = get_compatible_dilates(dilations, src.dims().size());
-    } else if (op->get_attr<std::string>("kind") == "avgpool") {
-        const bool exclude_pad = op->get_attr<bool>("exclude_pad");
+    } else if (op->get_attr<std::string>(op_attr::kind) == "avgpool") {
+        const bool exclude_pad = op->get_attr<bool>(op_attr::exclude_pad);
         algo = (exclude_pad || adj_pad)
                 ? algorithm::pooling_avg_exclude_padding
                 : algorithm::pooling_avg_include_padding;
@@ -494,7 +501,7 @@ create_pool_bwd_pd(std::shared_ptr<impl::op_t> &op,
                 "Currently only MaxPoolBackprop/AvgPoolBackprop is supported.");
     }
 
-    if (op->get_attr<std::string>("kind") == "maxpool") {
+    if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
         diff_dst = to_format_any(diff_dst);
     }
 
@@ -526,11 +533,11 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
                 false};
     }
 
-    float epsilon = op->get_attr<float>("epsilon");
+    float epsilon = op->get_attr<float>(op_attr::epsilon);
 
     auto flags = normalization_flag::none;
     // for inference
-    if (!op->get_attr<bool>("is_training")) {
+    if (!op->get_attr<bool>(op_attr::is_training)) {
         flags |= normalization_flag::use_global_stats;
         flags |= normalization_flag::use_scale;
         flags |= normalization_flag::use_shift;
@@ -541,14 +548,15 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
             flags |= normalization_flag::use_shift;
         }
 
-        if (op->has_attr("fuse_relu") && op->get_attr<bool>("fuse_relu"))
+        if (op->has_attr(op_attr::fuse_relu)
+                && op->get_attr<bool>(op_attr::fuse_relu))
             flags |= normalization_flag::fuse_norm_relu;
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -563,7 +571,7 @@ create_batchnorm_pd(std::shared_ptr<impl::op_t> &op,
         src = to_ncx_format(src);
     }
 
-    auto pkind = op->get_attr<bool>("is_training")
+    auto pkind = op->get_attr<bool>(op_attr::is_training)
             ? prop_kind::forward_training
             : prop_kind::forward_inference;
 
@@ -586,14 +594,14 @@ create_batchnorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
                 false};
     }
 
-    float epsilon = op->get_attr<float>("epsilon");
+    float epsilon = op->get_attr<float>(op_attr::epsilon);
 
     auto flags = normalization_flag::use_scale | normalization_flag::use_shift;
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -633,13 +641,14 @@ create_layernorm_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     float epsilon = 1e-5;
-    if (op->has_attr("epsilon")) epsilon = op->get_attr<float>("epsilon");
+    if (op->has_attr(op_attr::epsilon))
+        epsilon = op->get_attr<float>(op_attr::epsilon);
     bool keep_stats = true;
-    if (op->has_attr("keep_stats"))
-        keep_stats = op->get_attr<bool>("keep_stats");
+    if (op->has_attr(op_attr::keep_stats))
+        keep_stats = op->get_attr<bool>(op_attr::keep_stats);
     bool use_affine = true;
-    if (op->has_attr("use_affine"))
-        use_affine = op->get_attr<bool>("use_affine");
+    if (op->has_attr(op_attr::use_affine))
+        use_affine = op->get_attr<bool>(op_attr::use_affine);
 
     auto flags = normalization_flag::none;
     if (use_affine)
@@ -671,16 +680,16 @@ create_layernorm_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
-    auto epsilon = op->get_attr<float>("epsilon");
+    auto epsilon = op->get_attr<float>(op_attr::epsilon);
     auto flags = normalization_flag::none;
-    const bool use_affine = op->get_attr<bool>("use_affine");
+    const bool use_affine = op->get_attr<bool>(op_attr::use_affine);
     if (use_affine) {
         flags |= normalization_flag::use_scale;
         flags |= normalization_flag::use_shift;
@@ -711,16 +720,16 @@ create_conv_bwd_data_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     // prepare the operator attributes
-    auto strides = op->get_attr<dims>("strides");
-    auto dilates = op->get_attr<dims>("dilations");
-    auto pads_begin = op->get_attr<dims>("pads_begin");
-    auto pads_end = op->get_attr<dims>("pads_end");
+    auto strides = op->get_attr<dims>(op_attr::strides);
+    auto dilates = op->get_attr<dims>(op_attr::dilations);
+    auto pads_begin = op->get_attr<dims>(op_attr::pads_begin);
+    auto pads_end = op->get_attr<dims>(op_attr::pads_end);
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -766,15 +775,15 @@ create_conv_bwd_weights_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     // prepare the operator attributes
-    auto strides = op->get_attr<dims>("strides");
-    auto dilates = op->get_attr<dims>("dilations");
-    auto pads_begin = op->get_attr<dims>("pads_begin");
-    auto pads_end = op->get_attr<dims>("pads_end");
+    auto strides = op->get_attr<dims>(op_attr::strides);
+    auto dilates = op->get_attr<dims>(op_attr::dilations);
+    auto pads_begin = op->get_attr<dims>(op_attr::pads_begin);
+    auto pads_end = op->get_attr<dims>(op_attr::pads_end);
     dilates = get_compatible_dilates(dilates);
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -818,13 +827,17 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     }
 
     float alpha = 0.f, beta = 0.f;
-    if (op->has_attr("alpha")) { alpha = op->get_attr<float>("alpha"); }
-    if (op->has_attr("beta")) { beta = op->get_attr<float>("beta"); }
+    if (op->has_attr(op_attr::alpha)) {
+        alpha = op->get_attr<float>(op_attr::alpha);
+    }
+    if (op->has_attr(op_attr::beta)) {
+        beta = op->get_attr<float>(op_attr::beta);
+    }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -832,8 +845,8 @@ inline std::pair<dnnl::eltwise_forward::primitive_desc, bool> create_eltwise_pd(
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
 
-    const algorithm algo
-            = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
+    const algorithm algo = static_cast<dnnl::algorithm>(
+            op->get_attr<int64_t>(op_attr::alg_kind));
     if (algo == algorithm::undef) {
         BACKEND_DNNL_ENFORCE(0, "Unsupported eltwise op.");
     }
@@ -858,20 +871,23 @@ create_eltwise_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
-    const float alpha
-            = op->has_attr("alpha") ? op->get_attr<float>("alpha") : 0.f;
-    const float beta = op->has_attr("beta") ? op->get_attr<float>("beta") : 0.f;
-    const auto bwd_algo
-            = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
+    const float alpha = op->has_attr(op_attr::alpha)
+            ? op->get_attr<float>(op_attr::alpha)
+            : 0.f;
+    const float beta = op->has_attr(op_attr::beta)
+            ? op->get_attr<float>(op_attr::beta)
+            : 0.f;
+    const auto bwd_algo = static_cast<dnnl::algorithm>(
+            op->get_attr<int64_t>(op_attr::alg_kind));
     const auto fwd_algo = static_cast<dnnl::algorithm>(
-            op->get_attr<int64_t>("fwd_alg_kind"));
+            op->get_attr<int64_t>(op_attr::fwd_alg_kind));
 
     auto forward_data = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -927,15 +943,15 @@ inline dnnl::concat::primitive_desc create_concat_pd(
     };
 
     const auto rank = op->get_output_value(0)->get_logical_tensor().ndims;
-    const auto res
-            = utils::try_reverse_axis(op->get_attr<int64_t>("axis"), rank);
+    const auto res = utils::try_reverse_axis(
+            op->get_attr<int64_t>(op_attr::axis), rank);
     assertm(res.first, "Incorrect axis value.");
     const auto axis = res.second;
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -971,9 +987,9 @@ create_resampling_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -984,7 +1000,7 @@ create_resampling_pd(std::shared_ptr<impl::op_t> &op,
             op->get_output_value(0)->get_logical_tensor());
     dst = to_format_any(dst);
 
-    std::string mode = op->get_attr<std::string>("mode");
+    std::string mode = op->get_attr<std::string>(op_attr::mode);
     algorithm algo = algorithm::undef;
     if (mode == "nearest") {
         algo = algorithm::resampling_nearest;
@@ -1014,14 +1030,14 @@ create_resampling_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
-    auto mode = op->get_attr<std::string>("mode");
+    auto mode = op->get_attr<std::string>(op_attr::mode);
     auto algo = algorithm::undef;
     if (mode == "nearest") {
         algo = algorithm::resampling_nearest;
@@ -1061,9 +1077,9 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -1076,8 +1092,8 @@ inline std::pair<dnnl::binary::primitive_desc, bool> create_binary_pd(
             op->get_output_value(0)->get_logical_tensor());
     dst = to_format_any(dst);
 
-    const algorithm algo
-            = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
+    const algorithm algo = static_cast<dnnl::algorithm>(
+            op->get_attr<int64_t>(op_attr::alg_kind));
 
     dnnl::binary::primitive_desc pd;
     pd = dnnl::binary::primitive_desc(
@@ -1099,9 +1115,9 @@ inline std::pair<dnnl::prelu_forward::primitive_desc, bool> create_prelu_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -1132,9 +1148,9 @@ create_prelu_bwd_pd(std::shared_ptr<impl::op_t> &op,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -1174,9 +1190,9 @@ create_softmax_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -1186,7 +1202,7 @@ create_softmax_pd(std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    int64_t axis = op->get_attr<int64_t>("axis");
+    int64_t axis = op->get_attr<int64_t>(op_attr::axis);
     if (axis < 0) { axis += src.data.ndims; }
 
     dnnl::softmax_v2_forward::primitive_desc pd;
@@ -1225,8 +1241,8 @@ create_softmax_bwd_pd(std::shared_ptr<impl::op_t> &op,
             op->get_output_value(0)->get_logical_tensor());
 
     const auto rank = op->get_output_value(0)->get_logical_tensor().ndims;
-    const auto res
-            = utils::try_reverse_axis(op->get_attr<int64_t>("axis"), rank);
+    const auto res = utils::try_reverse_axis(
+            op->get_attr<int64_t>(op_attr::axis), rank);
     assertm(res.first, "Incorrect axis value.");
     const auto axis = res.second;
 
@@ -1258,13 +1274,13 @@ inline std::pair<dnnl::shuffle_forward::primitive_desc, bool> create_shuffle_pd(
                 false};
     }
 
-    const int group = static_cast<int>(op->get_attr<int64_t>("group"));
-    const int axis = static_cast<int>(op->get_attr<int64_t>("axis"));
+    const int group = static_cast<int>(op->get_attr<int64_t>(op_attr::groups));
+    const int axis = static_cast<int>(op->get_attr<int64_t>(op_attr::axis));
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
@@ -1292,19 +1308,19 @@ inline std::pair<dnnl::reduction::primitive_desc, bool> create_reduction_pd(
     }
 
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
-    const algorithm alg
-            = static_cast<dnnl::algorithm>(op->get_attr<int64_t>("alg_kind"));
+    const algorithm alg = static_cast<dnnl::algorithm>(
+            op->get_attr<int64_t>(op_attr::alg_kind));
     if (alg == algorithm::undef) {
         BACKEND_DNNL_ENFORCE(0, "Unsupported reduction op.");
     }
-    float p = op->has_attr("p") ? op->get_attr<float>("p") : 0.f;
+    float p = op->has_attr(op_attr::p) ? op->get_attr<float>(op_attr::p) : 0.f;
 
     float eps = 0.0f;
 
@@ -1326,46 +1342,46 @@ inline dnnl::reorder::primitive_desc create_reorder_pd(
         std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine,
         fusion_info_mgr_t &mgr) {
     dnnl::primitive_attr prm_attr;
-    if (op->has_attr("fusion_info_key")
-            && op->get_attr<int64_t>("fusion_info_key") != -1) {
-        int64_t key = op->get_attr<int64_t>("fusion_info_key");
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
 
     // generate mask
     int mask = 0;
-    if (op->has_attr("axis") && op->has_attr("qtype")) {
-        int64_t axis = op->get_attr<int64_t>("axis");
-        std::string qtype = op->get_attr<std::string>("qtype");
+    if (op->has_attr(op_attr::axis) && op->has_attr(op_attr::qtype)) {
+        int64_t axis = op->get_attr<int64_t>(op_attr::axis);
+        std::string qtype = op->get_attr<std::string>(op_attr::qtype);
         mask = qtype == "per_tensor" ? 0 : 1 << axis;
     }
 
-    if (op->has_attr("with_runtime_src_zps")
-            && op->get_attr<bool>("with_runtime_src_zps")) {
+    if (op->has_attr(op_attr::with_runtime_src_zps)
+            && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
         // runtime src zps
         prm_attr.set_zero_points(DNNL_ARG_FROM, mask, {DNNL_RUNTIME_S32_VAL});
-    } else if (op->has_attr("src_zps")) {
-        auto zps = op->get_attr<std::vector<int64_t>>("src_zps");
+    } else if (op->has_attr(op_attr::src_zps)) {
+        auto zps = op->get_attr<std::vector<int64_t>>(op_attr::src_zps);
         std::vector<int32_t> neg_zps = dnnl_impl::utils::fmap(
                 zps, [](int64_t zp) { return static_cast<int32_t>(-zp); });
         prm_attr.set_zero_points(DNNL_ARG_FROM, mask, neg_zps);
     }
 
-    if (op->has_attr("with_runtime_scales")
-            && op->get_attr<bool>("with_runtime_scales")) {
+    if (op->has_attr(op_attr::with_runtime_scales)
+            && op->get_attr<bool>(op_attr::with_runtime_scales)) {
         // runtime scales
         prm_attr.set_output_scales(mask, {DNNL_RUNTIME_F32_VAL});
-    } else if (op->has_attr("scales")) {
-        auto scales = op->get_attr<std::vector<float>>("scales");
+    } else if (op->has_attr(op_attr::scales)) {
+        auto scales = op->get_attr<std::vector<float>>(op_attr::scales);
         prm_attr.set_output_scales(mask, scales);
     }
 
-    if (op->has_attr("with_runtime_dst_zps")
-            && op->get_attr<bool>("with_runtime_dst_zps")) {
+    if (op->has_attr(op_attr::with_runtime_dst_zps)
+            && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
         // runtime dst zps
         prm_attr.set_zero_points(DNNL_ARG_TO, mask, {DNNL_RUNTIME_S32_VAL});
-    } else if (op->has_attr("dst_zps")) {
-        auto zps = op->get_attr<std::vector<int64_t>>("dst_zps");
+    } else if (op->has_attr(op_attr::dst_zps)) {
+        auto zps = op->get_attr<std::vector<int64_t>>(op_attr::dst_zps);
         std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(
                 zps, [](int64_t zp) { return static_cast<int32_t>(zp); });
         prm_attr.set_zero_points(DNNL_ARG_TO, mask, int32_zps);
@@ -1401,7 +1417,7 @@ struct memory_reparser_t : public op_executable_t {
 template <typename attr_dt, typename target_dt>
 struct const_memory_filler_t : public op_executable_t {
     const_memory_filler_t(
-            std::shared_ptr<impl::op_t> &op, const std::string &attr_name) {
+            std::shared_ptr<impl::op_t> &op, op_attr_t attr_name) {
         attr_data_
                 = get_attr_data(op->get_attr<std::vector<attr_dt>>(attr_name),
                         std::is_same<attr_dt, target_dt>());
@@ -1449,8 +1465,8 @@ struct conv_fwd_executable_t : public op_executable_t {
             pd_cache_t &pd_cache) {
         pd_ = create_conv_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::convolution_forward(pd_);
-        if (op->has_attr("with_sum"))
-            with_sum_ = op->get_attr<bool>("with_sum");
+        if (op->has_attr(op_attr::with_sum))
+            with_sum_ = op->get_attr<bool>(op_attr::with_sum);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -1482,8 +1498,8 @@ struct deconv_fwd_executable_t : public op_executable_t {
             pd_cache_t &pd_cache) {
         pd_ = create_deconv_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::deconvolution_forward(pd_);
-        if (op->has_attr("with_sum"))
-            with_sum_ = op->get_attr<bool>("with_sum");
+        if (op->has_attr(op_attr::with_sum))
+            with_sum_ = op->get_attr<bool>(op_attr::with_sum);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -1568,8 +1584,8 @@ struct matmul_executable_t : public op_executable_t {
             fill_layout_info(scratchpad_val, real);
         }
 
-        if (op->has_attr("with_sum"))
-            with_sum_ = op->get_attr<bool>("with_sum");
+        if (op->has_attr(op_attr::with_sum))
+            with_sum_ = op->get_attr<bool>(op_attr::with_sum);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -1643,8 +1659,8 @@ struct binary_executable_t : public op_executable_t {
         pd_ = create_binary_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::binary(pd_);
 
-        if (op->has_attr("with_sum"))
-            with_sum_ = op->get_attr<bool>("with_sum");
+        if (op->has_attr(op_attr::with_sum))
+            with_sum_ = op->get_attr<bool>(op_attr::with_sum);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -1792,8 +1808,8 @@ struct reorder_executable_t : public op_executable_t {
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr) {
         pd_ = create_reorder_pd(op, p_engine, mgr);
         prim_ = dnnl::reorder(pd_);
-        if (op->has_attr("with_sum"))
-            with_sum_ = op->get_attr<bool>("with_sum");
+        if (op->has_attr(op_attr::with_sum))
+            with_sum_ = op->get_attr<bool>(op_attr::with_sum);
     }
 
     void execute(const stream &stream,
@@ -1819,10 +1835,10 @@ private:
 struct bn_folding_t : public op_executable_t {
     bn_folding_t(
             std::shared_ptr<impl::op_t> &op, const dnnl::engine &p_engine) {
-        epsilon_ = op->get_attr<float>("epsilon");
-        data_format_ = op->get_attr<std::string>("data_format");
-        filter_format_ = op->get_attr<std::string>("filter_format");
-        with_bias_ = op->get_attr<bool>("with_bias");
+        epsilon_ = op->get_attr<float>(op_attr::epsilon);
+        data_format_ = op->get_attr<std::string>(op_attr::data_format);
+        filter_format_ = op->get_attr<std::string>(op_attr::filter_format);
+        with_bias_ = op->get_attr<bool>(op_attr::with_bias);
 
         size_t in_idx = 0;
         auto weights = make_dnnl_memory_desc(
@@ -2072,10 +2088,10 @@ struct batchnorm_executable_t : public op_executable_t {
     batchnorm_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        is_training_ = op->get_attr<bool>("is_training");
+        is_training_ = op->get_attr<bool>(op_attr::is_training);
         float momentum = 0.5;
-        if (op->has_attr("momentum"))
-            momentum = op->get_attr<float>("momentum");
+        if (op->has_attr(op_attr::momentum))
+            momentum = op->get_attr<float>(op_attr::momentum);
         scales_ = {momentum, 1 - momentum};
         pd_ = create_batchnorm_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::batch_normalization_forward(pd_);
@@ -2161,8 +2177,8 @@ struct resampling_executable_t : public op_executable_t {
             pd_cache_t &pd_cache) {
         pd_ = create_resampling_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::resampling_forward(pd_);
-        if (op->has_attr("with_sum"))
-            with_sum_ = op->get_attr<bool>("with_sum");
+        if (op->has_attr(op_attr::with_sum))
+            with_sum_ = op->get_attr<bool>(op_attr::with_sum);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }
@@ -2361,8 +2377,8 @@ struct reduction_executable_t : public op_executable_t {
         pd_ = create_reduction_pd(op, p_engine, mgr, pd_cache).first;
         prim_ = dnnl::reduction(pd_);
 
-        if (op->has_attr("with_sum"))
-            with_sum_ = op->get_attr<bool>("with_sum");
+        if (op->has_attr(op_attr::with_sum))
+            with_sum_ = op->get_attr<bool>(op_attr::with_sum);
     }
 
     memory::desc scratchpad_desc() const { return pd_.scratchpad_desc(); }

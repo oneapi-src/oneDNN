@@ -48,9 +48,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reorder_sum_fusion)
                     pm::pb_op_t *add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, reorder, 0)}, "padd");
                     add->append_decision_function([](op_t *graph_op) -> bool {
-                        return !graph_op->has_attr("auto_broadcast")
+                        return !graph_op->has_attr(op_attr::auto_broadcast)
                                 || graph_op->get_attr<std::string>(
-                                           "auto_broadcast")
+                                           op_attr::auto_broadcast)
                                 == "none";
                     });
                 })
@@ -58,7 +58,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reorder_sum_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(op_kind::reorder_sum);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 
@@ -78,7 +78,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(op_kind::int8_reorder);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 
@@ -98,9 +98,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_sum_fusion)
                                     in_edge(1, dequant_other, 0)},
                             "padd");
                     add->append_decision_function([](op_t *graph_op) -> bool {
-                        return !graph_op->has_attr("auto_broadcast")
+                        return !graph_op->has_attr(op_attr::auto_broadcast)
                                 || graph_op->get_attr<std::string>(
-                                           "auto_broadcast")
+                                           op_attr::auto_broadcast)
                                 == "none";
                     });
                     pgraph->append_op(impl::op_kind::Quantize,
@@ -110,7 +110,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_sum_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(op_kind::int8_reorder);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 

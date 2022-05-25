@@ -33,8 +33,8 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 namespace {
 bool check_attributes(op_t *graph_op) {
-    if (graph_op->has_attr("axes")
-            && graph_op->get_attr<std::vector<int64_t>>("axes").empty())
+    if (graph_op->has_attr(op_attr::axes)
+            && graph_op->get_attr<std::vector<int64_t>>(op_attr::axes).empty())
         return false;
     return true;
 }
@@ -105,7 +105,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::reduction_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 

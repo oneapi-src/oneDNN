@@ -29,8 +29,9 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
 
-#define DNNL_BACKEND_SINGLE_OP_TRANSFORM(name, backend, op, p) \
-    DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
+// pname: pattern name, bname: backend name
+#define DNNL_BACKEND_SINGLE_OP_TRANSFORM(pname, bname, op, p) \
+    DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(bname, pname) \
             .set_priority(p) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
@@ -40,7 +41,8 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
                     "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> { \
                         std::shared_ptr<op_t> fused_op \
                                 = std::make_shared<op_t>(impl::op_kind::op); \
-                        fused_op->set_attr<std::string>("backend", #backend); \
+                        fused_op->set_attr<std::string>( \
+                                op_attr::backend, #bname); \
                         return fused_op; \
                     });
 
@@ -129,7 +131,8 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
 // if op is interpolate, need to filter out attrs not supported by dnnl
 #define INTERPOLATE_ATTR_CHECK() \
     append_decision_function([](op_t *graph_op) -> bool { \
-        if (graph_op->get_attr<std::string>("coordinate_transformation_mode") \
+        if (graph_op->get_attr<std::string>( \
+                    op_attr::coordinate_transformation_mode) \
                 != std::string("half_pixel")) \
             return false; \
         return true; \
@@ -147,7 +150,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_pass)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             impl::op_kind::Interpolate);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 
@@ -165,7 +168,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_bwd_pass)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             impl::op_kind::InterpolateBackprop);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 
@@ -199,12 +202,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(impl::op_kind::TypeCast);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 
-#define DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(name, backend, op, p) \
-    DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(backend, name) \
+// pname: pattern name, bname: backend name
+#define DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(pname, bname, op, p) \
+    DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(bname, pname) \
             .set_priority(p) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
@@ -212,10 +216,10 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
                                 = pgraph->append_op(impl::op_kind::op); \
                         reduction->append_decision_function([](op_t *graph_op) \
                                                                     -> bool { \
-                            if (graph_op->has_attr("axes") \
+                            if (graph_op->has_attr(op_attr::axes) \
                                     && graph_op->get_attr< \
                                                        std::vector<int64_t>>( \
-                                                       "axes") \
+                                                       op_attr::axes) \
                                                .empty()) \
                                 return false; \
                             return true; \
@@ -225,7 +229,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
                     "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> { \
                         std::shared_ptr<op_t> fused_op \
                                 = std::make_shared<op_t>(impl::op_kind::op); \
-                        fused_op->set_attr<std::string>("backend", #backend); \
+                        fused_op->set_attr<std::string>( \
+                                op_attr::backend, #bname); \
                         return fused_op; \
                     });
 
@@ -239,7 +244,7 @@ DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceSum, 8.f)
 
 #define SOFTPLUS_ATTR_CHECK() \
     append_decision_function([](op_t *graph_op) -> bool { \
-        const auto beta = graph_op->get_attr<int64_t>("beta"); \
+        const auto beta = graph_op->get_attr<int64_t>(op_attr::beta); \
         if (beta != -1 && beta != 1) return false; \
         return true; \
     })
@@ -256,7 +261,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_pass)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(impl::op_kind::SoftPlus);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 
@@ -272,7 +277,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_bw_pass)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             impl::op_kind::SoftPlusBackprop);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 

@@ -72,7 +72,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     auto fused_op = std::make_shared<op_t>(impl::op_kind::GELU);
-                    fused_op->set_attr("backend", std::string("dnnl"));
+                    fused_op->set_attr(op_attr::backend, std::string("dnnl"));
                     return fused_op;
                 });
 

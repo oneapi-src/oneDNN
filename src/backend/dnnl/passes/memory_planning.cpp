@@ -58,10 +58,10 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
 
     // Make post-sum inplace has higher priority since it affects both
     // performance and memory footprint
-    if (op.has_attr("fusion_info_key")
-            && op.get_attr<int64_t>("fusion_info_key") != -1) {
+    if (op.has_attr(op_attr::fusion_info_key)
+            && op.get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
         // sum post ops support inplace
-        int64_t key = op.get_attr<int64_t>("fusion_info_key");
+        int64_t key = op.get_attr<int64_t>(op_attr::fusion_info_key);
         const auto &pops = mgr.get_info(key).get_post_ops();
 
         // the post-ops input offset
@@ -69,7 +69,8 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         if (op.get_kind() == op_kind::dnnl_convolution
                 || op.get_kind() == op_kind::dnnl_matmul
                 || op.get_kind() == op_kind::dnnl_convtranspose) {
-            index = op.has_attr("with_bias") && op.get_attr<bool>("with_bias")
+            index = op.has_attr(op_attr::with_bias)
+                            && op.get_attr<bool>(op_attr::with_bias)
                     ? 3 // src, wei, bias
                     : 2; // src, wei
         } else if (op.get_kind() == op_kind::dnnl_binary) {
@@ -284,16 +285,17 @@ void memory_planner_t::prepare_args_for_conv_and_matmul(
     exec_args_set_.find_value_mem_map(op->get_input_value(index++).get(), mem);
     args.insert({DNNL_ARG_WEIGHTS, mem});
 
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
         exec_args_set_.find_value_mem_map(
                 op->get_input_value(index++).get(), mem);
         args.insert({DNNL_ARG_BIAS, mem});
     }
 
     const fusion_info_t &fusion_info
-            = (op->has_attr("fusion_info_key")
-                      && op->get_attr<int64_t>("fusion_info_key") != -1)
-            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
     const auto &pops = fusion_info.get_post_ops();
     for (int i = 0; i < pops.size(); i++) {
@@ -341,9 +343,9 @@ void memory_planner_t::prepare_args_for_binary(
     args.insert({DNNL_ARG_SRC_1, mem});
 
     const fusion_info_t &fusion_info
-            = (op->has_attr("fusion_info_key")
-                      && op->get_attr<int64_t>("fusion_info_key") != -1)
-            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
     const auto &pops = fusion_info.get_post_ops();
     for (int i = 0; i < pops.size(); i++) {
@@ -442,9 +444,9 @@ void memory_planner_t::prepare_args_for_siso_op(op_t *op,
     args.insert({DNNL_ARG_FROM, mem});
 
     const fusion_info_t &fusion_info
-            = (op->has_attr("fusion_info_key")
-                      && op->get_attr<int64_t>("fusion_info_key") != -1)
-            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
     const auto &pops = fusion_info.get_post_ops();
     for (int i = 0; i < pops.size(); i++) {
@@ -489,9 +491,9 @@ void memory_planner_t::prepare_args_for_dnnl_pool(op_t *op,
     args.insert({DNNL_ARG_FROM, mem});
 
     const fusion_info_t &fusion_info
-            = (op->has_attr("fusion_info_key")
-                      && op->get_attr<int64_t>("fusion_info_key") != -1)
-            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
     const auto &pops = fusion_info.get_post_ops();
     for (int i = 0; i < pops.size(); i++) {
@@ -540,7 +542,7 @@ void memory_planner_t::prepare_args_for_pool_bwd(
     exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
     args.insert({DNNL_ARG_DIFF_DST, mem});
 
-    if (op->get_attr<std::string>("kind") == "maxpool") {
+    if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
         // maxpool bwd op must need workspace input
         exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
         args.insert({DNNL_ARG_WORKSPACE, mem});
@@ -596,7 +598,7 @@ void memory_planner_t::bind_memory_for_bn_folding(
     exec_args args;
     memory mem;
 
-    bool with_bias = op->get_attr<bool>("with_bias");
+    bool with_bias = op->get_attr<bool>(op_attr::with_bias);
 
 #define INSERT_ARGS(key, val_offset, direction) \
     exec_args_set_.find_value_mem_map( \
@@ -687,7 +689,7 @@ void memory_planner_t::bind_memory_for_batchnorm(
 
     // bind mem for inputs
     INSERT_ARGS(DNNL_ARG_SRC, in_index++, input);
-    if (!op->get_attr<bool>("is_training")) { // inference
+    if (!op->get_attr<bool>(op_attr::is_training)) { // inference
         INSERT_ARGS(DNNL_ARG_SCALE, in_index++, input);
         INSERT_ARGS(DNNL_ARG_SHIFT, in_index++, input);
         INSERT_ARGS(DNNL_ARG_MEAN, in_index++, input);
@@ -705,7 +707,7 @@ void memory_planner_t::bind_memory_for_batchnorm(
     size_t out_index = 0;
     // bind mem for outputs
     INSERT_ARGS(DNNL_ARG_DST, out_index++, output);
-    if (op->get_attr<bool>("is_training")) {
+    if (op->get_attr<bool>(op_attr::is_training)) {
         // running_mean
         INSERT_ARGS(DNNL_ARG_DST_1, out_index++, output);
         // running_variance
@@ -784,7 +786,8 @@ void memory_planner_t::bind_memory_for_layernorm(
 
     // bind mem for inputs
     INSERT_ARGS(DNNL_ARG_SRC, in_index++, input);
-    if (!op->has_attr("use_affine") || op->get_attr<bool>("use_affine")) {
+    if (!op->has_attr(op_attr::use_affine)
+            || op->get_attr<bool>(op_attr::use_affine)) {
         INSERT_ARGS(DNNL_ARG_SCALE, in_index++, input);
         INSERT_ARGS(DNNL_ARG_SHIFT, in_index++, input);
     }
@@ -792,7 +795,8 @@ void memory_planner_t::bind_memory_for_layernorm(
     size_t out_index = 0;
     // bind mem for outputs
     INSERT_ARGS(DNNL_ARG_DST, out_index++, output);
-    if (!op->has_attr("keep_stats") || op->get_attr<bool>("keep_stats")) {
+    if (!op->has_attr(op_attr::keep_stats)
+            || op->get_attr<bool>(op_attr::keep_stats)) {
         // meam
         INSERT_ARGS(DNNL_ARG_MEAN, out_index++, output);
         // variance
@@ -849,7 +853,7 @@ void memory_planner_t::bind_memory_for_layernorm_bwd(
         args.insert({DNNL_ARG_SHIFT, mem});
     }
 
-    const bool use_affine = op->get_attr<bool>("use_affine");
+    const bool use_affine = op->get_attr<bool>(op_attr::use_affine);
     if (use_affine) {
         exec_args_set_.find_value_mem_map(
                 op->get_output_value(out_index++).get(), mem);
@@ -879,8 +883,8 @@ void memory_planner_t::prepare_args_for_reorder_op(
     // we always insert the input belonging to input fusion before the input
     // belonging to output fusion. So, src_zps must be before scales if it
     // exists
-    if (op->has_attr("with_runtime_src_zps")
-            && op->get_attr<bool>("with_runtime_src_zps")) {
+    if (op->has_attr(op_attr::with_runtime_src_zps)
+            && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
         auto src_zps = op->get_input_value(index++);
         assertm(src_zps->get_logical_tensor().data_type == impl::data_type::s32,
                 "oneDNN runtime zps must be s32 type");
@@ -888,15 +892,15 @@ void memory_planner_t::prepare_args_for_reorder_op(
         args.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, mem});
     }
 
-    if (op->has_attr("with_runtime_scales")
-            && op->get_attr<bool>("with_runtime_scales")) {
+    if (op->has_attr(op_attr::with_runtime_scales)
+            && op->get_attr<bool>(op_attr::with_runtime_scales)) {
         exec_args_set_.find_value_mem_map(
                 op->get_input_value(index++).get(), mem);
         args.insert({DNNL_ARG_ATTR_OUTPUT_SCALES, mem});
     }
 
-    if (op->has_attr("with_runtime_dst_zps")
-            && op->get_attr<bool>("with_runtime_dst_zps")) {
+    if (op->has_attr(op_attr::with_runtime_dst_zps)
+            && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
         auto dst_zps = op->get_input_value(index++);
         assertm(dst_zps->get_logical_tensor().data_type == impl::data_type::s32,
                 "oneDNN runtime zps must be s32 type");
@@ -905,9 +909,9 @@ void memory_planner_t::prepare_args_for_reorder_op(
     }
 
     const fusion_info_t &fusion_info
-            = (op->has_attr("fusion_info_key")
-                      && op->get_attr<int64_t>("fusion_info_key") != -1)
-            ? mgr.get_info(op->get_attr<int64_t>("fusion_info_key"))
+            = (op->has_attr(op_attr::fusion_info_key)
+                      && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
+            ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
     const auto &pops = fusion_info.get_post_ops();
     for (int i = 0; i < pops.size(); i++) {
@@ -980,7 +984,8 @@ void memory_planner_t::prepare_args_for_eltwise_bwd(
 
     exec_args_set_.find_value_mem_map(op->get_input_value(0).get(), mem);
     args.insert(
-            {op->get_attr<bool>("use_dst") ? DNNL_ARG_DST : DNNL_ARG_SRC, mem});
+            {op->get_attr<bool>(op_attr::use_dst) ? DNNL_ARG_DST : DNNL_ARG_SRC,
+                    mem});
 
     exec_args_set_.find_value_mem_map(op->get_input_value(1).get(), mem);
     args.insert({DNNL_ARG_DIFF_DST, mem});
@@ -1313,8 +1318,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                 } else if (op->get_kind() == op_kind::dnnl_pool
                         || op->get_kind() == op_kind::dnnl_softmax
                         || op->get_kind() == op_kind::dnnl_logsoftmax) {
-                    const bool is_training = op->has_attr("is_training")
-                            ? op->get_attr<bool>("is_training")
+                    const bool is_training = op->has_attr(op_attr::is_training)
+                            ? op->get_attr<bool>(op_attr::is_training)
                             : false;
                     prepare_args_for_siso_op(
                             op, p_engine, mgr, true, is_training);
@@ -1322,8 +1327,8 @@ impl::status_t memory_planner_t::prepare_execution_args_set(
                         || op->get_kind() == op_kind::dnnl_logsoftmax_bwd) {
                     prepare_args_for_softmax_bwd(op, p_engine, mgr);
                 } else if (op->get_kind() == op_kind::dnnl_pool) {
-                    const bool is_training = op->has_attr("is_training")
-                            ? op->get_attr<bool>("is_training")
+                    const bool is_training = op->has_attr(op_attr::is_training)
+                            ? op->get_attr<bool>(op_attr::is_training)
                             : false;
                     prepare_args_for_dnnl_pool(
                             op, p_engine, mgr, true, is_training);

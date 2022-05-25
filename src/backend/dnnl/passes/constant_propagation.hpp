@@ -22,8 +22,9 @@
 #include <string>
 #include <vector>
 
-#include <interface/value.hpp>
+#include "interface/value.hpp"
 
+#include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 #include "backend/dnnl/utils.hpp"
 
@@ -82,7 +83,7 @@ impl::status_t constant_propagation(std::shared_ptr<subgraph_t> &sg) {
 
             const bool is_constant
                     = all_inputs_are_constant || all_outputs_are_constant;
-            op->set_attr<bool>("is_constant", is_constant);
+            op->set_attr<bool>(op_attr::is_constant, is_constant);
 
             if (all_inputs_are_constant && !all_outputs_are_constant) {
                 // propagate from in to out

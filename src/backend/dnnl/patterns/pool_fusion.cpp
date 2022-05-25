@@ -57,7 +57,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_binary_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(op_kind::pool_binary);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 
@@ -91,7 +91,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_pool_binary_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(op_kind::int8_pool_binary);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 

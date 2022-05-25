@@ -29,6 +29,7 @@
 #include "interface/value.hpp"
 #include "utils/utils.hpp"
 
+#include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/passes/fusion_info.hpp"
 #include "backend/dnnl/utils.hpp"
@@ -48,10 +49,11 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
     // convert output scales
     if (fusion_info.output_scales_) {
         const impl::op_t *oscales_op = fusion_info.output_scales_->get_op();
-        auto oscales = oscales_op->get_attr<std::vector<float>>("scales");
+        auto oscales
+                = oscales_op->get_attr<std::vector<float>>(op_attr::scales);
         int oscales_mask = oscales.size() == 1
                 ? 0
-                : 1 << oscales_op->get_attr<int64_t>("axis");
+                : 1 << oscales_op->get_attr<int64_t>(op_attr::axis);
         attr.set_output_scales(oscales_mask, oscales);
     }
 
@@ -60,10 +62,10 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
         for (const auto &in_zps : fusion_info.input_zps_) {
             size_t in_zps_indice = in_zps.first;
             const impl::op_t *in_zps_op = in_zps.second->get_op();
-            auto zps = in_zps_op->get_attr<std::vector<int64_t>>("zps");
+            auto zps = in_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
             int mask = zps.size() == 1
                     ? 0
-                    : 1 << in_zps_op->get_attr<int64_t>("axis");
+                    : 1 << in_zps_op->get_attr<int64_t>(op_attr::axis);
             std::vector<int32_t> neg_int32_zps = dnnl_impl::utils::fmap(
                     zps, [](int64_t zp) { return static_cast<int32_t>(-zp); });
             attr.set_zero_points(
@@ -75,9 +77,10 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
     // convert output zps
     if (fusion_info.output_zps_) {
         const impl::op_t *out_zps_op = fusion_info.output_zps_->get_op();
-        auto zps = out_zps_op->get_attr<std::vector<int64_t>>("zps");
-        int mask = zps.size() == 1 ? 0
-                                   : 1 << out_zps_op->get_attr<int64_t>("axis");
+        auto zps = out_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+        int mask = zps.size() == 1
+                ? 0
+                : 1 << out_zps_op->get_attr<int64_t>(op_attr::axis);
         std::vector<int32_t> int32_zps = dnnl_impl::utils::fmap(
                 zps, [](int64_t zp) { return static_cast<int32_t>(zp); });
         attr.set_zero_points(DNNL_ARG_DST, mask, int32_zps);
@@ -92,14 +95,14 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             float scale = pop->get_scale();
             float alpha = 0.f;
             float beta = 0.f;
-            if (fused_op->has_attr("alpha")) {
-                alpha = fused_op->get_attr<float>("alpha");
+            if (fused_op->has_attr(op_attr::alpha)) {
+                alpha = fused_op->get_attr<float>(op_attr::alpha);
             }
-            if (fused_op->has_attr("beta")) {
-                beta = fused_op->get_attr<float>("beta");
+            if (fused_op->has_attr(op_attr::beta)) {
+                beta = fused_op->get_attr<float>(op_attr::beta);
             }
             const auto alg = static_cast<dnnl::algorithm>(
-                    fused_op->get_attr<int64_t>("alg_kind"));
+                    fused_op->get_attr<int64_t>(op_attr::alg_kind));
             dnnl_pops.append_eltwise(scale, alg, alpha, beta);
         } else if (fused_op_kind == op_kind::dnnl_binary) {
             const auto &extra_inputs = pop->get_unfused_input_indices();
@@ -116,7 +119,7 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                 auto input = op->get_input_value(src1_idx);
                 auto md = make_dnnl_memory_desc(input->get_logical_tensor());
                 const auto alg = static_cast<dnnl::algorithm>(
-                        fused_op->get_attr<int64_t>("alg_kind"));
+                        fused_op->get_attr<int64_t>(op_attr::alg_kind));
                 dnnl_pops.append_binary(alg, md);
             }
         } else if (fused_op_kind == op_kind::dnnl_convolution) {
@@ -135,8 +138,8 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             const auto dst_dt = get_dnn_dt(op->get_output_value(0));
             const auto bia_dt = dnnl::memory::data_type::undef;
             const int mask = 0;
-            const bool is_k3s1p1
-                    = fused_op->get_attr<std::vector<int64_t>>("strides")[0]
+            const bool is_k3s1p1 = fused_op->get_attr<std::vector<int64_t>>(
+                                           op_attr::strides)[0]
                     == 1;
             if (is_k3s1p1) {
                 dnnl_pops.append_dw_k3s1p1(wei_dt, bia_dt, dst_dt, mask, {});

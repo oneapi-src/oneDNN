@@ -127,7 +127,8 @@ static void layout_propagation_for_conv(op_ptr &op,
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
         insert_reorder_before(
                 op, 2, pd.bias_desc(), p_engine, mgr, reorder_ops);
         value_ptr bias = op->get_input_value(2);
@@ -178,7 +179,8 @@ static void layout_propagation_for_deconv(op_ptr &op,
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
         insert_reorder_before(
                 op, 2, pd.bias_desc(), p_engine, mgr, reorder_ops);
         value_ptr bias = op->get_input_value(2);
@@ -313,7 +315,8 @@ static void layout_propagation_for_eltwise_bwd(op_ptr &op,
     // and diff_src should use the same memory format. Primitive is created
     // based on a backward data and here we are contidionally aligning forward
     // data format.
-    auto opt_desc = (op->has_attr("use_dst") && op->get_attr<bool>("use_dst"))
+    auto opt_desc = (op->has_attr(op_attr::use_dst)
+                            && op->get_attr<bool>(op_attr::use_dst))
             ? pd.dst_desc()
             : pd.src_desc();
     insert_reorder_before(op, 0, opt_desc, p_engine, mgr, reorder_ops);
@@ -414,7 +417,8 @@ static void layout_propagation_for_matmul(op_ptr &op,
     value_ptr wei = op->get_input_value(1);
     fill_layout_info(wei, pd.weights_desc());
 
-    if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
         insert_reorder_before(
                 op, 2, pd.bias_desc(), p_engine, mgr, reorder_ops);
         value_ptr bias = op->get_input_value(2);
@@ -456,7 +460,8 @@ static void layout_propagation_for_pool(op_ptr &op,
     value_ptr scratchpad_val = op->get_output_value(1);
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
 
-    if (op->has_attr("is_training") && op->get_attr<bool>("is_training")) {
+    if (op->has_attr(op_attr::is_training)
+            && op->get_attr<bool>(op_attr::is_training)) {
         value_ptr workspace_val = op->get_output_value(2);
         const memory::desc &ws_md = pd.workspace_desc();
         workspace_val->set_dims(ws_md.dims());
@@ -506,7 +511,7 @@ static void layout_propagation_for_batchnorm(op_ptr &op,
     value_ptr dst = op->get_output_value(0);
     fill_layout_info(dst, pd.dst_desc());
 
-    if (op->get_attr<bool>("is_training")) {
+    if (op->get_attr<bool>(op_attr::is_training)) {
         value_ptr running_mean = op->get_output_value(1);
         value_ptr running_variance = op->get_output_value(2);
         value_ptr batch_mean = op->get_output_value(3);
@@ -522,7 +527,8 @@ static void layout_propagation_for_batchnorm(op_ptr &op,
     value_ptr scratchpad_val = op->get_output_values().back();
     fill_layout_info(scratchpad_val, pd.scratchpad_desc());
     // if batchnorm's prop_kind is forward_training and fused with ReLU
-    if (op->has_attr("fuse_relu") && op->get_attr<bool>("fuse_relu")) {
+    if (op->has_attr(op_attr::fuse_relu)
+            && op->get_attr<bool>(op_attr::fuse_relu)) {
         value_ptr workspace_val = insert_workspace(op);
         fill_layout_info(workspace_val, pd.workspace_desc());
     }
@@ -696,7 +702,7 @@ static void layout_propagation_for_layernorm_bwd(op_ptr &op,
     value_ptr diff_src = op->get_output_value(out_index++);
     fill_layout_info(diff_src, pd.diff_src_desc());
 
-    const bool use_affine = op->get_attr<bool>("use_affine");
+    const bool use_affine = op->get_attr<bool>(op_attr::use_affine);
     if (use_affine) {
         const auto &diff_scale_opt_mdesc
                 = pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SCALE);
@@ -730,13 +736,13 @@ static void layout_propagation_for_permute(op_ptr &op,
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md;
 
-        auto permute_kind = op->get_attr<std::string>("permute_kind");
+        auto permute_kind = op->get_attr<std::string>(op_attr::permute_kind);
         if (permute_kind == "transpose") {
             // transpose the right-most two dims
             out_md = permute_last_two_dims(in_md);
         } else {
-            auto from_format = op->get_attr<std::string>("from_format");
-            auto to_format = op->get_attr<std::string>("to_format");
+            auto from_format = op->get_attr<std::string>(op_attr::from_format);
+            auto to_format = op->get_attr<std::string>(op_attr::to_format);
             if (from_format == "NCX" && to_format == "NXC") {
                 out_md = permute_NCX2NXC(in_md);
             } else if (from_format == "NXC" && to_format == "NCX") {
@@ -755,13 +761,13 @@ static void layout_propagation_for_permute(op_ptr &op,
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
         dnnl::memory::desc in_md;
 
-        auto permute_kind = op->get_attr<std::string>("permute_kind");
+        auto permute_kind = op->get_attr<std::string>(op_attr::permute_kind);
         if (permute_kind == "transpose") {
             // transpose the right-most two dims
             in_md = permute_last_two_dims(out_md);
         } else {
-            auto from_format = op->get_attr<std::string>("from_format");
-            auto to_format = op->get_attr<std::string>("to_format");
+            auto from_format = op->get_attr<std::string>(op_attr::from_format);
+            auto to_format = op->get_attr<std::string>(op_attr::to_format);
             if (from_format == "NCX" && to_format == "NXC") {
                 in_md = permute_NXC2NCX(out_md);
             } else if (from_format == "NXC" && to_format == "NCX") {
@@ -784,13 +790,13 @@ static void layout_propagation_for_permute(op_ptr &op,
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
         dnnl::memory::desc tmp_in_md;
 
-        auto permute_kind = op->get_attr<std::string>("permute_kind");
+        auto permute_kind = op->get_attr<std::string>(op_attr::permute_kind);
         if (permute_kind == "transpose") {
             // transpose the right-most two dims
             tmp_in_md = permute_last_two_dims(out_md);
         } else {
-            auto from_format = op->get_attr<std::string>("from_format");
-            auto to_format = op->get_attr<std::string>("to_format");
+            auto from_format = op->get_attr<std::string>(op_attr::from_format);
+            auto to_format = op->get_attr<std::string>(op_attr::to_format);
             if (from_format == "NCX" && to_format == "NXC") {
                 tmp_in_md = permute_NXC2NCX(out_md);
             } else if (from_format == "NXC" && to_format == "NCX") {
@@ -829,9 +835,9 @@ static void layout_propagation_for_to_group(op_ptr &op) {
     if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md;
-        auto groups = op->get_attr<int64_t>("groups");
-        if (op->has_attr("is_convtranspose")
-                && op->get_attr<bool>("is_convtranspose")) {
+        auto groups = op->get_attr<int64_t>(op_attr::groups);
+        if (op->has_attr(op_attr::is_convtranspose)
+                && op->get_attr<bool>(op_attr::is_convtranspose)) {
             auto permuted_weight = transpose(in_md, 0, 1);
             auto permuted_group_weight = to_grouped(permuted_weight, groups);
             out_md = transpose(permuted_group_weight, 1, 2);
@@ -878,8 +884,8 @@ static void layout_propagation_for_from_group(op_ptr &op,
 
     if (ltw(src_lt).is_any()) return;
 
-    const bool is_convtranspose = op->has_attr("is_convtranspose")
-            ? op->get_attr<bool>("is_convtranspose")
+    const bool is_convtranspose = op->has_attr(op_attr::is_convtranspose)
+            ? op->get_attr<bool>(op_attr::is_convtranspose)
             : false;
     const auto src_md = make_dnnl_memory_desc(src_lt);
     dnnl::memory::desc infered_dst_md = get_dst_md(src_md, is_convtranspose);
@@ -982,7 +988,8 @@ static void layout_propagation_for_transpose(op_ptr &op,
 
     assertm(!ltw(in_lt).is_any(), "transpose's src can't be any layout now");
 
-    std::vector<int64_t> order = op->get_attr<std::vector<int64_t>>("order");
+    std::vector<int64_t> order
+            = op->get_attr<std::vector<int64_t>>(op_attr::order);
     // if order < 0, convert it to postive order
     if (!order.empty()) {
         for (int64_t &axis : order) {
@@ -1055,7 +1062,7 @@ static void layout_propagation_for_squeeze(op_ptr &op,
         auto in_md = make_dnnl_memory_desc(in_lt);
         if (ltw(out_lt).is_any()) {
             const auto in_ndim = static_cast<int64_t>(in_md.dims().size());
-            auto axes = op->get_attr<std::vector<int64_t>>("axes");
+            auto axes = op->get_attr<std::vector<int64_t>>(op_attr::axes);
             std::transform(axes.begin(), axes.end(), axes.begin(),
                     [&in_ndim](int64_t axis) -> int64_t {
                         return axis < 0 ? in_ndim + axis : axis;
@@ -1085,7 +1092,7 @@ static void layout_propagation_for_squeeze(op_ptr &op,
         dnnl::memory::desc in_md = make_dnnl_memory_desc(in_lt);
         dnnl::memory::desc out_md = in_md;
 
-        auto axes = op->get_attr<std::vector<int64_t>>("axes");
+        auto axes = op->get_attr<std::vector<int64_t>>(op_attr::axes);
         auto in_ndim = in_md.dims().size();
 
         // If there is padding in the dimension to be squeezed, reshape
@@ -1122,7 +1129,7 @@ static void layout_propagation_for_squeeze(op_ptr &op,
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
         dnnl::memory::desc tmp_in_md = out_md;
 
-        auto axes = op->get_attr<std::vector<int64_t>>("axes");
+        auto axes = op->get_attr<std::vector<int64_t>>(op_attr::axes);
 
         if (axes.empty() || axes.size() == 2) {
             // the output is a scalar or no need to squeeze,
@@ -1156,8 +1163,8 @@ static void layout_propagation_for_reorder(
     auto out_lt = dst->get_logical_tensor();
 
     if (!ltw(in_lt).is_any() && ltw(out_lt).is_any()) {
-        assertm(!op->has_attr("change_layout")
-                        || !op->get_attr<bool>("change_layout"),
+        assertm(!op->has_attr(op_attr::change_layout)
+                        || !op->get_attr<bool>(op_attr::change_layout),
                 "the dnnl_reorder op's input and output layout must be known "
                 "if it changes layout");
 
@@ -1166,8 +1173,8 @@ static void layout_propagation_for_reorder(
                 = static_cast<dnnl_data_type_t>(ltw(out_lt).data_type());
         fill_layout_info(dst, out_md);
     } else if (!ltw(out_lt).is_any() && ltw(in_lt).is_any()) {
-        assertm(!op->has_attr("change_layout")
-                        || !op->get_attr<bool>("change_layout"),
+        assertm(!op->has_attr(op_attr::change_layout)
+                        || !op->get_attr<bool>(op_attr::change_layout),
                 "the dnnl_reorder op's input and output layout must be known "
                 "if it changes layout");
 

@@ -32,6 +32,7 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 #include "backend/dnnl/utils.hpp"
 
@@ -283,7 +284,8 @@ void set_weight_bias_constant(std::vector<op_ptr> &subgraph) {
         op->get_input_value(1)->set_property(property_type::constant);
 
         // set bias to be constant
-        if (op->has_attr("with_bias") && op->get_attr<bool>("with_bias")) {
+        if (op->has_attr(op_attr::with_bias)
+                && op->get_attr<bool>(op_attr::with_bias)) {
             op->get_input_value(2)->set_property(property_type::constant);
         }
     }
@@ -529,11 +531,11 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
             for (const auto &elem : actual_attrs) {
                 // The matched_pattern attr is added by pattern matcher, we skip
                 // it. The with_sum attr will be removed later, we skip it.
-                bool skip = elem.first == "matched_pattern"
-                        || elem.first == "with_sum";
+                bool skip = elem.first == op_attr::matched
+                        || elem.first == op_attr::with_sum;
                 if (!skip && expected_attrs.count(elem.first) == 0) {
-                    DEBUG_PRINT_ERROR(
-                            "attribute \"" + elem.first + "\" is not defined");
+                    // TODO(xxx): need to print the attribute string.
+                    DEBUG_PRINT_ERROR("internal attribute is not defined");
                     assertm(false, "undefined attrs");
                     return impl::status::invalid_op;
                 }
@@ -542,12 +544,13 @@ status_t subgraph_validator_t::run(const std::shared_ptr<subgraph_t> &sg) {
 
         // Additional verifications
         if (op->get_kind() == op_kind::dnnl_convolution) {
-            bool canonicalized = op->has_attr("canonicalized")
-                    && op->get_attr<bool>("canonicalized");
+            bool canonicalized = op->has_attr(op_attr::canonicalized)
+                    && op->get_attr<bool>(op_attr::canonicalized);
             if (canonicalized) {
-                auto data_fmt = op->get_attr<std::string>("data_format");
-                auto filter_fmt = op->get_attr<std::string>("filter_format");
-                auto groups = op->get_attr<int64_t>("groups");
+                auto data_fmt = op->get_attr<std::string>(op_attr::data_format);
+                auto filter_fmt
+                        = op->get_attr<std::string>(op_attr::filter_format);
+                auto groups = op->get_attr<int64_t>(op_attr::groups);
                 bool ok = data_fmt == "NCX" && filter_fmt == "OIX"
                         && groups == 1;
                 if (!ok) {
@@ -608,20 +611,24 @@ void replace_op(op_ptr &org_op, op_ptr &new_op) {
 
 void merge_common_eltwise_attrs(
         std::shared_ptr<op_t> &org_op, std::shared_ptr<op_t> &new_op) {
-    if (org_op->has_attr("alpha")) {
-        new_op->set_attr<float>("alpha", org_op->get_attr<float>("alpha"));
-    } else if (org_op->has_attr("min")) {
-        new_op->set_attr<float>("alpha", org_op->get_attr<float>("min"));
+    if (org_op->has_attr(op_attr::alpha)) {
+        new_op->set_attr<float>(
+                op_attr::alpha, org_op->get_attr<float>(op_attr::alpha));
+    } else if (org_op->has_attr(op_attr::min)) {
+        new_op->set_attr<float>(
+                op_attr::alpha, org_op->get_attr<float>(op_attr::min));
     } else {
-        new_op->set_attr<float>("alpha", 0);
+        new_op->set_attr<float>(op_attr::alpha, 0);
     }
 
-    if (org_op->has_attr("beta")) {
-        new_op->set_attr<float>("beta", org_op->get_attr<float>("beta"));
-    } else if (org_op->has_attr("max")) {
-        new_op->set_attr<float>("beta", org_op->get_attr<float>("max"));
+    if (org_op->has_attr(op_attr::beta)) {
+        new_op->set_attr<float>(
+                op_attr::beta, org_op->get_attr<float>(op_attr::beta));
+    } else if (org_op->has_attr(op_attr::max)) {
+        new_op->set_attr<float>(
+                op_attr::beta, org_op->get_attr<float>(op_attr::max));
     } else {
-        new_op->set_attr<float>("beta", 0);
+        new_op->set_attr<float>(op_attr::beta, 0);
     }
 }
 
@@ -638,7 +645,7 @@ std::vector<value_t *> get_constant_block_output_values(
             auto consumers = val->get_consumers();
             for (auto &csm : consumers) {
                 // A consumer is not constant
-                if (!csm.get_op().get_attr<bool>("is_constant")) {
+                if (!csm.get_op().get_attr<bool>(op_attr::is_constant)) {
                     ret.emplace_back(val.get());
                     break;
                 }
@@ -744,8 +751,9 @@ static bool post_binary_fusible_impl(const impl::op_t *base_op,
     const auto c_axis = static_cast<size_t>(
             std::distance(other_shape.begin(), c_axis_it));
     if (other_shape[c_axis] != fused_shape[c_axis]) return false;
-    if (base_op->has_attr("data_format")) {
-        const auto data_fmt = base_op->get_attr<std::string>("data_format");
+    if (base_op->has_attr(op_attr::data_format)) {
+        const auto data_fmt
+                = base_op->get_attr<std::string>(op_attr::data_format);
         int32_t orig_c_axis = data_fmt == "NCX" ? 1 : output_ndims - 1;
         return c_axis == orig_c_axis;
     }
@@ -765,8 +773,8 @@ std::pair<bool, std::pair<size_t, int64_t>> shuffle_fusible(
             = reshape1->get_output_value(0)->get_logical_tensor();
     const auto src_lt_shape = ltw(src_port).vdims();
     const auto dst_lt_shape = ltw(dst_port).vdims();
-    const auto attr_shape = reshape0->get_attr<impl::dims>("shape");
-    const auto tp_order = transpose->get_attr<impl::dims>("order");
+    const auto attr_shape = reshape0->get_attr<impl::dims>(op_attr::shape);
+    const auto tp_order = transpose->get_attr<impl::dims>(op_attr::order);
 
     if (src_lt_shape != dst_lt_shape) return dflt_res;
     if (src_lt_shape.size() + 1 != attr_shape.size()) return dflt_res;
@@ -821,8 +829,8 @@ bool post_depthwise_conv_fusible(
         const auto wei_dims
                 = ltw(op->get_input_value(wei_offset)->get_logical_tensor())
                           .vdims();
-        const auto wei_format = (op->has_attr("filter_format"))
-                ? op->get_attr<std::string>("filter_format")
+        const auto wei_format = (op->has_attr(op_attr::filter_format))
+                ? op->get_attr<std::string>(op_attr::filter_format)
                 : "XIO";
         const size_t ndims = wei_dims.size();
         const int64_t o
@@ -862,21 +870,21 @@ bool post_depthwise_conv_fusible(
     if (!all_equal_to(dw_spatial, 3)) return false;
 
     // other post conv requirements
-    if (post_conv_op->has_attr("auto_pad")
-            && post_conv_op->get_attr<std::string>("auto_pad") != "None")
+    if (post_conv_op->has_attr(op_attr::auto_pad)
+            && post_conv_op->get_attr<std::string>(op_attr::auto_pad) != "None")
         return false;
-    if (!post_conv_op->has_attr("groups")) return false;
+    if (!post_conv_op->has_attr(op_attr::groups)) return false;
 
-    const auto groups = post_conv_op->get_attr<int64_t>("groups");
+    const auto groups = post_conv_op->get_attr<int64_t>(op_attr::groups);
     if (!(groups == dw_o && dw_o == groups * dw_i)) return false;
 
-    const auto strides = post_conv_op->get_attr<dims>("strides");
+    const auto strides = post_conv_op->get_attr<dims>(op_attr::strides);
     if (!(all_equal_to(strides, 1) || all_equal_to(strides, 2))) return false;
 
-    const auto pads_begin = post_conv_op->get_attr<dims>("pads_begin");
+    const auto pads_begin = post_conv_op->get_attr<dims>(op_attr::pads_begin);
     if (!all_equal_to(pads_begin, 1)) return false;
 
-    const auto pads_end = post_conv_op->get_attr<dims>("pads_end");
+    const auto pads_end = post_conv_op->get_attr<dims>(op_attr::pads_end);
     if (!(all_equal_to(pads_end, 0) || all_equal_to(pads_end, 1))) return false;
 
     return true;
@@ -970,18 +978,20 @@ value_ptr insert_empty_scratchpad(op_ptr &op) {
 
 bool is_typecast(const impl::op_t *op) {
     bool is_typecast = op->get_kind() == dnnl_impl::op_kind::dnnl_reorder
-            && !op->get_attr<bool>("change_layout")
-            && (!op->has_attr("qtype")
-                    || op->get_attr<std::string>("qtype") == "per_tensor")
-            && (!op->has_attr("axis") || op->get_attr<int64_t>("axis") == -1)
-            && !op->has_attr("scales") && !op->has_attr("src_zps")
-            && !op->has_attr("dst_zps")
-            && (!op->has_attr("with_runtime_scales")
-                    || !op->get_attr<bool>("with_runtime_scales"))
-            && (!op->has_attr("with_runtime_src_zps")
-                    || !op->get_attr<bool>("with_runtime_src_zps"))
-            && (!op->has_attr("with_runtime_dst_zps")
-                    || !op->get_attr<bool>("with_runtime_dst_zps"))
+            && !op->get_attr<bool>(op_attr::change_layout)
+            && (!op->has_attr(op_attr::qtype)
+                    || op->get_attr<std::string>(op_attr::qtype)
+                            == "per_tensor")
+            && (!op->has_attr(op_attr::axis)
+                    || op->get_attr<int64_t>(op_attr::axis) == -1)
+            && !op->has_attr(op_attr::scales) && !op->has_attr(op_attr::src_zps)
+            && !op->has_attr(op_attr::dst_zps)
+            && (!op->has_attr(op_attr::with_runtime_scales)
+                    || !op->get_attr<bool>(op_attr::with_runtime_scales))
+            && (!op->has_attr(op_attr::with_runtime_src_zps)
+                    || !op->get_attr<bool>(op_attr::with_runtime_src_zps))
+            && (!op->has_attr(op_attr::with_runtime_dst_zps)
+                    || !op->get_attr<bool>(op_attr::with_runtime_dst_zps))
             && op->get_input_value(0)->get_logical_tensor().data_type
                     != op->get_output_value(0)->get_logical_tensor().data_type;
     return is_typecast;

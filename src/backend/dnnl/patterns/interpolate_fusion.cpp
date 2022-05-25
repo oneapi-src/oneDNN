@@ -32,7 +32,7 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
 namespace {
 bool check_attributes(op_t *op) {
-    return op->get_attr<std::string>("coordinate_transformation_mode")
+    return op->get_attr<std::string>(op_attr::coordinate_transformation_mode)
             == std::string("half_pixel");
 }
 } // namespace
@@ -100,7 +100,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_post_ops_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::interpolate_post_ops_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 

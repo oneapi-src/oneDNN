@@ -47,18 +47,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, sum_fusion)
                             = pgraph->append_op(impl::op_kind::Add);
                     add_base->append_decision_function(
                             [](op_t *graph_op) -> bool {
-                                return !graph_op->has_attr("auto_broadcast")
+                                return !graph_op->has_attr(
+                                               op_attr::auto_broadcast)
                                         || graph_op->get_attr<std::string>(
-                                                   "auto_broadcast")
+                                                   op_attr::auto_broadcast)
                                         == "none";
                             });
 
                     auto addgraph = std::make_shared<pb_graph>();
                     pm::pb_op_t *add = addgraph->append_op(impl::op_kind::Add);
                     add->append_decision_function([](op_t *graph_op) -> bool {
-                        return !graph_op->has_attr("auto_broadcast")
+                        return !graph_op->has_attr(op_attr::auto_broadcast)
                                 || graph_op->get_attr<std::string>(
-                                           "auto_broadcast")
+                                           op_attr::auto_broadcast)
                                 == "none";
                     });
                     addgraph->create_input_port(0, add, 0);
@@ -72,7 +73,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, sum_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op
                             = std::make_shared<op_t>(op_kind::dnnl_sum);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 

@@ -37,18 +37,22 @@ bool check_scales_zps_all_equal(op_t *op) {
     // We only want to accept int8 concat with inputs using
     // the same scales and zps. Concat does not change range
     // of values so output scales and zps should be same as well.
-    if (!out_op.has_attr("scales") || !out_op.has_attr("zps")) return false;
-    const auto expected_scales = out_op.get_attr<std::vector<float>>("scales");
-    const auto expected_zps = out_op.get_attr<std::vector<int64_t>>("zps");
+    if (!out_op.has_attr(op_attr::scales) || !out_op.has_attr(op_attr::zps))
+        return false;
+    const auto expected_scales
+            = out_op.get_attr<std::vector<float>>(op_attr::scales);
+    const auto expected_zps
+            = out_op.get_attr<std::vector<int64_t>>(op_attr::zps);
 
     for (size_t i = 0; i < op->num_inputs(); ++i) {
         auto in_port = op->get_input_value(i);
         if (!in_port->has_producer()) return false;
 
         auto &in_op = in_port->get_producer();
-        if (!in_op.has_attr("scales") || !in_op.has_attr("zps")) return false;
-        auto scales = in_op.get_attr<std::vector<float>>("scales");
-        auto zps = in_op.get_attr<std::vector<int64_t>>("zps");
+        if (!in_op.has_attr(op_attr::scales) || !in_op.has_attr(op_attr::zps))
+            return false;
+        auto scales = in_op.get_attr<std::vector<float>>(op_attr::scales);
+        auto zps = in_op.get_attr<std::vector<int64_t>>(op_attr::zps);
         if (scales != expected_scales || zps != expected_zps) return false;
     }
 
@@ -89,7 +93,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_concat_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::quantized_concat_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 

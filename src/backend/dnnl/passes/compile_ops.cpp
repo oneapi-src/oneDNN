@@ -22,6 +22,7 @@
 #include "interface/value.hpp"
 #include "utils/compatible.hpp"
 
+#include "backend/dnnl/internal_attrs.hpp"
 #include "backend/dnnl/passes/compile_ops.hpp"
 #include "backend/dnnl/passes/op_executable.hpp"
 
@@ -91,9 +92,11 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
             exec = std::make_shared<reorder_executable_t>(
                     cur_op, p_engine, mgr);
         } else if (cur_op->get_kind() == op_kind::dnnl_constant_scales) {
-            exec = std::make_shared<fvec_to_fvec_filler>(cur_op, "scales");
+            exec = std::make_shared<fvec_to_fvec_filler>(
+                    cur_op, op_attr::scales);
         } else if (cur_op->get_kind() == op_kind::dnnl_constant_zps) {
-            exec = std::make_shared<i64vec_to_i32vec_filler>(cur_op, "zps");
+            exec = std::make_shared<i64vec_to_i32vec_filler>(
+                    cur_op, op_attr::zps);
         } else if (cur_op->get_kind() == op_kind::permute
                 || cur_op->get_kind() == op_kind::to_group
                 || cur_op->get_kind() == op_kind::from_group
@@ -156,8 +159,8 @@ impl::status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
         }
 
         sg->execs_.emplace_back(exec);
-        sg->is_constant_.push_back(op->has_attr("is_constant")
-                && op->get_attr<bool>("is_constant"));
+        sg->is_constant_.push_back(op->has_attr(op_attr::is_constant)
+                && op->get_attr<bool>(op_attr::is_constant));
         return impl::status::success;
     });
 }

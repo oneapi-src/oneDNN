@@ -153,7 +153,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::quantized_convtranspose_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 
@@ -227,7 +227,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_post_ops_fusion)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             op_kind::convtranspose_fusion);
-                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
 

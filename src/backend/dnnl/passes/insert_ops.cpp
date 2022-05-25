@@ -24,9 +24,10 @@
 #include "interface/c_types_map.hpp"
 
 #include "backend/dnnl/common.hpp"
+#include "backend/dnnl/internal_attrs.hpp"
 
-#include "insert_ops.hpp"
-#include "utils.hpp"
+#include "backend/dnnl/passes/insert_ops.hpp"
+#include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -55,43 +56,46 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
 
     // insert permute for convolution/convtranspose op
     auto insert_permute_for_conv_or_deconv = [&](op_ptr &conv_op) -> bool {
-        const bool need_permute_0 = conv_op->has_attr("data_format")
-                ? (conv_op->get_attr<std::string>("data_format") == "NXC")
+        const bool need_permute_0 = conv_op->has_attr(op_attr::data_format)
+                ? (conv_op->get_attr<std::string>(op_attr::data_format)
+                        == "NXC")
                 : false;
-        const bool need_permute_1 = conv_op->has_attr("filter_format")
-                ? (conv_op->get_attr<std::string>("filter_format") == "XIO")
+        const bool need_permute_1 = conv_op->has_attr(op_attr::filter_format)
+                ? (conv_op->get_attr<std::string>(op_attr::filter_format)
+                        == "XIO")
                 : false;
         // conv + depthwise case
-        const bool need_permute_2 = conv_op->has_attr("dw_filter_format")
-                ? (conv_op->get_attr<std::string>("dw_filter_format") == "XIO")
+        const bool need_permute_2 = conv_op->has_attr(op_attr::dw_filter_format)
+                ? (conv_op->get_attr<std::string>(op_attr::dw_filter_format)
+                        == "XIO")
                 : false;
 
         if (!(need_permute_0 || need_permute_1 || need_permute_2)) return false;
 
         for (size_t i = 0; i < conv_op->num_inputs(); ++i) {
             op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
-            perm_op->set_attr<std::string>("permute_kind", "permute");
+            perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
 
             if (i == 0) {
                 if (!need_permute_0) continue;
-                perm_op->set_attr<std::string>("from_format", "NXC");
-                perm_op->set_attr<std::string>("to_format", "NCX");
+                perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
+                perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
             } else if (i == 1) {
                 if (!need_permute_1) continue;
-                perm_op->set_attr<std::string>("from_format", "XIO");
-                perm_op->set_attr<std::string>("to_format", "OIX");
+                perm_op->set_attr<std::string>(op_attr::from_format, "XIO");
+                perm_op->set_attr<std::string>(op_attr::to_format, "OIX");
             } else if (i == 2) {
                 // skip for bias input
-                if (conv_op->get_attr<bool>("with_bias")) continue;
+                if (conv_op->get_attr<bool>(op_attr::with_bias)) continue;
                 if (need_permute_2) {
-                    perm_op->set_attr<std::string>("from_format", "XIO");
-                    perm_op->set_attr<std::string>("to_format", "OIX");
+                    perm_op->set_attr<std::string>(op_attr::from_format, "XIO");
+                    perm_op->set_attr<std::string>(op_attr::to_format, "OIX");
                 } else if (need_permute_0
                         && conv_op->get_kind()
                                 != op_kind::dnnl_conv_depthwise) {
                     // this input is also the input of post binary ops
-                    perm_op->set_attr<std::string>("from_format", "NXC");
-                    perm_op->set_attr<std::string>("to_format", "NCX");
+                    perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
+                    perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
                 } else {
                     continue;
                 }
@@ -99,8 +103,8 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
                 // if not set data_format as NXC, no need to permute for other
                 // inputs of post binary ops
                 if (!need_permute_0) continue;
-                perm_op->set_attr<std::string>("from_format", "NXC");
-                perm_op->set_attr<std::string>("to_format", "NCX");
+                perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
+                perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
             }
 
             insert_op_before(perm_op, conv_op, i);
@@ -108,11 +112,11 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         }
 
         // remove the attrs in cur_op to avoid re-permute
-        conv_op->set_attr<std::string>("data_format", "NCX");
-        conv_op->set_attr<std::string>("filter_format", "OIX");
+        conv_op->set_attr<std::string>(op_attr::data_format, "NCX");
+        conv_op->set_attr<std::string>(op_attr::filter_format, "OIX");
         // conv + depthwise case
         if (need_permute_2)
-            conv_op->set_attr<std::string>("dw_filter_format", "OIX");
+            conv_op->set_attr<std::string>(op_attr::dw_filter_format, "OIX");
 
         return need_permute_0;
     };
@@ -121,16 +125,16 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
     // (e.g pool, batchnorm, interpolate)
     auto insert_permute_for_op_only_require_data_format
             = [&](op_ptr &op) -> bool {
-        const bool need_permute_0 = op->has_attr("data_format")
-                ? (op->get_attr<std::string>("data_format") == "NXC")
+        const bool need_permute_0 = op->has_attr(op_attr::data_format)
+                ? (op->get_attr<std::string>(op_attr::data_format) == "NXC")
                 : false;
         if (!need_permute_0) return false;
 
         size_t num_post_binary_ops = 0;
         const auto &mgr = sg->fusion_info_mgr_;
-        if (op->has_attr("fusion_info_key")
-                && op->get_attr<int64_t>("fusion_info_key") != -1) {
-            int64_t key = op->get_attr<int64_t>("fusion_info_key");
+        if (op->has_attr(op_attr::fusion_info_key)
+                && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
             const auto &pops = mgr.get_info(key).get_post_ops();
             for (int n = 0; n < pops.size(); ++n) {
                 if (pops[n]->get_op()->get_kind() == op_kind::dnnl_binary)
@@ -152,14 +156,14 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
                 continue;
 
             op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
-            perm_op->set_attr<std::string>("permute_kind", "permute");
-            perm_op->set_attr<std::string>("from_format", "NXC");
-            perm_op->set_attr<std::string>("to_format", "NCX");
+            perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
+            perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
+            perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
             insert_op_before(perm_op, op, i);
             to_be_inserted_ops.emplace_back(perm_op);
         }
         // remove the attrs in cur_op to avoid re-permute
-        op->set_attr<std::string>("data_format", "NCX");
+        op->set_attr<std::string>(op_attr::data_format, "NCX");
         return true;
     };
 
@@ -180,9 +184,9 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
         // permute output back to NXC
         if (require_output_permute) {
             op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
-            perm_op->set_attr<std::string>("permute_kind", "permute");
-            perm_op->set_attr<std::string>("from_format", "NCX");
-            perm_op->set_attr<std::string>("to_format", "NXC");
+            perm_op->set_attr<std::string>(op_attr::permute_kind, "permute");
+            perm_op->set_attr<std::string>(op_attr::from_format, "NCX");
+            perm_op->set_attr<std::string>(op_attr::to_format, "NXC");
             insert_op_after(perm_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(perm_op);
 
@@ -190,9 +194,10 @@ impl::status_t insert_permute(std::shared_ptr<subgraph_t> &sg) {
             if (cur_op->get_kind() == op_kind::dnnl_prelu_bwd) {
                 op_ptr perm_op_1
                         = std::make_shared<impl::op_t>(op_kind::permute);
-                perm_op_1->set_attr<std::string>("permute_kind", "permute");
-                perm_op_1->set_attr<std::string>("from_format", "NCX");
-                perm_op_1->set_attr<std::string>("to_format", "NXC");
+                perm_op_1->set_attr<std::string>(
+                        op_attr::permute_kind, "permute");
+                perm_op_1->set_attr<std::string>(op_attr::from_format, "NCX");
+                perm_op_1->set_attr<std::string>(op_attr::to_format, "NXC");
                 insert_op_after(perm_op_1, cur_op, 1);
                 to_be_inserted_ops.emplace_back(perm_op_1);
             }
@@ -218,7 +223,7 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         impl::logical_tensor_t src_lt
                 = cur_op->get_input_value(0)->get_logical_tensor();
         const logical_tensor_wrapper_t src(src_lt);
-        const auto axis = cur_op->get_attr<int64_t>("axis");
+        const auto axis = cur_op->get_attr<int64_t>(op_attr::axis);
         const auto known_strides
                 = (src.is_strided()) ? !src.is_stride_unknown() : false;
         const bool need_permute = axis == src.ndims() - 1 && known_strides
@@ -226,19 +231,19 @@ impl::status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         if (!need_permute) continue;
 
         const int64_t new_axis = 1;
-        cur_op->set_attr("axis", new_axis);
+        cur_op->set_attr(op_attr::axis, new_axis);
         op_ptr perm_src_op = std::make_shared<impl::op_t>(op_kind::permute);
-        perm_src_op->set_attr<std::string>("permute_kind", "permute");
-        perm_src_op->set_attr<std::string>("from_format", "NXC");
-        perm_src_op->set_attr<std::string>("to_format", "NCX");
+        perm_src_op->set_attr<std::string>(op_attr::permute_kind, "permute");
+        perm_src_op->set_attr<std::string>(op_attr::from_format, "NXC");
+        perm_src_op->set_attr<std::string>(op_attr::to_format, "NCX");
         insert_op_before(perm_src_op, cur_op, 0);
         to_be_inserted_ops.emplace_back(perm_src_op);
 
         // permute output back to NXC
         op_ptr perm_dst_op = std::make_shared<impl::op_t>(op_kind::permute);
-        perm_dst_op->set_attr<std::string>("permute_kind", "permute");
-        perm_dst_op->set_attr<std::string>("from_format", "NCX");
-        perm_dst_op->set_attr<std::string>("to_format", "NXC");
+        perm_dst_op->set_attr<std::string>(op_attr::permute_kind, "permute");
+        perm_dst_op->set_attr<std::string>(op_attr::from_format, "NCX");
+        perm_dst_op->set_attr<std::string>(op_attr::to_format, "NXC");
         insert_op_after(perm_dst_op, cur_op, 0);
         to_be_inserted_ops.emplace_back(perm_dst_op);
     }
@@ -256,26 +261,26 @@ impl::status_t insert_to_group_for_conv_or_deconv(
     std::vector<op_ptr> to_be_removed_ops;
 
     auto insert_to_group
-            = [&to_be_inserted_ops](op_ptr &op, const std::string &attr_name,
+            = [&to_be_inserted_ops](op_ptr &op, op_attr_t attr_name,
                       const size_t offset) -> bool {
         auto groups = op->get_attr<int64_t>(attr_name);
         if (groups <= 1) {
-            op->set_attr<bool>("canonicalized", true);
+            op->set_attr<bool>(op_attr::canonicalized, true);
             return false;
         }
 
         op_ptr to_group_op = std::make_shared<impl::op_t>(op_kind::to_group);
-        to_group_op->set_attr<int64_t>("groups", groups);
+        to_group_op->set_attr<int64_t>(op_attr::groups, groups);
 
-        op->set_attr<bool>("canonicalized", true);
-        op->set_attr<int64_t>("groups", 1);
+        op->set_attr<bool>(op_attr::canonicalized, true);
+        op->set_attr<int64_t>(op_attr::groups, 1);
 
         insert_op_before(to_group_op, op, offset);
         to_be_inserted_ops.emplace_back(to_group_op);
 
         if (op->get_kind() == op_kind::dnnl_convtranspose
                 || op->get_kind() == op_kind::dnnl_convtranspose_bwd_data)
-            to_group_op->set_attr<bool>("is_convtranspose", true);
+            to_group_op->set_attr<bool>(op_attr::is_convtranspose, true);
 
         return true;
     };
@@ -288,11 +293,12 @@ impl::status_t insert_to_group_for_conv_or_deconv(
             continue;
 
         if (cur_op->get_kind() == op_kind::dnnl_conv_depthwise) {
-            const auto inserted = insert_to_group(cur_op, "dw_groups", 2);
+            const auto inserted
+                    = insert_to_group(cur_op, op_attr::dw_groups, 2);
             if (!inserted) continue;
         }
 
-        const auto inserted = insert_to_group(cur_op, "groups", 1);
+        const auto inserted = insert_to_group(cur_op, op_attr::groups, 1);
         if (!inserted) continue;
     }
     for (const auto &op : to_be_inserted_ops)
@@ -333,7 +339,7 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
             // insert to_group op
             op_ptr to_group_op
                     = std::make_shared<impl::op_t>(op_kind::to_group);
-            to_group_op->set_attr<int64_t>("groups", group);
+            to_group_op->set_attr<int64_t>(op_attr::groups, group);
 
             insert_op_before(to_group_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(to_group_op);
@@ -355,10 +361,10 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
 
         std::vector<bool> trans_flag(2);
-        if (cur_op->has_attr("transpose_a"))
-            trans_flag[0] = cur_op->get_attr<bool>("transpose_a");
-        if (cur_op->has_attr("transpose_b"))
-            trans_flag[1] = cur_op->get_attr<bool>("transpose_b");
+        if (cur_op->has_attr(op_attr::transpose_a))
+            trans_flag[0] = cur_op->get_attr<bool>(op_attr::transpose_a);
+        if (cur_op->has_attr(op_attr::transpose_b))
+            trans_flag[1] = cur_op->get_attr<bool>(op_attr::transpose_b);
         if (!(trans_flag[0] || trans_flag[1])) continue;
 
         for (size_t i = 0; i < trans_flag.size(); ++i) {
@@ -369,13 +375,14 @@ impl::status_t insert_transpose_for_matmul(std::shared_ptr<subgraph_t> &sg) {
                             <= 1)
                 continue;
             op_ptr transpose_op = std::make_shared<op_t>(op_kind::permute);
-            transpose_op->set_attr<std::string>("permute_kind", "transpose");
+            transpose_op->set_attr<std::string>(
+                    op_attr::permute_kind, "transpose");
             insert_op_before(transpose_op, cur_op, i);
             to_be_inserted_ops.emplace_back(transpose_op);
         }
         // remove attr to avoid re-transpose during shape inference
-        cur_op->set_attr<bool>("transpose_a", false);
-        cur_op->set_attr<bool>("transpose_b", false);
+        cur_op->set_attr<bool>(op_attr::transpose_a, false);
+        cur_op->set_attr<bool>(op_attr::transpose_b, false);
     }
     for (const auto &op : to_be_inserted_ops)
         subgraph.emplace_back(op);
@@ -397,8 +404,8 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
             continue;
         }
 
-        const bool with_bias = cur_op->has_attr("with_bias")
-                ? cur_op->get_attr<bool>("with_bias")
+        const bool with_bias = cur_op->has_attr(op_attr::with_bias)
+                ? cur_op->get_attr<bool>(op_attr::with_bias)
                 : false;
         const size_t expected = with_bias ? 4 : 3;
         // TODO(xx): handle multiple post-binary case
@@ -415,16 +422,18 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
                                 .vdims();
         impl::dims expected_dims {-1, src_dims.back()};
         auto reshape_op = std::make_shared<op_t>(impl::op_kind::StaticReshape);
-        reshape_op->set_attr<bool>("special_zero", false);
-        reshape_op->set_attr<std::vector<int64_t>>("shape", expected_dims);
+        reshape_op->set_attr<bool>(op_attr::special_zero, false);
+        reshape_op->set_attr<std::vector<int64_t>>(
+                op_attr::shape, expected_dims);
         to_be_inserted_ops.emplace_back(reshape_op);
         insert_op_before(reshape_op, cur_op, 0);
 
         impl::dims expected_dims2(src_dims);
         expected_dims2[expected_dims2.size() - 1] = 0;
         auto reshape_op2 = std::make_shared<op_t>(impl::op_kind::StaticReshape);
-        reshape_op2->set_attr<bool>("special_zero", true);
-        reshape_op2->set_attr<std::vector<int64_t>>("shape", expected_dims2);
+        reshape_op2->set_attr<bool>(op_attr::special_zero, true);
+        reshape_op2->set_attr<std::vector<int64_t>>(
+                op_attr::shape, expected_dims2);
         to_be_inserted_ops.emplace_back(reshape_op2);
         insert_op_after(reshape_op2, cur_op, 0);
 
@@ -435,9 +444,9 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
             impl::dims expected_dims3 {-1, post_src_dims.back()};
             auto reshape_op3
                     = std::make_shared<op_t>(impl::op_kind::StaticReshape);
-            reshape_op3->set_attr<bool>("special_zero", false);
+            reshape_op3->set_attr<bool>(op_attr::special_zero, false);
             reshape_op3->set_attr<std::vector<int64_t>>(
-                    "shape", expected_dims3);
+                    op_attr::shape, expected_dims3);
             to_be_inserted_ops.emplace_back(reshape_op3);
             insert_op_before(reshape_op3, cur_op, 2);
         } else if (with_bias && cur_op->num_inputs() == 4) {
@@ -447,23 +456,23 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
             impl::dims expected_dims3 {-1, post_src_dims.back()};
             auto reshape_op3
                     = std::make_shared<op_t>(impl::op_kind::StaticReshape);
-            reshape_op3->set_attr<bool>("special_zero", false);
+            reshape_op3->set_attr<bool>(op_attr::special_zero, false);
             reshape_op3->set_attr<std::vector<int64_t>>(
-                    "shape", expected_dims3);
+                    op_attr::shape, expected_dims3);
             to_be_inserted_ops.emplace_back(reshape_op3);
             insert_op_before(reshape_op3, cur_op, 3);
         }
 
         // update the axis
-        if (cur_op->has_attr("fusion_info_key")
-                && cur_op->get_attr<int64_t>("fusion_info_key") != -1) {
-            int64_t key = cur_op->get_attr<int64_t>("fusion_info_key");
+        if (cur_op->has_attr(op_attr::fusion_info_key)
+                && cur_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            int64_t key = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
             fusion_info_t &fusion_info = mgr.get_mutable_info(key);
             impl::op_t *oscales_op = fusion_info.get_mutable_output_scales();
             if (oscales_op
-                    && oscales_op->get_attr<std::string>("qtype")
+                    && oscales_op->get_attr<std::string>(op_attr::qtype)
                             == "per_channel") {
-                oscales_op->set_attr<int64_t>("axis", 1); // the 2nd dim;
+                oscales_op->set_attr<int64_t>(op_attr::axis, 1); // the 2nd dim;
             }
         }
     }
@@ -499,10 +508,12 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
                 }
                 // 1D -> 2D
                 if (i == 0) {
-                    expand_op->set_attr<std::string>("insert_1dim", "before");
+                    expand_op->set_attr<std::string>(
+                            op_attr::insert_1dim, "before");
                     new_src_ndims = ndims + 1;
                 } else if (i == 1) {
-                    expand_op->set_attr<std::string>("insert_1dim", "after");
+                    expand_op->set_attr<std::string>(
+                            op_attr::insert_1dim, "after");
                     new_wei_ndims = ndims + 1;
                 }
             } else { // bias
@@ -510,7 +521,7 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
                 int64_t tgt_ndims = std::max(new_src_ndims, new_wei_ndims);
                 if (cur_op->get_input_value(i)->get_logical_tensor().ndims
                         != tgt_ndims)
-                    expand_op->set_attr<int64_t>("expand_to", tgt_ndims);
+                    expand_op->set_attr<int64_t>(op_attr::expand_to, tgt_ndims);
             }
             expand_ops.emplace_back(expand_op);
         }
@@ -518,30 +529,36 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
         std::vector<int64_t> squeeze_dims = {};
         for (size_t i = 0; i < expand_ops.size(); ++i) {
             if (i == 0 && new_src_ndims < new_wei_ndims) {
-                expand_ops[i]->set_attr<int64_t>("expand_to", new_wei_ndims);
+                expand_ops[i]->set_attr<int64_t>(
+                        op_attr::expand_to, new_wei_ndims);
             } else if (i == 1 && new_wei_ndims < new_src_ndims) {
-                expand_ops[i]->set_attr<int64_t>("expand_to", new_src_ndims);
+                expand_ops[i]->set_attr<int64_t>(
+                        op_attr::expand_to, new_src_ndims);
             }
 
             // insert expand ops
-            if ((expand_ops[i]->has_attr("insert_1dim")
-                        && expand_ops[i]->get_attr<std::string>("insert_1dim")
+            if ((expand_ops[i]->has_attr(op_attr::insert_1dim)
+                        && expand_ops[i]->get_attr<std::string>(
+                                   op_attr::insert_1dim)
                                 != "none")
-                    || (expand_ops[i]->has_attr("expand_to")
-                            && expand_ops[i]->get_attr<int64_t>("expand_to")
+                    || (expand_ops[i]->has_attr(op_attr::expand_to)
+                            && expand_ops[i]->get_attr<int64_t>(
+                                       op_attr::expand_to)
                                     != -1)) {
                 insert_op_before(expand_ops[i], cur_op, i);
                 to_be_inserted_ops.emplace_back(expand_ops[i]);
             }
 
             // decide squeeze dims
-            if (expand_ops[i]->has_attr("insert_1dim")
-                    && expand_ops[i]->get_attr<std::string>("insert_1dim")
+            if (expand_ops[i]->has_attr(op_attr::insert_1dim)
+                    && expand_ops[i]->get_attr<std::string>(
+                               op_attr::insert_1dim)
                             != "none") {
                 // -2 means the second rightmost dimension, -1 means the
                 // rightmost dimension
                 int64_t dim_to_be_squeezed
-                        = expand_ops[i]->get_attr<std::string>("insert_1dim")
+                        = expand_ops[i]->get_attr<std::string>(
+                                  op_attr::insert_1dim)
                                 == "before"
                         ? static_cast<int64_t>(-2)
                         : static_cast<int64_t>(-1);
@@ -552,7 +569,8 @@ impl::status_t insert_expand_and_squeeze_for_matmul(
         // insert squeeze ops
         if (!squeeze_dims.empty()) {
             op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
-            squeeze_op->set_attr<std::vector<int64_t>>("axes", squeeze_dims);
+            squeeze_op->set_attr<std::vector<int64_t>>(
+                    op_attr::axes, squeeze_dims);
             insert_op_after(squeeze_op, cur_op, 0);
             to_be_inserted_ops.emplace_back(squeeze_op);
         }
@@ -580,36 +598,37 @@ impl::status_t insert_u8_to_s8_for_matmul(std::shared_ptr<subgraph_t> &sg) {
             continue;
 
         int64_t key = -1;
-        if (cur_op->get_attr<int64_t>("fusion_info_key") != -1) {
-            key = cur_op->get_attr<int64_t>("fusion_info_key");
+        if (cur_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            key = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
         } else {
             key = mgr.init_info();
-            cur_op->set_attr<int64_t>("fusion_info_key", key);
+            cur_op->set_attr<int64_t>(op_attr::fusion_info_key, key);
         }
         fusion_info_t &fusion_info = mgr.get_mutable_info(key);
         impl::op_t *wei_zps_op = fusion_info.get_mutable_zero_points(
                 true, /*the wei indice*/ 1);
         if (wei_zps_op) { // already fused zps, update the zps
             std::vector<int64_t> current_zp
-                    = wei_zps_op->get_attr<std::vector<int64_t>>("zps");
+                    = wei_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
             if (current_zp.size() != 1) continue;
             // the equivalent transformation: mm(src_u8, wei_u8) -> mm(src_u8,
             // wei_u8 - 128 + 128) -> mm(src_u8, wei_s8 + 128), which wei_s8 =
             // wei_u8 - 128
             std::vector<int64_t> adjusted_zp {current_zp[0] + 128};
-            wei_zps_op->set_attr<std::vector<int64_t>>("zps", adjusted_zp);
+            wei_zps_op->set_attr<std::vector<int64_t>>(
+                    op_attr::zps, adjusted_zp);
         } else { // fuse a 128 zps
             std::vector<int64_t> zp {128};
             auto zps_op = std::make_shared<impl::op_t>(op_kind::dnnl_add_zps);
-            zps_op->set_attr<std::string>("qtype", "per_tensor");
-            zps_op->set_attr<int64_t>("axis", 0);
-            zps_op->set_attr<std::vector<int64_t>>("zps", zp);
+            zps_op->set_attr<std::string>(op_attr::qtype, "per_tensor");
+            zps_op->set_attr<int64_t>(op_attr::axis, 0);
+            zps_op->set_attr<std::vector<int64_t>>(op_attr::zps, zp);
             fusion_info.set_zero_points(zps_op, true, /*the wei indice*/ 1);
         }
 
         op_ptr u8_to_s8_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
         u8_to_s8_op->set_attr<std::vector<int64_t>>(
-                "dst_zps", std::vector<int64_t> {-128});
+                op_attr::dst_zps, std::vector<int64_t> {-128});
         insert_op_before(u8_to_s8_op, cur_op, 1);
         u8_to_s8_op->get_output_value(0)->set_data_type(impl::data_type::s8);
         insert_empty_scratchpad(u8_to_s8_op);
@@ -636,9 +655,9 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
         auto src_lt = cur_op->get_input_value(0)->get_logical_tensor();
         auto wei_lt = cur_op->get_input_value(1)->get_logical_tensor();
         const std::string data_format
-                = cur_op->get_attr<std::string>("data_format");
+                = cur_op->get_attr<std::string>(op_attr::data_format);
         const bool per_channel_broadcast
-                = cur_op->get_attr<bool>("per_channel_broadcast");
+                = cur_op->get_attr<bool>(op_attr::per_channel_broadcast);
 
         if (!prelu_doable(ltw(src_lt).vdims(), ltw(wei_lt).vdims(), data_format,
                     per_channel_broadcast)) {
@@ -650,7 +669,7 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
         // we only broadcast wei dims
         if (wei_ndims != src_ndims) {
             auto expand_op = std::make_shared<op_t>(op_kind::expand);
-            expand_op->set_attr<int64_t>("expand_to", src_ndims);
+            expand_op->set_attr<int64_t>(op_attr::expand_to, src_ndims);
             // insert op before weights, which are the second input
             int wei_id = 1;
             insert_op_before(expand_op, cur_op, wei_id);
@@ -661,9 +680,10 @@ impl::status_t insert_expand_for_prelu(std::shared_ptr<subgraph_t> &sg) {
                 // If data format is NCX we need to permute expanded weights,
                 // which are in format NXC.
                 op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
-                perm_op->set_attr<std::string>("permute_kind", "permute");
-                perm_op->set_attr<std::string>("from_format", "NXC");
-                perm_op->set_attr<std::string>("to_format", "NCX");
+                perm_op->set_attr<std::string>(
+                        op_attr::permute_kind, "permute");
+                perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
+                perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
                 insert_op_after(perm_op, expand_op, 0);
                 to_be_inserted_ops.emplace_back(perm_op);
             }
@@ -700,7 +720,7 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
         auto wei_lt = cur_op->get_input_value(1)->get_logical_tensor();
         const auto wei_vdims = ltw(wei_lt).vdims();
         const std::string data_format
-                = cur_op->get_attr<std::string>("data_format");
+                = cur_op->get_attr<std::string>(op_attr::data_format);
 
         // In backward pass if the slope is one-dimensional
         // and its dims[0] != 1, then per channel broadcast will be performed.
@@ -717,14 +737,15 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
         // we only broadcast wei dims
         if (wei_ndims != src_ndims) {
             auto expand_op = std::make_shared<op_t>(op_kind::expand);
-            expand_op->set_attr<int64_t>("expand_to", src_ndims);
+            expand_op->set_attr<int64_t>(op_attr::expand_to, src_ndims);
             // insert expand before weights, which are the second input
             int wei_id = 1;
             insert_op_before(expand_op, cur_op, wei_id);
             to_be_inserted_ops.emplace_back(expand_op);
 
             auto expand_op_diff_wei = std::make_shared<op_t>(op_kind::expand);
-            expand_op_diff_wei->set_attr<int64_t>("expand_to", src_ndims);
+            expand_op_diff_wei->set_attr<int64_t>(
+                    op_attr::expand_to, src_ndims);
             // insert expand before diff_weights, which are the second output
             insert_op_after(expand_op_diff_wei, cur_op, wei_id);
             to_be_inserted_ops.emplace_back(expand_op_diff_wei);
@@ -734,9 +755,10 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
                 // If data format is NCX we need to permute expanded weights,
                 // which are in format NXC.
                 op_ptr perm_op = std::make_shared<impl::op_t>(op_kind::permute);
-                perm_op->set_attr<std::string>("permute_kind", "permute");
-                perm_op->set_attr<std::string>("from_format", "NXC");
-                perm_op->set_attr<std::string>("to_format", "NCX");
+                perm_op->set_attr<std::string>(
+                        op_attr::permute_kind, "permute");
+                perm_op->set_attr<std::string>(op_attr::from_format, "NXC");
+                perm_op->set_attr<std::string>(op_attr::to_format, "NCX");
                 insert_op_after(perm_op, expand_op, 0);
                 to_be_inserted_ops.emplace_back(perm_op);
             }
@@ -757,7 +779,8 @@ impl::status_t insert_expand_and_squeeze_for_prelu_bwd(
             }
 
             op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
-            squeeze_op->set_attr<std::vector<int64_t>>("axes", squeeze_dims);
+            squeeze_op->set_attr<std::vector<int64_t>>(
+                    op_attr::axes, squeeze_dims);
             // Insert squeeze after diff weights, so that its dimensions
             // have their original shape.
             insert_op_after(squeeze_op, expand_op_diff_wei, 0);
@@ -786,10 +809,10 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
     for (auto &cur_op : subgraph) {
         if (cur_op->get_kind() != op_kind::dnnl_reduction) continue;
 
-        const auto keep_dims = cur_op->get_attr<bool>("keep_dims");
+        const auto keep_dims = cur_op->get_attr<bool>(op_attr::keep_dims);
         if (keep_dims) continue;
 
-        const auto axes = cur_op->get_attr<std::vector<int64_t>>("axes");
+        const auto axes = cur_op->get_attr<std::vector<int64_t>>(op_attr::axes);
 
         // go through successor OPs until reach the end of subgraph or OP
         // which is not supported as a reductions post-op
@@ -808,7 +831,7 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
             if (post_op.get_kind() == op_kind::dnnl_binary) {
                 if (!post_binary_fusible(cur_op.get(), &post_op)) break;
                 op_ptr expand_op = std::make_shared<op_t>(op_kind::expand);
-                expand_op->set_attr<std::vector<int64_t>>("axes", axes);
+                expand_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
                 insert_op_before(expand_op.get(), &post_op, src1_offset);
                 to_be_inserted_ops.emplace_back(expand_op);
             }
@@ -829,13 +852,13 @@ impl::status_t insert_expand_and_squeeze_for_reduction(
         }
 
         op_ptr squeeze_op = std::make_shared<op_t>(op_kind::squeeze);
-        squeeze_op->set_attr<std::vector<int64_t>>("axes", axes);
+        squeeze_op->set_attr<std::vector<int64_t>>(op_attr::axes, axes);
         // insert squeeze op after reduction or after its last post-op
         insert_op_after(squeeze_op.get(), cur_op_ptr, 0);
         to_be_inserted_ops.emplace_back(squeeze_op);
 
         // set to true, as squeeze will be handled by separate op
-        cur_op->set_attr("keep_dims", true);
+        cur_op->set_attr(op_attr::keep_dims, true);
     }
 
     for (const auto &op : to_be_inserted_ops)
@@ -855,8 +878,8 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
         // src input. While dnnl_pool_bwd op didn't define src input (because
         // it's not used in primitive computation, and AvgPoolBackprop also
         // didn't have src input), we must transfer the shape info from the src
-        // input to dnnl_pool_bwd op's "input_shape" attribute. So, we need to
-        // check that the src input must have shape info.
+        // input to dnnl_pool_bwd op's op_attr::input_shape attribute. So, we
+        // need to check that the src input must have shape info.
         auto src_lt = cur_op->get_input_value(0)->get_logical_tensor();
         impl::logical_tensor_wrapper_t src_ltw(src_lt);
         if (src_ltw.is_shape_unknown()) {
@@ -867,9 +890,9 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
 
         op_ptr maxpool_bwd = std::make_shared<op_t>(op_kind::dnnl_pool_bwd);
         maxpool_bwd->merge_attributes(cur_op->get_attributes());
-        maxpool_bwd->set_attr<std::string>("kind", "maxpool");
+        maxpool_bwd->set_attr<std::string>(op_attr::kind, "maxpool");
         maxpool_bwd->set_attr<std::vector<int64_t>>(
-                "input_shape", src_ltw.vdims());
+                op_attr::input_shape, src_ltw.vdims());
 
         // connect diff_dst
         auto diff_dst_value = cur_op->get_input_value(1);
@@ -889,7 +912,7 @@ impl::status_t insert_maxpool_forward(std::shared_ptr<subgraph_t> &sg) {
             // indices from src
             op_ptr maxpool_fwd = std::make_shared<op_t>(op_kind::dnnl_pool);
             maxpool_fwd->merge_attributes(cur_op->get_attributes());
-            maxpool_fwd->set_attr<std::string>("kind", "maxpool");
+            maxpool_fwd->set_attr<std::string>(op_attr::kind, "maxpool");
 
             // connect src value to fwd op
             auto src_value = cur_op->get_input_value(0);

@@ -20,10 +20,12 @@
 #include <set>
 #include <vector>
 
-#include "dnnl_shape_infer.hpp"
 #include "interface/op_schema.hpp"
 #include "interface/shape_infer.hpp"
-#include "internal_ops.hpp"
+
+#include "backend/dnnl/dnnl_shape_infer.hpp"
+#include "backend/dnnl/internal_attrs.hpp"
+#include "backend/dnnl/internal_ops.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -40,7 +42,7 @@ DNNL_GRAPH_OP_SCHEMA(binary_post_ops_fusion, 1,
                 .set_input(0, "lhs", "first input tensor")
                 .set_input(1, "rhs", "second input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("auto_broadcast",
+                .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
                         false, attribute_kind::s, "numpy")
@@ -54,29 +56,30 @@ DNNL_GRAPH_OP_SCHEMA(pool_binary, 1,
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
-                .set_attr("strides", "the distance to slide the filter", true,
+                .set_attr(op_attr::strides, "the distance to slide the filter",
+                        true, attribute_kind::is)
+                .set_attr(op_attr::pads_begin, "top and left padding", true,
                         attribute_kind::is)
-                .set_attr("pads_begin", "top and left padding", true,
+                .set_attr(op_attr::pads_end, "bottom and right padding", true,
                         attribute_kind::is)
-                .set_attr("pads_end", "bottom and right padding", true,
+                .set_attr(op_attr::exclude_pad, "a type of pooling strategy",
+                        false, attribute_kind::b)
+                .set_attr(op_attr::kernel, "size of each filter", true,
                         attribute_kind::is)
-                .set_attr("exclude_pad", "a type of pooling strategy", false,
-                        attribute_kind::b)
-                .set_attr("kernel", "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("dilations",
+                .set_attr(op_attr::dilations,
                         "the distance in width and height between elements "
                         "in the filter",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 1))
-                .set_attr("rounding_type", "a type of rounding to be applied",
-                        false, attribute_kind::s, "floor")
-                .set_attr("auto_pad", "how the padding is calculated", false,
-                        attribute_kind::s, "None")
+                .set_attr(op_attr::rounding_type,
+                        "a type of rounding to be applied", false,
+                        attribute_kind::s, "floor")
+                .set_attr(op_attr::auto_pad, "how the padding is calculated",
+                        false, attribute_kind::s, "None")
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(int8_pool_binary, 1,
@@ -86,40 +89,41 @@ DNNL_GRAPH_OP_SCHEMA(int8_pool_binary, 1,
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "other", "the second input tensor of binary")
                 .set_output(0, "output", "output tensor")
-                .set_attr("strides", "the distance to slide the filter", true,
+                .set_attr(op_attr::strides, "the distance to slide the filter",
+                        true, attribute_kind::is)
+                .set_attr(op_attr::pads_begin, "top and left padding", true,
                         attribute_kind::is)
-                .set_attr("pads_begin", "top and left padding", true,
+                .set_attr(op_attr::pads_end, "bottom and right padding", true,
                         attribute_kind::is)
-                .set_attr("pads_end", "bottom and right padding", true,
+                .set_attr(op_attr::exclude_pad, "a type of pooling strategy",
+                        false, attribute_kind::b)
+                .set_attr(op_attr::kernel, "size of each filter", true,
                         attribute_kind::is)
-                .set_attr("exclude_pad", "a type of pooling strategy", false,
-                        attribute_kind::b)
-                .set_attr("kernel", "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr("dilations",
+                .set_attr(op_attr::dilations,
                         "the distance in width and height between elements "
                         "in the filter",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 1))
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("rounding_type", "a type of rounding to be applied",
-                        false, attribute_kind::s, "floor")
-                .set_attr("auto_pad", "how the padding is calculated", false,
-                        attribute_kind::s, "None")
-                .set_attr("qtype",
+                .set_attr(op_attr::rounding_type,
+                        "a type of rounding to be applied", false,
+                        attribute_kind::s, "floor")
+                .set_attr(op_attr::auto_pad, "how the padding is calculated",
+                        false, attribute_kind::s, "None")
+                .set_attr(op_attr::qtype,
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
-                .set_attr("axis",
+                .set_attr(op_attr::axis,
                         "specifies dimension on which apply per-channel "
                         "dequantization",
                         false, attribute_kind::i, int64_t(1))
-                .set_attr("scales", "apply in quantization formula", true,
-                        attribute_kind::fs)
-                .set_attr("zps", "offset value that maps to float zero", true,
-                        attribute_kind::is)
+                .set_attr(op_attr::scales, "apply in quantization formula",
+                        true, attribute_kind::fs)
+                .set_attr(op_attr::zps, "offset value that maps to float zero",
+                        true, attribute_kind::is)
                 .set_shape_inference_function(infer_pool_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(eltwise_binary, 1,
@@ -137,13 +141,13 @@ DNNL_GRAPH_OP_SCHEMA(int8_relu, 1,
                 .set_num_outputs(1)
                 .set_input(0, "input", "input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("qtype",
+                .set_attr(op_attr::qtype,
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
-                .set_attr("scales", "apply in quantization formula", true,
-                        attribute_kind::fs)
-                .set_attr("zps", "offset value that maps to float zero", true,
-                        attribute_kind::is)
+                .set_attr(op_attr::scales, "apply in quantization formula",
+                        true, attribute_kind::fs)
+                .set_attr(op_attr::zps, "offset value that maps to float zero",
+                        true, attribute_kind::is)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(int8_relu_add, 1,
@@ -153,13 +157,13 @@ DNNL_GRAPH_OP_SCHEMA(int8_relu_add, 1,
                 .set_input(0, "input", "input tensor")
                 .set_input(1, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
-                .set_attr("qtype",
+                .set_attr(op_attr::qtype,
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
-                .set_attr("scales", "apply in quantization formula", true,
-                        attribute_kind::fs)
-                .set_attr("zps", "offset value that maps to float zero", true,
-                        attribute_kind::is)
+                .set_attr(op_attr::scales, "apply in quantization formula",
+                        true, attribute_kind::fs)
+                .set_attr(op_attr::zps, "offset value that maps to float zero",
+                        true, attribute_kind::is)
                 .set_shape_inference_function(infer_identity_output_shape))
 
 // TODO(xxx) Merge this op into dnnl_convolution
@@ -183,32 +187,33 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_depthwise, 1,
                 // Attributes inherited from Convolution
                 .SET_CONV_COMMON_ATTRS
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("with_bias", "specifying if the op has a bias input",
-                        false, attribute_kind::b, false)
-                .set_attr("canonicalized",
+                .set_attr(op_attr::with_bias,
+                        "specifying if the op has a bias input", false,
+                        attribute_kind::b, false)
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("dw_groups",
+                .set_attr(op_attr::dw_groups,
                         "the number of groups input / output channels are "
                         "divided into (for depthwise post-op)",
                         false, attribute_kind::i, (int64_t)1)
-                .set_attr("dw_filter_format",
+                .set_attr(op_attr::dw_filter_format,
                         "the format of post depthwise weight, the options are "
                         "OIX, XIO",
                         false, attribute_kind::s, "XIO")
-                .set_attr("dw_type",
+                .set_attr(op_attr::dw_type,
                         "the type of post depthwise operation, the options are "
                         "k3s1p1 and k3s2p1",
                         true, attribute_kind::s)
-                .set_attr("with_dw_bias",
+                .set_attr(op_attr::with_dw_bias,
                         "specifying if the fused dw conv has a bias input",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -227,11 +232,11 @@ DNNL_GRAPH_OP_SCHEMA(bn_relu, 1,
                 .set_input(3, "mean", "value for mean normalization")
                 .set_input(4, "variance", "value for variance normalization")
                 .set_output(0, "output", "output tensor")
-                .set_attr("epsilon",
+                .set_attr(op_attr::epsilon,
                         "the number to be added to the variance to avoid "
                         "division by zero",
                         true, attribute_kind::f)
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
@@ -307,7 +312,7 @@ DNNL_GRAPH_OP_SCHEMA(convtranspose_fusion, 1,
                 .set_input(2, "bias", "bias tensor")
                 .set_input(3, "other", "the second input tensor of add")
                 .set_output(0, "output", "output tensor")
-                .set_attr("output_padding",
+                .set_attr(op_attr::output_padding,
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
@@ -325,7 +330,7 @@ DNNL_GRAPH_OP_SCHEMA(quantized_convtranspose_fusion, 1,
                 .set_input(2, "bias", "bias tensor")
                 .set_input(3, "other", "other tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("output_padding",
+                .set_attr(op_attr::output_padding,
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
@@ -379,16 +384,16 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_mul_scales, 1,
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
-                .set_attr("qtype", "quantization type", false,
+                .set_attr(op_attr::qtype, "quantization type", false,
                         attribute_kind::s, "per_tensor")
-                .set_attr("axis", "quantization type", false, attribute_kind::i,
-                        int64_t(1))
-                .set_attr("scales", "input scale", false, attribute_kind::fs,
-                        std::vector<float>())
-                .set_attr("with_runtime_scales",
+                .set_attr(op_attr::axis, "quantization type", false,
+                        attribute_kind::i, int64_t(1))
+                .set_attr(op_attr::scales, "input scale", false,
+                        attribute_kind::fs, std::vector<float>())
+                .set_attr(op_attr::with_runtime_scales,
                         "indicate whether the op has runtime scales input",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -399,11 +404,12 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant_scales, 1,
                 .set_num_inputs(0)
                 .set_num_outputs(1)
                 .set_output(0, "output", "output tensor")
-                .set_attr("scales", "scales to store in constant storage", true,
+                .set_attr(op_attr::scales,
+                        "scales to store in constant storage", true,
                         attribute_kind::fs)
-                .set_attr("shape", "describing output shape", true,
+                .set_attr(op_attr::shape, "describing output shape", true,
                         attribute_kind::is)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -417,13 +423,13 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_add_zps, 1,
                 .set_input(0, "x", "input tensor")
                 .set_input(1, "zps", "zps tensor")
                 .set_output(0, "y", "output tensor")
-                .set_attr("qtype", "quantization type", false,
+                .set_attr(op_attr::qtype, "quantization type", false,
                         attribute_kind::s, "per_tensor")
-                .set_attr("axis", "quantization type", false, attribute_kind::i,
-                        int64_t(1))
-                .set_attr("zps", "input zero_point", false, attribute_kind::is,
-                        std::vector<int64_t>())
-                .set_attr("with_runtime_zps",
+                .set_attr(op_attr::axis, "quantization type", false,
+                        attribute_kind::i, int64_t(1))
+                .set_attr(op_attr::zps, "input zero_point", false,
+                        attribute_kind::is, std::vector<int64_t>())
+                .set_attr(op_attr::with_runtime_zps,
                         "indicate whether the op has runtime zps input", false,
                         attribute_kind::b, false)
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -436,13 +442,13 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_sub_zps, 1,
                 .set_input(0, "x", "input tensor")
                 .set_input(1, "zps", "zps tensor")
                 .set_output(0, "y", "output tensor")
-                .set_attr("qtype", "quantization type", false,
+                .set_attr(op_attr::qtype, "quantization type", false,
                         attribute_kind::s, "per_tensor")
-                .set_attr("axis", "quantization type", false, attribute_kind::i,
-                        int64_t(1))
-                .set_attr("zps", "input zero_point", false, attribute_kind::is,
-                        std::vector<int64_t>())
-                .set_attr("with_runtime_zps",
+                .set_attr(op_attr::axis, "quantization type", false,
+                        attribute_kind::i, int64_t(1))
+                .set_attr(op_attr::zps, "input zero_point", false,
+                        attribute_kind::is, std::vector<int64_t>())
+                .set_attr(op_attr::with_runtime_zps,
                         "indicate whether the op has runtime zps input", false,
                         attribute_kind::b, false)
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -452,11 +458,12 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_constant_zps, 1,
                 .set_num_inputs(0)
                 .set_num_outputs(1)
                 .set_output(0, "output", "output tensor")
-                .set_attr("zps", "zero points to store in constant storage",
-                        true, attribute_kind::is)
-                .set_attr("shape", "describing output shape", true,
+                .set_attr(op_attr::zps,
+                        "zero points to store in constant storage", true,
                         attribute_kind::is)
-                .set_attr("is_constant",
+                .set_attr(op_attr::shape, "describing output shape", true,
+                        attribute_kind::is)
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -468,13 +475,13 @@ DNNL_GRAPH_OP_SCHEMA(permute, 1,
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
                 .set_output(0, "y", "output tensor")
-                .set_attr("from_format",
+                .set_attr(op_attr::from_format,
                         "the format of input, the options are NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("to_format",
+                .set_attr(op_attr::to_format,
                         "the format of output, the options are NCX and NXC",
                         false, attribute_kind::s, "NCX")
-                .set_attr("permute_kind",
+                .set_attr(op_attr::permute_kind,
                         "if set to transpose then [from/to]_format will be "
                         "ignored",
                         false, attribute_kind::s, "none")
@@ -486,9 +493,9 @@ DNNL_GRAPH_OP_SCHEMA(to_group, 1,
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
                 .set_output(0, "y", "output tensor")
-                .set_attr("groups", "the groups", false, attribute_kind::i,
-                        (int64_t)1)
-                .set_attr("is_convtranspose",
+                .set_attr(op_attr::groups, "the groups", false,
+                        attribute_kind::i, (int64_t)1)
+                .set_attr(op_attr::is_convtranspose,
                         "indicate whether this is for convtranspose", false,
                         attribute_kind::b, false)
                 .set_shape_inference_function(infer_to_group_output_shape))
@@ -499,9 +506,9 @@ DNNL_GRAPH_OP_SCHEMA(from_group, 1,
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
                 .set_output(0, "y", "output tensor")
-                .set_attr("groups", "the groups", false, attribute_kind::i,
-                        (int64_t)1)
-                .set_attr("is_convtranspose",
+                .set_attr(op_attr::groups, "the groups", false,
+                        attribute_kind::i, (int64_t)1)
+                .set_attr(op_attr::is_convtranspose,
                         "indicate whether this is for convtranspose", false,
                         attribute_kind::b, false)
                 .set_shape_inference_function(infer_from_group_output_shape))
@@ -512,14 +519,14 @@ DNNL_GRAPH_OP_SCHEMA(expand, 1,
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
                 .set_output(0, "y", "output tensor")
-                .set_attr("axes",
+                .set_attr(op_attr::axes,
                         "indices at which to insert the singleton dimension, "
                         "negative value means counting dimensions from the "
                         "back",
                         false, attribute_kind::is)
-                .set_attr("insert_1dim", "where to insert 1 dim", false,
+                .set_attr(op_attr::insert_1dim, "where to insert 1 dim", false,
                         attribute_kind::s, "none")
-                .set_attr("expand_to", "target ndims to expand", false,
+                .set_attr(op_attr::expand_to, "target ndims to expand", false,
                         attribute_kind::i, (int64_t)(-1))
                 .set_shape_inference_function(infer_expand_output_shape))
 
@@ -529,7 +536,7 @@ DNNL_GRAPH_OP_SCHEMA(squeeze, 1,
                 .set_num_outputs(1)
                 .set_input(0, "x", "input tensor")
                 .set_output(0, "y", "output tensor")
-                .set_attr("axes",
+                .set_attr(op_attr::axes,
                         "which dims to be squeezed, negative "
                         "value means counting dimensions from the back",
                         false, attribute_kind::is)
@@ -549,17 +556,18 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convolution, 1,
                 // Attributes inherited from Convolution.
                 .SET_CONV_COMMON_ATTRS
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("with_bias", "specifying if the op has a bias input",
-                        false, attribute_kind::b, false)
-                .set_attr("canonicalized",
+                .set_attr(op_attr::with_bias,
+                        "specifying if the op has a bias input", false,
+                        attribute_kind::b, false)
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -579,24 +587,25 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from ConvTranspose.
-                .set_attr("output_padding",
+                .set_attr(op_attr::output_padding,
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .SET_CONV_COMMON_ATTRS
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("with_bias", "specifying if the op has a bias input",
-                        false, attribute_kind::b, false)
-                .set_attr("canonicalized",
+                .set_attr(op_attr::with_bias,
+                        "specifying if the op has a bias input", false,
+                        attribute_kind::b, false)
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -619,11 +628,11 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_data, 1,
                 // Attributes inherited from ConvTransposeBackpropData.
                 .SET_CONV_COMMON_ATTRS
                 // New added attributes
-                .set_attr("canonicalized",
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -649,16 +658,16 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_weights, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from ConvTransposeBackpropFilters.
-                .set_attr("filter_shape", "describing filter shape", false,
-                        attribute_kind::is,
+                .set_attr(op_attr::filter_shape, "describing filter shape",
+                        false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .SET_CONV_COMMON_ATTRS
                 // New added attributes
-                .set_attr("canonicalized",
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -679,46 +688,47 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                         "not connected to any other ops")
                 .set_output(2, "workspace", "workspace tensor")
                 // Attributes inherited from MaxPool and AvgPool.
-                .set_attr("strides", "the distance to slide the filter", true,
+                .set_attr(op_attr::strides, "the distance to slide the filter",
+                        true, attribute_kind::is)
+                .set_attr(op_attr::pads_begin, "top and left padding", true,
                         attribute_kind::is)
-                .set_attr("pads_begin", "top and left padding", true,
+                .set_attr(op_attr::pads_end, "bottom and right padding", true,
                         attribute_kind::is)
-                .set_attr("pads_end", "bottom and right padding", true,
+                .set_attr(op_attr::exclude_pad, "a type of pooling strategy",
+                        false, attribute_kind::b)
+                .set_attr(op_attr::kernel, "size of each filter", true,
                         attribute_kind::is)
-                .set_attr("exclude_pad", "a type of pooling strategy", false,
-                        attribute_kind::b)
-                .set_attr("kernel", "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr("dilations",
+                .set_attr(op_attr::dilations,
                         "the distance in width and height between elements "
                         "in the filter",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 1))
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("rounding_type", "a type of rounding to be applied",
-                        false, attribute_kind::s, "floor")
-                .set_attr("auto_pad", "how the padding is calculated", false,
-                        attribute_kind::s, "None")
+                .set_attr(op_attr::rounding_type,
+                        "a type of rounding to be applied", false,
+                        attribute_kind::s, "floor")
+                .set_attr(op_attr::auto_pad, "how the padding is calculated",
+                        false, attribute_kind::s, "None")
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("kind", "pooling kind, maxpool or avgpool", true,
-                        attribute_kind::s)
-                .set_attr("canonicalized",
+                .set_attr(op_attr::kind, "pooling kind, maxpool or avgpool",
+                        true, attribute_kind::s)
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
-                .set_attr("is_training", "whether this is for training", false,
-                        attribute_kind::b)
+                .set_attr(op_attr::is_training, "whether this is for training",
+                        false, attribute_kind::b)
                 // Analysis rules
                 .set_shape_inference_function(infer_dnnl_pool_output_shape))
 
@@ -738,33 +748,33 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
-                .set_attr("strides", "the distance to slide the filter", true,
+                .set_attr(op_attr::strides, "the distance to slide the filter",
+                        true, attribute_kind::is)
+                .set_attr(op_attr::pads_begin, "top and left padding", true,
                         attribute_kind::is)
-                .set_attr("pads_begin", "top and left padding", true,
+                .set_attr(op_attr::pads_end, "bottom and right padding", true,
                         attribute_kind::is)
-                .set_attr("pads_end", "bottom and right padding", true,
+                .set_attr(op_attr::exclude_pad, "a type of pooling strategy",
+                        false, attribute_kind::b)
+                .set_attr(op_attr::kernel, "size of each filter", true,
                         attribute_kind::is)
-                .set_attr("exclude_pad", "a type of pooling strategy", false,
-                        attribute_kind::b)
-                .set_attr("kernel", "size of each filter", true,
-                        attribute_kind::is)
-                .set_attr("auto_pad", "how the padding is calculated", false,
-                        attribute_kind::s, "None")
-                .set_attr("dilations",
+                .set_attr(op_attr::auto_pad, "how the padding is calculated",
+                        false, attribute_kind::s, "None")
+                .set_attr(op_attr::dilations,
                         "the distance in width and height between elements "
                         "in the filter",
                         false, attribute_kind::is,
                         std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("input_shape", "describing input shape", true,
+                .set_attr(op_attr::input_shape, "describing input shape", true,
                         attribute_kind::is)
                 // New added attributes
-                .set_attr("kind", "pooling kind, maxpool or avgpool", true,
-                        attribute_kind::s)
-                .set_attr("is_constant",
+                .set_attr(op_attr::kind, "pooling kind, maxpool or avgpool",
+                        true, attribute_kind::s)
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -781,20 +791,20 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from PReLU
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("per_channel_broadcast",
+                .set_attr(op_attr::per_channel_broadcast,
                         "whether to apply per channel broadcast when slope is "
                         "1D tensor",
                         false, attribute_kind::b, true)
                 // New added attributes
-                .set_attr("canonicalized",
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -819,16 +829,16 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu_bwd, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from PReLUBackprop
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
                 // New added attributes
-                .set_attr("canonicalized",
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -854,20 +864,21 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
                         "not connected to any other ops")
                 // No corresponding frontend op
                 // Attributes
-                .set_attr("epsilon",
+                .set_attr(op_attr::epsilon,
                         "the number to be added to the variance to avoid "
                         "division by zero",
                         true, attribute_kind::f)
-                .set_attr("with_bias", "specifying if the op has a bias input",
-                        false, attribute_kind::b, false)
-                .set_attr("data_format",
+                .set_attr(op_attr::with_bias,
+                        "specifying if the op has a bias input", false,
+                        attribute_kind::b, false)
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("filter_format",
+                .set_attr(op_attr::filter_format,
                         "the format of weight, the options are OIX, XIO", false,
                         attribute_kind::s, "XIO")
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -884,21 +895,21 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_data, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from ConvolutionBackpropData.
-                .set_attr("output_padding",
+                .set_attr(op_attr::output_padding,
                         "additional amount of paddings to be added to each "
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
                         std::vector<int64_t>(0, DNNL_GRAPH_MAX_NDIMS))
-                .set_attr("output_shape", "describing output shape", false,
-                        attribute_kind::is,
+                .set_attr(op_attr::output_shape, "describing output shape",
+                        false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .SET_CONV_COMMON_ATTRS
                 // New added attributes
-                .set_attr("canonicalized",
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -920,16 +931,16 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_conv_bwd_weights, 1,
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
-                .set_attr("filter_shape", "describing filter shape", false,
-                        attribute_kind::is,
+                .set_attr(op_attr::filter_shape, "describing filter shape",
+                        false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
                 .SET_CONV_COMMON_ATTRS
                 // New added attributes
-                .set_attr("canonicalized",
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -961,32 +972,33 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
                         "2, this tensor will be the second one")
                 // Attributes inherited from BatchNormInference and
                 // BatchNormForwardTraining op
-                .set_attr("epsilon",
+                .set_attr(op_attr::epsilon,
                         "the number to be added to the variance to avoid "
                         "division by zero",
                         true, attribute_kind::f)
-                .set_attr("momentum",
+                .set_attr(op_attr::momentum,
                         "used for the computation of running_mean and "
                         "running_var",
                         false, attribute_kind::f)
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("is_training", "whether this is for training", false,
-                        attribute_kind::b)
-                .set_attr("fuse_relu", "whether to fuse relu (training only)",
+                .set_attr(op_attr::is_training, "whether this is for training",
                         false, attribute_kind::b)
-                .set_attr("canonicalized",
+                .set_attr(op_attr::fuse_relu,
+                        "whether to fuse relu (training only)", false,
+                        attribute_kind::b)
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1022,19 +1034,19 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops. when output number is "
                         "2, this tensor will be the second one")
-                .set_attr("epsilon",
+                .set_attr(op_attr::epsilon,
                         " the number to be added to the variance to avoid "
                         "division by zero",
                         true, attribute_kind::f)
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1058,18 +1070,19 @@ DNNL_GRAPH_OP_SCHEMA(interpolate_post_ops_fusion, 1,
                         1, "sizes", "describing output shape for spatial axes")
                 .set_output(0, "output",
                         "a tensor with selected data from input tensor")
-                .set_attr("mode", "specifies type of interpolation", true,
-                        attribute_kind::s)
-                .set_attr("sizes", "describing output shape for spatial axes",
-                        true, attribute_kind::is)
-                .set_attr("scales", "describing scales for spatial axes", false,
-                        attribute_kind::fs)
-                .set_attr("coordinate_transformation_mode",
+                .set_attr(op_attr::mode, "specifies type of interpolation",
+                        true, attribute_kind::s)
+                .set_attr(op_attr::sizes,
+                        "describing output shape for spatial axes", true,
+                        attribute_kind::is)
+                .set_attr(op_attr::scales, "describing scales for spatial axes",
+                        false, attribute_kind::fs)
+                .set_attr(op_attr::coordinate_transformation_mode,
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
                         false, attribute_kind::s, "half_pixel")
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
@@ -1085,34 +1098,35 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling_bwd, 1,
                 .set_input(1, "output_delta",
                         "the gradient with respect to the output")
                 .set_input(2, "sizes",
-                        "(optional) tensor describing output shape for spatial "
-                        "axes")
+                        "(optional) tensor describing output shape for "
+                        "spatial axes")
                 .set_output(0, "input_delta",
                         "the gradient tensor with respect to the input of "
                         "interpolate")
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
-                .set_attr("mode", "specifies type of interpolation", true,
-                        attribute_kind::s)
-                .set_attr("coordinate_transformation_mode",
+                .set_attr(op_attr::mode, "specifies type of interpolation",
+                        true, attribute_kind::s)
+                .set_attr(op_attr::coordinate_transformation_mode,
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
                         false, attribute_kind::s, "half_pixel")
-                .set_attr("sizes", "describing output shape for spatial axes",
-                        false, attribute_kind::is)
-                .set_attr("scales", "describing scales for spatial axes", false,
-                        attribute_kind::fs)
-                .set_attr("data_format",
+                .set_attr(op_attr::sizes,
+                        "describing output shape for spatial axes", false,
+                        attribute_kind::is)
+                .set_attr(op_attr::scales, "describing scales for spatial axes",
+                        false, attribute_kind::fs)
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1128,7 +1142,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_sum, 1,
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1148,34 +1162,34 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                         "not connected to any other ops")
                 // Attributes inherited from front binary ops (Add, Multiply,
                 // ...).
-                .set_attr("auto_broadcast",
+                .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
                         false, attribute_kind::s, "numpy")
                 // Attributes inherited from front BiasAdd ops, will only take
                 // effect when is_bias_add attr is true
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
                 // New added attributes
-                .set_attr("is_bias_add",
+                .set_attr(op_attr::is_bias_add,
                         "additional flag to indicate whether the op is lowered "
                         "from a BiasAdd op",
                         false, attribute_kind::b, false)
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("alg_kind",
+                .set_attr(op_attr::alg_kind,
                         "specifies algorithm kind, can be one of "
                         "add/sub/mul/div/min/max",
                         true, attribute_kind::i)
-                .set_attr("canonicalized",
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1212,22 +1226,22 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from front eltwise ops
-                .set_attr("alpha",
+                .set_attr(op_attr::alpha,
                         "alpha, whose meaning is depended on the alg_kind",
                         false, attribute_kind::f, 0.f)
-                .set_attr("beta",
+                .set_attr(op_attr::beta,
                         "beta, whose meaning is depended on the alg_kind",
                         false, attribute_kind::f, 0.f)
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("alg_kind",
+                .set_attr(op_attr::alg_kind,
                         "specifies algorithm kind, can be one of "
                         "relu/tanh/sigmoid/elu/gelu/...",
                         true, attribute_kind::i)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1249,31 +1263,31 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise_bwd, 1,
                 .set_output(1, "scratchpad",
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
-                .set_attr("alpha",
+                .set_attr(op_attr::alpha,
                         "alpha, whose meaning is depended on the alg_kind",
                         false, attribute_kind::f, 0.f)
-                .set_attr("beta",
+                .set_attr(op_attr::beta,
                         "beta, whose meaning is depended on the alg_kind",
                         false, attribute_kind::f, 0.f)
-                .set_attr("use_dst",
+                .set_attr(op_attr::use_dst,
                         "if true, use dst to calculate gradient; else use src",
                         false, attribute_kind::b, false)
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("alg_kind",
+                .set_attr(op_attr::alg_kind,
                         "specifies algorithm kind, can be one of "
                         "relu/tanh/sigmoid/elu/gelu/...; algorithm version "
                         "depends on use_dst value",
                         true, attribute_kind::i)
-                .set_attr("fwd_alg_kind",
+                .set_attr(op_attr::fwd_alg_kind,
                         "specifies algorithm kind of fwd op (differs from "
                         "alg_kind if use_dst flag equals true), can be one of "
                         "relu/tanh/sigmoid/elu/gelu/...",
                         true, attribute_kind::i)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1291,15 +1305,15 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_shuffle, 1,
                         "not connected to any other ops")
                 // No corresponding frontend op
                 // Attributes
-                .set_attr("axis",
+                .set_attr(op_attr::axis,
                         "specifies the index of a dimension along which "
                         "shuffle is done",
                         true, attribute_kind::i)
-                .set_attr("group",
+                .set_attr(op_attr::groups,
                         "specifies the number of groups to split shuffle "
                         "dimension into",
                         true, attribute_kind::i)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1322,17 +1336,17 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reduction, 1,
                 // Attributes inherited from front reduction ops
                 .SET_REDUCE_COMMON_ATTRS
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("alg_kind",
+                .set_attr(op_attr::alg_kind,
                         "specifies algorithm kind, can be one of "
                         "l1/l2/max/mean/min/prod/sum",
                         true, attribute_kind::i)
-                .set_attr("p", "the p arg for Lp reduction", false,
+                .set_attr(op_attr::p, "the p arg for Lp reduction", false,
                         attribute_kind::f, 0.0f)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1352,11 +1366,11 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_softmax_bwd, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from SoftMaxBackprop
-                .set_attr("axis",
+                .set_attr(op_attr::axis,
                         "the axis of which the SoftMaxBackprop is calculated",
                         false, attribute_kind::i, (int64_t)1)
                 // New added attributes
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1376,12 +1390,12 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax_bwd, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from LogSoftmaxBackprop
-                .set_attr("axis",
+                .set_attr(op_attr::axis,
                         "the axis of which the LogSoftmaxBackprop is "
                         "calculated",
                         false, attribute_kind::i, (int64_t)-1)
                 // New added attributes
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1389,9 +1403,9 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax_bwd, 1,
                 .set_shape_inference_function(infer_identity_output_shape))
 
 // Represents all currently available reduction related fusions.
-// Base-OP possibilites:
+// Base-OP possibilities:
 // [ReduceL1|ReduceL2|ReduceMax|ReduceMean|ReduceMin|ReduceProd|ReduceSum]
-// Post-OP possibilites:
+// Post-OP possibilities:
 // [Abs, Clamp, Elu, Exp, GELU, Hardswish, Log, Sigmoid, SoftPlus, Pow, ReLU,
 // Round, Sqrt, Square, Sigmoid+Multiply, Tanh, Add, Multiply, Maximum, Minimum,
 // Divide, Subtract]
@@ -1406,7 +1420,7 @@ DNNL_GRAPH_OP_SCHEMA(reduction_post_ops_fusion, 1,
                         "data, along which the reduction is performed.")
                 .set_input(2, "other", "(optional) src1 tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("alg_kind",
+                .set_attr(op_attr::alg_kind,
                         "specifies algorithm kind, can be one of "
                         "l1/l2/max/mean/min/prod/sum",
                         true, attribute_kind::i)
@@ -1429,31 +1443,32 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from Interpolate.
-                .set_attr("mode", "specifies type of interpolation", true,
-                        attribute_kind::s)
-                .set_attr("sizes", "describing output shape for spatial axes",
-                        false, attribute_kind::is)
-                .set_attr("scales", "describing scales for spatial axes", false,
-                        attribute_kind::fs)
-                .set_attr("coordinate_transformation_mode",
+                .set_attr(op_attr::mode, "specifies type of interpolation",
+                        true, attribute_kind::s)
+                .set_attr(op_attr::sizes,
+                        "describing output shape for spatial axes", false,
+                        attribute_kind::is)
+                .set_attr(op_attr::scales, "describing scales for spatial axes",
+                        false, attribute_kind::fs)
+                .set_attr(op_attr::coordinate_transformation_mode,
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
                         false, attribute_kind::s, "half_pixel")
-                .set_attr("data_format",
+                .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("canonicalized",
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1471,11 +1486,11 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_concat, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from Concat
-                .set_attr("axis",
+                .set_attr(op_attr::axis,
                         "specifies which dimension to concatenate along", true,
                         attribute_kind::i)
                 // New added attributes
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1489,7 +1504,7 @@ DNNL_GRAPH_OP_SCHEMA(quantized_concat_fusion, 1,
                 .set_num_outputs(1)
                 .set_input(0, "a", "first input tensor")
                 .set_output(0, "output", "output tensor")
-                .set_attr("axis",
+                .set_attr(op_attr::axis,
                         "specifies which dimension to concatenate along", true,
                         attribute_kind::i)
                 .set_shape_inference_function(infer_concat_output_shape))
@@ -1521,20 +1536,21 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm_bwd, 1,
                 .set_output(3, "scratchpad",
                         "(optional) scratchpad tensor, which is a temporary "
                         "output and not connected to any other ops")
-                .set_attr("use_affine",
+                .set_attr(op_attr::use_affine,
                         "when set to True, this module has learnable weights",
                         false, attribute_kind::b, true)
-                .set_attr("begin_norm_axis",
+                .set_attr(op_attr::begin_norm_axis,
                         "used to indicate which axis to perform layer "
                         "normalization",
                         false, attribute_kind::i, int64_t(-1))
-                .set_attr("epsilon", "constant to improve numerical stability",
-                        false, attribute_kind::f, 1e-5f)
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::epsilon,
+                        "constant to improve numerical stability", false,
+                        attribute_kind::f, 1e-5f)
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1555,17 +1571,18 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_matmul, 1,
                 // Attributes inherited from MatMul.
                 .SET_MATMUL_COMMON_ATTRS
                 // New added attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps,, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("with_bias", "specifying if the op has a bias input",
-                        false, attribute_kind::b, false)
-                .set_attr("canonicalized",
+                .set_attr(op_attr::with_bias,
+                        "specifying if the op has a bias input", false,
+                        attribute_kind::b, false)
+                .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
                         "directly mapped to DNNL primitive",
                         false, attribute_kind::b, false)
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1582,10 +1599,11 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_softmax, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from SoftMax
-                .set_attr("axis", "the axis of which the SoftMax is calculated",
-                        false, attribute_kind::i, (int64_t)1)
+                .set_attr(op_attr::axis,
+                        "the axis of which the SoftMax is calculated", false,
+                        attribute_kind::i, (int64_t)1)
                 // New added attributes
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1602,10 +1620,11 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from LogSoftmax
-                .set_attr("axis", "the axis of which the SoftMax is calculated",
-                        false, attribute_kind::i, (int64_t)1)
+                .set_attr(op_attr::axis,
+                        "the axis of which the SoftMax is calculated", false,
+                        attribute_kind::i, (int64_t)1)
                 // New added attributes
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1632,21 +1651,22 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from LayerNorm
-                .set_attr("keep_stats",
+                .set_attr(op_attr::keep_stats,
                         "used to indicate whether to output mean and variance",
                         false, attribute_kind::b, true)
-                .set_attr("begin_norm_axis",
+                .set_attr(op_attr::begin_norm_axis,
                         "used to indicate which axis to perform layer "
                         "normalization",
                         false, attribute_kind::i, int64_t(-1))
-                .set_attr("use_affine",
+                .set_attr(op_attr::use_affine,
                         "when set to True, this module has learnable "
                         "per-element affine parameters",
                         false, attribute_kind::b, true)
-                .set_attr("epsilon", "constant to improve numerical stability",
-                        false, attribute_kind::f, 1e-5f)
+                .set_attr(op_attr::epsilon,
+                        "constant to improve numerical stability", false,
+                        attribute_kind::f, 1e-5f)
                 // New added attributes
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
@@ -1666,38 +1686,38 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reorder, 1,
                         "not connected to any other ops")
                 // TODO(xxx) Multiple ops will be mapped to dnnl_reorder
                 // finally, how to deal with the attrs?
-                .set_attr("qtype",
+                .set_attr(op_attr::qtype,
                         "specifies which dequantization type is used", false,
                         attribute_kind::s, "per_tensor")
                 // Attributes
-                .set_attr("fusion_info_key",
+                .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps,, post-ops, ...) "
                         "generated by fusion passes.",
                         false, attribute_kind::i, (int64_t)-1)
-                .set_attr("change_layout",
+                .set_attr(op_attr::change_layout,
                         "if the attr is true, we can't do layout prop. so only "
                         "those ops inserted during layout prop change layout",
                         false, attribute_kind::b, false)
-                .set_attr("scales", "the output scales", false,
+                .set_attr(op_attr::scales, "the output scales", false,
                         attribute_kind::fs)
-                .set_attr("src_zps", "the src zero points", false,
+                .set_attr(op_attr::src_zps, "the src zero points", false,
                         attribute_kind::is)
-                .set_attr("dst_zps", "the src zero points", false,
+                .set_attr(op_attr::dst_zps, "the src zero points", false,
                         attribute_kind::is)
-                .set_attr("with_runtime_scales",
+                .set_attr(op_attr::with_runtime_scales,
                         "indicate whether the op has runtime scales input",
                         false, attribute_kind::b, false)
-                .set_attr("with_runtime_src_zps",
+                .set_attr(op_attr::with_runtime_src_zps,
                         "indicate whether the op has runtime src zps input",
                         false, attribute_kind::b, false)
-                .set_attr("with_runtime_dst_zps",
+                .set_attr(op_attr::with_runtime_dst_zps,
                         "indicate whether the op has runtime dst zps input",
                         false, attribute_kind::b, false)
-                .set_attr("axis",
+                .set_attr(op_attr::axis,
                         "specifies dimension on which apply per-channel "
                         "scaling",
                         false, attribute_kind::i, int64_t(-1))
-                .set_attr("is_constant",
+                .set_attr(op_attr::is_constant,
                         "used in constant propagation to identify if the "
                         "output of this op is constant",
                         false, attribute_kind::b, false)
