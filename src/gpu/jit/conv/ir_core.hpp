@@ -515,7 +515,7 @@ public:
     uint32_t decrement() { return --value_; }
 
 private:
-    std::atomic<uint32_t> value_;
+    uint32_t value_;
 };
 
 // Forward Declare IR objects

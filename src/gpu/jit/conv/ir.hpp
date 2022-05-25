@@ -728,7 +728,7 @@ expr_t simplify_propagate_shuffle(const expr_t &e);
 namespace funcs {
 
 inline func_t barrier_func() {
-    static auto f = builtin_t::make("barrier");
+    static thread_local auto f = builtin_t::make("barrier");
     return f;
 }
 
@@ -737,7 +737,7 @@ inline stmt_t barrier() {
 }
 
 inline func_t slm_fence_func() {
-    static auto f = builtin_t::make("slm_fence");
+    static thread_local auto f = builtin_t::make("slm_fence");
     return f;
 }
 
@@ -746,7 +746,7 @@ inline stmt_t slm_fence() {
 }
 
 inline func_t signal_func() {
-    static auto f = builtin_t::make("signal");
+    static thread_local auto f = builtin_t::make("signal");
     return f;
 }
 
@@ -755,7 +755,7 @@ inline stmt_t signal() {
 }
 
 inline func_t barrier_wait_func() {
-    static auto f = builtin_t::make("barrier_wait");
+    static thread_local auto f = builtin_t::make("barrier_wait");
     return f;
 }
 
@@ -764,7 +764,7 @@ inline stmt_t barrier_wait() {
 }
 
 inline func_t continue_func() {
-    static auto f = builtin_t::make("continue");
+    static thread_local auto f = builtin_t::make("continue");
     return f;
 }
 

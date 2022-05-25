@@ -56,15 +56,15 @@ public:
     }
 
     static expr_t x() {
-        static expr_t x = pexpr_t::make(0);
+        static thread_local expr_t x = pexpr_t::make(0);
         return x;
     }
     static expr_t y() {
-        static expr_t y = pexpr_t::make(1);
+        static thread_local expr_t y = pexpr_t::make(1);
         return y;
     }
     static expr_t z() {
-        static expr_t z = pexpr_t::make(2);
+        static thread_local expr_t z = pexpr_t::make(2);
         return z;
     }
 
@@ -88,11 +88,11 @@ public:
     }
 
     static expr_t _0() {
-        static expr_t ret = pint_imm_t::make(0);
+        static thread_local expr_t ret = pint_imm_t::make(0);
         return ret;
     }
     static expr_t _1() {
-        static expr_t ret = pint_imm_t::make(1);
+        static thread_local expr_t ret = pint_imm_t::make(1);
         return ret;
     }
 
@@ -282,8 +282,8 @@ expr_t rewrite_binary(const expr_t &expr, const expr_t &from, const expr_t &to,
 #define REWRITE(a, b) \
     do { \
         bool rewritten; \
-        static auto _a = a; \
-        static auto _b = b; \
+        static thread_local auto _a = a; \
+        static thread_local auto _b = b; \
         e = rewrite(e, _a, _b, &rewritten); \
         if (rewritten) return e; \
     } while (false)
@@ -291,8 +291,8 @@ expr_t rewrite_binary(const expr_t &expr, const expr_t &from, const expr_t &to,
 #define REWRITE_BINARY(a, b) \
     do { \
         bool rewritten; \
-        static auto _a = a; \
-        static auto _b = b; \
+        static thread_local auto _a = a; \
+        static thread_local auto _b = b; \
         e = rewrite_binary(e, _a, _b, &rewritten); \
         if (rewritten) return e; \
     } while (false)

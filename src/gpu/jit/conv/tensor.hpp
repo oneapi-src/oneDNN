@@ -1364,7 +1364,7 @@ public:
     }
 
     static const expr_t &placeholder_var() {
-        static expr_t ph_var = var_t::make(type_t::s32(), "_ph");
+        static thread_local expr_t ph_var = var_t::make(type_t::s32(), "_ph");
         return ph_var;
     }
 
