@@ -385,7 +385,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_post_ops_fusion)
                                     impl::op_kind::Maximum,
                                     impl::op_kind::Minimum,
                                     impl::op_kind::Divide,
-                                    impl::op_kind::Subtract},
+                                    impl::op_kind::Subtract,
+                                    impl::op_kind::Add},
                             "postop");
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);

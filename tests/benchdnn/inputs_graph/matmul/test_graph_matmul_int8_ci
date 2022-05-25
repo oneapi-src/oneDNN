@@ -36,7 +36,7 @@
 # sum:1:0:s8 case will not work in --api=P due to sum_src_dt == dst_dt restriction
 # oneDNN graph is not limited by it, because of additional reorder
 # gelu_erf needs to be enabled below when the correctness issue will be addressed
---attr-post-ops=,relu,logistic,sum:1:0:s8
+--attr-post-ops=,relu,logistic,sum:1:0:s8,add:f32
 --batch=shapes_int8_2d
 
 --reset
