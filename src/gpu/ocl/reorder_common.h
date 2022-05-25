@@ -213,7 +213,10 @@
     intel_sub_group_block_write_us8((__global ushort *)(dst), as_ushort8(val))
 #endif // SRC_DT_F16
 
-#if SRC_DT_BF16 && DST_DT_BF16
+#if (SRC_DT_S8 && DST_DT_S8) || (SRC_DT_U8 && DST_DT_U8) \
+        || (SRC_DT_BF16 && DST_DT_BF16) || (SRC_DT_F16 && DST_DT_F16) \
+        || (SRC_DT_F32 && DST_DT_F32) || (SRC_DT_S32 && DST_DT_S32) \
+        || (SRC_DT_F64 && DST_DT_F64)
 #define SRC_TO_DST(x) (x)
 #define SRC_TO_DST8(x) (x)
 #else
@@ -221,60 +224,115 @@
 #define SRC_TO_DST8(x) TO_DST8(SRC_TO_REF8(x))
 #endif
 
+#define ZP_SHIFT(x, x0) (x) - (float)(x0)
+#define ZP_UNSHIFT(x, x0) (x) + (float)(x0)
+#define ZP_NO_SHIFT(x, x0) (x)
+#define ZP_READ_VAL(x) x
+#define ZP_READ_PTR(x) x[0]
+#define ZP_ZERO(x) 0
+
+#if WITH_SRC_ZPOINTS
+#define SRC_SHIFT ZP_SHIFT
+#if RUNTIME_SRC_ZPOINTS
+#define GET_SRC_ZP ZP_READ_PTR
+#define SRC_ZP_T __global int *
+#else
+#define GET_SRC_ZP ZP_READ_VAL
+#define SRC_ZP_T int
+#endif
+#else
+#define SRC_SHIFT ZP_NO_SHIFT
+#define GET_SRC_ZP ZP_ZERO
+#define SRC_ZP_T int
+#endif
+
+#if WITH_DST_ZPOINTS
+#define DST_SHIFT ZP_SHIFT
+#define DST_UNSHIFT ZP_UNSHIFT
+#if RUNTIME_DST_ZPOINTS
+#define GET_DST_ZP ZP_READ_PTR
+#define DST_ZP_T __global int *
+#else
+#define GET_DST_ZP ZP_READ_VAL
+#define DST_ZP_T int
+#endif
+#else
+#define DST_SHIFT ZP_NO_SHIFT
+#define DST_UNSHIFT ZP_NO_SHIFT
+#define GET_DST_ZP ZP_ZERO
+#define DST_ZP_T int
+#endif
+
+#define AXPBY_OP(op, a, b, x, y, x0, y0) \
+    DST_UNSHIFT(op(a, b, SRC_SHIFT(x, x0), DST_SHIFT(y, y0)), y0)
+
 #if WITH_SUM_A
-#define REORDER(_dst, _src, _a, _b) \
+#define OP(_a, _b, _x, _y) (_a) * (_x)
+#define REORDER(_dst, _src, _a, _b, _x0, _y0) \
     do { \
         const float _x = SRC_TO_REF(_src); \
-        const float _s = _a * _x; \
+        const float _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
         _dst = TO_DST(_s); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b) \
+#define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
     do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
-        const float8 _s = _a * _x; \
+        const float8 _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x, _y); \
         _dst = TO_DST8(_s); \
     } while (0)
-
 #elif WITH_SUM_AB
-#define REORDER(_dst, _src, _a, _b) \
+#define OP(_a, _b, _x, _y) (_a) * (_x) + (_b) * (_y)
+#define REORDER(_dst, _src, _a, _b, _x0, _y0) \
     do { \
         const float _x = SRC_TO_REF(_src); \
         const float _y = DST_TO_REF(_dst); \
-        const float _s = _a * _x + _b * _y; \
+        const float _s = AXPBY_OP(OP, _a, _b, _x, _y, _x0, _y0); \
         _dst = TO_DST(_s); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b) \
+#define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
     do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
         const float8 _y = convert_float8(DST_TO_REF8(_dst)); \
-        const float8 _s = _a * _x + _b * _y; \
+        const float8 _s = AXPBY_OP(OP, _a, _b, _x, _y, _x0, _y0); \
         _dst = TO_DST8(_s); \
     } while (0)
-
 #elif SCALE_QUANT
-#define REORDER(_out, _src, _a, _b) \
+#define OP(_a, _b, _x, _y) (_a) * (_x) + (_b)
+#define REORDER(_out, _src, _a, _b, _x0, _y0) \
     do { \
         const float _x = SRC_TO_REF(_src); \
-        const float _s = _a * _x + _b; \
+        const float _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
         _out = TO_DST(_s); \
     } while (0)
-#define REORDER8(_out, _src, _a, _b) \
+#define REORDER8(_out, _src, _a, _b, _x0, _y0) \
     do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
-        const float8 _s = _a * _x + _b; \
+        const float8 _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
         _out = TO_DST8(_s); \
     } while (0)
-
-#else // WITH_SUM_AB == 0
-#define REORDER(_dst, _src, _a, _b) \
+#elif WITH_SRC_ZPOINTS || WITH_DST_ZPOINTS
+#define OP(_a, _b, _x, _y) (_x)
+#define REORDER(_dst, _src, _a, _b, _x0, _y0) \
+    do { \
+        const float _x = SRC_TO_REF(_src); \
+        const float _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
+        _dst = TO_DST(_s); \
+    } while (0)
+#define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
+    do { \
+        const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
+        const float8 _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
+        _dst = TO_DST8(_s); \
+    } while (0)
+#else
+#define REORDER(_dst, _src, _a, _b, _x0, _y0) \
     do { \
         _dst = SRC_TO_DST(_src); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b) \
+#define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
     do { \
         _dst = SRC_TO_DST8(_src); \
     } while (0)
-
 #endif // WITH_SUM_AB
 
 #if SCALE_QUANT

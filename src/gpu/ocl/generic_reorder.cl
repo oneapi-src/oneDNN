@@ -19,7 +19,10 @@
 KERNEL_ATTR
 __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         __global DST_DATA_T *restrict dst, float alpha, float beta,
-        __global float *restrict scales) {
+        __global float *restrict scales, SRC_ZP_T src_zps, DST_ZP_T dst_zps) {
+
+    const int src_zp = GET_SRC_ZP(src_zps);
+    const int dst_zp = GET_DST_ZP(dst_zps);
 
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
@@ -196,7 +199,7 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
             alpha = scale_idx < NSCALES ? scales[scale_idx] : 0.0;
 #endif
 
-            REORDER(dst_tmp, from_cache, alpha, beta);
+            REORDER(dst_tmp, from_cache, alpha, beta, src_zp, dst_zp);
             dst[dst_off] = dst_tmp;
         }
     }

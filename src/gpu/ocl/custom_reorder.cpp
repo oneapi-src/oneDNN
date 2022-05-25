@@ -531,12 +531,21 @@ status_t custom_reorder_t::pd_t::init_conf(engine_t *engine) {
     status_t status = status::success;
 
     const auto &padded_dims = dst_mdw.padded_dims();
+    const auto &zp = attr()->zero_points_;
     conf.with_sum_ab = (alpha() != 1.f || beta() != 0.f);
     conf.scale_quant = attr()->output_scales_.mask_ != 0;
     conf.scale_mask = conf.scale_quant ? attr()->output_scales_.mask_ : 0;
     conf.scales_num = conf.scale_quant ? attr()->output_scales_.count_ : 0;
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
+    conf.with_src_zp = !zp.has_default_values(DNNL_ARG_SRC);
+    conf.with_dst_zp = !zp.has_default_values(DNNL_ARG_DST);
+    conf.common_src_zp = conf.with_src_zp && zp.defined(DNNL_ARG_SRC)
+            ? *zp.get(DNNL_ARG_SRC)
+            : 0;
+    conf.common_dst_zp = conf.with_dst_zp && zp.defined(DNNL_ARG_DST)
+            ? *zp.get(DNNL_ARG_DST)
+            : 0;
     conf.ndims = src_mdw.ndims();
     conf.nelems = utils::array_product(padded_dims, conf.ndims);
 
@@ -805,6 +814,13 @@ status_t custom_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("SCALE_MASK", conf.scale_mask);
     }
 
+    kernel_ctx.define_int("WITH_SRC_ZPOINTS", conf.with_src_zp);
+    kernel_ctx.define_int(
+            "RUNTIME_SRC_ZPOINTS", conf.with_src_zp && conf.common_src_zp == 0);
+    kernel_ctx.define_int("WITH_DST_ZPOINTS", conf.with_dst_zp);
+    kernel_ctx.define_int(
+            "RUNTIME_DST_ZPOINTS", conf.with_dst_zp && conf.common_dst_zp == 0);
+
     def_dispatch(kernel_ctx, conf.dispatch);
 
     // the 'unaligned_sizes' kernel uses the same implementation in .cl
@@ -995,6 +1011,18 @@ status_t custom_reorder_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(2, alpha);
     arg_list.set(3, beta);
     arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
+
+    if (conf.with_src_zp && conf.common_src_zp == 0) {
+        auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
+        arg_list.set(5, zps);
+    } else
+        arg_list.set(5, conf.common_src_zp);
+
+    if (conf.with_dst_zp && conf.common_dst_zp == 0) {
+        auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
+        arg_list.set(6, zps);
+    } else
+        arg_list.set(6, conf.common_dst_zp);
 
     auto nd_range = conf.dispatch.nd_range();
 

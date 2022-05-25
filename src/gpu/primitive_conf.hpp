@@ -693,6 +693,8 @@ union reorder_implementation {
 struct reorder_conf_t {
     bool has_padding;
     bool scale_quant, with_sum_ab, with_sum_a;
+    bool with_src_zp, with_dst_zp;
+    int common_src_zp, common_dst_zp;
     reorder_kernel_t implementation;
     int ndims;
     size_t nelems;

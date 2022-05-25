@@ -18,7 +18,10 @@
 KERNEL_ATTR
 __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
         __global DST_DATA_T *restrict dst, float alpha, float beta,
-        __global float *restrict scales) {
+        __global float *restrict scales, SRC_ZP_T src_zps, DST_ZP_T dst_zps) {
+
+    const int src_zp = GET_SRC_ZP(src_zps);
+    const int dst_zp = GET_DST_ZP(dst_zps);
 
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
@@ -61,7 +64,8 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
 #if SCALE_QUANT
                             alpha = scales[SCALE_OFF(d0, d1, d2, d3, d4, d5)];
 #endif
-                            REORDER(dst[dst_off], src[src_off], alpha, beta);
+                            REORDER(dst[dst_off], src[src_off], alpha, beta,
+                                    src_zp, dst_zp);
                         }
                     }
                 }

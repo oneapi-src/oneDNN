@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,8 @@ struct gpu_reorder_pd_t : public reorder_pd_t {
 protected:
     bool attr_ok() const {
         return attr()->has_default_values(
-                       dnnl_primitive_attr::skip_mask_t::oscale
+                       dnnl_primitive_attr::skip_mask_t::zero_points_runtime
+                       | dnnl_primitive_attr::skip_mask_t::oscale
                        | dnnl_primitive_attr::skip_mask_t::post_ops)
                 && post_ops_ok();
     }
