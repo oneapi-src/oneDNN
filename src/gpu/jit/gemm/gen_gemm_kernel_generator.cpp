@@ -2911,7 +2911,7 @@ static inline void postprocessLayout2D(vector<RegisterBlock> &layout,
     std::swap(layout, xlayout);
 }
 
-// Split large crosspack blocks into smaller pieces so
+// Split large crosspack blocks into smaller pieces so that they can be transposed.
 static inline void postprocessLayoutLargeCP(Type T,
         vector<RegisterBlock> &layout, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
@@ -9292,7 +9292,7 @@ void gemm_kernel_generator_t<hw>::gemmCheck32(
     }
 
     state.add64 = state.ra.alloc_sub<uint16_t>();
-    mov(1, state.add64, flag);
+    and_(1, state.add64, flag, 1u);
     state.raVFlag.safeRelease(flag);
 
     state.ra.safeRelease(temp1GRF);
@@ -10098,15 +10098,11 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
     Bi_addrsRem = state.Bi_addrs;
     Ai_regsRem = state.Ai_regs;
     Bi_regsRem = state.Bi_regs;
-    bool Ai_hasKRem = false, Bi_hasKRem = false;
+    bool Ai_hasKRem = false, Ai_lateKRem = false;
+    bool Bi_hasKRem = false, Bi_lateKRem = false;
     bool Ai_remIncrCopy = false, Bi_remIncrCopy = false;
     auto Ao_regsRem = state.Ao_regs;
     auto Bo_regsRem = state.Bo_regs;
-
-    bool A_splitM = strategy.slmA && (state.effCoopA == CoopSplit::MN);
-    bool A_splitK = strategy.slmA && (state.effCoopA == CoopSplit::K);
-    bool B_splitN = strategy.slmB && (state.effCoopB == CoopSplit::MN);
-    bool B_splitK = strategy.slmB && (state.effCoopB == CoopSplit::K);
 
     if (ai2D && (ka_loadRem > 1) && state.Ai_strategy.address2D) {
         Ai_hasKRem = true;
@@ -10120,8 +10116,13 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
                 Tb_ext, Bi_layoutRem, true, false, state.Bi, state.Bi_strategy);
     }
 
-    bool Ai_incrementalRem = A_splitK && !Ai_hasKRem;
-    bool Bi_incrementalRem = B_splitK && !Bi_hasKRem;
+    if (strategy.slmA && !Ai_hasKRem)
+        Ai_lateKRem |= !isRegisterColMajor(Ta_ext, state.Ai, state.Ai_strategy);
+    if (strategy.slmB && !Bi_hasKRem)
+        Bi_lateKRem |= isRegisterColMajor(Tb_ext, state.Bi, state.Bi_strategy);
+
+    bool Ai_incrementalRem = strategy.slmA && !Ai_hasKRem && !Ai_lateKRem;
+    bool Bi_incrementalRem = strategy.slmB && !Bi_hasKRem && !Bi_lateKRem;
     bool aioShareRem = state.aioShare;
     bool bioShareRem = state.bioShare;
 
@@ -10312,25 +10313,37 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
 
             if (Ai_incrementalRem) {
                 kSLMA = kSLMStorage.w(0);
-                if (!problem.backward())
-                    emad(1, kSLMA, state.K.w(), -state.lidN, state.ka_slm,
-                            strategy, state);
-                else {
-                    emad(1, kSLMA, unrollKSLM - state.ka_slm, -state.lidN,
-                            state.ka_slm, strategy, state);
-                    add(1, kSLMA, state.K, -kSLMA);
+                switch (state.effCoopA) {
+                    case CoopSplit::MN: mov(1, kSLMA, state.K); break;
+                    case CoopSplit::K:
+                        if (!problem.backward())
+                            emad(1, kSLMA, state.K.w(), -state.lidN,
+                                    state.ka_slm, strategy, state);
+                        else {
+                            emad(1, kSLMA, unrollKSLM - state.ka_slm,
+                                    -state.lidN, state.ka_slm, strategy, state);
+                            add(1, kSLMA, state.K, -kSLMA);
+                        }
+                        break;
+                    case CoopSplit::Linear: stub();
                 }
             }
 
             if (Bi_incrementalRem) {
                 kSLMB = kSLMStorage.w(1);
-                if (!problem.backward())
-                    emad(1, kSLMB, state.K.w(), -state.lidM, state.kb_slm,
-                            strategy, state);
-                else {
-                    emad(1, kSLMB, unrollKSLM - state.kb_slm, -state.lidM,
-                            state.kb_slm, strategy, state);
-                    add(1, kSLMB, state.K, -kSLMB);
+                switch (state.effCoopB) {
+                    case CoopSplit::MN: mov(1, kSLMB, state.K); break;
+                    case CoopSplit::K:
+                        if (!problem.backward())
+                            emad(1, kSLMB, state.K.w(), -state.lidM,
+                                    state.kb_slm, strategy, state);
+                        else {
+                            emad(1, kSLMB, unrollKSLM - state.kb_slm,
+                                    -state.lidM, state.kb_slm, strategy, state);
+                            add(1, kSLMB, state.K, -kSLMB);
+                        }
+                        break;
+                    case CoopSplit::Linear: stub();
                 }
             }
 
@@ -10352,12 +10365,12 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
             return;
         }
 
-        // Not possible to deactivate remainder path if splitting in m/n dimensions.
-        if (!active && remActiveSLM && (A_splitM || B_splitN)) stub();
+        // Not possible to deactivate remainder path with late k remainder.
+        if (!active && remActiveSLM && (Ai_lateKRem || Bi_lateKRem)) stub();
         remActiveSLM = active;
 
         // Start using k masks if needed.
-        if (A_splitM && !state.Ai_strategy.padded) {
+        if (Ai_lateKRem && !state.Ai_strategy.padded) {
             Ai_layoutRem = state.Ai_layout;
             Ai_addrsRem = state.Ai_addrs;
             addMasking(Ta_ext, Ai_layoutRem, Ai_addrsRem, state.inputs.lda,
@@ -10370,7 +10383,7 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
                 Ao_regsRem = state.ra.alloc_range(getRegCount(state.Ao_layout));
             }
         }
-        if (B_splitN && !state.Bi_strategy.padded) {
+        if (Bi_lateKRem && !state.Bi_strategy.padded) {
             Bi_layoutRem = state.Bi_layout;
             Bi_addrsRem = state.Bi_addrs;
             addMasking(Tb_ext, Bi_layoutRem, Bi_addrsRem, state.inputs.ldb,
@@ -10390,8 +10403,8 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
 
         loadMasks(kMasks, rems, offsets, strategy, state);
 
-        bool asIfMaskedAi = A_splitM && state.Ai_strategy.padded;
-        bool asIfMaskedBi = B_splitN && state.Bi_strategy.padded;
+        bool asIfMaskedAi = Ai_lateKRem && state.Ai_strategy.padded;
+        bool asIfMaskedBi = Bi_lateKRem && state.Bi_strategy.padded;
         slmRemaskA = slmA && (minOPCount > 1) && !Ai_remIncrCopy
                 && needsRemask(Ta_ext, true, Ai_layoutRem, state.Ai_strategy,
                         asIfMaskedAi);
@@ -14381,7 +14394,7 @@ void gemm_kernel_generator_t<hw>::gemmHilbertlikeOrder(
         auto qFP = temp3.f();
         mov(1, divisorFP, divisor);
         mov(1, qFP, q);
-        mov(1, bias, -0.499996185302734375f); // -1/2 + 2^(-18)
+        mov(1, bias, -0.499996185302734375f); // -1/2 + 2^(-17)
         einv(1, divisorFP, divisorFP, strategy, state);
         add(1, divisorFP.ud(), divisorFP.ud(), 1);
         mad(1, qqot.f(), bias, qFP, divisorFP);
@@ -14459,7 +14472,7 @@ void gemm_kernel_generator_t<hw>::gemmBoustrophedonOrder(
         } else {
             mov(1, denomFP, denom);
             mov(1, numFP, num);
-            mov(1, bias, -0.499996185302734375f); // -1/2 + 2^(-18)
+            mov(1, bias, -0.499996185302734375f); // -1/2 + 2^(-17)
             einv(1, denomFP, denomFP, strategy, state);
             add(1, denomFP.ud(), denomFP.ud(), 1);
             mad(1, qot.f(), bias, numFP, denomFP);

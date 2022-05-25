@@ -102,9 +102,11 @@ protected:
 };
 
 struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
+    enum compute_mode { mode_default = 0, mode_tf32 = 0x1 };
+
     status_t select_kernel(compute::gpu_arch_t arch, int stepping, int eu_count,
-            int batch_dims, bool trans_a, bool trans_b, bool ab_offset,
-            bool c_offset, bool bias, float alpha, float beta,
+            compute_mode mode, int batch_dims, bool trans_a, bool trans_b,
+            bool ab_offset, bool c_offset, bool bias, float alpha, float beta,
             const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
             data_type_t c_type, data_type_t co_type, data_type_t acc_type,
             int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,

@@ -113,12 +113,12 @@ void gen_gemm_kernel_desc_t::update_driver_info() {
 }
 
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
-        int stepping, int eu_count, int batch_dims, bool trans_a, bool trans_b,
-        bool ab_offset, bool c_offset, bool bias, float alpha, float beta,
-        const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
-        data_type_t c_type, data_type_t co_type, data_type_t acc_type,
-        int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
-        dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
+        int stepping, int eu_count, compute_mode mode, int batch_dims,
+        bool trans_a, bool trans_b, bool ab_offset, bool c_offset, bool bias,
+        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t co_type,
+        data_type_t acc_type, int align_a, int align_b, int align_c, dim_t m,
+        dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -172,28 +172,48 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     }
 
     // Select a kernel from the catalog.
-    MatchParams match_params(hw_, problem_);
+    MatchParams match_params[2];
+    int npatterns = 1;
 
-    match_params.sizes.m = m;
-    match_params.sizes.n = n;
-    match_params.sizes.k = k;
-    match_params.sizes.batch = batch;
+    match_params[0] = MatchParams(hw_, problem_);
 
-    std::string tags(match_params.tags);
+    match_params[0].sizes.m = m;
+    match_params[0].sizes.n = n;
+    match_params[0].sizes.k = k;
+    match_params[0].sizes.batch = batch;
+    match_params[0].stepping = stepping;
+
+    std::string tags(match_params[0].tags);
     if (lda * problem_.Ta >= 64) tags += kcatalog::ReqBlock2DA;
     if (ldb * problem_.Tb >= 64) tags += kcatalog::ReqBlock2DB;
     if (ldc * problem_.Tc >= 64) tags += kcatalog::ReqBlock2DC;
-    match_params.tags = tags.c_str();
+    match_params[0].tags = tags.c_str();
+
+    if ((mode & mode_tf32)
+            && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
+        match_params[1] = match_params[0];
+        match_params[1].selector.precisions[0] = "T";
+        match_params[1].selector.precisions[1] = "T";
+        npatterns++;
+    }
 
     EvaluateParams eval_params;
 
-    eval_params.sizes = match_params.sizes;
+    eval_params.sizes = match_params[0].sizes;
     eval_params.beta = beta;
     eval_params.euCount = eu_count;
 
-    entry_ = select(gemm_catalog, match_params, eval_params, aux_params_);
+    entry_ = select(
+            gemm_catalog, npatterns, match_params, eval_params, aux_params_);
 
     if (!entry_) return status::unimplemented;
+
+    if (mode & mode_tf32) {
+        if (entry_->selector.precisions[0][0] == 'T')
+            problem_.Ta = problem_.Ta_ext = Type::tf32;
+        if (entry_->selector.precisions[1][0] == 'T')
+            problem_.Tb = problem_.Tb_ext = Type::tf32;
+    }
 
     auto block_k = entry_->driverInfo.blocking[LoopK];
     if (block_k > 0 && k > block_k && beta != 1.0f)

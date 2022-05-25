@@ -50,6 +50,9 @@ private:
 const kcatalog::Entry *select(const kcatalog::Catalog &catalog,
         const MatchParams &pattern, const EvaluateParams &eparams,
         EvaluateAuxOutput &aux);
+const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
+        const MatchParams *patterns, const EvaluateParams &eparams,
+        EvaluateAuxOutput &aux);
 
 // Extended API for iterating over all matching kernels.
 bool matches(const kcatalog::Entry &e, const MatchParams &pattern);

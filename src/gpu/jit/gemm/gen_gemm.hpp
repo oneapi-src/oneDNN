@@ -40,6 +40,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
     struct pd_t : public gpu_gemm_pd_t {
         using gpu_gemm_pd_t::gpu_gemm_pd_t;
+        using kernel_desc_t = gen_gemm_nocopy_kernel_desc_t;
 
         DECLARE_COMMON_PD_T("jit:gemm:any", gen_gemm_t);
 
@@ -180,8 +181,13 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && acc_type == data_type::f16)
                 acc_type = data_type::f32;
 
+            kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
+
+            if (attr()->mayidownconvert(f32, tf32))
+                mode = kernel_desc_t::mode_tf32;
+
             auto status = kernel_desc_.select_kernel(arch_, stepping,
-                    dev_info_->eu_count(), batch_dims(), eff_transa(),
+                    dev_info_->eu_count(), mode, batch_dims(), eff_transa(),
                     eff_transb(), with_ab_zero_points(), with_c_zero_points(),
                     with_bias(), alpha(), beta(), attr()->post_ops_,
                     eff_a_type(), eff_b_type(), desc()->c_type(), co_type,
@@ -370,7 +376,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         const compute::device_info_t *dev_info_;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
 
-        gen_gemm_nocopy_kernel_desc_t kernel_desc_;
+        kernel_desc_t kernel_desc_;
     };
 
     gen_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}

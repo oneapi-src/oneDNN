@@ -126,26 +126,34 @@ bool matches(const kcatalog::Entry &e, const MatchParams &pattern) {
 const kcatalog::Entry *select(const kcatalog::Catalog &catalog,
         const MatchParams &pattern, const EvaluateParams &eparams,
         EvaluateAuxOutput &aux) {
+    return select(catalog, 1, &pattern, eparams, aux);
+}
+
+const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
+        const MatchParams *patterns, const EvaluateParams &eparams,
+        EvaluateAuxOutput &aux) {
     double bestScore = std::numeric_limits<double>::infinity();
     const kcatalog::Entry *bestEntry = nullptr;
 
     bool verbose = (get_verbose() >= 5);
 
     // TODO: omit evaluation if only one match, if aux output not needed.
-    for (auto it = match(catalog, pattern); it; it++) {
-        EvaluateAuxOutput thisAux;
-        double score = evaluate(*it, eparams, thisAux);
-        if (score < bestScore) {
-            bestEntry = &*it;
-            bestScore = score;
-            aux = thisAux;
-        }
-        if (verbose) {
-            const auto &info = it->driverInfo;
-            printf("onednn_verbose,info,gpu,gemm,consider:%dx%d,%dx%dx%d,score:"
-                   "%f\n",
-                    info.unroll[LoopM], info.unroll[LoopN], info.wg[LoopM],
-                    info.wg[LoopN], info.wg[LoopK], score);
+    for (int ipattern = 0; ipattern < npatterns; ipattern++) {
+        for (auto it = match(catalog, patterns[ipattern]); it; it++) {
+            EvaluateAuxOutput thisAux;
+            double score = evaluate(*it, eparams, thisAux);
+            if (score < bestScore) {
+                bestEntry = &*it;
+                bestScore = score;
+                aux = thisAux;
+            }
+            if (verbose) {
+                const auto &info = it->driverInfo;
+                printf("onednn_verbose,info,gpu,gemm,consider:%dx%d,%dx%dx%d,"
+                       "score:%f\n",
+                        info.unroll[LoopM], info.unroll[LoopN], info.wg[LoopM],
+                        info.wg[LoopN], info.wg[LoopK], score);
+            }
         }
     }
 
