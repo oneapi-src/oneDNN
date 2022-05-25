@@ -1,6 +1,7 @@
 # f32
 --reset
 
+--inplace=true,false
 --scales=0.25,1,4
 --ddt=f32,bf16,s8
 --dtag=undef,abx
@@ -12,6 +13,7 @@
 --scales=0.5:2:0.5    16x2x6x4x3
 
 --reset
+--inplace=true,false
 --ddt=f32,bf16
 --sdt=f32:f32:f32:f32:f32:f32:f32:f32:f32:f32,bf16:bf16:bf16:bf16:bf16:bf16:bf16:bf16:bf16:bf16
 --stag=abx:aBx16b:ABx16a16b:ABcd16b16a:BAcd16a16b:BAcd16b16a:aBCd16b16c:aBCd16c16b:aCBd16b16c:aCBd16c16b

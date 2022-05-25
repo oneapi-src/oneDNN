@@ -31,7 +31,8 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ddt : s.ddt)
     for_(const auto &i_stag_ : s.stag)
     for_(const auto &i_dtag : s.dtag)
-    for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
+    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
+    for (auto i_inplace : s.inplace) {
         // broadcast tag if needed
         auto i_stag = i_stag_;
         if (i_stag.size() == 1) {
@@ -51,7 +52,7 @@ void check_correctness(const settings_t &s) {
                 SAFE_V(FAIL);
 
             const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag,
-                    i_input_scales, attr);
+                    i_input_scales, i_inplace, attr);
             std::stringstream ss;
             ss << prb;
             const std::string cpp_pstr = ss.str();
@@ -91,6 +92,7 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_multivector_option(s.input_scales, def.input_scales,
                         atof, argv[0], "scales", help_scales)
+                || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

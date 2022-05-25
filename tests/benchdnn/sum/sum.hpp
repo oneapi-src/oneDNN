@@ -57,13 +57,14 @@ struct prb_t : public prb_dims_t {
     prb_t(const prb_dims_t &prb_dims, const std::vector<dnnl_data_type_t> &sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
             const std::string &dtag, const std::vector<float> &input_scales,
-            const attr_t &attr)
+            bool inplace, const attr_t &attr)
         : prb_dims_t(prb_dims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
         , input_scales(sdt.size())
+        , inplace(inplace)
         , attr(attr) {
         // if there is a single scale then broadcast it
         for (int i_input = 0; i_input < n_inputs(); i_input++)
@@ -79,6 +80,7 @@ struct prb_t : public prb_dims_t {
     std::vector<std::string> stag;
     std::string dtag;
     std::vector<float> input_scales;
+    bool inplace;
     attr_t attr;
 
     int n_inputs() const { return (int)sdt.size(); }

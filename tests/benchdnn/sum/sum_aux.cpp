@@ -49,6 +49,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || !has_default_tags) s << "--stag=" << prb.stag << " ";
     if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
     s << "--scales=" << prb.input_scales << " ";
+    if (canonical || prb.inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(prb.inplace) << " ";
 
     s << prb.attr;
     s << static_cast<prb_dims_t>(prb);
