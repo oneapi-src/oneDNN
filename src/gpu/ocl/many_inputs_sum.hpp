@@ -42,8 +42,6 @@ struct many_inputs_sum_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             const int n = n_inputs();
 
-            if (n > max_num_arrs) return status::unimplemented;
-
             bool ok = gpu_sum_pd_t::init(engine) == status::success;
 
             if (!ok) return status::unimplemented;
@@ -67,17 +65,27 @@ struct many_inputs_sum_t : public gpu_primitive_t {
 
         kernel_ctx.set_data_type(data_s.data_type());
 
-        kernel_ctx.define_int("N_INPUTS", pd()->n_inputs());
         kernel_ctx.define_int("N_ELEMS", data_d.nelems(true));
+
+        const int num_arrs = pd()->n_inputs() - 1;
+        int N_INPUTS = (num_arrs) % max_num_arrs;
+        if (N_INPUTS == 0) { N_INPUTS = max_num_arrs; };
+        kernel_ctx.define_int("N_INPUTS", N_INPUTS);
+        kernel_ctx.define_int("MAX_N_INPUTS", max_num_arrs);
 
         def_memory_desc_info(
                 kernel_ctx, memory_desc_info_t::create(data_d), "SRC");
         def_memory_desc_info(
                 kernel_ctx, memory_desc_info_t::create(data_s), "DST");
 
-        create_kernel(engine, &kernel_, "many_inputs_sum", kernel_ctx);
-
-        if (!kernel_) return status::runtime_error;
+        std::vector<compute::kernel_t> kernels;
+        std::vector<const char *> kernel_names;
+        kernel_names.push_back("many_inputs_sum");
+        kernel_names.push_back("many_inputs_sum_batched");
+        CHECK(create_kernels(engine, &kernels, kernel_names, kernel_ctx));
+        kernel_ = kernels[0];
+        batched_kernel_ = kernels[1];
+        if (!kernel_ || !batched_kernel_) return status::runtime_error;
         return status::success;
     }
 
@@ -109,6 +117,7 @@ private:
     enum { SCALES_ = 0 };
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
+    compute::kernel_t batched_kernel_;
 };
 
 } // namespace ocl
