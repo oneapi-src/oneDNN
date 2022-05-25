@@ -2,9 +2,9 @@
 
 ## Introduction
 
-oneDNN Graph API extends oneDNN with a unified high-level graph API for multiple
-AI hardware classes (CPU, GPU, accelerators). With a flexible graph interface,
-it maximizes the optimization opportunity for generating efficient code across a
+oneDNN Graph API extends oneDNN with a unified graph API for multiple AI
+hardware classes (CPU, GPU, accelerators). With a flexible graph interface, it
+maximizes the optimization opportunity for generating efficient code across a
 variety of Intel and non-Intel HW and can be closely integrated with ecosystem
 framework and inference engines. oneDNN Graph API accepts a deep learning
 computation graph as input and performs graph partitioning, where nodes that are
