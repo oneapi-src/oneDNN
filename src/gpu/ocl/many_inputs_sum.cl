@@ -32,7 +32,6 @@ float get_value(__global SRC_DATA_T *src, ptrdiff_t offset) {
     ptrdiff_t offset = gid / num_inputs; \
     const int tensor_idx = gid % num_inputs; \
     const int local_id = get_local_id(0); \
-    float final_val = 0; \
     local_val[local_id] \
             = get_value(inputs[tensor_idx], offset) * scales[tensor_idx]; \
     barrier(CLK_LOCAL_MEM_FENCE); \
@@ -41,7 +40,7 @@ float get_value(__global SRC_DATA_T *src, ptrdiff_t offset) {
         for (int i = 0; i < num_inputs; i++) { \
             final_val += local_val[local_id + i]; \
         } \
-        output[offset] += TO_DST(final_val); \
+        output[offset] = TO_DST(final_val + CONVERT_FLOAT_T(output[offset])); \
     }
 
 __kernel void many_inputs_sum(__global SRC_DATA_T *input0,
