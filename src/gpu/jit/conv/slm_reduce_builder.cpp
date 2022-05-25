@@ -18,6 +18,9 @@
 
 #include <algorithm>
 
+#include "gpu/jit/conv/builder_utils.hpp"
+#include "gpu/jit/conv/message_support.hpp"
+#include "gpu/jit/conv/reduce_support.hpp"
 #include "gpu/jit/conv/utils.hpp"
 
 namespace dnnl {
@@ -119,5 +122,3 @@ void slm_reduce_builder_t::build(
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
-#endif

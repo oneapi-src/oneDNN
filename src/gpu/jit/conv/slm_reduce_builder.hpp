@@ -19,6 +19,7 @@
 
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/tensor.hpp"
+#include "gpu/jit/ngen/ngen.hpp"
 
 #include <vector>
 
