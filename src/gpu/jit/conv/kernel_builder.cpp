@@ -171,7 +171,7 @@ private:
         int reg_buf_size() const { return send().payload_size(); }
 
         int new_reg_buf_size() const {
-            if (new_call.is_same(call)) return 0;
+            if (new_call.is_same(call)) return reg_buf_size();
             return new_send().payload_size();
         }
 
