@@ -242,13 +242,13 @@ status_t infer_conv_output_shape(op_t *n,
     auto out0 = logical_tensor_wrapper_t(outputs[0]); // output
 
     // get attr value
-    const dim_t g = n->get_attr<dim_t>("groups");
-    const auto &strides = n->get_attr<dims>("strides");
-    const auto &dilations = n->get_attr<dims>("dilations");
-    const auto &pads_begin = n->get_attr<dims>("pads_begin");
-    const auto &pads_end = n->get_attr<dims>("pads_end");
-    std::string fil_fmt = n->get_attr<std::string>("filter_format");
-    std::string src_fmt = n->get_attr<std::string>("data_format");
+    const dim_t g = n->get_attr<dim_t>(op_attr::groups);
+    const auto &strides = n->get_attr<dims>(op_attr::strides);
+    const auto &dilations = n->get_attr<dims>(op_attr::dilations);
+    const auto &pads_begin = n->get_attr<dims>(op_attr::pads_begin);
+    const auto &pads_end = n->get_attr<dims>(op_attr::pads_end);
+    std::string fil_fmt = n->get_attr<std::string>(op_attr::filter_format);
+    std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
     // check if src channel / groups == weight input channel
     if (in0.get_src_c(src_fmt) / g != in1.get_weight_i(fil_fmt)) {
@@ -272,17 +272,17 @@ status_t infer_conv_output_shape(op_t *n,
         return status::invalid_shape;
     }
 
-    if (n->has_attr("auto_pad")
-            && n->get_attr<std::string>("auto_pad") != "None") {
-        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+    if (n->has_attr(op_attr::auto_pad)
+            && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
+        std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto padding sizes
         for (size_t i = 0; i < src_sp.size(); ++i) {
             infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
 
-        n->set_attr("pads_begin", new_pads_begin);
-        n->set_attr("pads_end", new_pads_end);
+        n->set_attr(op_attr::pads_begin, new_pads_begin);
+        n->set_attr(op_attr::pads_end, new_pads_end);
     }
 
     // infer output shape
@@ -315,17 +315,17 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
     } else {
         // TODO(Xinyu): support shape tensor
         if (inputs.size() > 2) return status::unimplemented;
-        if (!n->has_attr("output_shape")) return status::unimplemented;
-        output_shape = n->get_attr<dims>("output_shape");
+        if (!n->has_attr(op_attr::output_shape)) return status::unimplemented;
+        output_shape = n->get_attr<dims>(op_attr::output_shape);
     };
 
     // get attr value
-    const auto &strides = n->get_attr<dims>("strides");
-    const auto &dilations = n->get_attr<dims>("dilations");
-    const auto &pads_begin = n->get_attr<dims>("pads_begin");
-    const auto &pads_end = n->get_attr<dims>("pads_end");
-    std::string fil_fmt = n->get_attr<std::string>("filter_format");
-    std::string src_fmt = n->get_attr<std::string>("data_format");
+    const auto &strides = n->get_attr<dims>(op_attr::strides);
+    const auto &dilations = n->get_attr<dims>(op_attr::dilations);
+    const auto &pads_begin = n->get_attr<dims>(op_attr::pads_begin);
+    const auto &pads_end = n->get_attr<dims>(op_attr::pads_end);
+    std::string fil_fmt = n->get_attr<std::string>(op_attr::filter_format);
+    std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
     // spatial dims
     dims src_sp = output_shape;
@@ -352,9 +352,9 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
         return status::invalid_shape;
     }
 
-    if (n->has_attr("auto_pad")
-            && n->get_attr<std::string>("auto_pad") != "None") {
-        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+    if (n->has_attr(op_attr::auto_pad)
+            && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
+        std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
 
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
@@ -362,8 +362,8 @@ status_t infer_conv_bprop_data_output_shape(op_t *n,
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
 
-        n->set_attr("pads_begin", new_pads_begin);
-        n->set_attr("pads_end", new_pads_end);
+        n->set_attr(op_attr::pads_begin, new_pads_begin);
+        n->set_attr(op_attr::pads_end, new_pads_end);
     }
 
     set_shape_and_strides(*outputs[0], output_shape);
@@ -394,13 +394,13 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
     auto out0 = logical_tensor_wrapper_t(outputs[0]); // output
 
     // get attr value
-    const dim_t g = n->get_attr<dim_t>("groups");
-    const auto &strides = n->get_attr<dims>("strides");
-    const auto &dilations = n->get_attr<dims>("dilations");
-    const auto &pads_begin = n->get_attr<dims>("pads_begin");
-    const auto &pads_end = n->get_attr<dims>("pads_end");
-    std::string fil_fmt = n->get_attr<std::string>("filter_format");
-    std::string src_fmt = n->get_attr<std::string>("data_format");
+    const dim_t g = n->get_attr<dim_t>(op_attr::groups);
+    const auto &strides = n->get_attr<dims>(op_attr::strides);
+    const auto &dilations = n->get_attr<dims>(op_attr::dilations);
+    const auto &pads_begin = n->get_attr<dims>(op_attr::pads_begin);
+    const auto &pads_end = n->get_attr<dims>(op_attr::pads_end);
+    std::string fil_fmt = n->get_attr<std::string>(op_attr::filter_format);
+    std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
     // check if src channel / groups == weight output channel
     if (in0.get_src_c(src_fmt) / g != in1.get_weight_o(fil_fmt)) {
@@ -424,17 +424,17 @@ status_t infer_convtranspose_bprop_data_output_shape(op_t *n,
         return status::invalid_shape;
     }
 
-    if (n->has_attr("auto_pad")
-            && n->get_attr<std::string>("auto_pad") != "None") {
-        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+    if (n->has_attr(op_attr::auto_pad)
+            && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
+        std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto padding sizes
         for (size_t i = 0; i < src_sp.size(); ++i) {
             infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
 
-        n->set_attr("pads_begin", new_pads_begin);
-        n->set_attr("pads_end", new_pads_end);
+        n->set_attr(op_attr::pads_begin, new_pads_begin);
+        n->set_attr(op_attr::pads_end, new_pads_end);
     }
 
     // infer output shape
@@ -468,17 +468,17 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
     } else {
         // TODO(Xinyu): support shape tensor
         if (inputs.size() > 2) return status::unimplemented;
-        if (!n->has_attr("filter_shape")) return status::unimplemented;
-        filter_shape = n->get_attr<dims>("filter_shape");
+        if (!n->has_attr(op_attr::filter_shape)) return status::unimplemented;
+        filter_shape = n->get_attr<dims>(op_attr::filter_shape);
     };
 
     // get attr value
-    const auto &strides = n->get_attr<dims>("strides");
-    const auto &dilations = n->get_attr<dims>("dilations");
-    const auto &pads_begin = n->get_attr<dims>("pads_begin");
-    const auto &pads_end = n->get_attr<dims>("pads_end");
-    std::string fil_fmt = n->get_attr<std::string>("filter_format");
-    std::string src_fmt = n->get_attr<std::string>("data_format");
+    const auto &strides = n->get_attr<dims>(op_attr::strides);
+    const auto &dilations = n->get_attr<dims>(op_attr::dilations);
+    const auto &pads_begin = n->get_attr<dims>(op_attr::pads_begin);
+    const auto &pads_end = n->get_attr<dims>(op_attr::pads_end);
+    std::string fil_fmt = n->get_attr<std::string>(op_attr::filter_format);
+    std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
     // spatial dims
     dims src_sp = in.get_src_spatial_dims(src_fmt);
@@ -504,17 +504,17 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
         return status::invalid_shape;
     }
 
-    if (n->has_attr("auto_pad")
-            && n->get_attr<std::string>("auto_pad") != "None") {
-        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+    if (n->has_attr(op_attr::auto_pad)
+            && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
+        std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto padding sizes
         for (size_t i = 0; i < src_sp.size(); ++i) {
             infer_auto_pad(src_sp[i], strides[i], fil_sp[i], dilations[i],
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
 
-        n->set_attr("pads_begin", new_pads_begin);
-        n->set_attr("pads_end", new_pads_end);
+        n->set_attr(op_attr::pads_begin, new_pads_begin);
+        n->set_attr(op_attr::pads_end, new_pads_end);
     }
 
     set_shape_and_strides(*outputs[0], filter_shape);
@@ -546,13 +546,13 @@ status_t infer_convtranspose_output_shape(op_t *n,
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
 
     // get attr value
-    const dim_t g = n->get_attr<dim_t>("groups");
-    const auto &strides = n->get_attr<dims>("strides");
-    const auto &dilations = n->get_attr<dims>("dilations");
-    const auto &pads_begin = n->get_attr<dims>("pads_begin");
-    const auto &pads_end = n->get_attr<dims>("pads_end");
-    std::string fil_fmt = n->get_attr<std::string>("filter_format");
-    std::string src_fmt = n->get_attr<std::string>("data_format");
+    const dim_t g = n->get_attr<dim_t>(op_attr::groups);
+    const auto &strides = n->get_attr<dims>(op_attr::strides);
+    const auto &dilations = n->get_attr<dims>(op_attr::dilations);
+    const auto &pads_begin = n->get_attr<dims>(op_attr::pads_begin);
+    const auto &pads_end = n->get_attr<dims>(op_attr::pads_end);
+    std::string fil_fmt = n->get_attr<std::string>(op_attr::filter_format);
+    std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
 
     if (!out0.is_shape_unknown()) {
         // check if dst channel / groups == weight output channel
@@ -578,13 +578,13 @@ status_t infer_convtranspose_output_shape(op_t *n,
     }
 
     dims output_padding(src_sp.size(), 0);
-    if (n->has_attr("output_padding")) {
-        output_padding = n->get_attr<dims>("output_padding");
+    if (n->has_attr(op_attr::output_padding)) {
+        output_padding = n->get_attr<dims>(op_attr::output_padding);
     }
 
-    if (n->has_attr("auto_pad")
-            && n->get_attr<std::string>("auto_pad") != "None") {
-        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+    if (n->has_attr(op_attr::auto_pad)
+            && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
+        std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
 
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
@@ -592,8 +592,8 @@ status_t infer_convtranspose_output_shape(op_t *n,
                     auto_pad, new_pads_begin[i], new_pads_end[i], true);
         }
 
-        n->set_attr("pads_begin", new_pads_begin);
-        n->set_attr("pads_end", new_pads_end);
+        n->set_attr(op_attr::pads_begin, new_pads_begin);
+        n->set_attr(op_attr::pads_end, new_pads_end);
     }
 
     dims output_sp;
@@ -624,19 +624,19 @@ status_t infer_pool_output_shape(op_t *n,
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
 
     // get attr value
-    const dims &strides = n->get_attr<dims>("strides");
-    const dims &kernel = n->get_attr<dims>("kernel");
-    const dims &pads_begin = n->get_attr<dims>("pads_begin");
-    const dims &pads_end = n->get_attr<dims>("pads_end");
+    const dims &strides = n->get_attr<dims>(op_attr::strides);
+    const dims &kernel = n->get_attr<dims>(op_attr::kernel);
+    const dims &pads_begin = n->get_attr<dims>(op_attr::pads_begin);
+    const dims &pads_end = n->get_attr<dims>(op_attr::pads_end);
     std::string rounding_type = "floor";
-    if (n->has_attr("rounding_type")) {
-        rounding_type = n->get_attr<std::string>("rounding_type");
+    if (n->has_attr(op_attr::rounding_type)) {
+        rounding_type = n->get_attr<std::string>(op_attr::rounding_type);
     }
-    std::string src_format = n->get_attr<std::string>("data_format");
+    std::string src_format = n->get_attr<std::string>(op_attr::data_format);
 
     dims dilations(kernel.size(), 1);
-    if (n->has_attr("dilations")) {
-        auto dilations_tmp = n->get_attr<dims>("dilations");
+    if (n->has_attr(op_attr::dilations)) {
+        auto dilations_tmp = n->get_attr<dims>(op_attr::dilations);
         dilations_tmp.resize(kernel.size());
         if (dilations_tmp.size() != dilations.size()) {
             return status::invalid_arguments;
@@ -654,16 +654,16 @@ status_t infer_pool_output_shape(op_t *n,
     if (new_pads_begin.empty()) { new_pads_begin.assign(src_sp.size(), 0); }
     dims new_pads_end(pads_end);
     if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
-    if (n->has_attr("auto_pad")
-            && n->get_attr<std::string>("auto_pad") != "None") {
-        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+    if (n->has_attr(op_attr::auto_pad)
+            && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
+        std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
             infer_auto_pad(src_sp[i], strides[i], kernel[i], dilations[i],
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
-        n->set_attr("pads_begin", new_pads_begin);
-        n->set_attr("pads_end", new_pads_end);
+        n->set_attr(op_attr::pads_begin, new_pads_begin);
+        n->set_attr(op_attr::pads_end, new_pads_end);
     }
 
     dims output_sp;
@@ -718,22 +718,23 @@ status_t infer_pool_bwd_output_shape(op_t *n,
         } else {
             // TODO(Xinyu): support shape tensor
             if (inputs.size() > 1) return status::unimplemented;
-            if (!n->has_attr("input_shape")) return status::unimplemented;
-            diff_src_shape = n->get_attr<dims>("input_shape");
+            if (!n->has_attr(op_attr::input_shape))
+                return status::unimplemented;
+            diff_src_shape = n->get_attr<dims>(op_attr::input_shape);
         };
         set_shape_and_strides(*outputs[0], diff_src_shape);
     }
 
     // get attr value
-    const dims &strides = n->get_attr<dims>("strides");
-    const dims &kernel = n->get_attr<dims>("kernel");
-    const dims &pads_begin = n->get_attr<dims>("pads_begin");
-    const dims &pads_end = n->get_attr<dims>("pads_end");
-    std::string src_format = n->get_attr<std::string>("data_format");
+    const dims &strides = n->get_attr<dims>(op_attr::strides);
+    const dims &kernel = n->get_attr<dims>(op_attr::kernel);
+    const dims &pads_begin = n->get_attr<dims>(op_attr::pads_begin);
+    const dims &pads_end = n->get_attr<dims>(op_attr::pads_end);
+    std::string src_format = n->get_attr<std::string>(op_attr::data_format);
 
     dims dilations(kernel.size(), 1);
-    if (n->has_attr("dilations")) {
-        auto dilations_tmp = n->get_attr<dims>("dilations");
+    if (n->has_attr(op_attr::dilations)) {
+        auto dilations_tmp = n->get_attr<dims>(op_attr::dilations);
         if (dilations_tmp.size() != dilations.size()) {
             return status::invalid_arguments;
         } else {
@@ -750,16 +751,16 @@ status_t infer_pool_bwd_output_shape(op_t *n,
     if (new_pads_begin.empty()) { new_pads_begin.assign(src_sp.size(), 0); }
     dims new_pads_end(pads_end);
     if (new_pads_end.empty()) { new_pads_end.assign(src_sp.size(), 0); }
-    if (n->has_attr("auto_pad")
-            && n->get_attr<std::string>("auto_pad") != "None") {
-        std::string auto_pad = n->get_attr<std::string>("auto_pad");
+    if (n->has_attr(op_attr::auto_pad)
+            && n->get_attr<std::string>(op_attr::auto_pad) != "None") {
+        std::string auto_pad = n->get_attr<std::string>(op_attr::auto_pad);
         // infer auto_pad
         for (size_t i = 0; i < src_sp.size(); ++i) {
             infer_auto_pad(src_sp[i], strides[i], kernel[i], dilations[i],
                     auto_pad, new_pads_begin[i], new_pads_end[i]);
         }
-        n->set_attr("pads_begin", new_pads_begin);
-        n->set_attr("pads_end", new_pads_end);
+        n->set_attr(op_attr::pads_begin, new_pads_begin);
+        n->set_attr(op_attr::pads_end, new_pads_end);
     }
 
     return status::success;
@@ -774,12 +775,12 @@ status_t infer_matmul_output_shape(op_t *n,
 
     // get attr value
     bool transpose_a = false;
-    if (n->has_attr("transpose_a")) {
-        transpose_a = n->get_attr<bool>("transpose_a");
+    if (n->has_attr(op_attr::transpose_a)) {
+        transpose_a = n->get_attr<bool>(op_attr::transpose_a);
     }
     bool transpose_b = false;
-    if (n->has_attr("transpose_b")) {
-        transpose_b = n->get_attr<bool>("transpose_b");
+    if (n->has_attr(op_attr::transpose_b)) {
+        transpose_b = n->get_attr<bool>(op_attr::transpose_b);
     }
     const dims input0_dims = in0.vdims();
     const dims input1_dims = in1.vdims();
@@ -905,8 +906,8 @@ status_t infer_bias_backprop_output_shape(op_t *n,
         return status::invalid_shape;
     }
 
-    std::string fmt = n->has_attr("data_format")
-            ? n->get_attr<std::string>("data_format")
+    std::string fmt = n->has_attr(op_attr::data_format)
+            ? n->get_attr<std::string>(op_attr::data_format)
             : "NXC";
 
     const auto channels = in.get_src_c(fmt);
@@ -936,8 +937,8 @@ status_t infer_bias_add_output_shape(op_t *n,
     }
 
     // following the spec of convolution, nxc as default format
-    std::string fmt = n->has_attr("data_format")
-            ? n->get_attr<std::string>("data_format")
+    std::string fmt = n->has_attr(op_attr::data_format)
+            ? n->get_attr<std::string>(op_attr::data_format)
             : "NXC";
 
     const auto channels = in.get_src_c(fmt);
@@ -955,16 +956,16 @@ status_t infer_norm_output_shape(op_t *n,
     auto status = infer_identity_output_shape(n, inputs, outputs);
     if (status != status::success) return status;
 
-    const bool keep_stats = n->has_attr("keep_stats")
-            ? n->get_attr<bool>("keep_stats")
+    const bool keep_stats = n->has_attr(op_attr::keep_stats)
+            ? n->get_attr<bool>(op_attr::keep_stats)
             : false;
     if (!keep_stats) return status::success;
 
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     const dims input0_dims = in0.vdims();
 
-    const dim_t begin_norm_axis = n->has_attr("begin_norm_axis")
-            ? n->get_attr<dim_t>("begin_norm_axis")
+    const dim_t begin_norm_axis = n->has_attr(op_attr::begin_norm_axis)
+            ? n->get_attr<dim_t>(op_attr::begin_norm_axis)
             : -1;
 
     auto out1 = logical_tensor_wrapper_t(outputs[1]);
@@ -993,7 +994,8 @@ status_t infer_norm_bprop_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     std::vector<std::pair<uint32_t, uint32_t>> identity_shapes_pos = {{0, 0}};
-    if (n->has_attr("use_affine") && n->get_attr<bool>("use_affine") == true) {
+    if (n->has_attr(op_attr::use_affine)
+            && n->get_attr<bool>(op_attr::use_affine) == true) {
         // when use_affine parameter is set,
         // there will be two additional outputs
         identity_shapes_pos.insert(identity_shapes_pos.end(), {{4, 1}, {4, 2}});
@@ -1011,7 +1013,7 @@ status_t infer_elemwise_arithmetic_output_shape(op_t *n,
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
 
-    const std::string broadcast_attr_name = "auto_broadcast";
+    const op_attr_t broadcast_attr_name = op_attr::auto_broadcast;
     const bool shapes_should_match = [n, &broadcast_attr_name]() {
         if (n->has_attr(broadcast_attr_name)) {
             const auto &auto_broadcast
@@ -1056,8 +1058,8 @@ status_t infer_bn_fwd_train_output_shape(op_t *n,
     cvec_int64 input_dims = in.vdims();
     if (input_dims.size() < 4) return status::invalid_shape;
 
-    std::string fmt = n->has_attr("data_format")
-            ? n->get_attr<std::string>("data_format")
+    std::string fmt = n->has_attr(op_attr::data_format)
+            ? n->get_attr<std::string>(op_attr::data_format)
             : "NXC";
 
     const auto channels = in.get_src_c(fmt);
@@ -1087,8 +1089,8 @@ status_t infer_bn_bwd_output_shape(op_t *n,
     if (input_dims.size() < 4 || out_delta_dims.size() < 4)
         return status::invalid_shape;
 
-    std::string fmt = n->has_attr("data_format")
-            ? n->get_attr<std::string>("data_format")
+    std::string fmt = n->has_attr(op_attr::data_format)
+            ? n->get_attr<std::string>(op_attr::data_format)
             : "NXC";
 
     const auto channels = in.get_src_c(fmt);
@@ -1119,7 +1121,7 @@ status_t infer_concat_output_shape(op_t *n,
     auto data_type = in0.data_type();
     if (data_type != out0.data_type()) return status::unimplemented;
 
-    int64_t axis = n->get_attr<int64_t>("axis");
+    int64_t axis = n->get_attr<int64_t>(op_attr::axis);
     auto ndims = in0.ndims();
     auto dims = in0.dims();
     if (axis < -ndims || axis >= ndims) {
@@ -1183,8 +1185,8 @@ status_t infer_reduce_output_shape(op_t *n,
     // check if output shape is already known
     if (!out0.is_shape_unknown()) return status::success;
 
-    if (n->has_attr("axes")) {
-        auto axes = n->get_attr<dims>("axes");
+    if (n->has_attr(op_attr::axes)) {
+        auto axes = n->get_attr<dims>(op_attr::axes);
         // our backend doesn't support such a case
         if (axes.empty()) return status::unimplemented;
 
@@ -1206,8 +1208,8 @@ status_t infer_reduce_output_shape(op_t *n,
                 < axes.size())
             return status::unimplemented;
 
-        auto keep_dims = n->has_attr("keep_dims")
-                ? n->get_attr<bool>("keep_dims")
+        auto keep_dims = n->has_attr(op_attr::keep_dims)
+                ? n->get_attr<bool>(op_attr::keep_dims)
                 : false;
         for (auto axis : axes)
             shape[static_cast<size_t>(axis)] = (keep_dims) ? 1 : 0;
@@ -1247,8 +1249,8 @@ status_t infer_static_reshape_output_shape(op_t *n,
     }
 
     const dims &in_dims = in0.vdims();
-    dims out_dims = n->get_attr<dims>("shape");
-    const bool special_zero = n->get_attr<bool>("special_zero");
+    dims out_dims = n->get_attr<dims>(op_attr::shape);
+    const bool special_zero = n->get_attr<bool>(op_attr::special_zero);
 
     bool find_uncertain_dim = false; // shape contains -1
     size_t uncertain_axis = 0;
@@ -1315,7 +1317,7 @@ status_t infer_static_transpose_output_shape(op_t *n,
 
     const dims &in_dims = in0.vdims();
     const int32_t in_ndims = in0.ndims();
-    std::vector<int64_t> order = n->get_attr<dims>("order");
+    std::vector<int64_t> order = n->get_attr<dims>(op_attr::order);
     std::vector<bool> order_covered_flg(in_ndims, false);
     // check order should be in [-n, n-1] and cover all input axis
     // if order < 0, convert it to postive order
@@ -1362,14 +1364,14 @@ status_t infer_interpolate_output_shape(op_t *n,
     if (!out0.is_shape_unknown()) return status::success;
 
     std::vector<int64_t> sizes;
-    if (n->has_attr("sizes")) {
+    if (n->has_attr(op_attr::sizes)) {
         // sizes is set by user
-        sizes = n->get_attr<std::vector<int64_t>>("sizes");
+        sizes = n->get_attr<std::vector<int64_t>>(op_attr::sizes);
     }
     std::vector<float> scales;
-    if (n->has_attr("scales")) {
+    if (n->has_attr(op_attr::scales)) {
         // scales is set by user
-        scales = n->get_attr<std::vector<float>>("scales");
+        scales = n->get_attr<std::vector<float>>(op_attr::scales);
     }
     if ((!scales.empty() && !sizes.empty())
             || (scales.empty() && sizes.empty())) {
@@ -1377,7 +1379,7 @@ status_t infer_interpolate_output_shape(op_t *n,
         return status::invalid_arguments;
     }
 
-    std::string src_fmt = n->get_attr<std::string>("data_format");
+    std::string src_fmt = n->get_attr<std::string>(op_attr::data_format);
     int spatial_dim_start_axis = 0;
     if (src_fmt == "NXC") {
         // "X" start from in_dims[1]

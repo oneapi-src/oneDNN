@@ -207,7 +207,7 @@ public:
     ///////////////////////////////////////////////////////////////////////////
     // attributes handling
     template <typename Attr>
-    dnnl_graph_op &set_attr(const std::string &name, const Attr &a) {
+    dnnl_graph_op &set_attr(op_attr_t name, const Attr &a) {
         auto it = attributes_.find(name);
         if (it != end(attributes_)) {
             it->second = {a};
@@ -217,14 +217,7 @@ public:
         return *this;
     }
 
-    template <typename Attr>
-    dnnl_graph_op &set_attr(op_attr_t name, const Attr &a) {
-        std::string str = attr2str(name);
-        return set_attr(str, a);
-    }
-
-    dnnl_graph_op &set_attr(
-            const std::string &name, const attribute_value_t &a) {
+    dnnl_graph_op &set_attr(op_attr_t name, const attribute_value_t &a) {
         auto it = attributes_.find(name);
         if (it != end(attributes_)) {
             it->second = a;
@@ -234,20 +227,15 @@ public:
         return *this;
     }
 
-    dnnl_graph_op &set_attr(op_attr_t name, const attribute_value_t &a) {
-        std::string str = attr2str(name);
-        return set_attr(str, a);
-    }
-
     template <typename value_type>
-    value_type get_attr(const std::string &name) const {
+    value_type get_attr(op_attr_t name) const {
         auto it = attributes_.find(name);
         assertm(it != attributes_.end(), "don't have such attribute");
         return it->second.get<value_type>();
     }
 
     template <typename Attr>
-    status_t get_attr(const std::string &name, const Attr **attr) const {
+    status_t get_attr(op_attr_t name, const Attr **attr) const {
         const auto &found = attributes_.find(name);
         if (found == end(attributes_)) {
             return dnnl::graph::impl::status::invalid_arguments;
@@ -258,11 +246,11 @@ public:
         return dnnl::graph::impl::status::success;
     }
 
-    bool has_attr(const std::string &attr_name) const {
-        return attributes_.find(attr_name) != attributes_.end();
+    bool has_attr(op_attr_t name) const {
+        return attributes_.find(name) != attributes_.end();
     }
 
-    const std::unordered_map<std::string, attribute_value_t> &
+    const std::unordered_map<op_attr_t, attribute_value_t> &
     get_attributes() const {
         return attributes_;
     }
@@ -270,12 +258,12 @@ public:
     size_t num_attributes() const { return attributes_.size(); }
 
     void merge_attributes(
-            const std::unordered_map<std::string, attribute_value_t> &attrs) {
+            const std::unordered_map<op_attr_t, attribute_value_t> &attrs) {
         attributes_.insert(attrs.begin(), attrs.end());
     }
 
     bool is_same_attr_value(
-            const dnnl_graph_op &op_b, const std::string &attr_name) const {
+            const dnnl_graph_op &op_b, op_attr_t attr_name) const {
         const auto &attr_a = get_attributes();
         const auto &attr_b = op_b.get_attributes();
         auto it_a = attr_a.find(attr_name);
@@ -285,9 +273,9 @@ public:
     }
 
     bool has_same_attr_values(const dnnl_graph_op &op_b,
-            std::set<std::string> excepted = {}) const {
+            std::set<op_attr_t> excepted = {}) const {
         return std::all_of(attributes_.begin(), attributes_.end(),
-                [&](const std::pair<std::string, attribute_value_t> &attr) {
+                [&](const std::pair<op_attr_t, attribute_value_t> &attr) {
                     return excepted.count(attr.first)
                             ? true
                             : is_same_attr_value(op_b, attr.first);
@@ -341,6 +329,8 @@ public:
             CASE(mode);
             CASE(qtype);
             CASE(rounding_type);
+            CASE(matched);
+            CASE(backend);
             default: return "undefined_attr";
         }
 #undef CASE
@@ -484,8 +474,14 @@ public:
         writer->write_keyvalue("kind", kind2str(get_kind()));
         auto attrs = get_attributes();
         std::unordered_map<std::string, attribute_value_t> copied_attrs;
-        copied_attrs.insert(attrs.begin(), attrs.end());
-        copied_attrs.erase("matched_pattern");
+        std::for_each(attrs.begin(), attrs.end(),
+                [&copied_attrs](
+                        const std::pair<op_attr_t, attribute_value_t> &v) {
+                    copied_attrs.emplace(
+                            std::make_pair(attr2str(v.first), v.second));
+                });
+
+        copied_attrs.erase("matched");
         writer->write_keyvalue("attrs", copied_attrs);
         writer->write_keyvalue("inputs", get_input_values());
         writer->write_keyvalue("outputs", get_output_values());
@@ -499,7 +495,7 @@ private:
     std::string name_ {};
     std::vector<std::shared_ptr<value_t>> inputs_ {};
     std::vector<std::shared_ptr<value_t>> outputs_ {};
-    std::unordered_map<std::string, attribute_value_t> attributes_;
+    std::unordered_map<op_attr_t, attribute_value_t> attributes_;
 
     dnnl::graph::impl::partition_impl_t *partition_ {nullptr};
     bool internal_ {false};

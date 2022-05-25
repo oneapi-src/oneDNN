@@ -119,8 +119,8 @@ op_schema_t::get_outputs() const {
     return outputs_;
 }
 
-op_schema_t &op_schema_t::set_attr(const std::string &name,
-        std::string &&description, bool required, attribute_kind_t attr_kind) {
+op_schema_t &op_schema_t::set_attr(op_attr_t name, std::string &&description,
+        bool required, attribute_kind_t attr_kind) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
     attributes_[name]
@@ -128,9 +128,8 @@ op_schema_t &op_schema_t::set_attr(const std::string &name,
     return *this;
 }
 
-op_schema_t &op_schema_t::set_attr(const std::string &name,
-        std::string &&description, bool required, attribute_kind_t attr_kind,
-        const char *value) {
+op_schema_t &op_schema_t::set_attr(op_attr_t name, std::string &&description,
+        bool required, attribute_kind_t attr_kind, const char *value) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
     attributes_[name] = attribute_t(name, std::move(description), required,
@@ -138,7 +137,7 @@ op_schema_t &op_schema_t::set_attr(const std::string &name,
     return *this;
 }
 
-const std::unordered_map<std::string, op_schema_t::attribute_t> &
+const std::unordered_map<op_attr_t, op_schema_t::attribute_t> &
 op_schema_t::get_attrs() const {
     return attributes_;
 }
@@ -219,26 +218,26 @@ bool op_schema_t::verify_param_dtype(
 }
 
 bool op_schema_t::verify_attributes(
-        const std::unordered_map<std::string, utils::attribute_value_t>
+        const std::unordered_map<op_attr_t, utils::attribute_value_t>
                 &actual_attrs,
-        const std::unordered_map<std::string, attribute_t> &expected_attrs,
+        const std::unordered_map<op_attr_t, attribute_t> &expected_attrs,
         bool check_undefined_attrs) const {
     // check if required attributes are not provided
     for (const auto &elem : expected_attrs) {
         if (elem.second.required_ && actual_attrs.count(elem.first) == 0) {
-            DEBUG_PRINT_ERROR(
-                    "attribute \"" + elem.first + "\" is required but not set");
+            DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
+                    + "\" is required but not set");
             return false;
         }
     }
     // check if the data types of actual attributes meet requirements
     for (const auto &elem : actual_attrs) {
-        const std::string &attr_name = elem.first;
+        const op_attr_t attr_name = elem.first;
         if (expected_attrs.count(attr_name) != 0
                 && elem.second.get_kind()
                         != expected_attrs.at(attr_name).attr_kind_) {
-            DEBUG_PRINT_ERROR(
-                    "attribute \"" + elem.first + "\" has invalid type");
+            DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
+                    + "\" has invalid type");
             return false;
         }
     }
@@ -247,7 +246,7 @@ bool op_schema_t::verify_attributes(
     if (check_undefined_attrs) {
         for (const auto &elem : actual_attrs) {
             if (expected_attrs.count(elem.first) == 0) {
-                DEBUG_PRINT_ERROR("attribute \"" + elem.first
+                DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
                         + "\" is not defined in spec");
                 return false;
             }
@@ -258,9 +257,9 @@ bool op_schema_t::verify_attributes(
 }
 
 void op_schema_t::set_default_attribute(op_t *l_op) const {
-    const std::unordered_map<std::string, utils::attribute_value_t>
-            &actual_attrs = l_op->get_attributes();
-    const std::unordered_map<std::string, op_schema_t::attribute_t>
+    const std::unordered_map<op_attr_t, utils::attribute_value_t> &actual_attrs
+            = l_op->get_attributes();
+    const std::unordered_map<op_attr_t, op_schema_t::attribute_t>
             &expected_attrs = this->get_attrs();
     for (auto iter = expected_attrs.begin(); iter != expected_attrs.end();
             ++iter) {
@@ -268,7 +267,7 @@ void op_schema_t::set_default_attribute(op_t *l_op) const {
         if (iter->second.has_default_value_
                 && actual_attrs.count(iter->first) == 0) {
             utils::attribute_value_t value = iter->second.attr_;
-            const std::string &name = iter->first;
+            op_attr_t name = iter->first;
             l_op->set_attr(name, value);
         }
     }

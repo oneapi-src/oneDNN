@@ -283,7 +283,7 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     if (b.bind_op == nullptr) return false;
     if (b.bind_node == nullptr) return false;
     if (b.bind_op->get_partition() != nullptr) return false;
-    if (b.bind_op->has_attr("matched_pattern")) return false;
+    if (b.bind_op->has_attr(op_attr::matched)) return false;
     if (!has_commutative_inputs(b.bind_op) && b.bind_op_port != b.bind_port)
         return false;
 
@@ -413,7 +413,7 @@ inline std::vector<op_t *> reorder_matched_list(
                     || !match_node_attributes(
                             &temp_op, corresponding_pb_op_t)) {
                 // pb_op_t is not a wildcard
-                op->set_attr<bool>("matched_pattern", true);
+                op->set_attr<bool>(op_attr::matched, true);
                 reordered_fusion_ops.emplace_back(op);
             }
             visited.insert(op);

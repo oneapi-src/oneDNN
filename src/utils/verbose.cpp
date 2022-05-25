@@ -165,7 +165,7 @@ std::string partition2fmt_str(const impl::partition_t &partition) {
     bool filter_filled = false;
     for (size_t i = 0; i < num_operator; ++i) {
         const std::shared_ptr<graph::impl::op_t> op = operators[i];
-        if (op->has_attr("data_format")) {
+        if (op->has_attr(op_attr::data_format)) {
             // If the first i ops have no data_format, empty string with suffix
             // `;` should be printed out for each of them.
             if (!data_filled) {
@@ -176,7 +176,8 @@ std::string partition2fmt_str(const impl::partition_t &partition) {
                 // spec.
                 data_filled = true;
             }
-            const auto data_format = op->get_attr<std::string>("data_format");
+            const auto data_format
+                    = op->get_attr<std::string>(op_attr::data_format);
             if (i == num_operator - 1) {
                 s += data_format;
                 s += " ";
@@ -197,7 +198,7 @@ std::string partition2fmt_str(const impl::partition_t &partition) {
     }
     for (size_t i = 0; i < num_operator; ++i) {
         const std::shared_ptr<graph::impl::op_t> op = operators[i];
-        if (op->has_attr("filter_format")) {
+        if (op->has_attr(op_attr::filter_format)) {
             if (!filter_filled) {
                 s += "filter:";
                 for (size_t ii = 0; ii < i; ++ii)
@@ -205,7 +206,7 @@ std::string partition2fmt_str(const impl::partition_t &partition) {
                 filter_filled = true;
             }
             const auto filter_format
-                    = op->get_attr<std::string>("filter_format");
+                    = op->get_attr<std::string>(op_attr::filter_format);
             if (i == num_operator - 1) {
                 s += filter_format;
                 s += " ";

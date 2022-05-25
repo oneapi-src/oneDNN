@@ -231,6 +231,10 @@ const op_attr_t filter_format = dnnl_graph_op_attr_filter_format;
 const op_attr_t mode = dnnl_graph_op_attr_mode;
 const op_attr_t qtype = dnnl_graph_op_attr_qtype;
 const op_attr_t rounding_type = dnnl_graph_op_attr_rounding_type;
+
+// internal attributes
+const op_attr_t matched = 0x100;
+const op_attr_t backend = 0x101;
 } // namespace op_attr
 
 using logical_tensor_t = dnnl_graph_logical_tensor_t;
