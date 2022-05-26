@@ -117,6 +117,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         brgattr.use_uker = jcp_.use_uker;
         brgattr.use_interleave_stores = brgattr.use_uker;
         brgattr.hint_prefetching = jcp_.hint_prefetching;
+        brgattr.fpmath_mode = attr()->fpmath_mode_;
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
         auto LDD = jcp_.oc_without_padding;
         brg.with_sum = with_sum;

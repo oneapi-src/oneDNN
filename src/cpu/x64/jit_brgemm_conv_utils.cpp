@@ -501,9 +501,12 @@ void brg_blocking_t::select_ic_block() {
     if (is_1x1 && is_amx(isa)) {
         // TODO: merge with non-1x1 code block below
         const int ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
-        assert(ic < ic_padded_block || ic % ic_padded_block == 0);
+        assert(IMPLICATION(
+                !is_bf32, ic < ic_padded_block || ic % ic_padded_block == 0));
         MAYBE_UNUSED(ic_padded_block);
-        ic_block = ic;
+        // Note: bf32 requires ic_block be less than 64, otherwise it results
+        // in incorrect output.
+        ic_block = is_bf32 && (!is_rtus) ? nstl::min(64, ic) : ic;
         nb_ic = utils::div_up(ic, ic_block); // trivially 1 for now
         return;
     }
@@ -637,9 +640,10 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     ur_block = brg.bd_block;
     if (is_1x1 && is_amx(isa) && M > 0 && M_tail > 0) {
         brgemm_t brg_sp_tail;
-        CHECK(brgemm_desc_init(&brg_sp_tail, isa, brgemm_addr, src_dt, wei_dt,
-                false, false, brgemm_row_major, alpha, beta, LDA, LDB, LDC,
-                M_tail, vN, vK));
+        brgemm_utils::init_brgemm_conf(&brg_sp_tail, isa, brgemm_addr, src_dt,
+                wei_dt, brgemm_row_major, alpha, beta, LDA, LDB, LDC, M_tail,
+                vN, vK, nullptr, is_bf32);
+        CHECK(brgemm_utils::brgemm_blocking(&brg_sp_tail));
         ur_block_tail = brg_sp_tail.bd_block;
     } else {
         ur_block_tail = 0;
@@ -2081,10 +2085,11 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const int vnni_width = brg_blocking_t::last_ic_block_size;
         const int n_vnni_blocks = utils::div_up(jcp.ic, vnni_width);
         const int ic_block = nstl::min(16, n_vnni_blocks) * vnni_width;
-        const bool do_zeropad = jcp.ic % vnni_width != 0 || jcp.ic > ic_block;
+        const bool do_zeropad = (!jcp.is_bf32)
+                && (jcp.ic % vnni_width != 0 || jcp.ic > ic_block);
         if (do_zeropad) jcp.ic = utils::rnd_up(jcp.ic, ic_block);
         const auto ic_padded_block = 16 * vnni_width;
-        jcp.is_ic_padded = jcp.ic > ic_padded_block;
+        jcp.is_ic_padded = jcp.ic > ic_padded_block && !(jcp.is_bf32);
 
         // try to choose optimal loop order
         // TODO: incorporate loop order into smart blocking selection
@@ -2162,12 +2167,20 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = div_up(rnd_up(jcp.gemm_batch_size * sc_size, P4K), sc_size);
 
     if (is_amx(isa)) {
-        // heuristic here for small mb
-        jcp.use_uker = (jcp.mb == 1 && jcp.ic * jcp.oh <= 28 * 1024
-                               && jcp.oc * jcp.oh <= 14 * 1024)
-                ? false
-                : true;
+        // heuristic for small mb
+        const bool is_small_mb = jcp.mb == 1 && jcp.ic * jcp.oh <= 28 * 1024
+                && jcp.oc * jcp.oh <= 14 * 1024;
+        // non-unrolled kernel does not support bf32, only dispatch unrolled
+        // kernel for now
+        jcp.use_uker = jcp.is_bf32 || !is_small_mb;
     }
+
+    // TODO: heuristic to dispatch BF32 BRGeMM
+    // The following condition checks for shapes where down-convert execution
+    // in brgemm fails
+    if (jcp.is_bf32 && jcp.ic < 64 && jcp.ic % 32 != 0)
+        return status::unimplemented;
+
     if (jcp.use_uker)
         jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_output1;
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
