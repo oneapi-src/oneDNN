@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,9 @@ example_result_t example_op_attr_create(example_attr_t **created_op_attr,
     (*created_op_attr)->data_num_ = (int64_t)(num);
 
     size_t bytes;
-    if (kind == attr_kind_i || kind == attr_kind_is)
+    if (kind == attr_kind_i) {
+        bytes = sizeof(int64_t);
+    } else if (kind == attr_kind_is)
         bytes = sizeof(int64_t) * (size_t)num;
     else if (kind == attr_kind_s) {
         bytes = sizeof(char) * (size_t)num + 1;
@@ -157,7 +159,7 @@ example_tensor_t *conv2d(example_op_t **conv_op, const char *name,
     example_op_attr_create(&attr1, "pads_begin", attr_kind_is, padding, 2);
     example_op_attr_create(&attr2, "pads_end", attr_kind_is, padding, 2);
     example_op_attr_create(&attr3, "dilations", attr_kind_is, dilations, 2);
-    example_op_attr_create(&attr4, "groups", attr_kind_i, groups, 1);
+    example_op_attr_create(&attr4, "groups", attr_kind_i, groups, 0);
     example_op_attr_create(&attr5, "data_format", attr_kind_s, data_format,
             strlen(data_format));
     example_op_attr_create(&attr6, "filter_format", attr_kind_s, filter_format,

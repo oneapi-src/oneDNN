@@ -112,6 +112,45 @@ example_result_t create_simple_pattern_graph(
     return example_result_success;
 }
 
+dnnl_graph_op_attr_t convert_attr(const char *name) {
+    if (strcmp(name, "strides") == 0) {
+        return dnnl_graph_op_attr_strides;
+    } else if (strcmp(name, "pads_begin") == 0) {
+        return dnnl_graph_op_attr_pads_begin;
+    } else if (strcmp(name, "pads_end") == 0) {
+        return dnnl_graph_op_attr_pads_end;
+    } else if (strcmp(name, "dilations") == 0) {
+        return dnnl_graph_op_attr_dilations;
+    } else if (strcmp(name, "data_format") == 0) {
+        return dnnl_graph_op_attr_data_format;
+    } else if (strcmp(name, "filter_format") == 0) {
+        return dnnl_graph_op_attr_filter_format;
+    } else if (strcmp(name, "groups") == 0) {
+        return dnnl_graph_op_attr_groups;
+    } else {
+        return dnnl_graph_op_attr_undef;
+    }
+}
+
+int is_s64_attr(dnnl_graph_op_attr_t attr) {
+    if (attr == dnnl_graph_op_attr_strides
+            || attr == dnnl_graph_op_attr_pads_begin
+            || attr == dnnl_graph_op_attr_pads_end
+            || attr == dnnl_graph_op_attr_dilations
+            || attr == dnnl_graph_op_attr_groups)
+        return 1;
+    else
+        return 0;
+}
+
+int is_str_attr(dnnl_graph_op_attr_t attr) {
+    if (attr == dnnl_graph_op_attr_data_format
+            || attr == dnnl_graph_op_attr_filter_format)
+        return 1;
+    else
+        return 0;
+}
+
 dnnl_graph_op_t convert_op(example_op_t *e_op) {
     dnnl_graph_op_t l_op = NULL;
 
@@ -130,9 +169,16 @@ dnnl_graph_op_t convert_op(example_op_t *e_op) {
     if (l_op != NULL) {
         for (int i = 0; i < e_op->attrs_num_; i++) {
             example_attr_t *attr = e_op->attrs_[i];
-            DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(l_op, attr->name_,
-                    (dnnl_graph_attribute_kind_t)attr->kind_, attr->data_,
-                    attr->data_num_));
+            dnnl_graph_op_attr_t val = convert_attr(attr->name_);
+            if (is_s64_attr(val)) {
+                DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+                        l_op, val, attr->data_, attr->data_num_));
+            } else if (is_str_attr(val)) {
+                DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_str(
+                        l_op, val, attr->data_, attr->data_num_));
+            } else {
+                // TODO(xxx) support more op attr
+            }
         }
     }
 

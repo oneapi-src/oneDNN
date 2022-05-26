@@ -166,43 +166,43 @@ int main(int argc, char **argv) {
     int64_t conv0_padding[] = {CONV0_PADDING, CONV0_PADDING};
     int64_t conv0_dilations[] = {CONV0_DILATIONS, CONV0_DILATIONS};
     int64_t conv0_groups[] = {CONV0_GROUPS};
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv0, "strides", dnnl_graph_attribute_kind_is, conv0_strides, 2));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(conv0, "pads_begin",
-            dnnl_graph_attribute_kind_is, conv0_padding, 2));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv0, "pads_end", dnnl_graph_attribute_kind_is, conv0_padding, 2));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(conv0, "dilations",
-            dnnl_graph_attribute_kind_is, conv0_dilations, 2));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv0, "data_format", dnnl_graph_attribute_kind_s, "NCX", 1));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv0, "filter_format", dnnl_graph_attribute_kind_s, "OIX", 1));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv0, "groups", dnnl_graph_attribute_kind_i, conv0_groups, 1));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            bias_add0, "data_format", dnnl_graph_attribute_kind_s, "NCX", 1));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv0, dnnl_graph_op_attr_strides, conv0_strides, 2));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv0, dnnl_graph_op_attr_pads_begin, conv0_padding, 2));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv0, dnnl_graph_op_attr_pads_end, conv0_padding, 2));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv0, dnnl_graph_op_attr_dilations, conv0_dilations, 2));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_str(
+            conv0, dnnl_graph_op_attr_data_format, "NCX", 1));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_str(
+            conv0, dnnl_graph_op_attr_filter_format, "OIX", 1));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv0, dnnl_graph_op_attr_groups, conv0_groups, 0));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_str(
+            bias_add0, dnnl_graph_op_attr_data_format, "NCX", 1));
 
     int64_t conv1_strides[] = {CONV1_STRIDE, CONV1_STRIDE};
     int64_t conv1_padding[] = {CONV1_PADDING, CONV1_PADDING};
     int64_t conv1_dilations[] = {CONV1_DILATIONS, CONV1_DILATIONS};
     int64_t conv1_groups[] = {CONV1_GROUPS};
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv1, "strides", dnnl_graph_attribute_kind_is, conv1_strides, 2));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(conv1, "pads_begin",
-            dnnl_graph_attribute_kind_is, conv1_padding, 2));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv1, "pads_end", dnnl_graph_attribute_kind_is, conv1_padding, 2));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(conv1, "dilations",
-            dnnl_graph_attribute_kind_is, conv1_dilations, 2));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv1, "data_format", dnnl_graph_attribute_kind_s, "NCX", 1));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv1, "filter_format", dnnl_graph_attribute_kind_s, "OIX", 1));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            conv1, "groups", dnnl_graph_attribute_kind_i, conv1_groups, 1));
-    DNNL_GRAPH_CHECK(dnnl_graph_op_add_attr(
-            bias_add1, "data_format", dnnl_graph_attribute_kind_s, "NCX", 1));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv1, dnnl_graph_op_attr_strides, conv1_strides, 2));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv1, dnnl_graph_op_attr_pads_begin, conv1_padding, 2));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv1, dnnl_graph_op_attr_pads_end, conv1_padding, 2));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv1, dnnl_graph_op_attr_dilations, conv1_dilations, 2));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_str(
+            conv1, dnnl_graph_op_attr_data_format, "NCX", 1));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_str(
+            conv1, dnnl_graph_op_attr_filter_format, "OIX", 1));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_s64(
+            conv1, dnnl_graph_op_attr_groups, conv1_groups, 0));
+    DNNL_GRAPH_CHECK(dnnl_graph_op_set_attr_str(
+            bias_add1, dnnl_graph_op_attr_data_format, "NCX", 1));
     printf("Success!\n");
 
     /// Step 4: connect dnnl_graph_op by using logical tensor, and then add dnnl_graph_op

@@ -209,7 +209,7 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(tests)
-# add_subdirectory(examples/c)
+add_subdirectory(examples/c)
 add_subdirectory(examples/cpp)
 
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
