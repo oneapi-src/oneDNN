@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020 Intel Corporation
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +39,13 @@ struct matmul_helper_t {
     dim_t batch() const {
         return utils::array_product(dst_md_.dims(), ndims() - 2);
     };
+    dim_t src_batch() const {
+        return utils::array_product(src_md_.dims(), ndims() - 2);
+    };
+    dim_t wei_batch() const {
+        return utils::array_product(weights_md_.dims(), ndims() - 2);
+    };
+
     dim_t M() const { return dst_md_.dims()[ndims() - 2]; }
     dim_t N() const { return dst_md_.dims()[ndims() - 1]; }
     dim_t K() const { return src_md_.dims()[ndims() - 1]; }

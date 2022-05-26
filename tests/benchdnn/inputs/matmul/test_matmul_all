@@ -74,3 +74,14 @@
 
 # matmul with strides
 --batch=harness_matmul_strides
+
+# 4d
+
+--reset
+--cfg=f32
+--stag=abcd,abdc --wtag=abcd,abdc --dtag=abcd,abdc
+--bia_dt=undef,f32
+
+--attr-oscale=common:2.25
+--attr-post-ops=,relu,sum,sum+relu+add:f32,binary_mul:f32+sum
+--batch=shapes_4d
