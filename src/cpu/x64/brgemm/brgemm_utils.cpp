@@ -312,7 +312,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
-        // Remove these guard in the future (add tail processing by reduction dimension)
+        // Remove these guards in the future (add tail processing by reduction
+        // dimension)
         if (!IMPLICATION(brg->rdb > 0 && brg->rdb_tail, brg->is_bf32))
             return status::unimplemented;
         if (!IMPLICATION((brg->rdb_tail % ((brg->is_bf16_amx) ? 2 : 4)) != 0,
