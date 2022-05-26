@@ -582,6 +582,22 @@ public:
     bool operator==(const layout_t &other) const { return is_equal(other); }
 
     bool operator!=(const layout_t &other) const { return !operator==(other); }
+    bool operator<=(const layout_t &other) const {
+        if (!type_.is_equal(other.type_)) return false;
+        const auto other_blocks = other.normalize().blocks();
+        const auto self_blocks = normalize().blocks();
+        if (self_blocks.size() > other_blocks.size()) return false;
+        if (self_blocks.size() == 0) return true;
+
+        int i = 0;
+        for (; i < self_blocks.size() - 1; i++) {
+            if (!self_blocks[i].is_equal(other_blocks[i])) return false;
+        }
+        return (self_blocks[i].dim_idx == other_blocks[i].dim_idx
+                && self_blocks[i].stride == other_blocks[i].stride
+                && other_blocks[i].block % self_blocks[i].block == 0);
+    }
+    bool operator>=(const layout_t &other) const { return other <= *this; }
 
     bool is_equal(const layout_t &other, bool compare_offset = true) const {
         return normalize().is_strictly_equal(other.normalize(), compare_offset);

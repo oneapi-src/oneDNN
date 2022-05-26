@@ -4702,25 +4702,17 @@ layout_t get_fma_friendly_layout(abc_kind_t abc_kind, int simd_size,
     auto dpas_layout = (is_a ? dpas.b_layout() : dpas.a_layout());
     dpas_layout = dpas_layout.transpose();
 
-    ir_assert(k_blk % dpas_layout.dim(k_idx) == 0);
-
-    if (k_idx < mn_idx) {
-        dim_t dpas_k_blk = dpas_layout.dim(k_idx);
-        dpas_layout = dpas_layout.add_outer_block(k_idx, k_blk / dpas_k_blk);
-    }
+    auto default_layout = bmnk_layout.retype(is_a ? a_type : b_type);
+    if (dpas_layout <= default_layout) return default_layout;
 
     dim_t dpas_mn_blk = dpas_layout.dim(mn_idx);
     dim_t dpas_k_blk = dpas_layout.dim(k_idx);
+    ir_assert(k_blk % dpas_k_blk == 0);
+
     dim_t k_outer = ir_utils::safe_divide(k_blk, dpas_k_blk);
     dim_t mn_outer = ir_utils::safe_divide(mn_blk, dpas_mn_blk);
     dpas_layout = dpas_layout.add_outer_block(k_idx, k_outer);
     dpas_layout = dpas_layout.add_outer_block(mn_idx, mn_outer);
-
-    if (k_idx > mn_idx) {
-        dim_t dpas_k_blk = dpas_layout.dim(k_idx);
-        dpas_layout = dpas_layout.add_outer_block(k_idx, k_blk / dpas_k_blk);
-    }
-
     return dpas_layout;
 }
 
