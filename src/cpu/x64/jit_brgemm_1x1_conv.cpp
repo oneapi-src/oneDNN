@@ -170,8 +170,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     const auto src_type = pd()->src_md(0)->data_type;
     const auto wei_type = pd()->weights_md(0)->data_type;
 
-    const auto last_ic_block
-            = (src_type == f32) ? 1 : ((src_type == bf16) ? 2 : 4);
+    const auto last_ic_block = data_type_vnni_granularity(src_type);
 
     wei_oc_sz = jcp.wei_plain ? jcp.oc : jcp.oc_block;
     wei_ic_sz = jcp.wei_plain
