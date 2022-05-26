@@ -4682,114 +4682,134 @@ private:
     stmt_t stmt_;
 };
 
-layout_t get_fma_friendly_layout(abc_kind_t abc_kind, int simd_size,
-        const layout_t &bmnk_layout, const type_t &a_type,
-        const type_t &b_type) {
-    bool is_a = (abc_kind == abc_kind_t::a);
-    int mn_idx = (is_a ? 0 : 1);
-    int k_idx = (is_a ? 1 : 0);
+class fma_helper_t {
+public:
+    fma_helper_t(int simd_size, fma_kind_t fma_kind, const type_t &a_type,
+            const type_t &b_type, bool allow_grf_reorder,
+            bool is_src1_broadcast)
+        : simd_size_(simd_size)
+        , fma_kind_(fma_kind)
+        , a_type_(a_type)
+        , b_type_(b_type)
+        , allow_grf_reorder_(allow_grf_reorder)
+        , is_src1_broadcast_(is_src1_broadcast) {}
 
-    dim_t mn_blk = bmnk_layout.dim(mn_idx);
-    dim_t k_blk = bmnk_layout.dim(k_idx);
+    fma_kind_t fma_kind() const { return fma_kind_; }
 
-    // Cannot calculate correct r_count when !is_a, but rcount is effectively
-    // ignored in that case as rcount mainly effects b_layout.
-    int rcount = is_a && mn_blk < 8 ? utils::rnd_up_pow2(mn_blk) : 8;
-    auto _dpas = dpas_t::make(/*is_dpasw=*/false, simd_size, /*sdepth=*/8,
-            rcount, type_t::undef(), b_type, a_type);
-    auto &dpas = _dpas.as<dpas_t>();
+    layout_t convert_to_fma_friendly_layout(const layout_t &layout,
+            abc_kind_t abc_kind, bool is_slm, const bmnk_mapper_t &bmnk_mapper,
+            bool *changed = nullptr) const {
+        if (changed) *changed = false;
+        if (!allow_grf_reorder_) return layout;
 
-    auto dpas_layout = (is_a ? dpas.b_layout() : dpas.a_layout());
-    dpas_layout = dpas_layout.transpose();
+        // GRF reorder is only supported with dpas/dpasw.
+        if (fma_kind_ == fma_kind_t::mad) {
+            if (is_slm) return layout;
+            // mad may require type conversion, supported for GRF layouts only.
+            return convert_to_fma_friendly_type(layout, abc_kind, changed);
+        }
 
-    auto default_layout = bmnk_layout.retype(is_a ? a_type : b_type);
-    if (dpas_layout <= default_layout) return default_layout;
+        std::vector<bmnk_kind_t> bmnk_kinds;
+        if (abc_kind == abc_kind_t::a) {
+            bmnk_kinds.push_back(bmnk_kind_t::m);
+            bmnk_kinds.push_back(bmnk_kind_t::k);
+        } else {
+            bmnk_kinds.push_back(bmnk_kind_t::k);
+            bmnk_kinds.push_back(bmnk_kind_t::n);
+        }
 
-    dim_t dpas_mn_blk = dpas_layout.dim(mn_idx);
-    dim_t dpas_k_blk = dpas_layout.dim(k_idx);
-    ir_assert(k_blk % dpas_k_blk == 0);
+        auto bmnk_layout
+                = bmnk_mapper.map_to_bmnk(abc_kind, bmnk_kinds, layout);
 
-    dim_t k_outer = ir_utils::safe_divide(k_blk, dpas_k_blk);
-    dim_t mn_outer = ir_utils::safe_divide(mn_blk, dpas_mn_blk);
-    dpas_layout = dpas_layout.add_outer_block(k_idx, k_outer);
-    dpas_layout = dpas_layout.add_outer_block(mn_idx, mn_outer);
-    return dpas_layout;
-}
+        auto dpas_layout = get_dpas_friendly_layout(bmnk_layout, abc_kind);
+        if (dpas_layout == bmnk_layout) return layout;
 
-layout_t convert_to_fma_friendly_type(const conv_config_t &cfg,
-        abc_kind_t abc_kind, const layout_t &layout, const type_t &a_type,
-        const type_t &b_type, bool *changed = nullptr) {
-    if (changed) *changed = false;
-    if (cfg.fma_kind != fma_kind_t::mad) return layout;
-
-    // mad with s8/u8 is not supported, promote to strided s16.
-    if (a_type.is_x8() && b_type.is_x8()) {
         if (changed) *changed = true;
-        return layout.retype(type_t::s16()).make_strided(2);
+
+        bmnk_block_mapper_t from_bmnk_mapper(bmnk_mapper);
+        from_bmnk_mapper.push_blocks(abc_kind, layout.blocks());
+
+        auto fma_layout = from_bmnk_mapper.map_from_bmnk(
+                abc_kind, bmnk_kinds, dpas_layout);
+        fma_layout = fma_layout.make_dense();
+        return fma_layout;
     }
 
-    // bf16 mixed mode mad requires src2 to be f32.
-    if (abc_kind == abc_kind_t::b && a_type.is_bf16()) {
-        if (changed) *changed = true;
-        return layout.retype(type_t::f32()).make_dense();
+private:
+    layout_t convert_to_fma_friendly_type(const layout_t &layout,
+            abc_kind_t abc_kind, bool *changed = nullptr) const {
+        if (changed) *changed = false;
+        if (fma_kind_ != fma_kind_t::mad) return layout;
+
+        // mad with s8/u8 is not supported, promote to strided s16.
+        if (a_type_.is_x8() && b_type_.is_x8()) {
+            if (changed) *changed = true;
+            return layout.retype(type_t::s16()).make_strided(2);
+        }
+
+        // bf16 mixed mode mad requires src2 to be f32.
+        if (abc_kind == abc_kind_t::b && a_type_.is_bf16()) {
+            if (changed) *changed = true;
+            return layout.retype(type_t::f32()).make_dense();
+        }
+
+        // bf16 mixed mode mad requires src1 to be packed, when src1 is
+        // broadcasted it needs to be converted to f32.
+        if (abc_kind == abc_kind_t::a && a_type_.is_bf16()
+                && is_src1_broadcast_) {
+            if (changed) *changed = true;
+            return layout.retype(type_t::f32()).make_dense();
+        }
+
+        // Ensure the layout is dense to align regioning.
+        if (!layout.is_dense()) {
+            if (changed) *changed = true;
+            return layout.make_dense();
+        }
+
+        return layout;
     }
 
-    // bf16 mixed mode mad requires src1 to be packed, src1 is broadcasted for
-    // non-depthwise cases so it needs to be converted to f32.
-    if (abc_kind == abc_kind_t::a && a_type.is_bf16() && !cfg.is_dw) {
-        if (changed) *changed = true;
-        return layout.retype(type_t::f32()).make_dense();
+    layout_t get_dpas_friendly_layout(
+            const layout_t &bmnk_layout, abc_kind_t abc_kind) const {
+        bool is_a = (abc_kind == abc_kind_t::a);
+        int mn_idx = (is_a ? 0 : 1);
+        int k_idx = (is_a ? 1 : 0);
+
+        dim_t mn_blk = bmnk_layout.dim(mn_idx);
+        dim_t k_blk = bmnk_layout.dim(k_idx);
+
+        // Cannot calculate correct r_count when !is_a, but rcount is effectively
+        // ignored in that case as rcount mainly effects b_layout.
+        int rcount = is_a && mn_blk < 8 ? utils::rnd_up_pow2(mn_blk) : 8;
+        auto _dpas = dpas_t::make(/*is_dpasw=*/false, simd_size_, /*sdepth=*/8,
+                rcount, type_t::undef(), b_type_, a_type_);
+        auto &dpas = _dpas.as<dpas_t>();
+
+        auto dpas_layout = (is_a ? dpas.b_layout() : dpas.a_layout());
+        dpas_layout = dpas_layout.transpose();
+
+        auto default_layout = bmnk_layout.retype(is_a ? a_type_ : b_type_);
+        if (dpas_layout <= default_layout) return default_layout;
+
+        dim_t dpas_mn_blk = dpas_layout.dim(mn_idx);
+        dim_t dpas_k_blk = dpas_layout.dim(k_idx);
+        ir_assert(k_blk % dpas_k_blk == 0);
+
+        dim_t k_outer = ir_utils::safe_divide(k_blk, dpas_k_blk);
+        dim_t mn_outer = ir_utils::safe_divide(mn_blk, dpas_mn_blk);
+        dpas_layout = dpas_layout.add_outer_block(k_idx, k_outer);
+        dpas_layout = dpas_layout.add_outer_block(mn_idx, mn_outer);
+        return dpas_layout;
     }
 
-    // Ensure the layout is dense to align regioning.
-    if (!layout.is_dense()) {
-        if (changed) *changed = true;
-        return layout.make_dense();
-    }
-
-    return layout;
-}
-
-layout_t convert_to_fma_friendly_layout(const conv_config_t &cfg,
-        abc_kind_t abc_kind, const bmnk_mapper_t &bmnk_mapper,
-        const layout_t &layout, const type_t &a_type, const type_t &b_type,
-        bool is_slm, bool *changed = nullptr) {
-    if (changed) *changed = false;
-    if (!cfg.allow_grf_reorder) return layout;
-
-    // GRF reorder is only supported with dpas/dpasw.
-    if (!cfg.is_dp_fma()) {
-        if (is_slm) return layout;
-        // mad may require type conversion, supported for GRF layouts only.
-        return convert_to_fma_friendly_type(
-                cfg, abc_kind, layout, a_type, b_type, changed);
-    }
-
-    std::vector<bmnk_kind_t> bmnk_kinds;
-    if (abc_kind == abc_kind_t::a) {
-        bmnk_kinds.push_back(bmnk_kind_t::m);
-        bmnk_kinds.push_back(bmnk_kind_t::k);
-    } else {
-        bmnk_kinds.push_back(bmnk_kind_t::k);
-        bmnk_kinds.push_back(bmnk_kind_t::n);
-    }
-
-    auto bmnk_layout = bmnk_mapper.map_to_bmnk(abc_kind, bmnk_kinds, layout);
-
-    auto dpas_layout = get_fma_friendly_layout(abc_kind, cfg.simd_size(),
-            bmnk_layout, cfg.a_data_type, cfg.b_data_type);
-    if (dpas_layout == bmnk_layout) return layout;
-
-    if (changed) *changed = true;
-
-    bmnk_block_mapper_t from_bmnk_mapper(bmnk_mapper);
-    from_bmnk_mapper.push_blocks(abc_kind, layout.blocks());
-
-    auto fma_layout
-            = from_bmnk_mapper.map_from_bmnk(abc_kind, bmnk_kinds, dpas_layout);
-    fma_layout = fma_layout.make_dense();
-    return fma_layout;
-}
+    int simd_size_;
+    fma_kind_t fma_kind_;
+    type_t a_type_;
+    type_t b_type_;
+    bool allow_grf_reorder_;
+    bool is_src1_broadcast_;
+};
 
 class b_reduce_context_t {
 public:
@@ -4885,18 +4905,160 @@ private:
     uint32_t reduction_mask_ = (1 << 1) | (1 << 2);
 };
 
+class sub_tile_info_t {
+public:
+    using post_load_func_t = std::function<stmt_t(
+            const layout_t &, const expr_t &, const tensor_t &)>;
+
+    sub_tile_info_t(const hw_config_t &hw_cfg, ir_context_t &ir_ctx,
+            const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
+            const fma_helper_t &fma_helper, abc_kind_t abc_kind, bool use_slm,
+            bool load_buffered, bool allow_2d_load, int idx,
+            const view_t &mem_view, const tensor_t &sub_tile,
+            const expr_t &mem_buf, const expr_t &slm_buf, const expr_t &reg_buf,
+            const expr_t &tmp_buf)
+        : hw_cfg_(hw_cfg)
+        , ir_ctx_(ir_ctx)
+        , cset_(cset)
+        , gemm_schedule_(gemm_schedule)
+        , fma_helper_(fma_helper)
+        , abc_kind_(abc_kind)
+        , use_slm_(use_slm)
+        , load_buffered_(load_buffered)
+        , allow_2d_load_(allow_2d_load)
+        , idx_(idx)
+        , mem_view_(mem_view)
+        , sub_tile_(sub_tile)
+        , mem_buf_(mem_buf)
+        , slm_buf_(slm_buf)
+        , reg_buf_(reg_buf)
+        , tmp_buf_(tmp_buf) {}
+
+    bool is_loaded() const { return is_loaded_; }
+
+    void set_loaded() { is_loaded_ = true; }
+
+    const view_t &reg_view() const { return reg_view_; }
+
+    int reg_buf_size() const {
+        return utils::rnd_up(reg_layout_.size(), hw_cfg_.grf_size());
+    }
+
+    int tmp_buf_size() const { return tmp_buf_size_; }
+
+    const stmt_t &s2r_load() const { return s2r_load_; }
+
+    const stmt_t &g2r_load() const { return g2r_load_; }
+
+    const send_hint_t &send_hint() const { return send_hint_; }
+
+    void load(const post_load_func_t &post_load = post_load_func_t()) {
+        auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
+
+        layout_t load_layout;
+        stmt_t &stmt = (use_slm_ ? s2r_load_ : g2r_load_);
+        load_impl(ir_ctx_, load_layout, reg_view_, send_hint_, stmt);
+
+        if (post_load) {
+            stmt = stmt.append(post_load(load_layout, reg_buf_, sub_tile_));
+        }
+
+        reg_layout_ = load_layout;
+
+        bool changed;
+        auto fma_layout = fma_helper_.convert_to_fma_friendly_layout(
+                reg_layout_, abc_kind_,
+                /*is_slm=*/false, bmnk_mapper, &changed);
+
+        if (changed) {
+            bool is_reorder_nop
+                    = fma_layout.retype(reg_layout_.type()) == reg_layout_
+                    && reg_layout_.type().is_bitwise_compatible(
+                            fma_layout.type());
+
+            if (fma_layout.type() != reg_layout_.type()) {
+                reg_view_ = reg_view_.retype(fma_layout.type());
+            }
+            reg_layout_ = fma_layout;
+            reg_view_.set_tlayout(reg_layout_);
+            if (!is_reorder_nop) {
+                stmt = substitute(stmt, reg_buf_, tmp_buf_);
+                stmt = stmt.append(create_reorder_stmt(
+                        load_layout, reg_layout_, tmp_buf_, reg_buf_));
+                tmp_buf_size_
+                        = std::max(tmp_buf_size_, int(load_layout.size()));
+            }
+        }
+    }
+
+private:
+    void load_impl(ir_context_t &ir_ctx, layout_t &load_layout,
+            view_t &load_view, send_hint_t &send_hint, stmt_t &stmt) const {
+        view_t mem_view = mem_view_;
+        if (load_buffered_)
+            mem_view_.try_create_buffer_view(mem_view, load_view);
+
+        send_op_t send_op = send_op_t::load;
+        send_hint = get_send_hint(hw_cfg_, send_op_t::load,
+                fma_helper_.fma_kind(), abc_kind_, mem_view, gemm_schedule_,
+                allow_2d_load_);
+        auto read = make_access_builder(hw_cfg_.hw(), ir_ctx, cset_, mem_view,
+                use_slm_ ? slm_buf_ : mem_buf_, reg_buf_, send_op,
+                use_slm_ ? send_address_t::slm : send_address_t::a64,
+                send_hint);
+        ir_trace() << (abc_kind_ == abc_kind_t::a ? "A" : "B")
+                   << " GMEM/SLM to GRF load #" << idx_ << ":\n"
+                   << read.str() << std::endl;
+
+        load_layout = read.reg_layout();
+        if (!load_view.is_empty()) {
+            load_view.set_tlayout(load_layout);
+        } else {
+            load_view = view_t(load_layout);
+        }
+        stmt = read.stmt();
+    }
+
+    const hw_config_t hw_cfg_;
+    ir_context_t &ir_ctx_;
+    const constraint_set_t &cset_;
+    const gemm_schedule_t &gemm_schedule_;
+    const fma_helper_t &fma_helper_;
+    abc_kind_t abc_kind_;
+    bool use_slm_;
+    bool load_buffered_;
+    bool allow_2d_load_;
+    int idx_;
+    view_t mem_view_;
+    tensor_t sub_tile_;
+
+    expr_t mem_buf_;
+    expr_t slm_buf_;
+    expr_t reg_buf_;
+    expr_t tmp_buf_;
+
+    bool is_loaded_ = false;
+    view_t reg_view_;
+    layout_t reg_layout_;
+    int tmp_buf_size_ = 0;
+    stmt_t s2r_load_;
+    stmt_t g2r_load_;
+    send_hint_t send_hint_;
+};
+
 class load_multiply_builder_t {
 public:
     load_multiply_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const gemm_schedule_t &gemm_schedule,
-            b_reduce_context_t &b_reduce_ctx, const expr_t &ap_buf,
-            const expr_t &a_slm_buf, const expr_t &bp_buf,
+            const fma_helper_t &fma_helper, b_reduce_context_t &b_reduce_ctx,
+            const expr_t &ap_buf, const expr_t &a_slm_buf, const expr_t &bp_buf,
             const expr_t &b_slm_buf, const view_t &ap_x_view,
             const view_t &bp_x_view, const kernel_info_t &kernel_info)
         : cfg_(cfg)
         , ir_ctx_(ir_ctx)
         , cset_(cset)
         , gemm_schedule_(gemm_schedule)
+        , fma_helper_(fma_helper)
         , b_reduce_ctx_(b_reduce_ctx)
         , ap_buf_(ap_buf)
         , a_slm_buf_(a_slm_buf)
@@ -4946,12 +5108,6 @@ public:
     const layout_t &c_reg_layout() const { return c_reg_layout_; }
 
 private:
-    struct sub_tile_info_t {
-        bool is_loaded = false;
-        view_t reg_view;
-        int reg_buf_size;
-    };
-
     view_t create_sub_tile_view(abc_kind_t abc_kind, const view_t &thr_view,
             int sub_tiles, const expr_t &idx, bmnk_kind_t bmnk_kind,
             std::vector<block_t> *outer_blocks, tensor_t &sub_tile) const {
@@ -4987,21 +5143,33 @@ private:
         return thr_view.create_sub_view(sub_tile);
     }
 
-    const type_t &a_type() const { return a_i_view_.type(); }
-    const type_t &b_type() const { return b_j_view_.type(); }
-
     void build() {
-        a_sub_tiles_.resize(cfg_.a_sub_tiles);
-        b_sub_tiles_.resize(cfg_.b_sub_tiles);
+        int max_iters = 2;
+        bool load_ok = false;
+        for (int iter = 0; iter < max_iters; iter++) {
+            if (try_load_sub_tiles(/*allow_2d_load=*/iter == 0)) {
+                load_ok = true;
+                break;
+            }
+        }
+        ir_assert(load_ok) << "Can't generate load statements for sub-tiles.";
+
         for (int i = 0; i < cfg_.a_sub_tiles; i++) {
             for (int j = 0; j < cfg_.b_sub_tiles; j++) {
                 build_sub_tile(i, j);
             }
         }
 
-        if (tmp_buf_size_ > 0) {
-            register_buffer(ab_tmp_buf_, tmp_buf_size_, alloc_kind_t::grf);
-        }
+        // Handle temporary buffer in case of GRF reorders.
+        int tmp_buf_size = 0;
+        for (int i = 0; i < cfg_.a_sub_tiles; i++)
+            tmp_buf_size
+                    = std::max(tmp_buf_size, a_sub_tiles_[i].tmp_buf_size());
+        for (int j = 0; j < cfg_.b_sub_tiles; j++)
+            tmp_buf_size
+                    = std::max(tmp_buf_size, b_sub_tiles_[j].tmp_buf_size());
+        if (tmp_buf_size > 0)
+            register_buffer(ab_tmp_buf_, tmp_buf_size, alloc_kind_t::grf);
 
         // C layout in problem notation.
         auto c_layout = c_sub_tile_layout_;
@@ -5020,6 +5188,82 @@ private:
         }
 
         c_reg_layout_ = c_layout;
+    }
+
+    bool can_use_2d_load(const abc_kind_t &abc_kind, const view_t &view) const {
+        bool is_blocked = view.tlayout().innermost_block_layout().elems() > 1;
+        if (!is_blocked) return true;
+
+        // In general we want to skip expensive logic to check requirements for
+        // 2D block messages with block layouts as performance with 1D messages
+        // is good enough. However there are a few cases (backward by weights
+        // with dpas) when 2D block messages give boost even for block layouts
+        // due to VNNI/transpose features.
+        if (cfg_.is_bwd_w && cfg_.is_dp_fma()) {
+            auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
+            auto &blocks = view.tlayout().blocks();
+            if (blocks.size() < 2) return false;
+            int b1_dim_idx = blocks[1].dim_idx;
+            return bmnk_mapper.bmnk_kind(abc_kind, b1_dim_idx)
+                    == bmnk_kind_t::k;
+        }
+        return false;
+    }
+
+    bool try_load_sub_tiles(bool allow_2d_load) {
+        a_sub_tiles_.clear();
+        b_sub_tiles_.clear();
+        for (int i = 0; i < cfg_.a_sub_tiles; i++) {
+            auto view = a_i_view_.substitute(a_idx_, i);
+            auto tile = a_i_tile_.substitute(a_idx_, i);
+            // Using buffered view is enabled only when:
+            // - Loading directly from global memory
+            // - FMA kind is mad (dpas implementation is more strict and requires
+            //   layouts, not views)
+            // - Loading A tensor (A - activations for FWD/BWD_D where we may have
+            //   overlapping when applying KW blocking )
+            bool load_buffered = cfg_.use_ow_kw_grf_cache && !cfg_.use_a_slm
+                    && cfg_.fma_kind == fma_kind_t::mad;
+            a_sub_tiles_.emplace_back(cfg_.hw_cfg, ir_ctx_, cset_,
+                    gemm_schedule_, fma_helper_, abc_kind_t::a, cfg_.use_a_slm,
+                    load_buffered,
+                    allow_2d_load && can_use_2d_load(abc_kind_t::a, a_i_view_),
+                    i, view, tile, ap_buf_, a_slm_buf_, a_buf_, ab_tmp_buf_);
+            a_sub_tiles_.back().load();
+        }
+        sub_tile_info_t::post_load_func_t b_post_load;
+        if (!cfg_.use_b_slm && cfg_.do_b_reduction) {
+            b_post_load = [&](const layout_t &reg_layout, const expr_t &reg_buf,
+                                  const tensor_t &tile) {
+                return b_reduce_ctx_.create_reduce_stmt(
+                        reg_layout, reg_buf, tile);
+            };
+        }
+        for (int j = 0; j < cfg_.b_sub_tiles; j++) {
+            auto view = b_j_view_.substitute(b_idx_, j);
+            auto tile = b_j_tile_.substitute(b_idx_, j);
+            b_sub_tiles_.emplace_back(cfg_.hw_cfg, ir_ctx_, cset_,
+                    gemm_schedule_, fma_helper_, abc_kind_t::b, cfg_.use_b_slm,
+                    /*load_buffered=*/false,
+                    allow_2d_load && can_use_2d_load(abc_kind_t::b, b_j_view_),
+                    j, view, tile, bp_buf_, b_slm_buf_, b_buf_, ab_tmp_buf_);
+
+            b_sub_tiles_.back().load(b_post_load);
+        }
+
+        // Validate sub-tile loads, when VNNI permutation is applied, both A/B
+        // have to use the same pattern.
+        int vnni_permute_factor
+                = a_sub_tiles_[0].send_hint().hint_2d.vnni_permute_factor;
+        for (int i = 1; i < cfg_.a_sub_tiles; i++) {
+            int f = a_sub_tiles_[i].send_hint().hint_2d.vnni_permute_factor;
+            if (f != vnni_permute_factor) return false;
+        }
+        for (int j = 0; j < cfg_.b_sub_tiles; j++) {
+            int f = b_sub_tiles_[j].send_hint().hint_2d.vnni_permute_factor;
+            if (f != vnni_permute_factor) return false;
+        }
+        return true;
     }
 
     class src_zp_mask_info_t {
@@ -5487,16 +5731,23 @@ private:
 
         stmt_t ab_s2r_load;
         stmt_t ab_g2r_load;
-        load_sub_tile(abc_kind_t::a, i, ab_s2r_load, ab_g2r_load);
-        load_sub_tile(abc_kind_t::b, j, ab_s2r_load, ab_g2r_load);
-
+        if (!a_sub_tiles_[i].is_loaded()) {
+            ab_s2r_load = ab_s2r_load.append(a_sub_tiles_[i].s2r_load());
+            ab_g2r_load = ab_g2r_load.append(a_sub_tiles_[i].g2r_load());
+            a_sub_tiles_[i].set_loaded();
+        }
+        if (!b_sub_tiles_[j].is_loaded()) {
+            ab_s2r_load = ab_s2r_load.append(b_sub_tiles_[j].s2r_load());
+            ab_g2r_load = ab_g2r_load.append(b_sub_tiles_[j].g2r_load());
+            b_sub_tiles_[j].set_loaded();
+        }
         load_mul_stmt_ = load_mul_stmt_.append(
                 stmt_group_t::make(stmt_label_t::g2r_load(i + j), ab_g2r_load));
         load_mul_stmt_ = load_mul_stmt_.append(
                 stmt_group_t::make(stmt_label_t::s2r_load(i + j), ab_s2r_load));
 
-        auto &a_i_view = a_sub_tiles_[i].reg_view;
-        auto &b_j_view = b_sub_tiles_[j].reg_view;
+        auto &a_i_view = a_sub_tiles_[i].reg_view();
+        auto &b_j_view = b_sub_tiles_[j].reg_view();
 
         // Multiply C_i_j += A_i x B_j in GEMM notation.
         multiply_builder_t mul_builder(cfg_, gemm_schedule_.bmnk_mapper(),
@@ -5519,149 +5770,10 @@ private:
         }
 
         register_buffer(
-                a_buf_, a_sub_tiles_[i].reg_buf_size, alloc_kind_t::grf);
+                a_buf_, a_sub_tiles_[i].reg_buf_size(), alloc_kind_t::grf);
         register_buffer(
-                b_buf_, b_sub_tiles_[j].reg_buf_size, alloc_kind_t::grf);
+                b_buf_, b_sub_tiles_[j].reg_buf_size(), alloc_kind_t::grf);
     }
-
-    // Loads A_i or B_j sub-tile.
-    void load_sub_tile(abc_kind_t abc_kind, int i, stmt_t &ab_s2r_load,
-            stmt_t &ab_g2r_load) {
-        bool is_a = (abc_kind == abc_kind_t::a);
-        auto &info = (is_a ? a_sub_tiles_[i] : b_sub_tiles_[i]);
-        if (info.is_loaded) return;
-
-        auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
-
-        auto &x_view = (is_a ? a_i_view_ : b_j_view_);
-        auto &x_tile = (is_a ? a_i_tile_ : b_j_tile_);
-        auto &x_idx = (is_a ? a_idx_ : b_idx_);
-
-        auto view = x_view.substitute(x_idx, i);
-        auto tile = x_tile.substitute(x_idx, i);
-
-        bool use_x_slm = (is_a ? cfg_.use_a_slm : cfg_.use_b_slm);
-        auto &x_slm_buf = (is_a ? a_slm_buf_ : b_slm_buf_);
-        auto &x_gmem_buf = (is_a ? ap_buf_ : bp_buf_);
-        auto &x_buf = (use_x_slm ? x_slm_buf : x_gmem_buf);
-        auto &x_reg_buf = (is_a ? a_buf_ : b_buf_);
-
-        layout_t load_layout;
-        view_t reg_view;
-        stmt_t stmt;
-        load_sub_tile_impl(abc_kind, i, view, x_buf, x_reg_buf, use_x_slm,
-                load_layout, reg_view, stmt);
-
-        auto reg_layout = load_layout;
-
-        if (!is_a && cfg_.do_b_reduction && !cfg_.use_b_slm) {
-            auto reduce_stmt = b_reduce_ctx_.create_reduce_stmt(
-                    reg_layout, b_buf_, tile);
-            stmt = stmt.append(reduce_stmt);
-        }
-
-        bool changed;
-        auto fma_layout = convert_to_fma_friendly_layout(cfg_, abc_kind,
-                bmnk_mapper, reg_layout, a_type(), b_type(), /*is_slm=*/false,
-                &changed);
-
-        if (changed) {
-            bool is_reorder_nop
-                    = fma_layout.retype(reg_layout.type()) == reg_layout
-                    && reg_layout.type().is_bitwise_compatible(
-                            fma_layout.type());
-
-            if (fma_layout.type() != reg_layout.type()) {
-                reg_view = reg_view.retype(fma_layout.type());
-            }
-            reg_layout = fma_layout;
-            reg_view.set_tlayout(reg_layout);
-            if (!is_reorder_nop) {
-                stmt = substitute(stmt, x_reg_buf, ab_tmp_buf_);
-                stmt = stmt.append(create_reorder_stmt(
-                        load_layout, reg_layout, ab_tmp_buf_, x_reg_buf));
-                tmp_buf_size_
-                        = std::max(tmp_buf_size_, int(load_layout.size()));
-            }
-        }
-
-        if (use_x_slm) {
-            ab_s2r_load = ab_s2r_load.append(stmt);
-        } else {
-            ab_g2r_load = ab_g2r_load.append(stmt);
-        }
-        info.is_loaded = true;
-        info.reg_view = reg_view;
-        info.reg_buf_size = utils::rnd_up(reg_layout.size(), cfg_.grf_size());
-    }
-
-    void load_sub_tile_impl(abc_kind_t abc_kind, int sub_tile_idx,
-            const view_t &_mem_view, const expr_t &buf, const expr_t &reg_buf,
-            bool is_slm, layout_t &reg_layout, view_t &reg_view, stmt_t &stmt) {
-        bool is_a = (abc_kind == abc_kind_t::a);
-
-        view_t mem_view;
-        bool load_buffered = false;
-
-        // Using buffered view is enabled only when:
-        // - Loading directly from global memory
-        // - FMA kind is mad (dpas implementation is more strict and requires
-        //   layouts, not views)
-        // - Loading A tensor (A - activations for FWD/BWD_D where we may have
-        //   overlapping when applying KW blocking )
-        if (cfg_.use_ow_kw_grf_cache && !is_slm && is_a
-                && cfg_.fma_kind == fma_kind_t::mad) {
-            load_buffered
-                    = _mem_view.try_create_buffer_view(mem_view, reg_view);
-        }
-
-        if (!load_buffered) mem_view = _mem_view;
-
-        send_op_t send_op = send_op_t::load;
-        auto send_hint = get_send_hint(send_op_t::load, abc_kind, mem_view,
-                can_use_2d_send(), cfg_.simd_size(), gemm_schedule_);
-        auto read = make_access_builder(cfg_.hw(), ir_ctx_, cset_, mem_view,
-                buf, reg_buf, send_op,
-                is_slm ? send_address_t::slm : send_address_t::a64, send_hint);
-        ir_trace() << (is_a ? "A" : "B") << " GMEM/SLM to GRF load #"
-                   << sub_tile_idx << ":\n"
-                   << read.str() << std::endl;
-
-        if (load_buffered) {
-            reg_view.set_tlayout(read.reg_layout());
-        } else {
-            reg_view = view_t(read.reg_layout());
-        }
-
-        reg_layout = read.reg_layout();
-        stmt = read.stmt();
-    }
-
-    bool can_use_2d_send() const {
-        if (cfg_.use_2d_send) return true;
-        if (cfg_.hw() < ngen::HW::XeHPC) return false;
-
-        // Enable 2D load messages for bwd_w for 32n16c layout
-        if (cfg_.is_bwd_w) {
-            auto block_2d_ok = [&](const view_t &view, abc_kind_t abc_kind) {
-                auto inner = view.tlayout().innermost_block_layout();
-                if (view.type() != type_t::bf16()) return false;
-                if (inner.blocks().size() != 2) return false;
-                auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
-                auto &b0 = inner.blocks()[0];
-                auto &b1 = inner.blocks()[1];
-                if (b0.block != 16 || b1.block != 32) return false;
-                bool b1_is_k = (bmnk_mapper.bmnk_kind(abc_kind, b1.dim_idx)
-                        == bmnk_kind_t::k);
-                return b1_is_k;
-            };
-            bool a_ok = block_2d_ok(gemm_schedule_.a_view(), abc_kind_t::a);
-            bool b_ok = block_2d_ok(gemm_schedule_.b_view(), abc_kind_t::b);
-            return a_ok && b_ok;
-        }
-        return false;
-    }
-
     void register_buffer(const stmt_t &alloc) {
         ir_assert(alloc.is<alloc_t>());
         allocs_.push_back(alloc);
@@ -5676,6 +5788,7 @@ private:
     ir_context_t ir_ctx_;
     const constraint_set_t &cset_;
     const gemm_schedule_t &gemm_schedule_;
+    const fma_helper_t &fma_helper_;
     b_reduce_context_t &b_reduce_ctx_;
 
     expr_t ap_buf_;
@@ -5690,8 +5803,6 @@ private:
     expr_t a_buf_;
     expr_t b_buf_;
     expr_t c_buf_;
-
-    int tmp_buf_size_ = 0;
 
     // Per-thread views to multiply.
     view_t a_thr_view_;
@@ -5733,6 +5844,8 @@ public:
         , cset_(cset)
         , b_reduce_ctx_(cfg)
         , g2s_ctx_(ir_ctx)
+        , fma_helper_(cfg.simd_size(), cfg.fma_kind, cfg.a_data_type,
+                  cfg.b_data_type, cfg.allow_grf_reorder, !cfg.is_dw)
         , kernel_info_(kernel_info) {}
 
     int ab_slm_size() const { return ab_slm_size_; }
@@ -5833,8 +5946,8 @@ public:
         }
 
         load_multiply_builder_t load_mul_builder(cfg_, ir_ctx_, cset_,
-                gemm_schedule_, b_reduce_ctx_, ap_buf_, a_slm_buf, bp_buf_,
-                b_slm_buf, ap_x_view, bp_x_view, kernel_info_);
+                gemm_schedule_, fma_helper_, b_reduce_ctx_, ap_buf_, a_slm_buf,
+                bp_buf_, b_slm_buf, ap_x_view, bp_x_view, kernel_info_);
 
         load_mul_stmt_ = load_mul_builder.load_mul_stmt();
         compute_allocs_.insert(compute_allocs_.end(),
@@ -6114,9 +6227,9 @@ private:
         // Per-thread view to prefetch from GMEM.
         auto thr_view = x_gmem_view.split(gemm_schedule_.tg_grid());
 
-        auto send_hint = get_send_hint(send_op_t::prefetch,
+        auto send_hint = get_send_hint(cfg_.hw_cfg, send_op_t::prefetch,
                 (tag[0] == 'A') ? abc_kind_t::a : abc_kind_t::b, thr_view,
-                cfg_.use_2d_send, cfg_.simd_size(), gemm_schedule_);
+                gemm_schedule_);
 
         // GMEM prefetch.
         auto x_prefetch = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
@@ -6131,11 +6244,8 @@ private:
     layout_t create_slm_layout(const view_t &tg_view, abc_kind_t abc_kind,
             const grid_info_t &load_grid) const {
         auto layout = tg_view.create_dense_vlayout();
-        auto &a_type = gemm_schedule_.a_view().type();
-        auto &b_type = gemm_schedule_.b_view().type();
-        auto ret = convert_to_fma_friendly_layout(cfg_, abc_kind,
-                gemm_schedule_.bmnk_mapper(), layout, a_type, b_type,
-                /*is_slm=*/true);
+        auto ret = fma_helper_.convert_to_fma_friendly_layout(layout, abc_kind,
+                /*is_slm=*/true, gemm_schedule_.bmnk_mapper());
         if (cfg_.pad_slm) ret = pad_slm_layout(ret, load_grid);
         return ret;
     }
@@ -6233,6 +6343,7 @@ private:
     b_reduce_context_t b_reduce_ctx_;
 
     g2s_context_t g2s_ctx_;
+    fma_helper_t fma_helper_;
 
     gemm_schedule_t gemm_schedule_;
 

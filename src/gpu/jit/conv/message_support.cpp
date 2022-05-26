@@ -337,7 +337,7 @@ public:
     // - The last element must be GRF boundary aligned (unless `is_last_region`
     //   is true)
     // - The last element must not cross the layout boundary
-    bool can_advance(int stride, int elems, bool is_last_region) {
+    bool can_advance(int stride, int elems, bool is_last_region = false) {
         if (is_last_region) elems = std::min(elems, remaining_elems());
         auto cur_idxs = idxs_;
         int cur_off_bytes = off_bytes_;
@@ -394,7 +394,7 @@ private:
 access_builder_t::access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
         const constraint_set_t &cset, const view_t &mem_view,
         const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
-        send_address_t send_address, const send_hint_t &send_hint)
+        send_address_t send_address, send_hint_t &send_hint)
     : hw_(hw)
     , cset_(&cset)
     , mem_view_(mem_view)
@@ -407,10 +407,8 @@ access_builder_t::access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
     , mem_walker_(utils::make_unique<memory_walker_t>(cset, mem_view)) {
     if (send_hint_.hint_2d.enable) {
         if (try_build_2d()) return;
-        if (send_op == send_op_t::load) {
-            ir_error_not_expected() << "Can't generate 2D send decomposition.";
-        }
     }
+    send_hint.hint_2d = send_2d_hint_t();
     build();
 }
 
@@ -504,13 +502,14 @@ bool access_builder_t::try_build_2d() {
     // which implies no bound checks embedded into 2D block message.
     bool use_virtual_surface = is_w_blocked || is_h_blocked;
     if (use_virtual_surface) {
+        if (h_tstride != 1) return false;
         surface_width = b0.block;
         surface_height = b1.block;
-        ir_assert(h_tstride == 1);
     } else {
         surface_width = tlayout.dim(w_dim_idx);
         surface_height = tlayout.dim(h_dim_idx);
-        surface_height = ir_utils::safe_divide(surface_height, h_tstride);
+        if (surface_height % h_tstride != 0) return false;
+        surface_height = surface_height / h_tstride;
     }
     int type_factor = ir_utils::safe_divide(send_type.size(), mem_type_.size());
     surface_width /= type_factor;
@@ -538,7 +537,9 @@ bool access_builder_t::try_build_2d() {
     int w = width;
     int h = height;
     int c = count;
-    if (!fixup_send_2d_params(send_type, vnni, transpose, W, H, P, w, h, c))
+    if (!fixup_send_2d_params(send_type, vnni, transpose,
+                /*use_xy=*/!use_virtual_surface, W, H, P, w, h, c,
+                hint.vnni_permute_factor))
         return false;
 
     std::vector<dim_t> dims(vlayout.ndims(), 1);
@@ -583,6 +584,13 @@ bool access_builder_t::try_build_2d() {
     reg_layout_walker_
             = utils::make_unique<layout_walker_t>(reg_layout_, grf_size);
 
+    // Update user hint.
+    hint.type = send_type;
+    hint.enable = true;
+    hint.vnni = vnni;
+    hint.transpose = transpose;
+    hint.width = w;
+    hint.height = h;
     auto _send = send_t::make_2d(hw_, send_hint_.convert(send_op_), send_type,
             W, H, P, w, h, c, vnni, transpose);
     auto &send = _send.as<send_t>();
@@ -593,12 +601,27 @@ bool access_builder_t::try_build_2d() {
     vlayout.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
         if (!ok) return;
 
+        int access_size = send.access_size();
+        int access_elems = access_size / mem_type_.size();
+
         // Check mask requirements.
         expr_t mask;
-        if (!check_2d_mask(
-                    tensor_t(tile.dims(), start), w_dim_idx, h_dim_idx, mask)) {
+        if (!check_2d_mask(tensor_t(tile.dims(), start), use_virtual_surface,
+                    w_dim_idx, h_dim_idx, mask)) {
             ok = false;
             return;
+        }
+
+        if (!send.is_prefetch_2d()) {
+            if (!reg_layout_walker_->can_advance(1, access_elems)) {
+                ok = false;
+                return;
+            }
+
+            if (!reg_layout_walker_->can_access(send.payload_size())) {
+                ok = false;
+                return;
+            }
         }
 
         auto vstart = vstart0;
@@ -616,7 +639,6 @@ bool access_builder_t::try_build_2d() {
         expr_t x(0);
         expr_t y(0);
 
-        bool skip_send = false;
         if (!use_virtual_surface) {
             std::swap(x, _x);
             std::swap(y, _y);
@@ -625,26 +647,28 @@ bool access_builder_t::try_build_2d() {
             if (h_tstride != 1) {
                 if (!stride_dimension_ok(
                             mem_view_, h_dim_idx, b1.dim_idx, vstart)) {
-                    if (send.is_prefetch_2d()) {
-                        skip_send = true;
-                    } else {
-                        ir_error_not_expected()
-                                << "Unexpected mapping for stride dimension: "
-                                << mem_view_.tdim(h_dim_idx).expr();
-                    }
+                    ok = false;
+                    return;
                 }
                 y /= h_tstride;
             }
         }
 
-        if (!skip_send) {
-            auto off = mem_view_.tlayout().offset_in_bytes(tstart);
-            auto reg_buf = (send.is_prefetch_2d()
-                            ? expr_t()
-                            : reg_buf_ + reg_layout_walker_->offset_bytes());
-            auto send_stmt = send(mem_buf_, off, reg_buf, mask, x, y);
-            stmt_ = stmt_.append(send_stmt);
+        auto off
+                = simplify(mem_view_.tlayout().offset_in_bytes(tstart), *cset_);
+
+        // Check alignment requirements.
+        int64_t align = get_max_const_factor(off, *cset_);
+        if (align % block_2d_base_alignment() != 0) {
+            ok = false;
+            return;
         }
+
+        auto reg_buf = (send.is_prefetch_2d()
+                        ? expr_t()
+                        : reg_buf_ + reg_layout_walker_->offset_bytes());
+        auto send_stmt = send(mem_buf_, off, reg_buf, mask, x, y);
+        stmt_ = stmt_.append(send_stmt);
 
         reg_layout_walker_->advance(send.access_size() / mem_type_.size());
     });
@@ -653,24 +677,39 @@ bool access_builder_t::try_build_2d() {
 }
 
 bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
-        bool transpose, int &W, int &H, int &P, int &w, int &h, int &c) {
+        bool transpose, bool use_xy, int &W, int &H, int &P, int &w, int &h,
+        int &c, int &vnni_permute_factor) {
     int surface_width_size = W * send_type.size();
     auto whp_ok = [&]() {
         return block_2d_width_ok(W, send_type.size()) && block_2d_height_ok(H)
-                && block_2d_pitch_ok(P, send_type.size());
+                && block_2d_pitch_ok(P, send_type.size(), use_xy);
     };
+
+    // No VNNI permute by default.
+    vnni_permute_factor = 0;
 
     // Surface width must be >= 64 bytes. For smaller width we can apply
     // reshape, e.g. [16a] x [16b] -> [8a] x [2a16b] to have block with larger
-    // width.
+    // width. Such reshape impacts width/height handling with the following
+    // implications:
+    // - Reshape is applied only for VNNI and no transpose case. This allows to
+    //   get the same GRF layout but with permuted height elements:
+    //     - Layout without reshape: 8a16b2a
+    //     - Layout with    reshape: 8a16b2a (a/height dimension is permuted)
+    // - Permutation is safe when it's done for the reduction dimension
+    //   (doesn't matter in which order elements are accumulated).
+    // - Permutation pattern must be the same between A and B tensors
     if (surface_width_size >= 64) return whp_ok();
 
     // Reshape is only expected/supported with VNNI.
     if (!vnni || transpose) return false;
 
     if (64 % surface_width_size != 0) return false;
+
     int factor = 64 / surface_width_size;
     if (h % factor != 0) return false;
+
+    vnni_permute_factor = factor;
     W *= factor;
     P *= factor;
     H /= factor;
@@ -679,13 +718,18 @@ bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
     return whp_ok();
 }
 
-bool access_builder_t::check_2d_mask(const tensor_t &tile, int w_dim_idx,
-        int h_dim_idx, expr_t &mask) const {
+bool access_builder_t::check_2d_mask(const tensor_t &tile,
+        bool use_virtual_surface, int w_dim_idx, int h_dim_idx,
+        expr_t &mask) const {
     auto sub_view = mem_view_.create_sub_view(tile);
     auto mask_tensor = sub_view.create_mask_tensor(*cset_);
     mask = mask_tensor.to_expr(1);
     if (!mask.is_empty()) return true;
 
+    // Virtual surface implies no out-of-bound send checks.
+    if (use_virtual_surface) return false;
+
+    // Remove bound conditions that are covered by out-of-bound send checks.
     uint32_t tmask = 0xFFFFFFFF;
     for (int i = 0; i < sub_view.nvdims(); i++) {
         if (!utils::one_of(i, w_dim_idx, h_dim_idx)) continue;
@@ -899,18 +943,23 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
 
     bool is_load_or_prefetch
             = utils::one_of(send_op, send_op_t::load, send_op_t::prefetch);
-    ir_assert(utils::one_of(type.size(), 1, 2, 4))
-            << "Only D8, D16 and D32 are implemented.";
-    ir_assert(!vnni || !transpose)
-            << "VNNI and transpose are mutually exclusive.";
-    if (vnni || transpose)
-        ir_assert(is_load_or_prefetch)
-                << "VNNI and transpose are supported with load only.";
-    if (vnni)
-        ir_assert(utils::one_of(type.size(), 1, 2))
-                << "VNNI is supported with D8 and D16 only.";
-    if (transpose)
-        ir_assert(type.size() == 4) << "Transpose is supported with D32 only.";
+    bool is_store = (send_op == send_op_t::store);
+
+    // Only D8, D16 and D32 are implemented.
+    if (!utils::one_of(type.size(), 1, 2, 4)) return send_2d_hint_t();
+
+    // VNNI and transpose are mutually exclusive.
+    if (vnni && transpose) return send_2d_hint_t();
+
+    // VNNI and transpose are supported with load only.
+    if (is_store && (vnni || transpose)) return send_2d_hint_t();
+
+    // VNNI is supported with D8 and D16 only.
+    if (vnni && !utils::one_of(type.size(), 1, 2)) return send_2d_hint_t();
+
+    // Transpose is supported with D32 only.
+    if (transpose && type.size() != 4) return send_2d_hint_t();
+
     int w_min = (transpose ? 1 : 4 / type.size());
     int w_max = (transpose ? 8 : (vnni ? 16 : 64 / type.size()));
     int h_min = (vnni ? (4 / type.size()) : 1);
@@ -943,13 +992,14 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
     return hint;
 }
 
-send_hint_t get_send_hint(send_op_t send_op, abc_kind_t abc_kind,
-        const view_t &view, bool allow_2d, int simd_size,
-        const gemm_schedule_t &gemm_schedule) {
+send_hint_t get_send_hint(const hw_config_t &hw_cfg, send_op_t send_op,
+        fma_kind_t fma_kind, abc_kind_t abc_kind, const view_t &view,
+        const gemm_schedule_t &gemm_schedule, bool allow_2d) {
+    if (!allow_2d) return send_hint_t();
+    if (hw_cfg.hw() < ngen::HW::XeHPC) return send_hint_t();
     if (!utils::one_of(send_op, send_op_t::load, send_op_t::prefetch,
                 send_op_t::store))
         return send_hint_t();
-    if (!allow_2d) return send_hint_t();
 
     auto vlayout = view.create_pseudo_vlayout();
     auto blocks = vlayout.blocks();
@@ -958,14 +1008,15 @@ send_hint_t get_send_hint(send_op_t send_op, abc_kind_t abc_kind,
     auto &bmnk_mapper = gemm_schedule.bmnk_mapper();
     auto &b0 = blocks[0];
     auto &b1 = blocks[1];
-    ir_assert(b0.dim_idx != b1.dim_idx) << view;
+    if (b0.dim_idx == b1.dim_idx) return send_hint_t();
     if (b0.stride != stride_t(1)) return send_hint_t();
+    if (b1.stride.is_unknown()) return send_hint_t();
 
     send_hint_t hint;
-    if (send_op == send_op_t::load
+    if (send_op == send_op_t::load && fma_kind == fma_kind_t::dpas
             && utils::one_of(abc_kind, abc_kind_t::a, abc_kind_t::b)) {
         bool is_dpas_src1 = (abc_kind == abc_kind_t::b);
-        int mn_blk = (is_dpas_src1 ? simd_size : 8);
+        int mn_blk = (is_dpas_src1 ? hw_cfg.simd_size() : 8);
         int k_blk = 32 / view.type().size();
 
         bool is_b0_k = (bmnk_mapper.bmnk_kind(abc_kind, b0.dim_idx)
@@ -981,6 +1032,7 @@ send_hint_t get_send_hint(send_op_t send_op, abc_kind_t abc_kind,
         int b0_blk = is_b0_k ? k_blk : mn_blk;
         int b1_blk = !is_b0_k ? k_blk : mn_blk;
         if (b0.block % b0_blk != 0) return send_hint_t();
+        if (b1.block % b1_blk != 0) return send_hint_t();
         hint.hint_2d = get_send_2d_hint(send_op, view.type(), vnni, transpose,
                 b0.block, b1.block, b0_blk, b1_blk);
     } else {

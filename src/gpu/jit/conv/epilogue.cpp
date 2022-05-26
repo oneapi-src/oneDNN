@@ -812,8 +812,8 @@ private:
         // S_y -> GMEM.
         auto send_op = cfg_.do_atomic_update ? send_op_t::atomic_fadd
                                              : send_op_t::store;
-        auto send_hint = get_send_hint(send_op, abc_kind_t::c, c_mem_tile_view,
-                cfg_.use_2d_send, cfg_.simd_size(), gemm_schedule_);
+        auto send_hint = get_send_hint(cfg_.hw_cfg, send_op, abc_kind_t::c,
+                c_mem_tile_view, gemm_schedule_);
         auto r2g = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
                 c_mem_tile_view, c_mem_buf_, tmp_reg_buf, send_op,
                 send_address_t::a64, send_hint);

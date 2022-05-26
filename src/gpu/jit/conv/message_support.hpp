@@ -18,7 +18,9 @@
 #define GPU_JIT_CONV_MESSAGE_SUPPORT_HPP
 
 #include "gpu/jit/conv/config.hpp"
+#include "gpu/jit/conv/fma_support.hpp"
 #include "gpu/jit/conv/gemm_schedule.hpp"
+#include "gpu/jit/conv/hw_config.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/tensor.hpp"
 #include "gpu/jit/conv/utils.hpp"
@@ -322,6 +324,7 @@ struct send_2d_hint_t {
     bool enable = false;
     bool vnni = false;
     bool transpose = false;
+    int vnni_permute_factor = 0;
     int width = 0;
     int height = 0;
 };
@@ -347,7 +350,7 @@ public:
     access_builder_t(ngen::HW hw, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const view_t &mem_view,
             const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
-            send_address_t send_address, const send_hint_t &send_hint);
+            send_address_t send_address, send_hint_t &send_hint);
     access_builder_t(access_builder_t &&);
     ~access_builder_t();
 
@@ -373,10 +376,11 @@ private:
     bool try_build(const layout_t &try_layout);
     bool try_build_2d();
     bool fixup_send_2d_params(const type_t &send_type, bool vnni,
-            bool transpose, int &W, int &H, int &P, int &w, int &h, int &c);
+            bool transpose, bool use_xy, int &W, int &H, int &P, int &w, int &h,
+            int &c, int &vnni_permute_factor);
 
-    bool check_2d_mask(
-            const tensor_t &tile, int w_idx, int h_idx, expr_t &mask) const;
+    bool check_2d_mask(const tensor_t &tile, bool use_virtual_surface,
+            int w_idx, int h_idx, expr_t &mask) const;
 
     std::vector<layout_t> candidate_payload_layouts() const;
     stmt_t create_send_stmt(const send_t &send);
@@ -389,7 +393,7 @@ private:
     expr_t reg_buf_;
     send_op_t send_op_;
     send_address_t send_address_;
-    send_hint_t send_hint_;
+    send_hint_t &send_hint_;
 
     type_t mem_type_;
 
@@ -403,15 +407,30 @@ private:
 inline access_builder_t make_access_builder(ngen::HW hw, ir_context_t &ir_ctx,
         const constraint_set_t &cset, const view_t &mem_view,
         const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
-        send_address_t send_address,
-        const send_hint_t &send_hint = send_hint_t()) {
+        send_address_t send_address, send_hint_t &send_hint) {
     return access_builder_t(hw, ir_ctx, cset, mem_view, mem_buf, reg_buf,
             send_op, send_address, send_hint);
 }
 
-send_hint_t get_send_hint(send_op_t send_op, abc_kind_t abc_kind,
-        const view_t &view, bool allow_2d, int simd_size,
-        const gemm_schedule_t &gemm_schedule);
+inline access_builder_t make_access_builder(ngen::HW hw, ir_context_t &ir_ctx,
+        const constraint_set_t &cset, const view_t &mem_view,
+        const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
+        send_address_t send_address) {
+    send_hint_t send_hint;
+    return access_builder_t(hw, ir_ctx, cset, mem_view, mem_buf, reg_buf,
+            send_op, send_address, send_hint);
+}
+
+send_hint_t get_send_hint(const hw_config_t &hw_cfg, send_op_t send_op,
+        fma_kind_t fma_kind, abc_kind_t abc_kind, const view_t &view,
+        const gemm_schedule_t &gemm_schedule, bool allow_2d = true);
+
+inline send_hint_t get_send_hint(const hw_config_t &hw_cfg, send_op_t send_op,
+        abc_kind_t abc_kind, const view_t &view,
+        const gemm_schedule_t &gemm_schedule, bool allow_2d = true) {
+    return get_send_hint(hw_cfg, send_op, fma_kind_t::unknown, abc_kind, view,
+            gemm_schedule, allow_2d);
+}
 
 } // namespace jit
 } // namespace gpu

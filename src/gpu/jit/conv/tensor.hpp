@@ -1686,7 +1686,7 @@ public:
         return mask_tensor;
     }
 
-    bool try_create_buffer_view(view_t &buf_view, view_t &inv_view) const {
+    void try_create_buffer_view(view_t &buf_view, view_t &inv_view) const {
         buf_view = view_t(create_vvars(ntdims()), ntdims());
         inv_view = view_t(vvars(), ntdims());
         for (int i = 0; i < nvdims(); i++) {
@@ -1720,7 +1720,11 @@ public:
             }
             buf_vdim++;
 
-            if (!ok) return false;
+            if (!ok) {
+                buf_view = view_t();
+                inv_view = view_t();
+                return;
+            }
 
             auto buf_vstart = tdim.expr();
             auto inv_vstart = tdim.expr();
@@ -1734,7 +1738,11 @@ public:
             buf_vstart = simplify(buf_vstart);
             inv_vstart = simplify(inv_vstart);
 
-            if (!is_const(inv_vstart)) return false;
+            if (!is_const(inv_vstart)) {
+                buf_view = view_t();
+                inv_view = view_t();
+                return;
+            }
 
             buf_view.set_vdim(buf_vvar, buf_vdim, buf_vstart);
 
@@ -1742,14 +1750,17 @@ public:
             // in the buffered view.
             auto &tmask = tdim.mask();
             for (auto &vvar : vvars()) {
-                if (contains_object(tmask, vvar)) { return false; }
+                if (contains_object(tmask, vvar)) {
+                    buf_view = view_t();
+                    inv_view = view_t();
+                    return;
+                }
             }
 
             buf_view.set_tdim(i, buf_vvar, tmask);
             inv_view.set_tdim(i, tdim.expr() - inv_vstart);
         }
         buf_view.set_tlayout(tlayout_);
-        return true;
     }
 
     static const expr_t &placeholder_var() {

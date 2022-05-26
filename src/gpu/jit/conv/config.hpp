@@ -506,7 +506,7 @@ public:
     ngen::HW hw() const { return hw_cfg.hw(); }
     int regs() const { return hw_cfg.regs(); }
     int simd_size() const { return hw_cfg.simd_size(); }
-    int grf_size() const { return ngen::GRF::bytes(hw()); }
+    int grf_size() const { return hw_cfg.grf_size(); }
     bool is_ge_xe_hpc() const { return (hw_cfg.hw() >= ngen::HW::XeHPC); }
 
     compute::nd_range_t nd_range() const {

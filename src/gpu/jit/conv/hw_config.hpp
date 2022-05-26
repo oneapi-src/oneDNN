@@ -81,6 +81,7 @@ public:
     int simd_size() const { return simd_size_; }
     int vec_size() const { return vec_size_; }
     int regs() const { return regs_; }
+    int grf_size() const { return ngen::GRF::bytes(hw_); }
 
     void set_simd_size(int value) { simd_size_ = value; }
     void set_vec_size(int value) { vec_size_ = value; }

@@ -3823,7 +3823,7 @@ private:
             return ngen::RegData();
         }
 
-        ir_assert(send_func.is_store());
+        ir_assert(send_func.is_store() || send_func.is_store_2d());
 
         // Reorder buffer to a dense buffer for store.
         int grf_size = ngen::GRF::bytes(hw);
