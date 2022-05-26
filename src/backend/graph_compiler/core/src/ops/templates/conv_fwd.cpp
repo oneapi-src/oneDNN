@@ -1404,7 +1404,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
           pack_rows, os_blk_size, os_acc_size, os_mask);
       }
     } else {
-      if (is_use_amx(ctx)) {
+      if (is_use_amx(ctx) && (ph_ <= kh_ && pw_ <= kw_)) {
         compute_conv_padding_v2(ctx, config, fusion, output, input, weight,
           loops, K_num_block, C_num_block, os, kpack);
       } else {
