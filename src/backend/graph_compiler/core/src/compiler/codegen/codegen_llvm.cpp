@@ -147,6 +147,14 @@ public:
                     ->setName(get_node_name(v->params_[i]) + "_arg");
         }
         name_to_func_.insert(std::make_pair(v->name_, F));
+        if (v->attr_ && v->attr_->get_or_else("pure", false)) {
+            F->addFnAttr(llvm::Attribute::AttrKind::ReadNone);
+            F->addFnAttr(llvm::Attribute::AttrKind::Speculatable);
+        }
+        if (v->attr_ && v->attr_->get_or_else("noalias", false)) {
+            F->setReturnDoesNotAlias();
+        }
+        F->addFnAttr(llvm::Attribute::AttrKind::NoUnwind);
         return F;
     }
 
@@ -222,6 +230,13 @@ public:
         current_func_ = F;
         F->addFnAttr("no-frame-pointer-elim", "true");
         F->addFnAttr("frame-pointer", "all");
+        for (size_t i = 0; i < v->params_.size(); i++) {
+            if (v->params_[i].isa<tensor>()) {
+                F->addParamAttr(i, llvm::Attribute::AttrKind::NoAlias);
+                F->addParamAttr(i, llvm::Attribute::AttrKind::NoCapture);
+                F->addParamAttr(i, llvm::Attribute::AttrKind::NonNull);
+            }
+        }
         // LLVM func args are SSA values and cannot be modified. We use alloca
         // to alloc modifiable slots for each params
         for (size_t i = 0; i < v->params_.size(); i++) {

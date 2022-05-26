@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,15 +22,20 @@
 
 namespace sc {
 
+static func_t set_noalias_function(func_t f) {
+    f->attr()["noalias"] = true;
+    return f;
+}
+
 func_t get_cpu_temp_malloc_func(bool is_thread_local) {
-    static func_t f_global
-            = builder::_decl_func("sc_aligned_malloc", datatypes::pointer,
+    static func_t f_global = set_noalias_function(
+            builder::_decl_func("sc_aligned_malloc", datatypes::pointer,
                     {_arg_("stream", datatypes::pointer),
-                            _arg_("size", datatypes::index)});
-    static func_t f_local = builder::_decl_func("sc_thread_aligned_malloc",
-            datatypes::pointer,
-            {_arg_("stream", datatypes::pointer),
-                    _arg_("size", datatypes::index)});
+                            _arg_("size", datatypes::index)}));
+    static func_t f_local = set_noalias_function(
+            builder::_decl_func("sc_thread_aligned_malloc", datatypes::pointer,
+                    {_arg_("stream", datatypes::pointer),
+                            _arg_("size", datatypes::index)}));
     return is_thread_local ? f_local : f_global;
 }
 

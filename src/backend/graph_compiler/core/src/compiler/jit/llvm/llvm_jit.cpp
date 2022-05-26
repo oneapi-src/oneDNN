@@ -67,8 +67,6 @@ static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
     passbuilder.populateFunctionPassManager(FPM);
     passbuilder.populateModulePassManager(MPM);
 
-    passbuilder.populateLTOPassManager(MPM);
-
     FPM.doInitialization();
     for (llvm::Function &F : *module)
         FPM.run(F);
