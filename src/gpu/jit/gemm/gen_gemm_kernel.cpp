@@ -172,7 +172,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     }
 
     // Select a kernel from the catalog.
-    MatchParams match_params[2];
+    MatchParams match_params[3];
     int npatterns = 1;
 
     match_params[0] = MatchParams(hw_, problem_);
@@ -191,9 +191,17 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     if ((mode & mode_tf32)
             && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
-        match_params[1] = match_params[0];
-        match_params[1].selector.precisions[0] = "T";
-        match_params[1].selector.precisions[1] = "T";
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[0] = "T";
+        match_params[npatterns].selector.precisions[1] = "T";
+        npatterns++;
+    }
+
+    if ((mode & mode_bf16x1)
+            && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[0] = "[SB]";
+        match_params[npatterns].selector.precisions[1] = "[SB]";
         npatterns++;
     }
 
@@ -213,6 +221,11 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
             problem_.Ta = problem_.Ta_ext = Type::tf32;
         if (entry_->selector.precisions[1][0] == 'T')
             problem_.Tb = problem_.Tb_ext = Type::tf32;
+    }
+
+    if (mode & mode_bf16x1) {
+        if (entry_->selector.precisions[0][0] == '[') problem_.Ta = Type::bf16;
+        if (entry_->selector.precisions[1][0] == '[') problem_.Tb = Type::bf16;
     }
 
     auto block_k = entry_->driverInfo.blocking[LoopK];

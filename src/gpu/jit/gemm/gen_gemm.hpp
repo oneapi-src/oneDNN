@@ -184,7 +184,12 @@ struct gen_gemm_t : public gpu_gemm_t {
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
 
             if (attr()->mayidownconvert(f32, tf32))
-                mode = kernel_desc_t::mode_tf32;
+                mode = static_cast<decltype(mode)>(
+                        mode | kernel_desc_t::mode_tf32);
+
+            if (attr()->mayidownconvert(f32, bf16))
+                mode = static_cast<decltype(mode)>(
+                        mode | kernel_desc_t::mode_bf16x1);
 
             auto status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), mode, batch_dims(), eff_transa(),

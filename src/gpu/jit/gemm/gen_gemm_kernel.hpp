@@ -102,7 +102,7 @@ protected:
 };
 
 struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
-    enum compute_mode { mode_default = 0, mode_tf32 = 0x1 };
+    enum compute_mode { mode_default = 0, mode_tf32 = 0x1, mode_bf16x1 = 0x2 };
 
     status_t select_kernel(compute::gpu_arch_t arch, int stepping, int eu_count,
             compute_mode mode, int batch_dims, bool trans_a, bool trans_b,
