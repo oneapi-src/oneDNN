@@ -38,7 +38,6 @@ struct acl_matmul_obj_t {
 };
 
 struct acl_matmul_conf_t {
-    bool with_bias;
     bool is_transA;
     bool is_transB;
     arm_compute::TensorInfo src_info;
@@ -53,8 +52,8 @@ struct acl_matmul_conf_t {
 namespace acl_matmul_utils {
 
 status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
-        memory_desc_t &wei_md, memory_desc_t &dst_md, memory_desc_t &bias_md,
-        const matmul_desc_t &md, const primitive_attr_t &attr);
+        memory_desc_t &wei_md, memory_desc_t &dst_md, const matmul_desc_t &md,
+        const primitive_attr_t &attr);
 
 arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
 bool acl_act_ok(alg_kind_t eltwise_activation);

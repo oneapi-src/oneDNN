@@ -81,8 +81,8 @@ struct acl_matmul_t : public primitive_t {
                     && !has_runtime_dims_or_strides();
             if (!ok) return status::unimplemented;
 
-            auto conf_status = acl_matmul_utils::init_conf_matmul(amp_, src_md_,
-                    weights_md_, dst_md_, bias_md_, *desc(), *attr());
+            auto conf_status = acl_matmul_utils::init_conf_matmul(
+                    amp_, src_md_, weights_md_, dst_md_, *desc(), *attr());
 
             if (conf_status != status::success) return status::unimplemented;
 
