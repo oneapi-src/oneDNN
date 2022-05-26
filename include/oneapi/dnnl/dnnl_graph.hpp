@@ -1080,7 +1080,7 @@ public:
     /// Sets the attribute according to the name and type (int64_t)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute
+    /// @param name Attribute's name
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
@@ -1092,6 +1092,12 @@ public:
         return *this;
     }
 
+    /// Sets the attribute according to the name and type (int64_t)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param value The attribute's value
+    /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, int64_t>::value> = true>
     op &set_attr(attr name, const Type &value) {
@@ -1104,7 +1110,7 @@ public:
     /// Sets the attribute according to the name and type (float)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute
+    /// @param name Attribute's name
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type, requires<std::is_same<Type, float>::value> = true>
@@ -1115,6 +1121,12 @@ public:
         return *this;
     }
 
+    /// Sets the attribute according to the name and type (float)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param value The attribute's value
+    /// @returns The Op self
     template <typename Type, requires<std::is_same<Type, float>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
@@ -1126,7 +1138,7 @@ public:
     /// Sets the attribute according to the name and type (bool)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute
+    /// @param name Attribute's name
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type, requires<std::is_same<Type, bool>::value> = true>
@@ -1138,6 +1150,12 @@ public:
         return *this;
     }
 
+    /// Sets the attribute according to the name and type (bool)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param value The attribute's value
+    /// @returns The Op self
     template <typename Type, requires<std::is_same<Type, bool>::value> = true>
     op &set_attr(attr name, const Type &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
@@ -1150,7 +1168,7 @@ public:
     /// Sets the attribute according to the name and type (string)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute
+    /// @param name Attribute's name
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
@@ -1163,6 +1181,12 @@ public:
         return *this;
     }
 
+    /// Sets the attribute according to the name and type (string)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param value The attribute's value
+    /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::string>::value> = true>
     op &set_attr(attr name, const Type &value) {
@@ -1177,7 +1201,7 @@ public:
     /// (std::vector<int64_t>)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute
+    /// @param name Attribute's name
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
@@ -1190,6 +1214,13 @@ public:
         return *this;
     }
 
+    /// Sets the attribute according to the name and type
+    /// (std::vector<int64_t>)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param value The attribute's value
+    /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
     op &set_attr(attr name, const Type &value) {
@@ -1204,7 +1235,7 @@ public:
     /// (std::vector<float>)
     ///
     /// @tparam Type Attribute's type
-    /// @param name Attribute
+    /// @param name Attribute's name
     /// @param value The attribute's value
     /// @returns The Op self
     template <typename Type,
@@ -1217,6 +1248,13 @@ public:
         return *this;
     }
 
+    /// Sets the attribute according to the name and type
+    /// (std::vector<float>)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param value The attribute's value
+    /// @returns The Op self
     template <typename Type,
             requires<std::is_same<Type, std::vector<float>>::value> = true>
     op &set_attr(attr name, const Type &value) {

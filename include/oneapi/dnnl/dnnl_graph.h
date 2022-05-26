@@ -244,28 +244,53 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_add_input(
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_add_output(
         dnnl_graph_op_t op, const dnnl_graph_logical_tensor_t *output);
 
-/// Sets the attribute according to the name and kind
+/// Sets floating point attribute to an op.
 ///
 /// @param op Input op
-/// @param name Attribute's name
-/// @param kind The attribute's kind
+/// @param name The attribute's name
 /// @param value The attribute's value
-/// @param value_len The length of the value
+/// @param value_len The length of the value. 0 means a single floating point
+///     value while 1 means a vector of floating point values with size = 1.
 /// @returns #dnnl_graph_success on success and a status describing the
 ///     error otherwise.
-
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_f32(
         dnnl_graph_op_t op, dnnl_graph_op_attr_t name, const float *value,
         size_t value_len);
 
+/// Sets boolean attribute to an op.
+///
+/// @param op Input op
+/// @param name The attribute's name
+/// @param value The attribute's value
+/// @param value_len The length of the value. 0 means a single boolean value.
+///     Currently, we don't support a vector of boolean values.
+/// @returns #dnnl_graph_success on success and a status describing the
+///     error otherwise.
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_bool(
         dnnl_graph_op_t op, dnnl_graph_op_attr_t name, const uint8_t *value,
         size_t value_len);
 
+/// Sets integer attribute to an op.
+///
+/// @param op Input op
+/// @param name The attribute's name
+/// @param value The attribute's value
+/// @param value_len The length of the value. 0 means a single integer value
+///     while 1 means a vector of integer values with size = 1.
+/// @returns #dnnl_graph_success on success and a status describing the
+///     error otherwise.
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_s64(
         dnnl_graph_op_t op, dnnl_graph_op_attr_t name, const int64_t *value,
         size_t value_len);
 
+/// Sets string attribute to an op.
+///
+/// @param op Input op
+/// @param name The attribute's name
+/// @param value The attribute's value
+/// @param value_len The length of the value.
+/// @returns #dnnl_graph_success on success and a status describing the
+///     error otherwise.
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_str(
         dnnl_graph_op_t op, dnnl_graph_op_attr_t name, const char *value,
         size_t value_len);
