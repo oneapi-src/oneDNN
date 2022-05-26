@@ -61,6 +61,25 @@ if(WIN32 AND (NOT DNNL_GRAPH_BUILD_FOR_CI))
     )
 endif()
 
+# Set the target architecture.
+if(NOT DNNL_TARGET_ARCH)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
+        set(DNNL_TARGET_ARCH "AARCH64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(ppc64.*|PPC64.*|powerpc64.*)")
+        set(DNNL_TARGET_ARCH "PPC64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(s390x.*|S390X.*)")
+        set(DNNL_TARGET_ARCH "S390X")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(rv.*|RV.*|riscv.*|RISCV.*)")
+        set(DNNL_TARGET_ARCH "RV64")
+    else()
+        set(DNNL_TARGET_ARCH "X64")
+    endif()
+endif()
+message(STATUS "DNNL_TARGET_ARCH: ${DNNL_TARGET_ARCH}")
+
+# Specify the target architecture
+add_definitions_with_host_compiler(-DDNNL_${DNNL_TARGET_ARCH}=1)
+
 function(register_benchdnn_test engine driver test_file)
     if (ARGC GREATER 3)
         message(ERROR "Incorrect use of function")
