@@ -276,6 +276,99 @@
 
 #if !IS_NCX_LAYOUT
 #if !PLAIN_TO_ABCD4AXB
+#if IS_XA16B
+KERNEL_ATTR
+__kernel void gen9_binary(__global SRC0_DATA_T *src0,
+        __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
+        float src0_scale, float src1_scale) {
+    // since gws = no. of total elems in A, id will be the logical offset
+    int dims0[6] = {0};
+    dims0[0] = GWS_GET_D0();
+    dims0[1] = GWS_GET_D1();
+    dims0[2] = GWS_GET_D2();
+    dims0[3] = GWS_GET_D3();
+    dims0[4] = GWS_GET_D4();
+    dims0[5] = GWS_GET_D5();
+
+    int src0_off = SRC0_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    int dst_off = DST_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    int src1_off = SRC1_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+
+    int sub_grp_id = get_sub_group_local_id();
+
+    for (int channels = 0; channels < SRC0_PD1; channels += GWS_LWS0_DEFAULT) {
+        float8 d = 0;
+        float8 dst_data;
+
+        __global SRC1_DATA_T *t_src1 = src1 + src1_off;
+        __global DST_DATA_T *t_dst = dst + dst_off;
+        __global SRC0_DATA_T *t_src0 = src0 + src0_off;
+
+        float8 tmp_src0 = CONVERT_FLOAT8_T(SRC0_BLOCK_READ8(&t_src0[0]));
+        float8 tmp_src1 = CONVERT_FLOAT8_T(SRC1_BLOCK_READ8(&t_src1[0]));
+
+#if WITH_SRC0_SCALE
+        tmp_src0 = tmp_src0 * src0_scale;
+#endif
+#if WITH_SRC1_SCALE
+        tmp_src1 = tmp_src1 * src1_scale;
+#endif
+
+#if IS_ADD
+        d = tmp_src0 + tmp_src1;
+#elif IS_MUL
+        d = tmp_src0 * tmp_src1;
+#elif IS_MAX
+        d = max(tmp_src0, tmp_src1);
+#elif IS_MIN
+        d = min(tmp_src0, tmp_src1);
+#elif IS_DIV
+        d = tmp_src0 / tmp_src1;
+#elif IS_SUB
+        d = tmp_src0 - tmp_src1;
+#elif IS_GE
+        d = VECT_INT_TO_FLOAT(tmp_src0 >= tmp_src1);
+#elif IS_GT
+        d = VECT_INT_TO_FLOAT(tmp_src0 > tmp_src1);
+#elif IS_LE
+        d = VECT_INT_TO_FLOAT(tmp_src0 <= tmp_src1);
+#elif IS_LT
+        d = VECT_INT_TO_FLOAT(tmp_src0 < tmp_src1);
+#elif IS_EQ
+        d = VECT_INT_TO_FLOAT(tmp_src0 == tmp_src1);
+#elif IS_NE
+        d = VECT_INT_TO_FLOAT(tmp_src0 != tmp_src1);
+#endif
+
+#if WITH_SUM
+        dst_data = CONVERT_FLOAT8_T(DST_BLOCK_READ8(&t_dst[0]));
+#endif
+
+        const int po_mb = dims0[0];
+        const int po_oc = dims0[1] + sub_grp_id;
+        for (int lcl_mb = 0; lcl_mb < NVECT; ++lcl_mb) {
+            float d_i = d[lcl_mb];
+            float dst_i = dst_data[lcl_mb];
+            APPLY_POST_OPS_SERIAL(d_i, float, dst_i, float, po_mb + lcl_mb, 1,
+                    po_oc, 1, dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5],
+                    1);
+            d[lcl_mb] = d_i;
+            ++dims0[NDIMS - 1];
+        }
+
+        DST_BLOCK_WRITE8(&t_dst[0], TO_DST8(d));
+        src0_off += MB_BLOCK * SUB_GROUP_SIZE * SRC0_PD2 * SRC0_PD3 * SRC0_PD4
+                * SRC0_PD5;
+        src1_off += MB_BLOCK * SUB_GROUP_SIZE * SRC0_PD2 * SRC0_PD3 * SRC0_PD4
+                * SRC0_PD5;
+        dst_off += MB_BLOCK * SUB_GROUP_SIZE * SRC0_PD2 * SRC0_PD3 * SRC0_PD4
+                * SRC0_PD5;
+    }
+}
+#else
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
@@ -404,7 +497,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     DST_BLOCK_WRITE8(&dst[0], TO_DST8(d));
 #endif
 }
-
+#endif
 #else // !PLAIN_TO_ABCD4AXB
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,

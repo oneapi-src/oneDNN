@@ -69,6 +69,8 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
     conf.plain_to_ABcd4a4b = false;
+    conf.isXa16b = false;
+    conf.mb_block = 0;
 
     for (int i = 0; i < MAX_NDIMS; ++i) {
         // Kernel doesn't support src0 broadcast
@@ -92,9 +94,15 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
 
     using namespace dnnl::impl::format_tag;
+
+    conf.isXa16b = src0_d.matches_one_of_tag(
+                           ABcd32a16b, ABcde32a16b, ABcd16a16b, ABcde16a16b)
+            && dst_d.matches_one_of_tag(
+                    ABcd32a16b, ABcde32a16b, ABcd16a16b, ABcde16a16b)
+            && src1_d.matches_one_of_tag(
+                    ABcd32a16b, ABcde32a16b, ABcd16a16b, ABcde16a16b);
     format_tag_t dst_tag = dst_d.matches_one_of_tag(nc, ncw, nchw, ncdhw);
     conf.is_ncX_layout = dst_tag;
-
     if (!conf.is_ncX_layout) {
         format_tag_t src_tag = src0_d.matches_one_of_tag(abcd, acdb);
         const auto &padded_dims = dst_d.padded_dims();
@@ -122,6 +130,22 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
             auto dim_str = utils::format("D%d", vect_dim);
             CHECK(conf.dispatch.vectorize_dim(dim_str, sub_group_size));
             conf.plain_to_ABcd4a4b = true;
+        } else if (conf.isXa16b) {
+            conf.nvect = 8;
+            dim_t blocks[MAX_NDIMS] = {8, 16, 1, 1, 1, 1};
+            conf.mb_block = dst_d.md_->format_desc.blocking.inner_blks[0];
+            for (int i = 0; i < MAX_NDIMS; ++i) {
+                auto dim_str = utils::format("D%d", i);
+                if (i < dst_d.ndims()) {
+                    conf.dispatch.define_dim(
+                            dim_str, i, padded_dims[i], blocks[i]);
+                    if (i == 1) {
+                        CHECK(conf.dispatch.vectorize_dim(dim_str, 16));
+                    }
+                } else {
+                    conf.dispatch.define_dim(dim_str, 1);
+                }
+            }
         } else {
             auto format_fits = [](const memory_desc_t &md) {
                 if (md.format_kind != dnnl_blocked) { return false; }
@@ -184,6 +208,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("IS_NCX_LAYOUT", conf.is_ncX_layout);
     kernel_ctx.define_int("PLAIN_TO_ABCD4AXB", conf.plain_to_ABcd4a4b);
+    kernel_ctx.define_int("IS_XA16B", conf.isXa16b);
     kernel_ctx.define_int("IS_MUL", conf.is_mul);
     kernel_ctx.define_int("IS_ADD", conf.is_add);
     kernel_ctx.define_int("IS_MAX", conf.is_max);
@@ -196,6 +221,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_LT", conf.is_lt);
     kernel_ctx.define_int("IS_EQ", conf.is_eq);
     kernel_ctx.define_int("IS_NE", conf.is_ne);
+    kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
     kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
     kernel_ctx.define_int("BCAST_DIM0", conf.src1_bcast_dims[0]);
     kernel_ctx.define_int("BCAST_DIM1", conf.src1_bcast_dims[1]);
