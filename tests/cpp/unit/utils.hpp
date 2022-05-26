@@ -152,7 +152,7 @@ create_logical_tensors(size_t num_lt) {
 static inline void verify_op_schema(const dnnl::graph::impl::op_kind_t op_kind_,
         const size_t expected_in_size, const size_t expected_out_size,
         const size_t expected_attr_size,
-        const std::map<std::string, bool> &attrs_data) {
+        const std::map<dnnl::graph::impl::op_attr_t, bool> &attrs_data) {
     using namespace dnnl::graph::impl;
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
@@ -182,7 +182,7 @@ static inline void verify_shape_infer_for_arithmetic_op_no_broadcast(
             = op_schema_registry_t::get_op_schema(op_kind_);
     op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
     const std::string no_broadcast_attr_val = "none";
-    op_.set_attr("auto_broadcast", no_broadcast_attr_val);
+    op_.set_attr(op_attr::auto_broadcast, no_broadcast_attr_val);
 
     // In valid situation, the inputs layout should only be strided or opaque,
     // so we need to test both of these two input layout type
@@ -267,7 +267,7 @@ static inline void verify_shape_infer_for_arithmetic_op_with_broadcast(
 
         // explicitly setting auto_broadcast
         const std::string with_broadcast_attr_val = "numpy";
-        op_.set_attr("auto_broadcast", with_broadcast_attr_val);
+        op_.set_attr(op_attr::auto_broadcast, with_broadcast_attr_val);
         logical_tensor_t lt_out_expl
                 = logical_tensor_init(3, data_type::f32, layout_type::strided);
         std::vector<logical_tensor_t *> out_expl {&lt_out_expl};
@@ -291,14 +291,14 @@ static inline void set_conv_common_attr(impl::op_t &conv,
         std::vector<int64_t> dilations = {1, 1}, std::string auto_pad = "None",
         std::string data_format = "NXC", std::string filter_format = "XIO",
         int64_t groups = 1) {
-    conv.set_attr("strides", strides);
-    conv.set_attr("pads_begin", pads_begin);
-    conv.set_attr("pads_end", pads_end);
-    conv.set_attr("dilations", dilations);
-    conv.set_attr("auto_pad", auto_pad);
-    conv.set_attr("data_format", data_format);
-    conv.set_attr("filter_format", filter_format);
-    conv.set_attr("groups", groups);
+    conv.set_attr(impl::op_attr::strides, strides);
+    conv.set_attr(impl::op_attr::pads_begin, pads_begin);
+    conv.set_attr(impl::op_attr::pads_end, pads_end);
+    conv.set_attr(impl::op_attr::dilations, dilations);
+    conv.set_attr(impl::op_attr::auto_pad, auto_pad);
+    conv.set_attr(impl::op_attr::data_format, data_format);
+    conv.set_attr(impl::op_attr::filter_format, filter_format);
+    conv.set_attr(impl::op_attr::groups, groups);
 }
 
 static inline void set_conv_dw_base_op_attr(impl::op_t &conv) {
@@ -342,7 +342,7 @@ static inline void set_convtranspose_common_attr(
         int64_t groups = 1, std::vector<int64_t> output_padding = {0, 0}) {
     set_conv_common_attr(convtranspose, strides, pads_begin, pads_end,
             dilations, auto_pad, data_format, filter_format, groups);
-    convtranspose.set_attr("output_padding", output_padding);
+    convtranspose.set_attr(impl::op_attr::output_padding, output_padding);
 }
 
 static inline void infer_conv_shape(dnnl::graph::impl::op_kind_t kind) {
@@ -384,8 +384,9 @@ static inline void infer_conv_shape(dnnl::graph::impl::op_kind_t kind) {
 
     conv_op_schema->shape_infer(&conv_op, lt_in, lt_out);
     auto infered_pads_begin
-            = conv_op.get_attr<std::vector<int64_t>>("pads_begin");
-    auto infered_pads_end = conv_op.get_attr<std::vector<int64_t>>("pads_end");
+            = conv_op.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+    auto infered_pads_end
+            = conv_op.get_attr<std::vector<int64_t>>(op_attr::pads_end);
     const std::vector<int64_t> expected_pads = {0, 0};
     EXPECT_EQ(infered_pads_begin, expected_pads);
     EXPECT_EQ(infered_pads_end, expected_pads);
@@ -440,8 +441,10 @@ static inline void verify_shape_infer_for_conv(
             = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
-    auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
+    auto infered_pads_begin
+            = op_.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+    auto infered_pads_end
+            = op_.get_attr<std::vector<int64_t>>(op_attr::pads_end);
     std::vector<int64_t> expected_pads;
     expected_pads.assign(in_data.size() - 2, 0);
     EXPECT_EQ(infered_pads_begin, expected_pads);
@@ -522,8 +525,10 @@ static inline void verify_shape_infer_for_convtranspose(
             = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
-    auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
+    auto infered_pads_begin
+            = op_.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+    auto infered_pads_end
+            = op_.get_attr<std::vector<int64_t>>(op_attr::pads_end);
     std::vector<int64_t> expected_pads;
     expected_pads.assign(in_data.size() - 2, 0);
     EXPECT_EQ(infered_pads_begin, expected_pads);
@@ -570,8 +575,10 @@ static inline void verify_shape_infer_for_conv(
             = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
-    auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
+    auto infered_pads_begin
+            = op_.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+    auto infered_pads_end
+            = op_.get_attr<std::vector<int64_t>>(op_attr::pads_end);
     std::vector<int64_t> expected_pads;
     expected_pads.assign(in_data.size() - 2, 0);
     EXPECT_EQ(infered_pads_begin, expected_pads);
@@ -599,8 +606,8 @@ static inline void verify_shape_infer_for_conv_bprop_data(
 
     set_conv_common_attr(op_, strides, pads_begin, pads_end, dilations,
             auto_pad, data_format, filter_format, groups);
-    op_.set_attr("output_padding", output_padding);
-    op_.set_attr("output_shape", expected_out_shape);
+    op_.set_attr(op_attr::output_padding, output_padding);
+    op_.set_attr(op_attr::output_shape, expected_out_shape);
 
     logical_tensor_t lt_data = logical_tensor_init(0, in_data, data_type::f32);
     logical_tensor_t lt_weight
@@ -616,8 +623,10 @@ static inline void verify_shape_infer_for_conv_bprop_data(
             = logical_tensor_wrapper_t(lt_out).vdims();
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
-    auto infered_pads_begin = op_.get_attr<std::vector<int64_t>>("pads_begin");
-    auto infered_pads_end = op_.get_attr<std::vector<int64_t>>("pads_end");
+    auto infered_pads_begin
+            = op_.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+    auto infered_pads_end
+            = op_.get_attr<std::vector<int64_t>>(op_attr::pads_end);
     const std::vector<int64_t> expected_pads = {0, 0};
     EXPECT_EQ(infered_pads_begin, expected_pads);
     EXPECT_EQ(infered_pads_end, expected_pads);
@@ -756,53 +765,58 @@ inline void construct_f32_MHA(dnnl::graph::impl::graph_t *agraph,
 
     // reshape + transpose for query + key
     op_t query_reshape {0, op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr("special_zero", false);
-    query_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    query_reshape.set_attr(op_attr::special_zero, false);
+    query_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t query_transpose {1, op_kind::StaticTranspose, "query_transpose"};
     query_transpose.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t key_reshape {2, op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr("special_zero", false);
-    key_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    key_reshape.set_attr(op_attr::special_zero, false);
+    key_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t key_transpose {3, op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr<std::vector<int64_t>>("order", QKV_TRANSPOSED_ORDER);
+    key_transpose.set_attr<std::vector<int64_t>>(
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     // alternative for transpose
     op_t key_transpose2 {4, op_kind::StaticTranspose, "key_transpose2"};
     key_transpose2.set_attr<std::vector<int64_t>>(
-            "order", KEY_TRANSPOSED_ORDER);
+            op_attr::order, KEY_TRANSPOSED_ORDER);
 
     op_t matmul_qk {9, op_kind::MatMul, "matmul_qk"};
 
     op_t fscore_div {10, op_kind::Divide, "fscore_div"};
-    fscore_div.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_div.set_attr(op_attr::auto_broadcast, std::string("numpy"));
     op_t fscore_add {11, op_kind::Add, "fscore_add"};
-    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
     op_t softmax {12, op_kind::SoftMax, "softmax"};
-    softmax.set_attr("axis", (int64_t)3);
+    softmax.set_attr(op_attr::axis, (int64_t)3);
 
     // reshape + transpose for value
     op_t value_reshape {15, op_kind::StaticReshape, "value_reshape"};
-    value_reshape.set_attr("special_zero", false);
-    value_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    value_reshape.set_attr(op_attr::special_zero, false);
+    value_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t value_transpose {16, op_kind::StaticTranspose, "value_transpose"};
     value_transpose.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t matmul_v {19, op_kind::MatMul, "matmul_v"};
 
     // transpose + reshape before output
     op_t transpose_output {20, op_kind::StaticTranspose, "transpose_output"};
     transpose_output.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t reshape_output {21, op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr("special_zero", false);
-    reshape_output.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    reshape_output.set_attr(op_attr::special_zero, false);
+    reshape_output.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     query_reshape.add_input(query_gemm);
     query_reshape.add_output(query_reshape_out);
@@ -946,97 +960,102 @@ inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
 
     // reshape + transpose for query + key
     op_t query_reshape {0, op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr("special_zero", false);
-    query_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    query_reshape.set_attr(op_attr::special_zero, false);
+    query_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t query_transpose {1, op_kind::StaticTranspose, "query_transpose"};
     query_transpose.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t key_reshape {2, op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr("special_zero", false);
-    key_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    key_reshape.set_attr(op_attr::special_zero, false);
+    key_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t key_transpose {3, op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr<std::vector<int64_t>>("order", QKV_TRANSPOSED_ORDER);
+    key_transpose.set_attr<std::vector<int64_t>>(
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     // alternative for transpose
     op_t key_transpose2 {4, op_kind::StaticTranspose, "key_transpose2"};
     key_transpose2.set_attr<std::vector<int64_t>>(
-            "order", KEY_TRANSPOSED_ORDER);
+            op_attr::order, KEY_TRANSPOSED_ORDER);
 
     op_t quantize_query {5, op_kind::Quantize, "quantize_query"};
     op_t quantize_key {6, op_kind::Quantize, "quantize_key"};
-    quantize_query.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_query.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_query.set_attr("qtype", std::string("per_tensor"));
-    quantize_query.set_attr("axis", (int64_t)0);
-    quantize_key.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_key.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_key.set_attr("qtype", std::string("per_tensor"));
-    quantize_key.set_attr("axis", (int64_t)0);
+    quantize_query.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    quantize_query.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    quantize_query.set_attr(op_attr::qtype, std::string("per_tensor"));
+    quantize_query.set_attr(op_attr::axis, (int64_t)0);
+    quantize_key.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    quantize_key.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    quantize_key.set_attr(op_attr::qtype, std::string("per_tensor"));
+    quantize_key.set_attr(op_attr::axis, (int64_t)0);
 
     op_t dequantize_query {7, op_kind::Dequantize, "dequantize_query"};
-    dequantize_query.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_query.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_query.set_attr("qtype", std::string("per_tensor"));
-    dequantize_query.set_attr("axis", (int64_t)0);
+    dequantize_query.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_query.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_query.set_attr(op_attr::qtype, std::string("per_tensor"));
+    dequantize_query.set_attr(op_attr::axis, (int64_t)0);
     op_t dequantize_key {8, op_kind::Dequantize, "dequantize_key"};
-    dequantize_key.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_key.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_key.set_attr("qtype", std::string("per_tensor"));
-    dequantize_key.set_attr("axis", (int64_t)0);
+    dequantize_key.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_key.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_key.set_attr(op_attr::qtype, std::string("per_tensor"));
+    dequantize_key.set_attr(op_attr::axis, (int64_t)0);
 
     op_t matmul_qk {9, op_kind::MatMul, "matmul_qk"};
 
     op_t fscore_div {10, op_kind::Divide, "fscore_div"};
-    fscore_div.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_div.set_attr(op_attr::auto_broadcast, std::string("numpy"));
     op_t fscore_add {11, op_kind::Add, "fscore_add"};
-    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
     op_t softmax {12, op_kind::SoftMax, "softmax"};
-    softmax.set_attr("axis", (int64_t)3);
+    softmax.set_attr(op_attr::axis, (int64_t)3);
     // quantize-dequantize softmax's output
     op_t quantize_softmax {13, op_kind::Quantize, "quantize_softmax"};
     op_t dequantize_softmax {14, op_kind::Dequantize, "dequantize_softmax"};
-    quantize_softmax.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_softmax.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_softmax.set_attr("qtype", std::string("per_tensor"));
-    quantize_softmax.set_attr("axis", (int64_t)0);
-    dequantize_softmax.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr("qtype", std::string("per_tensor"));
-    dequantize_softmax.set_attr("axis", (int64_t)0);
+    quantize_softmax.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    quantize_softmax.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    quantize_softmax.set_attr(op_attr::qtype, std::string("per_tensor"));
+    quantize_softmax.set_attr(op_attr::axis, (int64_t)0);
+    dequantize_softmax.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_softmax.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_softmax.set_attr(op_attr::qtype, std::string("per_tensor"));
+    dequantize_softmax.set_attr(op_attr::axis, (int64_t)0);
 
     // reshape + transpose for value
     op_t value_reshape {15, op_kind::StaticReshape, "value_reshape"};
-    value_reshape.set_attr("special_zero", false);
-    value_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    value_reshape.set_attr(op_attr::special_zero, false);
+    value_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t value_transpose {16, op_kind::StaticTranspose, "value_transpose"};
     value_transpose.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t quantize_value {17, op_kind::Quantize, "quantize_value"};
     op_t dequantize_value {18, op_kind::Dequantize, "dequantize_value"};
-    quantize_value.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_value.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_value.set_attr("qtype", std::string("per_tensor"));
-    quantize_value.set_attr("axis", (int64_t)0);
-    dequantize_value.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_value.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_value.set_attr("qtype", std::string("per_tensor"));
-    dequantize_value.set_attr("axis", (int64_t)0);
+    quantize_value.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    quantize_value.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    quantize_value.set_attr(op_attr::qtype, std::string("per_tensor"));
+    quantize_value.set_attr(op_attr::axis, (int64_t)0);
+    dequantize_value.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_value.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_value.set_attr(op_attr::qtype, std::string("per_tensor"));
+    dequantize_value.set_attr(op_attr::axis, (int64_t)0);
 
     op_t matmul_v {19, op_kind::MatMul, "matmul_v"};
 
     // transpose + reshape before output
     op_t transpose_output {20, op_kind::StaticTranspose, "transpose_output"};
     transpose_output.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t reshape_output {21, op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr("special_zero", false);
-    reshape_output.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    reshape_output.set_attr(op_attr::special_zero, false);
+    reshape_output.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     query_reshape.add_input(query_gemm);
     query_reshape.add_output(query_reshape_out);
@@ -1265,58 +1284,62 @@ inline void construct_reshaped_softmax_f32_mha(
 
     // reshape + transpose for query + key
     op_t query_reshape {0, op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr("special_zero", false);
-    query_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    query_reshape.set_attr(op_attr::special_zero, false);
+    query_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t query_transpose {1, op_kind::StaticTranspose, "query_transpose"};
     query_transpose.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t key_reshape {2, op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr("special_zero", false);
-    key_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    key_reshape.set_attr(op_attr::special_zero, false);
+    key_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t key_transpose {4, op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr<std::vector<int64_t>>("order", KEY_TRANSPOSED_ORDER);
+    key_transpose.set_attr<std::vector<int64_t>>(
+            op_attr::order, KEY_TRANSPOSED_ORDER);
 
     op_t matmul_qk {9, op_kind::MatMul, "matmul_qk"};
 
     op_t matmul_add {10, op_kind::Add, "fscore_add"};
-    matmul_add.set_attr("auto_broadcast", std::string("numpy"));
+    matmul_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
 
     op_t pre_softmax_reshape {
             11, op_kind::StaticReshape, "pre_softmax_reshape"};
-    pre_softmax_reshape.set_attr("special_zero", false);
+    pre_softmax_reshape.set_attr(op_attr::special_zero, false);
     pre_softmax_reshape.set_attr<std::vector<int64_t>>(
-            "shape", PRE_SOFTMAX_RESHAPE);
+            op_attr::shape, PRE_SOFTMAX_RESHAPE);
     op_t softmax {12, op_kind::SoftMax, "softmax"};
-    softmax.set_attr("axis", (int64_t)1);
+    softmax.set_attr(op_attr::axis, (int64_t)1);
     op_t post_softmax_reshape {
             13, op_kind::StaticReshape, "post_softmax_reshape"};
-    post_softmax_reshape.set_attr("special_zero", false);
+    post_softmax_reshape.set_attr(op_attr::special_zero, false);
     post_softmax_reshape.set_attr<std::vector<int64_t>>(
-            "shape", POST_SOFTMAX_RESHAPE);
+            op_attr::shape, POST_SOFTMAX_RESHAPE);
 
     // reshape + transpose for value
     op_t value_reshape {15, op_kind::StaticReshape, "value_reshape"};
-    value_reshape.set_attr("special_zero", false);
-    value_reshape.set_attr<std::vector<int64_t>>("shape", QKV_RESHAPED_SHAPE);
+    value_reshape.set_attr(op_attr::special_zero, false);
+    value_reshape.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
 
     op_t value_transpose {16, op_kind::StaticTranspose, "value_transpose"};
     value_transpose.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t matmul_v {19, op_kind::MatMul, "matmul_v"};
 
     // transpose + reshape before output
     op_t transpose_output {20, op_kind::StaticTranspose, "transpose_output"};
     transpose_output.set_attr<std::vector<int64_t>>(
-            "order", QKV_TRANSPOSED_ORDER);
+            op_attr::order, QKV_TRANSPOSED_ORDER);
 
     op_t reshape_output {21, op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr("special_zero", false);
+    reshape_output.set_attr(op_attr::special_zero, false);
     reshape_output.set_attr<std::vector<int64_t>>(
-            "shape", MIXED_LAYER_INPUT_SHAPE);
+            op_attr::shape, MIXED_LAYER_INPUT_SHAPE);
 
     query_reshape.add_input(query_gemm);
     query_reshape.add_output(query_reshape_out);
@@ -1419,13 +1442,13 @@ inline impl::logical_tensor_t create_convolution(id_generator &id_gen,
         bool with_bn = false, float epsilon = 1e-6f, bool with_relu = false,
         bool use_biasadd = false) {
     impl::op_t conv(id_gen.get_id(), impl::op_kind::Convolution, "conv");
-    conv.set_attr<int64_t>("groups", groups);
-    conv.set_attr<impl::dims>("strides", strides);
-    conv.set_attr<impl::dims>("dilations", dilations);
-    conv.set_attr<impl::dims>("pads_begin", pads_begin);
-    conv.set_attr<impl::dims>("pads_end", pads_end);
-    conv.set_attr<std::string>("data_format", data_format);
-    conv.set_attr<std::string>("filter_format", filter_format);
+    conv.set_attr<int64_t>(impl::op_attr::groups, groups);
+    conv.set_attr<impl::dims>(impl::op_attr::strides, strides);
+    conv.set_attr<impl::dims>(impl::op_attr::dilations, dilations);
+    conv.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
+    conv.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    conv.set_attr<std::string>(impl::op_attr::data_format, data_format);
+    conv.set_attr<std::string>(impl::op_attr::filter_format, filter_format);
 
     impl::dims wei_shape = (filter_format == "OIX")
             ? impl::dims {oc, ic / groups, ks, ks}
@@ -1450,7 +1473,8 @@ inline impl::logical_tensor_t create_convolution(id_generator &id_gen,
     if (with_bias && use_biasadd) {
         impl::op_t biasadd_op(
                 id_gen.get_id(), impl::op_kind::BiasAdd, "biasadd");
-        biasadd_op.set_attr<std::string>("data_format", data_format);
+        biasadd_op.set_attr<std::string>(
+                impl::op_attr::data_format, data_format);
 
         auto biasadd_src = dst;
         auto bias = utils::logical_tensor_init(
@@ -1470,8 +1494,8 @@ inline impl::logical_tensor_t create_convolution(id_generator &id_gen,
     if (with_bn) {
         impl::op_t bn_op(
                 id_gen.get_id(), impl::op_kind::BatchNormInference, "bn");
-        bn_op.set_attr<std::string>("data_format", data_format);
-        bn_op.set_attr<float>("epsilon", epsilon);
+        bn_op.set_attr<std::string>(impl::op_attr::data_format, data_format);
+        bn_op.set_attr<float>(impl::op_attr::epsilon, epsilon);
 
         int64_t bn_ic = oc;
         auto bn_src = dst;
@@ -1540,10 +1564,10 @@ inline impl::logical_tensor_t create_dequantize(id_generator &id_gen,
         const std::string &qtype, const std::vector<int64_t> &zps,
         const std::vector<float> &scales, int64_t axis) {
     impl::op_t dq_op(id_gen.get_id(), impl::op_kind::Dequantize, "dequantize");
-    dq_op.set_attr<std::string>("qtype", qtype);
-    dq_op.set_attr<std::vector<int64_t>>("zps", zps);
-    dq_op.set_attr<std::vector<float>>("scales", scales);
-    dq_op.set_attr<int64_t>("axis", axis);
+    dq_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dq_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zps);
+    dq_op.set_attr<std::vector<float>>(impl::op_attr::scales, scales);
+    dq_op.set_attr<int64_t>(impl::op_attr::axis, axis);
 
     auto dst
             = utils::logical_tensor_init(id_gen.get_id(), impl::data_type::f32);
@@ -1559,10 +1583,10 @@ inline impl::logical_tensor_t create_quantize(id_generator &id_gen,
         const std::vector<int64_t> &zps, const std::vector<float> &scales,
         int64_t axis) {
     impl::op_t q_op(id_gen.get_id(), impl::op_kind::Quantize, "quantize");
-    q_op.set_attr<std::string>("qtype", qtype);
-    q_op.set_attr<std::vector<int64_t>>("zps", zps);
-    q_op.set_attr<std::vector<float>>("scales", scales);
-    q_op.set_attr<int64_t>("axis", axis);
+    q_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    q_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zps);
+    q_op.set_attr<std::vector<float>>(impl::op_attr::scales, scales);
+    q_op.set_attr<int64_t>(impl::op_attr::axis, axis);
 
     auto dst = utils::logical_tensor_init(id_gen.get_id(), dst_dtype);
     q_op.add_input(src);
@@ -1589,13 +1613,13 @@ inline impl::logical_tensor_t create_int8_convolution(id_generator &id_gen,
             id_gen, agraph, src, "per_tensor", {src_zp}, {src_scale}, 0);
 
     impl::op_t conv(id_gen.get_id(), impl::op_kind::Convolution, "conv");
-    conv.set_attr<int64_t>("groups", groups);
-    conv.set_attr<impl::dims>("strides", strides);
-    conv.set_attr<impl::dims>("dilations", dilations);
-    conv.set_attr<impl::dims>("pads_begin", pads_begin);
-    conv.set_attr<impl::dims>("pads_end", pads_end);
-    conv.set_attr<std::string>("data_format", data_format);
-    conv.set_attr<std::string>("filter_format", filter_format);
+    conv.set_attr<int64_t>(impl::op_attr::groups, groups);
+    conv.set_attr<impl::dims>(impl::op_attr::strides, strides);
+    conv.set_attr<impl::dims>(impl::op_attr::dilations, dilations);
+    conv.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
+    conv.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    conv.set_attr<std::string>(impl::op_attr::data_format, data_format);
+    conv.set_attr<std::string>(impl::op_attr::filter_format, filter_format);
 
     impl::dims wei_shape = (filter_format == "OIX")
             ? impl::dims {oc, ic / groups, ks, ks}
@@ -1635,7 +1659,8 @@ inline impl::logical_tensor_t create_int8_convolution(id_generator &id_gen,
     if (with_bias && use_biasadd) {
         impl::op_t biasadd_op(
                 id_gen.get_id(), impl::op_kind::BiasAdd, "biasadd");
-        biasadd_op.set_attr<std::string>("data_format", data_format);
+        biasadd_op.set_attr<std::string>(
+                impl::op_attr::data_format, data_format);
 
         auto biasadd_src = dst;
         auto bias = utils::logical_tensor_init(

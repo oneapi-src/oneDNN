@@ -182,37 +182,38 @@ TEST(Op, SetAttributeBool) {
     using namespace dnnl::graph::impl;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};
-    matmul.set_attr<bool>("transpose_a", true);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, true);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
 
     ASSERT_EQ(matmul.num_attributes(), 2);
-    ASSERT_TRUE(matmul.has_attr("transpose_a"));
-    ASSERT_TRUE(matmul.has_attr("transpose_b"));
-    ASSERT_FALSE(matmul.has_attr("hidden"));
-    ASSERT_TRUE(matmul.get_attr<bool>("transpose_a"));
-    ASSERT_FALSE(matmul.get_attr<bool>("transpose_b"));
+    ASSERT_TRUE(matmul.has_attr(op_attr::transpose_a));
+    ASSERT_TRUE(matmul.has_attr(op_attr::transpose_b));
+    ASSERT_FALSE(matmul.has_attr(op_attr::undef));
+    ASSERT_TRUE(matmul.get_attr<bool>(op_attr::transpose_a));
+    ASSERT_FALSE(matmul.get_attr<bool>(op_attr::transpose_b));
 }
 
 TEST(Op, SetAttributeFloatString) {
     using namespace dnnl::graph::impl;
 
     op_t bn {0, op_kind::BatchNormInference, std::string("batch_norm")};
-    bn.set_attr<float>("epsilon", 0.5);
-    ASSERT_EQ(bn.get_attr<float>("epsilon"), 0.5);
+    bn.set_attr<float>(op_attr::epsilon, 0.5);
+    ASSERT_EQ(bn.get_attr<float>(op_attr::epsilon), 0.5);
 
-    bn.set_attr<std::string>("data_format", "NCX");
-    ASSERT_EQ(bn.get_attr<std::string>("data_format"), std::string("NCX"));
+    bn.set_attr<std::string>(op_attr::data_format, "NCX");
+    ASSERT_EQ(
+            bn.get_attr<std::string>(op_attr::data_format), std::string("NCX"));
 }
 
 TEST(Op, SetAttributeInt64Vector) {
     using namespace dnnl::graph::impl;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
-    conv.set_attr<int64_t>("groups", 2);
-    ASSERT_EQ(conv.get_attr<int64_t>("groups"), 2);
+    conv.set_attr<int64_t>(op_attr::groups, 2);
+    ASSERT_EQ(conv.get_attr<int64_t>(op_attr::groups), 2);
 
-    conv.set_attr<std::vector<int64_t>>("pads_begin", {1, 1});
-    auto ret = conv.get_attr<std::vector<int64_t>>("pads_begin");
+    conv.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {1, 1});
+    auto ret = conv.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
     ASSERT_EQ(ret.size(), 2);
     ASSERT_EQ(ret[0], 1);
     ASSERT_EQ(ret[1], 1);
@@ -222,14 +223,14 @@ TEST(Op, MergeAttributes) {
     using namespace dnnl::graph::impl;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
-    conv.set_attr<int64_t>("groups", 2);
-    conv.set_attr<std::string>("data_format", "NCX");
+    conv.set_attr<int64_t>(op_attr::groups, 2);
+    conv.set_attr<std::string>(op_attr::data_format, "NCX");
 
-    std::unordered_map<std::string, op_t::attribute_value_t> other {};
+    std::unordered_map<op_attr_t, op_t::attribute_value_t> other {};
     op_t::attribute_value_t fmt {std::string("OIX")};
-    other.insert({"filter_format", fmt});
+    other.insert({op_attr::filter_format, fmt});
     std::vector<int64_t> pad {2, 2};
-    other.insert({"pads_begein", {pad}});
+    other.insert({op_attr::pads_begin, {pad}});
 
     conv.merge_attributes(other);
     ASSERT_EQ(conv.num_attributes(), 4);
@@ -239,20 +240,20 @@ TEST(Op, ValidateSameAttributes) {
     using namespace dnnl::graph::impl;
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
-    conv.set_attr<std::vector<int64_t>>("pads_begin", {2, 2});
-    conv.set_attr<std::string>("data_format", "NCX");
+    conv.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {2, 2});
+    conv.set_attr<std::string>(op_attr::data_format, "NCX");
 
     op_t pool {1, op_kind::MaxPool, std::string("max_pool")};
-    pool.set_attr<std::vector<int64_t>>("pads_begin", {2, 2});
-    pool.set_attr<std::string>("data_format", "NCX");
+    pool.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {2, 2});
+    pool.set_attr<std::string>(op_attr::data_format, "NCX");
 
-    ASSERT_TRUE(conv.is_same_attr_value(pool, "pads_begin"));
-    ASSERT_TRUE(conv.is_same_attr_value(pool, "data_format"));
+    ASSERT_TRUE(conv.is_same_attr_value(pool, op_attr::pads_begin));
+    ASSERT_TRUE(conv.is_same_attr_value(pool, op_attr::data_format));
     ASSERT_TRUE(conv.has_same_attr_values(pool));
 
     op_t bn {2, op_kind::BatchNormInference, std::string("batch_norm")};
-    bn.set_attr<std::string>("data_format", "NCX");
-    ASSERT_TRUE(conv.is_same_attr_value(bn, "data_format"));
+    bn.set_attr<std::string>(op_attr::data_format, "NCX");
+    ASSERT_TRUE(conv.is_same_attr_value(bn, op_attr::data_format));
     ASSERT_FALSE(conv.has_same_attr_values(bn));
 }
 
@@ -261,39 +262,39 @@ TEST(Op, OverwriteAttributes) {
 
     op_t conv {0, op_kind::Convolution, std::string("convolution")};
     std::vector<int64_t> pad = {2, 2};
-    conv.set_attr<std::vector<int64_t>>("pads_begin", pad);
-    conv.set_attr<std::string>("data_format", "NCX");
-    ASSERT_TRUE(conv.has_attr("pads_begin"));
-    ASSERT_TRUE(conv.has_attr("data_format"));
-    ASSERT_EQ(conv.get_attr<std::vector<int64_t>>("pads_begin"), pad);
-    ASSERT_EQ(conv.get_attr<std::string>("data_format"), "NCX");
+    conv.set_attr<std::vector<int64_t>>(op_attr::pads_begin, pad);
+    conv.set_attr<std::string>(op_attr::data_format, "NCX");
+    ASSERT_TRUE(conv.has_attr(op_attr::pads_begin));
+    ASSERT_TRUE(conv.has_attr(op_attr::data_format));
+    ASSERT_EQ(conv.get_attr<std::vector<int64_t>>(op_attr::pads_begin), pad);
+    ASSERT_EQ(conv.get_attr<std::string>(op_attr::data_format), "NCX");
 
     // reset vector and string attributes
     pad = {1, 1};
-    conv.set_attr<std::vector<int64_t>>("pads_begin", pad);
-    conv.set_attr<std::string>("data_format", "NXC");
-    ASSERT_TRUE(conv.has_attr("pads_begin"));
-    ASSERT_TRUE(conv.has_attr("data_format"));
-    ASSERT_EQ(conv.get_attr<std::vector<int64_t>>("pads_begin"), pad);
-    ASSERT_EQ(conv.get_attr<std::string>("data_format"), "NXC");
+    conv.set_attr<std::vector<int64_t>>(op_attr::pads_begin, pad);
+    conv.set_attr<std::string>(op_attr::data_format, "NXC");
+    ASSERT_TRUE(conv.has_attr(op_attr::pads_begin));
+    ASSERT_TRUE(conv.has_attr(op_attr::data_format));
+    ASSERT_EQ(conv.get_attr<std::vector<int64_t>>(op_attr::pads_begin), pad);
+    ASSERT_EQ(conv.get_attr<std::string>(op_attr::data_format), "NXC");
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};
-    matmul.set_attr<bool>("transpose_a", true);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, true);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     ASSERT_EQ(matmul.num_attributes(), 2);
-    ASSERT_TRUE(matmul.has_attr("transpose_a"));
-    ASSERT_TRUE(matmul.has_attr("transpose_b"));
-    ASSERT_TRUE(matmul.get_attr<bool>("transpose_a"));
-    ASSERT_FALSE(matmul.get_attr<bool>("transpose_b"));
+    ASSERT_TRUE(matmul.has_attr(op_attr::transpose_a));
+    ASSERT_TRUE(matmul.has_attr(op_attr::transpose_b));
+    ASSERT_TRUE(matmul.get_attr<bool>(op_attr::transpose_a));
+    ASSERT_FALSE(matmul.get_attr<bool>(op_attr::transpose_b));
 
     // reset boolean attributes
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", true);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, true);
     ASSERT_EQ(matmul.num_attributes(), 2);
-    ASSERT_TRUE(matmul.has_attr("transpose_a"));
-    ASSERT_TRUE(matmul.has_attr("transpose_b"));
-    ASSERT_FALSE(matmul.get_attr<bool>("transpose_a"));
-    ASSERT_TRUE(matmul.get_attr<bool>("transpose_b"));
+    ASSERT_TRUE(matmul.has_attr(op_attr::transpose_a));
+    ASSERT_TRUE(matmul.has_attr(op_attr::transpose_b));
+    ASSERT_FALSE(matmul.get_attr<bool>(op_attr::transpose_a));
+    ASSERT_TRUE(matmul.get_attr<bool>(op_attr::transpose_b));
 }
 
 TEST(Op, KindString) {

@@ -206,13 +206,13 @@ TEST(Compile, ConvolutionFp32) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src = utils::logical_tensor_init(
@@ -257,15 +257,15 @@ TEST(Compile, ConvolutionBackpropDataFp32) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t conv_op(impl::op_kind::ConvolutionBackpropData);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
     // according to spec, group should be greater than 0
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
-    conv_op.set_attr<dims>("output_shape", dims {8, 3, 224, 224});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::output_shape, dims {8, 3, 224, 224});
 
     // prepare logical tensor
     impl::logical_tensor_t diff_src = utils::logical_tensor_init(
@@ -308,13 +308,13 @@ TEST(Compile, ConvolutionBackpropFilterFp32) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t conv_op(impl::op_kind::ConvolutionBackpropFilters);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<std::string>("data_format", "NXC");
-    conv_op.set_attr<std::string>("filter_format", "XIO");
-    conv_op.set_attr<dims>("filter_shape", dims {3, 3, 64, 64});
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+    conv_op.set_attr<dims>(impl::op_attr::filter_shape, dims {3, 3, 64, 64});
 
     // prepare logical tensor
     impl::logical_tensor_t src = utils::logical_tensor_init(
@@ -364,14 +364,14 @@ TEST(Compile, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     const std::string filter_format {"OIX"};
 
     impl::op_t conv_op(impl::op_kind::ConvolutionBackpropFilters);
-    conv_op.set_attr("strides", strides)
-            .set_attr("pads_begin", pads_begin)
-            .set_attr("pads_end", pads_end)
-            .set_attr("dilations", dilations)
-            .set_attr("groups", groups)
-            .set_attr("auto_pad", auto_pad)
-            .set_attr("data_format", data_format)
-            .set_attr("filter_format", filter_format);
+    conv_op.set_attr(impl::op_attr::strides, strides)
+            .set_attr(impl::op_attr::pads_begin, pads_begin)
+            .set_attr(impl::op_attr::pads_end, pads_end)
+            .set_attr(impl::op_attr::dilations, dilations)
+            .set_attr(impl::op_attr::groups, groups)
+            .set_attr(impl::op_attr::auto_pad, auto_pad)
+            .set_attr(impl::op_attr::data_format, data_format)
+            .set_attr(impl::op_attr::filter_format, filter_format);
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
@@ -418,13 +418,13 @@ TEST(Compile, ConvtransposeFp32) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
-    convtranspose_op.set_attr<dims>("strides", dims {1, 1});
-    convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
-    convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
-    convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
-    convtranspose_op.set_attr<int64_t>("groups", 1);
-    convtranspose_op.set_attr<std::string>("data_format", "NCX");
-    convtranspose_op.set_attr<std::string>("filter_format", "OIX");
+    convtranspose_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    convtranspose_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    convtranspose_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    convtranspose_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    convtranspose_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src = utils::logical_tensor_init(
@@ -612,14 +612,15 @@ public:
                 dnnl_graph_test_batchnorm_params>::GetParam();
 
         impl::op_t batchnorm_op(0, params.op_kind, "batchnorm");
-        batchnorm_op.set_attr("epsilon", params.epsilon);
-        batchnorm_op.set_attr("data_format", params.data_format);
+        batchnorm_op.set_attr(impl::op_attr::epsilon, params.epsilon);
+        batchnorm_op.set_attr(impl::op_attr::data_format, params.data_format);
         impl::op_t relu_op(1, impl::op_kind::ReLU, "relu");
 
         bool is_training
                 = params.op_kind == impl::op_kind::BatchNormForwardTraining;
         const float momentum = 0.1f;
-        if (is_training) batchnorm_op.set_attr("momentum", momentum);
+        if (is_training)
+            batchnorm_op.set_attr(impl::op_attr::momentum, momentum);
 
         impl::engine_t &engine = get_engine();
 
@@ -888,8 +889,8 @@ TEST(Compile, BatchNormBackpropFp32) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
 
     impl::op_t bn_op(impl::op_kind::BatchNormTrainingBackprop);
-    bn_op.set_attr<float>("epsilon", 0.0);
-    bn_op.set_attr<std::string>("data_format", "NCX");
+    bn_op.set_attr<float>(impl::op_attr::epsilon, 0.0);
+    bn_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
     impl::engine_t &engine = get_engine();
 
@@ -1030,7 +1031,7 @@ public:
         const auto &axis = params.axis;
 
         impl::op_t concat_op(impl::op_kind::Concat, "concat");
-        concat_op.set_attr<int64_t>("axis", axis);
+        concat_op.set_attr<int64_t>(impl::op_attr::axis, axis);
 
         impl::logical_tensor_t src0_lt = utils::logical_tensor_init(
                 0, src0_dims, impl::data_type::f32, impl::layout_type::strided);
@@ -1166,7 +1167,7 @@ TEST(Compile, ConcatWithMoreInputs) {
     const auto axis = 3;
 
     impl::op_t concat_op(impl::op_kind::Concat, "concat");
-    concat_op.set_attr<int64_t>("axis", axis);
+    concat_op.set_attr<int64_t>(impl::op_attr::axis, axis);
 
     std::vector<impl::logical_tensor_t> input_lts;
     for (size_t i = 0; i < num_inputs; ++i) {
@@ -1212,7 +1213,7 @@ TEST(Compile, ConcatWithMoreInputsFail) {
     const auto axis = 3;
 
     impl::op_t concat_op(impl::op_kind::Concat, "concat");
-    concat_op.set_attr<int64_t>("axis", axis);
+    concat_op.set_attr<int64_t>(impl::op_attr::axis, axis);
 
     std::vector<impl::logical_tensor_t> input_lts;
     for (size_t i = 0; i < num_inputs; ++i) {
@@ -1261,18 +1262,18 @@ TEST(ExecuteSubgraphInt8, Concat) {
     impl::op_t dq1_op(1, impl::op_kind::Dequantize, "dq1_op");
     impl::op_t dq2_op(2, impl::op_kind::Dequantize, "dq2_op");
     for (auto dq_op : {&dq0_op, &dq1_op, &dq2_op}) {
-        dq_op->set_attr<std::string>("qtype", "per_tensor");
-        dq_op->set_attr<std::vector<int64_t>>("zps", zps);
-        dq_op->set_attr<std::vector<float>>("scales", scales);
+        dq_op->set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dq_op->set_attr<std::vector<int64_t>>(impl::op_attr::zps, zps);
+        dq_op->set_attr<std::vector<float>>(impl::op_attr::scales, scales);
     }
 
     impl::op_t concat_op(3, impl::op_kind::Concat, "concat_op");
-    concat_op.set_attr<int64_t>("axis", 1);
+    concat_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t q_op(4, impl::op_kind::Quantize, "q_op");
-    q_op.set_attr<std::string>("qtype", "per_tensor");
-    q_op.set_attr<std::vector<int64_t>>("zps", zps);
-    q_op.set_attr<std::vector<float>>("scales", scales);
+    q_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    q_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zps);
+    q_op.set_attr<std::vector<float>>(impl::op_attr::scales, scales);
 
     auto src0_s8 = utils::logical_tensor_init(0, in_shape, impl::data_type::s8);
     auto src0_f32_dq
@@ -2061,7 +2062,8 @@ TEST(Execute, BiasAdd) {
 
     for (size_t i = 0; i < data_formats.size(); i++) {
         impl::op_t bias_add_op(impl::op_kind::BiasAdd);
-        bias_add_op.set_attr<std::string>("data_format", data_formats[i]);
+        bias_add_op.set_attr<std::string>(
+                impl::op_attr::data_format, data_formats[i]);
 
         impl::logical_tensor_t src_lt = utils::logical_tensor_init(
                 0, src_shapes[i], impl::data_type::f32);
@@ -2719,7 +2721,7 @@ TEST(Execute, MaxEltwise) {
 
 TEST(Execute, MatmulFp32) {
     impl::op_t matmul_op(impl::op_kind::MatMul);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
     impl::engine_t &eng = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -3684,8 +3686,8 @@ TEST(Execute, MatmulBiasGeluFusion) {
 TEST(Execute, MatmulBiasRelu6Fusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t hardtanh_op(1, impl::op_kind::HardTanh, "hardtanh_op");
-    hardtanh_op.set_attr<float>("min", 0.0);
-    hardtanh_op.set_attr<float>("max", 6.0);
+    hardtanh_op.set_attr<float>(impl::op_attr::min, 0.0);
+    hardtanh_op.set_attr<float>(impl::op_attr::max, 6.0);
 
     impl::engine_t &engine = get_engine();
 
@@ -3752,8 +3754,8 @@ TEST(Execute, MatmulBiasRelu6Fusion) {
 TEST(Execute, MatmulBiasHardtanhFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t hardtanh_op(1, impl::op_kind::HardTanh, "hardtanh_op");
-    hardtanh_op.set_attr<float>("min", -3.0);
-    hardtanh_op.set_attr<float>("max", 3.0);
+    hardtanh_op.set_attr<float>(impl::op_attr::min, -3.0);
+    hardtanh_op.set_attr<float>(impl::op_attr::max, 3.0);
 
     impl::engine_t &engine = get_engine();
 
@@ -3820,7 +3822,7 @@ TEST(Execute, MatmulBiasHardtanhFusion) {
 TEST(Execute, MatmulBiasEluFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t elu_op(1, impl::op_kind::Elu, "elu_op");
-    elu_op.set_attr<float>("alpha", 1.f);
+    elu_op.set_attr<float>(impl::op_attr::alpha, 1.f);
 
     impl::engine_t &engine = get_engine();
 
@@ -3952,7 +3954,7 @@ TEST(Execute, MatmulBiasSigmoidFusion) {
 TEST(Execute, MatmulBiasAdd) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
     impl::op_t add_op(1, impl::op_kind::BiasAdd, "add_op");
-    add_op.set_attr<std::string>("data_format", "NXC");
+    add_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
     impl::engine_t &engine = get_engine();
 
     test::vector<float> src_data {-2.0, -1.5};
@@ -4619,12 +4621,12 @@ TEST(Execute, MaxPool) {
     test::vector<float> dst(ref_dst.size(), 0.0);
 
     impl::op_t max_pool_op(0, impl::op_kind::MaxPool, "maxpool");
-    max_pool_op.set_attr<dims>("strides", {2, 2});
-    max_pool_op.set_attr<dims>("kernel", {2, 2});
-    max_pool_op.set_attr<dims>("pads_begin", {0, 0});
-    max_pool_op.set_attr<dims>("pads_end", {0, 0});
-    max_pool_op.set_attr<std::string>("data_format", "NCX");
-    max_pool_op.set_attr<dims>("dilations", {1, 1});
+    max_pool_op.set_attr<dims>(impl::op_attr::strides, {2, 2});
+    max_pool_op.set_attr<dims>(impl::op_attr::kernel, {2, 2});
+    max_pool_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    max_pool_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    max_pool_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    max_pool_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4678,19 +4680,19 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
 
     // prepare ops
     impl::op_t dequantize(0, impl::op_kind::Dequantize, "dq");
-    dequantize.set_attr<std::vector<float>>("scales", {0.1f});
+    dequantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f});
     int64_t zps = eng.kind() == impl::engine_kind::gpu ? 0 : 10;
-    dequantize.set_attr<std::vector<int64_t>>("zps", {zps});
-    dequantize.set_attr<std::string>("qtype", "per_tensor");
-    dequantize.set_attr<int64_t>("axis", 0);
+    dequantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zps});
+    dequantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dequantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t maxpool(1, impl::op_kind::MaxPool, "maxpool");
-    maxpool.set_attr<dims>("strides", {2, 2});
-    maxpool.set_attr<dims>("kernel", {2, 2});
-    maxpool.set_attr<dims>("pads_begin", {0, 0});
-    maxpool.set_attr<dims>("pads_end", {0, 0});
-    maxpool.set_attr<std::string>("data_format", "NXC");
-    maxpool.set_attr<dims>("dilations", {1, 1});
+    maxpool.set_attr<dims>(impl::op_attr::strides, {2, 2});
+    maxpool.set_attr<dims>(impl::op_attr::kernel, {2, 2});
+    maxpool.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    maxpool.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    maxpool.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+    maxpool.set_attr<dims>(impl::op_attr::dilations, {1, 1});
 
     // prepare input/output logical tensor
     impl::logical_tensor_t dq_src_lt = utils::logical_tensor_init(
@@ -4755,12 +4757,12 @@ TEST(Execute, AvgPoolExcludePad) {
     test::vector<float> dst(ref_dst.size(), 0.0);
 
     impl::op_t avg_pool_op(0, impl::op_kind::AvgPool, "avgpool");
-    avg_pool_op.set_attr<dims>("strides", {2, 2});
-    avg_pool_op.set_attr<dims>("kernel", {2, 2});
-    avg_pool_op.set_attr<dims>("pads_begin", {1, 1});
-    avg_pool_op.set_attr<dims>("pads_end", {1, 1});
-    avg_pool_op.set_attr<bool>("exclude_pad", true);
-    avg_pool_op.set_attr<std::string>("data_format", "NCX");
+    avg_pool_op.set_attr<dims>(impl::op_attr::strides, {2, 2});
+    avg_pool_op.set_attr<dims>(impl::op_attr::kernel, {2, 2});
+    avg_pool_op.set_attr<dims>(impl::op_attr::pads_begin, {1, 1});
+    avg_pool_op.set_attr<dims>(impl::op_attr::pads_end, {1, 1});
+    avg_pool_op.set_attr<bool>(impl::op_attr::exclude_pad, true);
+    avg_pool_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4818,12 +4820,12 @@ TEST(Execute, AvgPoolIncludePad) {
     test::vector<float> dst(ref_dst.size(), 0.0);
 
     impl::op_t avg_pool_op(0, impl::op_kind::AvgPool, "avgpool");
-    avg_pool_op.set_attr<dims>("strides", {2, 2});
-    avg_pool_op.set_attr<dims>("kernel", {2, 2});
-    avg_pool_op.set_attr<dims>("pads_begin", {1, 1});
-    avg_pool_op.set_attr<dims>("pads_end", {1, 1});
-    avg_pool_op.set_attr<std::string>("data_format", "NCX");
-    avg_pool_op.set_attr<bool>("exclude_pad", false);
+    avg_pool_op.set_attr<dims>(impl::op_attr::strides, {2, 2});
+    avg_pool_op.set_attr<dims>(impl::op_attr::kernel, {2, 2});
+    avg_pool_op.set_attr<dims>(impl::op_attr::pads_begin, {1, 1});
+    avg_pool_op.set_attr<dims>(impl::op_attr::pads_end, {1, 1});
+    avg_pool_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    avg_pool_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4881,13 +4883,13 @@ TEST(Execute, ConvolutionNcxOix) {
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -4948,13 +4950,13 @@ TEST(Execute, ConvtransposeWithGroups) {
     test::vector<float> ref_dst {1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0};
     test::vector<float> dst(ref_dst.size(), 0);
     impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
-    convtranspose_op.set_attr<dims>("strides", dims {1, 1});
-    convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
-    convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
-    convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
-    convtranspose_op.set_attr<int64_t>("groups", 2);
-    convtranspose_op.set_attr<std::string>("data_format", "NCX");
-    convtranspose_op.set_attr<std::string>("filter_format", "OIX");
+    convtranspose_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    convtranspose_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    convtranspose_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 2);
+    convtranspose_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    convtranspose_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -5032,15 +5034,18 @@ public:
         impl::engine_t &eng = get_engine();
         test::vector<float> dst(params.ref_dst.size(), 0.0);
         impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
-        convtranspose_op.set_attr<dims>("strides", params.strides);
-        convtranspose_op.set_attr<dims>("dilations", params.dilations);
-        convtranspose_op.set_attr<dims>("pads_begin", params.pads_begin);
-        convtranspose_op.set_attr<dims>("pads_end", params.pads_end);
-        convtranspose_op.set_attr<int64_t>("groups", 1);
+        convtranspose_op.set_attr<dims>(impl::op_attr::strides, params.strides);
+        convtranspose_op.set_attr<dims>(
+                impl::op_attr::dilations, params.dilations);
+        convtranspose_op.set_attr<dims>(
+                impl::op_attr::pads_begin, params.pads_begin);
+        convtranspose_op.set_attr<dims>(
+                impl::op_attr::pads_end, params.pads_end);
+        convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 1);
         convtranspose_op.set_attr<std::string>(
-                "data_format", params.data_format);
+                impl::op_attr::data_format, params.data_format);
         convtranspose_op.set_attr<std::string>(
-                "filter_format", params.filter_format);
+                impl::op_attr::filter_format, params.filter_format);
 
         // prepare logical tensor
         impl::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -5195,13 +5200,15 @@ public:
         test::vector<float> ref_diff_src = params.ref_dst_data;
         test::vector<float> diff_src(ref_diff_src.size(), 0.0);
         impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropData);
-        deconv_op.set_attr<dims>("strides", params.strides);
-        deconv_op.set_attr<dims>("dilations", params.dilations);
-        deconv_op.set_attr<dims>("pads_begin", params.pads_begin);
-        deconv_op.set_attr<dims>("pads_end", params.pads_end);
-        deconv_op.set_attr<int64_t>("groups", 1);
-        deconv_op.set_attr<std::string>("data_format", params.data_format);
-        deconv_op.set_attr<std::string>("filter_format", params.filter_format);
+        deconv_op.set_attr<dims>(impl::op_attr::strides, params.strides);
+        deconv_op.set_attr<dims>(impl::op_attr::dilations, params.dilations);
+        deconv_op.set_attr<dims>(impl::op_attr::pads_begin, params.pads_begin);
+        deconv_op.set_attr<dims>(impl::op_attr::pads_end, params.pads_end);
+        deconv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        deconv_op.set_attr<std::string>(
+                impl::op_attr::data_format, params.data_format);
+        deconv_op.set_attr<std::string>(
+                impl::op_attr::filter_format, params.filter_format);
 
         // prepare logical tensor
         impl::logical_tensor_t diff_dst_lt = utils::logical_tensor_init(
@@ -5342,14 +5349,16 @@ public:
         test::vector<float> ref_diff_wei = params.ref_dst_data;
         test::vector<float> diff_wei(ref_diff_wei.size(), 0.0);
         impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropFilters);
-        deconv_op.set_attr<dims>("strides", params.strides);
-        deconv_op.set_attr<dims>("dilations", params.dilations);
-        deconv_op.set_attr<dims>("pads_begin", params.pads_begin);
-        deconv_op.set_attr<dims>("pads_end", params.pads_end);
-        deconv_op.set_attr<dims>("filter_shape", params.wei_dims);
-        deconv_op.set_attr<int64_t>("groups", 1);
-        deconv_op.set_attr<std::string>("data_format", params.data_format);
-        deconv_op.set_attr<std::string>("filter_format", params.filter_format);
+        deconv_op.set_attr<dims>(impl::op_attr::strides, params.strides);
+        deconv_op.set_attr<dims>(impl::op_attr::dilations, params.dilations);
+        deconv_op.set_attr<dims>(impl::op_attr::pads_begin, params.pads_begin);
+        deconv_op.set_attr<dims>(impl::op_attr::pads_end, params.pads_end);
+        deconv_op.set_attr<dims>(impl::op_attr::filter_shape, params.wei_dims);
+        deconv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        deconv_op.set_attr<std::string>(
+                impl::op_attr::data_format, params.data_format);
+        deconv_op.set_attr<std::string>(
+                impl::op_attr::filter_format, params.filter_format);
 
         impl::logical_tensor_t src_lt = utils::logical_tensor_init(
                 0, params.src_dims, impl::data_type::f32);
@@ -5454,14 +5463,14 @@ TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     const std::string filter_format {"OIX"};
 
     impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropFilters);
-    deconv_op.set_attr("strides", strides)
-            .set_attr("pads_begin", pads_begin)
-            .set_attr("pads_end", pads_end)
-            .set_attr("dilations", dilations)
-            .set_attr("groups", groups)
-            .set_attr("auto_pad", auto_pad)
-            .set_attr("data_format", data_format)
-            .set_attr("filter_format", filter_format);
+    deconv_op.set_attr(impl::op_attr::strides, strides)
+            .set_attr(impl::op_attr::pads_begin, pads_begin)
+            .set_attr(impl::op_attr::pads_end, pads_end)
+            .set_attr(impl::op_attr::dilations, dilations)
+            .set_attr(impl::op_attr::groups, groups)
+            .set_attr(impl::op_attr::auto_pad, auto_pad)
+            .set_attr(impl::op_attr::data_format, data_format)
+            .set_attr(impl::op_attr::filter_format, filter_format);
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, src_dims, impl::data_type::f32);
@@ -5513,13 +5522,13 @@ TEST(Execute, Convolution3DNcxOix) {
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -5580,13 +5589,13 @@ TEST(Execute, ConvolutionNcxXio) {
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "XIO");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -5647,13 +5656,13 @@ TEST(Execute, Convolution3DNcxXio) {
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "XIO");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -5715,13 +5724,13 @@ TEST(Execute, ConvolutionNxcXio) {
     test::vector<float> ref_dst {0.5};
     test::vector<float> dst {0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NXC");
-    conv_op.set_attr<std::string>("filter_format", "XIO");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -5783,13 +5792,13 @@ TEST(Execute, Convolution3DNxcXio) {
     test::vector<float> ref_dst {0.5};
     test::vector<float> dst {0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NXC");
-    conv_op.set_attr<std::string>("filter_format", "XIO");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -5850,13 +5859,13 @@ TEST(Execute, ConvolutionNxcOix) {
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NXC");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -5917,13 +5926,13 @@ TEST(Execute, Convolution3DNxcOix) {
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NXC");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -5985,13 +5994,13 @@ TEST(Execute, ConvolutionF16F16F16) {
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -6054,13 +6063,13 @@ TEST(Execute, ConvolutionBf16Bf16Bf16) {
     test::vector<float> ref_dst {-1.0, 2.5, 5.0, 1.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -6127,13 +6136,13 @@ TEST(Compile, ConvAddSharedInputs) {
 
     // create op conv
     impl::op_t conv_op(0, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(conv_dst_lt);
@@ -6195,13 +6204,13 @@ TEST(Compile, ConvAddInplace) {
 
     // create op conv
     impl::op_t conv_op(0, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_output(conv_dst_lt);
@@ -6247,13 +6256,13 @@ TEST(Execute, GroupConvolution) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t conv_op(impl::op_kind::Convolution);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 4);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 4);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -6321,14 +6330,14 @@ TEST(Execute, ConvolutionBackpropData) {
     test::vector<float> diff_src(src.size(), 0.0);
 
     impl::op_t conv_op(impl::op_kind::ConvolutionBackpropData);
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
-    conv_op.set_attr<dims>("output_shape", dims {1, 1, 4, 4});
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::output_shape, dims {1, 1, 4, 4});
 
     // prepare logical tensor
     impl::logical_tensor_t diff_src_lt
@@ -6385,13 +6394,13 @@ TEST(Execute, ConvReluUnfused) {
     impl::stream_t &strm = get_stream();
 
     impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     impl::op_t relu_op(1, impl::op_kind::ReLU, "relu");
 
@@ -6442,17 +6451,17 @@ TEST(Execute, ConvolutionBnFp32) {
     impl::stream_t &strm = get_stream();
 
     impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     impl::op_t bn_op(1, impl::op_kind::BatchNormInference, "bn");
-    bn_op.set_attr<std::string>("data_format", "NCX");
-    bn_op.set_attr("epsilon", 1e-6f);
+    bn_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    bn_op.set_attr(impl::op_attr::epsilon, 1e-6f);
 
     // prepare logical tensor
     impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
@@ -6570,17 +6579,17 @@ TEST(Compile, ConvBnSharedInputs) {
     impl::stream_t &strm = get_stream();
 
     impl::op_t conv_op(0, impl::op_kind::Convolution, "conv");
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
     impl::op_t bn_op(1, impl::op_kind::BatchNormInference, "bn");
-    bn_op.set_attr<std::string>("data_format", "NCX");
-    bn_op.set_attr("epsilon", 1e-6f);
+    bn_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    bn_op.set_attr(impl::op_attr::epsilon, 1e-6f);
 
     // prepare logical tensor
     impl::logical_tensor_t conv_src_lt = utils::logical_tensor_init(
@@ -6683,13 +6692,13 @@ TEST(Execute, ConvAdd) {
 
     for (auto swap : swaps) {
         impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-        conv_op.set_attr<dims>("strides", dims {1, 1});
-        conv_op.set_attr<dims>("dilations", dims {1, 1});
-        conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-        conv_op.set_attr<dims>("pads_end", dims {0, 0});
-        conv_op.set_attr<int64_t>("groups", 1);
-        conv_op.set_attr<std::string>("data_format", "NCX");
-        conv_op.set_attr<std::string>("filter_format", "OIX");
+        conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+        conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+        conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
         impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
         // prepare logical tensor
@@ -6772,13 +6781,13 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", {1, 1});
-    conv_op.set_attr<dims>("dilations", {1, 1});
-    conv_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_op.set_attr<dims>("pads_end", {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
     impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
@@ -6856,13 +6865,13 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", {1, 1});
-    conv_op.set_attr<dims>("dilations", {1, 1});
-    conv_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_op.set_attr<dims>("pads_end", {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
     impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
@@ -6939,13 +6948,13 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
     test::vector<float> ref_dst {2.0, 5.5, 8.0, 4.5, 2.0, 5.5, 8.0, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", {1, 1});
-    conv_op.set_attr<dims>("dilations", {1, 1});
-    conv_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_op.set_attr<dims>("pads_end", {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
     impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
@@ -7022,13 +7031,13 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
     test::vector<float> ref_dst {2.0, 2.0, 5.5, 5.5, 8.0, 8.0, 4.5, 4.5};
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", {1, 1});
-    conv_op.set_attr<dims>("dilations", {1, 1});
-    conv_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_op.set_attr<dims>("pads_end", {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NXC");
-    conv_op.set_attr<std::string>("filter_format", "XIO");
+    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
     impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
@@ -7102,13 +7111,13 @@ TEST(Compile, ConvAddBroadcast) {
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
     test::vector<float> post_src {3.0, 3.0};
     impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", {1, 1});
-    conv_op.set_attr<dims>("dilations", {1, 1});
-    conv_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_op.set_attr<dims>("pads_end", {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
     impl::op_t add_op(2, impl::op_kind::Add, "Add");
 
     // prepare logical tensor
@@ -7172,13 +7181,13 @@ TEST(Execute, ConvAddRelu) {
 
     impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
 
-    conv_op.set_attr<dims>("strides", {1, 1});
-    conv_op.set_attr<dims>("dilations", {1, 1});
-    conv_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_op.set_attr<dims>("pads_end", {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
     impl::op_t add_op(2, impl::op_kind::Add, "Add");
     impl::op_t relu_op(3, impl::op_kind::ReLU, "ReLU");
 
@@ -7263,15 +7272,15 @@ TEST(Execute, ConvMultiplePostOps) {
     test::vector<float> dst {0.0, 0.0, 0.0, 0.0};
 
     impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", {1, 1});
-    conv_op.set_attr<dims>("dilations", {1, 1});
-    conv_op.set_attr<dims>("pads_begin", {0, 0});
-    conv_op.set_attr<dims>("pads_end", {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
+    conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
     std::string data_format = "NXC";
     std::string filter_format = "XIO";
-    conv_op.set_attr<std::string>("data_format", data_format);
-    conv_op.set_attr<std::string>("filter_format", filter_format);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, data_format);
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, filter_format);
 
     impl::op_t mul_op(2, impl::op_kind::Multiply, "Mul");
     impl::op_t sum_op(3, impl::op_kind::Add, "Sum");
@@ -7402,13 +7411,15 @@ public:
 
         impl::op_t convtranspose_op(
                 0, impl::op_kind::ConvTranspose, "ConvTranspose");
-        convtranspose_op.set_attr<dims>("strides", dims {1, 1});
-        convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
-        convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
-        convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
-        convtranspose_op.set_attr<int64_t>("groups", 1);
-        convtranspose_op.set_attr<std::string>("data_format", "NXC");
-        convtranspose_op.set_attr<std::string>("filter_format", "OIX");
+        convtranspose_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+        convtranspose_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+        convtranspose_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+        convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+        convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        convtranspose_op.set_attr<std::string>(
+                impl::op_attr::data_format, "NXC");
+        convtranspose_op.set_attr<std::string>(
+                impl::op_attr::filter_format, "OIX");
         impl::op_t add_op(1, impl::op_kind::Add, "Add");
 
         // prepare logical tensor
@@ -7563,13 +7574,15 @@ TEST(operator_kernel, convtranspose_relu) {
 
         impl::op_t convtranspose_op(
                 0, impl::op_kind::ConvTranspose, "ConvTranspose");
-        convtranspose_op.set_attr<dims>("strides", dims {1, 1});
-        convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
-        convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
-        convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
-        convtranspose_op.set_attr<int64_t>("groups", 1);
-        convtranspose_op.set_attr<std::string>("data_format", "NXC");
-        convtranspose_op.set_attr<std::string>("filter_format", "XIO");
+        convtranspose_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+        convtranspose_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+        convtranspose_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+        convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+        convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        convtranspose_op.set_attr<std::string>(
+                impl::op_attr::data_format, "NXC");
+        convtranspose_op.set_attr<std::string>(
+                impl::op_attr::filter_format, "XIO");
         impl::op_t relu_op(1, impl::op_kind::ReLU, "ReLU");
 
         // prepare logical tensor
@@ -7653,13 +7666,15 @@ TEST(operator_kernel, convtranspose_swish) {
 
         impl::op_t convtranspose_op(
                 0, impl::op_kind::ConvTranspose, "ConvTranspose");
-        convtranspose_op.set_attr<dims>("strides", dims {1, 1});
-        convtranspose_op.set_attr<dims>("dilations", dims {1, 1});
-        convtranspose_op.set_attr<dims>("pads_begin", dims {0, 0});
-        convtranspose_op.set_attr<dims>("pads_end", dims {0, 0});
-        convtranspose_op.set_attr<int64_t>("groups", 1);
-        convtranspose_op.set_attr<std::string>("data_format", "NXC");
-        convtranspose_op.set_attr<std::string>("filter_format", "XIO");
+        convtranspose_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+        convtranspose_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+        convtranspose_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+        convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+        convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        convtranspose_op.set_attr<std::string>(
+                impl::op_attr::data_format, "NXC");
+        convtranspose_op.set_attr<std::string>(
+                impl::op_attr::filter_format, "XIO");
         impl::op_t sigmoid_op(1, impl::op_kind::Sigmoid, "Sigmoid");
         impl::op_t multiply_op(2, impl::op_kind::Multiply, "Multiply");
 
@@ -7768,7 +7783,8 @@ template <typename attr_data_t = float>
 void test_eltwise_common(test::vector<float> &src, test::vector<float> &ref_dst,
         dnnl::graph::impl::dims &dims, const dnnl_graph_op_kind_t op_kind,
         const std::string &op_name,
-        const std::map<std::string, attr_data_t> &attrs_data = {}) {
+        const std::map<dnnl::graph::impl::op_attr_t, attr_data_t> &attrs_data
+        = {}) {
     impl::engine_t &eng = get_engine();
     impl::op_t op(op_kind, op_name);
 
@@ -7838,7 +7854,8 @@ void test_eltwise_bwd_common(
         const test::vector<float> &diff_dst_data,
         const test::vector<float> &ref_diff_src, dnnl::graph::impl::dims &dims,
         const dnnl_graph_op_kind_t op_kind, const std::string &op_name,
-        const std::map<std::string, attr_data_t> &attrs_data = {}) {
+        const std::map<dnnl::graph::impl::op_attr_t, attr_data_t> &attrs_data
+        = {}) {
     static const std::set<dnnl_graph_op_kind_t> with_support_for_use_dst {
             impl::op_kind::EluBackprop, impl::op_kind::HardTanhBackprop,
             impl::op_kind::ReLUBackprop, impl::op_kind::SigmoidBackprop,
@@ -7851,7 +7868,7 @@ void test_eltwise_bwd_common(
         op.set_attr<attr_data_t>(attr_data.first, attr_data.second);
     }
     if (with_support_for_use_dst.count(op_kind)) {
-        op.set_attr<bool>("use_dst", !is_fwd_data_src);
+        op.set_attr<bool>(impl::op_attr::use_dst, !is_fwd_data_src);
     }
 
     test::vector<float> diff_src_data(ref_diff_src.size(), 0.0f);
@@ -7936,8 +7953,9 @@ TEST(Execute, Elu) {
         ref_dst.push_back(temp);
     }
 
-    dnnl::graph::impl::dims dims {1, 2, 3};
-    const std::map<std::string, float> attrs_data {{"alpha", 1.f}};
+    impl::dims dims {1, 2, 3};
+    const std::map<impl::op_attr_t, float> attrs_data {
+            {impl::op_attr::alpha, 1.f}};
 
     test_eltwise_common(
             src, ref_dst, dims, impl::op_kind::Elu, "elu", attrs_data);
@@ -7954,7 +7972,8 @@ TEST(Execute, EluBackward) {
             0.754086, -0.105544, 88.5838};
 
     dnnl::graph::impl::dims dims {1, 3, 3};
-    const std::map<std::string, float> attrs_data {{"alpha", 1.f}};
+    const std::map<impl::op_attr_t, float> attrs_data {
+            {impl::op_attr::alpha, 1.f}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
             impl::op_kind::EluBackprop, "elu_bw", attrs_data);
@@ -8028,8 +8047,9 @@ TEST(Execute, Hardtanh) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
     test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
 
-    dnnl::graph::impl::dims dims {1, 2, 3};
-    const std::map<std::string, float> attrs_data {{"min", -1.f}, {"max", 2.f}};
+    impl::dims dims {1, 2, 3};
+    const std::map<impl::op_attr_t, float> attrs_data {
+            {impl::op_attr::min, -1.f}, {impl::op_attr::max, 2.f}};
 
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::HardTanh, "hardtanh",
             attrs_data);
@@ -8045,8 +8065,9 @@ TEST(Execute, HardtanhBackward) {
     test::vector<float> ref_diff_src {
             3, -0, 0.0194608, -0.0559478, 0, 0, 0.754086, -0.218955, 0};
 
-    dnnl::graph::impl::dims dims {1, 3, 3};
-    const std::map<std::string, float> attrs_data {{"min", -1.f}, {"max", 2.f}};
+    impl::dims dims {1, 3, 3};
+    const std::map<impl::op_attr_t, float> attrs_data {
+            {impl::op_attr::min, -1.f}, {impl::op_attr::max, 2.f}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
             impl::op_kind::HardTanhBackprop, "hardtanh_bw", attrs_data);
@@ -8058,7 +8079,7 @@ TEST(Execute, Relu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
     test::vector<float> ref_dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0};
 
-    dnnl::graph::impl::dims dims {1, 3, 3};
+    impl::dims dims {1, 3, 3};
 
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::ReLU, "relu");
 }
@@ -8117,8 +8138,10 @@ TEST(Execute, SoftPlus) {
             40, 0, 0.791844, 0.393416, 88.371};
 
     dnnl::graph::impl::dims dims {1, 3, 3};
-    const std::map<std::string, int64_t> attrs_data_case1 {{"beta", -1}};
-    const std::map<std::string, int64_t> attrs_data_case2 {{"beta", 1}};
+    const std::map<impl::op_attr_t, int64_t> attrs_data_case1 {
+            {impl::op_attr::beta, -1}};
+    const std::map<impl::op_attr_t, int64_t> attrs_data_case2 {
+            {impl::op_attr::beta, 1}};
 
     test_eltwise_common(src, ref_dst_case1, dims, impl::op_kind::SoftPlus,
             "softplus", attrs_data_case1);
@@ -8137,8 +8160,10 @@ TEST(Execute, SoftPlusBackward) {
             -0.0274636, 70, 0, 0.412478, -0.0712156, 88.5838};
 
     dnnl::graph::impl::dims dims {1, 3, 3};
-    const std::map<std::string, int64_t> attrs_data_case1 {{"beta", -1}};
-    const std::map<std::string, int64_t> attrs_data_case2 {{"beta", 1}};
+    const std::map<impl::op_attr_t, int64_t> attrs_data_case1 {
+            {impl::op_attr::beta, -1}};
+    const std::map<impl::op_attr_t, int64_t> attrs_data_case2 {
+            {impl::op_attr::beta, 1}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case1, dims,
             impl::op_kind::SoftPlusBackprop, "softplus_bw", attrs_data_case1);
@@ -8232,7 +8257,7 @@ struct eltwise_param {
     test::vector<float> ref_dst;
     impl::op_kind_t op_kind;
     std::string op_name;
-    std::vector<std::pair<std::string, float>> attrs;
+    std::vector<std::pair<impl::op_attr_t, float>> attrs;
 };
 
 TEST(Execute, ConvBiasEltwise) {
@@ -8250,10 +8275,10 @@ TEST(Execute, ConvBiasEltwise) {
                     {2.0, 1.5, 4.0, 0.5}, impl::op_kind::Abs, "Abs", {}},
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {static_cast<float>(exp(-2) - 1), 1.5, 4.0, 0.5},
-                    impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
+                    impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {0.0, 1.5, 3.0, 0.5}, impl::op_kind::HardTanh, "HardTanh",
-                    {{"min", 0.f}, {"max", 3.f}}},
+                    {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 3.f}}},
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     sigmoid_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Sigmoid,
                     "Sigmoid", {}},
@@ -8270,13 +8295,13 @@ TEST(Execute, ConvBiasEltwise) {
 
     for (auto &param : params1) {
         impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-        conv_op.set_attr<dims>("strides", {1, 1});
-        conv_op.set_attr<dims>("dilations", {1, 1});
-        conv_op.set_attr<dims>("pads_begin", {0, 0});
-        conv_op.set_attr<dims>("pads_end", {0, 0});
-        conv_op.set_attr<int64_t>("groups", 1);
-        conv_op.set_attr<std::string>("data_format", "NCX");
-        conv_op.set_attr<std::string>("filter_format", "OIX");
+        conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+        conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+        conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+        conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+        conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
         impl::op_t eltwise_op(2, param.op_kind, param.op_name);
         for (auto &attr : param.attrs) {
             eltwise_op.set_attr<float>(attr.first, attr.second);
@@ -8355,10 +8380,10 @@ TEST(Execute, ConvBiasAddEltwise) {
     std::vector<eltwise_param> params2 = {
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {static_cast<float>(exp(-4.0) - 1), 2.5, 3.0, 0.5},
-                    impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
+                    impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
             eltwise_param {"conv_bias_post_ops_fusion", {3.0},
                     {0.0, 6.f, 6.f, 4.5}, impl::op_kind::HardTanh, "ReLU6",
-                    {{"min", 0.f}, {"max", 6.f}}},
+                    {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
     };
 
     for (auto &param : params2) {
@@ -8366,13 +8391,13 @@ TEST(Execute, ConvBiasAddEltwise) {
 
         impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
 
-        conv_op.set_attr<dims>("strides", {1, 1});
-        conv_op.set_attr<dims>("dilations", {1, 1});
-        conv_op.set_attr<dims>("pads_begin", {0, 0});
-        conv_op.set_attr<dims>("pads_end", {0, 0});
-        conv_op.set_attr<int64_t>("groups", 1);
-        conv_op.set_attr<std::string>("data_format", "NCX");
-        conv_op.set_attr<std::string>("filter_format", "OIX");
+        conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+        conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+        conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+        conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+        conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
         impl::op_t add_op(2, impl::op_kind::Add, "Add");
         impl::op_t eltwise_op(3, param.op_kind, param.op_name);
@@ -8466,22 +8491,22 @@ TEST(Execute, ConvAddEltwise) {
     std::vector<eltwise_param> params = {
             eltwise_param {"conv_post_ops_fusion", {0.0},
                     {static_cast<float>(exp(-3.0) - 1), 3.5, 4.0, 1.5},
-                    impl::op_kind::Elu, "Elu", {{"alpha", 1.f}}},
+                    impl::op_kind::Elu, "Elu", {{impl::op_attr::alpha, 1.f}}},
             eltwise_param {"conv_post_ops_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
                     impl::op_kind::HardTanh, "ReLU6",
-                    {{"min", 0.f}, {"max", 6.f}}},
+                    {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
     };
 
     for (auto &param : params) {
         impl::op_t in_op(0, impl::op_kind::Wildcard, "Wildcard");
         impl::op_t conv_op(1, impl::op_kind::Convolution, "Convolution");
-        conv_op.set_attr<dims>("strides", {1, 1});
-        conv_op.set_attr<dims>("dilations", {1, 1});
-        conv_op.set_attr<dims>("pads_begin", {0, 0});
-        conv_op.set_attr<dims>("pads_end", {0, 0});
-        conv_op.set_attr<int64_t>("groups", 1);
-        conv_op.set_attr<std::string>("data_format", "NCX");
-        conv_op.set_attr<std::string>("filter_format", "OIX");
+        conv_op.set_attr<dims>(impl::op_attr::strides, {1, 1});
+        conv_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+        conv_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+        conv_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+        conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
         impl::op_t add_op(2, impl::op_kind::Add, "Add");
         impl::op_t eltwise_op(3, param.op_kind, param.op_name);
         for (auto &attr : param.attrs) {
@@ -8696,15 +8721,15 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
                 1., 1., 2., 2., 3., 3., 4., 4., 5., 5., 6., 6., 7., 7., 8., 8.};
 
         impl::op_t reshape0 {0, impl::op_kind::StaticReshape, "reshape0"};
-        reshape0.set_attr("shape", reshape0_dst_shape);
-        reshape0.set_attr("special_zero", false);
+        reshape0.set_attr(impl::op_attr::shape, reshape0_dst_shape);
+        reshape0.set_attr(impl::op_attr::special_zero, false);
 
         impl::op_t transpose {1, impl::op_kind::StaticTranspose, "transpose"};
-        transpose.set_attr("order", order);
+        transpose.set_attr(impl::op_attr::order, order);
 
         impl::op_t reshape1 {2, impl::op_kind::StaticReshape, "reshape1"};
-        reshape1.set_attr("shape", reshape1_dst_shape);
-        reshape1.set_attr("special_zero", false);
+        reshape1.set_attr(impl::op_attr::shape, reshape1_dst_shape);
+        reshape1.set_attr(impl::op_attr::special_zero, false);
 
         impl::logical_tensor_t reshape0_src = utils::logical_tensor_init(
                 0, reshape0_src_shape, impl::data_type::f32);
@@ -8826,7 +8851,7 @@ TEST(Execute, Softmax) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t softmax_op(impl::op_kind::SoftMax);
-    softmax_op.set_attr<int64_t>("axis", 0);
+    softmax_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
     test::vector<float> ref_dst_data {0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
@@ -8878,7 +8903,7 @@ TEST(Execute, SoftmaxWithLastDim) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t softmax_op(impl::op_kind::SoftMax);
-    softmax_op.set_attr<int64_t>("axis", -1);
+    softmax_op.set_attr<int64_t>(impl::op_attr::axis, -1);
 
     test::vector<float> src_data {3.0, 3.0, 1.0, 1.0};
     test::vector<float> ref_dst_data {0.5, 0.5, 0.5, 0.5};
@@ -8933,7 +8958,7 @@ void test_softmax_bwd_common(const impl::op_kind_t op_kind,
     impl::op_t softmax_bwd_op(op_kind);
     impl::engine_t &eng = get_engine();
 
-    softmax_bwd_op.set_attr<int64_t>("axis", 1);
+    softmax_bwd_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     test::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
@@ -9024,7 +9049,7 @@ void test_softmax_bwd_get_inplace_pair_common(impl::op_kind_t op_kind) {
     impl::engine_t &eng = get_engine();
     impl::op_t softmax_bwd_op(op_kind);
 
-    softmax_bwd_op.set_attr<int64_t>("axis", 1);
+    softmax_bwd_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(0, {2, 2}, impl::data_type::f32);
@@ -9072,7 +9097,7 @@ TEST(Execute, LogSoftmax) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t logsoftmax_op(impl::op_kind::LogSoftmax);
-    logsoftmax_op.set_attr<int64_t>("axis", 0);
+    logsoftmax_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<float> src_data {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
     test::vector<float> ref_dst_data {-0.6931472f, -0.6931472f, -0.6931472f,
@@ -9165,14 +9190,14 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     test::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
     impl::op_t avg_pool_bwd_op(impl::op_kind::AvgPoolBackprop);
-    avg_pool_bwd_op.set_attr<dims>("strides", {2, 2});
-    avg_pool_bwd_op.set_attr<dims>("kernel", {2, 2});
-    avg_pool_bwd_op.set_attr<dims>("pads_begin", {1, 1});
-    avg_pool_bwd_op.set_attr<dims>("pads_end", {1, 1});
-    avg_pool_bwd_op.set_attr<bool>("exclude_pad", true);
-    avg_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
+    avg_pool_bwd_op.set_attr<dims>(impl::op_attr::strides, {2, 2});
+    avg_pool_bwd_op.set_attr<dims>(impl::op_attr::kernel, {2, 2});
+    avg_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_begin, {1, 1});
+    avg_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_end, {1, 1});
+    avg_pool_bwd_op.set_attr<bool>(impl::op_attr::exclude_pad, true);
+    avg_pool_bwd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
     avg_pool_bwd_op.set_attr<std::vector<int64_t>>(
-            "input_shape", std::vector<int64_t> {1, 1, 4, 4});
+            impl::op_attr::input_shape, std::vector<int64_t> {1, 1, 4, 4});
 
     // prepare logical tensor
     impl::logical_tensor_t diff_dst_lt
@@ -9223,14 +9248,14 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     test::vector<float> diff_src(ref_diff_src.size(), 0.0);
 
     impl::op_t avg_pool_bwd_op(impl::op_kind::AvgPoolBackprop);
-    avg_pool_bwd_op.set_attr<dims>("strides", {2, 2});
-    avg_pool_bwd_op.set_attr<dims>("kernel", {2, 2});
-    avg_pool_bwd_op.set_attr<dims>("pads_begin", {1, 1});
-    avg_pool_bwd_op.set_attr<dims>("pads_end", {1, 1});
-    avg_pool_bwd_op.set_attr<bool>("exclude_pad", false);
-    avg_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
+    avg_pool_bwd_op.set_attr<dims>(impl::op_attr::strides, {2, 2});
+    avg_pool_bwd_op.set_attr<dims>(impl::op_attr::kernel, {2, 2});
+    avg_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_begin, {1, 1});
+    avg_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_end, {1, 1});
+    avg_pool_bwd_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
+    avg_pool_bwd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
     avg_pool_bwd_op.set_attr<std::vector<int64_t>>(
-            "input_shape", std::vector<int64_t> {1, 1, 4, 4});
+            impl::op_attr::input_shape, std::vector<int64_t> {1, 1, 4, 4});
 
     // prepare logical tensor
     impl::logical_tensor_t diff_dst_lt
@@ -9293,12 +9318,12 @@ TEST(Execute, MaxPoolBackwardWithIncides) {
 
     impl::op_t max_pool_bwd_op(impl::op_kind::MaxPoolBackprop);
 
-    max_pool_bwd_op.set_attr<dims>("strides", dims {2, 2});
-    max_pool_bwd_op.set_attr<dims>("kernel", dims {2, 2});
-    max_pool_bwd_op.set_attr<dims>("pads_begin", dims {0, 0});
-    max_pool_bwd_op.set_attr<dims>("pads_end", dims {0, 0});
-    max_pool_bwd_op.set_attr<dims>("dilations", {1, 1});
-    max_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::strides, dims {2, 2});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::kernel, dims {2, 2});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    max_pool_bwd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -9368,12 +9393,12 @@ TEST(Execute, MaxPoolBackwardWithoutIncides) {
 
     impl::op_t max_pool_bwd_op(impl::op_kind::MaxPoolBackprop);
 
-    max_pool_bwd_op.set_attr<dims>("strides", dims {2, 2});
-    max_pool_bwd_op.set_attr<dims>("kernel", dims {2, 2});
-    max_pool_bwd_op.set_attr<dims>("pads_begin", dims {0, 0});
-    max_pool_bwd_op.set_attr<dims>("pads_end", dims {0, 0});
-    max_pool_bwd_op.set_attr<dims>("dilations", {1, 1});
-    max_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::strides, dims {2, 2});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::kernel, dims {2, 2});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    max_pool_bwd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
@@ -9424,12 +9449,12 @@ TEST(Execute, MaxPoolBackwardWithoutIncidesPlainGrad) {
 
     impl::op_t max_pool_bwd_op(impl::op_kind::MaxPoolBackprop);
 
-    max_pool_bwd_op.set_attr<dims>("strides", dims {2, 2});
-    max_pool_bwd_op.set_attr<dims>("kernel", dims {2, 2});
-    max_pool_bwd_op.set_attr<dims>("pads_begin", dims {0, 0});
-    max_pool_bwd_op.set_attr<dims>("pads_end", dims {0, 0});
-    max_pool_bwd_op.set_attr<dims>("dilations", {1, 1});
-    max_pool_bwd_op.set_attr<std::string>("data_format", "NCX");
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::strides, dims {2, 2});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::kernel, dims {2, 2});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    max_pool_bwd_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+    max_pool_bwd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
     dims input_dims = {1, 8, 4, 4};
     dims input_stride = {128, 1, 32, 8};
@@ -9492,7 +9517,7 @@ TEST(Execute, LayernormTraining) {
 
     impl::op_t layernorm_op(impl::op_kind::LayerNorm);
 
-    layernorm_op.set_attr<float>("epsilon", 0);
+    layernorm_op.set_attr<float>(impl::op_attr::epsilon, 0);
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {1, 3, 2}, impl::data_type::f32);
@@ -9569,8 +9594,8 @@ TEST(Execute, LayernormInference) {
 
     impl::op_t layernorm_op(impl::op_kind::LayerNorm);
 
-    layernorm_op.set_attr<float>("epsilon", 0);
-    layernorm_op.set_attr<bool>("keep_stats", false); //inference
+    layernorm_op.set_attr<float>(impl::op_attr::epsilon, 0);
+    layernorm_op.set_attr<bool>(impl::op_attr::keep_stats, false); //inference
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {2, 2, 2}, impl::data_type::f32);
@@ -9631,9 +9656,9 @@ TEST(Execute, LayernormInferenceWithoutScaleShift) {
 
     impl::op_t layernorm_op(impl::op_kind::LayerNorm);
 
-    layernorm_op.set_attr<float>("epsilon", 0);
-    layernorm_op.set_attr<bool>("keep_stats", false); //inference
-    layernorm_op.set_attr<bool>("use_affine", false);
+    layernorm_op.set_attr<float>(impl::op_attr::epsilon, 0);
+    layernorm_op.set_attr<bool>(impl::op_attr::keep_stats, false); //inference
+    layernorm_op.set_attr<bool>(impl::op_attr::use_affine, false);
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {2, 2, 2}, impl::data_type::f32);
@@ -9717,8 +9742,8 @@ TEST(Execute, LayerNormBackpropFp32) {
     const std::vector<bool> use_affine_flags {true, false};
     for (const auto use_affine : use_affine_flags) {
         impl::op_t ln_bwd_op(impl::op_kind::LayerNormBackprop);
-        ln_bwd_op.set_attr<float>("epsilon", epsilon);
-        ln_bwd_op.set_attr<bool>("use_affine", use_affine);
+        ln_bwd_op.set_attr<float>(impl::op_attr::epsilon, epsilon);
+        ln_bwd_op.set_attr<bool>(impl::op_attr::use_affine, use_affine);
 
         impl::logical_tensor_t src = utils::logical_tensor_init(
                 0, data_dims, impl::data_type::f32, impl::layout_type::strided);
@@ -9900,12 +9925,12 @@ TEST(Execute, Int8Reorder) {
     std::vector<float> scales1 = {3.f};
     std::vector<float> scales2 = {1 / 3.f};
     impl::op_t dequant {0, impl::op_kind::Dequantize, "dequant"};
-    dequant.set_attr("scales", scales1);
-    dequant.set_attr("zps", zps1);
+    dequant.set_attr(impl::op_attr::scales, scales1);
+    dequant.set_attr(impl::op_attr::zps, zps1);
     impl::op_t reorder {1, impl::op_kind::Reorder, "reorder"};
     impl::op_t quant {2, impl::op_kind::Quantize, "quant"};
-    quant.set_attr("scales", scales2);
-    quant.set_attr("zps", zps2);
+    quant.set_attr(impl::op_attr::scales, scales2);
+    quant.set_attr(impl::op_attr::zps, zps2);
 
     impl::logical_tensor_t int8_src_lt = utils::logical_tensor_init(
             0, {2, 3}, {3, 1}, impl::data_type::u8);
@@ -10132,7 +10157,7 @@ TEST(Execute, Sum) {
     std::vector<int64_t> input_dims {1, 3, 3};
 
     impl::op_t add0 {0, impl::op_kind::Add, "add_0"};
-    add0.set_attr<std::string>("auto_broadcast", "none");
+    add0.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
     impl::logical_tensor_t input0
             = utils::logical_tensor_init(0, input_dims, impl::data_type::f32);
     impl::logical_tensor_t input1
@@ -10141,21 +10166,21 @@ TEST(Execute, Sum) {
             = utils::logical_tensor_init(2, input_dims, impl::data_type::f32);
 
     impl::op_t add1 {1, impl::op_kind::Add, "add_1"};
-    add1.set_attr<std::string>("auto_broadcast", "none");
+    add1.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
     impl::logical_tensor_t input2
             = utils::logical_tensor_init(3, input_dims, impl::data_type::f32);
     impl::logical_tensor_t output1
             = utils::logical_tensor_init(4, input_dims, impl::data_type::f32);
 
     impl::op_t add2 {2, impl::op_kind::Add, "add_2"};
-    add2.set_attr<std::string>("auto_broadcast", "none");
+    add2.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
     impl::logical_tensor_t input3
             = utils::logical_tensor_init(5, input_dims, impl::data_type::f32);
     impl::logical_tensor_t output2
             = utils::logical_tensor_init(6, input_dims, impl::data_type::f32);
 
     impl::op_t add3 {3, impl::op_kind::Add, "add_3"};
-    add3.set_attr<std::string>("auto_broadcast", "none");
+    add3.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
     impl::logical_tensor_t input4
             = utils::logical_tensor_init(7, input_dims, impl::data_type::f32);
     impl::logical_tensor_t output3
@@ -10229,11 +10254,11 @@ TEST(Execute, QuantizePerTensor) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t quantize(impl::op_kind::Quantize);
-    quantize.set_attr<std::vector<float>>("scales", {0.1f});
+    quantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f});
     int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
-    quantize.set_attr<std::vector<int64_t>>("zps", {zps});
-    quantize.set_attr<std::string>("qtype", "per_tensor");
-    quantize.set_attr<int64_t>("axis", 0);
+    quantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zps});
+    quantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    quantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<float> src {1.0, 0.0, 1.0, 2.0};
     test::vector<uint8_t> dst(src.size(), 0);
@@ -10288,11 +10313,11 @@ TEST(Execute, QuantizePerTensorAnyLayout) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t quantize(impl::op_kind::Quantize);
-    quantize.set_attr<std::vector<float>>("scales", {0.1f});
+    quantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f});
     int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
-    quantize.set_attr<std::vector<int64_t>>("zps", {zps});
-    quantize.set_attr<std::string>("qtype", "per_tensor");
-    quantize.set_attr<int64_t>("axis", 0);
+    quantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zps});
+    quantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    quantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<float> src {1.0, 0.0, 1.0, 2.0};
     test::vector<uint8_t> dst(src.size(), 0);
@@ -10347,10 +10372,10 @@ TEST(Execute, QuantizePerChannelSymmetric) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t quantize(impl::op_kind::Quantize);
-    quantize.set_attr<std::vector<float>>("scales", {0.1f, 0.2f});
-    quantize.set_attr<std::vector<int64_t>>("zps", {0, 0});
-    quantize.set_attr<std::string>("qtype", "per_channel");
-    quantize.set_attr<int64_t>("axis", 1);
+    quantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f, 0.2f});
+    quantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {0, 0});
+    quantize.set_attr<std::string>(impl::op_attr::qtype, "per_channel");
+    quantize.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
     test::vector<int8_t> dst(src.size(), 0);
@@ -10411,11 +10436,11 @@ TEST(Execute, TypecastQuantize) {
             [&]() { return f32_distribution(generator); });
     impl::op_t typecast(0, impl::op_kind::TypeCast, "typecast");
     impl::op_t quantize(1, impl::op_kind::Quantize, "quantize");
-    quantize.set_attr<std::vector<float>>("scales", {0.1f});
+    quantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f});
     int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
-    quantize.set_attr<std::vector<int64_t>>("zps", {zps});
-    quantize.set_attr<std::string>("qtype", "per_tensor");
-    quantize.set_attr<int64_t>("axis", 0);
+    quantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zps});
+    quantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    quantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::logical_tensor_t src_bf16
             = utils::logical_tensor_init(0, src_shape, impl::data_type::bf16);
@@ -10462,11 +10487,11 @@ TEST(Execute, DequantizePerTensor) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t dequantize(impl::op_kind::Dequantize);
-    dequantize.set_attr<std::vector<float>>("scales", {0.1f});
+    dequantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f});
     int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
-    dequantize.set_attr<std::vector<int64_t>>("zps", {zps});
-    dequantize.set_attr<std::string>("qtype", "per_tensor");
-    dequantize.set_attr<int64_t>("axis", 0);
+    dequantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zps});
+    dequantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dequantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<uint8_t> src {0, 10, 20, 30};
     test::vector<float> dst(src.size(), 0);
@@ -10521,11 +10546,11 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t dequantize(impl::op_kind::Dequantize);
-    dequantize.set_attr<std::vector<float>>("scales", {0.1f});
+    dequantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f});
     int64_t zps = engine.kind() == impl::engine_kind::gpu ? 0 : 10;
-    dequantize.set_attr<std::vector<int64_t>>("zps", {zps});
-    dequantize.set_attr<std::string>("qtype", "per_tensor");
-    dequantize.set_attr<int64_t>("axis", 0);
+    dequantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zps});
+    dequantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dequantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<uint8_t> src {0, 10, 20, 30};
     test::vector<float> dst(src.size(), 0);
@@ -10580,10 +10605,11 @@ TEST(Execute, DequantizePerChannelSymmetric) {
     impl::engine_t &engine = get_engine();
 
     impl::op_t dequantize(impl::op_kind::Dequantize);
-    dequantize.set_attr<std::vector<float>>("scales", {0.1f, 0.2f});
-    dequantize.set_attr<std::vector<int64_t>>("zps", {0, 0});
-    dequantize.set_attr<std::string>("qtype", "per_channel");
-    dequantize.set_attr<int64_t>("axis", 1);
+    dequantize.set_attr<std::vector<float>>(
+            impl::op_attr::scales, {0.1f, 0.2f});
+    dequantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {0, 0});
+    dequantize.set_attr<std::string>(impl::op_attr::qtype, "per_channel");
+    dequantize.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     test::vector<int8_t> src {0, 10, 20, 30};
     test::vector<float> dst(src.size(), 0);
@@ -10638,31 +10664,33 @@ TEST(Execute, DequantizePerChannelSymmetric) {
 
 #define for_ for
 #define SET_Q_DQ_DATA_ATTR(q_dq_data) \
-    q_dq_data.set_attr<std::string>("qtype", "per_tensor"); \
-    q_dq_data.set_attr<std::vector<int64_t>>("zps", {zp_src}); \
-    q_dq_data.set_attr<std::vector<float>>("scales", {scale_src}); \
-    q_dq_data.set_attr<int64_t>("axis", 0);
+    q_dq_data.set_attr<std::string>(impl::op_attr::qtype, "per_tensor"); \
+    q_dq_data.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src}); \
+    q_dq_data.set_attr<std::vector<float>>( \
+            impl::op_attr::scales, {scale_src}); \
+    q_dq_data.set_attr<int64_t>(impl::op_attr::axis, 0);
 
 #define SET_Q_DQ_WEIGHT_ATTR(q_dq_weight) \
-    q_dq_weight.set_attr<std::string>("qtype", wei_qtype); \
-    q_dq_weight.set_attr<std::vector<int64_t>>("zps", zp_wei); \
-    q_dq_weight.set_attr<std::vector<float>>("scales", scale_wei); \
-    q_dq_weight.set_attr<int64_t>("axis", 0);
+    q_dq_weight.set_attr<std::string>(impl::op_attr::qtype, wei_qtype); \
+    q_dq_weight.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei); \
+    q_dq_weight.set_attr<std::vector<float>>( \
+            impl::op_attr::scales, scale_wei); \
+    q_dq_weight.set_attr<int64_t>(impl::op_attr::axis, 0);
 
 #define SET_CONV_ATTR(conv, nd) \
-    conv.set_attr<dims>("strides", dims(nd, 1)); \
-    conv.set_attr<dims>("dilations", dims(nd, 1)); \
-    conv.set_attr<dims>("pads_begin", dims(nd, 0)); \
-    conv.set_attr<dims>("pads_end", dims(nd, 0)); \
-    conv.set_attr<int64_t>("groups", g); \
-    conv.set_attr<std::string>("data_format", "NCX"); \
-    conv.set_attr<std::string>("filter_format", "OIX");
+    conv.set_attr<dims>(impl::op_attr::strides, dims(nd, 1)); \
+    conv.set_attr<dims>(impl::op_attr::dilations, dims(nd, 1)); \
+    conv.set_attr<dims>(impl::op_attr::pads_begin, dims(nd, 0)); \
+    conv.set_attr<dims>(impl::op_attr::pads_end, dims(nd, 0)); \
+    conv.set_attr<int64_t>(impl::op_attr::groups, g); \
+    conv.set_attr<std::string>(impl::op_attr::data_format, "NCX"); \
+    conv.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
 #define SET_Q_DQ_OUT_ATTR(q_dq_out) \
-    q_dq_out.set_attr<std::string>("qtype", "per_tensor"); \
-    q_dq_out.set_attr<std::vector<int64_t>>("zps", {zp_out}); \
-    q_dq_out.set_attr<std::vector<float>>("scales", {scale_out}); \
-    q_dq_out.set_attr<int64_t>("axis", 0);
+    q_dq_out.set_attr<std::string>(impl::op_attr::qtype, "per_tensor"); \
+    q_dq_out.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out}); \
+    q_dq_out.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out}); \
+    q_dq_out.set_attr<int64_t>(impl::op_attr::axis, 0);
 
 struct dnnl_graph_test_reduce_params {
     test::vector<float> ref_dst_data;
@@ -10711,8 +10739,8 @@ public:
                     = apply_keep_dims_attr(reduce_dst_shape, axes, keep_dims);
 
             impl::op_t reduce {0, params.op_kind, "reduce"};
-            reduce.set_attr<std::vector<int64_t>>("axes", axes);
-            reduce.set_attr<bool>("keep_dims", keep_dims);
+            reduce.set_attr<std::vector<int64_t>>(impl::op_attr::axes, axes);
+            reduce.set_attr<bool>(impl::op_attr::keep_dims, keep_dims);
 
             impl::logical_tensor_t reduce_src = utils::logical_tensor_init(
                     0, reduce_src_shape, impl::data_type::f32);
@@ -10821,8 +10849,8 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
                 [&]() { return f32_distribution(generator); });
 
         impl::op_t reduce {0, akind, "reduce"};
-        reduce.set_attr("keep_dims", keep_dims);
-        reduce.set_attr("axes", axes);
+        reduce.set_attr(impl::op_attr::keep_dims, keep_dims);
+        reduce.set_attr(impl::op_attr::axes, axes);
 
         impl::op_t add {1, impl::op_kind::Add, "add"};
 
@@ -10918,8 +10946,8 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
         }
 
         impl::op_t reduce {0, akind, "reduce"};
-        reduce.set_attr("keep_dims", keep_dims);
-        reduce.set_attr("axes", axes);
+        reduce.set_attr(impl::op_attr::keep_dims, keep_dims);
+        reduce.set_attr(impl::op_attr::axes, axes);
 
         impl::op_t relu {1, impl::op_kind::ReLU, "relu"};
 
@@ -11009,8 +11037,8 @@ TEST(ExecuteSubgraphFp32, ReduceSwish) {
         }
 
         impl::op_t reduce {0, akind, "reduce"};
-        reduce.set_attr("keep_dims", keep_dims);
-        reduce.set_attr("axes", axes);
+        reduce.set_attr(impl::op_attr::keep_dims, keep_dims);
+        reduce.set_attr(impl::op_attr::axes, axes);
 
         impl::op_t sigmoid {1, impl::op_kind::Sigmoid, "sigmoid"};
         impl::op_t multiply {2, impl::op_kind::Multiply, "multiply"};
@@ -11658,10 +11686,10 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
         impl::op_t eltwise_node(3, eltwise_kind, "eltwise_node");
 
         if (eltwise_kind == impl::op_kind::Elu) {
-            eltwise_node.set_attr<float>("alpha", 1.f);
+            eltwise_node.set_attr<float>(impl::op_attr::alpha, 1.f);
         } else if (eltwise_kind == impl::op_kind::HardTanh) {
-            eltwise_node.set_attr<float>("min", -1.f);
-            eltwise_node.set_attr<float>("max", 2.f);
+            eltwise_node.set_attr<float>(impl::op_attr::min, -1.f);
+            eltwise_node.set_attr<float>(impl::op_attr::max, 2.f);
         }
 
         impl::op_t qout_node(4, impl::op_kind::Quantize, "qout_node");
@@ -11865,10 +11893,10 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
         impl::op_t eltwise_node(3, eltwise_kind, "eltwise_node");
 
         if (eltwise_kind == impl::op_kind::Elu) {
-            eltwise_node.set_attr<float>("alpha", 1.f);
+            eltwise_node.set_attr<float>(impl::op_attr::alpha, 1.f);
         } else if (eltwise_kind == impl::op_kind::HardTanh) {
-            eltwise_node.set_attr<float>("min", -1.f);
-            eltwise_node.set_attr<float>("max", 2.f);
+            eltwise_node.set_attr<float>(impl::op_attr::min, -1.f);
+            eltwise_node.set_attr<float>(impl::op_attr::max, 2.f);
         }
 
         impl::logical_tensor_t src_u8
@@ -12237,10 +12265,12 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         SET_CONV_ATTR(convtranspose_node, nd)
 
         impl::op_t dqother_node(3, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(4, impl::op_kind::Add, "add_node");
 
@@ -12658,10 +12688,12 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
         SET_CONV_ATTR(convtranspose_node, nd)
 
         impl::op_t dqother_node(3, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(4, impl::op_kind::Add, "add_node");
 
@@ -13062,10 +13094,12 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
         SET_Q_DQ_OUT_ATTR(qout_node)
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
@@ -13266,12 +13300,12 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
         dqweight_node.set_attr<int64_t>(
-                "axis", wei_qtype == "per_tensor" ? 0 : 3);
+                impl::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
         impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
-        conv_node.set_attr<std::string>("data_format", "NXC");
-        conv_node.set_attr<std::string>("filter_format", "XIO");
+        conv_node.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+        conv_node.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
 
         impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
 
@@ -13279,10 +13313,12 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
         SET_Q_DQ_OUT_ATTR(qout_node)
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
@@ -13818,10 +13854,12 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
         impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
@@ -14014,20 +14052,22 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
         impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
         dqweight_node.set_attr<int64_t>(
-                "axis", wei_qtype == "per_tensor" ? 0 : 3);
+                impl::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
         impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
-        conv_node.set_attr<std::string>("data_format", "NXC");
-        conv_node.set_attr<std::string>("filter_format", "XIO");
+        conv_node.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+        conv_node.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
 
         impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
@@ -14222,18 +14262,20 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
         impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
         SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
         dqweight_node.set_attr<int64_t>(
-                "axis", wei_qtype == "per_tensor" ? 0 : 3);
+                impl::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
         impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
-        conv_node.set_attr<std::string>("data_format", "NXC");
-        conv_node.set_attr<std::string>("filter_format", "XIO");
+        conv_node.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+        conv_node.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
 
         impl::op_t dqother_node(5, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(6, impl::op_kind::Add, "add_node");
 
@@ -14414,26 +14456,29 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -14563,26 +14608,33 @@ TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
             int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
             impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-            dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-            dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-            dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-            dqdata_op.set_attr<int64_t>("axis", 0);
+            dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+            dqdata_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_src});
+            dqdata_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_src});
+            dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-            dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-            dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-            dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-            dqweight_op.set_attr<int64_t>("axis", 0);
+            dqweight_op.set_attr<std::string>(
+                    impl::op_attr::qtype, "per_tensor");
+            dqweight_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_wei});
+            dqweight_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_wei});
+            dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-            matmul_op.set_attr<bool>("transpose_a", false);
-            matmul_op.set_attr<bool>("transpose_b", false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
             impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
-            qout_op.set_attr<std::string>("qtype", "per_tensor");
-            qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-            qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-            qout_op.set_attr<int64_t>("axis", 0);
+            qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+            qout_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_out});
+            qout_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_out});
+            qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             // prepare logical tensor
             impl::logical_tensor_t src_u8 = utils::logical_tensor_init(
@@ -14718,26 +14770,33 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
 
             // -------------------------case 1----------------------------------
             impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-            dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-            dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-            dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-            dqdata_op.set_attr<int64_t>("axis", 0);
+            dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+            dqdata_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_src});
+            dqdata_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_src});
+            dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-            dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-            dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-            dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-            dqweight_op.set_attr<int64_t>("axis", 0);
+            dqweight_op.set_attr<std::string>(
+                    impl::op_attr::qtype, "per_tensor");
+            dqweight_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_wei});
+            dqweight_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_wei});
+            dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-            matmul_op.set_attr<bool>("transpose_a", false);
-            matmul_op.set_attr<bool>("transpose_b", true);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
             impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
-            qout_op.set_attr<std::string>("qtype", "per_tensor");
-            qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-            qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-            qout_op.set_attr<int64_t>("axis", 0);
+            qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+            qout_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_out});
+            qout_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_out});
+            qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             // prepare logical tensor
             impl::logical_tensor_t src_u8 = utils::logical_tensor_init(
@@ -14862,28 +14921,29 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
 
     // -------------------------case 1----------------------------------
     impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-    dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-    dqweight_op.set_attr<int64_t>("axis", 0);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_wei});
+    dqweight_op.set_attr<std::vector<float>>(
+            impl::op_attr::scales, {scale_wei});
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
     impl::op_t relu_op(4, impl::op_kind::ReLU, "relu_op");
 
     impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
-    qout_op.set_attr<std::string>("qtype", "per_tensor");
-    qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-    qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-    qout_op.set_attr<int64_t>("axis", 0);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -14975,10 +15035,11 @@ TEST(Execute, InterpolateForwardNearest) {
             -2.f, -1.5f, -1.5f, -1.f, -0.5f, -0.5f, -1.f, -0.5f, -0.5f};
 
     impl::op_t op(impl::op_kind::Interpolate);
-    op.set_attr<std::string>("mode", "nearest");
-    op.set_attr("sizes", std::vector<int64_t> {3, 3});
-    op.set_attr<std::string>("coordinate_transformation_mode", "half_pixel");
-    op.set_attr<std::string>("data_format", "NCX");
+    op.set_attr<std::string>(impl::op_attr::mode, "nearest");
+    op.set_attr(impl::op_attr::sizes, std::vector<int64_t> {3, 3});
+    op.set_attr<std::string>(
+            impl::op_attr::coordinate_transformation_mode, "half_pixel");
+    op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
     auto &op_factory = get_dnnl_kernel_registry();
     auto kernel = op_factory.create_kernel(op);
     ASSERT_TRUE(kernel);
@@ -15033,11 +15094,12 @@ TEST(Execute, InterpolateAddForwardNearest) {
             -2.f, -1.f, -0.5f, 0.5f, 1.5f, 2.f, 2.f, 3.f, 3.5f};
 
     impl::op_t interpolate_node(0, impl::op_kind::Interpolate, "interpolate");
-    interpolate_node.set_attr<std::string>("mode", "nearest");
-    interpolate_node.set_attr("sizes", std::vector<int64_t> {3, 3});
+    interpolate_node.set_attr<std::string>(impl::op_attr::mode, "nearest");
+    interpolate_node.set_attr(
+            impl::op_attr::sizes, std::vector<int64_t> {3, 3});
     interpolate_node.set_attr<std::string>(
-            "coordinate_transformation_mode", "half_pixel");
-    interpolate_node.set_attr<std::string>("data_format", "NCX");
+            impl::op_attr::coordinate_transformation_mode, "half_pixel");
+    interpolate_node.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
     impl::op_t add_node(1, impl::op_kind::Add, "add_node");
 
@@ -15098,11 +15160,12 @@ TEST(Execute, InterpolateSwish) {
     test::vector<float> dst_mul {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
 
     impl::op_t interpolate_node(0, impl::op_kind::Interpolate, "interpolate");
-    interpolate_node.set_attr<std::string>("mode", "nearest");
-    interpolate_node.set_attr("sizes", std::vector<int64_t> {3, 3});
+    interpolate_node.set_attr<std::string>(impl::op_attr::mode, "nearest");
+    interpolate_node.set_attr(
+            impl::op_attr::sizes, std::vector<int64_t> {3, 3});
     interpolate_node.set_attr<std::string>(
-            "coordinate_transformation_mode", "half_pixel");
-    interpolate_node.set_attr<std::string>("data_format", "NCX");
+            impl::op_attr::coordinate_transformation_mode, "half_pixel");
+    interpolate_node.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
     impl::op_t sigmoid_node(1, impl::op_kind::Sigmoid, "sigmoid_node");
     impl::op_t mul_node(2, impl::op_kind::Multiply, "multiply_node");
@@ -15181,21 +15244,23 @@ TEST(Execute, InterpolatePostOps) {
 
         impl::op_t interpolate_node(
                 0, impl::op_kind::Interpolate, "interpolate");
-        interpolate_node.set_attr<std::string>("mode", "nearest");
-        interpolate_node.set_attr("sizes", std::vector<int64_t> {3, 3});
+        interpolate_node.set_attr<std::string>(impl::op_attr::mode, "nearest");
+        interpolate_node.set_attr(
+                impl::op_attr::sizes, std::vector<int64_t> {3, 3});
         interpolate_node.set_attr<std::string>(
-                "coordinate_transformation_mode", "half_pixel");
-        interpolate_node.set_attr<std::string>("data_format", "NCX");
+                impl::op_attr::coordinate_transformation_mode, "half_pixel");
+        interpolate_node.set_attr<std::string>(
+                impl::op_attr::data_format, "NCX");
 
         impl::op_t post_node(1, post_op_kind, "post_op_node");
         if (post_op_kind == impl::op_kind::Elu) {
-            post_node.set_attr<float>("alpha", 1.0f);
+            post_node.set_attr<float>(impl::op_attr::alpha, 1.0f);
         } else if (post_op_kind == impl::op_kind::Clamp) {
-            post_node.set_attr<float>("min", 1.0f);
-            post_node.set_attr<float>("max", 3.0f);
+            post_node.set_attr<float>(impl::op_attr::min, 1.0f);
+            post_node.set_attr<float>(impl::op_attr::max, 3.0f);
         } else if (post_op_kind == impl::op_kind::HardTanh) {
-            post_node.set_attr<float>("min", 1.0f);
-            post_node.set_attr<float>("max", 3.0f);
+            post_node.set_attr<float>(impl::op_attr::min, 1.0f);
+            post_node.set_attr<float>(impl::op_attr::max, 3.0f);
         }
 
         impl::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -15271,10 +15336,11 @@ TEST(Execute, InterpolateForwardLinear) {
             -2.f, -1.75f, -1.5f, -1.5f, -1.25f, -1.f, -1.f, -0.75f, -0.5f};
 
     impl::op_t op(impl::op_kind::Interpolate);
-    op.set_attr<std::string>("mode", "linear");
-    op.set_attr("sizes", std::vector<int64_t> {3, 3});
-    op.set_attr<std::string>("coordinate_transformation_mode", "half_pixel");
-    op.set_attr<std::string>("data_format", "NXC");
+    op.set_attr<std::string>(impl::op_attr::mode, "linear");
+    op.set_attr(impl::op_attr::sizes, std::vector<int64_t> {3, 3});
+    op.set_attr<std::string>(
+            impl::op_attr::coordinate_transformation_mode, "half_pixel");
+    op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
 
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {1, 2, 2, 1}, impl::data_type::f32);
@@ -15323,8 +15389,8 @@ TEST(Execute, InterpolateBackwardNearest) {
     test::vector<float> ref_diff_src {0.f, 3.f, 9.f, 24.f};
 
     impl::op_t op(impl::op_kind::InterpolateBackprop);
-    op.set_attr<std::string>("mode", "nearest");
-    op.set_attr<std::string>("data_format", "NCX");
+    op.set_attr<std::string>(impl::op_attr::mode, "nearest");
+    op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
     auto &op_factory = get_dnnl_kernel_registry();
     auto kernel = op_factory.create_kernel(op);
     ASSERT_TRUE(kernel);
@@ -15380,8 +15446,8 @@ TEST(Execute, InterpolateBackwardLinear) {
     test::vector<float> ref_diff_src {3.f, 6.f, 12.f, 15.f};
 
     impl::op_t op(impl::op_kind::InterpolateBackprop);
-    op.set_attr<std::string>("mode", "linear");
-    op.set_attr<std::string>("data_format", "NCX");
+    op.set_attr<std::string>(impl::op_attr::mode, "linear");
+    op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
     auto &op_factory = get_dnnl_kernel_registry();
     auto kernel = op_factory.create_kernel(op);
     ASSERT_TRUE(kernel);
@@ -15497,32 +15563,37 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqother_op(5, impl::op_kind::Dequantize, "dqother_op");
-        dqother_op.set_attr<std::string>("qtype", "per_tensor");
-        dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_op.set_attr<int64_t>("axis", 0);
+        dqother_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_op.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_op(6, impl::op_kind::Add, "add_op");
 
@@ -15689,26 +15760,29 @@ TEST(ExecuteSubgraphInt8, MatmulBiasBinary) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t binary_op(6, binary_kind, "binary_op");
 
@@ -15881,32 +15955,37 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t qout_op(4, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqother_op(5, impl::op_kind::Dequantize, "dqother_op");
-        dqother_op.set_attr<std::string>("qtype", "per_tensor");
-        dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_op.set_attr<int64_t>("axis", 0);
+        dqother_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_op.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_op(6, impl::op_kind::Add, "add_op");
 
@@ -16080,26 +16159,30 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2dX8s8f32) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t dqother_op(4, impl::op_kind::Dequantize, "dqother_op");
-        dqother_op.set_attr<std::string>("qtype", "per_tensor");
-        dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_op.set_attr<int64_t>("axis", 0);
+        dqother_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_op.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_op(5, impl::op_kind::Add, "add_op");
 
@@ -16241,20 +16324,22 @@ TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -16372,20 +16457,22 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -16503,20 +16590,22 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t gelu_op(4, impl::op_kind::GELU, "gelu_op");
 
@@ -16656,10 +16745,12 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         SET_Q_DQ_OUT_ATTR(qout_node)
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
@@ -16826,11 +16917,11 @@ public:
 
         impl::op_t eltwise_op(0, params.eltwise_kind, "elt");
         if (params.eltwise_kind == impl::op_kind::Elu) {
-            eltwise_op.set_attr<float>("alpha", 1.f);
+            eltwise_op.set_attr<float>(impl::op_attr::alpha, 1.f);
         } else if (params.eltwise_kind == impl::op_kind::HardTanh
                 || params.eltwise_kind == impl::op_kind::Clamp) {
-            eltwise_op.set_attr<float>("min", -1.f);
-            eltwise_op.set_attr<float>("max", 2.f);
+            eltwise_op.set_attr<float>(impl::op_attr::min, -1.f);
+            eltwise_op.set_attr<float>(impl::op_attr::max, 2.f);
         }
         impl::op_t binary_op(1, params.binary_kind, "binary");
 
@@ -16987,15 +17078,21 @@ public:
             test::vector<float> post_src(product(post_src_shape), 2.0);
 
             impl::op_t pool_op(0, params.pool_kind, "pool");
-            pool_op.set_attr<dims>("strides", dims(spatial_size, 2));
-            pool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
-            pool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
-            pool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
-            pool_op.set_attr<std::string>("data_format", data_format);
+            pool_op.set_attr<dims>(
+                    impl::op_attr::strides, dims(spatial_size, 2));
+            pool_op.set_attr<dims>(
+                    impl::op_attr::kernel, dims(spatial_size, 2));
+            pool_op.set_attr<dims>(
+                    impl::op_attr::pads_begin, dims(spatial_size, 0));
+            pool_op.set_attr<dims>(
+                    impl::op_attr::pads_end, dims(spatial_size, 0));
+            pool_op.set_attr<std::string>(
+                    impl::op_attr::data_format, data_format);
             if (params.pool_kind == impl::op_kind::AvgPool) {
-                pool_op.set_attr<bool>("exclude_pad", false);
+                pool_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
             } else {
-                pool_op.set_attr<dims>("dilations", dims(spatial_size, 1));
+                pool_op.set_attr<dims>(
+                        impl::op_attr::dilations, dims(spatial_size, 1));
             }
 
             impl::op_t binary_op(1, params.binary_kind, "binary");
@@ -17119,25 +17216,32 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
         int64_t zp_out = 0;
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t maxpool_op(2, impl::op_kind::MaxPool, "maxpool_op");
         size_t spatial_size = src_shape.size() - 2;
-        maxpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
-        maxpool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
-        maxpool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
-        maxpool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
-        maxpool_op.set_attr<std::string>("data_format", data_format);
-        maxpool_op.set_attr<dims>("dilations", dims(spatial_size, 1));
+        maxpool_op.set_attr<dims>(
+                impl::op_attr::strides, dims(spatial_size, 2));
+        maxpool_op.set_attr<dims>(impl::op_attr::kernel, dims(spatial_size, 2));
+        maxpool_op.set_attr<dims>(
+                impl::op_attr::pads_begin, dims(spatial_size, 0));
+        maxpool_op.set_attr<dims>(
+                impl::op_attr::pads_end, dims(spatial_size, 0));
+        maxpool_op.set_attr<std::string>(
+                impl::op_attr::data_format, data_format);
+        maxpool_op.set_attr<dims>(
+                impl::op_attr::dilations, dims(spatial_size, 1));
 
         impl::op_t qout_op(3, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -17246,25 +17350,31 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
         int64_t zp_out = 0;
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t avgpool_op(2, impl::op_kind::AvgPool, "avgpool_op");
         size_t spatial_size = src_shape.size() - 2;
-        avgpool_op.set_attr<dims>("strides", dims(spatial_size, 2));
-        avgpool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
-        avgpool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
-        avgpool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
-        avgpool_op.set_attr<std::string>("data_format", data_format);
-        avgpool_op.set_attr<bool>("exclude_pad", false);
+        avgpool_op.set_attr<dims>(
+                impl::op_attr::strides, dims(spatial_size, 2));
+        avgpool_op.set_attr<dims>(impl::op_attr::kernel, dims(spatial_size, 2));
+        avgpool_op.set_attr<dims>(
+                impl::op_attr::pads_begin, dims(spatial_size, 0));
+        avgpool_op.set_attr<dims>(
+                impl::op_attr::pads_end, dims(spatial_size, 0));
+        avgpool_op.set_attr<std::string>(
+                impl::op_attr::data_format, data_format);
+        avgpool_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
 
         impl::op_t qout_op(3, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -17385,35 +17495,41 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         const int64_t zp_other = (qtype == "symmetric") ? 0 : 4;
 
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 1);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t pool_op(1, base_op, "pool_op");
         size_t spatial_size = src_shape.size() - 2;
-        pool_op.set_attr<dims>("strides", dims(spatial_size, 2));
-        pool_op.set_attr<dims>("kernel", dims(spatial_size, 2));
-        pool_op.set_attr<dims>("pads_begin", dims(spatial_size, 0));
-        pool_op.set_attr<dims>("pads_end", dims(spatial_size, 0));
-        pool_op.set_attr<std::string>("data_format", data_format);
+        pool_op.set_attr<dims>(impl::op_attr::strides, dims(spatial_size, 2));
+        pool_op.set_attr<dims>(impl::op_attr::kernel, dims(spatial_size, 2));
+        pool_op.set_attr<dims>(
+                impl::op_attr::pads_begin, dims(spatial_size, 0));
+        pool_op.set_attr<dims>(impl::op_attr::pads_end, dims(spatial_size, 0));
+        pool_op.set_attr<std::string>(impl::op_attr::data_format, data_format);
         if (base_op == impl::op_kind::AvgPool)
-            pool_op.set_attr<bool>("exclude_pad", false);
+            pool_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
         else
             // MaxPool
-            pool_op.set_attr<dims>("dilations", dims(spatial_size, 1));
+            pool_op.set_attr<dims>(
+                    impl::op_attr::dilations, dims(spatial_size, 1));
 
         impl::op_t qout_op(2, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 1);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t dqother_op(3, impl::op_kind::Dequantize, "dqother_op");
-        dqother_op.set_attr<std::string>("qtype", "per_tensor");
-        dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_op.set_attr<int64_t>("axis", 1);
+        dqother_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_op.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t add_op(4, impl::op_kind::Add, "add_op");
 
@@ -17657,10 +17773,12 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         SET_Q_DQ_OUT_ATTR(qout_node)
 
         impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-        dqother_node.set_attr<std::string>("qtype", "per_tensor");
-        dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_node.set_attr<int64_t>("axis", 0);
+        dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_node.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_node.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_node.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
@@ -17873,38 +17991,44 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, generate_zps());
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
-        qweight_op.set_attr<std::string>("qtype", qtype);
-        qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        qweight_op.set_attr<int64_t>("axis", 1);
+        qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        qweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqother_op(6, impl::op_kind::Dequantize, "dqother_op");
-        dqother_op.set_attr<std::string>("qtype", "per_tensor");
-        dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqother_op.set_attr<std::vector<float>>("scales", {scale_other});
-        dqother_op.set_attr<int64_t>("axis", 0);
+        dqother_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqother_op.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqother_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqother_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t add_op(7, impl::op_kind::Add, "add_op");
 
@@ -18083,32 +18207,36 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
 
         // -------------------------case 1----------------------------------
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
-        qweight_op.set_attr<std::string>("qtype", qtype);
-        qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        qweight_op.set_attr<int64_t>("axis", 0);
+        qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        qweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 0);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", true);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         // prepare logical tensor
         // The logical tensor in graph stage should only have valid id and dtype
@@ -18260,34 +18388,38 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
 
         // -------------------------case 1----------------------------------
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
-        qweight_op.set_attr<std::string>("qtype", qtype);
-        qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        qweight_op.set_attr<int64_t>("axis", 1);
+        qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        qweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t relu_op(5, impl::op_kind::ReLU, "relu_op");
 
         impl::op_t qout_op(6, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -18440,38 +18572,44 @@ TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
         int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 78;
 
         impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");
-        qdata_op.set_attr<std::string>("qtype", "per_tensor");
-        qdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        qdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        qdata_op.set_attr<int64_t>("axis", 0);
+        qdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        qdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t qweight_op(2, impl::op_kind::Quantize, "qweight_op");
-        qweight_op.set_attr<std::string>("qtype", "per_tensor");
-        qweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-        qweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-        qweight_op.set_attr<int64_t>("axis", 0);
+        qweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_wei});
+        qweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_wei});
+        qweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-        dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-        dqweight_op.set_attr<int64_t>("axis", 0);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqweight_op.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_wei});
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_wei});
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", true);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -18579,56 +18717,64 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(3, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-        matmul_op.set_attr<bool>("transpose_a", false);
-        matmul_op.set_attr<bool>("transpose_b", false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t add_op(8, impl::op_kind::Add, "add_op");
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqdata_op2(9, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op2.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op2.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op2.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op2.set_attr<int64_t>("axis", 0);
+        dqdata_op2.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op2.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op2.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op2.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op2(10, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op2.set_attr<std::string>("qtype", qtype);
-        dqweight_op2.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op2.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op2.set_attr<int64_t>("axis", 1);
+        dqweight_op2.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op2.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op2.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op2.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t matmul_op2(11, impl::op_kind::MatMul, "matmul_op");
-        matmul_op2.set_attr<bool>("transpose_a", false);
-        matmul_op2.set_attr<bool>("transpose_b", false);
+        matmul_op2.set_attr<bool>(impl::op_attr::transpose_a, false);
+        matmul_op2.set_attr<bool>(impl::op_attr::transpose_b, false);
 
         impl::op_t qout_op2(6, impl::op_kind::Quantize, "qother_op");
-        qout_op2.set_attr<std::string>("qtype", "per_tensor");
-        qout_op2.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        qout_op2.set_attr<std::vector<float>>("scales", {scale_other});
-        qout_op2.set_attr<int64_t>("axis", 0);
+        qout_op2.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op2.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_other});
+        qout_op2.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        qout_op2.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqout_o2p(7, impl::op_kind::Dequantize, "dqother_op");
-        dqout_o2p.set_attr<std::string>("qtype", "per_tensor");
-        dqout_o2p.set_attr<std::vector<int64_t>>("zps", {zp_other});
-        dqout_o2p.set_attr<std::vector<float>>("scales", {scale_other});
-        dqout_o2p.set_attr<int64_t>("axis", 0);
+        dqout_o2p.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqout_o2p.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_other});
+        dqout_o2p.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_other});
+        dqout_o2p.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -19053,20 +19199,20 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
 
     // -------------------------case 1----------------------------------
     impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -19167,23 +19313,23 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
 
     // -------------------------case 1----------------------------------
     impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
     impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-    binary_op.set_attr<std::string>("auto_broadcast", "numpy");
+    binary_op.set_attr<std::string>(impl::op_attr::auto_broadcast, "numpy");
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -19287,26 +19433,26 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
 
     // -------------------------case 1----------------------------------
     impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(2, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t matmul_op(3, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
     impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-    binary_op.set_attr<std::string>("auto_broadcast", "numpy");
+    binary_op.set_attr<std::string>(impl::op_attr::auto_broadcast, "numpy");
 
     impl::op_t binary_op2(6, impl::op_kind::Add, "binary_add");
-    binary_op2.set_attr<std::string>("auto_broadcast", "numpy");
+    binary_op2.set_attr<std::string>(impl::op_attr::auto_broadcast, "numpy");
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -19428,24 +19574,29 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
             int64_t zp_wei = 114;
 
             impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-            dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-            dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-            dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-            dqdata_op.set_attr<int64_t>("axis", 0);
+            dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+            dqdata_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_src});
+            dqdata_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_src});
+            dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-            dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-            dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-            dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-            dqweight_op.set_attr<int64_t>("axis", 1);
+            dqweight_op.set_attr<std::string>(
+                    impl::op_attr::qtype, "per_tensor");
+            dqweight_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_wei});
+            dqweight_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_wei});
+            dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
             impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
             impl::op_t tcweight_op {
                     3, impl::op_kind::TypeCast, "typecast_weight"};
 
             impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-            matmul_op.set_attr<bool>("transpose_a", false);
-            matmul_op.set_attr<bool>("transpose_b", false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
             // prepare logical tensor
             impl::logical_tensor_t src
@@ -19561,27 +19712,33 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
             int64_t zp_wei = 114;
 
             impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-            dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-            dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-            dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-            dqdata_op.set_attr<int64_t>("axis", 0);
+            dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+            dqdata_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_src});
+            dqdata_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_src});
+            dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-            dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-            dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-            dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-            dqweight_op.set_attr<int64_t>("axis", 1);
+            dqweight_op.set_attr<std::string>(
+                    impl::op_attr::qtype, "per_tensor");
+            dqweight_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_wei});
+            dqweight_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_wei});
+            dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
             impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
             impl::op_t tcweight_op {
                     3, impl::op_kind::TypeCast, "typecast_weight"};
 
             impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-            matmul_op.set_attr<bool>("transpose_a", false);
-            matmul_op.set_attr<bool>("transpose_b", false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
             impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-            binary_op.set_attr<std::string>("auto_broadcast", "numpy");
+            binary_op.set_attr<std::string>(
+                    impl::op_attr::auto_broadcast, "numpy");
 
             // prepare logical tensor
             impl::logical_tensor_t src
@@ -19718,27 +19875,33 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
             int64_t zp_wei = 114;
 
             impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-            dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-            dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-            dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-            dqdata_op.set_attr<int64_t>("axis", 0);
+            dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+            dqdata_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_src});
+            dqdata_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_src});
+            dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-            dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-            dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-            dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-            dqweight_op.set_attr<int64_t>("axis", 1);
+            dqweight_op.set_attr<std::string>(
+                    impl::op_attr::qtype, "per_tensor");
+            dqweight_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_wei});
+            dqweight_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_wei});
+            dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
             impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
             impl::op_t tcweight_op {
                     3, impl::op_kind::TypeCast, "typecast_weight"};
 
             impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-            matmul_op.set_attr<bool>("transpose_a", false);
-            matmul_op.set_attr<bool>("transpose_b", false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
             impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-            binary_op.set_attr<std::string>("auto_broadcast", "numpy");
+            binary_op.set_attr<std::string>(
+                    impl::op_attr::auto_broadcast, "numpy");
 
             // prepare logical tensor
             impl::logical_tensor_t src = utils::logical_tensor_init(
@@ -19872,30 +20035,37 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
             int64_t zp_wei = 114;
 
             impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-            dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-            dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-            dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-            dqdata_op.set_attr<int64_t>("axis", 0);
+            dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+            dqdata_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_src});
+            dqdata_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_src});
+            dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
             impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-            dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-            dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-            dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-            dqweight_op.set_attr<int64_t>("axis", 1);
+            dqweight_op.set_attr<std::string>(
+                    impl::op_attr::qtype, "per_tensor");
+            dqweight_op.set_attr<std::vector<int64_t>>(
+                    impl::op_attr::zps, {zp_wei});
+            dqweight_op.set_attr<std::vector<float>>(
+                    impl::op_attr::scales, {scale_wei});
+            dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
             impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
             impl::op_t tcweight_op {
                     3, impl::op_kind::TypeCast, "typecast_weight"};
 
             impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-            matmul_op.set_attr<bool>("transpose_a", false);
-            matmul_op.set_attr<bool>("transpose_b", false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+            matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
             impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-            binary_op.set_attr<std::string>("auto_broadcast", "numpy");
+            binary_op.set_attr<std::string>(
+                    impl::op_attr::auto_broadcast, "numpy");
 
             impl::op_t binary_add_op(6, impl::op_kind::Add, "binary_add");
-            binary_add_op.set_attr<std::string>("auto_broadcast", "numpy");
+            binary_add_op.set_attr<std::string>(
+                    impl::op_attr::auto_broadcast, "numpy");
 
             // prepare logical tensor
             impl::logical_tensor_t src
@@ -20022,23 +20192,23 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
     impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -20146,30 +20316,30 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t dqother_op(2, impl::op_kind::Dequantize, "dqother_op");
-    dqother_op.set_attr<std::string>("qtype", qtype);
-    dqother_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqother_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqother_op.set_attr<int64_t>("axis", 1);
+    dqother_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqother_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqother_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqother_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {3, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {4, impl::op_kind::TypeCast, "typecast_weight"};
     impl::op_t tcother_op {5, impl::op_kind::TypeCast, "typecast_other"};
 
     impl::op_t matmul_op(6, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
     impl::op_t add_op(7, impl::op_kind::Add, "add_op");
 
@@ -20303,23 +20473,23 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddBF16U8s8bf16) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
     impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
     impl::op_t add_op(5, impl::op_kind::Add, "add_op");
 
@@ -20442,35 +20612,35 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddAddBF16U8s8bf16) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t qweight_op(10, impl::op_kind::Quantize, "qweight_op");
-    qweight_op.set_attr<std::string>("qtype", qtype);
-    qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    qweight_op.set_attr<int64_t>("axis", 1);
+    qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
     impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
     impl::op_t tc_bias_op(5, impl::op_kind::TypeCast, "typecast_bias");
 
     impl::op_t biasadd_op(6, impl::op_kind::BiasAdd, "biasadd_op");
     // matmul bias shoule add to the last dim
-    biasadd_op.set_attr<std::string>("data_format", "NXC");
+    biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
 
     impl::op_t add_op(7, impl::op_kind::Add, "add_op");
 
@@ -20607,31 +20777,31 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
     impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
     impl::op_t tcdst_op {5, impl::op_kind::TypeCast, "typecast_dst"};
 
     impl::op_t qout_op(6, impl::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>("qtype", qtype);
-    qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    qout_op.set_attr<std::vector<float>>("scales", {scale_src});
-    qout_op.set_attr<int64_t>("axis", 1);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -20749,43 +20919,43 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t qweight_op(10, impl::op_kind::Quantize, "qweight_op");
-    qweight_op.set_attr<std::string>("qtype", qtype);
-    qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    qweight_op.set_attr<int64_t>("axis", 1);
+    qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
     impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
     impl::op_t tc_bias_op(5, impl::op_kind::TypeCast, "typecast_bias");
 
     impl::op_t biasadd_op(6, impl::op_kind::BiasAdd, "biasadd_op");
     // matmul bias shoule add to the last dim
-    biasadd_op.set_attr<std::string>("data_format", "NXC");
+    biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
 
     impl::op_t tcdst_op {7, impl::op_kind::TypeCast, "typecast_dst"};
 
     impl::op_t qout_op(8, impl::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>("qtype", qtype);
-    qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    qout_op.set_attr<std::vector<float>>("scales", {scale_src});
-    qout_op.set_attr<int64_t>("axis", 1);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -20920,32 +21090,32 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
     impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
     impl::op_t gelu_op {5, impl::op_kind::GELU, "gelu_op"};
     impl::op_t tcgelu_op {6, impl::op_kind::TypeCast, "typecast_gelu"};
 
     impl::op_t qout_op(7, impl::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>("qtype", qtype);
-    qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    qout_op.set_attr<std::vector<float>>("scales", {scale_src});
-    qout_op.set_attr<int64_t>("axis", 1);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -21073,44 +21243,44 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t qweight_op(10, impl::op_kind::Quantize, "qweight_op");
-    qweight_op.set_attr<std::string>("qtype", qtype);
-    qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    qweight_op.set_attr<int64_t>("axis", 1);
+    qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", qtype);
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
     impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", true);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
 
     impl::op_t tc_bias_op(5, impl::op_kind::TypeCast, "typecast_bias");
 
     impl::op_t biasadd_op(6, impl::op_kind::BiasAdd, "biasadd_op");
     // matmul bias shoule add to the last dim
-    biasadd_op.set_attr<std::string>("data_format", "NXC");
+    biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NXC");
 
     impl::op_t gelu_op {7, impl::op_kind::GELU, "gelu_op"};
     impl::op_t tcgelu_op {8, impl::op_kind::TypeCast, "typecast_gelu"};
 
     impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>("qtype", qtype);
-    qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    qout_op.set_attr<std::vector<float>>("scales", {scale_src});
-    qout_op.set_attr<int64_t>("axis", 1);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -21258,36 +21428,39 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
         impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
         impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
-        conv_op.set_attr<dims>("strides", dims(2, 1));
-        conv_op.set_attr<dims>("dilations", dims(2, 1));
-        conv_op.set_attr<dims>("pads_begin", dims(2, 0));
-        conv_op.set_attr<dims>("pads_end", dims(2, 0));
-        conv_op.set_attr<int64_t>("groups", g_);
-        conv_op.set_attr<std::string>("data_format", "NCX");
-        conv_op.set_attr<std::string>("filter_format", "OIX");
+        conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(impl::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
         impl::op_t tcdst_op {5, impl::op_kind::TypeCast, "typecast_dst"};
 
         impl::op_t qout_op(6, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>("qtype", qtype);
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_src});
-        qout_op.set_attr<int64_t>("axis", 1);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -21412,47 +21585,51 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t qweight_op(10, impl::op_kind::Quantize, "qweight_op");
-        qweight_op.set_attr<std::string>("qtype", qtype);
-        qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        qweight_op.set_attr<int64_t>("axis", 1);
+        qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        qweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
         impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
         impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
-        conv_op.set_attr<dims>("strides", dims(2, 1));
-        conv_op.set_attr<dims>("dilations", dims(2, 1));
-        conv_op.set_attr<dims>("pads_begin", dims(2, 0));
-        conv_op.set_attr<dims>("pads_end", dims(2, 0));
-        conv_op.set_attr<int64_t>("groups", g_);
-        conv_op.set_attr<std::string>("data_format", "NCX");
-        conv_op.set_attr<std::string>("filter_format", "OIX");
+        conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(impl::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
         impl::op_t tc_bias_op {5, impl::op_kind::TypeCast, "typecast_bias"};
 
         impl::op_t biasadd_op {6, impl::op_kind::BiasAdd, "biasadd_op"};
-        biasadd_op.set_attr<std::string>("data_format", "NCX");
+        biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
         impl::op_t tcdst_op {8, impl::op_kind::TypeCast, "typecast_dst"};
 
         impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>("qtype", qtype);
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_src});
-        qout_op.set_attr<int64_t>("axis", 1);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -21596,38 +21773,41 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
         impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
         impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
-        conv_op.set_attr<dims>("strides", dims(2, 1));
-        conv_op.set_attr<dims>("dilations", dims(2, 1));
-        conv_op.set_attr<dims>("pads_begin", dims(2, 0));
-        conv_op.set_attr<dims>("pads_end", dims(2, 0));
-        conv_op.set_attr<int64_t>("groups", g_);
-        conv_op.set_attr<std::string>("data_format", "NCX");
-        conv_op.set_attr<std::string>("filter_format", "OIX");
+        conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(impl::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
         impl::op_t gelu_op {5, impl::op_kind::GELU, "gelu_op"};
 
         impl::op_t tcdst_op {6, impl::op_kind::TypeCast, "typecast_dst"};
 
         impl::op_t qout_op(7, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>("qtype", qtype);
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_src});
-        qout_op.set_attr<int64_t>("axis", 1);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -21758,49 +21938,53 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-        dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_op.set_attr<int64_t>("axis", 0);
+        dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t qweight_op(10, impl::op_kind::Quantize, "qweight_op");
-        qweight_op.set_attr<std::string>("qtype", qtype);
-        qweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        qweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        qweight_op.set_attr<int64_t>("axis", 1);
+        qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        qweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-        dqweight_op.set_attr<std::string>("qtype", qtype);
-        dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-        dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-        dqweight_op.set_attr<int64_t>("axis", 1);
+        dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
         impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
         impl::op_t conv_op(4, impl::op_kind::Convolution, "conv_op");
-        conv_op.set_attr<dims>("strides", dims(2, 1));
-        conv_op.set_attr<dims>("dilations", dims(2, 1));
-        conv_op.set_attr<dims>("pads_begin", dims(2, 0));
-        conv_op.set_attr<dims>("pads_end", dims(2, 0));
-        conv_op.set_attr<int64_t>("groups", g_);
-        conv_op.set_attr<std::string>("data_format", "NCX");
-        conv_op.set_attr<std::string>("filter_format", "OIX");
+        conv_op.set_attr<dims>(impl::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(impl::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(impl::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(impl::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
 
         impl::op_t tc_bias_op {5, impl::op_kind::TypeCast, "typecast_bias"};
 
         impl::op_t biasadd_op {6, impl::op_kind::BiasAdd, "biasadd_op"};
-        biasadd_op.set_attr<std::string>("data_format", "NCX");
+        biasadd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
 
         impl::op_t gelu_op {7, impl::op_kind::GELU, "gelu_op"};
 
         impl::op_t tcdst_op {8, impl::op_kind::TypeCast, "typecast_dst"};
 
         impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>("qtype", qtype);
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_src});
-        qout_op.set_attr<int64_t>("axis", 1);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -22543,7 +22727,7 @@ TEST(Execute, ReorderAddBf16) {
     impl::graph_t agraph(eng.kind());
     impl::op_t reorder {0, impl::op_kind::Reorder, "reorder"};
     impl::op_t add {1, impl::op_kind::Add, "add"};
-    add.set_attr<std::string>("auto_broadcast", "none");
+    add.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
 
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
             0, {2, 3}, {3, 1}, impl::data_type::bf16);
@@ -22593,7 +22777,7 @@ TEST(Compile, ReorderAddGetInplacePair) {
     impl::graph_t agraph(eng.kind());
     impl::op_t reorder {0, impl::op_kind::Reorder, "reorder"};
     impl::op_t add {1, impl::op_kind::Add, "add"};
-    add.set_attr<std::string>("auto_broadcast", "none");
+    add.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
 
     impl::logical_tensor_t src_lt = utils::logical_tensor_init(
             0, {2, 3}, {3, 1}, impl::data_type::f32);
@@ -22659,17 +22843,17 @@ TEST(Execute, Int8ReorderAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.f};
     impl::op_t dequant {0, impl::op_kind::Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
+    dequant.set_attr(impl::op_attr::scales, scales);
+    dequant.set_attr(impl::op_attr::zps, zps);
     impl::op_t reorder {1, impl::op_kind::Reorder, "reorder"};
     impl::op_t dequant_other {2, impl::op_kind::Dequantize, "dequant_other"};
-    dequant_other.set_attr("scales", scales);
-    dequant_other.set_attr("zps", zps);
+    dequant_other.set_attr(impl::op_attr::scales, scales);
+    dequant_other.set_attr(impl::op_attr::zps, zps);
     impl::op_t add {3, impl::op_kind::Add, "add"};
-    add.set_attr<std::string>("auto_broadcast", "none");
+    add.set_attr<std::string>(impl::op_attr::auto_broadcast, "none");
     impl::op_t quant {4, impl::op_kind::Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(impl::op_attr::scales, scales);
+    quant.set_attr(impl::op_attr::zps, zps);
 
     // 1,2,3
     // 4,5,6
@@ -22754,9 +22938,10 @@ public:
         impl::engine_t &eng = get_engine();
 
         impl::op_t op(impl::op_kind::PReLU, "prelu");
-        op.set_attr<std::string>("data_format", params.data_format);
-        op.set_attr<bool>(
-                "per_channel_broadcast", params.per_channel_broadcast);
+        op.set_attr<std::string>(
+                impl::op_attr::data_format, params.data_format);
+        op.set_attr<bool>(impl::op_attr::per_channel_broadcast,
+                params.per_channel_broadcast);
 
         test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5, -1.0, 1.0};
         test::vector<float> wei = params.wei;
@@ -22888,7 +23073,8 @@ public:
         test::vector<float> diff_wei(diff_wei_size, 0.f);
 
         impl::op_t prelu_op(impl::op_kind::PReLUBackprop, "prelu_bwd");
-        prelu_op.set_attr<std::string>("data_format", params.data_format);
+        prelu_op.set_attr<std::string>(
+                impl::op_attr::data_format, params.data_format);
 
         impl::logical_tensor_t src_lt = utils::logical_tensor_init(
                 0, params.data_dims, impl::data_type::f32);
@@ -23020,24 +23206,24 @@ TEST(ExecuteSubgraphInt8, Relu) {
 
     // -------------------------case 1----------------------------------
     impl::op_t qdata_op(0, impl::op_kind::Quantize, "qdata_op");
-    qdata_op.set_attr<std::string>("qtype", "per_tensor");
-    qdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    qdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    qdata_op.set_attr<int64_t>("axis", 0);
+    qdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    qdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    qdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t relu_op(2, impl::op_kind::ReLU, "relu_op");
 
     impl::op_t qout_op(3, impl::op_kind::Quantize, "qout_op");
-    qout_op.set_attr<std::string>("qtype", "per_tensor");
-    qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-    qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-    qout_op.set_attr<int64_t>("axis", 0);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -23137,26 +23323,32 @@ TEST(ExecuteSubgraphInt8, ReluAdd) {
 
         impl::op_t dqdata_relu_op(
                 1, impl::op_kind::Dequantize, "dqdata_relu_op");
-        dqdata_relu_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_relu_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-        dqdata_relu_op.set_attr<std::vector<float>>("scales", {scale_src});
-        dqdata_relu_op.set_attr<int64_t>("axis", 0);
+        dqdata_relu_op.set_attr<std::string>(
+                impl::op_attr::qtype, "per_tensor");
+        dqdata_relu_op.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_src});
+        dqdata_relu_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_src});
+        dqdata_relu_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t dqdata_add_op(2, impl::op_kind::Dequantize, "dqdata_add_op");
-        dqdata_add_op.set_attr<std::string>("qtype", "per_tensor");
-        dqdata_add_op.set_attr<std::vector<int64_t>>("zps", {zp_add});
-        dqdata_add_op.set_attr<std::vector<float>>("scales", {scale_add});
-        dqdata_add_op.set_attr<int64_t>("axis", 0);
+        dqdata_add_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        dqdata_add_op.set_attr<std::vector<int64_t>>(
+                impl::op_attr::zps, {zp_add});
+        dqdata_add_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_add});
+        dqdata_add_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         impl::op_t relu_op(3, impl::op_kind::ReLU, "relu_op");
 
         impl::op_t add_op(4, impl::op_kind::Add, "add_op");
 
         impl::op_t qout_op(5, impl::op_kind::Quantize, "qout_op");
-        qout_op.set_attr<std::string>("qtype", "per_tensor");
-        qout_op.set_attr<std::vector<int64_t>>("zps", {zp_out});
-        qout_op.set_attr<std::vector<float>>("scales", {scale_out});
-        qout_op.set_attr<int64_t>("axis", 0);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                impl::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
         // prepare logical tensor
         impl::logical_tensor_t src_u8
@@ -23254,8 +23446,8 @@ TEST(Execute, DynamicQuantizeS32ZpsPerTensor) {
             "Skip dynamic quantize test for GPU device.");
 
     impl::op_t dync_quantize(impl::op_kind::DynamicQuantize);
-    dync_quantize.set_attr<std::string>("qtype", "per_tensor");
-    dync_quantize.set_attr<int64_t>("axis", 0);
+    dync_quantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dync_quantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
     test::vector<float> scales {0.1f};
@@ -23331,8 +23523,8 @@ TEST(Execute, DynamicQuantizeS32ZpsPerChannel) {
             "Skip dynamic quantize test for GPU device.");
 
     impl::op_t dync_quantize(impl::op_kind::DynamicQuantize);
-    dync_quantize.set_attr<std::string>("qtype", "per_channel");
-    dync_quantize.set_attr<int64_t>("axis", 1);
+    dync_quantize.set_attr<std::string>(impl::op_attr::qtype, "per_channel");
+    dync_quantize.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
     test::vector<float> scales {0.1f, 0.2f};
@@ -23402,8 +23594,8 @@ TEST(Execute, DynamicQuantizeS8ZpsPerTensor) {
             "Skip dynamic quantize test for GPU device.");
 
     impl::op_t dync_quantize(impl::op_kind::DynamicQuantize);
-    dync_quantize.set_attr<std::string>("qtype", "per_tensor");
-    dync_quantize.set_attr<int64_t>("axis", 0);
+    dync_quantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dync_quantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
     test::vector<float> scales {0.1f};
@@ -23473,8 +23665,8 @@ TEST(Execute, DynamicQuantizeNoZpsPerTensor) {
             "Skip dynamic quantize test for GPU device.");
 
     impl::op_t dync_quantize(impl::op_kind::DynamicQuantize);
-    dync_quantize.set_attr<std::string>("qtype", "per_tensor");
-    dync_quantize.set_attr<int64_t>("axis", 0);
+    dync_quantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dync_quantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<float> src {-1.0, 0.0, 1.0, 2.0};
     test::vector<float> scales {0.1f};
@@ -23538,8 +23730,8 @@ TEST(Execute, DynamicDequantizeS32ZpsPerTensor) {
             "Skip dynamic quantize test for GPU device.");
 
     impl::op_t dync_dequantize(impl::op_kind::DynamicDequantize);
-    dync_dequantize.set_attr<std::string>("qtype", "per_tensor");
-    dync_dequantize.set_attr<int64_t>("axis", 0);
+    dync_dequantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dync_dequantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<uint8_t> src {0, 10, 20, 30};
     test::vector<float> scales {0.1f};
@@ -23609,8 +23801,8 @@ TEST(Execute, DynamicDequantizeNoZpsPerTensor) {
             "Skip dynamic quantize test for GPU device.");
 
     impl::op_t dync_dequantize(impl::op_kind::DynamicDequantize);
-    dync_dequantize.set_attr<std::string>("qtype", "per_tensor");
-    dync_dequantize.set_attr<int64_t>("axis", 0);
+    dync_dequantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dync_dequantize.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     test::vector<uint8_t> src {0, 10, 20, 30};
     test::vector<float> scales {0.1f};
@@ -23670,7 +23862,7 @@ TEST(Compile, SoftmaxGetInplacePair) {
     impl::engine_t &eng = get_engine();
 
     impl::op_t softmax_op(impl::op_kind::SoftMax);
-    softmax_op.set_attr<int64_t>("axis", 0);
+    softmax_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     // prepare logical tensor
     impl::logical_tensor_t src
@@ -24311,13 +24503,13 @@ TEST(Compile, ConvBiasReluAdd) {
 
     // create op conv
     impl::op_t conv_op(0, impl::op_kind::Convolution, "Convolution");
-    conv_op.set_attr<dims>("strides", dims {1, 1});
-    conv_op.set_attr<dims>("dilations", dims {1, 1});
-    conv_op.set_attr<dims>("pads_begin", dims {0, 0});
-    conv_op.set_attr<dims>("pads_end", dims {0, 0});
-    conv_op.set_attr<int64_t>("groups", 1);
-    conv_op.set_attr<std::string>("data_format", "NCX");
-    conv_op.set_attr<std::string>("filter_format", "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
     conv_op.add_input(src_lt);
     conv_op.add_input(weight_lt);
     conv_op.add_input(bias_lt);
@@ -24412,13 +24604,13 @@ TEST(ExecuteSubgraphFp32, Binary3Postops) {
 
             // set additional parameters for specific ops
             if (pop_t == impl::op_kind::Elu) {
-                post_ops.back().set_attr<float>("alpha", 1.0f);
+                post_ops.back().set_attr<float>(impl::op_attr::alpha, 1.0f);
             } else if (pop_t == impl::op_kind::Clamp) {
-                post_ops.back().set_attr<float>("min", 1.0f);
-                post_ops.back().set_attr<float>("max", 3.0f);
+                post_ops.back().set_attr<float>(impl::op_attr::min, 1.0f);
+                post_ops.back().set_attr<float>(impl::op_attr::max, 3.0f);
             } else if (pop_t == impl::op_kind::HardTanh) {
-                post_ops.back().set_attr<float>("min", 1.0f);
-                post_ops.back().set_attr<float>("max", 3.0f);
+                post_ops.back().set_attr<float>(impl::op_attr::min, 1.0f);
+                post_ops.back().set_attr<float>(impl::op_attr::max, 3.0f);
             }
 
             post_ops.back().add_input(lt_vec[lt_idx]);
@@ -24516,26 +24708,27 @@ TEST(ExecuteSubgraphInt8, U8u8bf16DivBmm) {
     int64_t zp_wei = 114;
 
     impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", "per_tensor");
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", {zp_wei});
-    dqweight_op.set_attr<std::vector<float>>("scales", {scale_wei});
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_wei});
+    dqweight_op.set_attr<std::vector<float>>(
+            impl::op_attr::scales, {scale_wei});
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
 
     impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
 
     impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
-    binary_op.set_attr<std::string>("auto_broadcast", "numpy");
+    binary_op.set_attr<std::string>(impl::op_attr::auto_broadcast, "numpy");
 
     // prepare logical tensor
     impl::logical_tensor_t src

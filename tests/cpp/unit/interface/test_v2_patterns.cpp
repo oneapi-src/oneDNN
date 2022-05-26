@@ -154,7 +154,7 @@ TEST(PatternMatcherV2, GraphAppendNonLeafOp) {
 
     // matched dnnl_graph_op will be marked
     for (auto &p : fusion_ops) {
-        ASSERT_TRUE(p->get_attr<bool>("matched_pattern"));
+        ASSERT_TRUE(p->get_attr<bool>(op_attr::matched));
     }
 }
 
@@ -311,7 +311,7 @@ TEST(PatternMatcherV2, CommutativeInputBothConstrained) {
         op_t conv {0, Convolution, "conv"};
         set_conv_common_attr(conv);
         op_t elu {1, Elu, "elu"};
-        elu.set_attr<float>("alpha", 0.1);
+        elu.set_attr<float>(op_attr::alpha, 0.1);
         op_t abs {2, Abs, "abs"};
         op_t add {3, Add, "add"};
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
@@ -461,7 +461,7 @@ TEST(PatternMatcherV2, ConvBiasSumActivationFusion) {
     op_t bias {1, BiasAdd, "bias"};
     op_t add {2, Add, "add"};
     op_t elu {3, Elu, "elu"};
-    elu.set_attr<float>("alpha", 0.1);
+    elu.set_attr<float>(op_attr::alpha, 0.1);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
     conv.add_input(lt_vec[0]);
@@ -1011,7 +1011,7 @@ TEST(PatternMatcherV2, ComplexRepetition) {
     op_t conv4 {0, Convolution, "conv4"};
     set_conv_common_attr(conv4);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
 
     lt_vec = create_logical_tensors(8);
     conv4.add_input(lt_vec[0]);
@@ -1128,11 +1128,11 @@ TEST(PatternMatcherV2, OptionalInput) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dq0 {1, Dequantize, "dq0"};
-    dq0.set_attr("scales", scales);
-    dq0.set_attr("zps", zps);
+    dq0.set_attr(op_attr::scales, scales);
+    dq0.set_attr(op_attr::zps, zps);
     op_t dq1 {2, Dequantize, "dq1"};
-    dq1.set_attr("scales", scales);
-    dq1.set_attr("zps", zps);
+    dq1.set_attr(op_attr::scales, scales);
+    dq1.set_attr(op_attr::zps, zps);
 
     auto lt0 = logical_tensor_init(0, impl::data_type::s8);
     auto lt1 = logical_tensor_init(1, impl::data_type::f32);
@@ -1268,7 +1268,7 @@ TEST(PatternMatcherV2, MultipleConsumer) {
 
     graph_t agraph;
     op_t transpose {0, StaticTranspose, "transpose"};
-    transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose.set_attr(op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     op_t matmul1 {1, MatMul, "matmul1"};
     op_t matmul2 {2, MatMul, "matmul2"};
 
@@ -1473,11 +1473,11 @@ TEST(PatternMatcherV2, RepetitionExternalOutput) {
     op_t relu1 {3, ReLU, "relu1"};
 
     op_t ext0 {4, StaticTranspose, "ext0"};
-    ext0.set_attr("order", std::vector<int64_t> {0, 1});
+    ext0.set_attr(op_attr::order, std::vector<int64_t> {0, 1});
     op_t ext1 {5, StaticTranspose, "ext1"};
-    ext1.set_attr("order", std::vector<int64_t> {0, 1});
+    ext1.set_attr(op_attr::order, std::vector<int64_t> {0, 1});
     op_t ext2 {6, StaticTranspose, "ext2"};
-    ext2.set_attr("order", std::vector<int64_t> {0, 1});
+    ext2.set_attr(op_attr::order, std::vector<int64_t> {0, 1});
 
     auto lt0 = logical_tensor_init(0, impl::data_type::f32);
     auto lt1 = logical_tensor_init(1, impl::data_type::f32);
@@ -1559,11 +1559,11 @@ TEST(PatternMatcherV2, RepetitionExternalOutputSwapOrder) {
     op_t relu1 {3, ReLU, "relu1"};
 
     op_t ext0 {4, StaticTranspose, "ext0"};
-    ext0.set_attr("order", std::vector<int64_t> {0, 1});
+    ext0.set_attr(op_attr::order, std::vector<int64_t> {0, 1});
     op_t ext1 {5, StaticTranspose, "ext1"};
-    ext1.set_attr("order", std::vector<int64_t> {0, 1});
+    ext1.set_attr(op_attr::order, std::vector<int64_t> {0, 1});
     op_t ext2 {6, StaticTranspose, "ext2"};
-    ext2.set_attr("order", std::vector<int64_t> {0, 1});
+    ext2.set_attr(op_attr::order, std::vector<int64_t> {0, 1});
 
     auto lt0 = logical_tensor_init(0, impl::data_type::f32);
     auto lt1 = logical_tensor_init(1, impl::data_type::f32);

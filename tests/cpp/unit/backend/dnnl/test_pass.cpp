@@ -78,7 +78,7 @@ TEST(Pass, FuseConvBn) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
     conv.add_input(lt_vec[0]);
@@ -130,7 +130,7 @@ TEST(Pass, FuseConvBnWithSharedInputs) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     conv.add_input(lt_vec[0]);
@@ -188,7 +188,7 @@ TEST(Pass, FailToFuseConvBnWithBias) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
     conv.add_input(lt_vec[0]);
@@ -223,7 +223,7 @@ TEST(Pass, FailToFuseConvBnWithConvSecondOutput) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {2, ReLU, "relu"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
@@ -506,7 +506,7 @@ TEST(Pass, FuseConvBiasaddBn) {
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
     op_t bn {2, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(10);
     conv.add_input(lt_vec[0]);
@@ -558,7 +558,7 @@ TEST(Pass, FuseConvBiasBnWithInputBias) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
     conv.add_input(lt_vec[0]);
@@ -692,8 +692,8 @@ TEST(Pass, FuseConvBiasaddRelu6) {
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
     op_t hardtanh {2, HardTanh, "hardtanh"};
-    hardtanh.set_attr("min", 0.f);
-    hardtanh.set_attr("max", 6.f);
+    hardtanh.set_attr(op_attr::min, 0.f);
+    hardtanh.set_attr(op_attr::max, 6.f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     conv.add_input(lt_vec[0]);
@@ -737,7 +737,7 @@ TEST(Pass, FuseConvBiasElu) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t elu {1, Elu, "elu"};
-    elu.set_attr("alpha", 0.1f);
+    elu.set_attr(op_attr::alpha, 0.1f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     conv.add_input(lt_vec[0]);
@@ -958,8 +958,8 @@ TEST(Pass, FuseConvBiasHardtanh) {
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
     op_t hardtanh {2, HardTanh, "hardtanh"};
-    hardtanh.set_attr("min", 0.f);
-    hardtanh.set_attr("max", 100.f);
+    hardtanh.set_attr(op_attr::min, 0.f);
+    hardtanh.set_attr(op_attr::max, 100.f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     conv.add_input(lt_vec[0]);
@@ -1339,7 +1339,7 @@ TEST(Pass, FuseConvBiasaddSumElu) {
     op_t bias {1, BiasAdd, "bias"};
     op_t add {2, Add, "add"};
     op_t elu {3, Elu, "elu"};
-    elu.set_attr("alpha", 0.1f);
+    elu.set_attr(op_attr::alpha, 0.1f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
     conv.add_input(lt_vec[0]);
@@ -1392,8 +1392,8 @@ TEST(Pass, FuseConvBiasaddSumRelu6) {
     op_t bias {1, BiasAdd, "bias"};
     op_t add {2, Add, "add"};
     op_t hardtanh {3, HardTanh, "hardtanh"};
-    hardtanh.set_attr("min", 0.f);
-    hardtanh.set_attr("max", 6.f);
+    hardtanh.set_attr(op_attr::min, 0.f);
+    hardtanh.set_attr(op_attr::max, 6.f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
     conv.add_input(lt_vec[0]);
@@ -1900,7 +1900,7 @@ TEST(Pass, FuseBnRelu) {
     */
     graph_t agraph;
     op_t bn {0, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {1, ReLU, "relu"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
@@ -1958,7 +1958,7 @@ TEST(Pass, FuseBnBwdReluBwd) {
     graph_t agraph;
     op_t op1 {0, ReLUBackprop, "op1"};
     op_t op2 {1, BatchNormTrainingBackprop, "op2"};
-    op2.set_attr("epsilon", 0.001f);
+    op2.set_attr(op_attr::epsilon, 0.001f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(10);
     op1.add_input(lt_vec[0]);
@@ -2069,7 +2069,7 @@ TEST(Pass, FuseConvSumElu) {
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
     op_t elu {2, Elu, "elu"};
-    elu.set_attr("alpha", 0.2f);
+    elu.set_attr(op_attr::alpha, 0.2f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     conv.add_input(lt_vec[0]);
@@ -2114,8 +2114,8 @@ TEST(Pass, FuseConvSumRelu6) {
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
     op_t relu6 {2, HardTanh, "relu6"};
-    relu6.set_attr("min", 0.f);
-    relu6.set_attr("max", 6.f);
+    relu6.set_attr(op_attr::min, 0.f);
+    relu6.set_attr(op_attr::max, 6.f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     conv.add_input(lt_vec[0]);
@@ -2234,7 +2234,7 @@ TEST(Pass, FuseConvBnSum) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t add {2, Add, "add"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(10);
@@ -2287,7 +2287,7 @@ TEST(Pass, FuseConvBnSumWithRelu) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t add {2, Add, "add"};
     op_t relu {3, ReLU, "relu"};
 
@@ -2346,7 +2346,7 @@ TEST(Pass, FailToFuseConvBnSumWithInputBias) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t add {2, Add, "add"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(11);
@@ -2388,7 +2388,7 @@ TEST(Pass, FuseConvBiasBnSum) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t add {2, Add, "add"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(11);
@@ -2443,7 +2443,7 @@ TEST(Pass, FuseConvBnRelu) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {2, ReLU, "relu"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
@@ -2508,7 +2508,7 @@ TEST(Pass, FuseConvBiasaddBnRelu) {
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
     op_t bn {2, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {3, ReLU, "relu"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(11);
@@ -2566,7 +2566,7 @@ TEST(Pass, FuseConvBiasBnReluWithInputBias) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {2, ReLU, "relu"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(10);
@@ -2635,7 +2635,7 @@ TEST(Pass, FuseConvBnSumRelu) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t add {2, Add, "add"};
     op_t relu {3, ReLU, "relu"};
 
@@ -2696,7 +2696,7 @@ TEST(Pass, FuseConvBiasBnSumRelu) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t add {2, Add, "add"};
     op_t relu {3, ReLU, "relu"};
 
@@ -2812,13 +2812,13 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
                     // eltwise
                     op_t eltwise {op_id++, opkind, "eltwise"};
                     if (opkind == impl::op_kind::Elu) {
-                        eltwise.set_attr<float>("alpha", 1.0f);
+                        eltwise.set_attr<float>(op_attr::alpha, 1.0f);
                     } else if (opkind == impl::op_kind::Clamp) {
-                        eltwise.set_attr<float>("min", 1.0f);
-                        eltwise.set_attr<float>("max", 3.0f);
+                        eltwise.set_attr<float>(op_attr::min, 1.0f);
+                        eltwise.set_attr<float>(op_attr::max, 3.0f);
                     } else if (opkind == impl::op_kind::HardTanh) {
-                        eltwise.set_attr<float>("min", 1.0f);
-                        eltwise.set_attr<float>("max", 3.0f);
+                        eltwise.set_attr<float>(op_attr::min, 1.0f);
+                        eltwise.set_attr<float>(op_attr::max, 3.0f);
                     }
                     if (i == 0) {
                         eltwise.add_input(conv_out);
@@ -2919,13 +2919,13 @@ TEST(Pass, FuseConvPostOpsChain) {
                     // eltwise
                     op_t eltwise {op_id++, opkind, "eltwise"};
                     if (opkind == impl::op_kind::Elu) {
-                        eltwise.set_attr<float>("alpha", 1.0f);
+                        eltwise.set_attr<float>(op_attr::alpha, 1.0f);
                     } else if (opkind == impl::op_kind::Clamp) {
-                        eltwise.set_attr<float>("min", 1.0f);
-                        eltwise.set_attr<float>("max", 3.0f);
+                        eltwise.set_attr<float>(op_attr::min, 1.0f);
+                        eltwise.set_attr<float>(op_attr::max, 3.0f);
                     } else if (opkind == impl::op_kind::HardTanh) {
-                        eltwise.set_attr<float>("min", 1.0f);
-                        eltwise.set_attr<float>("max", 3.0f);
+                        eltwise.set_attr<float>(op_attr::min, 1.0f);
+                        eltwise.set_attr<float>(op_attr::max, 3.0f);
                     }
                     if (i == 0) {
                         eltwise.add_input(conv_out);
@@ -3301,7 +3301,7 @@ TEST(Pass, FuseMatmulElu) {
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t elu {1, Elu, "elu"};
-    elu.set_attr("alpha", 0.1f);
+    elu.set_attr(op_attr::alpha, 0.1f);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     matmul.add_input(lt_vec[0]);
     matmul.add_input(lt_vec[1]);
@@ -3376,8 +3376,8 @@ TEST(Pass, FuseMatmulHardtanh) {
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t hardtanh {1, HardTanh, "hardtanh"};
-    hardtanh.set_attr("min", -1.f);
-    hardtanh.set_attr("max", 1.f);
+    hardtanh.set_attr(op_attr::min, -1.f);
+    hardtanh.set_attr(op_attr::max, 1.f);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     matmul.add_input(lt_vec[0]);
     matmul.add_input(lt_vec[1]);
@@ -3952,7 +3952,7 @@ TEST(Pass, FuseMatmulBiasaddElu) {
     op_t matmul {0, MatMul, "matmul"};
     op_t bias {1, BiasAdd, "bias"};
     op_t elu {2, Elu, "elu"};
-    elu.set_attr("alpha", 0.1f);
+    elu.set_attr(op_attr::alpha, 0.1f);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     matmul.add_input(lt_vec[0]);
     matmul.add_input(lt_vec[1]);
@@ -4042,8 +4042,8 @@ TEST(Pass, FuseMatmulBiasaddHardtanh) {
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t hardtanh {1, HardTanh, "hardtanh"};
-    hardtanh.set_attr("min", 0.1f);
-    hardtanh.set_attr("max", 0.2f);
+    hardtanh.set_attr(op_attr::min, 0.1f);
+    hardtanh.set_attr(op_attr::max, 0.2f);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     matmul.add_input(lt_vec[0]);
     matmul.add_input(lt_vec[1]);
@@ -4313,8 +4313,8 @@ TEST(Pass, FuseMatmulBiasaddRelu6) {
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
     op_t relu6 {1, HardTanh, "hardtanh"};
-    relu6.set_attr("min", 0.f);
-    relu6.set_attr("max", 6.f);
+    relu6.set_attr(op_attr::min, 0.f);
+    relu6.set_attr(op_attr::max, 6.f);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     matmul.add_input(lt_vec[0]);
     matmul.add_input(lt_vec[1]);
@@ -4634,7 +4634,7 @@ TEST(Pass, SaveLoadJson) {
     op_t conv1 {0, Convolution, "conv"};
     set_conv_common_attr(conv1);
     op_t bn {1, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {2, ReLU, "relu"};
     op_t conv2 {3, Convolution, "conv"};
     set_conv_common_attr(conv2);
@@ -5043,17 +5043,17 @@ TEST(Pass, FuseToInt8Conv) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
     dequant1.add_input(int8_data);
@@ -5107,11 +5107,11 @@ TEST(Pass, FuseToInt8Fp32Conv) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
@@ -5194,17 +5194,17 @@ wildcard     | (f32)
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     op_t wildcard {5, Wildcard, "wildcard"};
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
@@ -5255,16 +5255,16 @@ TEST(Pass, FuseToInt8ConvBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t quant {3, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -5344,17 +5344,17 @@ TEST(Pass, FuseToInt8ConvRelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -5419,18 +5419,18 @@ TEST(Pass, FuseToInt8ConvSwish) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t sigmoid {3, Sigmoid, "sigmoid"};
     op_t multiply {4, Multiply, "mul"};
     op_t quant {5, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -5520,17 +5520,17 @@ TEST(Pass, FuseToInt8ConvBiasRelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -5619,20 +5619,20 @@ TEST(Pass, FuseToInt8ConvBiasAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {5, Add, "add"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -5712,17 +5712,17 @@ TEST(Pass, FuseToInt8ConvBinary) {
             std::vector<int64_t> zps = {0};
             std::vector<float> scales = {3.1f};
             op_t dequant1 {0, Dequantize, "dequant"};
-            dequant1.set_attr("scales", scales);
-            dequant1.set_attr("zps", zps);
+            dequant1.set_attr(op_attr::scales, scales);
+            dequant1.set_attr(op_attr::zps, zps);
             op_t dequant2 {1, Dequantize, "dequant"};
-            dequant2.set_attr("scales", scales);
-            dequant2.set_attr("zps", zps);
+            dequant2.set_attr(op_attr::scales, scales);
+            dequant2.set_attr(op_attr::zps, zps);
             op_t conv {2, Convolution, "conv"};
             set_conv_common_attr(conv);
             op_t binary {3, binary_kind, "binary"};
             op_t quant {4, Quantize, "quant"};
-            quant.set_attr("scales", scales);
-            quant.set_attr("zps", zps);
+            quant.set_attr(op_attr::scales, scales);
+            quant.set_attr(op_attr::zps, zps);
 
             int lt_id = -1;
             logical_tensor_t int8_data
@@ -5816,24 +5816,24 @@ TEST(Pass, FuseInt8ConvBiasWithTwoAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t dequant4 {3, Dequantize, "dequant"};
-    dequant4.set_attr("scales", scales);
-    dequant4.set_attr("zps", zps);
+    dequant4.set_attr(op_attr::scales, scales);
+    dequant4.set_attr(op_attr::zps, zps);
     op_t conv {4, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {5, Add, "add"};
     op_t add2 {6, Add, "add"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -5948,21 +5948,21 @@ TEST(Pass, FuseToInt8ConvBiasAddRelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {5, Add, "add"};
     op_t relu {6, ReLU, "relu"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -6045,21 +6045,21 @@ TEST(Pass, FuseToInt8ConvBiasDivAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t div {4, Divide, "div"};
     op_t add {5, Add, "add"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -6145,21 +6145,21 @@ TEST(PassSystem, FuseToInt8ConvBiasDivAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t div {4, Divide, "div"};
     op_t add {5, Add, "add"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -6275,22 +6275,22 @@ TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
     std::vector<int64_t> zps = {0, 0, 0, 1};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {5, Add, "add"};
     set_conv_common_attr(conv);
     op_t relu {6, ReLU, "relu"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -6364,11 +6364,11 @@ TEST(Pass, FuseToX8s8f32Conv) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
@@ -6418,11 +6418,11 @@ TEST(Pass, FuseToX8s8f32ConvBiasWithInputBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
@@ -6478,11 +6478,11 @@ TEST(Pass, FuseToX8s8f32ConvReluWithInputBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
@@ -6540,11 +6540,11 @@ TEST(Pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {3, ReLU, "relu"};
@@ -6610,14 +6610,14 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddRelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {5, Add, "add"};
@@ -6699,14 +6699,14 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddReluWithAsymmetricZp) {
     std::vector<int64_t> zps = {0, 0, 0, 1};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {5, Add, "add"};
@@ -6791,28 +6791,28 @@ TEST(Pass, TestQuantizedConv) {
     std::vector<int64_t> zps = {0, 0, 0, 0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {4, Add, "add"};
     set_conv_common_attr(conv);
     op_t relu {5, ReLU, "relu"};
     op_t dequant4 {6, Dequantize, "dequant"};
-    dequant4.set_attr("scales", scales);
-    dequant4.set_attr("zps", zps);
+    dequant4.set_attr(op_attr::scales, scales);
+    dequant4.set_attr(op_attr::zps, zps);
     op_t dequant5 {7, Dequantize, "dequant"};
-    dequant5.set_attr("scales", scales);
-    dequant5.set_attr("zps", zps);
+    dequant5.set_attr(op_attr::scales, scales);
+    dequant5.set_attr(op_attr::zps, zps);
     op_t quant {8, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     op_t conv1 {9, Convolution, "conv"};
     set_conv_common_attr(conv1);
 
@@ -6918,15 +6918,15 @@ TEST(Pass, FuseToInt8Matmul) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
     op_t quant {3, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
     dequant1.add_input(int8_data);
@@ -6980,15 +6980,15 @@ TEST(PassSystem, TestInt8Matmul) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
     op_t quant {3, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
     dequant1.add_input(int8_data);
@@ -7053,16 +7053,16 @@ TEST(Pass, FuseToInt8MatMulBinary) {
             std::vector<int64_t> zps = {0};
             std::vector<float> scales = {3.1f};
             op_t dequant1 {0, Dequantize, "dequant"};
-            dequant1.set_attr("scales", scales);
-            dequant1.set_attr("zps", zps);
+            dequant1.set_attr(op_attr::scales, scales);
+            dequant1.set_attr(op_attr::zps, zps);
             op_t dequant2 {1, Dequantize, "dequant"};
-            dequant2.set_attr("scales", scales);
-            dequant2.set_attr("zps", zps);
+            dequant2.set_attr(op_attr::scales, scales);
+            dequant2.set_attr(op_attr::zps, zps);
             op_t matmul {2, MatMul, "matmul"};
             op_t binary {3, binary_kind, "binary"};
             op_t quant {4, Quantize, "quant"};
-            quant.set_attr("scales", scales);
-            quant.set_attr("zps", zps);
+            quant.set_attr(op_attr::scales, scales);
+            quant.set_attr(op_attr::zps, zps);
 
             int lt_id = -1;
             logical_tensor_t int8_data
@@ -7154,16 +7154,16 @@ TEST(Pass, FailToFuseToInt8MatMulDivOrSubtract) {
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
-        dequant1.set_attr("scales", scales);
-        dequant1.set_attr("zps", zps);
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
         op_t dequant2 {1, Dequantize, "dequant"};
-        dequant2.set_attr("scales", scales);
-        dequant2.set_attr("zps", zps);
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
         op_t matmul {2, MatMul, "matmul"};
         op_t binary {3, binary_kind, "binary"};
         op_t quant {4, Quantize, "quant"};
-        quant.set_attr("scales", scales);
-        quant.set_attr("zps", zps);
+        quant.set_attr(op_attr::scales, scales);
+        quant.set_attr(op_attr::zps, zps);
 
         int lt_id = -1;
         logical_tensor_t int8_data
@@ -7234,18 +7234,18 @@ TEST(PassSystem, FuseToInt8MatMulSwishReLU) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
     op_t sigmoid {3, Sigmoid, "sigmoid"};
     op_t multiply {4, Multiply, "mul"};
     op_t relu {5, ReLU, "relu"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -7320,15 +7320,15 @@ TEST(Pass, FuseToInt8MatmulBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
     op_t quant {3, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
     dequant1.add_input(int8_data);
@@ -7386,15 +7386,15 @@ TEST(PassSystem, TestInt8MatmulBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
     op_t quant {3, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
     dequant1.add_input(int8_data);
@@ -7456,16 +7456,16 @@ TEST(Pass, FuseToInt8MatmulRelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "conv"};
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -7528,16 +7528,16 @@ TEST(PassSystem, FuseToInt8MatmulRelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "conv"};
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -7601,16 +7601,16 @@ TEST(Pass, FuseToInt8MatmulBiasRelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -7672,11 +7672,11 @@ TEST(Pass, FuseToX8s8f32Matmul) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
@@ -7725,11 +7725,11 @@ TEST(Pass, FuseToX8s8f32MatmulBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
@@ -7791,11 +7791,11 @@ TEST(Pass, FuseToX8s8f32MatmulEltwise) {
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
-        dequant1.set_attr("scales", scales);
-        dequant1.set_attr("zps", zps);
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
         op_t dequant2 {1, Dequantize, "dequant"};
-        dequant2.set_attr("scales", scales);
-        dequant2.set_attr("zps", zps);
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
         op_t matmul {2, MatMul, "conv"};
         op_t eltwise {3, p.first, "eltwise"};
 
@@ -7862,11 +7862,11 @@ TEST(Pass, FuseToX8s8f32MatmulBiasEltwise) {
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
-        dequant1.set_attr("scales", scales);
-        dequant1.set_attr("zps", zps);
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
         op_t dequant2 {1, Dequantize, "dequant"};
-        dequant2.set_attr("scales", scales);
-        dequant2.set_attr("zps", zps);
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
         op_t matmul {2, MatMul, "matmul"};
         op_t eltwise {3, p.first, "eltwise"};
 
@@ -7931,22 +7931,22 @@ TEST(Pass, FuseToInt8Maxpool) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
+    dequant.set_attr(op_attr::scales, scales);
+    dequant.set_attr(op_attr::zps, zps);
 
     std::vector<int64_t> strides = {1, 1};
     std::vector<int64_t> pads_begin = {0, 0};
     std::vector<int64_t> pads_end = {0, 0};
     std::vector<int64_t> kernel = {2, 2};
     op_t maxpool {1, MaxPool, "maxpool"};
-    maxpool.set_attr("strides", strides);
-    maxpool.set_attr("pads_begin", pads_begin);
-    maxpool.set_attr("pads_end", pads_end);
-    maxpool.set_attr("kernel", kernel);
+    maxpool.set_attr(op_attr::strides, strides);
+    maxpool.set_attr(op_attr::pads_begin, pads_begin);
+    maxpool.set_attr(op_attr::pads_end, pads_end);
+    maxpool.set_attr(op_attr::kernel, kernel);
 
     op_t quant {2, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -8013,23 +8013,23 @@ TEST(Pass, FuseToInt8Avgpool) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
+    dequant.set_attr(op_attr::scales, scales);
+    dequant.set_attr(op_attr::zps, zps);
 
     std::vector<int64_t> strides = {1, 1};
     std::vector<int64_t> pads_begin = {0, 0};
     std::vector<int64_t> pads_end = {0, 0};
     std::vector<int64_t> kernel = {2, 2};
     op_t avgpool {1, AvgPool, "avgpool"};
-    avgpool.set_attr("strides", strides);
-    avgpool.set_attr("pads_begin", pads_begin);
-    avgpool.set_attr("pads_end", pads_end);
-    avgpool.set_attr("kernel", kernel);
-    avgpool.set_attr<bool>("exclude_pad", false);
+    avgpool.set_attr(op_attr::strides, strides);
+    avgpool.set_attr(op_attr::pads_begin, pads_begin);
+    avgpool.set_attr(op_attr::pads_end, pads_end);
+    avgpool.set_attr(op_attr::kernel, kernel);
+    avgpool.set_attr<bool>(op_attr::exclude_pad, false);
 
     op_t quant {2, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -8089,28 +8089,29 @@ TEST(Pass, FuseToInt8PoolAdd) {
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant {0, Dequantize, "dequant"};
-        dequant.set_attr("scales", scales);
-        dequant.set_attr("zps", zps);
+        dequant.set_attr(op_attr::scales, scales);
+        dequant.set_attr(op_attr::zps, zps);
         op_t dequant2 {1, Dequantize, "dequant"};
-        dequant2.set_attr("scales", scales);
-        dequant2.set_attr("zps", zps);
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
 
         std::vector<int64_t> strides = {2, 2};
         std::vector<int64_t> pads_begin = {0, 0};
         std::vector<int64_t> pads_end = {0, 0};
         std::vector<int64_t> kernel = {2, 2};
         op_t pool {2, base_op, "pool"};
-        pool.set_attr("strides", strides);
-        pool.set_attr("pads_begin", pads_begin);
-        pool.set_attr("pads_end", pads_end);
-        pool.set_attr("kernel", kernel);
-        if (base_op == AvgPool) pool.set_attr<bool>("exclude_pad", false);
+        pool.set_attr(op_attr::strides, strides);
+        pool.set_attr(op_attr::pads_begin, pads_begin);
+        pool.set_attr(op_attr::pads_end, pads_end);
+        pool.set_attr(op_attr::kernel, kernel);
+        if (base_op == AvgPool)
+            pool.set_attr<bool>(op_attr::exclude_pad, false);
 
         op_t add {3, Add, "add"};
 
         op_t quant {4, Quantize, "quant"};
-        quant.set_attr("scales", scales);
-        quant.set_attr("zps", zps);
+        quant.set_attr(op_attr::scales, scales);
+        quant.set_attr(op_attr::zps, zps);
 
         logical_tensor_t int8_data
                 = logical_tensor_init(0, {1, 1, 4, 4}, data_type::u8);
@@ -8196,12 +8197,12 @@ TEST(Pass, FuseToInt8Relu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
+    dequant.set_attr(op_attr::scales, scales);
+    dequant.set_attr(op_attr::zps, zps);
     op_t relu {1, ReLU, "relu"};
     op_t quant {2, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_deq = logical_tensor_init(0, data_type::u8);
     logical_tensor_t int8_deq_out = logical_tensor_init(1, data_type::f32);
@@ -8247,16 +8248,16 @@ TEST(Pass, FuseToInt8ReluAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t relu {1, ReLU, "relu"};
     op_t dequant2 {2, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t add {3, Add, "add"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t s8_deq1 = logical_tensor_init(0, data_type::s8);
     logical_tensor_t fp32_deq1_out = logical_tensor_init(1, data_type::f32);
@@ -8322,21 +8323,21 @@ TEST(Pass, FuseToInt8MatmulAdd) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t matmul {3, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t add {4, Add, "add"};
     op_t quant {5, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -8410,21 +8411,21 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t matmul {3, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t add {4, Add, "add"};
     op_t quant {5, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -8501,21 +8502,21 @@ TEST(PassSystem, FuseToInt8MatmulBiasAdd) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t matmul {3, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t add {4, Add, "add"};
     op_t quant {5, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -8654,17 +8655,17 @@ TEST(Pass, FuseToX8s8f32MatmulBiasAdd) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t matmul {3, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t add {4, Add, "add"};
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
@@ -8735,17 +8736,17 @@ TEST(Pass, FuseToX8x8f32MatmulAdd) {
     std::vector<int64_t> zps {0, 0};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t matmul {3, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t add {4, Add, "add"};
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
@@ -8812,17 +8813,17 @@ TEST(Pass, FuseToX8x8f32MatmulBiasAdd) {
     std::vector<int64_t> zps {0, 0};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t matmul {3, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t add {4, Add, "add"};
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
@@ -8891,11 +8892,11 @@ TEST(Pass, FuseToX8x8f32MatmulDivAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
     op_t div {3, Divide, "divide"};
     op_t add {4, Add, "add"};
@@ -8966,11 +8967,11 @@ TEST(PassSystem, FuseToX8x8f32MatmulDivAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
     op_t div {3, Divide, "divide"};
     op_t add {4, Add, "add"};
@@ -9032,11 +9033,11 @@ TEST(Pass, FuseToX8s8bf16Matmul) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -9099,11 +9100,11 @@ TEST(PassSystem, FuseToX8s8bf16Matmul) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -9163,11 +9164,11 @@ TEST(Pass, FuseToX8s8bf16MatmulDiv) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -9241,11 +9242,11 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDiv) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -9334,11 +9335,11 @@ TEST(Pass, FuseToX8s8bf16MatmulDivAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -9423,11 +9424,11 @@ TEST(PassSystem, FuseToX8s8bf16MatmulDivAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -9501,11 +9502,11 @@ TEST(Pass, FuseToX8s8bf16MatmulBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -9571,11 +9572,11 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -9665,19 +9666,19 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAdd) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t typecast1 {3, TypeCast, "typecast"};
     op_t typecast2 {4, TypeCast, "typecast"};
     op_t matmul {5, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t add {7, Add, "add"};
 
@@ -9768,19 +9769,19 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAdd) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t typecast1 {3, TypeCast, "typecast"};
     op_t typecast2 {4, TypeCast, "typecast"};
     op_t matmul {5, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t add {7, Add, "add"};
 
@@ -9861,16 +9862,16 @@ TEST(Pass, FuseToX8s8bf16MatmulBiasAddBF16) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t add {5, Add, "add"};
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
@@ -9949,16 +9950,16 @@ TEST(PassSystem, FuseToX8s8bf16MatmulBiasAddBF16) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t add {5, Add, "add"};
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
@@ -10031,19 +10032,19 @@ TEST(PassSystem, FuseToX8s8bf16MatmulAdd) {
     std::vector<int64_t> zps {0, 1};
     std::vector<float> scales {3.1f, 3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t typecast1 {3, TypeCast, "typecast"};
     op_t typecast2 {4, TypeCast, "typecast"};
     op_t matmul {5, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t add {7, Add, "add"};
 
@@ -10131,19 +10132,19 @@ TEST(Pass, MixInt8AndBf16MatmulBiasGelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t eltwise {5, GELU, "gelu"};
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10229,19 +10230,19 @@ TEST(PassSystem, MixInt8AndBf16MatmulBiasGelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t eltwise {5, GELU, "gelu"};
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10316,19 +10317,19 @@ TEST(Pass, MixInt8AndBf16MatmulGelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t eltwise {5, GELU, "gelu"};
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10411,19 +10412,19 @@ TEST(PassSystem, MixInt8AndBf16MatmulGelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t eltwise {5, GELU, "gelu"};
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10502,18 +10503,18 @@ TEST(Pass, MixInt8AndBf16MatmulBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t typecast3 {5, TypeCast, "typecast"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10592,18 +10593,18 @@ TEST(PassSystem, MixInt8AndBf16MatmulBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t typecast3 {5, TypeCast, "typecast"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10679,18 +10680,18 @@ TEST(Pass, MixInt8AndBf16Matmul) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t typecast3 {5, TypeCast, "typecast"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10766,18 +10767,18 @@ TEST(PassSystem, MixInt8AndBf16Matmul) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t typecast3 {5, TypeCast, "typecast"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10851,19 +10852,19 @@ TEST(Pass, MixInt8AndBf16ConvolutionBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t convolution {4, Convolution, "convolution"};
     set_conv_common_attr(convolution);
     op_t typecast3 {5, TypeCast, "typecast"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -10944,19 +10945,19 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBias) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t convolution {4, Convolution, "convolution"};
     set_conv_common_attr(convolution);
     op_t typecast3 {5, TypeCast, "typecast"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -11037,11 +11038,11 @@ TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t convolution {4, Convolution, "convolution"};
@@ -11049,8 +11050,8 @@ TEST(Pass, MixInt8AndBf16ConvolutionBiasGelu) {
     op_t gelu {5, GELU, "gelu"};
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -11138,11 +11139,11 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBiasGelu) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t convolution {4, Convolution, "convolution"};
@@ -11150,8 +11151,8 @@ TEST(PassSystem, MixInt8AndBf16ConvolutionBiasGelu) {
     op_t gelu {5, GELU, "gelu"};
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -11234,7 +11235,7 @@ TEST(Pass, FuseAddIntoSum) {
     logical_tensor_t output = empty_logical_tensor_with_default_id();
     for (size_t n = 0; n < rep_times; ++n) {
         op_t add {n, impl::op_kind::Add, "add_" + std::to_string(n)};
-        add.set_attr<std::string>("auto_broadcast", "none");
+        add.set_attr<std::string>(op_attr::auto_broadcast, "none");
         if (n == 0) {
             input0 = logical_tensor_init(n, impl::data_type::f32);
         } else {
@@ -11277,13 +11278,13 @@ TEST(Pass, FuseBroadcastAddIntoSum) {
     graph_t agraph;
 
     op_t add0 {0, op_kind::Add, "add0"};
-    add0.set_attr<std::string>("auto_broadcast", "none");
+    add0.set_attr<std::string>(op_attr::auto_broadcast, "none");
     logical_tensor_t input0 = logical_tensor_init(0, data_type::f32);
     logical_tensor_t input1 = logical_tensor_init(1, data_type::f32);
     logical_tensor_t output0 = logical_tensor_init(2, data_type::f32);
 
     op_t add1 {1, op_kind::Add, "add1"};
-    add1.set_attr<std::string>("auto_broadcast", "numpy");
+    add1.set_attr<std::string>(op_attr::auto_broadcast, "numpy");
     logical_tensor_t input2 = logical_tensor_init(3, data_type::f32);
     logical_tensor_t output1 = logical_tensor_init(4, data_type::f32);
 
@@ -11317,8 +11318,8 @@ TEST(Pass, FuseTypecaseQuantize) {
     std::vector<float> scales = {3.1f};
     op_t typecast {0, TypeCast, "typecast"};
     op_t quant {1, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t bf16_input = logical_tensor_init(0, data_type::bf16);
     logical_tensor_t f32_input = logical_tensor_init(1, data_type::f32);
@@ -11373,15 +11374,15 @@ TEST(Pass, ShuffleFusion) {
         std::swap(order[axis], order[axis + 1]);
 
         op_t reshape0 {0, StaticReshape, "reshape0"};
-        reshape0.set_attr("shape", reshape0_dst_shape);
-        reshape0.set_attr("special_zero", false);
+        reshape0.set_attr(op_attr::shape, reshape0_dst_shape);
+        reshape0.set_attr(op_attr::special_zero, false);
 
         op_t transpose {1, StaticTranspose, "transpose"};
-        transpose.set_attr("order", order);
+        transpose.set_attr(op_attr::order, order);
 
         op_t reshape1 {2, StaticReshape, "reshape1"};
-        reshape1.set_attr("shape", reshape1_dst_shape);
-        reshape1.set_attr("special_zero", false);
+        reshape1.set_attr(op_attr::shape, reshape1_dst_shape);
+        reshape1.set_attr(op_attr::special_zero, false);
 
         logical_tensor_t reshape0_src = logical_tensor_init(0, data_type::f32);
         logical_tensor_t reshape0_dst = logical_tensor_init(1, data_type::f32);
@@ -11427,8 +11428,8 @@ TEST(PassSystem, FuseTypecaseQuantize) {
     std::vector<float> scales = {3.1f};
     op_t typecast {0, TypeCast, "typecast"};
     op_t quant {1, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t bf16_input = logical_tensor_init(0, data_type::bf16);
     logical_tensor_t f32_input = logical_tensor_init(1, data_type::f32);
@@ -11477,23 +11478,23 @@ TEST(PassSystem, MixInt8AndBf16MatmulAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t add {5, Add, "add"};
     op_t dequant3 {6, Dequantize, "dequant"};
-    dequant3.set_attr("scales", scales);
-    dequant3.set_attr("zps", zps);
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
     op_t typecast3 {7, TypeCast, "typecast"};
     op_t typecast4 {8, TypeCast, "typecast"};
     op_t quant {9, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -11586,19 +11587,19 @@ TEST(PassSystem, MixInt8AndBf16MatmulDiv) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
     op_t div {5, Divide, "divide"};
     op_t typecast3 {6, TypeCast, "typecast"};
     op_t quant {7, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
@@ -11664,7 +11665,7 @@ TEST(Pass, FuseBnReLUWithSharedInputs) {
     */
     graph_t agraph;
     op_t bn {0, BatchNormInference, "bn"};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {1, ReLU, "relu"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -11715,7 +11716,7 @@ TEST(Pass, FuseReorderAdd) {
         graph_t agraph;
         op_t reorder {0, Reorder, "reorder"};
         op_t add {1, Add, "add"};
-        add.set_attr<std::string>("auto_broadcast", "none");
+        add.set_attr<std::string>(op_attr::auto_broadcast, "none");
 
         logical_tensor_t src_lt = logical_tensor_init(0, {2, 3}, {3, 1}, dtype);
         logical_tensor_t dst_lt = logical_tensor_init(1, {2, 3}, {1, 2}, dtype);
@@ -11760,7 +11761,7 @@ TEST(Pass, FailToFuseReorderAdd) {
     op_t reorder {0, Reorder, "reorder"};
     op_t add {1, Add, "add"};
     // if add support auto_broadcast, it cannot be fused
-    add.set_attr<std::string>("auto_broadcast", "numpy");
+    add.set_attr<std::string>(op_attr::auto_broadcast, "numpy");
 
     logical_tensor_t src_lt
             = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::f32);
@@ -11800,12 +11801,12 @@ TEST(Pass, FuseInt8Reorder) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
+    dequant.set_attr(op_attr::scales, scales);
+    dequant.set_attr(op_attr::zps, zps);
     op_t reorder {1, Reorder, "reorder"};
     op_t quant {2, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_src_lt
             = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
@@ -11853,12 +11854,12 @@ TEST(PassSystem, FuseInt8Reorder) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
+    dequant.set_attr(op_attr::scales, scales);
+    dequant.set_attr(op_attr::zps, zps);
     op_t reorder {1, Reorder, "reorder"};
     op_t quant {2, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_src_lt
             = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
@@ -11904,17 +11905,17 @@ TEST(Pass, FuseInt8ReorderAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
+    dequant.set_attr(op_attr::scales, scales);
+    dequant.set_attr(op_attr::zps, zps);
     op_t reorder {1, Reorder, "reorder"};
     op_t dequant_other {2, Dequantize, "dequant_other"};
-    dequant_other.set_attr("scales", scales);
-    dequant_other.set_attr("zps", zps);
+    dequant_other.set_attr(op_attr::scales, scales);
+    dequant_other.set_attr(op_attr::zps, zps);
     op_t add {3, Add, "add"};
-    add.set_attr<std::string>("auto_broadcast", "none");
+    add.set_attr<std::string>(op_attr::auto_broadcast, "none");
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_src_lt
             = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
@@ -11978,17 +11979,17 @@ TEST(PassSystem, FuseInt8ReorderAdd) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
-    dequant.set_attr("scales", scales);
-    dequant.set_attr("zps", zps);
+    dequant.set_attr(op_attr::scales, scales);
+    dequant.set_attr(op_attr::zps, zps);
     op_t reorder {1, Reorder, "reorder"};
     op_t dequant_other {2, Dequantize, "dequant_other"};
-    dequant_other.set_attr("scales", scales);
-    dequant_other.set_attr("zps", zps);
+    dequant_other.set_attr(op_attr::scales, scales);
+    dequant_other.set_attr(op_attr::zps, zps);
     op_t add {3, Add, "add"};
-    add.set_attr<std::string>("auto_broadcast", "none");
+    add.set_attr<std::string>(op_attr::auto_broadcast, "none");
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_src_lt
             = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
@@ -12040,11 +12041,11 @@ TEST(Pass, SingleInterpolatePass) {
     logical_tensor_t lt_out = logical_tensor_init(1, data_type::f32);
     interpolate.add_input(lt_data);
     interpolate.add_output(lt_out);
-    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
-    interpolate.set_attr("scales", std::vector<float> {});
-    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr(op_attr::scales, std::vector<float> {});
+    interpolate.set_attr(op_attr::mode, std::string("linear"));
     interpolate.set_attr(
-            "coordinate_transformation_mode", std::string("half_pixel"));
+            op_attr::coordinate_transformation_mode, std::string("half_pixel"));
 
     ASSERT_EQ(agraph.add_op(&interpolate), status::success);
     ASSERT_EQ(agraph.build_graph(), status::success);
@@ -12054,7 +12055,7 @@ TEST(Pass, SingleInterpolatePass) {
 
     op_t interpolate_coordinate_transformation_mode_fail = interpolate;
     interpolate_coordinate_transformation_mode_fail.set_attr(
-            "coordinate_transformation_mode",
+            op_attr::coordinate_transformation_mode,
             std::string("pytorch_half_pixel "));
     graph_t fgraph;
     ASSERT_EQ(fgraph.add_op(&interpolate_coordinate_transformation_mode_fail),
@@ -12071,10 +12072,10 @@ TEST(Pass, FuseInterpolateRelu) {
     */
     graph_t agraph;
     op_t interpolate {0, Interpolate, "interpolate"};
-    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
-    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr(op_attr::mode, std::string("linear"));
     interpolate.set_attr(
-            "coordinate_transformation_mode", std::string("half_pixel"));
+            op_attr::coordinate_transformation_mode, std::string("half_pixel"));
     op_t relu {1, ReLU, "relu"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(3);
     interpolate.add_input(lt_vec[0]);
@@ -12111,10 +12112,10 @@ TEST(Pass, FuseInterpolateSwish) {
     */
     graph_t agraph;
     op_t interpolate {0, Interpolate, "interpolate"};
-    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
-    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr(op_attr::mode, std::string("linear"));
     interpolate.set_attr(
-            "coordinate_transformation_mode", std::string("half_pixel"));
+            op_attr::coordinate_transformation_mode, std::string("half_pixel"));
     op_t sigmoid {1, Sigmoid, "sigmoid"};
     op_t multiply {2, Multiply, "mul"};
     op_t relu {3, ReLU, "relu"};
@@ -12160,10 +12161,10 @@ TEST(PassSystem, FuseInterpolateSwish) {
     */
     graph_t agraph;
     op_t interpolate {0, Interpolate, "interpolate"};
-    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
-    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr(op_attr::mode, std::string("linear"));
     interpolate.set_attr(
-            "coordinate_transformation_mode", std::string("half_pixel"));
+            op_attr::coordinate_transformation_mode, std::string("half_pixel"));
     op_t sigmoid {1, Sigmoid, "sigmoid"};
     op_t multiply {2, Multiply, "mul"};
     op_t relu {3, ReLU, "relu"};
@@ -12209,10 +12210,10 @@ TEST(Pass, FuseInterpolateSum) {
     */
     graph_t agraph;
     op_t interpolate {0, Interpolate, "interpolate"};
-    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
-    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr(op_attr::mode, std::string("linear"));
     interpolate.set_attr(
-            "coordinate_transformation_mode", std::string("half_pixel"));
+            op_attr::coordinate_transformation_mode, std::string("half_pixel"));
     op_t add {1, Add, "add"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -12247,10 +12248,10 @@ TEST(Pass, FuseInterpolateMul) {
     */
     graph_t agraph;
     op_t interpolate {0, Interpolate, "interpolate"};
-    interpolate.set_attr("sizes", std::vector<int64_t> {2, 3, 4});
-    interpolate.set_attr("mode", std::string("linear"));
+    interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
+    interpolate.set_attr(op_attr::mode, std::string("linear"));
     interpolate.set_attr(
-            "coordinate_transformation_mode", std::string("half_pixel"));
+            op_attr::coordinate_transformation_mode, std::string("half_pixel"));
     op_t mul {1, Multiply, "mul"};
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -12309,8 +12310,8 @@ TEST(Pass, FuseReduceAdd) {
 
     for (const auto &base_op : configs) {
         op_t reduce {0, base_op, "reduce"};
-        reduce.set_attr<bool>("keep_dims", false);
-        reduce.set_attr<std::vector<int64_t>>("axes", {0});
+        reduce.set_attr<bool>(op_attr::keep_dims, false);
+        reduce.set_attr<std::vector<int64_t>>(op_attr::axes, {0});
         op_t add {1, Add, "add"};
 
         logical_tensor_t reduce_src = logical_tensor_init(0, data_type::f32);
@@ -12351,8 +12352,8 @@ TEST(Pass, FuseReduceRelu) {
 
     for (const auto &base_op : configs) {
         op_t reduce {0, base_op, "reduce"};
-        reduce.set_attr<bool>("keep_dims", false);
-        reduce.set_attr<std::vector<int64_t>>("axes", {0});
+        reduce.set_attr<bool>(op_attr::keep_dims, false);
+        reduce.set_attr<std::vector<int64_t>>(op_attr::axes, {0});
         op_t relu {1, ReLU, "relu"};
 
         logical_tensor_t reduce_src = logical_tensor_init(0, data_type::f32);
@@ -12393,8 +12394,8 @@ TEST(PassSystem, FuseReduceSwish) {
 
     for (const auto &base_op : configs) {
         op_t reduce {0, base_op, "reduce"};
-        reduce.set_attr<bool>("keep_dims", false);
-        reduce.set_attr<std::vector<int64_t>>("axes", {0});
+        reduce.set_attr<bool>(op_attr::keep_dims, false);
+        reduce.set_attr<std::vector<int64_t>>(op_attr::axes, {0});
         op_t sigmoid {1, Sigmoid, "sigmoid"};
         op_t multiply {2, Multiply, "mul"};
 
@@ -12441,7 +12442,7 @@ TEST(Pass, FailToFuseReduceWithEmptyScales) {
     for (const auto base_op : configs) {
         graph_t agraph;
         op_t reduce {0, base_op, "reduce"};
-        reduce.set_attr<std::vector<int64_t>>("axes", {});
+        reduce.set_attr<std::vector<int64_t>>(op_attr::axes, {});
 
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(2);
         reduce.add_input(lt_vec[0]);
@@ -12474,13 +12475,13 @@ TEST(Pass, Int8Concat) {
         // test concat with cur_num_dq inputs
         const size_t cur_num_dq = i;
         op_t concat {cur_num_dq, Concat, "concat"};
-        concat.set_attr<int64_t>("axis", 1);
+        concat.set_attr<int64_t>(op_attr::axis, 1);
         logical_tensor_t input = empty_logical_tensor_with_default_id();
         logical_tensor_t output = empty_logical_tensor_with_default_id();
         for (size_t j = 0; j < cur_num_dq; ++j) {
             op_t dequant {j, Dequantize, "dequant"};
-            dequant.set_attr("scales", scales);
-            dequant.set_attr("zps", zps);
+            dequant.set_attr(op_attr::scales, scales);
+            dequant.set_attr(op_attr::zps, zps);
             input = logical_tensor_init(2 * j, data_type::u8);
             output = logical_tensor_init(2 * j + 1, data_type::f32);
             dequant.add_input(input);
@@ -12494,8 +12495,8 @@ TEST(Pass, Int8Concat) {
         concat.add_output(dst_lt);
         ASSERT_EQ(agraph.add_op(&concat), status::success);
         op_t quant {cur_num_dq + 1, Quantize, "quant"};
-        quant.set_attr("scales", scales);
-        quant.set_attr("zps", zps);
+        quant.set_attr(op_attr::scales, scales);
+        quant.set_attr(op_attr::zps, zps);
         logical_tensor_t int8_dst_lt
                 = logical_tensor_init(2 * cur_num_dq + 1, data_type::u8);
         quant.add_input(dst_lt);
@@ -12534,16 +12535,16 @@ TEST(Pass, FailToFuseInt8Concat) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant1"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant2"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t concat {3, Concat, "concat"};
-    concat.set_attr<int64_t>("axis", 1);
+    concat.set_attr<int64_t>(op_attr::axis, 1);
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_src_lt1
             = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
@@ -12604,20 +12605,20 @@ TEST(Pass, FuseToInt8ConvTransposeAdd) {
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
-        dequant1.set_attr("scales", scales);
-        dequant1.set_attr("zps", zps);
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
         op_t dequant2 {1, Dequantize, "dequant"};
-        dequant2.set_attr("scales", scales);
-        dequant2.set_attr("zps", zps);
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
         op_t dequant3 {2, Dequantize, "dequant"};
-        dequant3.set_attr("scales", scales);
-        dequant3.set_attr("zps", zps);
+        dequant3.set_attr(op_attr::scales, scales);
+        dequant3.set_attr(op_attr::zps, zps);
         op_t deconv {3, ConvTranspose, "deconv"};
         set_convtranspose_common_attr(deconv);
         op_t add {5, Add, "add"};
         op_t quant {6, Quantize, "quant"};
-        quant.set_attr("scales", scales);
-        quant.set_attr("zps", zps);
+        quant.set_attr(op_attr::scales, scales);
+        quant.set_attr(op_attr::zps, zps);
 
         int lt_id = -1;
         logical_tensor_t int8_data
@@ -12715,20 +12716,20 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
-        dequant1.set_attr("scales", scales);
-        dequant1.set_attr("zps", zps);
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
         op_t dequant2 {1, Dequantize, "dequant"};
-        dequant2.set_attr("scales", scales);
-        dequant2.set_attr("zps", zps);
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
         op_t dequant3 {2, Dequantize, "dequant"};
-        dequant3.set_attr("scales", scales);
-        dequant3.set_attr("zps", zps);
+        dequant3.set_attr(op_attr::scales, scales);
+        dequant3.set_attr(op_attr::zps, zps);
         op_t deconv {3, ConvTranspose, "deconv"};
         set_convtranspose_common_attr(deconv);
         op_t add {5, Add, "add"};
         op_t quant {6, Quantize, "quant"};
-        quant.set_attr("scales", scales);
-        quant.set_attr("zps", zps);
+        quant.set_attr(op_attr::scales, scales);
+        quant.set_attr(op_attr::zps, zps);
 
         int lt_id = -1;
         logical_tensor_t int8_data
@@ -12826,23 +12827,23 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
             std::vector<int64_t> zps = {0};
             std::vector<float> scales = {3.1f};
             op_t dequant1 {0, Dequantize, "dequant"};
-            dequant1.set_attr("scales", scales);
-            dequant1.set_attr("zps", zps);
+            dequant1.set_attr(op_attr::scales, scales);
+            dequant1.set_attr(op_attr::zps, zps);
             op_t dequant2 {1, Dequantize, "dequant"};
-            dequant2.set_attr("scales", scales);
-            dequant2.set_attr("zps", zps);
+            dequant2.set_attr(op_attr::scales, scales);
+            dequant2.set_attr(op_attr::zps, zps);
             op_t deconv {2, ConvTranspose, "deconv"};
             set_convtranspose_common_attr(deconv);
             op_t eltwise {3, eltwise_kind, "relu"};
             if (eltwise_kind == impl::op_kind::Elu) {
-                eltwise.set_attr<float>("alpha", 1.f);
+                eltwise.set_attr<float>(op_attr::alpha, 1.f);
             } else if (eltwise_kind == impl::op_kind::HardTanh) {
-                eltwise.set_attr<float>("min", -1.f);
-                eltwise.set_attr<float>("max", 2.f);
+                eltwise.set_attr<float>(op_attr::min, -1.f);
+                eltwise.set_attr<float>(op_attr::max, 2.f);
             }
             op_t quant {4, Quantize, "quant"};
-            quant.set_attr("scales", scales);
-            quant.set_attr("zps", zps);
+            quant.set_attr(op_attr::scales, scales);
+            quant.set_attr(op_attr::zps, zps);
 
             int lt_id = -1;
             logical_tensor_t int8_data
@@ -12932,23 +12933,23 @@ TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
             std::vector<int64_t> zps = {0};
             std::vector<float> scales = {3.1f};
             op_t dequant1 {0, Dequantize, "dequant"};
-            dequant1.set_attr("scales", scales);
-            dequant1.set_attr("zps", zps);
+            dequant1.set_attr(op_attr::scales, scales);
+            dequant1.set_attr(op_attr::zps, zps);
             op_t dequant2 {1, Dequantize, "dequant"};
-            dequant2.set_attr("scales", scales);
-            dequant2.set_attr("zps", zps);
+            dequant2.set_attr(op_attr::scales, scales);
+            dequant2.set_attr(op_attr::zps, zps);
             op_t deconv {2, ConvTranspose, "deconv"};
             set_convtranspose_common_attr(deconv);
             op_t eltwise {3, eltwise_kind, "relu"};
             if (eltwise_kind == impl::op_kind::Elu) {
-                eltwise.set_attr<float>("alpha", 1.f);
+                eltwise.set_attr<float>(op_attr::alpha, 1.f);
             } else if (eltwise_kind == impl::op_kind::HardTanh) {
-                eltwise.set_attr<float>("min", -1.f);
-                eltwise.set_attr<float>("max", 2.f);
+                eltwise.set_attr<float>(op_attr::min, -1.f);
+                eltwise.set_attr<float>(op_attr::max, 2.f);
             }
             op_t quant {4, Quantize, "quant"};
-            quant.set_attr("scales", scales);
-            quant.set_attr("zps", zps);
+            quant.set_attr(op_attr::scales, scales);
+            quant.set_attr(op_attr::zps, zps);
 
             int lt_id = -1;
             logical_tensor_t int8_data
@@ -13038,17 +13039,17 @@ TEST(Pass, FuseToInt8ConvtransposeBinary) {
             std::vector<int64_t> zps = {0};
             std::vector<float> scales = {3.1f};
             op_t dequant1 {0, Dequantize, "dequant"};
-            dequant1.set_attr("scales", scales);
-            dequant1.set_attr("zps", zps);
+            dequant1.set_attr(op_attr::scales, scales);
+            dequant1.set_attr(op_attr::zps, zps);
             op_t dequant2 {1, Dequantize, "dequant"};
-            dequant2.set_attr("scales", scales);
-            dequant2.set_attr("zps", zps);
+            dequant2.set_attr(op_attr::scales, scales);
+            dequant2.set_attr(op_attr::zps, zps);
             op_t deconv {2, ConvTranspose, "deconv"};
             set_convtranspose_common_attr(deconv);
             op_t binary {3, binary_kind, "binary"};
             op_t quant {4, Quantize, "quant"};
-            quant.set_attr("scales", scales);
-            quant.set_attr("zps", zps);
+            quant.set_attr(op_attr::scales, scales);
+            quant.set_attr(op_attr::zps, zps);
 
             int lt_id = -1;
             logical_tensor_t int8_data
@@ -13136,16 +13137,16 @@ TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
     std::vector<float> scales = {3.1f};
     std::vector<float> other_scales = {1.3f};
     op_t dequant1 {0, Dequantize, "dequant1"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant2"};
-    dequant2.set_attr("scales", other_scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, other_scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t concat {2, Concat, "concat"};
-    concat.set_attr<int64_t>("axis", 1);
+    concat.set_attr<int64_t>(op_attr::axis, 1);
     op_t quant {3, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_src_lt1
             = logical_tensor_init(0, {2, 3}, {3, 1}, data_type::u8);
@@ -13199,7 +13200,7 @@ TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
         if (kind == SoftPlusBackprop) softplus.add_input(lt_other);
         softplus.add_input(lt_in);
         softplus.add_output(lt_out);
-        softplus.set_attr("beta", beta);
+        softplus.set_attr(op_attr::beta, beta);
 
         graph_t agraph;
         ASSERT_EQ(agraph.add_op(&softplus), status::success);
@@ -13227,7 +13228,7 @@ TEST(Pass, FailToFuseSoftPlusForwardAndBackwardWithUnsupportedBetaAttrValue) {
         if (kind == SoftPlusBackprop) softplus.add_input(lt_other);
         softplus.add_input(lt_in);
         softplus.add_output(lt_out);
-        softplus.set_attr("beta", unsupported_beta);
+        softplus.set_attr(op_attr::beta, unsupported_beta);
 
         graph_t agraph;
         ASSERT_EQ(agraph.add_op(&softplus), status::success);
@@ -13318,13 +13319,13 @@ TEST(Pass, BinaryPostops) {
 
         // set additional parameters for specific ops
         if (pop == Elu) {
-            post_op.set_attr<float>("alpha", 1.0f);
+            post_op.set_attr<float>(op_attr::alpha, 1.0f);
         } else if (pop == Clamp) {
-            post_op.set_attr<float>("min", 1.0f);
-            post_op.set_attr<float>("max", 3.0f);
+            post_op.set_attr<float>(op_attr::min, 1.0f);
+            post_op.set_attr<float>(op_attr::max, 3.0f);
         } else if (pop == HardTanh) {
-            post_op.set_attr<float>("min", 1.0f);
-            post_op.set_attr<float>("max", 3.0f);
+            post_op.set_attr<float>(op_attr::min, 1.0f);
+            post_op.set_attr<float>(op_attr::max, 3.0f);
         }
 
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -13420,13 +13421,13 @@ TEST(Pass, Binary3Postops) {
 
             // set additional parameters for specific ops
             if (pop == Elu) {
-                post_ops.back().set_attr<float>("alpha", 1.0f);
+                post_ops.back().set_attr<float>(op_attr::alpha, 1.0f);
             } else if (pop == Clamp) {
-                post_ops.back().set_attr<float>("min", 1.0f);
-                post_ops.back().set_attr<float>("max", 3.0f);
+                post_ops.back().set_attr<float>(op_attr::min, 1.0f);
+                post_ops.back().set_attr<float>(op_attr::max, 3.0f);
             } else if (pop == HardTanh) {
-                post_ops.back().set_attr<float>("min", 1.0f);
-                post_ops.back().set_attr<float>("max", 3.0f);
+                post_ops.back().set_attr<float>(op_attr::min, 1.0f);
+                post_ops.back().set_attr<float>(op_attr::max, 3.0f);
             }
 
             post_ops.back().add_input(lt_vec[lt_idx]);
@@ -13559,13 +13560,13 @@ TEST(Pass, ConvtransposePostops) {
 
                     // set additional parameters for specific ops
                     if (Activation == Elu) {
-                        activation.set_attr<float>("alpha", 1.0f);
+                        activation.set_attr<float>(op_attr::alpha, 1.0f);
                     } else if (Activation == Clamp) {
-                        activation.set_attr<float>("min", 1.0f);
-                        activation.set_attr<float>("max", 3.0f);
+                        activation.set_attr<float>(op_attr::min, 1.0f);
+                        activation.set_attr<float>(op_attr::max, 3.0f);
                     } else if (Activation == HardTanh) {
-                        activation.set_attr<float>("min", 1.0f);
-                        activation.set_attr<float>("max", 3.0f);
+                        activation.set_attr<float>(op_attr::min, 1.0f);
+                        activation.set_attr<float>(op_attr::max, 3.0f);
                     }
 
                     std::vector<logical_tensor_t> lt_vec
@@ -13699,19 +13700,19 @@ TEST(PassSystem, FuseToInt8ConvTransposeSwishReLU) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t convtranspose {2, ConvTranspose, "convtranspose"};
     set_convtranspose_common_attr(convtranspose);
     op_t sigmoid {3, Sigmoid, "sigmoid"};
     op_t multiply {4, Multiply, "mul"};
     op_t relu {5, ReLU, "relu"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);

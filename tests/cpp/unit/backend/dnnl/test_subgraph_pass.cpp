@@ -84,21 +84,21 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     std::vector<int64_t> zps {0};
     std::vector<float> scales {0.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t conv {2, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t dequant_other {3, Dequantize, "dequant"};
-    dequant_other.set_attr("scales", scales);
-    dequant_other.set_attr("zps", zps);
+    dequant_other.set_attr(op_attr::scales, scales);
+    dequant_other.set_attr(op_attr::zps, zps);
     op_t sum {4, Add, "sum"};
     op_t relu {5, ReLU, "relu"};
     op_t quant {6, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
     dequant1.add_input(int8_data);
@@ -179,10 +179,12 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     ASSERT_NE(conv_op, subgraph->get_ops().end());
     auto &producer0 = (*conv_op)->get_input_value(0)->get_producer();
     ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
-    ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
+    ASSERT_EQ(producer0.get_attr<std::vector<float>>(op_attr::scales)[0],
+            scales[0]);
     auto &producer1 = (*conv_op)->get_input_value(1)->get_producer();
     ASSERT_EQ(producer1.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
-    ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
+    ASSERT_EQ(producer1.get_attr<std::vector<float>>(op_attr::scales)[0],
+            scales[0]);
 
     // 2. merge into int8 conv, change the input's scales to output scale
     dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
@@ -194,7 +196,7 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     auto &consumer
             = (*qconv_op)->get_output_value(0)->get_consumers()[0].get_op();
     ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
-    ASSERT_EQ(consumer.get_attr<std::vector<float>>("scales")[0],
+    ASSERT_EQ(consumer.get_attr<std::vector<float>>(op_attr::scales)[0],
             scales[0] * scales[0]);
 
     // 3. fuse output mul_scales op to conv's output scale
@@ -211,8 +213,9 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
-    ASSERT_TRUE((*qconv_op)->has_attr("fusion_info_key"));
-    int64_t key = (*qconv_op)->get_attr<int64_t>("fusion_info_key");
+    ASSERT_TRUE((*qconv_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
+    int64_t key = (*qconv_op)->get_attr<int64_t>(
+            dnnl_impl::op_attr::fusion_info_key);
     auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
     auto post_ops = fusion_info.get_post_ops();
     ASSERT_EQ(post_ops.size(), 2);
@@ -234,18 +237,18 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     std::vector<int64_t> zps {0};
     std::vector<float> scales {0.5f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op_attr::transpose_a, false);
+    matmul.set_attr<bool>(op_attr::transpose_b, false);
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
     dequant1.add_input(int8_data);
@@ -303,10 +306,12 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
             });
     auto &producer0 = (*matmul_op)->get_input_value(0)->get_producer();
     ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
-    ASSERT_EQ(producer0.get_attr<std::vector<float>>("scales")[0], scales[0]);
+    ASSERT_EQ(producer0.get_attr<std::vector<float>>(op_attr::scales)[0],
+            scales[0]);
     auto &producer1 = (*matmul_op)->get_input_value(1)->get_producer();
     ASSERT_EQ(producer1.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
-    ASSERT_EQ(producer1.get_attr<std::vector<float>>("scales")[0], scales[0]);
+    ASSERT_EQ(producer1.get_attr<std::vector<float>>(op_attr::scales)[0],
+            scales[0]);
 
     // 2. merge into int8 matmul, change the input's scales to output scale
     dnnl_impl::fuse_to_int8_matmul(subgraph);
@@ -318,7 +323,7 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     auto &consumer
             = (*qmatmul_op)->get_output_value(0)->get_consumers()[0].get_op();
     ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
-    ASSERT_EQ(consumer.get_attr<std::vector<float>>("scales")[0],
+    ASSERT_EQ(consumer.get_attr<std::vector<float>>(op_attr::scales)[0],
             scales[0] * scales[0]);
 
     // 3. fuse output mul_scales op to matmul's output scale
@@ -331,8 +336,10 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
-    ASSERT_TRUE((*qmatmul_op)->has_attr("fusion_info_key"));
-    int64_t key = (*qmatmul_op)->get_attr<int64_t>("fusion_info_key");
+    ASSERT_TRUE((*qmatmul_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
+    int64_t key
+            = (*qmatmul_op)
+                      ->get_attr<int64_t>(dnnl_impl::op_attr::fusion_info_key);
     auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
     auto post_ops = fusion_info.get_post_ops();
     ASSERT_EQ(post_ops.size(), 1);
@@ -378,45 +385,45 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     std::vector<int64_t> zp_wei(1, 0);
 
     impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
-    dqdata_node.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_node.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_node.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_node.set_attr<int64_t>("axis", 0);
+    dqdata_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    dqdata_node.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_src});
+    dqdata_node.set_attr<std::vector<float>>(op_attr::scales, {scale_src});
+    dqdata_node.set_attr<int64_t>(op_attr::axis, 0);
 
     impl::op_t qweight_node(10, impl::op_kind::Quantize, "qweight_node");
-    qweight_node.set_attr<std::string>("qtype", "per_tensor");
-    qweight_node.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    qweight_node.set_attr<std::vector<float>>("scales", scale_wei);
-    qweight_node.set_attr<int64_t>("axis", 0);
+    qweight_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    qweight_node.set_attr<std::vector<int64_t>>(op_attr::zps, zp_wei);
+    qweight_node.set_attr<std::vector<float>>(op_attr::scales, scale_wei);
+    qweight_node.set_attr<int64_t>(op_attr::axis, 0);
 
     impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
-    dqweight_node.set_attr<std::string>("qtype", "per_tensor");
-    dqweight_node.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_node.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_node.set_attr<int64_t>("axis", 0);
+    dqweight_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    dqweight_node.set_attr<std::vector<int64_t>>(op_attr::zps, zp_wei);
+    dqweight_node.set_attr<std::vector<float>>(op_attr::scales, scale_wei);
+    dqweight_node.set_attr<int64_t>(op_attr::axis, 0);
 
     impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
-    conv_node.set_attr<dims>("strides", dims(2, 1));
-    conv_node.set_attr<dims>("dilations", dims(2, 1));
-    conv_node.set_attr<dims>("pads_begin", dims(2, 0));
-    conv_node.set_attr<dims>("pads_end", dims(2, 0));
-    conv_node.set_attr<int64_t>("groups", groups);
-    conv_node.set_attr<std::string>("data_format", "NXC");
-    conv_node.set_attr<std::string>("filter_format", "XIO");
+    conv_node.set_attr<dims>(op_attr::strides, dims(2, 1));
+    conv_node.set_attr<dims>(op_attr::dilations, dims(2, 1));
+    conv_node.set_attr<dims>(op_attr::pads_begin, dims(2, 0));
+    conv_node.set_attr<dims>(op_attr::pads_end, dims(2, 0));
+    conv_node.set_attr<int64_t>(op_attr::groups, groups);
+    conv_node.set_attr<std::string>(op_attr::data_format, "NXC");
+    conv_node.set_attr<std::string>(op_attr::filter_format, "XIO");
 
     impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
 
     impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
-    qout_node.set_attr<std::string>("qtype", "per_tensor");
-    qout_node.set_attr<std::vector<int64_t>>("zps", {zp_out});
-    qout_node.set_attr<std::vector<float>>("scales", {scale_out});
-    qout_node.set_attr<int64_t>("axis", 0);
+    qout_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    qout_node.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_out});
+    qout_node.set_attr<std::vector<float>>(op_attr::scales, {scale_out});
+    qout_node.set_attr<int64_t>(op_attr::axis, 0);
 
     impl::op_t dqother_node(8, impl::op_kind::Dequantize, "dqother_node");
-    dqother_node.set_attr<std::string>("qtype", "per_tensor");
-    dqother_node.set_attr<std::vector<int64_t>>("zps", {zp_other});
-    dqother_node.set_attr<std::vector<float>>("scales", {scale_other});
-    dqother_node.set_attr<int64_t>("axis", 0);
+    dqother_node.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    dqother_node.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_other});
+    dqother_node.set_attr<std::vector<float>>(op_attr::scales, {scale_other});
+    dqother_node.set_attr<int64_t>(op_attr::axis, 0);
 
     impl::op_t add_node(9, impl::op_kind::Add, "add_node");
 
@@ -685,18 +692,18 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
     std::vector<int64_t> zps {0};
     std::vector<float> scales {0.5f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t matmul {2, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", params.transpose_a);
-    matmul.set_attr<bool>("transpose_b", params.transpose_b);
+    matmul.set_attr<bool>(op_attr::transpose_a, params.transpose_a);
+    matmul.set_attr<bool>(op_attr::transpose_b, params.transpose_b);
     op_t relu {3, ReLU, "relu"};
     op_t quant {4, Quantize, "quant"};
-    quant.set_attr("scales", scales);
-    quant.set_attr("zps", zps);
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
     logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
     logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
     dequant1.add_input(int8_data);
@@ -821,8 +828,8 @@ TEST_P(TestMatmulPassesWithDiffInputs, MatmulPasses) {
     graph_t agraph;
     dnnl::engine p_eng(dnnl::engine::kind::cpu, 0);
     op_t matmul {0, MatMul, "matmul"};
-    matmul.set_attr<bool>("transpose_a", params.transpose_a);
-    matmul.set_attr<bool>("transpose_b", params.transpose_b);
+    matmul.set_attr<bool>(op_attr::transpose_a, params.transpose_a);
+    matmul.set_attr<bool>(op_attr::transpose_b, params.transpose_b);
     op_t relu {1, ReLU, "relu"};
 
     logical_tensor_t fp32_data = logical_tensor_init(0, data_type::f32);
@@ -1070,11 +1077,11 @@ TEST(SubgraphPass, MemoryPlanning) {
     impl::op_t op8(8, dnnl_impl::op_kind::dnnl_reorder, "op8");
     impl::op_t op9(9, dnnl_impl::op_kind::dnnl_reorder, "op9");
 
-    op1.set_attr<std::vector<float>>("scales", {0.5});
-    op2.set_attr<std::vector<float>>("scales", {0.5});
-    op4.set_attr<std::vector<float>>("scales", {0.5});
-    op6.set_attr<std::vector<float>>("scales", {0.5});
-    op7.set_attr<std::vector<float>>("scales", {0.5});
+    op1.set_attr<std::vector<float>>(op_attr::scales, {0.5});
+    op2.set_attr<std::vector<float>>(op_attr::scales, {0.5});
+    op4.set_attr<std::vector<float>>(op_attr::scales, {0.5});
+    op6.set_attr<std::vector<float>>(op_attr::scales, {0.5});
+    op7.set_attr<std::vector<float>>(op_attr::scales, {0.5});
 
     logical_tensor_t val0
             = logical_tensor_init(0, shape_NCX, impl::data_type::f32);
@@ -1263,7 +1270,7 @@ TEST(SubgraphPass, FuseSigmoidMultiplyToSwish) {
             dnnl_impl::op_kind::dnnl_eltwise);
     ASSERT_EQ(static_cast<dnnl::algorithm>(
                       subgraph->get_mutable_ops()[0]->get_attr<int64_t>(
-                              "alg_kind")),
+                              dnnl_impl::op_attr::alg_kind)),
             dnnl::algorithm::eltwise_swish);
 }
 
@@ -1286,11 +1293,11 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr("scales", scales);
-    dequant1.set_attr("zps", zps);
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
     op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr("scales", scales);
-    dequant2.set_attr("zps", zps);
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
     op_t typecast1 {2, TypeCast, "typecast"};
     op_t typecast2 {3, TypeCast, "typecast"};
     op_t matmul {4, MatMul, "matmul"};
@@ -1402,10 +1409,10 @@ TEST(SubgraphPass, FuseTypecastToQuantize) {
     std::vector<int64_t> src_shape = {1, 8, 16};
     impl::op_t typecast(0, impl::op_kind::TypeCast, "typecast");
     impl::op_t quantize(1, impl::op_kind::Quantize, "quantize");
-    quantize.set_attr<std::vector<float>>("scales", {0.1f});
-    quantize.set_attr<std::vector<int64_t>>("zps", {10});
-    quantize.set_attr<std::string>("qtype", "per_tensor");
-    quantize.set_attr<int64_t>("axis", 0);
+    quantize.set_attr<std::vector<float>>(op_attr::scales, {0.1f});
+    quantize.set_attr<std::vector<int64_t>>(op_attr::zps, {10});
+    quantize.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    quantize.set_attr<int64_t>(op_attr::axis, 0);
 
     impl::logical_tensor_t src_bf16
             = logical_tensor_init(0, src_shape, impl::data_type::bf16);
@@ -1526,8 +1533,8 @@ TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
     std::vector<int64_t> out_shape {1, 384, 1024};
 
     impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
-    op1.set_attr<std::vector<int64_t>>("shape", out_shape);
-    op1.set_attr<bool>("special_zero", true);
+    op1.set_attr<std::vector<int64_t>>(op_attr::shape, out_shape);
+    op1.set_attr<bool>(op_attr::special_zero, true);
 
     auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
     // the output layout is specified to be channel last
@@ -1563,8 +1570,8 @@ TEST(LayoutPropagation, ReshapeWithUnreshapableInputLayout) {
     std::vector<int64_t> out_shape {384 * 16, 64};
 
     impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
-    op1.set_attr<std::vector<int64_t>>("shape", out_shape);
-    op1.set_attr<bool>("special_zero", true);
+    op1.set_attr<std::vector<int64_t>>(op_attr::shape, out_shape);
+    op1.set_attr<bool>(op_attr::special_zero, true);
 
     // the input layout is nhwc, which can't be directly reshaped to out_shape
     auto in = logical_tensor_init(0, in_shape,
@@ -1602,8 +1609,8 @@ TEST(LayoutPropagation, ReshapeWithReshapableInputLayout) {
     std::vector<int64_t> out_shape {384 * 16, 64};
 
     impl::op_t op1(1, impl::op_kind::StaticReshape, "op1");
-    op1.set_attr<std::vector<int64_t>>("shape", out_shape);
-    op1.set_attr<bool>("special_zero", true);
+    op1.set_attr<std::vector<int64_t>>(op_attr::shape, out_shape);
+    op1.set_attr<bool>(op_attr::special_zero, true);
 
     auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
     auto out = logical_tensor_init(
@@ -1633,7 +1640,7 @@ TEST(LayoutPropagation, Transpose) {
 
     impl::op_t op1(1, impl::op_kind::StaticTranspose, "op1");
     op1.set_attr<std::vector<int64_t>>(
-            "order", std::vector<int64_t> {0, 2, 3, 1});
+            op_attr::order, std::vector<int64_t> {0, 2, 3, 1});
 
     auto in = logical_tensor_init(0, in_shape, impl::data_type::f32);
     // the output layout is specified to be channel last
@@ -1682,20 +1689,20 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
     impl::op_t dqdata_op(id++, impl::op_kind::Dequantize, "dqdata_op");
-    dqdata_op.set_attr<std::string>("qtype", "per_tensor");
-    dqdata_op.set_attr<std::vector<int64_t>>("zps", {zp_src});
-    dqdata_op.set_attr<std::vector<float>>("scales", {scale_src});
-    dqdata_op.set_attr<int64_t>("axis", 0);
+    dqdata_op.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(op_attr::axis, 0);
 
     impl::op_t dqweight_op(id++, impl::op_kind::Dequantize, "dqweight_op");
-    dqweight_op.set_attr<std::string>("qtype", "per_channel");
-    dqweight_op.set_attr<std::vector<int64_t>>("zps", zp_wei);
-    dqweight_op.set_attr<std::vector<float>>("scales", scale_wei);
-    dqweight_op.set_attr<int64_t>("axis", 1);
+    dqweight_op.set_attr<std::string>(op_attr::qtype, "per_channel");
+    dqweight_op.set_attr<std::vector<int64_t>>(op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(op_attr::axis, 1);
 
     impl::op_t matmul_op(id++, impl::op_kind::MatMul, "matmul_op");
-    matmul_op.set_attr<bool>("transpose_a", false);
-    matmul_op.set_attr<bool>("transpose_b", false);
+    matmul_op.set_attr<bool>(op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(op_attr::transpose_b, false);
 
     impl::op_t gelu_op(id++, impl::op_kind::GELU, "gelu_op");
 
@@ -1704,10 +1711,10 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     impl::op_t tcdst_op {id++, impl::op_kind::TypeCast, "typecast_dst"};
 
     impl::op_t qdst_op(id++, impl::op_kind::Quantize, "qdst_op");
-    qdst_op.set_attr<std::string>("qtype", "per_tensor");
-    qdst_op.set_attr<std::vector<int64_t>>("zps", {zp_dst});
-    qdst_op.set_attr<std::vector<float>>("scales", {scale_dst});
-    qdst_op.set_attr<int64_t>("axis", 0);
+    qdst_op.set_attr<std::string>(op_attr::qtype, "per_tensor");
+    qdst_op.set_attr<std::vector<int64_t>>(op_attr::zps, {zp_dst});
+    qdst_op.set_attr<std::vector<float>>(op_attr::scales, {scale_dst});
+    qdst_op.set_attr<int64_t>(op_attr::axis, 0);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8

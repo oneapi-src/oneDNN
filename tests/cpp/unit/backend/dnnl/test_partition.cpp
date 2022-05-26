@@ -62,20 +62,20 @@ TEST(Partition, Init) {
     engine_t eng {};
     dnnl_impl::dnnl_partition_impl_t p(eng.kind());
     op_t n(op_kind::Convolution);
-    n.set_attr<int64_t>("groups", 0);
+    n.set_attr<int64_t>(op_attr::groups, 0);
     p.init(&n);
     ASSERT_TRUE(p.is_initialized());
     ASSERT_TRUE(p.get_assigned_backend()->get_name() != "fake_backend");
     ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
-    ASSERT_TRUE(p.get_fused_op()->has_attr("groups"));
-    ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>("groups"), 0);
+    ASSERT_TRUE(p.get_fused_op()->has_attr(op_attr::groups));
+    ASSERT_EQ(p.get_fused_op()->get_attr<int64_t>(op_attr::groups), 0);
 }
 
 TEST(Partition, Clone) {
     engine_t eng {};
     dnnl_impl::dnnl_partition_impl_t p(eng.kind());
     auto n = std::make_shared<op_t>(op_kind::Convolution);
-    n->set_attr<int64_t>("groups", 1);
+    n->set_attr<int64_t>(op_attr::groups, 1);
     p.init(n.get()); // fused op for dispatch
     p.add_op(n); // the subgraph
 
@@ -83,8 +83,8 @@ TEST(Partition, Clone) {
     ASSERT_TRUE(p.get_assigned_backend()->get_name() == "dnnl_backend");
     ASSERT_EQ(p.get_fused_op()->get_kind(), op_kind::Convolution);
     ASSERT_EQ(p.get_ops()[0]->get_kind(), op_kind::Convolution);
-    ASSERT_TRUE(p.get_ops()[0]->has_attr("groups"));
-    ASSERT_EQ(p.get_ops()[0]->get_attr<int64_t>("groups"), 1);
+    ASSERT_TRUE(p.get_ops()[0]->has_attr(op_attr::groups));
+    ASSERT_EQ(p.get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);
 
     // clone the partition
     auto p_copy = std::dynamic_pointer_cast<dnnl_impl::dnnl_partition_impl_t>(
@@ -93,8 +93,8 @@ TEST(Partition, Clone) {
     ASSERT_TRUE(p_copy->get_assigned_backend()->get_name() == "dnnl_backend");
     ASSERT_EQ(p_copy->get_fused_op()->get_kind(), op_kind::Convolution);
     ASSERT_EQ(p_copy->get_ops()[0]->get_kind(), op_kind::Convolution);
-    ASSERT_TRUE(p_copy->get_ops()[0]->has_attr("groups"));
-    ASSERT_EQ(p_copy->get_ops()[0]->get_attr<int64_t>("groups"), 1);
+    ASSERT_TRUE(p_copy->get_ops()[0]->has_attr(op_attr::groups));
+    ASSERT_EQ(p_copy->get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);
 }
 
 TEST(Op, AssignedPartition) {

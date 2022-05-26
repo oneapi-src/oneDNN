@@ -231,14 +231,14 @@ TEST(Graph, GetInputOutputEdges) {
     op_t op2 {2, ReLU, std::string("relu0")};
     op_t op3 {3, Wildcard, std::string("wildcard0")};
 
-    op0.set_attr<std::vector<int64_t>>("strides", {4, 4});
-    op0.set_attr<std::vector<int64_t>>("pads_begin", {111, 111});
-    op0.set_attr<std::vector<int64_t>>("pads_end", {111, 111});
-    op0.set_attr<std::string>("auto_pad", "VALID");
-    op0.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    op0.set_attr<std::string>("data_format", "NCX");
-    op0.set_attr<std::string>("filter_format", "OIX");
-    op0.set_attr<int64_t>("groups", 1);
+    op0.set_attr<std::vector<int64_t>>(op_attr::strides, {4, 4});
+    op0.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {111, 111});
+    op0.set_attr<std::vector<int64_t>>(op_attr::pads_end, {111, 111});
+    op0.set_attr<std::string>(op_attr::auto_pad, "VALID");
+    op0.set_attr<std::vector<int64_t>>(op_attr::dilations, {1, 1});
+    op0.set_attr<std::string>(op_attr::data_format, "NCX");
+    op0.set_attr<std::string>(op_attr::filter_format, "OIX");
+    op0.set_attr<int64_t>(op_attr::groups, 1);
 
     // prepare logical tensor
     logical_tensor_t src = logical_tensor_init(0, impl::data_type::f32);
@@ -310,14 +310,14 @@ TEST(Graph, InferShape) {
     op_t op1 {1, Add, std::string("add0")};
     op_t op2 {2, ReLU, std::string("relu0")};
 
-    op0.set_attr<std::vector<int64_t>>("strides", {4, 4});
-    op0.set_attr<std::vector<int64_t>>("pads_begin", {111, 111});
-    op0.set_attr<std::vector<int64_t>>("pads_end", {111, 111});
-    op0.set_attr<std::string>("auto_pad", "VALID");
-    op0.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    op0.set_attr<std::string>("data_format", "NCX");
-    op0.set_attr<std::string>("filter_format", "OIX");
-    op0.set_attr<int64_t>("groups", 1);
+    op0.set_attr<std::vector<int64_t>>(op_attr::strides, {4, 4});
+    op0.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {111, 111});
+    op0.set_attr<std::vector<int64_t>>(op_attr::pads_end, {111, 111});
+    op0.set_attr<std::string>(op_attr::auto_pad, "VALID");
+    op0.set_attr<std::vector<int64_t>>(op_attr::dilations, {1, 1});
+    op0.set_attr<std::string>(op_attr::data_format, "NCX");
+    op0.set_attr<std::string>(op_attr::filter_format, "OIX");
+    op0.set_attr<int64_t>(op_attr::groups, 1);
 
     // prepare logical tensor
     logical_tensor_t src

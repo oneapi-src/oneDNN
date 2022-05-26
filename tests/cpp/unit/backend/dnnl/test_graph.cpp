@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,13 +42,13 @@ TEST(Graph, GetDnnlPartitions) {
     conv.add_input(conv_src);
     conv.add_input(conv_wei);
     conv.add_output(conv_dst);
-    conv.set_attr<std::vector<int64_t>>("strides", {1, 1});
-    conv.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    conv.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    conv.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    conv.set_attr<int64_t>("groups", 1);
-    conv.set_attr<std::string>("data_format", "NCX");
-    conv.set_attr<std::string>("filter_format", "OIX");
+    conv.set_attr<std::vector<int64_t>>(op_attr::strides, {1, 1});
+    conv.set_attr<std::vector<int64_t>>(op_attr::dilations, {1, 1});
+    conv.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {0, 0});
+    conv.set_attr<std::vector<int64_t>>(op_attr::pads_end, {0, 0});
+    conv.set_attr<int64_t>(op_attr::groups, 1);
+    conv.set_attr<std::string>(op_attr::data_format, "NCX");
+    conv.set_attr<std::string>(op_attr::filter_format, "OIX");
     relu.add_input(conv_dst);
     relu.add_output(relu_dst);
     end.add_input(relu_dst);

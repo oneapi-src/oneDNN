@@ -30,9 +30,9 @@ using namespace dnnl::graph::tests::unit::utils;
 
 TEST(OpSchema, DuplicateAttribute) {
     EXPECT_DEATH(op_schema_t()
-                         .set_attr("kernel", "size of each filter", true,
+                         .set_attr(op_attr::kernel, "size of each filter", true,
                                  attribute_kind::b)
-                         .set_attr("kernel", "size of each filter", true,
+                         .set_attr(op_attr::kernel, "size of each filter", true,
                                  attribute_kind::b),
             "provided attribute has already been set");
 }
@@ -90,10 +90,11 @@ TEST(OpSchema, Convolution) {
     const std::set<size_t> expected_in_sizes = {2, 3};
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 8;
-    const std::map<std::string, bool> attrs_data
-            = {{"strides", true}, {"pads_begin", true}, {"pads_end", true},
-                    {"dilations", true}, {"auto_pad", false}, {"groups", false},
-                    {"data_format", false}, {"filter_format", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
+            {op_attr::pads_begin, true}, {op_attr::pads_end, true},
+            {op_attr::dilations, true}, {op_attr::auto_pad, false},
+            {op_attr::groups, false}, {op_attr::data_format, false},
+            {op_attr::filter_format, false}};
     for (auto expected_in_size : expected_in_sizes) {
         verify_op_schema(op_kind_, expected_in_size, expected_out_size,
                 expected_attr_size, attrs_data);
@@ -105,10 +106,11 @@ TEST(OpSchema, ConvTranspose) {
     const std::set<size_t> expected_in_sizes = {2, 3};
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 9;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"groups", false}, {"data_format", false},
-            {"filter_format", false}, {"output_padding", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
+            {op_attr::pads_begin, true}, {op_attr::pads_end, true},
+            {op_attr::dilations, true}, {op_attr::auto_pad, false},
+            {op_attr::groups, false}, {op_attr::data_format, false},
+            {op_attr::filter_format, false}, {op_attr::output_padding, false}};
     for (auto expected_in_size : expected_in_sizes) {
         verify_op_schema(op_kind_, expected_in_size, expected_out_size,
                 expected_attr_size, attrs_data);
@@ -173,8 +175,8 @@ TEST(OpSchema, InferConvtransposeBiasOutputShape) {
     std::vector<logical_tensor_t *> lt_out {&lt_o};
     a_op_schema->shape_infer(&a_op, lt_in, lt_out);
 
-    pads_begin = a_op.get_attr<std::vector<int64_t>>("pads_begin");
-    pads_end = a_op.get_attr<std::vector<int64_t>>("pads_end");
+    pads_begin = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+    pads_end = a_op.get_attr<std::vector<int64_t>>(op_attr::pads_end);
     std::vector<int64_t> expected_pads_begin = {1, 1};
     std::vector<int64_t> expected_pads_end = {1, 1};
     EXPECT_EQ(pads_begin, expected_pads_begin);
@@ -186,10 +188,11 @@ TEST(OpSchema, ConvTransposeBackpropData) {
     const std::set<size_t> expected_in_sizes = {2};
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 8;
-    const std::map<std::string, bool> attrs_data
-            = {{"strides", true}, {"pads_begin", true}, {"pads_end", true},
-                    {"dilations", true}, {"auto_pad", false}, {"groups", false},
-                    {"data_format", false}, {"filter_format", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
+            {op_attr::pads_begin, true}, {op_attr::pads_end, true},
+            {op_attr::dilations, true}, {op_attr::auto_pad, false},
+            {op_attr::groups, false}, {op_attr::data_format, false},
+            {op_attr::filter_format, false}};
     for (auto expected_in_size : expected_in_sizes) {
         verify_op_schema(op_kind_, expected_in_size, expected_out_size,
                 expected_attr_size, attrs_data);
@@ -269,10 +272,11 @@ TEST(OpSchema, ConvTransposeBackpropFilters) {
     const std::set<size_t> expected_in_sizes = {2, 3};
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 9;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"groups", false}, {"data_format", false},
-            {"filter_format", false}, {"filter_shape", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
+            {op_attr::pads_begin, true}, {op_attr::pads_end, true},
+            {op_attr::dilations, true}, {op_attr::auto_pad, false},
+            {op_attr::groups, false}, {op_attr::data_format, false},
+            {op_attr::filter_format, false}, {op_attr::filter_shape, false}};
     for (auto expected_in_size : expected_in_sizes) {
         verify_op_schema(op_kind_, expected_in_size, expected_out_size,
                 expected_attr_size, attrs_data);
@@ -296,7 +300,7 @@ TEST(OpSchema, InferConvTransposeBackpropFiltersShapeFromAttribute) {
             data_format, filter_format, groups);
     const std::vector<int64_t> expected_diff_wei_shape {3, 96, 11, 11};
     a_op.set_attr<std::vector<int64_t>>(
-            "filter_shape", expected_diff_wei_shape);
+            op_attr::filter_shape, expected_diff_wei_shape);
 
     auto src_lt = logical_tensor_init(0, {256, 96, 55, 55}, data_type::f32);
     auto diff_dst_lt
@@ -328,12 +332,12 @@ TEST(OpSchema, GenerateDefaultAttribute) {
     matmul_op.add_input(lt_bias);
     EXPECT_TRUE(matmul_op_schema->verify(&matmul_op));
 
-    matmul_op.set_attr("transpose_a", true);
+    matmul_op.set_attr(op_attr::transpose_a, true);
     const bool *flag;
     const bool **ret_flag = &flag;
-    matmul_op.get_attr<bool>("transpose_a", ret_flag);
+    matmul_op.get_attr<bool>(op_attr::transpose_a, ret_flag);
     EXPECT_TRUE(ret_flag);
-    EXPECT_EQ(matmul_op.get_attr<bool>("transpose_b", ret_flag),
+    EXPECT_EQ(matmul_op.get_attr<bool>(op_attr::transpose_b, ret_flag),
             status::invalid_arguments);
 
     graph_t agraph;
@@ -342,8 +346,8 @@ TEST(OpSchema, GenerateDefaultAttribute) {
     ASSERT_EQ(agraph.num_ops(), 1);
 
     const auto &graph_matmul_op = agraph.get_ops()[0];
-    EXPECT_TRUE(graph_matmul_op->get_attr<bool>("transpose_a"));
-    EXPECT_FALSE(graph_matmul_op->get_attr<bool>("transpose_b"));
+    EXPECT_TRUE(graph_matmul_op->get_attr<bool>(op_attr::transpose_a));
+    EXPECT_FALSE(graph_matmul_op->get_attr<bool>(op_attr::transpose_b));
 }
 
 TEST(OpSchema, TestVerifyFunction) {
@@ -368,26 +372,25 @@ TEST(OpSchema, TestVerifyFunction) {
     std::vector<int64_t> dilations = {1, 1};
     std::string data_format = "NCX";
     std::string filter_format = "OIX";
-    conv_op.set_attr("strides", strides);
-    conv_op.set_attr("pads_begin", pads_begin);
-    conv_op.set_attr("pads_end", pads_end);
-    conv_op.set_attr("dilations", dilations);
-    conv_op.set_attr("data_format", data_format);
-    conv_op.set_attr("filter_format", filter_format);
+    conv_op.set_attr(op_attr::strides, strides);
+    conv_op.set_attr(op_attr::pads_begin, pads_begin);
+    conv_op.set_attr(op_attr::pads_end, pads_end);
+    conv_op.set_attr(op_attr::dilations, dilations);
+    conv_op.set_attr(op_attr::data_format, data_format);
+    conv_op.set_attr(op_attr::filter_format, filter_format);
 
     EXPECT_TRUE(conv_op_schema->verify(&conv_op));
 
-    conv_op.set_attr("auto_pad", false);
+    conv_op.set_attr(op_attr::auto_pad, false);
     EXPECT_FALSE(conv_op_schema->verify(&conv_op));
 
     std::string auto_pad = "VALID";
-    conv_op.set_attr("auto_pad", auto_pad);
+    conv_op.set_attr(op_attr::auto_pad, auto_pad);
 
     EXPECT_TRUE(conv_op_schema->verify(&conv_op));
 
     float arbitrary_value = 123.0;
-    const std::string arbitrary_name {"arbitrary"};
-    conv_op.set_attr("arbitrary", arbitrary_value);
+    conv_op.set_attr(op_attr::undef, arbitrary_value);
 
     // not allow undefined attribute
     EXPECT_FALSE(conv_op_schema->verify(&conv_op));
@@ -667,7 +670,7 @@ TEST(OpSchema, PowBackpropExponent) {
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
     // clang3 requires user-provided default constructor
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -711,10 +714,11 @@ TEST(OpSchema, MaxPool) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 8;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"kernel", true}, {"pads_begin", true}, {"pads_end", true},
-            {"dilations", false}, {"data_format", false}, {"auto_pad", false},
-            {"rounding_type", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
+            {op_attr::kernel, true}, {op_attr::pads_begin, true},
+            {op_attr::pads_end, true}, {op_attr::dilations, false},
+            {op_attr::data_format, false}, {op_attr::auto_pad, false},
+            {op_attr::rounding_type, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -733,13 +737,13 @@ TEST(OpSchema, InferMaxpoolOutputShape) {
     std::string auto_pad = "SAME_UPPER";
     std::string data_format = "NCX";
 
-    pool_op.set_attr("strides", strides);
-    pool_op.set_attr("pads_begin", pads_begin);
-    pool_op.set_attr("pads_end", pads_end);
-    pool_op.set_attr("kernel", kernel);
-    pool_op.set_attr("dilations", dilations);
-    pool_op.set_attr("auto_pad", auto_pad);
-    pool_op.set_attr("data_format", data_format);
+    pool_op.set_attr(op_attr::strides, strides);
+    pool_op.set_attr(op_attr::pads_begin, pads_begin);
+    pool_op.set_attr(op_attr::pads_end, pads_end);
+    pool_op.set_attr(op_attr::kernel, kernel);
+    pool_op.set_attr(op_attr::dilations, dilations);
+    pool_op.set_attr(op_attr::auto_pad, auto_pad);
+    pool_op.set_attr(op_attr::data_format, data_format);
 
     logical_tensor_t lt_data
             = logical_tensor_init(0, {1, 3, 224, 224}, data_type::f32);
@@ -764,8 +768,9 @@ TEST(OpSchema, InferMaxpoolOutputShape) {
     // if output shape is known, infer auto pad
     pool_op_schema->shape_infer(&pool_op, lt_in, lt_out);
     auto infered_pads_begin
-            = pool_op.get_attr<std::vector<int64_t>>("pads_begin");
-    auto infered_pads_end = pool_op.get_attr<std::vector<int64_t>>("pads_end");
+            = pool_op.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
+    auto infered_pads_end
+            = pool_op.get_attr<std::vector<int64_t>>(op_attr::pads_end);
     const std::vector<int64_t> expected_pads_begin = {0, 0};
     const std::vector<int64_t> expected_pads_end = {1, 1};
     EXPECT_EQ(infered_pads_begin, expected_pads_begin);
@@ -785,13 +790,13 @@ TEST(OpSchema, InferMaxpoolOutputShapeWithCeilMode) {
         std::vector<int64_t> pads_end = {0, 0};
         std::vector<int64_t> dilations = {1, 1};
         std::string data_format = "NCX";
-        pool_op.set_attr("strides", strides);
-        pool_op.set_attr("pads_begin", pads_begin);
-        pool_op.set_attr("pads_end", pads_end);
-        pool_op.set_attr("kernel", kernel);
-        pool_op.set_attr("dilations", dilations);
-        pool_op.set_attr("data_format", data_format);
-        pool_op.set_attr("rounding_type", rounding_type);
+        pool_op.set_attr(op_attr::strides, strides);
+        pool_op.set_attr(op_attr::pads_begin, pads_begin);
+        pool_op.set_attr(op_attr::pads_end, pads_end);
+        pool_op.set_attr(op_attr::kernel, kernel);
+        pool_op.set_attr(op_attr::dilations, dilations);
+        pool_op.set_attr(op_attr::data_format, data_format);
+        pool_op.set_attr(op_attr::rounding_type, rounding_type);
 
         logical_tensor_t lt_data
                 = logical_tensor_init(0, {1, 3, 224, 224}, data_type::f32);
@@ -828,7 +833,7 @@ TEST(OpSchema, InferMatmulOutputShape) {
 
     op_t matmul_op {op_kind::MatMul, op_t::kind2str(op_kind::MatMul)};
     bool transpose_a = true;
-    matmul_op.set_attr("transpose_a", transpose_a);
+    matmul_op.set_attr(op_attr::transpose_a, transpose_a);
 
     // test 2 dims matmul
     logical_tensor_t lt_in1
@@ -891,7 +896,7 @@ TEST(OpSchema, Abs) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data {};
+    const std::map<op_attr_t, bool> attrs_data {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -902,7 +907,7 @@ TEST(OpSchema, AbsBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data {};
+    const std::map<op_attr_t, bool> attrs_data {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -913,7 +918,8 @@ TEST(OpSchema, Add) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -936,8 +942,8 @@ TEST(OpSchema, BatchNormForwardTraining) {
     const size_t expected_in_size = 5;
     const size_t expected_out_size = 5;
     const size_t expected_attr_size = 3;
-    const std::map<std::string, bool> attrs_data
-            = {{"epsilon", true}, {"momentum", false}, {"data_format", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::epsilon, true},
+            {op_attr::momentum, false}, {op_attr::data_format, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -963,7 +969,7 @@ TEST(OpSchema, InferBatchNormForwardTrainingOutputShape) {
     std::vector<logical_tensor_t *> out {
             &lt_out, &lt_r_mean, &lt_r_var, &lt_b_mean, &lt_b_var};
 
-    op_.set_attr<float>("epsilon", 0.01f);
+    op_.set_attr<float>(op_attr::epsilon, 0.01f);
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape0
             = logical_tensor_wrapper_t(lt_out).vdims();
@@ -988,7 +994,7 @@ TEST(OpSchema, InferBatchNormForwardTrainingOutputShape) {
     std::vector<logical_tensor_t *> out_partially_not_filled {
             &lt_out_not_filled, &lt_r_mean, &lt_r_var, &lt_b_mean, &lt_b_var};
     const std::string data_f = "NCX";
-    op_.set_attr("data_format", data_f);
+    op_.set_attr(op_attr::data_format, data_f);
     auto result = op_schema_->shape_infer(&op_, in, out_partially_not_filled);
     EXPECT_EQ(result, status::invalid_shape);
 }
@@ -998,8 +1004,8 @@ TEST(OpSchema, BatchNormTrainingBackprop) {
     const size_t expected_in_size = 5;
     const size_t expected_out_size = 3;
     const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"epsilon", true}, {"data_format", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::epsilon, true}, {op_attr::data_format, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1023,7 +1029,7 @@ TEST(OpSchema, InferBatchNormTrainingBackpropOutputShape) {
     logical_tensor_t lt_input_delta = logical_tensor_init(4, data_type::f32);
     std::vector<logical_tensor_t *> out {&lt_input_delta};
 
-    op_.set_attr<float>("epsilon", 0.01f);
+    op_.set_attr<float>(op_attr::epsilon, 0.01f);
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape0
             = logical_tensor_wrapper_t(lt_input_delta).vdims();
@@ -1054,7 +1060,8 @@ TEST(OpSchema, BiasAdd) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"data_format", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::data_format, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1082,7 +1089,7 @@ TEST(OpSchema, InferBiasAddOutputShape) {
     logical_tensor_t lt_out_not_filled = logical_tensor_init(2, data_type::f32);
     std::vector<logical_tensor_t *> out_not_filled {&lt_out_not_filled};
     const std::string data_f = "NCX";
-    op_.set_attr("data_format", data_f);
+    op_.set_attr(op_attr::data_format, data_f);
     auto result = op_schema_->shape_infer(&op_, in, out_not_filled);
     EXPECT_EQ(result, status::invalid_shape);
 }
@@ -1092,7 +1099,8 @@ TEST(OpSchema, BiasAddBackprop) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"data_format", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::data_format, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1120,7 +1128,7 @@ TEST(OpSchema, InferBiasAddBackpropOutputShapeWithNxcFormat) {
 
     // explicitly setting data_format to NXC
     const std::string default_data_f = "NXC";
-    op_.set_attr("data_format", default_data_f);
+    op_.set_attr(op_attr::data_format, default_data_f);
     logical_tensor_t lt_out_expl = logical_tensor_init(2, data_type::f32);
     std::vector<logical_tensor_t *> out_expl {&lt_out_expl};
 
@@ -1143,7 +1151,7 @@ TEST(OpSchema, InferBiasAddBackpropOutputShape) {
     logical_tensor_t lt_out = logical_tensor_init(1, data_type::f32);
     std::vector<logical_tensor_t *> out {&lt_out};
     const std::string data_f = "NCX";
-    op_.set_attr("data_format", data_f);
+    op_.set_attr(op_attr::data_format, data_f);
 
     op_schema_->shape_infer(&op_, in, out);
     const std::vector<int64_t> infered_out_shape
@@ -1157,8 +1165,8 @@ TEST(OpSchema, Clamp) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"min", true}, {"max", true}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::min, true}, {op_attr::max, true}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1175,8 +1183,8 @@ TEST(OpSchema, ClampBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"min", true}, {"max", true}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::min, true}, {op_attr::max, true}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1193,11 +1201,12 @@ TEST(OpSchema, ConvolutionBackpropData) {
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 10;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"output_padding", false}, {"groups", false},
-            {"data_format", false}, {"filter_format", false},
-            {"output_shape", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
+            {op_attr::pads_begin, true}, {op_attr::pads_end, true},
+            {op_attr::dilations, true}, {op_attr::auto_pad, false},
+            {op_attr::output_padding, false}, {op_attr::groups, false},
+            {op_attr::data_format, false}, {op_attr::filter_format, false},
+            {op_attr::output_shape, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1296,10 +1305,11 @@ TEST(OpSchema, ConvolutionBackpropFilters) {
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 9;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"dilations", true},
-            {"auto_pad", false}, {"groups", false}, {"data_format", false},
-            {"filter_format", false}, {"filter_shape", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
+            {op_attr::pads_begin, true}, {op_attr::pads_end, true},
+            {op_attr::dilations, true}, {op_attr::auto_pad, false},
+            {op_attr::groups, false}, {op_attr::data_format, false},
+            {op_attr::filter_format, false}, {op_attr::filter_shape, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1328,7 +1338,7 @@ TEST(OpSchema, InferConvolutionBackpropFiltersOutputShape) {
 
     set_conv_common_attr(op_, strides, pads_begin, pads_end, dilations,
             auto_pad, data_format, filter_format, groups);
-    op_.set_attr("filter_shape", expected_out_shape);
+    op_.set_attr(op_attr::filter_shape, expected_out_shape);
 
     logical_tensor_t lt_data = logical_tensor_init(0, in_data, data_type::f32);
     logical_tensor_t lt_output_delta
@@ -1348,7 +1358,8 @@ TEST(OpSchema, Divide) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1371,7 +1382,7 @@ TEST(OpSchema, Elu) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"alpha", true}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::alpha, true}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1387,8 +1398,8 @@ TEST(OpSchema, EluBackprop) {
     const op_kind_t op_kind_ = op_kind::EluBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
-    const std::map<std::string, bool> attrs_data
-            = {{"alpha", true}, {"use_dst", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::alpha, true}, {op_attr::use_dst, false}};
     const size_t expected_attr_size = attrs_data.size();
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
@@ -1417,7 +1428,7 @@ TEST(OpSchema, Reorder) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data {};
+    const std::map<op_attr_t, bool> attrs_data {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1434,7 +1445,7 @@ TEST(OpSchema, Erf) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1451,7 +1462,7 @@ TEST(OpSchema, Exp) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1468,7 +1479,7 @@ TEST(OpSchema, Gelu) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1485,7 +1496,7 @@ TEST(OpSchema, GELUBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1502,8 +1513,8 @@ TEST(OpSchema, HardTanh) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"min", true}, {"max", true}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::min, true}, {op_attr::max, true}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1519,8 +1530,8 @@ TEST(OpSchema, HardTanhBackprop) {
     const op_kind_t op_kind_ = op_kind::HardTanhBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
-    const std::map<std::string, bool> attrs_data
-            = {{"min", true}, {"max", true}, {"use_dst", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::min, true},
+            {op_attr::max, true}, {op_attr::use_dst, false}};
     const size_t expected_attr_size = attrs_data.size();
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
@@ -1538,7 +1549,7 @@ TEST(OpSchema, HardSwish) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1555,7 +1566,7 @@ TEST(OpSchema, HardSwishBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1573,7 +1584,7 @@ TEST(OpSchema, Index) {
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
     // clang3 requires user-provided default constructor
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1602,9 +1613,9 @@ TEST(OpSchema, LayerNorm) {
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 3;
     const size_t expected_attr_size = 4;
-    const std::map<std::string, bool> attrs_data
-            = {{"keep_stats", false}, {"begin_norm_axis", false},
-                    {"use_affine", false}, {"epsilon", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::keep_stats, false}, {op_attr::begin_norm_axis, false},
+                    {op_attr::use_affine, false}, {op_attr::epsilon, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1624,10 +1635,10 @@ TEST(OpSchema, InferLayerNormOutputShape) {
     // TODO(qun) we should test multi begin_norm_axis attrs
     const int64_t begin_norm_axis = -1;
 
-    op_.set_attr("begin_norm_axis", begin_norm_axis);
+    op_.set_attr(op_attr::begin_norm_axis, begin_norm_axis);
 
     for (auto keep_stats : keep_statses) {
-        op_.set_attr("keep_stats", static_cast<bool>(keep_stats));
+        op_.set_attr(op_attr::keep_stats, static_cast<bool>(keep_stats));
         for (const auto &ltype : layout_types) {
             logical_tensor_t lt_in1 = logical_tensor_init(
                     0, {1, 3, 416, 416}, data_type::f32, ltype);
@@ -1688,8 +1699,9 @@ TEST(OpSchema, LayerNormBackprop) {
     const size_t expected_in_size = 6;
     const size_t expected_out_size = 3;
     const size_t expected_attr_size = 3;
-    const std::map<std::string, bool> attrs_data = {{"begin_norm_axis", false},
-            {"use_affine", false}, {"epsilon", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::begin_norm_axis, false}, {op_attr::use_affine, false},
+                    {op_attr::epsilon, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1708,7 +1720,7 @@ TEST(OpSchema, InferLayerNormBackpropOutputShape) {
     const std::vector<bool> use_affines = {true, false};
 
     for (auto use_affine : use_affines) {
-        op_.set_attr("use_affine", static_cast<bool>(use_affine));
+        op_.set_attr(op_attr::use_affine, static_cast<bool>(use_affine));
         for (const auto &ltype : layout_types) {
             logical_tensor_t lt_data = logical_tensor_init(
                     0, {1, 256, 64, 64}, data_type::f32, ltype);
@@ -1783,7 +1795,7 @@ TEST(OpSchema, Log) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1800,7 +1812,7 @@ TEST(OpSchema, LogSoftmax) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"axis", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::axis, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1817,7 +1829,7 @@ TEST(OpSchema, LogSoftmaxBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"axis", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::axis, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1834,7 +1846,8 @@ TEST(OpSchema, Maximum) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1858,9 +1871,10 @@ TEST(OpSchema, MaxPoolBackprop) {
     const std::set<size_t> expected_in_sizes = {2, 3};
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 7;
-    const std::map<std::string, bool> attrs_data = {{"strides", true},
-            {"pads_begin", true}, {"pads_end", true}, {"kernel", true},
-            {"auto_pad", false}, {"dilations", false}, {"data_format", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
+            {op_attr::pads_begin, true}, {op_attr::pads_end, true},
+            {op_attr::kernel, true}, {op_attr::auto_pad, false},
+            {op_attr::dilations, false}, {op_attr::data_format, false}};
     for (auto expected_in_size : expected_in_sizes) {
         verify_op_schema(op_kind_, expected_in_size, expected_out_size,
                 expected_attr_size, attrs_data);
@@ -1872,7 +1886,8 @@ TEST(OpSchema, Minimum) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1895,7 +1910,7 @@ TEST(OpSchema, Mish) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1912,7 +1927,7 @@ TEST(OpSchema, MishBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1929,7 +1944,8 @@ TEST(OpSchema, Multiply) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1952,7 +1968,8 @@ TEST(OpSchema, Pow) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -1975,7 +1992,7 @@ TEST(OpSchema, PowBackprop) {
     const size_t expected_in_size = 3;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2009,8 +2026,8 @@ TEST(OpSchema, PReLU) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"data_format", false}, {"per_channel_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::data_format, false},
+            {op_attr::per_channel_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2026,8 +2043,8 @@ TEST(OpSchema, Reduce) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"keep_dims", false}, {"axes", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::keep_dims, false}, {op_attr::axes, false}};
     const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
             op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
             op_kind::ReduceProd, op_kind::ReduceSum};
@@ -2072,8 +2089,8 @@ TEST(OpSchema, InferReduceOutputShapeFromAttributeWithKeepingDims) {
         const op_schema_t *op_schema_
                 = op_schema_registry_t::get_op_schema(op_kind_);
         op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
-        op_.set_attr("keep_dims", true);
-        op_.set_attr("axes", axes);
+        op_.set_attr(op_attr::keep_dims, true);
+        op_.set_attr(op_attr::axes, axes);
 
         logical_tensor_t lt_in
                 = logical_tensor_init(0, {1, 3, 224, 224}, data_type::f32);
@@ -2101,7 +2118,7 @@ TEST(OpSchema, InferReduceOutputShapeFromAttributeWithoutKeepingDims) {
         const op_schema_t *op_schema_
                 = op_schema_registry_t::get_op_schema(op_kind_);
         op_t op_ {op_kind_, op_t::kind2str(op_kind_)};
-        op_.set_attr("axes", axes);
+        op_.set_attr(op_attr::axes, axes);
 
         logical_tensor_t lt_in
                 = logical_tensor_init(0, {1, 3, 224, 224}, data_type::f32);
@@ -2123,7 +2140,7 @@ TEST(OpSchema, ReLU) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2139,7 +2156,7 @@ TEST(OpSchema, ReLUBackprop) {
     const op_kind_t op_kind_ = op_kind::ReLUBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"use_dst", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::use_dst, false}};
     const size_t expected_attr_size = attrs_data.size();
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
@@ -2157,7 +2174,7 @@ TEST(OpSchema, Round) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2174,7 +2191,7 @@ TEST(OpSchema, Sigmoid) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2191,7 +2208,7 @@ TEST(OpSchema, SigmoidBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"use_dst", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::use_dst, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2208,7 +2225,7 @@ TEST(OpSchema, SoftMax) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"axis", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::axis, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2225,7 +2242,7 @@ TEST(OpSchema, SoftMaxBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"axis", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::axis, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2248,7 +2265,7 @@ TEST(OpSchema, Sqrt) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2259,7 +2276,7 @@ TEST(OpSchema, SoftPlus) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"beta", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::beta, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2276,7 +2293,7 @@ TEST(OpSchema, SoftPlusBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"beta", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::beta, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2293,7 +2310,7 @@ TEST(OpSchema, SqrtBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"use_dst", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::use_dst, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2304,7 +2321,8 @@ TEST(OpSchema, SquaredDifference) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2315,7 +2333,8 @@ TEST(OpSchema, Subtract) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"auto_broadcast", false}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::auto_broadcast, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2338,7 +2357,7 @@ TEST(OpSchema, Tanh) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2354,7 +2373,7 @@ TEST(OpSchema, Square) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<op_attr_t, bool> attrs_data = {};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2377,7 +2396,7 @@ TEST(OpSchema, TanhBackprop) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"use_dst", false}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::use_dst, false}};
 
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
@@ -2455,7 +2474,7 @@ TEST(OpSchema, BatchNormOptionalInput) {
     bn_op.add_output(lt_batch_mean);
     bn_op.add_output(lt_batch_viance);
 
-    bn_op.set_attr<float>("epsilon", 0.001f);
+    bn_op.set_attr<float>(op_attr::epsilon, 0.001f);
     EXPECT_TRUE(bn_op_schema->verify(&bn_op));
 
     logical_tensor_t lt_gamma = logical_tensor_init(8, data_type::f32);
@@ -2489,7 +2508,7 @@ TEST(OpSchema, ConcatVariadicInput) {
     concat_op.add_input(lt_data_2);
     concat_op.add_output(lt_output);
 
-    concat_op.set_attr("axis", int64_t(0));
+    concat_op.set_attr(op_attr::axis, int64_t(0));
     EXPECT_TRUE(concat_op_schema->verify(&concat_op));
 }
 
@@ -2502,7 +2521,7 @@ TEST(OpSchema, ConcatVariadicInputNegative) {
 
     concat_op.add_output(lt_output);
 
-    concat_op.set_attr("axis", int64_t(0));
+    concat_op.set_attr(op_attr::axis, int64_t(0));
     EXPECT_FALSE(concat_op_schema->verify(&concat_op));
 }
 
@@ -2523,7 +2542,7 @@ TEST(OpSchema, LayerNormOptionalInputs) {
 
     ln_op.add_output(lt_output);
 
-    ln_op.set_attr("keep_stats", true);
+    ln_op.set_attr(op_attr::keep_stats, true);
     EXPECT_TRUE(ln_op_schema->verify(&ln_op));
 
     logical_tensor_t lt_beta = logical_tensor_init(2, data_type::f32);
@@ -2556,7 +2575,7 @@ TEST(OpSchema, AddDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_broadcast, &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -2569,16 +2588,16 @@ TEST(OpSchema, AvgpoolDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.get_attr<std::string>("rounding_type", &sval);
+    tmp_op.get_attr<std::string>(op_attr::rounding_type, &sval);
     EXPECT_EQ(*sval, "floor");
 
-    tmp_op.get_attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_pad, &sval);
     EXPECT_EQ(*sval, "None");
 
-    tmp_op.get_attr<std::string>("exclude_pad", &sval);
+    tmp_op.get_attr<std::string>(op_attr::exclude_pad, &sval);
     EXPECT_EQ(*sval, "None");
 
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
@@ -2592,11 +2611,11 @@ TEST(OpSchema, AvgpoolDefaultAttribute) {
     std::vector<int64_t> dilations = {1, 1};
     bool exclude_pad = false;
 
-    tmp_op.set_attr("strides", strides);
-    tmp_op.set_attr("pads_begin", pads_begin);
-    tmp_op.set_attr("pads_end", pads_end);
-    tmp_op.set_attr("kernel", kernel);
-    tmp_op.set_attr("exclude_pad", exclude_pad);
+    tmp_op.set_attr(op_attr::strides, strides);
+    tmp_op.set_attr(op_attr::pads_begin, pads_begin);
+    tmp_op.set_attr(op_attr::pads_end, pads_end);
+    tmp_op.set_attr(op_attr::kernel, kernel);
+    tmp_op.set_attr(op_attr::exclude_pad, exclude_pad);
 
     EXPECT_TRUE(opm->verify(&tmp_op));
 }
@@ -2610,10 +2629,10 @@ TEST(OpSchema, AvgBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.get_attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_pad, &sval);
     EXPECT_EQ(*sval, "None");
 }
 
@@ -2626,7 +2645,7 @@ TEST(OpSchema, BatchNormInferenceDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -2639,7 +2658,7 @@ TEST(OpSchema, BatchNormForwardTrainingDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -2652,7 +2671,7 @@ TEST(OpSchema, BatchNormTrainingBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -2665,7 +2684,7 @@ TEST(OpSchema, BiasaddDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -2678,7 +2697,7 @@ TEST(OpSchema, BiasaddBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -2691,17 +2710,17 @@ TEST(OpSchema, ConvolutionDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.get_attr<std::string>("filter_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::filter_format, &sval);
     EXPECT_EQ(*sval, "XIO");
 
-    tmp_op.get_attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_pad, &sval);
     EXPECT_EQ(*sval, "None");
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("groups", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::groups, &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -2715,22 +2734,22 @@ TEST(OpSchema, ConvolutionBackpropDataDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::vector<int64_t> *vval {nullptr};
-    tmp_op.get_attr<std::vector<int64_t>>("output_padding", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>(op_attr::output_padding, &vval);
     std::vector<int64_t> vector_value(DNNL_GRAPH_MAX_NDIMS, 0);
     EXPECT_EQ(*vval, vector_value);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.get_attr<std::string>("filter_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::filter_format, &sval);
     EXPECT_EQ(*sval, "XIO");
 
-    tmp_op.get_attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_pad, &sval);
     EXPECT_EQ(*sval, "None");
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("groups", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::groups, &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -2744,17 +2763,17 @@ TEST(OpSchema, ConvolutionBackpropFiltersDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.get_attr<std::string>("filter_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::filter_format, &sval);
     EXPECT_EQ(*sval, "XIO");
 
-    tmp_op.get_attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_pad, &sval);
     EXPECT_EQ(*sval, "None");
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("groups", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::groups, &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -2768,7 +2787,7 @@ TEST(OpSchema, DivideDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_broadcast, &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -2781,10 +2800,11 @@ TEST(OpSchema, InterpolateDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("coordinate_transformation_mode", &sval);
+    tmp_op.get_attr<std::string>(
+            op_attr::coordinate_transformation_mode, &sval);
     EXPECT_EQ(*sval, "half_pixel");
 
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -2797,10 +2817,11 @@ TEST(OpSchema, InterpolateBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("coordinate_transformation_mode", &sval);
+    tmp_op.get_attr<std::string>(
+            op_attr::coordinate_transformation_mode, &sval);
     EXPECT_EQ(*sval, "half_pixel");
 
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 }
 
@@ -2813,19 +2834,19 @@ TEST(OpSchema, LayerNormDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("keep_stats", &bval);
+    tmp_op.get_attr<bool>(op_attr::keep_stats, &bval);
     EXPECT_TRUE(bval);
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("begin_norm_axis", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::begin_norm_axis, &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
 
-    tmp_op.get_attr<bool>("use_affine", &bval);
+    tmp_op.get_attr<bool>(op_attr::use_affine, &bval);
     EXPECT_TRUE(bval);
 
     const float *fval {nullptr};
-    tmp_op.get_attr<float>("epsilon", &fval);
+    tmp_op.get_attr<float>(op_attr::epsilon, &fval);
     float float_value {1e-5f};
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
@@ -2839,16 +2860,16 @@ TEST(OpSchema, LayerNormBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("use_affine", &bval);
+    tmp_op.get_attr<bool>(op_attr::use_affine, &bval);
     EXPECT_TRUE(bval);
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("begin_norm_axis", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::begin_norm_axis, &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
 
     const float *fval {nullptr};
-    tmp_op.get_attr<float>("epsilon", &fval);
+    tmp_op.get_attr<float>(op_attr::epsilon, &fval);
     float float_value {1e-5f};
     EXPECT_FLOAT_EQ(*fval, float_value);
 }
@@ -2862,7 +2883,7 @@ TEST(OpSchema, LogSoftmaxDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("axis", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::axis, &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -2876,7 +2897,7 @@ TEST(OpSchema, LogSoftmaxBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("axis", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::axis, &ival);
     int64_t int_value {-1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -2890,10 +2911,10 @@ TEST(OpSchema, MatmulDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("transpose_a", &bval);
+    tmp_op.get_attr<bool>(op_attr::transpose_a, &bval);
     EXPECT_FALSE(*bval);
 
-    tmp_op.get_attr<bool>("transpose_b", &bval);
+    tmp_op.get_attr<bool>(op_attr::transpose_b, &bval);
     EXPECT_FALSE(*bval);
 }
 
@@ -2906,17 +2927,17 @@ TEST(OpSchema, MaxPoolDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 
-    tmp_op.get_attr<std::string>("rounding_type", &sval);
+    tmp_op.get_attr<std::string>(op_attr::rounding_type, &sval);
     EXPECT_EQ(*sval, "floor");
 
-    tmp_op.get_attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_pad, &sval);
     EXPECT_EQ(*sval, "None");
 
     const std::vector<int64_t> *vval {nullptr};
-    tmp_op.get_attr<std::vector<int64_t>>("dilations", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>(op_attr::dilations, &vval);
     std::vector<int64_t> vector_value(1, DNNL_GRAPH_MAX_NDIMS);
     EXPECT_EQ(*vval, vector_value);
 }
@@ -2930,15 +2951,15 @@ TEST(OpSchema, MaxPoolBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("data_format", &sval);
+    tmp_op.get_attr<std::string>(op_attr::data_format, &sval);
     EXPECT_EQ(*sval, "NXC");
 
     const std::vector<int64_t> *vval {nullptr};
-    tmp_op.get_attr<std::vector<int64_t>>("dilations", &vval);
+    tmp_op.get_attr<std::vector<int64_t>>(op_attr::dilations, &vval);
     std::vector<int64_t> vector_value(1, DNNL_GRAPH_MAX_NDIMS);
     EXPECT_EQ(*vval, vector_value);
 
-    tmp_op.get_attr<std::string>("auto_pad", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_pad, &sval);
     EXPECT_EQ(*sval, "None");
 }
 
@@ -2951,7 +2972,7 @@ TEST(OpSchema, MaximumDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_broadcast, &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -2964,7 +2985,7 @@ TEST(OpSchema, MinimumDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_broadcast, &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -2977,7 +2998,7 @@ TEST(OpSchema, MultiplyDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_broadcast, &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -2990,7 +3011,7 @@ TEST(OpSchema, PowDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_broadcast, &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -3008,11 +3029,11 @@ TEST(OpSchema, ReduceDefaultAttribute) {
         opm->set_default_attribute(&tmp_op);
 
         const bool *bval {nullptr};
-        tmp_op.get_attr<bool>("keep_dims", &bval);
+        tmp_op.get_attr<bool>(op_attr::keep_dims, &bval);
         EXPECT_FALSE(*bval);
 
         const std::vector<int64_t> *vval {nullptr};
-        tmp_op.get_attr<std::vector<int64_t>>("axes", &vval);
+        tmp_op.get_attr<std::vector<int64_t>>(op_attr::axes, &vval);
         EXPECT_TRUE(vval->empty());
     }
 }
@@ -3026,7 +3047,7 @@ TEST(OpSchema, SigmoidBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("use_dst", &bval);
+    tmp_op.get_attr<bool>(op_attr::use_dst, &bval);
     EXPECT_TRUE(bval);
 }
 
@@ -3039,7 +3060,7 @@ TEST(OpSchema, SoftMaxDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("axis", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::axis, &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3053,7 +3074,7 @@ TEST(OpSchema, SoftMaxBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("axis", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::axis, &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3067,7 +3088,7 @@ TEST(OpSchema, SoftPlusDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("beta", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::beta, &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3081,7 +3102,7 @@ TEST(OpSchema, SoftPlusBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>("beta", &ival);
+    tmp_op.get_attr<int64_t>(op_attr::beta, &ival);
     int64_t int_value {1};
     EXPECT_EQ(*ival, int_value);
 }
@@ -3095,7 +3116,7 @@ TEST(OpSchema, SqrtBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("use_dst", &bval);
+    tmp_op.get_attr<bool>(op_attr::use_dst, &bval);
     EXPECT_TRUE(bval);
 }
 
@@ -3108,7 +3129,7 @@ TEST(OpSchema, SubtractDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const std::string *sval {nullptr};
-    tmp_op.get_attr<std::string>("auto_broadcast", &sval);
+    tmp_op.get_attr<std::string>(op_attr::auto_broadcast, &sval);
     EXPECT_EQ(*sval, "numpy");
 }
 
@@ -3121,7 +3142,7 @@ TEST(OpSchema, TanhBackpropDefaultAttribute) {
     opm->set_default_attribute(&tmp_op);
 
     const bool *bval {nullptr};
-    tmp_op.get_attr<bool>("use_dst", &bval);
+    tmp_op.get_attr<bool>(op_attr::use_dst, &bval);
     EXPECT_TRUE(bval);
 }
 
@@ -3149,8 +3170,8 @@ TEST(OpSchema, Quantize) {
 
     quant_op.add_input(lt_data);
     quant_op.add_output(lt_out);
-    quant_op.set_attr("zps", std::vector<int64_t> {1});
-    quant_op.set_attr("scales", std::vector<float> {0.1f});
+    quant_op.set_attr(op_attr::zps, std::vector<int64_t> {1});
+    quant_op.set_attr(op_attr::scales, std::vector<float> {0.1f});
     EXPECT_TRUE(quant_op_schema->verify(&quant_op));
 }
 
@@ -3163,8 +3184,8 @@ TEST(OpSchema, QuantizeWithFloatZps) {
 
     quant_op.add_input(lt_data);
     quant_op.add_output(lt_out);
-    quant_op.set_attr("scales", std::vector<int64_t> {1});
-    quant_op.set_attr("zps", std::vector<float> {0.1f});
+    quant_op.set_attr(op_attr::scales, std::vector<int64_t> {1});
+    quant_op.set_attr(op_attr::zps, std::vector<float> {0.1f});
 
     //Quantize op does not support float zps and int64 scales
     EXPECT_FALSE(quant_op_schema->verify(&quant_op));
@@ -3179,8 +3200,8 @@ TEST(OpSchema, Dequantize) {
 
     dequant_op.add_input(lt_data);
     dequant_op.add_output(lt_out);
-    dequant_op.set_attr("zps", std::vector<int64_t> {1});
-    dequant_op.set_attr("scales", std::vector<float> {0.1f});
+    dequant_op.set_attr(op_attr::zps, std::vector<int64_t> {1});
+    dequant_op.set_attr(op_attr::scales, std::vector<float> {0.1f});
     EXPECT_TRUE(dequant_op_schema->verify(&dequant_op));
 }
 
@@ -3231,7 +3252,7 @@ TEST(OpSchema, SoftmaxBf16) {
     softmax.add_input(lt_data);
     softmax.add_output(lt_output);
 
-    softmax.set_attr<int64_t>("axis", 1);
+    softmax.set_attr<int64_t>(op_attr::axis, 1);
     EXPECT_TRUE(schema->verify(&softmax));
 }
 
@@ -3246,7 +3267,7 @@ TEST(OpSchema, LogSoftmaxBf16) {
     logsoftmax.add_input(lt_data);
     logsoftmax.add_output(lt_output);
 
-    logsoftmax.set_attr<int64_t>("axis", 1);
+    logsoftmax.set_attr<int64_t>(op_attr::axis, 1);
     EXPECT_TRUE(schema->verify(&logsoftmax));
 }
 
@@ -3270,7 +3291,7 @@ TEST(OpSchema, BatchNormInferenceWithBf16Data) {
             = op_schema_registry_t::get_op_schema(op_kind::BatchNormInference);
 
     op_t bn {0, op_kind::BatchNormInference, std::string("bn")};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
     logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::f32);
     logical_tensor_t lt_beta = logical_tensor_init(2, data_type::f32);
@@ -3293,7 +3314,7 @@ TEST(OpSchema, BatchNormInferenceWithBf16Inputs) {
             = op_schema_registry_t::get_op_schema(op_kind::BatchNormInference);
 
     op_t bn {0, op_kind::BatchNormInference, std::string("bn")};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::bf16);
     logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::bf16);
     logical_tensor_t lt_beta = logical_tensor_init(2, data_type::bf16);
@@ -3316,7 +3337,7 @@ TEST(OpSchema, DynamicTranspose) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
-    const std::map<std::string, bool> attrs_data {};
+    const std::map<op_attr_t, bool> attrs_data {};
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
 }
@@ -3326,7 +3347,8 @@ TEST(OpSchema, DynamicReshape) {
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"special_zero", true}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::special_zero, true}};
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
 }
@@ -3336,7 +3358,7 @@ TEST(OpSchema, StaticTranspose) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 1;
-    const std::map<std::string, bool> attrs_data = {{"order", true}};
+    const std::map<op_attr_t, bool> attrs_data = {{op_attr::order, true}};
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
 }
@@ -3346,8 +3368,8 @@ TEST(OpSchema, StaticReshape) {
     const size_t expected_in_size = 1;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 2;
-    const std::map<std::string, bool> attrs_data
-            = {{"shape", true}, {"special_zero", true}};
+    const std::map<op_attr_t, bool> attrs_data
+            = {{op_attr::shape, true}, {op_attr::special_zero, true}};
     verify_op_schema(op_kind_, expected_in_size, expected_out_size,
             expected_attr_size, attrs_data);
 }
@@ -3358,7 +3380,8 @@ TEST(OpSchema, InferStaticTransposeShape) {
 
     op_t static_transpose_op {
             op_kind::StaticTranspose, op_t::kind2str(op_kind::StaticTranspose)};
-    static_transpose_op.set_attr("order", std::vector<int64_t> {2, 0, 1});
+    static_transpose_op.set_attr(
+            op_attr::order, std::vector<int64_t> {2, 0, 1});
 
     logical_tensor_t lt_in1
             = logical_tensor_init(0, {1024, 64, 32}, data_type::f32);
@@ -3376,7 +3399,8 @@ TEST(OpSchema, InferStaticTransposeShape) {
     EXPECT_EQ(infered_out_shape1, expected_out_shape1);
 
     // negative order
-    static_transpose_op.set_attr("order", std::vector<int64_t> {-2, 2, 0});
+    static_transpose_op.set_attr(
+            op_attr::order, std::vector<int64_t> {-2, 2, 0});
     lt_in1 = logical_tensor_init(0, {2, 4, 1024}, data_type::f32);
     logical_tensor_t lt_o2
             = logical_tensor_init(2, data_type::f32, layout_type::strided);
@@ -3390,7 +3414,8 @@ TEST(OpSchema, InferStaticTransposeShape) {
     EXPECT_EQ(infered_out_shape2, expected_out_shape2);
 
     // repeat order
-    static_transpose_op.set_attr("order", std::vector<int64_t> {1, 1, 0});
+    static_transpose_op.set_attr(
+            op_attr::order, std::vector<int64_t> {1, 1, 0});
     logical_tensor_t lt_o3
             = logical_tensor_init(2, data_type::f32, layout_type::strided);
     std::vector<logical_tensor_t *> lt_out3 {&lt_o3};
@@ -3399,7 +3424,7 @@ TEST(OpSchema, InferStaticTransposeShape) {
     EXPECT_EQ(infer_status, status::invalid_shape);
 
     // order not cover all input axis
-    static_transpose_op.set_attr("order", std::vector<int64_t> {1, 0});
+    static_transpose_op.set_attr(op_attr::order, std::vector<int64_t> {1, 0});
     logical_tensor_t lt_o4
             = logical_tensor_init(2, data_type::f32, layout_type::strided);
     std::vector<logical_tensor_t *> lt_out4 {&lt_o4};
@@ -3408,7 +3433,8 @@ TEST(OpSchema, InferStaticTransposeShape) {
     EXPECT_EQ(infer_status, status::invalid_shape);
 
     // order out of range
-    static_transpose_op.set_attr("order", std::vector<int64_t> {1, 3, 0});
+    static_transpose_op.set_attr(
+            op_attr::order, std::vector<int64_t> {1, 3, 0});
     logical_tensor_t lt_o5
             = logical_tensor_init(2, data_type::f32, layout_type::strided);
     std::vector<logical_tensor_t *> lt_out5 {&lt_o5};
@@ -3417,7 +3443,7 @@ TEST(OpSchema, InferStaticTransposeShape) {
     EXPECT_EQ(infer_status, status::invalid_shape);
 
     // order is empty
-    static_transpose_op.set_attr("order", std::vector<int64_t> {});
+    static_transpose_op.set_attr(op_attr::order, std::vector<int64_t> {});
     logical_tensor_t lt_o6
             = logical_tensor_init(2, data_type::f32, layout_type::strided);
     std::vector<logical_tensor_t *> lt_out6 {&lt_o6};
@@ -3438,8 +3464,8 @@ TEST(OpSchema, InferStaticReshapeShape) {
             op_kind::StaticReshape, op_t::kind2str(op_kind::StaticReshape)};
 
     std::vector<int64_t> out_shape {16, 4, 8};
-    static_reshape_op.set_attr("shape", out_shape);
-    static_reshape_op.set_attr("special_zero", false);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
+    static_reshape_op.set_attr(op_attr::special_zero, false);
 
     logical_tensor_t lt_in1
             = logical_tensor_init(0, {2, 8, 32}, data_type::f32);
@@ -3456,8 +3482,8 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test special zero true
     out_shape = {4, 0, 16};
-    static_reshape_op.set_attr("shape", out_shape);
-    static_reshape_op.set_attr("special_zero", true);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
+    static_reshape_op.set_attr(op_attr::special_zero, true);
     lt_o1 = logical_tensor_init(2, data_type::f32, layout_type::strided);
 
     static_reshape_op_schema->shape_infer(&static_reshape_op, lt_in, lt_out1);
@@ -3468,8 +3494,8 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test special zero false
     out_shape = {4, 0, 16};
-    static_reshape_op.set_attr("shape", out_shape);
-    static_reshape_op.set_attr("special_zero", false);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
+    static_reshape_op.set_attr(op_attr::special_zero, false);
     lt_o1 = logical_tensor_init(3, data_type::f32, layout_type::strided);
 
     status_t infer_status = static_reshape_op_schema->shape_infer(
@@ -3478,8 +3504,8 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test -1 in shape
     out_shape = {8, 0, -1};
-    static_reshape_op.set_attr("shape", out_shape);
-    static_reshape_op.set_attr("special_zero", true);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
+    static_reshape_op.set_attr(op_attr::special_zero, true);
     lt_o1 = logical_tensor_init(4, data_type::f32, layout_type::strided);
 
     static_reshape_op_schema->shape_infer(&static_reshape_op, lt_in, lt_out1);
@@ -3490,7 +3516,7 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test input/output with different shape size
     out_shape = {4, 6, 16};
-    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
     lt_o1 = logical_tensor_init(5, data_type::f32, layout_type::strided);
 
     infer_status = static_reshape_op_schema->shape_infer(
@@ -3499,7 +3525,7 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test invalid shape: more than one -1
     out_shape = {-1, -1, 16};
-    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
     lt_o1 = logical_tensor_init(6, data_type::f32, layout_type::strided);
 
     infer_status = static_reshape_op_schema->shape_infer(
@@ -3508,7 +3534,7 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test invalid shape: < -1
     out_shape = {4, -6, 16};
-    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
     lt_o1 = logical_tensor_init(7, data_type::f32, layout_type::strided);
 
     infer_status = static_reshape_op_schema->shape_infer(
@@ -3517,8 +3543,8 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test shape contains 0-D
     out_shape = {0, 4, 7};
-    static_reshape_op.set_attr("shape", out_shape);
-    static_reshape_op.set_attr("special_zero", false);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
+    static_reshape_op.set_attr(op_attr::special_zero, false);
 
     logical_tensor_t lt_in8
             = logical_tensor_init(8, {0, 2, 8, 6}, data_type::f32);
@@ -3534,7 +3560,7 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test invalid shape case
     out_shape = {-1, 0};
-    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
     lt_o9 = logical_tensor_init(10, data_type::f32, layout_type::strided);
 
     infer_status = static_reshape_op_schema->shape_infer(
@@ -3543,7 +3569,7 @@ TEST(OpSchema, InferStaticReshapeShape) {
 
     // test input/output with different shape size
     out_shape = {-1, 0};
-    static_reshape_op.set_attr("shape", out_shape);
+    static_reshape_op.set_attr(op_attr::shape, out_shape);
     lt_o9 = logical_tensor_init(11, data_type::f32, layout_type::strided);
 
     infer_status = static_reshape_op_schema->shape_infer(
@@ -3598,9 +3624,9 @@ public:
 
         if (params.asymmetric) dynamic_quantize.add_input(lt_zps);
 
-        dynamic_quantize.set_attr<std::string>("qtype", params.qtype);
+        dynamic_quantize.set_attr<std::string>(op_attr::qtype, params.qtype);
         if (params.qtype == "per_channel")
-            dynamic_quantize.set_attr<int64_t>("axis", params.axis);
+            dynamic_quantize.set_attr<int64_t>(op_attr::axis, params.axis);
 
         EXPECT_EQ(schema->verify(&dynamic_quantize), params.supported);
     }
@@ -3710,8 +3736,8 @@ TEST(OpSchema, InferInterpolateShape) {
     op_t op_ {0, op_kind::Interpolate, std::string("Interpolate")};
 
     // test normal ncx sizes case
-    op_.set_attr<dims>("sizes", {10, 20});
-    op_.set_attr<std::string>("data_format", "NXC");
+    op_.set_attr<dims>(op_attr::sizes, {10, 20});
+    op_.set_attr<std::string>(op_attr::data_format, "NXC");
     logical_tensor_t lt_in = logical_tensor_init(
             0, {6, 7, 8, 9}, data_type::f32, layout_type::strided);
     std::vector<logical_tensor_t *> in {&lt_in};
@@ -3726,14 +3752,14 @@ TEST(OpSchema, InferInterpolateShape) {
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     // sizes and scales should not be valid at the same time
-    op_.set_attr<std::string>("data_format", "NCX");
-    op_.set_attr<std::vector<float>>("scales", {0.5f, 0.6f});
+    op_.set_attr<std::string>(op_attr::data_format, "NCX");
+    op_.set_attr<std::vector<float>>(op_attr::scales, {0.5f, 0.6f});
     lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
     ret = op_schema_->shape_infer(&op_, in, out);
     EXPECT_NE(ret, status::success);
 
     // test normal scales case
-    op_.set_attr<dims>("sizes", {});
+    op_.set_attr<dims>(op_attr::sizes, {});
     lt_out = logical_tensor_init(3, data_type::f32, layout_type::strided);
     ret = op_schema_->shape_infer(&op_, in, out);
     EXPECT_EQ(ret, status::success);
@@ -3742,14 +3768,14 @@ TEST(OpSchema, InferInterpolateShape) {
     EXPECT_EQ(infered_out_shape, expected_out_shape);
 
     // scales.size() == in.ndims() -2
-    op_.set_attr<std::vector<float>>("scales", {0.5f, 0.6f, 0.7f});
+    op_.set_attr<std::vector<float>>(op_attr::scales, {0.5f, 0.6f, 0.7f});
     lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
     ret = op_schema_->shape_infer(&op_, in, out);
     EXPECT_NE(ret, status::success);
 
     // sizes.size() == in.ndims() -2
-    op_.set_attr<std::vector<float>>("scales", {});
-    op_.set_attr<dims>("sizes", {20});
+    op_.set_attr<std::vector<float>>(op_attr::scales, {});
+    op_.set_attr<dims>(op_attr::sizes, {20});
     lt_out = logical_tensor_init(2, data_type::f32, layout_type::strided);
     ret = op_schema_->shape_infer(&op_, in, out);
     EXPECT_NE(ret, status::success);
@@ -3768,7 +3794,7 @@ TEST(OpSchema, InferInterpolateBackpropShape) {
     logical_tensor_t lt_out
             = logical_tensor_init(2, data_type::f32, layout_type::strided);
     std::vector<logical_tensor_t *> out {&lt_out};
-    op_.set_attr<dims>("sizes", {6, 5});
+    op_.set_attr<dims>(op_attr::sizes, {6, 5});
 
     status_t ret = op_schema_->shape_infer(&op_, in, out);
     EXPECT_EQ(ret, status::success);
@@ -3811,7 +3837,7 @@ TEST(OpSchema, FailToAddBn) {
             = op_schema_registry_t::get_op_schema(op_kind::BatchNormInference);
 
     op_t bn {0, op_kind::BatchNormInference, std::string("bn")};
-    bn.set_attr("epsilon", 0.001f);
+    bn.set_attr(op_attr::epsilon, 0.001f);
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
     logical_tensor_t lt_gamma = logical_tensor_init(1, data_type::bf16);
     logical_tensor_t lt_beta = logical_tensor_init(2, data_type::bf16);
@@ -3854,7 +3880,7 @@ TEST(OpSchema, EltwiseWoAttr) {
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 0;
     // clang3 requires user-provided default constructor
-    const std::map<std::string, bool> attrs_data = {};
+    const std::map<impl::op_attr_t, bool> attrs_data = {};
     for (const op_kind_t op_kind_ : op_kind) {
         verify_op_schema(op_kind_, expected_in_size, expected_out_size,
                 expected_attr_size, attrs_data);

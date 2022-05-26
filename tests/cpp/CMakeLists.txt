@@ -35,5 +35,5 @@ if(UNIX)
     endif()
 endif()
 
-add_subdirectory(api)
+# add_subdirectory(api)
 add_subdirectory(unit)
