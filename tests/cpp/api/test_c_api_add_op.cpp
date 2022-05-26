@@ -48,23 +48,23 @@ TEST(CAPI, AddOp) {
     int64_t stride[] = {4, 4};
     int64_t padding[] = {0, 0};
     int64_t dilation[] = {1, 1};
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op0, "strides",
-                           dnnl_graph_attribute_kind_is, stride, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           op0, dnnl_graph_op_attr_strides, stride, 2),
             dnnl_graph_success, ADD_OP_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op0, "pads_begin",
-                           dnnl_graph_attribute_kind_is, padding, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           op0, dnnl_graph_op_attr_pads_begin, padding, 2),
             dnnl_graph_success, ADD_OP_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op0, "pads_end",
-                           dnnl_graph_attribute_kind_is, padding, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           op0, dnnl_graph_op_attr_pads_end, padding, 2),
             dnnl_graph_success, ADD_OP_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op0, "dilations",
-                           dnnl_graph_attribute_kind_is, dilation, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           op0, dnnl_graph_op_attr_dilations, dilation, 2),
             dnnl_graph_success, ADD_OP_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op0, "data_format",
-                           dnnl_graph_attribute_kind_s, "NCX", 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                           op0, dnnl_graph_op_attr_data_format, "NCX", 1),
             dnnl_graph_success, ADD_OP_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op0, "filter_format",
-                           dnnl_graph_attribute_kind_s, "OIX", 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                           op0, dnnl_graph_op_attr_filter_format, "OIX", 1),
             dnnl_graph_success, ADD_OP_DESTROY);
 
     dnnl_graph_logical_tensor_t op0_src_desc, op0_weight_desc, op0_dst_desc;

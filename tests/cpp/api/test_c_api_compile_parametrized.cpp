@@ -89,39 +89,33 @@ public:
         const dnnl_graph_logical_tensor_t *outputs[1] = {&output};
 
         ASSERT_EQ_SAFE(
-                dnnl_graph_op_add_attr(op, p.attr_name.strides.c_str(),
-                        dnnl_graph_attribute_kind_is,
+                dnnl_graph_op_set_attr_s64(op, dnnl_graph_op_attr_strides,
                         p.attr_value.strides.data(),
                         static_cast<int64_t>(p.attr_value.strides.size())),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(
-                dnnl_graph_op_add_attr(op, p.attr_name.pads_begin.c_str(),
-                        dnnl_graph_attribute_kind_is,
+                dnnl_graph_op_set_attr_s64(op, dnnl_graph_op_attr_pads_begin,
                         p.attr_value.pads_begin.data(),
                         static_cast<int64_t>(p.attr_value.pads_begin.size())),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(
-                dnnl_graph_op_add_attr(op, p.attr_name.pads_end.c_str(),
-                        dnnl_graph_attribute_kind_is,
+                dnnl_graph_op_set_attr_s64(op, dnnl_graph_op_attr_pads_end,
                         p.attr_value.pads_end.data(),
                         static_cast<int64_t>(p.attr_value.pads_end.size())),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(
-                dnnl_graph_op_add_attr(op, p.attr_name.dilations.c_str(),
-                        dnnl_graph_attribute_kind_is,
+                dnnl_graph_op_set_attr_s64(op, dnnl_graph_op_attr_dilations,
                         p.attr_value.dilations.data(),
                         static_cast<int64_t>(p.attr_value.dilations.size())),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
-        ASSERT_EQ_SAFE(
-                dnnl_graph_op_add_attr(op, p.attr_name.groups.c_str(),
-                        dnnl_graph_attribute_kind_i, p.attr_value.groups.data(),
-                        static_cast<int64_t>(p.attr_value.groups.size())),
+        ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(op, dnnl_graph_op_attr_groups,
+                               p.attr_value.groups.data(), 0),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
-        ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op, "data_format",
-                               dnnl_graph_attribute_kind_s, "NCX", 1),
+        ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                               op, dnnl_graph_op_attr_data_format, "NCX", 1),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
-        ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op, "filter_format",
-                               dnnl_graph_attribute_kind_s, "OIX", 1),
+        ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                               op, dnnl_graph_op_attr_filter_format, "OIX", 1),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
 
         ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, op), dnnl_graph_success,

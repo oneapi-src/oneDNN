@@ -58,14 +58,14 @@ TEST(CAPI, OpAttr) {
     int64_t strides[] = {4, 4};
     const char *auto_pad = "same_upper";
     int64_t groups = 2;
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op, "strides",
-                           dnnl_graph_attribute_kind_is, &strides, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           op, dnnl_graph_op_attr_strides, strides, 2),
             dnnl_graph_success, OP_ATTR_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op, "auto_pad",
-                           dnnl_graph_attribute_kind_s, auto_pad, 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                           op, dnnl_graph_op_attr_auto_pad, auto_pad, 1),
             dnnl_graph_success, OP_ATTR_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(op, "groups",
-                           dnnl_graph_attribute_kind_i, &groups, 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           op, dnnl_graph_op_attr_groups, &groups, 1),
             dnnl_graph_success, OP_ATTR_DESTROY);
 
     ASSERT_EQ_SAFE(
@@ -73,11 +73,13 @@ TEST(CAPI, OpAttr) {
             dnnl_graph_success, OP_ATTR_DESTROY);
     bool transpose_a = true;
     bool transpose_b = false;
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(matmul_op, "transpose_a",
-                           dnnl_graph_attribute_kind_b, &transpose_a, 1),
+    ASSERT_EQ_SAFE(
+            dnnl_graph_op_set_attr_bool(matmul_op,
+                    dnnl_graph_op_attr_transpose_a, (uint8_t *)&transpose_a, 0),
             dnnl_graph_success, OP_ATTR_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(matmul_op, "transpose_b",
-                           dnnl_graph_attribute_kind_b, &transpose_b, 1),
+    ASSERT_EQ_SAFE(
+            dnnl_graph_op_set_attr_bool(matmul_op,
+                    dnnl_graph_op_attr_transpose_b, (uint8_t *)&transpose_b, 0),
             dnnl_graph_success, OP_ATTR_DESTROY);
 
     OP_ATTR_DESTROY;

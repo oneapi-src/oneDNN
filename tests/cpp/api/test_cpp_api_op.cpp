@@ -178,8 +178,8 @@ TEST(APIOp, SetAttr) {
     conv.set_attr<std::vector<int64_t>>("strides", {1, 1});
     conv.set_attr<int64_t>("groups", 1);
     conv.set_attr<std::string>("auto_pad", "VALID");
-    conv.set_attr<std::vector<float>>("float_vec", {1., 1.});
-    conv.set_attr<float>("float_val", 1.);
+    // conv.set_attr<std::vector<float>>("float_vec", {1., 1.});
+    // conv.set_attr<float>("float_val", 1.);
 }
 
 TEST(APIOp, ShallowCopy) {

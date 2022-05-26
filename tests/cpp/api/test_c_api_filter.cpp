@@ -49,26 +49,26 @@ TEST(CAPI, FilterConBNStandalone) {
     int64_t padding[] = {0, 0};
     int64_t dilation[] = {1, 1};
     float epsilon = 0.001f;
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "strides",
-                           dnnl_graph_attribute_kind_is, stride, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           conv2d, dnnl_graph_op_attr_strides, stride, 2),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "pads_begin",
-                           dnnl_graph_attribute_kind_is, padding, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           conv2d, dnnl_graph_op_attr_pads_begin, padding, 2),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "pads_end",
-                           dnnl_graph_attribute_kind_is, padding, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           conv2d, dnnl_graph_op_attr_pads_end, padding, 2),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "dilations",
-                           dnnl_graph_attribute_kind_is, dilation, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           conv2d, dnnl_graph_op_attr_dilations, dilation, 2),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "data_format",
-                           dnnl_graph_attribute_kind_s, "NCX", 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                           conv2d, dnnl_graph_op_attr_data_format, "NCX", 1),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "filter_format",
-                           dnnl_graph_attribute_kind_s, "OIX", 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                           conv2d, dnnl_graph_op_attr_filter_format, "OIX", 1),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(bn, "epsilon",
-                           dnnl_graph_attribute_kind_f, &epsilon, 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_f32(
+                           bn, dnnl_graph_op_attr_epsilon, &epsilon, 0),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
 
     dnnl_graph_logical_tensor_t conv2d_src_desc, conv2d_weight_desc,
@@ -170,23 +170,23 @@ TEST(CAPI, FilterConvBNFused) {
     int64_t stride[] = {4, 4};
     int64_t padding[] = {0, 0};
     int64_t dilation[] = {1, 1};
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "strides",
-                           dnnl_graph_attribute_kind_is, stride, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           conv2d, dnnl_graph_op_attr_strides, stride, 2),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "pads_begin",
-                           dnnl_graph_attribute_kind_is, padding, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           conv2d, dnnl_graph_op_attr_pads_begin, padding, 2),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "pads_end",
-                           dnnl_graph_attribute_kind_is, padding, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           conv2d, dnnl_graph_op_attr_pads_end, padding, 2),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "dilations",
-                           dnnl_graph_attribute_kind_is, dilation, 2),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
+                           conv2d, dnnl_graph_op_attr_dilations, dilation, 2),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "data_format",
-                           dnnl_graph_attribute_kind_s, "NCX", 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                           conv2d, dnnl_graph_op_attr_data_format, "NCX", 1),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(conv2d, "filter_format",
-                           dnnl_graph_attribute_kind_s, "OIX", 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
+                           conv2d, dnnl_graph_op_attr_filter_format, "OIX", 1),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
 
     dnnl_graph_logical_tensor_t conv2d_src_desc, conv2d_weight_desc,
@@ -213,8 +213,8 @@ TEST(CAPI, FilterConvBNFused) {
     op_kind = dnnl_graph_op_batch_norm_inference;
     dnnl_graph_op_create(&bn, 2, op_kind, "bn");
     float epsilon = 0.001f;
-    ASSERT_EQ_SAFE(dnnl_graph_op_add_attr(bn, "epsilon",
-                           dnnl_graph_attribute_kind_f, &epsilon, 1),
+    ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_f32(
+                           bn, dnnl_graph_op_attr_epsilon, &epsilon, 0),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
     dnnl_graph_logical_tensor_t bn_gamma_desc, bn_beta_desc, bn_mean_desc,
             bn_var_desc, bn_dst_desc;
