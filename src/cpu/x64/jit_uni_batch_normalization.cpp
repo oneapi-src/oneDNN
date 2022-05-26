@@ -45,6 +45,14 @@ namespace barrier = simple_barrier;
 
 using acc_data_t = float;
 
+namespace {
+bool is_nspc(const memory_desc_wrapper &d) {
+    using namespace format_tag;
+    const bool is_nspc = d.matches_one_of_tag(nc, nwc, nhwc, ndhwc);
+    return is_nspc;
+}
+} // namespace
+
 template <cpu_isa_t isa>
 struct jit_bnorm_t : public jit_generator {
     struct call_params_t {
@@ -1750,8 +1758,7 @@ struct jit_bnorm_t : public jit_generator {
         size_t dt_size
                 = types::data_type_size(bdesc_->desc()->data_desc.data_type);
         const memory_desc_wrapper src_d(bdesc_->src_md());
-        is_nspc_
-                = src_d.matches_one_of_tag(format_tag::nhwc, format_tag::ndhwc);
+        is_nspc_ = is_nspc(src_d);
         is_spatial_thr_ = bnorm_utils::is_spatial_thr(
                 bdesc_, is_nspc_, simd_w, dt_size);
         vlen_spat_data_ = vlen / (1 + is_bf16_); // 32B of BF16 -> 64B of FP32
@@ -1809,8 +1816,7 @@ struct driver_t : public c_compatible {
         const dim_t C_PADDED = get_c_padded(bdesc_);
 
         const memory_desc_wrapper src_d(bdesc_->src_md());
-        is_nspc_
-                = src_d.matches_one_of_tag(format_tag::nhwc, format_tag::ndhwc);
+        is_nspc_ = is_nspc(src_d);
 
         dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
         size_t data_size = dt_size_ * bdesc_->MB() * C_PADDED * bdesc_->D()
@@ -2043,8 +2049,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             /* the algorithm requires barriers for best performance so for TBB we use
              * jit_uni_tbb_batch_normalization instead */
             && dnnl_thr_syncable() && mayiuse(isa) && is_fwd()
-            && !has_zero_dim_memory() && one_of(ndims(), 4, 5)
-            && one_of(src_md()->data_type, f32, bf16)
+            && !has_zero_dim_memory() && one_of(src_md()->data_type, f32, bf16)
             && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
             && check_scale_shift_data_type()
             && (attr()->has_default_values()
@@ -2053,10 +2058,11 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
     const memory_desc_wrapper src_d(src_md());
     if (isa == avx512_core) {
-        if (!src_d.matches_one_of_tag(nChw16c, nCdhw16c, nhwc, ndhwc))
+        if (!src_d.matches_one_of_tag(
+                    nCw16c, nChw16c, nCdhw16c, nc, nwc, nhwc, ndhwc))
             return status::unimplemented;
     } else {
-        if (!src_d.matches_one_of_tag(nChw8c, nCdhw8c))
+        if (!src_d.matches_one_of_tag(nCw8c, nChw8c, nCdhw8c))
             return status::unimplemented;
     }
 
@@ -2071,7 +2077,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
         return status::unimplemented;
 
     // Only IC % 16 == 0 is supported for now
-    if (src_d.matches_one_of_tag(nhwc, ndhwc)
+    if (src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc)
             && src_d.padded_dims()[1] % 16 != 0) {
         return status::unimplemented;
     }
@@ -2150,8 +2156,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
             /* the algorithm requires barriers for best performance so for TBB we use
              * jit_uni_tbb_batch_normalization instead */
             && dnnl_thr_syncable() && mayiuse(isa) && is_bwd()
-            && !has_zero_dim_memory() && one_of(ndims(), 4, 5)
-            && set_default_formats_common()
+            && !has_zero_dim_memory() && set_default_formats_common()
             && one_of(true,
                     everyone_is(
                             f32, src_md()->data_type, diff_src_md()->data_type),
@@ -2166,12 +2171,13 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
 
     format_tag_t src_tag, diff_src_tag;
     if (isa == avx512_core) {
-        src_tag = src_d.matches_one_of_tag(nChw16c, nCdhw16c, nhwc, ndhwc);
-        diff_src_tag
-                = diff_src_d.matches_one_of_tag(nChw16c, nCdhw16c, nhwc, ndhwc);
+        src_tag = src_d.matches_one_of_tag(
+                nc, nwc, nCw16c, nhwc, nChw16c, ndhwc, nCdhw16c);
+        diff_src_tag = diff_src_d.matches_one_of_tag(
+                nc, nwc, nCw16c, nhwc, nChw16c, ndhwc, nCdhw16c);
     } else {
-        src_tag = src_d.matches_one_of_tag(nChw8c, nCdhw8c);
-        diff_src_tag = diff_src_d.matches_one_of_tag(nChw8c, nCdhw8c);
+        src_tag = src_d.matches_one_of_tag(nCw8c, nChw8c, nCdhw8c);
+        diff_src_tag = diff_src_d.matches_one_of_tag(nCw8c, nChw8c, nCdhw8c);
     }
     ok = (src_tag != format_tag::undef && diff_src_tag != format_tag::undef
             && src_tag == diff_src_tag);
@@ -2183,7 +2189,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
         return status::unimplemented;
 
     // Only IC % 16 == 0 is supported for now
-    if (src_d.matches_one_of_tag(nhwc, ndhwc)
+    if (src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc)
             && src_d.padded_dims()[1] % 16 != 0) {
         return status::unimplemented;
     }

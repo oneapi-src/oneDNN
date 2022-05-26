@@ -2263,9 +2263,8 @@ using namespace utils;
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
         engine_t *engine) {
-
     const bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-            && one_of(ndims(), 4, 5) && one_of(src_md()->data_type, f32, bf16)
+            && one_of(src_md()->data_type, f32, bf16)
             && IMPLICATION(src_md()->data_type == bf16,
                     is_superset(isa, avx512_core) && mayiuse(avx512_core))
             && check_scale_shift_data_type()
@@ -2274,15 +2273,15 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
     if (!ok) return status::unimplemented;
 
     const format_tag_t blocked_tag = is_superset(isa, avx512_core)
-            ? utils::pick(ndims() - 4, nChw16c, nCdhw16c)
-            : utils::pick(ndims() - 4, nChw8c, nCdhw8c);
+            ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)
+            : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
 
     const format_tag_t blocked_format
             = memory_desc_matches_tag(*src_md(), blocked_tag)
             ? blocked_tag
             : format_tag::undef;
     const format_tag_t nspc_format
-            = memory_desc_matches_one_of_tag(*src_md(), nhwc, ndhwc);
+            = memory_desc_matches_one_of_tag(*src_md(), nc, nwc, nhwc, ndhwc);
 
     if (memory_desc_matches_tag(*dst_md(), blocked_format))
         tag_kind_ = jit_memory_tag_kind_t::blocked;
@@ -2373,9 +2372,8 @@ template struct jit_uni_tbb_batch_normalization_fwd_t<avx512_core>;
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
         engine_t *engine) {
-
     const bool ok = mayiuse(isa) && is_bwd() && !has_zero_dim_memory()
-            && one_of(ndims(), 4, 5) && set_default_formats_common()
+            && set_default_formats_common()
             && one_of(true,
                     everyone_is(
                             f32, src_md()->data_type, diff_src_md()->data_type),
@@ -2387,15 +2385,15 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
     if (!ok) return status::unimplemented;
 
     const format_tag_t blocked_tag = is_superset(isa, avx512_core)
-            ? utils::pick(ndims() - 4, nChw16c, nCdhw16c)
-            : utils::pick(ndims() - 4, nChw8c, nCdhw8c);
+            ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)
+            : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
 
     const format_tag_t blocked_format
             = memory_desc_matches_tag(*src_md(), blocked_tag)
             ? blocked_tag
             : format_tag::undef;
     const format_tag_t nspc_format
-            = memory_desc_matches_one_of_tag(*src_md(), nhwc, ndhwc);
+            = memory_desc_matches_one_of_tag(*src_md(), nc, nwc, nhwc, ndhwc);
 
     if (memory_desc_matches_tag(*diff_src_md(), blocked_format))
         tag_kind_ = jit_memory_tag_kind_t::blocked;
