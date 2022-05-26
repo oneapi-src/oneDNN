@@ -30,3 +30,9 @@
 --bia_mask=1,2
 --attr-post-ops=swish:1
 384x4096:4096x1024:384x1024
+
+# fpmath mode control
+--reset
+--attr-fpmath=strict,bf16,f16,f19,any 
+--attr-post-ops=mul:f32 
+8x6x197x64:8x6x64x197:8x6x197x197

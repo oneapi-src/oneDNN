@@ -306,7 +306,8 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     deconv_graph_prb_t graph_prb(prb);
     if (!check_graph_creation_status(&graph_prb, res)) { return OK; }
 
-    auto graph_h = graph_prb.to_graph();
+    auto mode = convert_fpmath_mode(prb->attr.fpmath_mode);
+    auto graph_h = graph_prb.to_graph(mode);
 
     const auto partitions
             = graph_h.get_partitions(dnnl::graph::partition::policy::fusion);

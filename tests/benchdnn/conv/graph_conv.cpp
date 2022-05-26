@@ -336,7 +336,8 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto mode = convert_fpmath_mode(prb->attr.fpmath_mode);
+    auto graph_h = graph_prb.to_graph(mode);
 
     // Filer partitions
     const auto partitions

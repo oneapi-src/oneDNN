@@ -42,3 +42,10 @@ g4oc20ic16_od5id5kd3pd1_n"3d_oc_tail_conv:grouped"
 --wtag=any
 --dtag=acdeb
 g1mb1ic3id116ih132iw132oc32od114oh130ow130kd3kh3kw3sd1sh1sw1pd0ph0pw0dd0dh0dw0n"3d_unet:conv_1"
+
+# fpmath mode control
+--reset
+--dir=FWD_I
+--attr-fpmath=strict,bf16,f16,f19,any 
+--attr-post-ops=sum 
+mb50ic64ih56oc64oh56kh1ph0

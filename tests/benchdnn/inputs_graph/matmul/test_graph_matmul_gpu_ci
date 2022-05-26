@@ -34,3 +34,8 @@
 --cfg=bf16bf16bf16
 --attr-post-ops=add:bf16:common,add:bf16:per_oc
 384x512:512x1024:384x1024
+
+# fpmath mode control
+--reset
+--attr-fpmath=strict,bf16,f16,f19,any
+384x512:512x1024:384x1024

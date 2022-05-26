@@ -82,6 +82,8 @@ dims_t convert_bin_policy(
 std::map<std::string, float> convert_eltw_entry(
         const dnnl::graph::op::kind op_kind,
         const attr_t::post_ops_t::entry_t &entry) noexcept;
+dnnl::graph::graph::fpmath_mode convert_fpmath_mode(
+        const dnnl_fpmath_mode_t mode) noexcept;
 
 int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales);
 
@@ -360,10 +362,11 @@ dnnl::graph::compiled_partition compile_partition(const func_t &init_pd_func,
 struct graph_prb_t {
     using dt = dnnl::graph::logical_tensor::data_type;
     using lt = dnnl::graph::logical_tensor::layout_type;
+    using fpmath_mode = dnnl::graph::graph::fpmath_mode;
 
-    dnnl::graph::graph to_graph() {
+    dnnl::graph::graph to_graph(fpmath_mode mode = fpmath_mode::strict) {
         const dnnl::graph::engine &engine = benchdnnext::get_test_engine();
-        dnnl::graph::graph graph(engine.get_kind());
+        dnnl::graph::graph graph(engine.get_kind(), mode);
         for (auto &&op : ops_)
             graph.add_op(op);
         return graph;

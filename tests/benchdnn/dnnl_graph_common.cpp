@@ -308,6 +308,23 @@ std::map<std::string, float> convert_eltw_entry(
     }
 }
 
+dnnl::graph::graph::fpmath_mode convert_fpmath_mode(
+        const dnnl_fpmath_mode_t mode) noexcept {
+    using fpmath_mode = dnnl::graph::graph::fpmath_mode;
+
+    switch (mode) {
+        case dnnl_fpmath_mode_strict: return fpmath_mode::strict;
+        case dnnl_fpmath_mode_bf16: return fpmath_mode::bf16;
+        case dnnl_fpmath_mode_f16: return fpmath_mode::f16;
+        case dnnl_fpmath_mode_any: return fpmath_mode::any;
+        case dnnl_fpmath_mode_f19: return fpmath_mode::f19;
+        default:
+            assert("fpmath policy not supported for now. use strict as "
+                   "default");
+            return fpmath_mode::strict;
+    }
+}
+
 int scale_bia(
         dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales) {
     if (scales.empty()) {
