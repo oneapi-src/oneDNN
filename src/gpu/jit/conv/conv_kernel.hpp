@@ -3189,6 +3189,7 @@ public:
         ir_assert(src_tile_blocks.size() <= 1);
         int src_stride
                 = src_tile_blocks.empty() ? 1 : (int)src_tile_blocks[0].stride;
+        int grf_size = ngen::GRF::bytes(hw_);
         src_layout_.for_each_tile(
                 tile, [&](const std::vector<dim_t> &src_start) {
                     ngen_register_scope_t tile_scope(
@@ -3214,10 +3215,14 @@ public:
                             dst_off, to_ngen(dst_type), tile_elems, 1);
                     auto s = src_rd.format(
                             src_off, to_ngen(src_type), tile_elems, src_stride);
+                    bool s_half_grf_aligned
+                            = utils::one_of(s.byte_offset(), 0, grf_size / 2);
+                    bool s_is_bf = src_type.is_bf16();
 
-                    if (src_stride != 1) {
+                    if (src_stride != 1 || (s_is_bf && !s_half_grf_aligned)) {
                         auto tmp_type = src_type;
-                        if (d.offset() != 0 && src_type.is_bf16()) {
+                        if ((d.offset() != 0 || !s_half_grf_aligned)
+                                && s_is_bf) {
                             tmp_type = type_t::f32();
                         }
                         auto tmp = tile_scope.alloc_reg_data(
