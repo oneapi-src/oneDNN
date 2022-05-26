@@ -61,6 +61,16 @@ TEST(CAPI, LogicalTensorInit) {
     ASSERT_EQ(lt.ndims, 4);
     ASSERT_EQ(lt.layout_type, dnnl_graph_layout_type_any);
     ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);
+
+    ASSERT_EQ(dnnl_graph_logical_tensor_init(&lt, id, dnnl_graph_boolean, 4,
+                      dnnl_graph_layout_type_any,
+                      dnnl_graph_tensor_property_undef),
+            dnnl_graph_success);
+    ASSERT_EQ(lt.id, id);
+    ASSERT_EQ(lt.data_type, dnnl_graph_boolean);
+    ASSERT_EQ(lt.ndims, 4);
+    ASSERT_EQ(lt.layout_type, dnnl_graph_layout_type_any);
+    ASSERT_EQ(lt.property, dnnl_graph_tensor_property_undef);
 }
 
 TEST(CAPI, LogicalTensorInitProperty) {

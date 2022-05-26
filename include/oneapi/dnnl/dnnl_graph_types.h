@@ -87,6 +87,10 @@ typedef enum {
     dnnl_graph_s8 = 5,
     /// 8-bit unsigned integer.
     dnnl_graph_u8 = 6,
+    /// boolean data type. The tensor element will be interpreted with C++ bool
+    /// type. Note that the size of C++ bool type is language implementation
+    /// implementation defined.
+    dnnl_graph_boolean = 8,
 } dnnl_graph_data_type_t;
 
 /// @} dnnl_graph_api_logical_tensor

@@ -425,6 +425,10 @@ public:
         s8 = dnnl_graph_s8,
         /// 8-bit unsigned integer.
         u8 = dnnl_graph_u8,
+        /// boolean data type. The tensor element will be interpreted with C++
+        /// bool type. Note that the size of C++ bool type is language
+        /// implementation defined.
+        boolean = dnnl_graph_boolean,
     };
 
     /// Layout type
