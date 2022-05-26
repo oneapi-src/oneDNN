@@ -330,22 +330,6 @@ typedef enum {
     dnnl_graph_op_attr_rounding_type,
 } dnnl_graph_op_attr_t;
 
-/// Kind for op's attributes
-typedef enum {
-    /// attributes with float type
-    dnnl_graph_attribute_kind_f = 0,
-    /// atributes with list of floats
-    dnnl_graph_attribute_kind_fs = 1,
-    /// attributes with int64_t type
-    dnnl_graph_attribute_kind_i = 2,
-    /// atributes with list of int64_t
-    dnnl_graph_attribute_kind_is = 3,
-    /// attributes with string type
-    dnnl_graph_attribute_kind_s = 4,
-    /// attributes with bool type
-    dnnl_graph_attribute_kind_b = 5,
-} dnnl_graph_attribute_kind_t;
-
 /// @} dnnl_graph_api_op
 
 /// @addtogroup dnnl_graph_api_allocator

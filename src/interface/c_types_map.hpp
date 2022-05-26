@@ -261,14 +261,14 @@ const allocator_lifetime_t output = dnnl_graph_allocator_output;
 const allocator_lifetime_t temp = dnnl_graph_allocator_temp;
 } // namespace allocator_lifetime
 
-using attribute_kind_t = dnnl_graph_attribute_kind_t;
+using attribute_kind_t = size_t;
 namespace attribute_kind {
-const attribute_kind_t f = dnnl_graph_attribute_kind_f;
-const attribute_kind_t fs = dnnl_graph_attribute_kind_fs;
-const attribute_kind_t i = dnnl_graph_attribute_kind_i;
-const attribute_kind_t is = dnnl_graph_attribute_kind_is;
-const attribute_kind_t s = dnnl_graph_attribute_kind_s;
-const attribute_kind_t b = dnnl_graph_attribute_kind_b;
+const attribute_kind_t f = 0;
+const attribute_kind_t fs = 1;
+const attribute_kind_t i = 2;
+const attribute_kind_t is = 3;
+const attribute_kind_t s = 4;
+const attribute_kind_t b = 5;
 } // namespace attribute_kind
 
 using allocator_attr_t = dnnl_graph_allocator_attr_t;
