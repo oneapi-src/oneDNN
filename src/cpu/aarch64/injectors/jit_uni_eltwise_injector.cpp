@@ -841,8 +841,9 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
     h->eor(t2, mask, t2);
     h->fnmsb(t1, p_all, set_imm(z_tmp, float2int(std::log(2))),
             t2); // x = n * log2 - h
-    h->movprfx(t2, p_all, set_imm(z_tmp, float2int(1.0f / 3)));
-    h->fcpy(z_tmp, p_all, -0.5f);
+    set_imm(z_tmp, float2int(0.333332205));
+    h->movprfx(t2, p_all, z_tmp);
+    set_imm(z_tmp, float2int(-0.499999851));
     h->fmad(t2, p_all, t0, z_tmp); // f
     h->fcpy(z_tmp, p_all, 1.0f);
     h->fmad(t2, p_all, t0, z_tmp); // f * y + 1
