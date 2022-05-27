@@ -1013,15 +1013,9 @@ status_t infer_elemwise_arithmetic_output_shape(op_t *n,
     auto out0 = logical_tensor_wrapper_t(outputs[0]);
     if (!out0.is_shape_unknown()) return status::success;
 
-    const op_attr_t broadcast_attr_name = op_attr::auto_broadcast;
-    const bool shapes_should_match = [n, &broadcast_attr_name]() {
-        if (n->has_attr(broadcast_attr_name)) {
-            const auto &auto_broadcast
-                    = n->get_attr<std::string>(broadcast_attr_name);
-            return auto_broadcast == "none";
-        }
-        return false;
-    }();
+    const bool shapes_should_match = n->has_attr(op_attr::auto_broadcast)
+            ? "none" == n->get_attr<std::string>(op_attr::auto_broadcast)
+            : false;
 
     dims input0_dims = in0.vdims();
     dims input1_dims = in1.vdims();
