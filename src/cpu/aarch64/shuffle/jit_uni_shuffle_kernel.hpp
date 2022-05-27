@@ -101,6 +101,8 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
 
     const jit_shuffle_conf_t conf_;
     const size_t padding_size_;
+    const uint64_t isa_sveLen
+            = is_superset(isa, sve_128) ? cpu_isa_traits<isa>::vlen : 0;
 };
 
 } // namespace aarch64
