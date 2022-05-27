@@ -215,9 +215,120 @@ public:
         L(label);
     }
 
+    template <typename T>
+    Xbyak_aarch64::XReg addr_off(const Xbyak_aarch64::XReg &base, const T off,
+            const Xbyak_aarch64::XReg &addr, const Xbyak_aarch64::XReg &x_tmp) {
+        if (off == 0) return base;
+
+        add_imm(addr, base, off, x_tmp);
+        return addr;
+    }
+
+    template <typename PRegBHSD, typename T>
+    void set_preg(const PRegBHSD &p, T tail_size,
+            Xbyak_aarch64::ZReg z_tmp = Xbyak_aarch64::ZReg(DUMMY_IDX)) {
+        using namespace Xbyak_aarch64;
+
+        const int elem_bit = p.getBit();
+        const int elem_num = cpu().getSveLen() * 8 / elem_bit;
+        Xbyak_aarch64::PReg p_(p.getIdx());
+        bool need_restore = false;
+
+        assert(tail_size <= 64); // Implemented only for "SVE size <=  512"
+
+        if (tail_size == 0) {
+            pfalse(PRegB(p.getIdx()));
+            return;
+        }
+        if ((signed)tail_size == elem_num - (elem_num % 3)) {
+            ptrue(p, MUL3);
+            return;
+        }
+
+        switch (tail_size) {
+            case 0: pfalse(PRegB(p.getIdx())); return;
+            case 1: ptrue(p, VL1); return;
+            case 2: ptrue(p, VL2); return;
+            case 3: ptrue(p, VL3); return;
+            case 4: ptrue(p, VL4); return;
+            case 5: ptrue(p, VL5); return;
+            case 6: ptrue(p, VL6); return;
+            case 7: ptrue(p, VL7); return;
+            case 8: ptrue(p, VL8); return;
+            case 16: ptrue(p, VL16); return;
+            case 32: ptrue(p, VL32); return;
+            case 64: ptrue(p, VL64); return;
+        }
+
+        if (z_tmp.getIdx() == DUMMY_IDX) {
+            str(z31, Xbyak_aarch64::ptr(X_SP, -1, MUL_VL));
+            z_tmp = z31;
+            need_restore = true;
+        }
+
+        if (tail_size < 32) {
+#define POS_CASE(lane) \
+    index(z_tmp.lane, 0, 1); \
+    cmplt(p_.lane, P_ALL_ONE / Xbyak_aarch64::T_z, z_tmp.lane, tail_size);
+#define NEG_CASE(lane) \
+    index(z_tmp.lane, 0, 1); \
+    cmplt(p_.lane, P_ALL_ONE / Xbyak_aarch64::T_z, z_tmp.lane, \
+            elem_num - tail_size); \
+    rev(p_.lane, p_.lane); \
+    not_(p_.b, P_ALL_ONE / Xbyak_aarch64::T_z, p_.b);
+
+            switch (elem_bit) {
+                case 8: POS_CASE(b); break;
+                case 16: POS_CASE(h); break;
+                case 32: POS_CASE(s); break;
+                case 64: POS_CASE(d); break;
+                default: assert(!"Unreachable");
+            }
+        } else { /* 32 <= tail_size < 64 */
+            switch (elem_bit) {
+                case 8: NEG_CASE(b); break;
+                case 16: NEG_CASE(h); break;
+                case 32: NEG_CASE(s); break;
+                case 64: NEG_CASE(d); break;
+                default: assert(!"Unreachable");
+            }
+        }
+#undef POS_CASE
+#undef NEG_CASE
+
+        if (need_restore) ldr(z31, Xbyak_aarch64::ptr(X_SP, -1, MUL_VL));
+    }
+
+    template <typename T>
+    void uni_add(const T &x1, const T &x2, const T &op) {
+        add(x1, x2, op);
+    }
+
+    void uni_add(const Xbyak_aarch64::VReg4S &x1,
+            const Xbyak_aarch64::VReg4S &x2, const Xbyak_aarch64::VReg4S &op) {
+        add(x1, x2, op);
+    }
+
+    void uni_add(const Xbyak_aarch64::ZReg &x1, const Xbyak_aarch64::ZReg &x2,
+            const Xbyak_aarch64::ZReg &op) {
+        add(Xbyak_aarch64::ZRegS(x1.getIdx()),
+                Xbyak_aarch64::ZRegS(x2.getIdx()),
+                Xbyak_aarch64::ZRegS(op.getIdx()));
+    }
+
     void uni_clear(const Xbyak_aarch64::VReg &dst) { eor(dst.b, dst.b, dst.b); }
 
     void uni_clear(const Xbyak_aarch64::ZReg &dst) { eor(dst.d, dst.d, dst.d); }
+
+    void uni_fcvtzs(
+            const Xbyak_aarch64::VReg4S &d, const Xbyak_aarch64::VReg4S &s) {
+        fcvtzs(d, s);
+    }
+
+    void uni_fcvtzs(
+            const Xbyak_aarch64::ZRegS &d, const Xbyak_aarch64::ZRegS &s) {
+        fcvtzs(d, P_ALL_ONE / Xbyak_aarch64::T_z, s);
+    }
 
     template <typename TReg>
     void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2) {
@@ -254,6 +365,16 @@ public:
         }
     }
 
+    void uni_frinti(
+            const Xbyak_aarch64::VReg4S &d, const Xbyak_aarch64::VReg4S &s) {
+        frinti(d, s);
+    }
+
+    void uni_frinti(
+            const Xbyak_aarch64::ZRegS &d, const Xbyak_aarch64::ZRegS &s) {
+        frinti(d, P_ALL_ONE / Xbyak_aarch64::T_m, s);
+    }
+
     void uni_fsub(const Xbyak_aarch64::VReg4S &v1,
             const Xbyak_aarch64::VReg4S &v2, const Xbyak_aarch64::VReg4S &v3) {
         fsub(v1, v2, v3);
@@ -288,6 +409,56 @@ public:
         ldr(dst, ptr(addr));
     }
 
+    template <typename T>
+    void uni_ldr(const Xbyak_aarch64::ZReg &r, const Xbyak_aarch64::XReg &base,
+            const T off) {
+        const int off_mod = off % cpu_sveLen;
+        const int off_mul_vl = off / cpu_sveLen;
+
+        if (off_mod == 0 && -256 <= off_mul_vl && off_mul_vl <= 255) {
+            ldr(r, Xbyak_aarch64::ptr(base, off_mul_vl, Xbyak_aarch64::MUL_VL));
+        } else {
+            const int offset = off_mod * 0x10 * (cpu_sveLen / 16);
+            add_imm(X_DEFAULT_ADDR, base, offset, X_TMP_0);
+            ldr(r, Xbyak_aarch64::ptr(X_DEFAULT_ADDR));
+        }
+    }
+
+    template <typename T>
+    void uni_ldr(const Xbyak_aarch64::VReg &r, const Xbyak_aarch64::XReg &base,
+            const T off) {
+        const int off_mod = off % 16;
+        const int off_mul_vl = off / 16;
+
+        if (off_mod == 0 && 0 <= off_mul_vl && off_mul_vl <= 65520) {
+            ldr(Xbyak_aarch64::QReg(r.getIdx()), Xbyak_aarch64::ptr(base, off));
+        } else {
+            add_imm(X_DEFAULT_ADDR, base, off_mod * 4, X_TMP_0);
+            ldr(Xbyak_aarch64::QReg(r.getIdx()),
+                    Xbyak_aarch64::ptr(X_DEFAULT_ADDR));
+        }
+    }
+
+    void uni_orr(const Xbyak_aarch64::VReg &d, const Xbyak_aarch64::VReg &s0,
+            const Xbyak_aarch64::VReg &s1) {
+        orr(d.b16, s0.b16, s1.b16);
+    }
+
+    void uni_orr(const Xbyak_aarch64::ZReg &d, const Xbyak_aarch64::ZReg &s0,
+            const Xbyak_aarch64::ZReg &s1) {
+        orr(d.d, s0.d, s1.d);
+    }
+
+    void uni_scvtf(
+            const Xbyak_aarch64::VReg4S &t0, const Xbyak_aarch64::VReg4S &t1) {
+        scvtf(t0, t1);
+    }
+
+    void uni_scvtf(
+            const Xbyak_aarch64::ZRegS &t0, const Xbyak_aarch64::ZRegS &t1) {
+        scvtf(t0, P_ALL_ONE / Xbyak_aarch64::T_m, t1);
+    }
+
     void uni_str(
             const Xbyak_aarch64::VReg &src, const Xbyak_aarch64::XReg &addr) {
         str(Xbyak_aarch64::QReg(src.getIdx()), ptr(addr));
@@ -296,6 +467,11 @@ public:
     void uni_str(
             const Xbyak_aarch64::ZReg &src, const Xbyak_aarch64::XReg &addr) {
         str(src, ptr(addr));
+    }
+
+    template <typename T>
+    void uni_sub(const T &x1, const T &x2, const T &op) {
+        sub(x1, x2, op);
     }
 
     /*
@@ -427,6 +603,7 @@ private:
 protected:
     virtual void generate() = 0;
     const uint8_t *jit_ker_ = nullptr;
+    const uint64_t cpu_sveLen = get_sve_length();
 };
 
 } // namespace aarch64
