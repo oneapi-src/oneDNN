@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2019-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,6 +58,21 @@ struct static_params_t {
     bool is_fwd;
     bool use_dst;
 };
+
+/* Checks if isa is supported by eltwise injector.
+ */
+bool is_isa_supported();
+
+/*
+ * Checks if eltwise algorithm is supported by eltwise injector.
+ */
+bool is_alg_supported(alg_kind_t alg);
+
+/*
+ * Checks if eltwise injection for given args is supported.
+ */
+bool is_supported(alg_kind_t alg);
+
 } // namespace eltwise_injector
 
 template <cpu_isa_t isa>

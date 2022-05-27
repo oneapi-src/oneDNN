@@ -925,7 +925,7 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
-        if (jcp.eltwise.alg == alg_kind::eltwise_pow)
+        if (!eltwise_injector::is_supported(jcp.eltwise.alg))
             return status::unimplemented;
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
