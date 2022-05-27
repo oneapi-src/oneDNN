@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2019-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -855,6 +855,10 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
     h->fcmeq(mask, p_all, t4, 0.0f); // = 0
     h->mov(wt0, 0xff800000); // -Inf
     h->cpy(t0, mask, wt0);
+    h->mov(wt0, 0x7f800000); // Inf
+    h->dup(t1, wt0);
+    h->fcmeq(mask, p_all, t4, t1);
+    h->sel(t0, mask, t1, t0);
 
     h->b(exitL);
     h->L(tbl1L);
