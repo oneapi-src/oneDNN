@@ -78,8 +78,8 @@ void jit_uni_fork_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward
     int str_h = jcp.stride_h;
     int str_w = jcp.stride_w;
 
-    const auto is_src_layout_nxc = one_of(jcp.src_tag, format_tag::nhwc, format_tag::ndhwc);
-    const auto is_dst_layout_nxc = one_of(jcp.dst_tag, format_tag::nhwc, format_tag::ndhwc);
+    const auto is_src_layout_nxc = one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+    const auto is_dst_layout_nxc = one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
 
     auto kernel_params = [&](int ur_w_step, int ow, int oh, int od, int ih, int id, int kh, int kd,
             int kh_padding, int kd_padding, int ch, int ch_step, int n, int work_rem) {
