@@ -45,7 +45,7 @@ class BreakdownGenerator:
         total_time = 0
         for key, value in input.items():
             item_key = ofs.join([key2str(k, value[k]) for k in agg_keys])
-            occ,time = data.get(item_key, (1, 0.0))
+            occ,time = data.get(item_key, (0, 0.0))
             data[item_key] = (occ + 1, time + float(value['time']))
             total_time += float(value['time'])
 
