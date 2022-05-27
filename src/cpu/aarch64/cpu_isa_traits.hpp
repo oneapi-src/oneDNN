@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2018-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,10 +69,28 @@ enum cpu_isa_t : unsigned {
     isa_any = 0u,
     asimd = asimd_bit,
     sve_128 = sve_128_bit | asimd,
-    sve_256 = sve_256_bit | asimd,
-    sve_384 = sve_384_bit | asimd,
-    sve_512 = sve_512_bit | asimd,
+    sve_256 = sve_256_bit | sve_128,
+    sve_384 = sve_384_bit | sve_256,
+    sve_512 = sve_512_bit | sve_384,
     isa_all = ~0u,
+};
+
+enum class cpu_isa_cmp_t {
+    // List of infix comparison relations between two cpu_isa_t
+    // where we take isa_1 and isa_2 to be two cpu_isa_t instances.
+
+    // isa_1 SUBSET isa_2 if all feature flags supported by isa_1
+    // are supported by isa_2 as well (equality allowed)
+    SUBSET,
+
+    // isa_1 SUPERSET isa_2 if all feature flags supported by isa_2
+    // are supported by isa_1 as well (equality allowed)
+    SUPERSET,
+
+    // Few more options that (depending upon need) can be enabled in future
+
+    // 1. PROPER_SUBSET: isa_1 SUBSET isa_2 and isa_1 != isa_2
+    // 2. PROPER_SUPERSET: isa_1 SUPERSET isa_2 and isa_1 != isa_2
 };
 
 const char *get_isa_info();
@@ -81,6 +99,28 @@ cpu_isa_t get_max_cpu_isa();
 cpu_isa_t DNNL_API get_max_cpu_isa_mask(bool soft = false);
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 dnnl_cpu_isa_t get_effective_cpu_isa();
+
+static inline bool compare_isa(
+        cpu_isa_t isa_1, cpu_isa_cmp_t cmp, cpu_isa_t isa_2) {
+    // By default, comparison between ISA ignores ISA specific hints
+    unsigned mask_1 = static_cast<unsigned>(isa_1);
+    unsigned mask_2 = static_cast<unsigned>(isa_2);
+    unsigned mask_common = mask_1 & mask_2;
+
+    switch (cmp) {
+        case cpu_isa_cmp_t::SUBSET: return mask_1 == mask_common;
+        case cpu_isa_cmp_t::SUPERSET: return mask_2 == mask_common;
+        default: assert(!"unsupported comparison of isa"); return false;
+    }
+}
+
+static inline bool is_subset(cpu_isa_t isa_1, cpu_isa_t isa_2) {
+    return compare_isa(isa_1, cpu_isa_cmp_t::SUBSET, isa_2);
+}
+
+static inline bool is_superset(cpu_isa_t isa_1, cpu_isa_t isa_2) {
+    return compare_isa(isa_1, cpu_isa_cmp_t::SUPERSET, isa_2);
+}
 
 template <cpu_isa_t>
 struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
@@ -106,20 +146,26 @@ struct cpu_isa_traits<asimd> {
     static constexpr const char *user_option_env = "advanced_simd";
 };
 
-template <>
-struct cpu_isa_traits<sve_512> {
-    typedef Xbyak_aarch64::ZReg TReg;
-    typedef Xbyak_aarch64::ZRegB TRegB;
-    typedef Xbyak_aarch64::ZRegH TRegH;
-    typedef Xbyak_aarch64::ZRegS TRegS;
-    typedef Xbyak_aarch64::ZRegD TRegD;
-    static constexpr int vlen_shift = 6;
-    static constexpr int vlen = 64;
-    static constexpr int n_vregs = 32;
-    static constexpr dnnl_cpu_isa_t user_option_val
-            = static_cast<dnnl_cpu_isa_t>(dnnl_cpu_isa_sve_512);
-    static constexpr const char *user_option_env = "sve_512";
-};
+#define CPU_ISA_SVE(bits, shift) \
+    template <> \
+    struct cpu_isa_traits<sve_##bits> { \
+        typedef Xbyak_aarch64::ZReg TReg; \
+        typedef Xbyak_aarch64::ZRegB TRegB; \
+        typedef Xbyak_aarch64::ZRegH TRegH; \
+        typedef Xbyak_aarch64::ZRegS TRegS; \
+        typedef Xbyak_aarch64::ZRegD TRegD; \
+        static constexpr int vlen_shift = shift; \
+        static constexpr int vlen = bits / 8; \
+        static constexpr int n_vregs = 32; \
+        static constexpr dnnl_cpu_isa_t user_option_val \
+                = static_cast<dnnl_cpu_isa_t>(dnnl_cpu_isa_sve_##bits); \
+        static constexpr const char *user_option_env = "sve_ ## bits"; \
+    };
+
+CPU_ISA_SVE(128, 4)
+CPU_ISA_SVE(256, 5)
+CPU_ISA_SVE(512, 6)
+#undef CPU_ISA_SVE
 
 inline const Xbyak_aarch64::util::Cpu &cpu() {
     const static Xbyak_aarch64::util::Cpu cpu_;
@@ -171,8 +217,10 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
 #define JIT_IMPL_NAME_HELPER(prefix, isa, suffix_if_any) \
     ((isa) == isa_any ? prefix STRINGIFY(any) : \
     ((isa) == asimd ? prefix STRINGIFY(asimd) : \
+    ((isa) == sve_128 ? prefix STRINGIFY(sve_128) : \
+    ((isa) == sve_256 ? prefix STRINGIFY(sve_256) : \
     ((isa) == sve_512 ? prefix STRINGIFY(sve_512) : \
-    prefix suffix_if_any)))
+    prefix suffix_if_any)))))
 /* clang-format on */
 
 } // namespace aarch64
