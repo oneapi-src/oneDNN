@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -141,14 +141,45 @@ public:
         : closurize_impl_t(m->get_module_vars(), m) {}
 };
 
+class single_core_remove_parallel_t : public ir_visitor_t {
+public:
+    using ir_visitor_t::dispatch;
+    expr_c dispatch(expr_c v) override { return v; }
+    stmt_c visit(for_loop_c v) override {
+        auto ret = ir_visitor_t::visit(v).checked_as<for_loop>();
+        if (ret->kind_ == for_type::PARALLEL) {
+            if (ret.get() != v.get()) {
+                // the for loop is remade, just change it
+                ret->kind_ = for_type::NORMAL;
+            } else {
+                // remake a new IR node
+                return copy_attr(*v,
+                        builder::make_for_loop_unattached(ret->var_,
+                                ret->iter_begin_, ret->iter_end_, ret->step_,
+                                ret->body_, ret->incremental_,
+                                for_type::NORMAL));
+            }
+        }
+        return ret;
+    }
+};
+
 const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
     std::vector<call> out_closures;
     auto ret = inmod->copy();
+    ir_visitor_t *the_pass;
     closurize_cpu_impl_t pass(ret);
+    single_core_remove_parallel_t singlepass {};
+    if (single_core_) {
+        the_pass = &singlepass;
+    } else {
+        the_pass = &pass;
+    }
     auto &funcs = ret->get_contents();
     auto sz = funcs.size();
     for (unsigned i = 0; i < sz; i++) {
-        auto f = std::const_pointer_cast<func_base>(pass.dispatch(funcs[i]));
+        auto f = std::const_pointer_cast<func_base>(
+                the_pass->dispatch(funcs[i]));
         funcs[i] = std::move(f);
     }
     return ret;

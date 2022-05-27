@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,8 @@ namespace sc {
  * */
 class closurizer_cpu_t : public module_pass_t {
 public:
+    bool single_core_;
+    closurizer_cpu_t(bool single_core) : single_core_(single_core) {}
     const_ir_module_ptr operator()(const_ir_module_ptr m) override;
 };
 
