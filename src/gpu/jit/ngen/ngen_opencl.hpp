@@ -56,7 +56,7 @@ public:
     static inline void detectHWInfo(cl_context context, cl_device_id device, HW &outHW, int &outStepping);
 
 private:
-    inline std::vector<uint8_t> getPatchTokenBinary(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0");
+    inline std::vector<uint8_t> getPatchTokenBinary(cl_context context, cl_device_id device, const std::vector<uint8_t> *code = nullptr, const std::string &options = "-cl-std=CL2.0");
 };
 
 #define NGEN_FORWARD_OPENCL(hw) NGEN_FORWARD_ELF(hw)
@@ -115,7 +115,7 @@ inline bool tryZebinFirst(cl_device_id device)
 }; /* namespace detail */
 
 template <HW hw>
-std::vector<uint8_t> OpenCLCodeGenerator<hw>::getPatchTokenBinary(cl_context context, cl_device_id device, const std::string &options)
+std::vector<uint8_t> OpenCLCodeGenerator<hw>::getPatchTokenBinary(cl_context context, cl_device_id device, const std::vector<uint8_t> *code, const std::string &options)
 {
     using super = ELFCodeGenerator<hw>;
     std::ostringstream dummyCL;
@@ -129,7 +129,7 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getPatchTokenBinary(cl_context con
 
     auto binary = detail::getOpenCLCProgramBinary(context, device, dummyCLString.c_str(), modOptions.c_str());
 
-    npack::replaceKernel(binary, this->getCode());
+    npack::replaceKernel(binary, code ? *code : this->getCode());
 
     return binary;
 }
@@ -140,17 +140,19 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_d
     using super = ELFCodeGenerator<hw>;
     bool zebinFirst = detail::tryZebinFirst(device);
 
+    auto code = this->getCode();
+
     for (bool defaultFormat : {true, false}) {
         bool legacy = defaultFormat ^ zebinFirst;
 
         if (legacy) {
             try {
-                return getPatchTokenBinary(context, device, options);
+                return getPatchTokenBinary(context, device, &code, options);
             } catch (...) {
                 continue;
             }
         } else
-            return super::getBinary();
+            return super::getBinary(code);
     }
 
     return std::vector<uint8_t>();      // Unreachable.
@@ -166,17 +168,19 @@ cl_kernel OpenCLCodeGenerator<hw>::getKernel(cl_context context, cl_device_id de
     bool zebinFirst = detail::tryZebinFirst(device);
     std::vector<uint8_t> binary;
 
+    auto code = this->getCode();
+
     for (bool defaultFormat : {true, false}) {
         bool legacy = defaultFormat ^ zebinFirst;
 
         if (legacy) {
             try {
-                binary = getPatchTokenBinary(context, device);
+                binary = getPatchTokenBinary(context, device, &code);
             } catch (...) {
                 continue;
             }
         } else
-            binary = super::getBinary();
+            binary = super::getBinary(code);
 
         const auto *binaryPtr = binary.data();
         size_t binarySize = binary.size();

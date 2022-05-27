@@ -98,6 +98,8 @@ protected:
         BinaryCodeGenerator<hw>::epilogue(GRFCount, hasSLM, r0_info);
     }
 
+    inline std::vector<uint8_t> getBinary(const std::vector<uint8_t> &code);
+
 private:
     using BinaryCodeGenerator<hw>::labelManager;
     using BinaryCodeGenerator<hw>::rootStream;
@@ -324,12 +326,15 @@ template <typename... Targs> void requireBarriers(Targs&&... args) { ngen::ELFCo
 template <HW hw>
 std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary()
 {
+    return getBinary(this->getCode());
+}
+
+template <HW hw>
+std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary(const std::vector<uint8_t> &kernel)
+{
     using super = BinaryCodeGenerator<hw>;
     std::vector<uint8_t> binary;
     std::string metadata;
-
-    // Get raw kernel, also fixing up labels.
-    auto kernel = super::getCode();
 
     // Locate entrypoints for XeHP+.
     if (hw >= HW::XeHP) {
