@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 * Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -285,6 +285,38 @@ struct jit_conv_call_s {
     int flags;
     int flags_prf;
     int oc_flag;
+};
+
+struct jit_deconv_call_s {
+    const void *src; /* hack, non-const for backward_data */
+    const void *dst; /* hack, non-const for forward */
+    const void *filt; /* hack, non-const for backward_weights */
+    const void *bias; /* hack, non-const for backward_bias */
+    const void *scales;
+    const void *compensation;
+    const int32_t *zp_src_pad_str_compensation;
+    const int32_t *zp_compensation;
+    const int32_t *src_zero_point;
+    const int32_t *dst_zero_point;
+
+    /*
+     * ptr to table of void * elements that are pointers to post_op binary
+     * src1 tensors
+     */
+    const void *post_ops_binary_rhs_arg_vec;
+    const void *dst_orig; /* pointer to dst memory (no offset) */
+    /*
+     * logical (# of elems) offset to the processed output channel
+     * (for broadcasting [1,OC,1,1])
+     */
+    size_t oc_l_off;
+    size_t t_overflow;
+    size_t b_overflow;
+    size_t f_overflow;
+    size_t back_overflow;
+    size_t kh_padding;
+    size_t kd_padding;
+    size_t oc_blocks;
 };
 
 struct jit_dw_conv_call_s {
