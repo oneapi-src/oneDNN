@@ -74,9 +74,8 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             const auto src_dt = src_md()->data_type;
             const auto dst_dt = dst_md()->data_type;
             bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_dt, f32, bf16, s8, u8)
-                    && utils::one_of(dst_dt, f32, bf16, s8, u8)
-                    && mayiuse(sve_512)
+                    && utils::one_of(src_dt, f32, s8, u8)
+                    && utils::one_of(dst_dt, f32, s8, u8) && mayiuse(sve_512)
                     && attr()->has_default_values(skip_mask_t::oscale)
                     && attr_oscale_ok()
                     && set_default_formats() == status::success;
