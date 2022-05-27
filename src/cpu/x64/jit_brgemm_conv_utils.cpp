@@ -1173,7 +1173,7 @@ bool brg_blocking_t::fast_check_oc_block_1x1() const {
         res = (rnd_oc % oc_block == 0 && big_spatial);
     } else if (oc_block == 48) {
         const auto oc_block_eff = static_cast<float>(oc) / rnd_up(oc, oc_block);
-        res = (oc_block_eff >= 0.95);
+        res = (oc_block_eff >= 0.95f);
     } else
         res = true;
 

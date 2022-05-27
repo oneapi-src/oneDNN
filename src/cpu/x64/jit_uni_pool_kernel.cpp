@@ -298,7 +298,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                 best_eff = eff;
                 jpp.ur_bc = ur_bc;
             }
-            if (eff > 0.9) break; // Heuristic threshold
+            if (eff > 0.9f) break; // Heuristic threshold
         }
 
         //take into account cache re-usage after zeroing on backward

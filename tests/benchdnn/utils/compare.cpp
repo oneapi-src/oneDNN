@@ -187,7 +187,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         // If fast check failed, go through all of them.
         if (!ok) {
             // Standard check for relative diff is under set threshold...
-            ok = (fabsf(args.exp) > 1e-5 ? args.rel_diff : args.diff) <= trh_;
+            ok = (fabsf(args.exp) > 1e-5f ? args.rel_diff : args.diff) <= trh_;
             // If not, check that both are NaNs or infinity with same sign...
             if (!ok) ok = compare::compare_extreme_values(args.exp, args.got);
             // If not, use hack to check not fully correct s32 saturation on
