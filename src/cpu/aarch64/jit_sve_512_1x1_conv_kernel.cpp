@@ -29,8 +29,8 @@
 #include "cpu/aarch64/cpu_barrier.hpp"
 #include "cpu/platform.hpp"
 
+#include "cpu/aarch64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/aarch64/jit_sve_512_1x1_conv_kernel.hpp"
-
 #include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
 
 #define GET_OFF(field) \
@@ -609,7 +609,10 @@ bool jit_sve_512_1x1_conv_kernel::post_ops_ok(
 
     const auto &p = attr.post_ops_;
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    auto is_eltwise = [&](int idx) {
+        return p.entry_[idx].is_eltwise()
+                && eltwise_injector::is_supported(p.entry_[idx].eltwise.alg);
+    };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
     auto is_convolution
             = [&](int idx) { return p.entry_[idx].is_convolution(); };
