@@ -215,118 +215,141 @@ inline void add_MHA_subgraph(impl::graph_t *agraph, bool is_quantized = true,
             op_idx++, impl::op_kind::Quantize, "quantize_key_gemm"};
     impl::op_t quantize_value_gemm {
             op_idx++, impl::op_kind::Quantize, "quantize_value_gemm"};
-    quantize_query_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_query_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_query_gemm.set_attr("qtype", std::string("per_tensor"));
-    quantize_query_gemm.set_attr("axis", (int64_t)0);
-    quantize_key_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_key_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_key_gemm.set_attr("qtype", std::string("per_tensor"));
-    quantize_key_gemm.set_attr("axis", (int64_t)0);
-    quantize_value_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_value_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_value_gemm.set_attr("qtype", std::string("per_tensor"));
-    quantize_value_gemm.set_attr("axis", (int64_t)0);
+    quantize_query_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_query_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_query_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_query_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
+    quantize_key_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_key_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_key_gemm.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_key_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
+    quantize_value_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_value_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_value_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_value_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
 
     impl::op_t dequantize_query_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query_gemm"};
-    dequantize_query_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_query_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_query_gemm.set_attr("qtype", std::string("per_tensor"));
-    dequantize_query_gemm.set_attr("axis", (int64_t)0);
+    dequantize_query_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_query_gemm.set_attr(
+            impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_query_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_query_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_key_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key_gemm"};
-    dequantize_key_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_key_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_key_gemm.set_attr("qtype", std::string("per_tensor"));
-    dequantize_key_gemm.set_attr("axis", (int64_t)0);
+    dequantize_key_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_key_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_key_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_key_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_value_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value_gemm"};
-    dequantize_value_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_value_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_value_gemm.set_attr("qtype", std::string("per_tensor"));
-    dequantize_value_gemm.set_attr("axis", (int64_t)0);
+    dequantize_value_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_value_gemm.set_attr(
+            impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_value_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_value_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
 
     // reshape + transpose for query + key
     impl::op_t query_reshape {
             op_idx++, impl::op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr("shape",
+    query_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
-    query_reshape.set_attr("special_zero", false);
+    query_reshape.set_attr(impl::op_attr::special_zero, false);
     impl::op_t query_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "query_transpose"};
-    query_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    query_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t key_reshape {
             op_idx++, impl::op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr("shape",
+    key_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
-    key_reshape.set_attr("special_zero", false);
+    key_reshape.set_attr(impl::op_attr::special_zero, false);
     impl::op_t key_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    key_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t key_transpose2 {
             op_idx++, impl::op_kind::StaticTranspose, "key_transpose2"};
-    key_transpose2.set_attr("order", std::vector<int64_t> {0, 1, 3, 2});
+    key_transpose2.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 1, 3, 2});
     impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
 
     impl::op_t fscore_div {op_idx++, impl::op_kind::Divide, "fscore_div"};
-    fscore_div.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_div.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     impl::op_t fscore_add {op_idx++, impl::op_kind::Add, "fscore_add"};
-    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_add.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
-    softmax.set_attr("axis", (int64_t)3);
+    softmax.set_attr(impl::op_attr::axis, (int64_t)3);
 
     // quantize-dequantize softmax's output
     impl::op_t quantize_softmax {
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    quantize_softmax.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_softmax.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_softmax.set_attr("qtype", std::string("per_tensor"));
-    quantize_softmax.set_attr("axis", (int64_t)0);
-    dequantize_softmax.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr("qtype", std::string("per_tensor"));
-    dequantize_softmax.set_attr("axis", (int64_t)0);
+    quantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    dequantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_softmax.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
 
     // reshape + transpose for value
     impl::op_t value_reshape {
             op_idx++, impl::op_kind::StaticReshape, "value_reshape"};
-    value_reshape.set_attr("shape",
+    value_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
-    value_reshape.set_attr("special_zero", false);
+    value_reshape.set_attr(impl::op_attr::special_zero, false);
     impl::op_t value_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "value_transpose"};
-    value_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    value_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
 
     // transpose + reshape before output
     impl::op_t transpose_output {
             op_idx++, impl::op_kind::StaticTranspose, "transpose_output"};
-    transpose_output.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose_output.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t reshape_output {
             op_idx++, impl::op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr("special_zero", false);
-    reshape_output.set_attr(
-            "shape", std::vector<int64_t> {batch_size, seq_len, head_dim});
+    reshape_output.set_attr(impl::op_attr::special_zero, false);
+    reshape_output.set_attr(impl::op_attr::shape,
+            std::vector<int64_t> {batch_size, seq_len, head_dim});
 
     // quantize dequantize output
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_output.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_output.set_attr("qtype", std::string("per_tensor"));
-    quantize_output.set_attr("axis", (int64_t)0);
+    quantize_output.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_output {
             op_idx++, impl::op_kind::Dequantize, "dequantize_output"};
-    dequantize_output.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_output.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_output.set_attr("qtype", std::string("per_tensor"));
-    dequantize_output.set_attr("axis", (int64_t)0);
+    dequantize_output.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
 
     if (is_quantized) {
         if (paired_quantize) {
@@ -563,22 +586,24 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
 
     impl::op_t dequantize_query {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
-    dequantize_query.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_query.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_query.set_attr("qtype", std::string("per_tensor"));
-    dequantize_query.set_attr("axis", (int64_t)0);
+    dequantize_query.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_query.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_query.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_query.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_key {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key"};
-    dequantize_key.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_key.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_key.set_attr("qtype", std::string("per_tensor"));
-    dequantize_key.set_attr("axis", (int64_t)0);
+    dequantize_key.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_key.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_key.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_key.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_value {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value"};
-    dequantize_value.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_value.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_value.set_attr("qtype", std::string("per_tensor"));
-    dequantize_value.set_attr("axis", (int64_t)0);
+    dequantize_value.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_value.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_value.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_value.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t typecast_query {
             op_idx++, impl::op_kind::TypeCast, "typecast_query"};
     impl::op_t typecast_key {op_idx++, impl::op_kind::TypeCast, "typecast_key"};
@@ -588,25 +613,28 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
     impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
 
     impl::op_t fscore_div {op_idx++, impl::op_kind::Divide, "fscore_div"};
-    fscore_div.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_div.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     impl::op_t fscore_add {op_idx++, impl::op_kind::Add, "fscore_add"};
-    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_add.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
-    softmax.set_attr("axis", (int64_t)3);
+    softmax.set_attr(impl::op_attr::axis, (int64_t)3);
 
     impl::op_t softmax_cast {op_idx++, impl::op_kind::TypeCast, "softmax_cast"};
     impl::op_t quantize_softmax {
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
-    quantize_softmax.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_softmax.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_softmax.set_attr("qtype", std::string("per_tensor"));
-    quantize_softmax.set_attr("axis", (int64_t)0);
+    quantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    dequantize_softmax.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr("qtype", std::string("per_tensor"));
-    dequantize_softmax.set_attr("axis", (int64_t)0);
+    dequantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_softmax.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
 
     impl::op_t dequantize_softmax_cast {
             op_idx++, impl::op_kind::TypeCast, "dequantize_softmax_cast"};
@@ -616,7 +644,8 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
     // transpose + reshape before output
     impl::op_t transpose_output {
             op_idx++, impl::op_kind::StaticTranspose, "transpose_output"};
-    transpose_output.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose_output.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t reorder_output {
             op_idx++, impl::op_kind::Reorder, "reorder_output"};
 
@@ -624,10 +653,11 @@ inline void add_MHA_subgraph_alternative(impl::graph_t *agraph,
             op_idx++, impl::op_kind::TypeCast, "typecast_output"};
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_output.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_output.set_attr("qtype", std::string("per_tensor"));
-    quantize_output.set_attr("axis", (int64_t)0);
+    quantize_output.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
 
     if (use_int8) {
         dequantize_query.add_input(query_dequantize_input);
@@ -820,55 +850,60 @@ inline void add_MHA_infer_shape(impl::graph_t *agraph, int batch_size = 128,
     // reshape + transpose for query + key
     impl::op_t query_reshape {
             op_idx++, impl::op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr("shape",
+    query_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
-    query_reshape.set_attr("special_zero", false);
+    query_reshape.set_attr(impl::op_attr::special_zero, false);
     impl::op_t query_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "query_transpose"};
-    query_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    query_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t key_reshape {
             op_idx++, impl::op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr("shape",
+    key_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
-    key_reshape.set_attr("special_zero", false);
+    key_reshape.set_attr(impl::op_attr::special_zero, false);
     impl::op_t key_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    key_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t key_transpose2 {
             op_idx++, impl::op_kind::StaticTranspose, "key_transpose2"};
-    key_transpose2.set_attr("order", std::vector<int64_t> {0, 1, 3, 2});
+    key_transpose2.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 1, 3, 2});
     impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
 
     impl::op_t fscore_div {op_idx++, impl::op_kind::Divide, "fscore_div"};
-    fscore_div.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_div.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     impl::op_t fscore_add {op_idx++, impl::op_kind::Add, "fscore_add"};
-    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_add.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
-    softmax.set_attr("axis", (int64_t)3);
+    softmax.set_attr(impl::op_attr::axis, (int64_t)3);
 
     // reshape + transpose for value
     impl::op_t value_reshape {
             op_idx++, impl::op_kind::StaticReshape, "value_reshape"};
-    value_reshape.set_attr("shape",
+    value_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
-    value_reshape.set_attr("special_zero", false);
+    value_reshape.set_attr(impl::op_attr::special_zero, false);
     impl::op_t value_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "value_transpose"};
-    value_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    value_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
 
     // transpose + reshape before output
     impl::op_t transpose_output {
             op_idx++, impl::op_kind::StaticTranspose, "transpose_output"};
-    transpose_output.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose_output.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t reshape_output {
             op_idx++, impl::op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr("special_zero", false);
-    reshape_output.set_attr(
-            "shape", std::vector<int64_t> {batch_size, seq_len, head_dim});
+    reshape_output.set_attr(impl::op_attr::special_zero, false);
+    reshape_output.set_attr(impl::op_attr::shape,
+            std::vector<int64_t> {batch_size, seq_len, head_dim});
 
     query_reshape.add_input(query_gemm_out_flt);
     key_reshape.add_input(qk_bmm_wei_flt);
@@ -1061,122 +1096,146 @@ inline void get_int8_MHA_subgraph_varients(impl::graph_t *agraph,
             op_idx++, impl::op_kind::Quantize, "quantize_key_gemm"};
     impl::op_t quantize_value_gemm {
             op_idx++, impl::op_kind::Quantize, "quantize_value_gemm"};
-    quantize_query_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_query_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_query_gemm.set_attr("qtype", std::string("per_tensor"));
-    quantize_query_gemm.set_attr("axis", (int64_t)0);
-    quantize_key_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_key_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_key_gemm.set_attr("qtype", std::string("per_tensor"));
-    quantize_key_gemm.set_attr("axis", (int64_t)0);
-    quantize_value_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_value_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_value_gemm.set_attr("qtype", std::string("per_tensor"));
-    quantize_value_gemm.set_attr("axis", (int64_t)0);
+    quantize_query_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_query_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_query_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_query_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
+    quantize_key_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_key_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_key_gemm.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_key_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
+    quantize_value_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_value_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_value_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_value_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
 
     impl::op_t dequantize_query_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_query_gemm"};
-    dequantize_query_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_query_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_query_gemm.set_attr("qtype", std::string("per_tensor"));
-    dequantize_query_gemm.set_attr("axis", (int64_t)0);
+    dequantize_query_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_query_gemm.set_attr(
+            impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_query_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_query_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_key_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_key_gemm"};
-    dequantize_key_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_key_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_key_gemm.set_attr("qtype", std::string("per_tensor"));
-    dequantize_key_gemm.set_attr("axis", (int64_t)0);
+    dequantize_key_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_key_gemm.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_key_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_key_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_value_gemm {
             op_idx++, impl::op_kind::Dequantize, "dequantize_value_gemm"};
-    dequantize_value_gemm.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_value_gemm.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_value_gemm.set_attr("qtype", std::string("per_tensor"));
-    dequantize_value_gemm.set_attr("axis", (int64_t)0);
+    dequantize_value_gemm.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_value_gemm.set_attr(
+            impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_value_gemm.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_value_gemm.set_attr(impl::op_attr::axis, (int64_t)0);
 
     // reshape + transpose for query + key
     impl::op_t query_reshape {
             op_idx++, impl::op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr("special_zero", false);
-    query_reshape.set_attr("shape",
+    query_reshape.set_attr(impl::op_attr::special_zero, false);
+    query_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
     impl::op_t query_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "query_transpose"};
-    query_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    query_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
 
     impl::op_t key_reshape {
             op_idx++, impl::op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr("special_zero", false);
-    key_reshape.set_attr("shape",
+    key_reshape.set_attr(impl::op_attr::special_zero, false);
+    key_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
     impl::op_t key_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    key_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t key_transpose2 {
             op_idx++, impl::op_kind::StaticTranspose, "key_transpose2"};
-    key_transpose2.set_attr("order", std::vector<int64_t> {0, 1, 3, 2});
+    key_transpose2.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 1, 3, 2});
 
     impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
 
     impl::op_t fscore_rescale {op_idx++,
             use_div ? impl::op_kind::Divide : impl::op_kind::Multiply,
             "fscore_rescale"};
-    fscore_rescale.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_rescale.set_attr(
+            impl::op_attr::auto_broadcast, std::string("numpy"));
     impl::op_t fscore_add {op_idx++, impl::op_kind::Add, "fscore_add"};
-    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_add.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
-    softmax.set_attr("axis", (int64_t)3);
+    softmax.set_attr(impl::op_attr::axis, (int64_t)3);
     // quantize-dequantize softmax's output
     impl::op_t quantize_softmax {
             op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
     impl::op_t dequantize_softmax {
             op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
-    quantize_softmax.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_softmax.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_softmax.set_attr("qtype", std::string("per_tensor"));
-    quantize_softmax.set_attr("axis", (int64_t)0);
-    dequantize_softmax.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_softmax.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_softmax.set_attr("qtype", std::string("per_tensor"));
-    dequantize_softmax.set_attr("axis", (int64_t)0);
+    quantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    dequantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_softmax.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
 
     // reshape + transpose for value
     impl::op_t value_reshape {
             op_idx++, impl::op_kind::StaticReshape, "value_reshape"};
-    value_reshape.set_attr("special_zero", false);
-    value_reshape.set_attr("shape",
+    value_reshape.set_attr(impl::op_attr::special_zero, false);
+    value_reshape.set_attr(impl::op_attr::shape,
             std::vector<int64_t> {
                     batch_size, seq_len, num_head, size_per_head});
     impl::op_t value_transpose {
             op_idx++, impl::op_kind::StaticTranspose, "value_transpose"};
-    value_transpose.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    value_transpose.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
 
     impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
 
     // transpose + reshape before output
     impl::op_t transpose_output {
             op_idx++, impl::op_kind::StaticTranspose, "transpose_output"};
-    transpose_output.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose_output.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     impl::op_t reshape_output {
             op_idx++, impl::op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr("special_zero", false);
-    reshape_output.set_attr(
-            "shape", std::vector<int64_t> {batch_size, seq_len, head_dim});
+    reshape_output.set_attr(impl::op_attr::special_zero, false);
+    reshape_output.set_attr(impl::op_attr::shape,
+            std::vector<int64_t> {batch_size, seq_len, head_dim});
 
     // quantize dequantize output
     impl::op_t quantize_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quantize_output.set_attr("scales", std::vector<float>({0.12f}));
-    quantize_output.set_attr("zps", std::vector<int64_t>({2}));
-    quantize_output.set_attr("qtype", std::string("per_tensor"));
-    quantize_output.set_attr("axis", (int64_t)0);
+    quantize_output.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequantize_output {
             op_idx++, impl::op_kind::Dequantize, "dequantize_output"};
-    dequantize_output.set_attr("scales", std::vector<float>({0.12f}));
-    dequantize_output.set_attr("zps", std::vector<int64_t>({2}));
-    dequantize_output.set_attr("qtype", std::string("per_tensor"));
-    dequantize_output.set_attr("axis", (int64_t)0);
+    dequantize_output.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
 
     // query part: quantize's input; reshape's input;
     quantize_query_gemm.add_output(query_gemm_out_q);
@@ -1380,25 +1439,25 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
             logical_tensor_idx++, OUTPUT_SHAPE, dtype);
 
     impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
-    matmul_qk.set_attr("transpose_b", true);
+    matmul_qk.set_attr(impl::op_attr::transpose_b, true);
     matmul_qk.add_input(query_transpose_out);
     matmul_qk.add_input(key_transpose_out);
     matmul_qk.add_output(matmul_qk_out);
 
     impl::op_t fscore_div {op_idx++, impl::op_kind::Divide, "fscore_div"};
-    fscore_div.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_div.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     fscore_div.add_input(matmul_qk_out);
     fscore_div.add_input(fscore_scale);
     fscore_div.add_output(fscore_div_out);
 
     impl::op_t fscore_add {op_idx++, impl::op_kind::Add, "fscore_add"};
-    fscore_add.set_attr("auto_broadcast", std::string("numpy"));
+    fscore_add.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     fscore_add.add_input(fscore_div_out);
     fscore_add.add_input(attention_mask_flt);
     fscore_add.add_output(fscore_add_out);
 
     impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
-    softmax.set_attr("axis", (int64_t)3);
+    softmax.set_attr(impl::op_attr::axis, (int64_t)3);
     softmax.add_input(fscore_add_out);
     softmax.add_output(softmax_out);
 
@@ -1415,15 +1474,16 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     // transpose + reshape before output
     impl::op_t transpose_output {
             op_idx++, impl::op_kind::StaticTranspose, "transpose_output"};
-    transpose_output.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose_output.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     transpose_output.add_input(matmul_v_out);
     transpose_output.add_output(context_transpose_out);
 
     impl::op_t reshape_output {
             op_idx++, impl::op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr("special_zero", false);
-    reshape_output.set_attr(
-            "shape", std::vector<int64_t> {batch_size, seq_len, head_dim});
+    reshape_output.set_attr(impl::op_attr::special_zero, false);
+    reshape_output.set_attr(impl::op_attr::shape,
+            std::vector<int64_t> {batch_size, seq_len, head_dim});
     reshape_output.add_input(context_transpose_out);
     reshape_output.add_output(context_reshape_out);
 
@@ -1494,61 +1554,62 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
 
     impl::op_t reshape_bwd {
             op_idx++, impl::op_kind::StaticReshape, "reshape_bwd"};
-    reshape_bwd.set_attr("shape", QKV_RESHAPED_SHAPE);
-    reshape_bwd.set_attr("special_zero", false);
+    reshape_bwd.set_attr(impl::op_attr::shape, QKV_RESHAPED_SHAPE);
+    reshape_bwd.set_attr(impl::op_attr::special_zero, false);
     reshape_bwd.add_input(backward_in);
     reshape_bwd.add_output(in_reshape);
 
     impl::op_t transpose_bwd {
             op_idx++, impl::op_kind::StaticTranspose, "transpose_bwd"};
-    transpose_bwd.set_attr("order", std::vector<int64_t> {0, 2, 1, 3});
+    transpose_bwd.set_attr(
+            impl::op_attr::order, std::vector<int64_t> {0, 2, 1, 3});
     transpose_bwd.add_input(in_reshape);
     transpose_bwd.add_output(in_transpose);
 
     impl::op_t grad_v {op_idx++, impl::op_kind::MatMul, "grad_v"};
-    grad_v.set_attr("transpose_a", true);
+    grad_v.set_attr(impl::op_attr::transpose_a, true);
     grad_v.add_input(dropout_out);
     grad_v.add_input(in_transpose);
     grad_v.add_output(bmm_v_grad_weight);
 
     impl::op_t grad_dropout {op_idx++, impl::op_kind::MatMul, "grad_dropout"};
-    grad_dropout.set_attr("transpose_b", true);
+    grad_dropout.set_attr(impl::op_attr::transpose_b, true);
     grad_dropout.add_input(in_transpose);
     grad_dropout.add_input(value_transpose);
     grad_dropout.add_output(bmm_v_grad_data);
 
     impl::op_t mul {op_idx++, impl::op_kind::Multiply, "mul"};
-    mul.set_attr("auto_broadcast", std::string("numpy"));
+    mul.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     mul.add_input(bmm_v_grad_data);
     mul.add_input(dropout);
     mul.add_output(dropout_grad);
 
     impl::op_t mul_2 {op_idx++, impl::op_kind::Multiply, "mul_2"};
-    mul_2.set_attr("auto_broadcast", std::string("numpy"));
+    mul_2.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     mul_2.add_input(dropout_grad);
     mul_2.add_input(softmax_out);
     mul_2.add_output(softmax_mul);
 
     impl::op_t reduce_sum {op_idx++, impl::op_kind::ReduceSum, "reduce_sum"};
-    reduce_sum.set_attr("keep_dims", true);
-    reduce_sum.set_attr("axes", std::vector<int64_t> {-1});
+    reduce_sum.set_attr(impl::op_attr::keep_dims, true);
+    reduce_sum.set_attr(impl::op_attr::axes, std::vector<int64_t> {-1});
     reduce_sum.add_input(softmax_mul);
     reduce_sum.add_output(softmax_sum);
 
     impl::op_t sub {op_idx++, impl::op_kind::Subtract, "sub"};
-    sub.set_attr("auto_broadcast", std::string("numpy"));
+    sub.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     sub.add_input(dropout_grad);
     sub.add_input(softmax_sum);
     sub.add_output(softmax_sub);
 
     impl::op_t mul_3 {op_idx++, impl::op_kind::Multiply, "mul_3"};
-    mul_3.set_attr("auto_broadcast", std::string("numpy"));
+    mul_3.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     mul_3.add_input(softmax_sub);
     mul_3.add_input(softmax_out);
     mul_3.add_output(softmax_sub_mul);
 
     impl::op_t div {op_idx++, impl::op_kind::Divide, "div"};
-    div.set_attr("auto_broadcast", std::string("numpy"));
+    div.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
     div.add_input(softmax_sub_mul);
     div.add_input(fscore_scale);
     div.add_output(fscore_grad);
@@ -1559,7 +1620,7 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     grad_q.add_output(bmm_q_grad_weight);
 
     impl::op_t grad_k {op_idx++, impl::op_kind::MatMul, "grad_k"};
-    grad_k.set_attr("transpose_a", true);
+    grad_k.set_attr(impl::op_attr::transpose_a, true);
     grad_k.add_input(fscore_grad);
     grad_k.add_input(query_transpose_out);
     grad_k.add_output(bmm_k_grad_weight);
@@ -1678,32 +1739,35 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
         std::string layer_suffix = "_layer" + std::to_string(i);
         impl::op_t quant_input {op_idx++, impl::op_kind::Quantize,
                 "quantize_input" + layer_suffix};
-        quant_input.set_attr("scales", std::vector<float>({0.12f}));
-        quant_input.set_attr("zps", std::vector<int64_t>({2}));
-        quant_input.set_attr("qtype", std::string("per_tensor"));
-        quant_input.set_attr("axis", (int64_t)0);
+        quant_input.set_attr(
+                impl::op_attr::scales, std::vector<float>({0.12f}));
+        quant_input.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+        quant_input.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+        quant_input.set_attr(impl::op_attr::axis, (int64_t)0);
         impl::op_t dequant_input {op_idx++, impl::op_kind::Dequantize,
                 "dequantize_input" + layer_suffix};
-        dequant_input.set_attr("scales", std::vector<float>({0.12f}));
-        dequant_input.set_attr("zps", std::vector<int64_t>({2}));
-        dequant_input.set_attr("qtype", std::string("per_tensor"));
-        dequant_input.set_attr("axis", (int64_t)0);
+        dequant_input.set_attr(
+                impl::op_attr::scales, std::vector<float>({0.12f}));
+        dequant_input.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+        dequant_input.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+        dequant_input.set_attr(impl::op_attr::axis, (int64_t)0);
         impl::op_t quant_weight {op_idx++, impl::op_kind::Quantize,
                 "quantize_weight" + layer_suffix};
-        quant_weight.set_attr(
-                "scales", std::vector<float>(hidden_size[i + 1], 0.12f));
-        quant_weight.set_attr(
-                "zps", std::vector<int64_t>(hidden_size[i + 1], 0));
-        quant_weight.set_attr("qtype", std::string("per_channel"));
-        quant_weight.set_attr("axis", (int64_t)1);
+        quant_weight.set_attr(impl::op_attr::scales,
+                std::vector<float>(hidden_size[i + 1], 0.12f));
+        quant_weight.set_attr(impl::op_attr::zps,
+                std::vector<int64_t>(hidden_size[i + 1], 0));
+        quant_weight.set_attr(impl::op_attr::qtype, std::string("per_channel"));
+        quant_weight.set_attr(impl::op_attr::axis, (int64_t)1);
         impl::op_t dequant_weight {op_idx++, impl::op_kind::Dequantize,
                 "dequantize_weight" + layer_suffix};
+        dequant_weight.set_attr(impl::op_attr::scales,
+                std::vector<float>(hidden_size[i + 1], 0.12f));
+        dequant_weight.set_attr(impl::op_attr::zps,
+                std::vector<int64_t>(hidden_size[i + 1], 0));
         dequant_weight.set_attr(
-                "scales", std::vector<float>(hidden_size[i + 1], 0.12f));
-        dequant_weight.set_attr(
-                "zps", std::vector<int64_t>(hidden_size[i + 1], 0));
-        dequant_weight.set_attr("qtype", std::string("per_channel"));
-        dequant_weight.set_attr("axis", (int64_t)1);
+                impl::op_attr::qtype, std::string("per_channel"));
+        dequant_weight.set_attr(impl::op_attr::axis, (int64_t)1);
         impl::op_t matmul {
                 op_idx++, impl::op_kind::MatMul, "matmul" + layer_suffix};
         impl::op_t activation {
@@ -1750,16 +1814,16 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
 
     impl::op_t quant_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
-    quant_output.set_attr("scales", std::vector<float>({0.12f}));
-    quant_output.set_attr("zps", std::vector<int64_t>({2}));
-    quant_output.set_attr("qtype", std::string("per_tensor"));
-    quant_output.set_attr("axis", (int64_t)0);
+    quant_output.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
+    quant_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quant_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quant_output.set_attr(impl::op_attr::axis, (int64_t)0);
     impl::op_t dequant_output {
             op_idx++, impl::op_kind::Dequantize, "dequantize_output"};
-    dequant_output.set_attr("scales", std::vector<float>({0.12f}));
-    dequant_output.set_attr("zps", std::vector<int64_t>({2}));
-    dequant_output.set_attr("qtype", std::string("per_tensor"));
-    dequant_output.set_attr("axis", (int64_t)0);
+    dequant_output.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequant_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequant_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequant_output.set_attr(impl::op_attr::axis, (int64_t)0);
 
     quant_output.add_input(input_desc);
     quant_output.add_output(quant_output_desc);
@@ -1876,21 +1940,22 @@ inline void add_mlp_training_graph(impl::graph_t *agraph, int batch_size,
         impl::op_t activation_backward {op_idx++, act_backprop_type[i],
                 "activation_backprop" + layer_suffix};
         if (!apply_use_dst(use_dst, act_backprop_type[i])) {
-            activation_backward.set_attr("use_dst", false);
+            activation_backward.set_attr(impl::op_attr::use_dst, false);
         }
         impl::op_t transpose_weight {op_idx++, impl::op_kind::StaticTranspose,
                 "transpose_weight" + layer_suffix};
-        transpose_weight.set_attr("order", std::vector<int64_t> {1, 0});
+        transpose_weight.set_attr(
+                impl::op_attr::order, std::vector<int64_t> {1, 0});
         impl::op_t transpose_x {op_idx++, impl::op_kind::StaticTranspose,
                 "transpose_x" + layer_suffix};
-        transpose_x.set_attr("order", std::vector<int64_t> {1, 0});
+        transpose_x.set_attr(impl::op_attr::order, std::vector<int64_t> {1, 0});
         impl::op_t matmul_weight {
                 op_idx++, impl::op_kind::MatMul, "grad_weight" + layer_suffix};
         impl::op_t matmul_x {
                 op_idx++, impl::op_kind::MatMul, "grad_x" + layer_suffix};
         impl::op_t reduce_bias {
                 op_idx++, impl::op_kind::ReduceSum, "grad_bias" + layer_suffix};
-        reduce_bias.set_attr("axes", std::vector<int64_t> {0});
+        reduce_bias.set_attr(impl::op_attr::axes, std::vector<int64_t> {0});
 
         // X_{i+1} = act(Z_{i})
         if (!apply_use_dst(use_dst, act_backprop_type[i])) {
