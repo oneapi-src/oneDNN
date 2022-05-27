@@ -37,7 +37,7 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(engine_t *engine) {
 
     conf_.data_type = data_md()->data_type;
 
-    const bool ok = mayiuse(isa)
+    const bool ok = is_superset(get_max_cpu_isa(), isa)
             && utils::one_of(conf_.data_type, f32, s32, bf16)
             && platform::has_data_type_support(conf_.data_type)
             && attr()->has_default_values() && axis() == 1
@@ -202,6 +202,9 @@ status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
 }
 
 template struct jit_uni_shuffle_t<sve_512>;
+template struct jit_uni_shuffle_t<sve_256>;
+template struct jit_uni_shuffle_t<sve_128>;
+template struct jit_uni_shuffle_t<asimd>;
 
 } // namespace aarch64
 } // namespace cpu
