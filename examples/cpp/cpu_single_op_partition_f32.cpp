@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,8 +46,8 @@ int main(int argc, char **argv) {
     matmul.add_inputs({src0, src1});
     matmul.add_output(dst);
 
-    matmul.set_attr<bool>("transpose_a", false);
-    matmul.set_attr<bool>("transpose_b", false);
+    matmul.set_attr<bool>(op::attr::transpose_a, false);
+    matmul.set_attr<bool>(op::attr::transpose_b, false);
 
     /// Create partition
     partition part {matmul, ekind};

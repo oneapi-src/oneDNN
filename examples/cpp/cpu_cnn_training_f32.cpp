@@ -65,13 +65,13 @@ int main(int argc, char **argv) {
     // strides: {3, 3}
     op conv {0, op::kind::Convolution, {conv_src_lt, conv_filters_lt},
             {conv_dst_lt}, "conv"};
-    conv.set_attr<std::vector<int64_t>>("strides", {3, 3});
-    conv.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    conv.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    conv.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    conv.set_attr<std::string>("data_format", "NCX");
-    conv.set_attr<std::string>("filter_format", "OIX");
-    conv.set_attr<int64_t>("groups", 1);
+    conv.set_attr<std::vector<int64_t>>(op::attr::strides, {3, 3});
+    conv.set_attr<std::vector<int64_t>>(op::attr::pads_begin, {0, 0});
+    conv.set_attr<std::vector<int64_t>>(op::attr::pads_end, {0, 0});
+    conv.set_attr<std::vector<int64_t>>(op::attr::dilations, {1, 1});
+    conv.set_attr<std::string>(op::attr::data_format, "NCX");
+    conv.set_attr<std::string>(op::attr::filter_format, "OIX");
+    conv.set_attr<int64_t>(op::attr::groups, 1);
 
     /// create op ReLU
     // {batch, 96, 74, 74} -> {batch, 96, 74, 74}
@@ -82,12 +82,12 @@ int main(int argc, char **argv) {
     // {batch, 96, 74, 74} -> {batch, 96, 37, 37}
     logical_tensor pool_dst_lt {4, data_type::f32, 4, layout_type::undef};
     op pool {2, op::kind::MaxPool, {relu_dst_lt}, {pool_dst_lt}, "pool"};
-    pool.set_attr<std::vector<int64_t>>("kernel", {2, 2});
-    pool.set_attr<std::vector<int64_t>>("strides", {2, 2});
-    pool.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    pool.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    pool.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    pool.set_attr<std::string>("data_format", "NCX");
+    pool.set_attr<std::vector<int64_t>>(op::attr::kernel, {2, 2});
+    pool.set_attr<std::vector<int64_t>>(op::attr::strides, {2, 2});
+    pool.set_attr<std::vector<int64_t>>(op::attr::dilations, {1, 1});
+    pool.set_attr<std::vector<int64_t>>(op::attr::pads_begin, {0, 0});
+    pool.set_attr<std::vector<int64_t>>(op::attr::pads_end, {0, 0});
+    pool.set_attr<std::string>(op::attr::data_format, "NCX");
 
     /// create op MaxPoolBackprop
     // {batch, 96, 37, 37} -> {batch, 96, 74, 74}
@@ -97,19 +97,19 @@ int main(int argc, char **argv) {
 
     op pool_bwd {3, op::kind::MaxPoolBackprop, {relu_dst_lt, pool_diff_dst_lt},
             {pool_diff_src_lt}, "pool_bwd"};
-    pool_bwd.set_attr<std::vector<int64_t>>("kernel", {2, 2});
-    pool_bwd.set_attr<std::vector<int64_t>>("strides", {2, 2});
-    pool_bwd.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    pool_bwd.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    pool_bwd.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    pool_bwd.set_attr<std::string>("data_format", "NCX");
+    pool_bwd.set_attr<std::vector<int64_t>>(op::attr::kernel, {2, 2});
+    pool_bwd.set_attr<std::vector<int64_t>>(op::attr::strides, {2, 2});
+    pool_bwd.set_attr<std::vector<int64_t>>(op::attr::dilations, {1, 1});
+    pool_bwd.set_attr<std::vector<int64_t>>(op::attr::pads_begin, {0, 0});
+    pool_bwd.set_attr<std::vector<int64_t>>(op::attr::pads_end, {0, 0});
+    pool_bwd.set_attr<std::string>(op::attr::data_format, "NCX");
 
     /// create op ReLUBackprop
     // {batch, 96, 74, 74} -> {batch, 96, 74, 74}
     logical_tensor relu_diff_src_lt {7, data_type::f32, 4, layout_type::undef};
     op relu_bwd {4, op::kind::ReLUBackprop, {relu_dst_lt, pool_diff_src_lt},
             {relu_diff_src_lt}, "relu_bwd"};
-    relu_bwd.set_attr<bool>("use_dst", true);
+    relu_bwd.set_attr<bool>(op::attr::use_dst, true);
 
     // create op ConvolutionBackpropData
     // {batch, 96, 74, 74} (x) {96, 3, 5, 5} -> {batch, 3, 224, 224}
@@ -117,13 +117,14 @@ int main(int argc, char **argv) {
     op conv_bwd_data {5, op::kind::ConvolutionBackpropData,
             {relu_diff_src_lt, conv_filters_lt}, {conv_diff_src_lt},
             "conv_bwd_data"};
-    conv_bwd_data.set_attr<std::vector<int64_t>>("strides", {3, 3});
-    conv_bwd_data.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    conv_bwd_data.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    conv_bwd_data.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    conv_bwd_data.set_attr<std::string>("data_format", "NCX");
-    conv_bwd_data.set_attr<std::string>("filter_format", "OIX");
-    conv_bwd_data.set_attr<std::vector<int64_t>>("output_shape", net_src_dims);
+    conv_bwd_data.set_attr<std::vector<int64_t>>(op::attr::strides, {3, 3});
+    conv_bwd_data.set_attr<std::vector<int64_t>>(op::attr::dilations, {1, 1});
+    conv_bwd_data.set_attr<std::vector<int64_t>>(op::attr::pads_begin, {0, 0});
+    conv_bwd_data.set_attr<std::vector<int64_t>>(op::attr::pads_end, {0, 0});
+    conv_bwd_data.set_attr<std::string>(op::attr::data_format, "NCX");
+    conv_bwd_data.set_attr<std::string>(op::attr::filter_format, "OIX");
+    conv_bwd_data.set_attr<std::vector<int64_t>>(
+            op::attr::output_shape, net_src_dims);
 
     // create op ConvolutionBackpropFilters
     // {batch, 96, 74, 74} (x) {batch, 3, 224, 224} -> {96, 3, 5, 5}
@@ -132,14 +133,16 @@ int main(int argc, char **argv) {
     op conv_bwd_filters {6, op::kind::ConvolutionBackpropFilters,
             {conv_src_lt, relu_diff_src_lt}, {conv_diff_filters_lt},
             "conv_bwd_filters"};
-    conv_bwd_filters.set_attr<std::vector<int64_t>>("strides", {3, 3});
-    conv_bwd_filters.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    conv_bwd_filters.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    conv_bwd_filters.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    conv_bwd_filters.set_attr<std::string>("data_format", "NCX");
-    conv_bwd_filters.set_attr<std::string>("filter_format", "OIX");
+    conv_bwd_filters.set_attr<std::vector<int64_t>>(op::attr::strides, {3, 3});
     conv_bwd_filters.set_attr<std::vector<int64_t>>(
-            "filter_shape", net_params_dims);
+            op::attr::dilations, {1, 1});
+    conv_bwd_filters.set_attr<std::vector<int64_t>>(
+            op::attr::pads_begin, {0, 0});
+    conv_bwd_filters.set_attr<std::vector<int64_t>>(op::attr::pads_end, {0, 0});
+    conv_bwd_filters.set_attr<std::string>(op::attr::data_format, "NCX");
+    conv_bwd_filters.set_attr<std::string>(op::attr::filter_format, "OIX");
+    conv_bwd_filters.set_attr<std::vector<int64_t>>(
+            op::attr::filter_shape, net_params_dims);
 
     /// add the ops to the graph
     ///

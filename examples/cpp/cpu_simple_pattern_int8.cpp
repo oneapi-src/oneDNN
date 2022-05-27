@@ -60,9 +60,9 @@ int main(int argc, char **argv) {
             1, data_type::f32, conv_input_dims, layout_type::undef};
     op dequant0(2, op::kind::Dequantize, {dequant0_src_desc}, {conv_src_desc},
             "dequant0");
-    dequant0.set_attr<std::string>("qtype", "per_tensor");
-    dequant0.set_attr<std::vector<float>>("scales", {0.1f});
-    dequant0.set_attr<std::vector<int64_t>>("zps", {10});
+    dequant0.set_attr<std::string>(op::attr::qtype, "per_tensor");
+    dequant0.set_attr<std::vector<float>>(op::attr::scales, {0.1f});
+    dequant0.set_attr<std::vector<int64_t>>(op::attr::zps, {10});
 
     /// per-channel symmetric quantized weight with op dequant1
     logical_tensor dequant1_src_desc {
@@ -71,12 +71,12 @@ int main(int argc, char **argv) {
             4, data_type::f32, conv_weight_dims, layout_type::undef};
     op dequant1(5, op::kind::Dequantize, {dequant1_src_desc},
             {conv_weight_desc}, "dequant1");
-    dequant1.set_attr<std::string>("qtype", "per_channel");
+    dequant1.set_attr<std::string>(op::attr::qtype, "per_channel");
     std::vector<float> wei_scales(64, 0.1f);
     std::vector<int64_t> wei_zps(64, 0);
-    dequant1.set_attr<std::vector<float>>("scales", wei_scales);
-    dequant1.set_attr<std::vector<int64_t>>("zps", wei_zps);
-    dequant1.set_attr<int64_t>("axis", 1);
+    dequant1.set_attr<std::vector<float>>(op::attr::scales, wei_scales);
+    dequant1.set_attr<std::vector<int64_t>>(op::attr::zps, wei_zps);
+    dequant1.set_attr<int64_t>(op::attr::axis, 1);
 
     logical_tensor conv_bias_desc {
             6, data_type::f32, conv_bias_dims, layout_type::undef};
@@ -87,13 +87,13 @@ int main(int argc, char **argv) {
     op conv(8, op::kind::Convolution,
             {conv_src_desc, conv_weight_desc, conv_bias_desc}, {conv_dst_desc},
             "conv");
-    conv.set_attr<std::vector<int64_t>>("strides", {1, 1});
-    conv.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    conv.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    conv.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    conv.set_attr<std::string>("data_format", "NXC");
-    conv.set_attr<std::string>("filter_format", "XIO");
-    conv.set_attr<int64_t>("groups", 1);
+    conv.set_attr<std::vector<int64_t>>(op::attr::strides, {1, 1});
+    conv.set_attr<std::vector<int64_t>>(op::attr::pads_begin, {0, 0});
+    conv.set_attr<std::vector<int64_t>>(op::attr::pads_end, {0, 0});
+    conv.set_attr<std::vector<int64_t>>(op::attr::dilations, {1, 1});
+    conv.set_attr<std::string>(op::attr::data_format, "NXC");
+    conv.set_attr<std::string>(op::attr::filter_format, "XIO");
+    conv.set_attr<int64_t>(op::attr::groups, 1);
 
     /// create op relu
     logical_tensor relu_dst_desc {9, data_type::f32, -1, layout_type::undef};
@@ -103,9 +103,9 @@ int main(int argc, char **argv) {
     logical_tensor quant_dst_desc {11, data_type::u8, -1, layout_type::undef};
     op quant(
             12, op::kind::Quantize, {relu_dst_desc}, {quant_dst_desc}, "quant");
-    quant.set_attr<std::string>("qtype", "per_tensor");
-    quant.set_attr<std::vector<float>>("scales", {0.1f});
-    quant.set_attr<std::vector<int64_t>>("zps", {10});
+    quant.set_attr<std::string>(op::attr::qtype, "per_tensor");
+    quant.set_attr<std::vector<float>>(op::attr::scales, {0.1f});
+    quant.set_attr<std::vector<int64_t>>(op::attr::zps, {10});
 
     /// add the operators to the graph
     ///

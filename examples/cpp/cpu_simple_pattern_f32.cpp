@@ -63,13 +63,13 @@ int main(int argc, char **argv) {
     /// create op conv
     op conv {2, op::kind::Convolution, {conv_src_desc, conv_weight_desc},
             {conv_dst_desc}, "conv"};
-    conv.set_attr<std::vector<int64_t>>("strides", {1, 1});
-    conv.set_attr<std::vector<int64_t>>("pads_begin", {0, 0});
-    conv.set_attr<std::vector<int64_t>>("pads_end", {0, 0});
-    conv.set_attr<std::vector<int64_t>>("dilations", {1, 1});
-    conv.set_attr<std::string>("data_format", "NXC");
-    conv.set_attr<std::string>("filter_format", "OIX");
-    conv.set_attr<int64_t>("groups", 1);
+    conv.set_attr<std::vector<int64_t>>(op::attr::strides, {1, 1});
+    conv.set_attr<std::vector<int64_t>>(op::attr::pads_begin, {0, 0});
+    conv.set_attr<std::vector<int64_t>>(op::attr::pads_end, {0, 0});
+    conv.set_attr<std::vector<int64_t>>(op::attr::dilations, {1, 1});
+    conv.set_attr<std::string>(op::attr::data_format, "NXC");
+    conv.set_attr<std::string>(op::attr::filter_format, "OIX");
+    conv.set_attr<int64_t>(op::attr::groups, 1);
 
     /// ndims = 4, let the library to calculate the output shape.
     logical_tensor relu_dst_desc {3, data_type::f32, 4, layout_type::undef};
