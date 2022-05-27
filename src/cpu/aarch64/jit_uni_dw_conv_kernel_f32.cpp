@@ -1097,11 +1097,14 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
     preamble();
-    if (simd_w == 8) {
+
+    if (simd_w == 16)
+        ptrue(P_ALL_ONE.b);
+    else if (simd_w == 8)
         ptrue(P_ALL_ONE.b, VL32);
-    } else {
+    else
         assert(!"Unsupport: simd_w != 16, 8");
-    }
+
     ldr(reg_input_baddr,
             ptr(abi_param1,
                     static_cast<int32_t>(offsetof(jit_dw_conv_call_s, input))));
