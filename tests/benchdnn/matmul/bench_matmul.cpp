@@ -95,7 +95,7 @@ void check_correctness(const settings_t &s, const settings_t &def) {
                     "ERROR: matmul driver: `dt` option expects either a single "
                     "input or three inputs in SRC, WEI, DST order. Current "
                     "size is: \"%ld\"\n",
-                    i_dt.size()),
+                    (long)i_dt.size()),
                     fflush(stderr);
             SAFE_V(FAIL);
         }

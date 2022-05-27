@@ -37,7 +37,8 @@ float cfg_t::get_density(data_kind_t dk, int64_t n_acc) const {
 
     const int64_t max_value
             = cfg_e_src.get_range_abs_max() * cfg_e_wei.get_range_abs_max();
-    const int64_t safe_n_acc = (1 << digits_dt(cfg_e_dst.get_dt())) / max_value;
+    const int64_t safe_n_acc
+            = (1LL << digits_dt(cfg_e_dst.get_dt())) / max_value;
     assert(safe_n_acc > 0);
     density /= div_up(n_acc, safe_n_acc);
     return density;
