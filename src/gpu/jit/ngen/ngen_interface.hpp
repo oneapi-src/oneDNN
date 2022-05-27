@@ -494,7 +494,7 @@ std::string InterfaceHandler::generateZeInfo() const
 
     std::stringstream md;
 
-    md << "version: 1.0\n"
+    md << "version: 1.8\n"
           "kernels: \n"
           "  - name: \"" << kernelName << "\"\n"
           "    execution_env: \n"
@@ -531,6 +531,8 @@ std::string InterfaceHandler::generateZeInfo() const
         md << "      has_no_stateless_write: true\n";
     if (needNoPreemption)
         md << "      disable_mid_thread_preemption: true\n";
+    if (inlineGRFs > 0)
+        md << "      inline_data_payload_size: " << inlineGRFs * GRF::bytes(hw) << "\n";
     if (!assignments.empty()) {
         md << "\n"
               "    payload_arguments: \n";
