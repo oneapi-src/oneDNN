@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public:
     std::unordered_map<int, sc::sc_op_ptr> op_mapping_;
 
     // convert onednn graph op attrs to compiler backend op attrs
-    sc::any_map_t convert_op_attrs(const std::unordered_map<std::string,
+    sc::any_map_t convert_op_attrs(const std::unordered_map<impl::op_attr_t,
             impl::utils::attribute_value_t> &attrs);
 
     // convert onednn graph logical tensor to backend graph tensor

@@ -43,36 +43,37 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::ReduceSum, "reduce"}};
 
 sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
-        const std::unordered_map<std::string, impl::utils::attribute_value_t>
-                &attrs) {
+        const std::unordered_map<impl::op_attr_t,
+                impl::utils::attribute_value_t> &attrs) {
     sc::any_map_t backend_attrs;
     for (const auto &attr : attrs) {
         auto kind = attr.second.get_kind();
+        auto name = impl::op_t::attr2str(attr.first);
         switch (kind) {
             case attribute_kind::i: {
                 auto val = attr.second.get<int64_t>();
-                backend_attrs.set(attr.first, (int)val);
+                backend_attrs.set(name, (int)val);
             } break;
             case attribute_kind::is: {
                 auto val = attr.second.get<std::vector<int64_t>>();
                 std::vector<int> val_int32(val.begin(), val.end());
-                backend_attrs.set(attr.first, val_int32);
+                backend_attrs.set(name, val_int32);
             } break;
             case attribute_kind::f: {
                 auto val = attr.second.get<float>();
-                backend_attrs.set(attr.first, val);
+                backend_attrs.set(name, val);
             } break;
             case attribute_kind::fs: {
                 auto val = attr.second.get<std::vector<float>>();
-                backend_attrs.set(attr.first, val);
+                backend_attrs.set(name, val);
             } break;
             case attribute_kind::s: {
                 auto val = attr.second.get<std::string>();
-                backend_attrs.set(attr.first, val);
+                backend_attrs.set(name, val);
             } break;
             case attribute_kind::b: {
                 auto val = attr.second.get<bool>();
-                backend_attrs.set(attr.first, val);
+                backend_attrs.set(name, val);
             } break;
             default: assert(0 && "attr value type can't support"); break;
         }
@@ -89,22 +90,25 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         const std::vector<sc::graph_tensor_ptr> &producer_lt,
         const std::vector<sc::graph_tensor_ptr> &consumer_lt) {
     sc::any_map_t backend_attrs;
-    std::unordered_map<std::string, impl::utils::attribute_value_t> attrs
+    std::unordered_map<impl::op_attr_t, impl::utils::attribute_value_t> attrs
             = aop->get_attributes();
     auto input_dim = aop->get_input_value(0)->get_logical_tensor().ndims;
     if (aop->get_kind() == op_kind::Quantize
             || aop->get_kind() == op_kind::Dequantize) {
-        if (attrs.find("qtype") != attrs.end()) {
+        if (attrs.find(impl::op_attr::qtype) != attrs.end()) {
             backend_attrs.set("per_channel",
-                    (attrs["qtype"].get<std::string>() == "per_channel"));
+                    (attrs[impl::op_attr::qtype].get<std::string>()
+                            == "per_channel"));
         }
-        if (attrs.find("axis") != attrs.end()) {
+        if (attrs.find(impl::op_attr::axis) != attrs.end()) {
             backend_attrs.set("channel_axis",
-                    convert_axis(attrs["axis"].get<int64_t>(), input_dim));
+                    convert_axis(attrs[impl::op_attr::axis].get<int64_t>(),
+                            input_dim));
         }
-        std::vector<float> scales = attrs["scales"].get<std::vector<float>>();
+        std::vector<float> scales
+                = attrs[impl::op_attr::scales].get<std::vector<float>>();
         std::vector<int64_t> zps_int64
-                = attrs["zps"].get<std::vector<int64_t>>();
+                = attrs[impl::op_attr::zps].get<std::vector<int64_t>>();
         std::vector<int> zps(zps_int64.begin(), zps_int64.end());
         backend_attrs.set("scales", scales);
         backend_attrs.set("zero_points", zps);
@@ -115,13 +119,16 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
     } else if (aop->get_kind() == op_kind::SoftMax) {
         backend_attrs.set("axis",
                 std::vector<int>(1,
-                        convert_axis(attrs["axis"].get<int64_t>(), input_dim)));
+                        convert_axis(attrs[impl::op_attr::axis].get<int64_t>(),
+                                input_dim)));
     } else if (aop->get_kind() == op_kind::StaticReshape) {
-        backend_attrs.set("shape", attrs["shape"].get<std::vector<int64_t>>());
-        backend_attrs.set("special_zero", attrs["special_zero"].get<bool>());
+        backend_attrs.set("shape",
+                attrs[impl::op_attr::shape].get<std::vector<int64_t>>());
+        backend_attrs.set(
+                "special_zero", attrs[impl::op_attr::special_zero].get<bool>());
     } else if (aop->get_kind() == op_kind::StaticTranspose) {
         std::vector<int64_t> order_int64
-                = attrs["order"].get<std::vector<int64_t>>();
+                = attrs[impl::op_attr::order].get<std::vector<int64_t>>();
         std::vector<int> order(order_int64.size());
         std::transform(order_int64.begin(), order_int64.end(), order.begin(),
                 [input_dim](int64_t axis) -> int {
@@ -134,8 +141,9 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                                           ->get_logical_tensor()
                                           .data_type));
     } else if (aop->get_kind() == op_kind::ReduceSum) {
-        assert(attrs.find("axes") != attrs.end());
-        std::vector<int64_t> axes = attrs["axes"].get<std::vector<int64_t>>();
+        assert(attrs.find(impl::op_attr::axes) != attrs.end());
+        std::vector<int64_t> axes
+                = attrs[impl::op_attr::axes].get<std::vector<int64_t>>();
         std::vector<int> rd_axis(axes.size());
         std::transform(axes.begin(), axes.end(), rd_axis.begin(),
                 [input_dim](int64_t axis) -> int {
@@ -143,8 +151,9 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
                 });
         backend_attrs.set("rd_axis", rd_axis);
         backend_attrs.set("rd_op", 0);
-        if (attrs.find("keep_dims") != attrs.end()) {
-            backend_attrs.set("keep_dims", attrs["keep_dims"].get<bool>());
+        if (attrs.find(impl::op_attr::keep_dims) != attrs.end()) {
+            backend_attrs.set(
+                    "keep_dims", attrs[impl::op_attr::keep_dims].get<bool>());
         } else {
             backend_attrs.set("keep_dims", false);
         }

@@ -39,8 +39,8 @@ bool check_input_dtype(op_t *op) {
 
 bool check_reduce_attrs(op_t *op) {
     auto attrs = op->get_attributes();
-    if (attrs.find("axes") != attrs.end()
-            && !attrs["axes"].get<std::vector<int64_t>>().empty()) {
+    if (attrs.find(op_attr::axes) != attrs.end()
+            && !attrs[op_attr::axes].get<std::vector<int64_t>>().empty()) {
         return true;
     }
     return false;
