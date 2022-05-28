@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,23 +26,23 @@ namespace self {
 
 static int check_simple_enums() {
     /* alg */
-    CHECK_CASE_STR_EQ(alg2str(alg_t::AUTO), "auto");
-    CHECK_CASE_STR_NE(alg2str(alg_t::AUTO), "autox");
+    SELF_CHECK_CASE_STR_EQ(alg2str(alg_t::AUTO), "auto");
+    SELF_CHECK_CASE_STR_NE(alg2str(alg_t::AUTO), "autox");
 
-    CHECK_CASE_STR_EQ(alg2str(alg_t::DIRECT), "direct");
-    CHECK_CASE_STR_NE(alg2str(alg_t::DIRECT), "directx");
+    SELF_CHECK_CASE_STR_EQ(alg2str(alg_t::DIRECT), "direct");
+    SELF_CHECK_CASE_STR_NE(alg2str(alg_t::DIRECT), "directx");
 
-    CHECK_CASE_STR_EQ(alg2str(alg_t::WINO), "wino");
-    CHECK_CASE_STR_NE(alg2str(alg_t::WINO), "winox");
+    SELF_CHECK_CASE_STR_EQ(alg2str(alg_t::WINO), "wino");
+    SELF_CHECK_CASE_STR_NE(alg2str(alg_t::WINO), "winox");
 
-    CHECK_EQ(str2alg("auto"), alg_t::AUTO);
-    CHECK_EQ(str2alg("AUTO"), alg_t::AUTO);
+    SELF_CHECK_EQ(str2alg("auto"), alg_t::AUTO);
+    SELF_CHECK_EQ(str2alg("AUTO"), alg_t::AUTO);
 
-    CHECK_EQ(str2alg("direct"), alg_t::DIRECT);
-    CHECK_EQ(str2alg("DIRECT"), alg_t::DIRECT);
+    SELF_CHECK_EQ(str2alg("direct"), alg_t::DIRECT);
+    SELF_CHECK_EQ(str2alg("DIRECT"), alg_t::DIRECT);
 
-    CHECK_EQ(str2alg("wino"), alg_t::WINO);
-    CHECK_EQ(str2alg("WINO"), alg_t::WINO);
+    SELF_CHECK_EQ(str2alg("wino"), alg_t::WINO);
+    SELF_CHECK_EQ(str2alg("WINO"), alg_t::WINO);
 
     return OK;
 }

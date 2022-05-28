@@ -36,7 +36,7 @@ static int check_status_change() {
         }
         compare::compare_t cmp;
         cmp.compare(m0, m1, attr_t(), &res);
-        CHECK_EQ(res.state, MISTRUSTED);
+        SELF_CHECK_EQ(res.state, MISTRUSTED);
     }
     {
         res_t res;
@@ -50,7 +50,7 @@ static int check_status_change() {
         }
         compare::compare_t cmp;
         cmp.compare(m0, m1, attr_t(), &res);
-        CHECK_EQ(res.state, PASSED);
+        SELF_CHECK_EQ(res.state, PASSED);
     }
     {
         res_t res;
@@ -64,7 +64,7 @@ static int check_status_change() {
         }
         compare::compare_t cmp;
         cmp.compare(m0, m1, attr_t(), &res);
-        CHECK_EQ(res.state, FAILED);
+        SELF_CHECK_EQ(res.state, FAILED);
     }
     {
         res_t res;
@@ -78,7 +78,7 @@ static int check_status_change() {
         }
         compare::compare_t cmp;
         cmp.compare(m0, m1, attr_t(), &res);
-        CHECK_EQ(res.state, FAILED);
+        SELF_CHECK_EQ(res.state, FAILED);
     }
     {
         res_t res;
@@ -92,7 +92,7 @@ static int check_status_change() {
         }
         compare::compare_t cmp;
         cmp.compare(m0, m1, attr_t(), &res);
-        CHECK_EQ(res.state, FAILED);
+        SELF_CHECK_EQ(res.state, FAILED);
     }
     {
         res_t res;
@@ -106,7 +106,7 @@ static int check_status_change() {
         }
         compare::compare_t cmp;
         cmp.compare(m0, m1, attr_t(), &res);
-        CHECK_EQ(res.state, FAILED);
+        SELF_CHECK_EQ(res.state, FAILED);
     }
     return OK;
 }

@@ -25,29 +25,31 @@ using namespace bnorm;
 namespace self {
 
 static int check_flags() {
-    CHECK_CASE_CPP_STR_EQ(flags2str(NONE), "");
-    CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS), "G");
-    CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALESHIFT), "S");
-    CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALE), "C");
-    CHECK_CASE_CPP_STR_EQ(flags2str(USE_SHIFT), "H");
-    CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALE | USE_SHIFT), "CH");
-    CHECK_CASE_CPP_STR_EQ(flags2str(FUSE_NORM_RELU), "R");
-    CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS | USE_SCALESHIFT), "GS");
-    CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS | FUSE_NORM_RELU), "GR");
-    CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALESHIFT | FUSE_NORM_RELU), "SR");
-    CHECK_CASE_CPP_STR_EQ(
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(NONE), "");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS), "G");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALESHIFT), "S");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALE), "C");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(USE_SHIFT), "H");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(USE_SCALE | USE_SHIFT), "CH");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(FUSE_NORM_RELU), "R");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS | USE_SCALESHIFT), "GS");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(GLOB_STATS | FUSE_NORM_RELU), "GR");
+    SELF_CHECK_CASE_CPP_STR_EQ(
+            flags2str(USE_SCALESHIFT | FUSE_NORM_RELU), "SR");
+    SELF_CHECK_CASE_CPP_STR_EQ(
             flags2str(GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU), "GSR");
 
-    CHECK_EQ(str2flags(""), NONE);
-    CHECK_EQ(str2flags("G"), GLOB_STATS);
-    CHECK_EQ(str2flags("S"), USE_SCALESHIFT);
-    CHECK_EQ(str2flags("C"), USE_SCALE);
-    CHECK_EQ(str2flags("H"), USE_SHIFT);
-    CHECK_EQ(str2flags("CH"), USE_SCALE | USE_SHIFT);
-    CHECK_EQ(str2flags("R"), FUSE_NORM_RELU);
-    CHECK_EQ(str2flags("GS"), GLOB_STATS | USE_SCALESHIFT);
-    CHECK_EQ(str2flags("GR"), GLOB_STATS | FUSE_NORM_RELU);
-    CHECK_EQ(str2flags("RSG"), GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU);
+    SELF_CHECK_EQ(str2flags(""), NONE);
+    SELF_CHECK_EQ(str2flags("G"), GLOB_STATS);
+    SELF_CHECK_EQ(str2flags("S"), USE_SCALESHIFT);
+    SELF_CHECK_EQ(str2flags("C"), USE_SCALE);
+    SELF_CHECK_EQ(str2flags("H"), USE_SHIFT);
+    SELF_CHECK_EQ(str2flags("CH"), USE_SCALE | USE_SHIFT);
+    SELF_CHECK_EQ(str2flags("R"), FUSE_NORM_RELU);
+    SELF_CHECK_EQ(str2flags("GS"), GLOB_STATS | USE_SCALESHIFT);
+    SELF_CHECK_EQ(str2flags("GR"), GLOB_STATS | FUSE_NORM_RELU);
+    SELF_CHECK_EQ(
+            str2flags("RSG"), GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU);
     return OK;
 }
 
@@ -61,31 +63,31 @@ static int check_desc() {
     d.eps = 7.;
     d.name = "test";
 
-    CHECK_PRINT_EQ(d, "mb3ic4ih5iw6eps7ntest");
+    SELF_CHECK_PRINT_EQ(d, "mb3ic4ih5iw6eps7ntest");
 
     d.ndims = 4;
     d.mb = 2;
     d.iw = d.ih;
     d.eps = 1.f / 16;
-    CHECK_PRINT_EQ(d, "ic4ih5ntest");
+    SELF_CHECK_PRINT_EQ(d, "ic4ih5ntest");
 
     canonical = true;
-    CHECK_PRINT_EQ(d, "mb2ic4ih5iw5eps0.0625ntest");
+    SELF_CHECK_PRINT_EQ(d, "mb2ic4ih5iw5eps0.0625ntest");
 
-#define CHECK_D(_mb, _ic, _ih, _iw, _eps, _name) \
-    CHECK_EQ(d.mb, _mb); \
-    CHECK_EQ(d.ic, _ic); \
-    CHECK_EQ(d.ih, _ih); \
-    CHECK_EQ(d.iw, _iw); \
-    CHECK_EQ(d.eps, _eps); \
+#define SELF_CHECK_D(_mb, _ic, _ih, _iw, _eps, _name) \
+    SELF_CHECK_EQ(d.mb, _mb); \
+    SELF_CHECK_EQ(d.ic, _ic); \
+    SELF_CHECK_EQ(d.ih, _ih); \
+    SELF_CHECK_EQ(d.iw, _iw); \
+    SELF_CHECK_EQ(d.eps, _eps); \
     if (d.name != (_name)) return FAIL;
-    CHECK_EQ(str2desc(&d, "mb1ic2ih3iw4eps5ntest2"), OK);
-    CHECK_D(1, 2, 3, 4, 5.f, "test2");
-    CHECK_EQ(str2desc(&d, "ic8ih9ntest3"), OK);
-    CHECK_D(2, 8, 9, 9, 1.f / 16, "test3");
-    CHECK_EQ(str2desc(&d, "ic8iw9ntest3"), OK);
-    CHECK_D(2, 8, 1, 9, 1.f / 16, "test3");
-#undef CHECK_D
+    SELF_CHECK_EQ(str2desc(&d, "mb1ic2ih3iw4eps5ntest2"), OK);
+    SELF_CHECK_D(1, 2, 3, 4, 5.f, "test2");
+    SELF_CHECK_EQ(str2desc(&d, "ic8ih9ntest3"), OK);
+    SELF_CHECK_D(2, 8, 9, 9, 1.f / 16, "test3");
+    SELF_CHECK_EQ(str2desc(&d, "ic8iw9ntest3"), OK);
+    SELF_CHECK_D(2, 8, 1, 9, 1.f / 16, "test3");
+#undef SELF_CHECK_D
     return OK;
 }
 

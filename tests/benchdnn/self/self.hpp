@@ -28,7 +28,7 @@
 
 namespace self {
 
-#define CHECK(c, ...) \
+#define SELF_CHECK(c, ...) \
     do { \
         if (!(c)) { \
             printf("[%s:%d] '%s' FAILED ==> ", __PRETTY_FUNCTION__, __LINE__, \
@@ -39,30 +39,34 @@ namespace self {
         } \
     } while (0)
 
-#define CHECK_EQ(a, b) CHECK((a) == (b), "%d != %d", (int)(a), (int)(b))
-#define CHECK_NE(a, b) CHECK((a) != (b), "%d == %d", (int)(a), (int)(b))
-#define CHECK_CASE_STR_EQ(a, b) CHECK(!strcasecmp(a, b), "'%s' != '%s'", a, b)
-#define CHECK_CASE_STR_NE(a, b) CHECK(strcasecmp(a, b), "'%s' == '%s'", a, b)
-#define CHECK_CASE_CPP_STR_EQ(a, b) \
-    CHECK(!strcasecmp(a.c_str(), b), "'%s' != '%s'", a.c_str(), b)
-#define CHECK_CASE_CPP_STR_NE(a, b) \
-    CHECK(strcasecmp(a.c_str(), b), "'%s' == '%s'", a.c_str(), b)
-#define CHECK_PRINT_EQ2(obj, expect_str1, expect_str2) \
+#define SELF_CHECK_EQ(a, b) \
+    SELF_CHECK((a) == (b), "%d != %d", (int)(a), (int)(b))
+#define SELF_CHECK_NE(a, b) \
+    SELF_CHECK((a) != (b), "%d == %d", (int)(a), (int)(b))
+#define SELF_CHECK_CASE_STR_EQ(a, b) \
+    SELF_CHECK(!strcasecmp(a, b), "'%s' != '%s'", a, b)
+#define SELF_CHECK_CASE_STR_NE(a, b) \
+    SELF_CHECK(strcasecmp(a, b), "'%s' == '%s'", a, b)
+#define SELF_CHECK_CASE_CPP_STR_EQ(a, b) \
+    SELF_CHECK(!strcasecmp(a.c_str(), b), "'%s' != '%s'", a.c_str(), b)
+#define SELF_CHECK_CASE_CPP_STR_NE(a, b) \
+    SELF_CHECK(strcasecmp(a.c_str(), b), "'%s' == '%s'", a.c_str(), b)
+#define SELF_CHECK_PRINT_EQ2(obj, expect_str1, expect_str2) \
     do { \
         std::stringstream ss; \
         ss << obj; \
         std::string obj_str = ss.str(); \
         if (std::string(expect_str1) == std::string(expect_str2) \
                 && strcasecmp(obj_str.c_str(), expect_str1)) \
-            CHECK(false, "Expected '%s', got '%s'", expect_str1, \
+            SELF_CHECK(false, "Expected '%s', got '%s'", expect_str1, \
                     obj_str.c_str()); \
         else if (strcasecmp(obj_str.c_str(), expect_str1) \
                 && strcasecmp(obj_str.c_str(), expect_str2)) \
-            CHECK(false, "Expected one of ('%s', '%s'), got '%s'", \
+            SELF_CHECK(false, "Expected one of ('%s', '%s'), got '%s'", \
                     expect_str1, expect_str2, obj_str.c_str()); \
     } while (0)
-#define CHECK_PRINT_EQ(obj, expect_str) \
-    CHECK_PRINT_EQ2(obj, expect_str, expect_str)
+#define SELF_CHECK_PRINT_EQ(obj, expect_str) \
+    SELF_CHECK_PRINT_EQ2(obj, expect_str, expect_str)
 
 #define RUN(f) \
     do { \
