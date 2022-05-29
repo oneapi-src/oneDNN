@@ -3649,8 +3649,7 @@ private:
                     src1, src2);
         } else if (dpas_func.is_dp4a()) {
             if (src0.isNull()) {
-                host_->mov(mod, dst, 0);
-                host_->dp4a(mod, dst, dst, src1, src2);
+                host_->dp4a(mod, dst, 0, src1, src2);
             } else {
                 host_->dp4a(mod, dst, src0, src1, src2);
             }

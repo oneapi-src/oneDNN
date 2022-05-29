@@ -383,8 +383,8 @@ public:
     bool zero_points_ok(const convolution_pd_t *pd) const {
         auto *attr = pd->attr();
 
-        // TODO: implement masks for (IC <= 8) && (KDHW > 1), remove this 'if'
-        bool ic_kdhw = (pd->IC() <= 8) && (pd->KD() * pd->KH() * pd->KW() > 1);
+        // TODO: implement the rest of the cases and remove this 'if'
+        bool ic_kdhw = (ic <= 8) && (kd * kh * kw > 1) && !is_dw;
         if (!attr->zero_points_.has_default_values() && ic_kdhw) return false;
 
         using namespace data_type;
@@ -393,7 +393,7 @@ public:
         attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
         attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
 
-        return IMPLICATION(!utils::one_of(src_type, s8, u8) || g > 1,
+        return IMPLICATION(!utils::one_of(src_type, s8, u8),
                        attr->zero_points_.has_default_values())
                 && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
                 && (mask_src == 0 || mask_src == 1 << 1)
