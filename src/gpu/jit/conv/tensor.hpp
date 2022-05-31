@@ -590,7 +590,7 @@ public:
         if (self_blocks.size() == 0) return true;
 
         int i = 0;
-        for (; i < self_blocks.size() - 1; i++) {
+        for (; i < (int)self_blocks.size() - 1; i++) {
             if (!self_blocks[i].is_equal(other_blocks[i])) return false;
         }
         return (self_blocks[i].dim_idx == other_blocks[i].dim_idx
