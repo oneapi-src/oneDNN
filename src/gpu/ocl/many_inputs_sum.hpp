@@ -53,6 +53,7 @@ struct many_inputs_sum_t : public gpu_primitive_t {
                 if (i_d != o_d) return status::unimplemented;
             }
 
+            if (scales()[0] != 1.0f) return status::unimplemented;
             return status::success;
         }
     };
