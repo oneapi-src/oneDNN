@@ -16,6 +16,7 @@
 
 #include <fstream>
 #include <memory>
+#include <numeric>
 #include <vector>
 #include "quantize_op.hpp"
 #include <compiler/ir/graph/graph.hpp>
@@ -85,13 +86,9 @@ std::shared_ptr<sc_graph_t> quantize_op_t::get_graph_impl() {
         graph->make_output(bf16_cast->get_outputs());
     } else {
         auto scales = qinfos.scales_;
-        auto zeropoints = qinfos.zero_points_;
-        std::vector<float> zeropoints_f32(zeropoints.begin(), zeropoints.end());
         scales = math_utils::vector_rcp(scales);
         std::shared_ptr<static_data_t> scales_ptr
                 = std::make_shared<static_data_t>(scales);
-        std::shared_ptr<static_data_t> zeropoints_ptr
-                = std::make_shared<static_data_t>(zeropoints_f32);
 
         sc_dims plain_dims = {1};
         if (scales.size() > 1) {
@@ -102,21 +99,30 @@ std::shared_ptr<sc_graph_t> quantize_op_t::get_graph_impl() {
                 {{"values", scales_ptr}, {"dtype", datatypes::f32},
                         {"plain_dims", plain_dims},
                         {"format", sc_data_format_t()}});
-        auto quantize_const_zeropoints = graph->make("constant", {}, {},
-                {{"values", zeropoints_ptr}, {"dtype", datatypes::f32},
-                        {"plain_dims",
-                                sc_dims {static_cast<sc_dim>(
-                                        zeropoints_f32.size())}},
-                        {"format", sc_data_format_t()}});
         auto div_scale = graph->make("mul",
                 {inputs[0], quantize_const_scales->get_outputs()[0]}, {}, {});
-        if (!qinfos.zero_points_.empty()
-                || (qinfos.zero_points_.size() == 1
-                        && qinfos.zero_points_[0])) {
-            div_scale = graph->make("add",
-                    {div_scale->get_outputs()[0],
-                            quantize_const_zeropoints->get_outputs()[0]},
-                    {}, {});
+
+        auto zeropoints = qinfos.zero_points_;
+        if (!zeropoints.empty()) {
+            int zp_all_zero = std::all_of(zeropoints.begin(), zeropoints.end(),
+                    [](int i) { return i == 0; });
+            if (!zp_all_zero) {
+                std::vector<float> zeropoints_f32(
+                        zeropoints.begin(), zeropoints.end());
+                std::shared_ptr<static_data_t> zeropoints_ptr
+                        = std::make_shared<static_data_t>(zeropoints_f32);
+                auto quantize_const_zeropoints = graph->make("constant", {}, {},
+                        {{"values", zeropoints_ptr}, {"dtype", datatypes::f32},
+                                {"plain_dims",
+                                        sc_dims {static_cast<sc_dim>(
+                                                zeropoints_f32.size())}},
+                                {"format", sc_data_format_t()}});
+
+                div_scale = graph->make("add",
+                        {div_scale->get_outputs()[0],
+                                quantize_const_zeropoints->get_outputs()[0]},
+                        {}, {});
+            }
         }
         // maybe we need clip op in future
 #if 0
@@ -186,10 +192,6 @@ std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph_impl() {
         graph->make_output(f32_cast->get_outputs());
     } else {
         std::vector<float> scales = qinfos.scales_;
-        std::vector<float> zero_points(
-                qinfos.zero_points_.begin(), qinfos.zero_points_.end());
-        bool all_zero = std::all_of(qinfos.zero_points_.begin(),
-                qinfos.zero_points_.end(), [](int x) { return x == 0; });
         std::shared_ptr<static_data_t> scales_ptr
                 = std::make_shared<static_data_t>(scales);
         sc_dims scales_plain_dims = {1};
@@ -205,7 +207,12 @@ std::shared_ptr<sc_graph_t> dequantize_op_t::get_graph_impl() {
                         {"format", sc_data_format_t()}});
         auto f32_cast
                 = graph->make("cast", inputs, {}, {{"dtype", qinfos.dtype_}});
+
+        bool all_zero = std::all_of(qinfos.zero_points_.begin(),
+                qinfos.zero_points_.end(), [](int x) { return x == 0; });
         if (!all_zero) {
+            std::vector<float> zero_points(
+                    qinfos.zero_points_.begin(), qinfos.zero_points_.end());
             auto const_zero_points = graph->make("constant", {}, {},
                     {{"values", std::make_shared<static_data_t>(zero_points)},
                             {"dtype", datatypes::f32},

@@ -94,6 +94,13 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                 } else {
                     output_channel_axis
                             = node->attrs_.get<int>("weight_channel_axis");
+                    if (weight_scales.size() > 1
+                            && node->attrs_.has_key("weight_channel_axis")) {
+                        SC_WARN << "Weight_channel_axis is specified but "
+                                   "output_channel_axis not specified. "
+                                   "Assuming "
+                                   "output_channel_axis == weight_channel_axis";
+                    }
                 }
                 for (auto &child : node->get_outputs()[0]->uses_) {
                     auto cur_child = child;
