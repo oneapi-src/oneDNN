@@ -1048,11 +1048,11 @@ struct engine : public handle<dnnl_engine_t> {
         return query(pd, dnnl::query::engine);
     }
 
-private:
     static dnnl_engine_kind_t convert_to_c(kind akind) {
         return static_cast<dnnl_engine_kind_t>(akind);
     }
 
+private:
     template <typename primitive_desc>
     static engine query(const primitive_desc &pd, dnnl::query what) {
         dnnl_engine_t c_engine;
