@@ -46,6 +46,6 @@ g1mb1ic3id116ih132iw132oc32od114oh130ow130kd3kh3kw3sd1sh1sw1pd0ph0pw0dd0dh0dw0n"
 # fpmath mode control
 --reset
 --dir=FWD_I
---attr-fpmath=strict,bf16,f16,f19,any 
+--attr-fpmath=strict,bf16,tf32 
 --attr-post-ops=sum 
 mb50ic64ih56oc64oh56kh1ph0

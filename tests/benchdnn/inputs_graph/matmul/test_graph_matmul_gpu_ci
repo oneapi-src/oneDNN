@@ -37,5 +37,5 @@
 
 # fpmath mode control
 --reset
---attr-fpmath=strict,bf16,f16,f19,any
+--attr-fpmath=strict,bf16,tf32
 384x512:512x1024:384x1024
