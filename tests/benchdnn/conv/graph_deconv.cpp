@@ -31,7 +31,7 @@ namespace benchdnnext {
 namespace deconv {
 
 void check_known_skipped_case_graph(
-        const ::conv::prb_t *prb, res_t *res) noexcept {
+        const ::deconv::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
     skip_invalid_and_unimplemented_prb(prb, res);
@@ -89,7 +89,7 @@ static dims_t get_acbdx_strides(const dims_t &wei_dims) {
     return strides_permuted;
 }
 
-static quant_data_t get_qdata_for(int arg, const ::conv::prb_t *prb) {
+static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
     const auto q_dt = convert_dt(prb->cfg[arg].dt);
     if (arg == SRC) {
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_SRC)
@@ -121,7 +121,7 @@ static quant_data_t get_qdata_for(int arg, const ::conv::prb_t *prb) {
     return quant_data_t();
 }
 
-fill_status_t deconv_graph_prb_t::handle_main_op_(const ::conv::prb_t *prb) {
+fill_status_t deconv_graph_prb_t::handle_main_op_(const ::deconv::prb_t *prb) {
     using logical_tensor = dnnl::graph::logical_tensor;
     using kind = dnnl::graph::op::kind;
     using op = dnnl::graph::op;
@@ -239,7 +239,7 @@ fill_status_t deconv_graph_prb_t::handle_elt_(
 }
 
 fill_status_t deconv_graph_prb_t::handle_low_precision_(
-        const ::conv::prb_t *prb) {
+        const ::deconv::prb_t *prb) {
     // if there will be support for x8x8bf16 case, conditionally change
     // OP_REPR to "typecast"
     const std::string OP_REPR = "main";
@@ -296,7 +296,7 @@ fill_status_t deconv_graph_prb_t::handle_low_precision_(
     return status;
 }
 
-int doit(const ::conv::prb_t *prb, res_t *res) {
+int doit(const ::deconv::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
 
     if (bench_mode == LIST) return res->state = LISTED, OK;
@@ -421,9 +421,8 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        ::conv::prb_t prb_tr((::conv::desc_t)*prb, prb->dir, prb->cfg,
-                prb->stag, prb->wtag, prb->dtag, prb->alg, prb->attr, prb->mb,
-                true);
+        ::deconv::prb_t prb_tr((::deconv::desc_t)*prb, prb->dir, prb->cfg,
+                prb->stag, prb->wtag, prb->dtag, prb->alg, prb->attr, prb->mb);
         std::swap(prb_tr.ic, prb_tr.oc);
         std::swap(prb_tr.ih, prb_tr.oh);
         std::swap(prb_tr.id, prb_tr.od);
@@ -455,7 +454,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             ref_args.set(binary_po_args, binary_po_fp);
 
             check_correctness(
-                    prb, {DST}, args, ref_args, ::conv::setup_cmp, res);
+                    prb, {DST}, args, ref_args, ::deconv::setup_cmp, res);
         } else if (prb->dir == BWD_D) {
             args.set(DNNL_ARG_DIFF_SRC, src_dt);
             ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
@@ -464,7 +463,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
 
             check_correctness(
-                    prb, {SRC}, args, ref_args, ::conv::setup_cmp, res);
+                    prb, {SRC}, args, ref_args, ::deconv::setup_cmp, res);
         } else if (prb->dir == BWD_W) {
             args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
@@ -473,7 +472,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_fp);
 
             check_correctness(
-                    prb, {WEI}, args, ref_args, ::conv::setup_cmp, res);
+                    prb, {WEI}, args, ref_args, ::deconv::setup_cmp, res);
         }
     }
 

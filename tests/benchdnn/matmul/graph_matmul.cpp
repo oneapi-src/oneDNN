@@ -42,13 +42,14 @@ void check_known_skipped_case_graph(
 }
 
 static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
-    const auto q_dt = convert_dt(prb->cfg[arg].dt);
     if (arg == SRC) {
+        const auto q_dt = convert_dt(prb->src_dt());
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_SRC)
                 ? 0L
                 : prb->src_zp[0];
         return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->stag);
     } else if (arg == WEI) {
+        const auto q_dt = convert_dt(prb->wei_dt());
         const auto scales = get_scales(prb->attr.oscale, prb->scales, prb->n);
         const std::vector<int64_t> zps(scales.size(), 0L);
         const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
@@ -56,6 +57,7 @@ static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
                 : "per_channel";
         return quant_data_t(q_dt, scales, zps, q_type, 0, prb->wtag);
     } else if (arg == DST) {
+        const auto q_dt = convert_dt(prb->dst_dt());
         const float scale_val = 1.f
                 * (1.f / get_post_eltwise_scale(prb->attr.post_ops.entry));
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
@@ -81,9 +83,9 @@ fill_status_t matmul_graph_prb_t::handle_main_op_(const ::matmul::prb_t *prb) {
     // reuse bias output via `tensor_id["bias"].back() + "_DST"`
     if (has_post_bia_) tensor_id["bias"].push_back(TENSOR_ID);
 
-    const auto orig_src_dt = convert_dt(prb->cfg[SRC].dt);
-    const auto orig_wei_dt = convert_dt(prb->cfg[WEI].dt);
-    const auto orig_dst_dt = convert_dt(prb->cfg[DST].dt);
+    const auto orig_src_dt = convert_dt(prb->src_dt());
+    const auto orig_wei_dt = convert_dt(prb->wei_dt());
+    const auto orig_dst_dt = convert_dt(prb->dst_dt());
 
     const std::string SRC {TENSOR_ID + "_SRC"};
     const std::string WEI {TENSOR_ID + "_WEI"};
@@ -180,9 +182,9 @@ fill_status_t matmul_graph_prb_t::handle_typecast_(const ::matmul::prb_t *prb) {
 
 fill_status_t matmul_graph_prb_t::handle_low_precision_(
         const ::matmul::prb_t *prb) {
-    const auto src_dt = convert_dt(prb->cfg[SRC].dt);
-    const auto wei_dt = convert_dt(prb->cfg[WEI].dt);
-    const auto dst_dt = convert_dt(prb->cfg[DST].dt);
+    const auto src_dt = convert_dt(prb->src_dt());
+    const auto wei_dt = convert_dt(prb->wei_dt());
+    const auto dst_dt = convert_dt(prb->dst_dt());
     const bool with_tc = with_typecast({src_dt, wei_dt, dst_dt});
     const std::string OP_REPR = with_tc ? "typecast" : "main";
     const auto src_lt_id = tensor_id[OP_REPR].back() + "_SRC";
@@ -213,7 +215,7 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
             status = po_handler.matmul.low_precision_handler
                              .insert_dequant_before(sum_src1_lt_id,
                                      sum_po_entry2quant_data(entry, prb->dtag,
-                                             convert_dt(prb->cfg[DST].dt)),
+                                             convert_dt(prb->dst_dt())),
                                      *this);
             BENCHDNNEXT_VERIFY(status);
             break;
@@ -227,7 +229,7 @@ fill_status_t matmul_graph_prb_t::handle_low_precision_(
             status = po_handler.deconv.low_precision_handler
                              .insert_dequant_before(bin_src1_lt_id,
                                      bin_po_entry2quant_data(entry, prb->dtag,
-                                             convert_dt(prb->cfg[DST].dt)),
+                                             convert_dt(prb->dst_dt())),
                                      *this);
             BENCHDNNEXT_VERIFY(status);
         }
@@ -369,9 +371,9 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
         ref_args.set(binary_po_args, binary_po_fp);
 
         if (apply_bias
-                && is_low_precision({convert_dt(prb->cfg[SRC].dt),
-                        convert_dt(prb->cfg[WEI].dt),
-                        convert_dt(prb->cfg[DST].dt)})) {
+                && is_low_precision(
+                        {convert_dt(prb->src_dt()), convert_dt(prb->wei_dt()),
+                                convert_dt(prb->dst_dt())})) {
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::abx);
             scale_bia(bia_fp_scaled, bia_fp,
                     get_scales(prb->attr.oscale, prb->scales, prb->n));

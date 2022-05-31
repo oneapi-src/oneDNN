@@ -19,14 +19,14 @@
 
 #include <vector>
 
-#include "conv/deconv.hpp"
+#include "deconv/deconv.hpp"
 #include "dnnl_graph_common.hpp"
 
 namespace benchdnnext {
 namespace deconv {
 
 struct deconv_graph_prb_t : public graph_prb_t {
-    deconv_graph_prb_t(const ::conv::prb_t *prb) {
+    deconv_graph_prb_t(const ::deconv::prb_t *prb) {
         const auto stop_work = [](const fill_status_t s) {
             return s != fill_status::DONE
                     && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
@@ -74,14 +74,14 @@ private:
 
     po_handlers_t po_handler;
 
-    fill_status_t handle_main_op_(const ::conv::prb_t *prb);
+    fill_status_t handle_main_op_(const ::deconv::prb_t *prb);
     fill_status_t handle_sum_();
     fill_status_t handle_bin_(const attr_t::post_ops_t::entry_t &po);
     fill_status_t handle_elt_(const attr_t::post_ops_t::entry_t &po);
-    fill_status_t handle_low_precision_(const ::conv::prb_t *prb);
+    fill_status_t handle_low_precision_(const ::deconv::prb_t *prb);
 };
 
-int doit(const ::conv::prb_t *prb, res_t *res);
+int doit(const ::deconv::prb_t *prb, res_t *res);
 
 } // namespace deconv
 } // namespace benchdnnext

@@ -39,8 +39,8 @@ struct matmul_graph_prb_t : public graph_prb_t {
         ctor_status = handle_main_op_(prb);
         if (stop_work(ctor_status)) return;
 
-        std::vector<dt> dtypes {convert_dt(prb->cfg[SRC].dt),
-                convert_dt(prb->cfg[WEI].dt), convert_dt(prb->cfg[DST].dt)};
+        std::vector<dt> dtypes {convert_dt(prb->src_dt()),
+                convert_dt(prb->wei_dt()), convert_dt(prb->dst_dt())};
 
         if (benchdnnext::is_low_precision(dtypes))
             // needs to be set before call of post-op handlers

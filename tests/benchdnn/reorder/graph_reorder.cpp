@@ -47,16 +47,15 @@ void check_known_skipped_case_graph(
             combine Reorder operator and TypeCast operator
     */
     /* TODO: involves multiple operators. Eg: reorder+typecast */
-    if (prb->conf_in->dt != prb->conf_out->dt && prb->stag != prb->dtag) {
-        if (!((prb->conf_in->dt == dnnl_s8 && prb->conf_out->dt == dnnl_u8)
-                    || (prb->conf_in->dt == dnnl_u8
-                            && prb->conf_out->dt == dnnl_s8))) {
+    if (prb->sdt != prb->ddt && prb->stag != prb->dtag) {
+        if (!((prb->sdt == dnnl_s8 && prb->ddt == dnnl_u8)
+                    || (prb->sdt == dnnl_u8 && prb->ddt == dnnl_s8))) {
             res->state = SKIPPED;
         }
     }
     if (prb->stag == prb->dtag) {
-        if ((prb->conf_in->dt == dnnl_s8 || prb->conf_in->dt == dnnl_u8)
-                && (prb->conf_out->dt == dnnl_bf16)) {
+        if ((prb->sdt == dnnl_s8 || prb->ddt == dnnl_u8)
+                && (prb->ddt == dnnl_bf16)) {
             res->state = SKIPPED;
         }
     }
@@ -95,12 +94,11 @@ int fill_zps(const ::reorder::prb_t *prb, const int64_t axis,
         if (prb->attr.zero_points.is_def()) {
             src_zps.emplace_back(0);
             dst_zps.emplace_back(0);
-        } else if (prb->conf_out->dt == dnnl_s8
-                || prb->conf_out->dt == dnnl_u8) {
+        } else if (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8) {
             //Quantize Op
             dst_zps.emplace_back(prb->dst_zp[0]);
-        } else if ((prb->conf_in->dt == dnnl_s8 || prb->conf_in->dt == dnnl_u8)
-                && prb->conf_out->dt == dnnl_f32) {
+        } else if ((prb->sdt == dnnl_s8 || prb->sdt == dnnl_u8)
+                && prb->ddt == dnnl_f32) {
             //Dequantize Op
             src_zps.emplace_back(prb->src_zp[0]);
         }
@@ -128,7 +126,7 @@ int fill_scales(const ::reorder::prb_t *prb, const int64_t axis,
         }
     }
     //Need to inverse scale
-    if (prb->conf_out->dt == dnnl_s8 || prb->conf_out->dt == dnnl_u8) {
+    if (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8) {
         for (int i = 0; i < scales.size(); i++) {
             scales[i] = 1.f / scales[i];
         }
@@ -157,8 +155,7 @@ void maybe_prepare_runtime_zero_points(const ::reorder::prb_t *prb,
     zps_dt = make_dnn_mem(in, dt::s32, tag::x);
     fill_zps(prb, axis, src_zps, dst_zps);
 
-    if (is_quantize(
-                convert_dt(prb->conf_in->dt), convert_dt(prb->conf_out->dt))) {
+    if (is_quantize(convert_dt(prb->sdt), convert_dt(prb->ddt))) {
         for (int i = 0; i < dst_zps.size(); i++) {
             zps_dt.set_elem(i, static_cast<int32_t>(dst_zps[i]));
         }
@@ -182,8 +179,8 @@ fill_status_t reorder_graph_prb_t::handle_main_op_(
     const std::string SCALES {TENSOR_ID + "_SCALES"};
     const std::string ZPS {TENSOR_ID + "_ZPS"};
 
-    const auto src_dt = convert_dt(prb->conf_in->dt);
-    const auto dst_dt = convert_dt(prb->conf_out->dt);
+    const auto src_dt = convert_dt(prb->sdt);
+    const auto dst_dt = convert_dt(prb->ddt);
     const auto qtype = convert_attr_policy(prb->attr.oscale.policy);
     bool runtime = prb->attr.oscale.runtime;
     // axis is used only for PER_DIM_0 and PER_DIM_1 policies
