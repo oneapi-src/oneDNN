@@ -20,7 +20,7 @@
 #include "dnnl_graph_common.hpp"
 
 #include "binary/binary.hpp"
-#include "conv/graph_deconv.hpp"
+#include "deconv/graph_deconv.hpp"
 
 #include <algorithm>
 #include <string>
