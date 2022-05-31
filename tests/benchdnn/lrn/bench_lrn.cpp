@@ -34,8 +34,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_alg : s.alg)
     for_(const auto &i_mb : s.mb)
     for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
-        attr_t attr;
-        attr.insert(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_scratchpad_mode);
 
         const prb_t prb(s.desc, i_mb, i_dir, i_dt, i_tag, i_alg, attr);
         std::stringstream ss;

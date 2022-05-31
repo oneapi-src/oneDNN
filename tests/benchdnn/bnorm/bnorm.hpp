@@ -164,21 +164,6 @@ inline size_t data_off(const prb_t *prb, int64_t mb, int64_t c, int64_t d,
     return (((mb * prb->ic + c) * prb->id + d) * prb->ih + h) * prb->iw + w;
 }
 
-inline void inv_data_off(const prb_t *prb, size_t off, int64_t &mb, int64_t &c,
-        int64_t &d, int64_t &h, int64_t &w) {
-    w = off % prb->iw;
-    off /= prb->iw;
-    h = off % prb->ih;
-    off /= prb->ih;
-    d = off % prb->id;
-    off /= prb->id;
-    c = off % prb->ic;
-    off /= prb->ic;
-    mb = off % prb->mb;
-    off /= prb->mb;
-    assert(off == 0);
-}
-
 int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
 int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);

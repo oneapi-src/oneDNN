@@ -149,12 +149,21 @@ int32_t *prb_t::generate_zero_points(int arg) const {
     return zp;
 }
 
+dt_conf_t prb_t::get_conf(data_kind_t kind) const {
+    switch (kind) {
+        case SRC: return dt2cfg(sdt);
+        case DST: return dt2cfg(ddt);
+        default: assert(!"unexpected data kind!"); SAFE_V(FAIL);
+    }
+    return dt2cfg(dnnl_f32);
+}
+
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    s << "--sdt=" << cfg2dt(prb.conf_in) << " ";
-    s << "--ddt=" << cfg2dt(prb.conf_out) << " ";
+    s << "--sdt=" << prb.sdt << " ";
+    s << "--ddt=" << prb.ddt << " ";
     s << "--stag=" << prb.stag << " ";
     s << "--dtag=" << prb.dtag << " ";
 

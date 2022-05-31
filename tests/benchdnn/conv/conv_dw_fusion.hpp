@@ -25,7 +25,7 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 
-#include "conv/conv_common.hpp"
+#include "conv/conv.hpp"
 
 namespace conv_dw_fusion {
 

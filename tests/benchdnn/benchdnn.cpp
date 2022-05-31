@@ -31,7 +31,7 @@
 #include "bnorm/bnorm.hpp"
 #include "concat/concat.hpp"
 #include "conv/conv.hpp"
-#include "conv/deconv.hpp"
+#include "deconv/deconv.hpp"
 #include "eltwise/eltwise.hpp"
 #include "ip/ip.hpp"
 #include "lnorm/lnorm.hpp"

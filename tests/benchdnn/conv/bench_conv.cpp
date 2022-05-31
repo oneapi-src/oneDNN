@@ -43,13 +43,8 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
     for (const auto &i_mb : s.mb) {
-        attr_t attr;
-        attr.insert(i_oscale);
-        attr.insert(i_zero_points);
-        attr.insert(i_post_ops);
-        attr.insert(i_scratchpad_mode);
-        attr.insert(i_fpmath_mode);
-        handle_legacy_attr(attr, s.attr);
+        auto attr = settings_t::get_attr(i_oscale, i_zero_points, i_post_ops,
+                i_scratchpad_mode, i_fpmath_mode);
 
         const prb_t prb(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
                 attr, i_mb);
@@ -98,7 +93,6 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
-                || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
@@ -113,8 +107,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            bool is_deconv = false;
-            SAFE(str2desc(&s.desc, argv[0], is_deconv), CRIT);
+            SAFE(str2desc(&s.desc, argv[0]), CRIT);
             check_correctness(s);
         }
     }

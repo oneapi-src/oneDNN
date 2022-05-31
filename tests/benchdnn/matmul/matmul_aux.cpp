@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,16 @@
 #include "matmul/matmul.hpp"
 
 namespace matmul {
+
+dnnl_data_type_t prb_t::get_dt(data_kind_t data_kind) const {
+    switch (data_kind) {
+        case SRC: return src_dt();
+        case WEI: return wei_dt();
+        case BIA: return bia_dt;
+        case DST: return dst_dt();
+        default: assert(!"unexpected"); return dnnl_data_type_undef;
+    }
+}
 
 void prb_t::generate_oscales() {
     if (attr.oscale.is_def()) return;
@@ -85,7 +95,11 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.cfg != def.cfg[0]) s << "--cfg=" << prb.cfg << " ";
+    bool has_default_dts = true;
+    for (const auto &i_dt : prb.dt)
+        has_default_dts = has_default_dts && i_dt == dnnl_f32;
+
+    if (canonical || !has_default_dts) s << "--dt=" << prb.dt << " ";
     if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
     if (canonical || prb.wtag != def.wtag[0]) s << "--wtag=" << prb.wtag << " ";
     if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";

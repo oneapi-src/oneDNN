@@ -38,6 +38,7 @@ void check_correctness(const settings_t &s, const settings_t &def) {
             bia_cfg.emplace_back(i_bia_dt, i_bia_mask);
     }
 
+    for_(const auto &i_dt_ : s.dt)
     for_(const auto &i_cfg : s.cfg)
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
@@ -50,13 +51,8 @@ void check_correctness(const settings_t &s, const settings_t &def) {
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
     for (const auto &i_bia_cfg : bia_cfg) {
-        attr_t attr;
-        attr.insert(i_oscale);
-        attr.insert(i_zero_points);
-        attr.insert(i_post_ops);
-        attr.insert(i_scratchpad_mode);
-        attr.insert(i_fpmath_mode);
-        handle_legacy_attr(attr, s.attr);
+        auto attr = settings_t::get_attr(i_oscale, i_zero_points, i_post_ops,
+                i_scratchpad_mode, i_fpmath_mode);
 
         const bool strided_input = !i_strides[STRIDES_SRC].empty()
                 || !i_strides[STRIDES_WEI].empty()
@@ -80,7 +76,32 @@ void check_correctness(const settings_t &s, const settings_t &def) {
             }
         }
 
-        const prb_t prb(s.prb_vdims, i_cfg, i_stag, i_wtag, i_dtag, i_strides,
+        auto i_dt = i_dt_;
+        if (!i_cfg.empty()) {
+            if (i_dt.size() == 1 && i_dt[0] == dnnl_f32) {
+                handle_legacy_cfg(i_dt, i_cfg);
+            } else {
+                fprintf(stderr,
+                        "ERROR: matmul driver: `dt` and `cfg` knobs are "
+                        "incompatible with each other. Please specify only one "
+                        "of them at a time.\n"),
+                        fflush(stderr);
+                SAFE_V(FAIL);
+            }
+        }
+
+        static constexpr int n_inputs = 3;
+        if (i_dt.size() != 1 && i_dt.size() != n_inputs) {
+            fprintf(stderr,
+                    "ERROR: matmul driver: `dt` option expects either a single "
+                    "input or three inputs in SRC, WEI, DST order. Current "
+                    "size is: \"%ld\"\n",
+                    (long)i_dt.size()),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
+
+        const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
                 i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks, attr);
         std::stringstream ss;
         ss << prb;
@@ -121,6 +142,7 @@ int bench(int argc, char **argv) {
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
+                || parse_multi_dt(s.dt, def.dt, argv[0], "dt")
                 || parse_cfg(s.cfg, def.cfg, str2cfg, argv[0])
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
@@ -132,7 +154,6 @@ int bench(int argc, char **argv) {
                 || parse_multivector_option(s.rt_dims_masks, def.rt_dims_masks,
                         atoi, argv[0], "runtime_dims_masks",
                         help_runtime_dims_masks)
-                || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])

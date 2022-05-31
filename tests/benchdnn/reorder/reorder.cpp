@@ -34,7 +34,7 @@ namespace reorder {
 // Filling for integers is different due to problematic int -> float conversion.
 // And it doesn't require many different points to be tested.
 int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
-    const dt_conf_t conf = kind == SRC ? prb->conf_in : prb->conf_out;
+    const auto conf = prb->get_conf(kind);
 
     for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
         const float gen[4] = {
@@ -52,7 +52,7 @@ int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
 }
 
 int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
-    const dt_conf_t conf = kind == SRC ? prb->conf_in : prb->conf_out;
+    const auto conf = prb->get_conf(kind);
     const int scale_mask = attr_t::get_default_mask(prb->attr.oscale.policy);
 
     for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
@@ -77,7 +77,7 @@ int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
 }
 
 int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
-    const auto dt = kind == SRC ? prb->conf_in->dt : prb->conf_out->dt;
+    const auto dt = kind == SRC ? prb->sdt : prb->ddt;
     if (is_integral_dt(dt)) return fill_memory_int(prb, kind, mem);
     return fill_memory_fp(prb, kind, mem);
 }
@@ -161,10 +161,10 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     for (int d = 0; d < prb->ndims; ++d)
         if (prb->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, dims.data(), prb->conf_in->dt, prb->stag);
-    auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, dims.data(), prb->conf_out->dt, prb->dtag);
+    auto src_d
+            = dnn_mem_t::init_md(prb->ndims, dims.data(), prb->sdt, prb->stag);
+    auto dst_d
+            = dnn_mem_t::init_md(prb->ndims, dims.data(), prb->ddt, prb->dtag);
 
     // Prepare and assign extra for dst_md.
     dnnl_memory_extra_desc_t dst_md_extra {};
@@ -191,8 +191,8 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
-    const auto sdt = prb->conf_in->dt;
-    const auto ddt = prb->conf_out->dt;
+    const auto sdt = prb->sdt;
+    const auto ddt = prb->ddt;
     skip_unimplemented_data_type({sdt, ddt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res);
 
@@ -275,12 +275,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    const bool has_s32
-            = prb->conf_in->dt == dnnl_s32 || prb->conf_out->dt == dnnl_s32;
-    const bool has_s8
-            = prb->conf_in->dt == dnnl_s8 || prb->conf_out->dt == dnnl_s8;
-    const bool has_u8
-            = prb->conf_in->dt == dnnl_u8 || prb->conf_out->dt == dnnl_u8;
+    const bool has_s32 = prb->sdt == dnnl_s32 || prb->ddt == dnnl_s32;
+    const bool has_s8 = prb->sdt == dnnl_s8 || prb->ddt == dnnl_s8;
+    const bool has_u8 = prb->sdt == dnnl_u8 || prb->ddt == dnnl_u8;
     // For u8 4/7 inputs becomes 0, for s32/s8 3/7 inputs becomes 0;
     const float zero_trust_percent
             = has_u8 ? 58.f : (has_s32 || has_s8) ? 43.f : 30.f;
@@ -318,9 +315,9 @@ int doit(const prb_t *prb, res_t *res) {
     if (prb->runtime_dim_mask != 0) {
         // re-create memory descriptors with defined dims
         src_md = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->conf_in->dt, prb->stag);
+                prb->ndims, prb->dims.data(), prb->sdt, prb->stag);
         dst_md = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->conf_out->dt, prb->dtag);
+                prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
     } else {
         src_md = query_md(const_pd, DNNL_ARG_SRC);
         dst_md = query_md(const_pd, DNNL_ARG_DST);

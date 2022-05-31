@@ -31,7 +31,6 @@ struct base_settings_t {
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             dnnl_scratchpad_mode_library};
     std::vector<dnnl_fpmath_mode_t> fpmath_mode {dnnl_fpmath_mode_strict};
-    attr_t attr = {};
     const char *pattern = NULL;
 
     const char *perf_template_csv_base(const std::string &driver_args) const {
@@ -47,6 +46,13 @@ struct base_settings_t {
             = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%-time%,%-Gflops%,%"
               "0time%,%0Gflops%";
     const char *perf_template = perf_template_def;
+
+    template <typename... ArgsT>
+    static attr_t get_attr(const ArgsT &... args) {
+        attr_t attr;
+        attr.insert(args...);
+        return attr;
+    }
 };
 
 #endif

@@ -14,37 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <float.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "oneapi/dnnl/dnnl.h"
-
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 
-#include "conv/conv.hpp"
+#include "deconv/deconv.hpp"
 
-namespace conv {
+namespace deconv {
 
 alg_t str2alg(const char *str) {
 #define CASE(_alg) \
     if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
-    CASE(AUTO);
-    CASE(convolution_auto);
     CASE(DIRECT);
-    CASE(convolution_direct);
+    CASE(deconvolution_direct);
     CASE(WINO);
-    CASE(convolution_wino);
+    CASE(deconvolution_wino);
 #undef CASE
     assert(!"unknown algorithm");
     return UNDEF;
 }
 
 const char *alg2str(alg_t alg) {
-    if (alg == AUTO) return "auto";
     if (alg == DIRECT) return "direct";
     if (alg == WINO) return "wino";
     assert(!"unknown algorithm");
@@ -52,9 +41,8 @@ const char *alg2str(alg_t alg) {
 }
 
 alg_t alg_kind2alg(dnnl_alg_kind_t alg) {
-    if (alg == dnnl_convolution_auto) return AUTO;
-    if (alg == dnnl_convolution_direct) return DIRECT;
-    if (alg == dnnl_convolution_winograd) return WINO;
+    if (alg == dnnl_deconvolution_direct) return DIRECT;
+    if (alg == dnnl_deconvolution_winograd) return WINO;
     assert(!"unknown algorithm");
     return DIRECT;
 }
@@ -136,11 +124,11 @@ int str2desc(desc_t *desc, const char *str) {
 
     auto compute_out
             = [](int64_t i, int64_t k, int64_t s, int64_t p, int64_t d) {
-                  return (i - ((k - 1) * (d + 1) + 1) + 2 * p) / s + 1;
+                  return (i - 1) * s + (k - 1) * (d + 1) - 2 * p + 1;
               };
     auto compute_pad
             = [](int64_t o, int64_t i, int64_t k, int64_t s, int64_t d) {
-                  return ((o - 1) * s - i + ((k - 1) * (d + 1) + 1)) / 2;
+                  return ((i - 1) * s - o + ((k - 1) * (d + 1) + 1)) / 2;
               };
 
     const bool no_d = (d.id | d.kd | d.od | d.dd) == 0 && d.sd == 1 && d.pd < 1;
@@ -279,11 +267,24 @@ dims_t desc_t::padding_r() const {
 }
 
 int64_t desc_t::desc_nelems(int arg, int mask) const {
-    dims_t dims;
+    std::vector<int64_t> src {mb, ic, id, ih, iw};
+    std::vector<int64_t> wei {g, oc, ic, kd, kh, kw};
+    std::vector<int64_t> dst {mb, oc, od, oh, ow};
+    std::vector<int64_t> dummy;
+
+    if (!has_groups) wei.erase(wei.begin());
+
+    for (int d = 0; d < 5 - ndims; d++) {
+        src.erase(src.begin() + 2);
+        wei.erase(wei.begin() + 2);
+        dst.erase(dst.begin() + 2);
+    }
+
+    std::vector<int64_t> &dims = dummy;
     switch (arg) {
-        case DNNL_ARG_SRC: dims = src_dims(); break;
-        case DNNL_ARG_WEIGHTS: dims = wei_dims(); break;
-        case DNNL_ARG_DST: dims = dst_dims(); break;
+        case DNNL_ARG_SRC: dims = src; break;
+        case DNNL_ARG_WEIGHTS: dims = wei; break;
+        case DNNL_ARG_DST: dims = dst; break;
         default: assert(!"unsupported arg");
     }
 
@@ -297,21 +298,27 @@ int64_t desc_t::desc_nelems(int arg, int mask) const {
 void prb_t::count_ops() {
     if (ops > 0) return;
 
+    int64_t od_t = this->id;
+    int64_t oh_t = this->ih;
+    int64_t ow_t = this->iw;
+    int64_t id_t = this->od;
+    int64_t ih_t = this->oh;
+    int64_t iw_t = this->ow;
     double sp_ops = 0;
-    for_(int64_t od = 0; od < this->od; ++od)
-    for_(int64_t oh = 0; oh < this->oh; ++oh)
-    for (int64_t ow = 0; ow < this->ow; ++ow) {
+    for_(int64_t od = 0; od < od_t; ++od)
+    for_(int64_t oh = 0; oh < oh_t; ++oh)
+    for (int64_t ow = 0; ow < ow_t; ++ow) {
         for (int64_t kd = 0; kd < this->kd; ++kd) {
             const int64_t id = od * this->sd - this->pd + kd * (this->dd + 1);
-            if (id < 0 || id >= this->id) continue;
+            if (id < 0 || id >= id_t) continue;
             for (int64_t kh = 0; kh < this->kh; ++kh) {
                 const int64_t ih
                         = oh * this->sh - this->ph + kh * (this->dh + 1);
-                if (ih < 0 || ih >= this->ih) continue;
+                if (ih < 0 || ih >= ih_t) continue;
                 for (int64_t kw = 0; kw < this->kw; ++kw) {
                     const int64_t iw
                             = ow * this->sw - this->pw + kw * (this->dw + 1);
-                    if (iw < 0 || iw >= this->iw) continue;
+                    if (iw < 0 || iw >= iw_t) continue;
                     sp_ops += 1;
                 }
             }
@@ -388,4 +395,4 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     return s;
 }
 
-} // namespace conv
+} // namespace deconv

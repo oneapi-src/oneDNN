@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,11 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <utility>
+
 #include "utils/parallel.hpp"
 
-#include "conv/ref_conv.hpp"
+#include "deconv/ref_deconv.hpp"
 
-namespace conv {
+namespace deconv {
 
 void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
@@ -327,12 +329,6 @@ void compute_ref_bwd_bias(const prb_t *prb, const args_t &args) {
     });
 }
 
-void compute_ref_direct_bwd_w(const prb_t *prb, const args_t &args) {
-    compute_ref_bwd_weights(prb, args);
-    if (!(prb->dir & FLAG_BIA)) return;
-    compute_ref_bwd_bias(prb, args);
-}
-
 void compute_ref_fwd(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
@@ -340,10 +336,24 @@ void compute_ref_fwd(
         return;
     }
 
+    // Swap arguments to re-use existing conv ref implementation.
+    args_t ref_conv_args;
+    for (int i = 0; i < args.size(); i++) {
+        if (args.arg(i) == DNNL_ARG_SRC)
+            ref_conv_args.set(DNNL_ARG_DIFF_DST, args.dnn_mem(i));
+        else if (args.arg(i) == DNNL_ARG_WEIGHTS)
+            ref_conv_args.set(
+                    DNNL_ARG_WEIGHTS, args.find(DNNL_ARG_DIFF_WEIGHTS));
+        else if (args.arg(i) == DNNL_ARG_DST)
+            ref_conv_args.set(DNNL_ARG_DIFF_SRC, args.dnn_mem(i));
+        else
+            ref_conv_args.set(args.arg(i), args.dnn_mem(i));
+    }
+
     if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
-        compute_wino_ref_fwd(prb, args);
+        compute_wino_ref_bwd_d(prb, ref_conv_args);
     } else {
-        compute_ref_direct_fwd(prb, args);
+        compute_ref_direct_bwd_d(prb, ref_conv_args);
     }
 }
 
@@ -354,10 +364,24 @@ void compute_ref_bwd_d(
         return;
     }
 
+    // Swap arguments to re-use existing conv ref implementation.
+    args_t ref_conv_args;
+    for (int i = 0; i < args.size(); i++) {
+        if (args.arg(i) == DNNL_ARG_DIFF_SRC)
+            ref_conv_args.set(DNNL_ARG_DST, args.dnn_mem(i));
+        else if (args.arg(i) == DNNL_ARG_WEIGHTS)
+            ref_conv_args.set(
+                    DNNL_ARG_WEIGHTS, args.find(DNNL_ARG_DIFF_WEIGHTS));
+        else if (args.arg(i) == DNNL_ARG_DIFF_DST)
+            ref_conv_args.set(DNNL_ARG_SRC, args.dnn_mem(i));
+        else
+            ref_conv_args.set(args.arg(i), args.dnn_mem(i));
+    }
+
     if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
-        compute_wino_ref_bwd_d(prb, args);
+        compute_wino_ref_fwd(prb, ref_conv_args);
     } else {
-        compute_ref_direct_bwd_d(prb, args);
+        compute_ref_direct_fwd(prb, ref_conv_args);
     }
 }
 
@@ -368,21 +392,79 @@ void compute_ref_bwd_w(
         return;
     }
 
+    // Swap arguments to re-use existing conv ref implementation.
+    args_t ref_conv_args;
+    for (int i = 0; i < args.size(); i++) {
+        if (args.arg(i) == DNNL_ARG_SRC)
+            ref_conv_args.set(DNNL_ARG_DIFF_DST, args.dnn_mem(i));
+        else if (args.arg(i) == DNNL_ARG_DIFF_WEIGHTS)
+            ref_conv_args.set(
+                    DNNL_ARG_DIFF_WEIGHTS, args.find(DNNL_ARG_WEIGHTS));
+        else if (args.arg(i) == DNNL_ARG_DIFF_DST)
+            ref_conv_args.set(DNNL_ARG_SRC, args.dnn_mem(i));
+        else
+            ref_conv_args.set(args.arg(i), args.dnn_mem(i));
+    }
+
     if (prb->alg == WINO && prb->cfg[SRC].dt == dnnl_f32) {
-        compute_wino_ref_bwd_w(prb, args);
+        compute_wino_ref_bwd_w(prb, ref_conv_args);
     } else {
-        compute_ref_direct_bwd_w(prb, args);
+        compute_ref_bwd_weights(prb, ref_conv_args);
+    }
+
+    // Need to transpose data in weights back for proper comparison. This step
+    // is done here as it's not needed for fast-ref-gpu.
+    transpose_data_wei(
+            prb, args.find(DNNL_ARG_WEIGHTS), args.find(DNNL_ARG_DIFF_WEIGHTS));
+
+    // We don't reuse `compute_ref_bwd_bias` as it doesn't match arguments and
+    // entry problem which is transposed - `p_tr`. Simpler to use the kernel
+    // directly.
+    // Take original memories, not `ref_conv_args`.
+    if (prb->dir & FLAG_BIA) {
+        const dnn_mem_t &diff_bia_m = args.find(DNNL_ARG_DIFF_BIAS);
+        const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
+        /* help compiler optimize the code */
+        const int64_t MB = prb->mb, G = prb->g;
+        const int64_t OC = prb->ic; // prb.oc = p_tr.ic
+        const int64_t OCG = OC / G;
+        const int64_t OD = prb->id; // prb.od = p_tr.id
+        const int64_t OH = prb->ih; // prb.oh = p_tr.ih
+        const int64_t OW = prb->iw; // prb.ow = p_tr.iw
+
+        benchdnn_parallel_nd(G, OCG, [&](int64_t g, int64_t oc) {
+            size_t bia_off = g * OCG + oc;
+            double sum = 0;
+
+            for_(int64_t mb = 0; mb < MB; ++mb)
+            for_(int64_t od = 0; od < OD; ++od)
+            for_(int64_t oh = 0; oh < OH; ++oh)
+            for (int64_t ow = 0; ow < OW; ++ow) {
+                // src_off_f instead of dst_off_f due to inverse descriptor.
+                size_t dst_off = src_off_f(prb, mb, g, oc, od, oh, ow);
+                sum += ((float *)diff_dst_m)[dst_off];
+            }
+            ((float *)diff_bia_m)[bia_off] = (float)sum;
+        });
     }
 }
 
 void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
+    // Update prb descriptor to re-use convolution reference.
+    prb_t prb_tr((desc_t)*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
+            prb->dtag, prb->alg, prb->attr, prb->mb);
+    std::swap(prb_tr.ic, prb_tr.oc);
+    std::swap(prb_tr.ih, prb_tr.oh);
+    std::swap(prb_tr.id, prb_tr.od);
+    std::swap(prb_tr.iw, prb_tr.ow);
+
     if (prb->dir & FLAG_FWD)
-        compute_ref_fwd(prb, args, prim_ref);
+        compute_ref_fwd(&prb_tr, args, prim_ref);
     else if (prb->dir == BWD_D)
-        compute_ref_bwd_d(prb, args, prim_ref);
+        compute_ref_bwd_d(&prb_tr, args, prim_ref);
     else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI)
-        compute_ref_bwd_w(prb, args, prim_ref);
+        compute_ref_bwd_w(&prb_tr, args, prim_ref);
 }
 
-} // namespace conv
+} // namespace deconv

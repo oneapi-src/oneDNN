@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <bitset>
 #include <iostream>
+#include <map>
 #include <numeric>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -31,19 +32,7 @@
 
 namespace matmul {
 
-typedef struct dt_conf_t {
-    dnnl_data_type_t dt;
-    double min, max; /* representative */
-    double f_min, f_max; /* fill range */
-    int f_base; /* fill base, use 0 */
-    double f_sparsity; /* amount of non-zeros, default 0.25 */
-    double f_scale; /* fill scale, scaling factor for integer generated data */
-    double eps; /* acceptable error */
-} _dt_conf_t[DAT_TOTAL];
-
 typedef std::bitset<DNNL_MAX_NDIMS> dims_mask_t;
-extern const _dt_conf_t conf_f32;
-extern const _dt_conf_t conf_bf16bf16f32;
 
 const int64_t LD_GOOD = INT64_MAX;
 const int64_t LD_NONE = INT64_MAX - 1;
@@ -58,7 +47,8 @@ struct settings_t : public base_settings_t {
 
     prb_vdims_t prb_vdims;
 
-    std::vector<const dt_conf_t *> cfg {conf_f32};
+    std::vector<std::string> cfg {std::string()};
+    std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
     std::vector<vdims_t> strides {vdims_t(STRIDES_SIZE)};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
@@ -74,13 +64,13 @@ struct settings_t : public base_settings_t {
 };
 
 struct prb_t : public prb_vdims_t {
-    prb_t(const prb_vdims_t &prb_vdims, const dt_conf_t *cfg,
+    prb_t(const prb_vdims_t &prb_vdims, const std::vector<dnnl_data_type_t> &dt,
             const std::string &stag, const std::string &wtag,
             const std::string &dtag, const vdims_t &strides,
             dnnl_data_type_t bia_dt, int bia_mask,
             const std::vector<dims_mask_t> &rt_dims_masks, const attr_t &attr)
         : prb_vdims_t(prb_vdims)
-        , cfg(cfg)
+        , dt(dt)
         , stag(stag)
         , wtag(wtag)
         , dtag(dtag)
@@ -90,6 +80,12 @@ struct prb_t : public prb_vdims_t {
         , rt_dims_masks(rt_dims_masks)
         , attr(attr)
         , scales(NULL) {
+
+        // Broadcast data types if needed
+        if (dt.size() == 1) {
+            const auto val = dt[0]; // Need a copy here.
+            this->dt.assign(3, val);
+        }
 
         this->rt_dims_masks.resize(2);
         const auto &srcdims = src_dims();
@@ -117,7 +113,7 @@ struct prb_t : public prb_vdims_t {
 
     int m, n, k;
     dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
-    const dt_conf_t *cfg;
+    std::vector<dnnl_data_type_t> dt;
     std::string stag, wtag, dtag;
     vdims_t strides;
     dnnl_data_type_t bia_dt;
@@ -132,6 +128,7 @@ struct prb_t : public prb_vdims_t {
 
     const dims_t &src_dims() const { return vdims[0]; }
     const dims_t &weights_dims() const { return vdims[1]; }
+    // const dims_t &prb_vdims_t::dst_dims() const;
 
     const dims_mask_t &src_runtime_dim_mask() const { return rt_dims_masks[0]; }
     const dims_mask_t &weights_runtime_dim_mask() const {
@@ -139,21 +136,23 @@ struct prb_t : public prb_vdims_t {
     }
     const dims_mask_t &dst_runtime_dim_mask() const { return rt_dims_masks[2]; }
 
-    int src_broadcast_mask() const { return get_broadcast_mask(0); }
-
-    int weights_broadcast_mask() const { return get_broadcast_mask(1); }
+    int src_broadcast_mask() const {
+        return prb_vdims_t::get_broadcast_mask(0);
+    }
+    int weights_broadcast_mask() const {
+        return prb_vdims_t::get_broadcast_mask(1);
+    }
 
     int bias_broadcast_mask() const { return bia_mask; }
+
+    dnnl_data_type_t src_dt() const { return dt[0]; }
+    dnnl_data_type_t wei_dt() const { return dt[1]; }
+    dnnl_data_type_t dst_dt() const { return dt[2]; }
+    dnnl_data_type_t get_dt(data_kind_t data_kind) const;
 
     void generate_oscales();
     int32_t *generate_zero_points(
             int arg, const attr_t::zero_points_t &zero_points, int N);
-
-    const dt_conf_t &get_dt_conf(data_kind_t dk) const {
-        return (attr.fpmath_mode == dnnl_fpmath_mode_bf16 && cfg == conf_f32)
-                ? conf_bf16bf16f32[dk]
-                : cfg[dk];
-    }
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 
@@ -180,8 +179,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 /* some extra control parameters which shouldn't be placed in prb_t */
 
-const dt_conf_t *str2cfg(const char *str);
-std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
+std::string str2cfg(const char *str);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)
@@ -191,8 +189,6 @@ struct perf_report_t : public base_perf_report_t {
         , wtag_(normalize_tag(p_->wtag, p_->ndims))
         , dtag_(normalize_tag(p_->dtag, p_->ndims)) {}
 
-    void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
-
     void dump_desc(std::ostream &s) const override {
         s << static_cast<const prb_vdims_t &>(*p_);
     }
@@ -200,6 +196,9 @@ struct perf_report_t : public base_perf_report_t {
     void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
     double ops() const override { return p_->ops; }
+    const std::vector<dnnl_data_type_t> *sdt() const override {
+        return &p_->dt;
+    }
     const attr_t *attr() const override { return &p_->attr; }
     const std::string *name() const override { return &p_->name; }
     const std::vector<std::string> *stag() const override { return &stag_; }
@@ -224,6 +223,100 @@ inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t n) {
     return (mb * prb->m + m) * prb->n + n;
 }
 
+struct cfg_entry_t {
+    // `cfg_key_t` participates solely in finding a proper entry in the map.
+    struct cfg_key_t {
+        cfg_key_t(data_kind_t dk, dnnl_data_type_t dt)
+            : data_kind_(dk), data_type_(dt) {}
+
+        bool operator<(const cfg_key_t &rhs) const {
+            return value() < rhs.value();
+        }
+
+    private:
+        data_kind_t data_kind_;
+        dnnl_data_type_t data_type_;
+
+        enum { MAX_DT_NUM = 10 };
+        size_t value() const {
+            return (size_t)data_kind_ * MAX_DT_NUM + (size_t)data_type_;
+        }
+    };
+
+    // Entry of the map. Supplies min and max ranges for filling for a given dt.
+    struct cfg_range_t {
+        int range_min;
+        int range_max;
+    };
+
+    using cfg_map_t = std::map<cfg_key_t, cfg_range_t>;
+
+    cfg_entry_t() = default;
+
+    cfg_entry_t(data_kind_t dk, dnnl_data_type_t orig_dt, dnnl_data_type_t dt)
+        : data_kind_(dk), orig_data_type_(orig_dt), data_type_(dt) {}
+
+    int get_range_min() const { return get_cfg_range().range_min; }
+    int get_range_max() const { return get_cfg_range().range_max; }
+    int get_range_abs_max() const {
+        return std::max(abs(get_range_min()), abs(get_range_max()));
+    }
+
+    dnnl_data_type_t get_orig_dt() const { return orig_data_type_; }
+    dnnl_data_type_t get_dt() const { return data_type_; }
+    data_kind_t get_dk() const { return data_kind_; }
+
+private:
+    data_kind_t data_kind_;
+    dnnl_data_type_t orig_data_type_;
+    dnnl_data_type_t data_type_;
+
+    const cfg_map_t &get_cfg_map() const;
+    const cfg_range_t &get_cfg_range() const;
+};
+
+struct cfg_t {
+    cfg_t(const prb_t *prb, std::vector<data_kind_t> kinds) {
+        for (const auto kind : kinds) {
+            auto orig_data_type_ = prb->get_dt(kind);
+            auto data_type_
+                    = deduce_cfg_data_type(orig_data_type_, prb->attr, kind);
+            cfg_entry.push_back(cfg_entry_t(kind, orig_data_type_, data_type_));
+        }
+    }
+
+    int get_range_min(data_kind_t dk) const {
+        return cfg_entry[dk].get_range_min();
+    }
+    int get_range_max(data_kind_t dk) const {
+        return cfg_entry[dk].get_range_max();
+    }
+
+    dnnl_data_type_t get_orig_dt(data_kind_t dk) const {
+        return cfg_entry[dk].get_orig_dt();
+    }
+    dnnl_data_type_t get_dt(data_kind_t dk) const {
+        return cfg_entry[dk].get_dt();
+    }
+
+    float get_density(data_kind_t dk, int64_t n_acc) const;
+
+private:
+    std::vector<cfg_entry_t> cfg_entry;
+
+    const cfg_entry_t &operator[](data_kind_t kind) {
+        for (const auto &e : cfg_entry) {
+            if (e.get_dk() == kind) return e;
+        }
+        assert(!"unexpected");
+        static cfg_entry_t dummy;
+        return dummy;
+    }
+};
+
+void handle_legacy_cfg(
+        std::vector<dnnl_data_type_t> &dt, const std::string &cfg);
+
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
@@ -237,8 +330,7 @@ int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res,
-        dnnl_data_type_t sum_dt = dnnl_data_type_undef);
+        dnn_mem_t &mem_fp, res_t *res);
 
 dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &mpd, res_t *res, dir_t dir,

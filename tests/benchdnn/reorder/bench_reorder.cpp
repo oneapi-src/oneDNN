@@ -38,17 +38,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
-        dt_conf_t iconf = dt2cfg(i_sdt);
-        dt_conf_t oconf = dt2cfg(i_ddt);
-
-        attr_t attr;
-        attr.insert(i_oscale);
-        attr.insert(i_zero_points);
-        attr.insert(i_post_ops);
-        attr.insert(i_scratchpad_mode);
-        handle_legacy_attr(attr, s.attr);
-
-        if (attr.oscale.policy == policy_t::PER_OC) {
+        if (i_oscale.policy == policy_t::PER_OC) {
             fprintf(stderr,
                     "ERROR: reorder driver: `per_oc` policy is not supported "
                     "due to potential ambiguity. Please use one of `per_dim_0` "
@@ -64,12 +54,20 @@ void check_correctness(const settings_t &s) {
             SAFE_V(FAIL);
         }
 
-        std::vector<float> attr_scale = {attr.oscale.scale};
-        auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
+        // Enable multiple scales in case user requested it via passing `0.f`
+        // in output scale attributes.
+        const std::vector<float> test_scales = i_oscale.scale == 0
+                ? s.def_scale
+                : std::vector<float>(1, i_oscale.scale);
 
-        for (const auto &i_scale : scale) {
-            const prb_t prb(s.prb_dims, i_stag, i_dtag, iconf, oconf, attr,
-                    i_oflag, i_cross_engine, i_runtime_dim_mask, i_scale);
+        for (const auto &i_test_scale : test_scales) {
+            const attr_t::scale_t test_oscale(
+                    i_oscale.policy, i_test_scale, i_oscale.runtime);
+            auto attr = settings_t::get_attr(
+                    test_oscale, i_zero_points, i_post_ops, i_scratchpad_mode);
+
+            const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, attr,
+                    i_oflag, i_cross_engine, i_runtime_dim_mask);
             std::stringstream ss;
             ss << prb;
             const std::string cpp_pstr = ss.str();
@@ -134,7 +132,6 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.cross_engine, def.cross_engine,
                         str2cross_engine, argv[0], "cross-engine",
                         help_cross_engine)
-                || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])

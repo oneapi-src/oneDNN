@@ -20,7 +20,7 @@
 for details.
 
 `--attr-fpmath` specifies the fpmath mode to be used for benchmarking.
-`MATHMODE` values can be any of `strict` (the default), `bf16`, `f16`, `f19`,
+`MATHMODE` values can be any of `strict` (the default), `bf16`, `f16`, `tf32`,
 or `any`. Refer to
 [fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
 for details.

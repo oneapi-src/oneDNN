@@ -419,6 +419,7 @@ std::string locate_batch_file(const std::string &fname) {
                     : (i_try == 1 ? "/../inputs/" : "/inputs_graph/");
             fdir = s_fdir;
             fdir.append(path);
+            assert(!driver_name.empty());
             fdir.append(driver_name);
 
             std::string fullname = fdir + "/";

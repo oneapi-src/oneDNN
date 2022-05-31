@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,33 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DECONV_HPP
-#define DECONV_HPP
+#ifndef REF_DECONV_HPP
+#define REF_DECONV_HPP
 
-#include <assert.h>
-#include <limits.h>
-#include <stdint.h>
-
-#include "common.hpp"
-#include "dnn_types.hpp"
-#include "dnnl_common.hpp"
-
-#include "conv/conv_common.hpp"
+#include "deconv/deconv.hpp"
 
 namespace deconv {
-int doit(const conv::prb_t *prb, res_t *res);
-int bench(int argc, char **argv);
 
-int transpose_data_wei(
-        const conv::prb_t *prb, const dnn_mem_t &wei, const dnn_mem_t &wei_tr);
+void compute_ref_bwd_bias(const prb_t *prb, const args_t &args);
 
-void skip_unimplemented_prb(const conv::prb_t *prb, res_t *res);
-void skip_invalid_prb(const conv::prb_t *prb, res_t *res);
-void compute_ref(const conv::prb_t *prb, const args_t &args,
-        dnnl_primitive_t prim_ref = nullptr);
-
-int doit(const conv::prb_t *prb, res_t *res);
-int bench(int argc, char **argv);
+void compute_wino_ref_fwd(const prb_t *prb, const args_t &args);
+void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args);
+void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args);
 
 } // namespace deconv
+
 #endif

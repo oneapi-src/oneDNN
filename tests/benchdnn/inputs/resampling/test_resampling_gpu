@@ -37,3 +37,7 @@
 --tag=abx,axb,aBx16b
 --attr-post-ops=
 --batch=set_all
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu

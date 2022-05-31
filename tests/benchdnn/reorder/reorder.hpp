@@ -64,10 +64,12 @@ struct settings_t : public base_settings_t {
 
     std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx}, dtag {tag::abx};
-    std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
     std::vector<std::vector<flag_t>> oflag {{{FLAG_NONE, 0}}};
     std::vector<unsigned> runtime_dim_mask {0};
     std::vector<cross_engine_t> cross_engine {NONE};
+
+    // Just to increase the coverage, doesn't participate in prb construction.
+    std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
 
     const char *perf_template_csv() const {
         static const std::string args = "%sdt%,%ddt%,%stag%,%dtag%,%flags%";
@@ -78,21 +80,20 @@ struct settings_t : public base_settings_t {
 };
 
 struct prb_t : public prb_dims_t {
-    prb_t(const prb_dims_t &prb_dims, const std::string &stag,
-            const std::string &dtag, const dt_conf_t &conf_in,
-            const dt_conf_t &conf_out, const attr_t &attr,
+    prb_t(const prb_dims_t &prb_dims, dnnl_data_type_t sdt,
+            dnnl_data_type_t ddt, const std::string &stag,
+            const std::string &dtag, const attr_t &attr,
             const std::vector<flag_t> &oflag, cross_engine_t cross_engine,
-            unsigned runtime_dim_mask, float scale)
+            unsigned runtime_dim_mask)
         : prb_dims_t(prb_dims)
+        , sdt(sdt)
+        , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
-        , conf_in(conf_in)
-        , conf_out(conf_out)
         , attr(attr)
         , oflag(oflag)
         , cross_engine(cross_engine)
         , runtime_dim_mask(runtime_dim_mask) {
-        this->attr.oscale.scale = scale;
         scales = generate_oscales();
         src_zp = generate_zero_points(DNNL_ARG_SRC);
         dst_zp = generate_zero_points(DNNL_ARG_DST);
@@ -104,9 +105,8 @@ struct prb_t : public prb_dims_t {
     }
 
     dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
+    dnnl_data_type_t sdt, ddt;
     std::string stag, dtag;
-    dt_conf_t conf_in;
-    dt_conf_t conf_out;
     attr_t attr;
     std::vector<flag_t> oflag;
     cross_engine_t cross_engine;
@@ -119,6 +119,7 @@ struct prb_t : public prb_dims_t {
     int get_compensation_mask(flag_bit_t flag) const;
     float *generate_oscales();
     int32_t *generate_zero_points(int arg) const;
+    dt_conf_t get_conf(data_kind_t kind) const;
 
 private:
     void get_compensation_parameters(
@@ -131,8 +132,7 @@ struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)
         : base_perf_report_t(perf_template)
         , p_(prb)
-        , sdt_({cfg2dt(p_->conf_in)})
-        , ddt_(cfg2dt(p_->conf_out))
+        , sdt_({p_->sdt})
         , stag_({normalize_tag(p_->stag, p_->ndims)})
         , dtag_(normalize_tag(p_->dtag, p_->ndims)) {}
 
@@ -156,14 +156,13 @@ struct perf_report_t : public base_perf_report_t {
     const attr_t *attr() const override { return &p_->attr; }
     const std::string *name() const override { return &p_->name; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
-    const dnnl_data_type_t *ddt() const override { return &ddt_; }
+    const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
     const std::vector<std::string> *stag() const override { return &stag_; }
     const std::string *dtag() const override { return &dtag_; }
 
 private:
     const prb_t *p_;
     std::vector<dnnl_data_type_t> sdt_;
-    dnnl_data_type_t ddt_;
     std::vector<std::string> stag_;
     std::string dtag_;
 };

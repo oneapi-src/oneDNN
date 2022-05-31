@@ -329,15 +329,18 @@ struct attr_t {
 
         std::vector<std::pair<int, int>> get_po_masks() const;
 
-        // TODO: remove
-        std::vector<int> get_binary_po_masks() const;
-
         std::vector<entry_t> entry;
     };
 
     attr_t()
         : scratchpad_mode(dnnl_scratchpad_mode_library)
         , fpmath_mode(dnnl_fpmath_mode_strict) {}
+
+    template <typename First, typename... Rest>
+    void insert(const First &first, const Rest &... rest) {
+        this->insert(first);
+        if (sizeof...(rest) > 0) this->insert(rest...);
+    }
 
     void insert(const scale_t &s) { this->oscale = s; }
     void insert(const arg_scales_t &as) { this->scales = as; }
@@ -397,9 +400,6 @@ struct isa_hints_t {
 
 using policy_t = attr_t::policy_t;
 
-void handle_legacy_attr(attr_t &attr, const attr_t &legacy_attr);
-
-int str2attr(attr_t *attr, const char *str);
 std::ostream &operator<<(std::ostream &s, const policy_t &policy);
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
 std::ostream &operator<<(

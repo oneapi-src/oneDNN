@@ -24,12 +24,12 @@
 
 #include "dnnl_common.hpp"
 
-#include "conv/conv.hpp"
+#include "deconv/deconv.hpp"
 
 #define HALF_MAX 65504
 #define HALF_MIN (-65504)
 
-namespace conv {
+namespace deconv {
 
 /* cfgs definition
  * arrays: SRC, WEI, BIA, DST, ACC
@@ -46,7 +46,7 @@ const _dt_conf_t conf_f16 = {
                 0.},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
                 0.},
-        {dnnl_f32},
+        {dnnl_f16},
 };
 
 const int int_max_exact = 1 << 24;
@@ -57,7 +57,7 @@ const _dt_conf_t conf_f16f16f32 = {
                 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {dnnl_f32},
+        {dnnl_f16},
 };
 
 const _dt_conf_t conf_f32 = {
@@ -105,7 +105,7 @@ const _dt_conf_t conf_f16_wino = {
         {dnnl_f16, HALF_MIN, HALF_MAX, 1, 6, -2, 1, .5, 6e-3},
         {dnnl_f16, HALF_MIN, HALF_MAX, 1, 2048, 0, 1, .25, 2e-3},
         {dnnl_f16, HALF_MIN, HALF_MAX, -2, 8, 0, 1, .25, 7e-3},
-        {dnnl_f32},
+        {dnnl_f16},
 };
 
 const _dt_conf_t conf_bf16bf16f32 = {
@@ -185,7 +185,7 @@ const _dt_conf_t conf_f16f16s8 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, 1, 1.0,
                 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {dnnl_f32},
+        {dnnl_f16},
 };
 
 const _dt_conf_t conf_f16f16u8 = {
@@ -196,7 +196,7 @@ const _dt_conf_t conf_f16f16u8 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, 1, 1.0,
                 0.},
         {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0, 1, .25, 0.},
-        {dnnl_f32},
+        {dnnl_f16},
 };
 
 const _dt_conf_t conf_bf16f32bf16 = {
@@ -441,4 +441,4 @@ const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg) {
     return cfg;
 }
 
-} // namespace conv
+} // namespace deconv

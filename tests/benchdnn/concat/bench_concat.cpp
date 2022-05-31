@@ -48,8 +48,7 @@ void check_correctness(const settings_t &s) {
         if (s.prb_vdims.n_inputs() != static_cast<int>(i_stag.size()))
             SAFE_V(FAIL);
 
-        attr_t attr;
-        attr.insert(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_scratchpad_mode);
 
         const prb_t prb(s.prb_vdims, i_sdt, ddt, i_stag, i_dtag, i_axis, attr);
         std::stringstream ss;

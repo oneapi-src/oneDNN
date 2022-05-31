@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,15 +19,17 @@
 
 namespace sum {
 
-std::ostream &operator<<(std::ostream &s, const std::vector<float> &scales) {
+std::ostream &operator<<(
+        std::ostream &s, const std::vector<float> &input_scales) {
     bool has_single_scale = true;
-    for (size_t d = 0; d < scales.size() - 1; ++d)
-        has_single_scale = has_single_scale && scales[d] == scales[d + 1];
+    for (size_t d = 0; d < input_scales.size() - 1; ++d)
+        has_single_scale
+                = has_single_scale && input_scales[d] == input_scales[d + 1];
 
-    s << scales[0];
+    s << input_scales[0];
     if (!has_single_scale)
-        for (size_t d = 1; d < scales.size(); ++d)
-            s << ":" << scales[d];
+        for (size_t d = 1; d < input_scales.size(); ++d)
+            s << ":" << input_scales[d];
     return s;
 }
 
@@ -46,7 +48,9 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.ddt != def.ddt[0]) s << "--ddt=" << prb.ddt << " ";
     if (canonical || !has_default_tags) s << "--stag=" << prb.stag << " ";
     if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
-    s << "--scales=" << prb.scales << " ";
+    s << "--scales=" << prb.input_scales << " ";
+    if (canonical || prb.inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(prb.inplace) << " ";
 
     s << prb.attr;
     s << static_cast<prb_dims_t>(prb);

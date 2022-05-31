@@ -61,8 +61,7 @@ void check_correctness(const settings_t &s) {
             SAFE_V(FAIL);
         }
 
-        attr_t attr;
-        attr.insert(i_scratchpad_mode);
+        auto attr = settings_t::get_attr(i_scratchpad_mode);
 
         const prb_t prb(s.desc, dt_conf_t::create(i_cfg), i_prop, i_alg,
                 i_with_peephole, i_with_projection, i_direction, i_scale_policy,

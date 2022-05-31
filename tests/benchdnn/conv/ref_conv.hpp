@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,27 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "utils/parallel.hpp"
+#ifndef REF_CONV_HPP
+#define REF_CONV_HPP
 
-#include "sum/sum.hpp"
+#include "conv/conv.hpp"
 
-namespace sum {
+namespace conv {
 
-void compute_ref(
-        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
-    const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+void compute_ref_bwd_bias(const prb_t *prb, const args_t &args);
 
-    float *dst_ptr = (float *)dst;
+void compute_wino_ref_fwd(const prb_t *prb, const args_t &args);
+void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args);
+void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args);
 
-    const auto nelems = dst.nelems();
+} // namespace conv
 
-    benchdnn_parallel_nd(nelems, [&](int64_t k) {
-        dst_ptr[k] = 0;
-        for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
-            const dnn_mem_t &src_i = args.find(DNNL_ARG_MULTIPLE_SRC + i_input);
-            dst_ptr[k] += (src_i.get_elem(k) * prb->input_scales[i_input]);
-        }
-    });
-}
-
-} // namespace sum
+#endif

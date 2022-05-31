@@ -68,3 +68,7 @@
 --dt=s8
 --tag=aBcd32b
 1x4x360x640
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu

@@ -45,7 +45,7 @@ struct settings_t : public base_settings_t {
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {alg_t::RELU};
-    std::vector<float> scales {0, 0.25, -0.25}, alpha {scales}, beta {scales};
+    std::vector<float> alpha {0.f}, beta {0.f};
 
     const char *perf_template_csv() const {
         static const std::string args = "%dir%,%dt%,%tag%,%alg%";

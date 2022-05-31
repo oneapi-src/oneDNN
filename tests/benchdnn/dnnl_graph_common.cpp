@@ -332,7 +332,7 @@ dnnl::graph::graph::fpmath_mode convert_fpmath_mode(
         case dnnl_fpmath_mode_bf16: return fpmath_mode::bf16;
         case dnnl_fpmath_mode_f16: return fpmath_mode::f16;
         case dnnl_fpmath_mode_any: return fpmath_mode::any;
-        case dnnl_fpmath_mode_f19: return fpmath_mode::f19;
+        case dnnl_fpmath_mode_tf32: return fpmath_mode::f19;
         default:
             assert("fpmath policy not supported for now. use strict as "
                    "default");

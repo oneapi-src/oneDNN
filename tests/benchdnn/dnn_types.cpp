@@ -429,19 +429,6 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
     return v_masks;
 }
 
-std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
-    std::vector<int> v_masks;
-    for (int idx = 0; idx < len(); ++idx) {
-        const auto &e = this->entry[idx];
-        if (!e.is_binary_kind()) continue;
-
-        const auto policy = e.binary.policy;
-        const auto mask = attr_t::get_default_mask(policy);
-        v_masks.push_back(mask);
-    }
-    return v_masks;
-}
-
 int attr_t::post_ops_t::from_str(const std::string &s) {
     *this = post_ops_t();
     if (s.empty()) return OK;
@@ -597,70 +584,6 @@ int attr_t::post_ops_t::prelu_index() const {
     return -1;
 }
 
-int str2attr(attr_t *attr, const char *str) {
-    if (attr == nullptr || str == nullptr) return FAIL;
-
-    *attr = attr_t();
-    std::string s(str), entry_name;
-    size_t start_pos = 0, end_pos = start_pos;
-
-    entry_name = "oscale=";
-    start_pos = s.find(entry_name);
-    if (start_pos != std::string::npos) {
-        start_pos += entry_name.size();
-        // ';' is an attribute delimeter
-        auto status
-                = attr->oscale.from_str(parser::get_substr(s, start_pos, ';'));
-        if (status != OK) return status;
-    }
-
-    entry_name = "zero_points=";
-    start_pos = s.find(entry_name);
-    if (start_pos != std::string::npos) {
-        start_pos += entry_name.size();
-        auto status = attr->zero_points.from_str(
-                parser::get_substr(s, start_pos, ';'));
-        if (status != OK) return status;
-    }
-
-    entry_name = "scales=";
-    start_pos = s.find(entry_name);
-    if (start_pos != std::string::npos) {
-        start_pos += entry_name.size();
-        auto status
-                = attr->scales.from_str(parser::get_substr(s, start_pos, ';'));
-        if (status != OK) return status;
-    }
-
-    entry_name = "post_ops=";
-    start_pos = s.find(entry_name);
-    if (start_pos != std::string::npos) {
-        start_pos += entry_name.size();
-        // "\'\'" separates post-ops from everything else
-        end_pos = s.find_first_of('\'', s.find_first_of('\'', start_pos) + 1);
-        // +1 to include '\'' as an essential part of post-ops
-        auto parse_str = s.substr(start_pos, end_pos - start_pos + 1);
-        auto status = attr->post_ops.from_str(parse_str);
-        if (status != OK) return status;
-    }
-
-    return OK;
-}
-
-void handle_legacy_attr(attr_t &attr, const attr_t &legacy_attr) {
-    if (legacy_attr.is_def()) return;
-
-    if (!attr.is_def()) {
-        BENCHDNN_PRINT(0, "%s\n",
-                "ERROR: both `--attr=` and one of `--attr-post-ops=`, "
-                "`--attr-scales=`, `--attr-zero-points=` or `--attr-oscale=` "
-                "options are specified, please use latter options.");
-        SAFE_V(FAIL);
-    }
-
-    attr = legacy_attr;
-}
-
 std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
     s << attr_t::policy2str(policy);
     return s;
@@ -786,6 +709,17 @@ std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, memory_kind_ext_t memory_kind) {
+    switch (memory_kind) {
+        case memory_kind_ext_t::usm: s << "usm"; break;
+        case memory_kind_ext_t::buffer: s << "buffer"; break;
+        case memory_kind_ext_t::usm_device: s << "usm_device"; break;
+        case memory_kind_ext_t::usm_shared: s << "usm_shared"; break;
+        default: assert(!"unexpected"); break;
+    }
+    return s;
+}
+
 std::ostream &dump_global_params(std::ostream &s) {
     s << "--" << driver_name << " ";
     if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
@@ -806,6 +740,8 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (canonical || bench_mode != CORR) s << "--mode=" << bench_mode << " ";
     if (canonical || attr_same_pd_check != false)
         s << "--attr-same-pd-check=" << bool2str(attr_same_pd_check) << " ";
+    if (canonical || memory_kind != default_memory_kind)
+        s << "--memory-kind=" << memory_kind << " ";
 
     return s;
 }
@@ -850,7 +786,7 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
     CASE(strict);
     CASE(bf16);
     CASE(f16);
-    CASE(f19);
+    CASE(tf32);
     CASE(any);
 
     assert(!"not expected");

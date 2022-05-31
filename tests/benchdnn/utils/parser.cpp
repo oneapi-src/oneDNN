@@ -74,9 +74,15 @@ bool parse_multi_dt(std::vector<std::vector<dnnl_data_type_t>> &dt,
         const std::vector<std::vector<dnnl_data_type_t>> &def_dt,
         const char *str, const std::string &option_name /* = "sdt"*/) {
     static const std::string help
-            = "DT0:DT1[:DTi]    (Default: `f32` for all)\n    Specifies data "
-              "type `DTi` for source i.\n    `DT` values can be `f32`, `bf16`, "
-              "`f16`, `s32`, `s8`, `u8`.\n";
+            = "DT0:DT1[:DTi]    (Default: `f32` for all)\n    When the driver "
+              "supports the notion of multiple sources, the option specifies a "
+              "data type `DTi` for a source `i`.\n    When the driver supports "
+              "the notion of source, weights (optional), and destination, the "
+              "option specifies data types for source, weights (optional) and "
+              "destination correspondently.\n    The option may support "
+              "broadcast semantics (check the driver online documentation), "
+              "when a single value will be used for all inputs.\n    `DT` "
+              "values can be `f32`, `bf16`, `f16`, `s32`, `s8`, `u8`.\n";
     return parse_multivector_option(dt, def_dt, str2dt, str, option_name, help);
 }
 
@@ -134,24 +140,6 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
               "specified in a problem descriptor with `UINT` value.\n    When "
               "set to `0`, takes no effect.\n";
     return parse_vector_option(mb, def_mb, atoi, str, option_name, help);
-}
-
-bool parse_attr(attr_t &attr, const char *str,
-        const std::string &option_name /* = "attr"*/) {
-    const std::string pattern = parser_utils::get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) == eol) return false;
-    static bool notice_printed = false;
-    if (!notice_printed) {
-        BENCHDNN_PRINT(0, "%s\n",
-                "WARNING (DEPRECATION NOTICE): `--attr` option is deprecated. "
-                "Please use one of `--attr-oscale`, `--attr-post-ops`, "
-                "`--attr-scales` or `--attr-zero-points` to specify attributes "
-                "specific part for a problem. New options support mixing and "
-                "will iterate over all possible combinations.");
-        notice_printed = true;
-    }
-    SAFE(str2attr(&attr, str + pattern.size()), CRIT);
-    return true;
 }
 
 bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,

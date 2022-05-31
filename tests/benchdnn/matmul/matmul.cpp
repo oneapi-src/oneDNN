@@ -59,11 +59,11 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
             = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
 
     auto src_d = dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(),
-            prb->cfg[SRC].dt, prb->stag, prb->strides[STRIDES_SRC]);
+            prb->src_dt(), prb->stag, prb->strides[STRIDES_SRC]);
     auto wei_d = dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(),
-            prb->cfg[WEI].dt, prb->wtag, prb->strides[STRIDES_WEI]);
+            prb->wei_dt(), prb->wtag, prb->strides[STRIDES_WEI]);
     auto dst_d = dnn_mem_t::init_md(prb->ndims, dst_rt_dims.data(),
-            prb->cfg[DST].dt, prb->dtag, prb->strides[STRIDES_DST]);
+            prb->dst_dt(), prb->dtag, prb->strides[STRIDES_DST]);
 
     dnnl_memory_desc_t bia_d {};
     if (prb->bia_dt != dnnl_data_type_undef) {
@@ -77,9 +77,6 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
     dnnl_matmul_desc_t op_d;
     DNN_SAFE_STATUS(
             dnnl_matmul_desc_init(&op_d, &src_d, &wei_d, &bia_d, &dst_d));
-    DNN_SAFE_STATUS(op_d.accum_data_type == prb->cfg[ACC].dt
-                    ? dnnl_success
-                    : dnnl_unimplemented);
 
     // Overload PER_OC mask definition for batched case
     int mask = 0;
@@ -108,7 +105,7 @@ int init_prim_ref(
             = prb->bia_dt == dnnl_data_type_undef ? 0 : prb->bia_mask;
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
-    prb_t prb_cpu {*prb, conf_f32, tag::abx, tag::abx, tag::abx,
+    prb_t prb_cpu {*prb, {dnnl_f32}, tag::abx, tag::abx, tag::abx,
             {vdims_t(STRIDES_SIZE)}, cpu_bia_dt, cpu_bia_mask, {0, 0, 0},
             cpu_attr};
 
@@ -128,28 +125,15 @@ int init_prim_ref(
 }
 
 int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res, dnnl_data_type_t sum_dt) {
+        dnn_mem_t &mem_fp, res_t *res) {
 
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
 
     assert(mem_dt.nelems() == mem_fp.nelems());
 
-    const auto &c = prb->get_dt_conf(kind);
-    float c_f_min = c.f_min, c_f_max = c.f_max, c_f_scale = c.f_scale;
-
-    if (kind == BIA && mem_dt.dt() == dnnl_u8) c_f_min = 0;
-
-    const bool dst_with_diff_sum_dt = kind == DST
-            && sum_dt != dnnl_data_type_undef && sum_dt != mem_dt.dt();
-    if (dst_with_diff_sum_dt) {
-        mem_dt.set_dt(sum_dt);
-        if (sum_dt == dnnl_s8 || sum_dt == dnnl_u8) {
-            c_f_min = lowest_dt(sum_dt);
-            c_f_max = max_dt(sum_dt);
-        }
-        if (sum_dt == dnnl_s32) c_f_scale = 1;
-    }
+    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
+    const auto density = cfg.get_density(kind, prb->k);
 
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t n_chunks = 16;
@@ -162,41 +146,47 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
         // repeating patterns. We could use discard(idx_start) too but
         // it has a complexity in O(idx_start). We also add 1 to avoid
         // seeding with 0.
-        std::minstd_rand msr(kind * nelems + idx_start + 1);
-        msr.discard(1);
+        std::minstd_rand int_seed(kind * nelems + idx_start + 1);
+        int_seed.discard(1);
+        std::minstd_rand b_seed(kind * nelems + idx_start + 1);
+        b_seed.discard(10);
 
-        std::uniform_int_distribution<> gen(c_f_min, c_f_max);
+        std::uniform_int_distribution<> gen(
+                cfg.get_range_min(kind), cfg.get_range_max(kind));
+        std::bernoulli_distribution b_dist(density);
 
-        // make sure the first element is not zero
+        // make sure the first element is positive
         if (idx_start == 0) {
             float val = 0;
-            while (val == 0)
-                val = (float)gen(msr) * c_f_scale;
-            mem_fp.set_elem(0, val);
+            while (val <= 0)
+                val = gen(int_seed);
+            mem_fp.set_elem(
+                    0, round_to_nearest_representable(cfg.get_dt(kind), val));
             idx_start += 1;
         }
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            auto val = (float)gen(msr) * c_f_scale;
-            mem_fp.set_elem(idx, val);
+            bool is_one = density == 1.f ? true : b_dist(b_seed);
+            float val = is_one * gen(int_seed);
+            mem_fp.set_elem(
+                    idx, round_to_nearest_representable(cfg.get_dt(kind), val));
         }
     });
 
-    // work-around mistrusted when A > 0 && B < 0  && C.dt = u8 (or relu)
-    if (kind == WEI && nelems == 1 && prb->cfg[DST].dt == dnnl_u8) {
-        if (c.f_max >= 1) mem_fp.set_elem(0, c_f_scale);
-    }
-
+    const bool swap_dt
+            = kind == DST && cfg.get_orig_dt(kind) != cfg.get_dt(kind);
+    if (swap_dt) mem_dt.set_dt(cfg.get_dt(kind));
     SAFE(mem_dt.reorder(mem_fp), WARN);
-    if (dst_with_diff_sum_dt) mem_dt.set_dt(prb->cfg[DST].dt);
+    if (swap_dt) mem_dt.set_dt(cfg.get_orig_dt(kind));
+
     return OK;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(
-            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->bia_dt, prb->cfg[DST].dt},
+            {prb->src_dt(), prb->wei_dt(), prb->bia_dt, prb->dst_dt()},
             prb->dir, res);
-    skip_unimplemented_sum_po(prb->attr, res, prb->cfg[DST].dt);
+    skip_unimplemented_sum_po(prb->attr, res, prb->dst_dt());
 
     if (is_gpu()) {
         // GPU supports only single zero-point per tensor.
@@ -220,7 +210,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         // * Any run-time dimensions.
         // * Any batch dimensions.
         const bool is_x8s8bf16
-                = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[DST].dt == dnnl_bf16;
+                = prb->wei_dt() == dnnl_s8 && prb->dst_dt() == dnnl_bf16;
         const bool rt_dims_are_none = prb->src_runtime_dim_mask().none()
                 && prb->weights_runtime_dim_mask().none()
                 && prb->dst_runtime_dim_mask().none();
@@ -233,10 +223,9 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         }
 
         // GPU supports bf16 bias only for bf16 config, with a single batch dim.
-        const bool is_bf16 = prb->cfg[SRC].dt == dnnl_bf16
-                && prb->cfg[WEI].dt == dnnl_bf16
-                && (prb->cfg[DST].dt == dnnl_bf16
-                        || prb->cfg[DST].dt == dnnl_f32);
+        const bool is_bf16 = prb->src_dt() == dnnl_bf16
+                && prb->wei_dt() == dnnl_bf16
+                && (prb->dst_dt() == dnnl_bf16 || prb->dst_dt() == dnnl_f32);
         const bool bf16_bias_ok = IMPLICATION(
                 prb->bia_dt == dnnl_bf16, prb->ndims <= 2 + is_bf16);
         if (!bf16_bias_ok) {
@@ -248,7 +237,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
     // Zero-points for non-integral data type does not make sense
-    if (!prb->attr.zero_points.is_def() && prb->cfg[WEI].dt != dnnl_s8) {
+    if (!prb->attr.zero_points.is_def() && prb->wei_dt() != dnnl_s8) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
@@ -295,7 +284,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    cmp.set_threshold(prb->cfg[kind].eps);
+    const auto dt = prb->get_dt(kind);
+    const float trh = dt == dnnl_f32 ? 1e-6f : epsilon_dt(dt);
+    cmp.set_threshold(trh);
     cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
 }
 
@@ -328,21 +319,21 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &src_dims = prb->src_dims();
     if (dnnl_memory_desc_equal(&src_md, &def_md)) {
         assert(prb->stag != tag::any);
-        src_md = dnn_mem_t::init_md(prb->ndims, src_dims.data(),
-                prb->cfg[SRC].dt, prb->stag, prb->strides[STRIDES_SRC]);
+        src_md = dnn_mem_t::init_md(prb->ndims, src_dims.data(), prb->src_dt(),
+                prb->stag, prb->strides[STRIDES_SRC]);
     }
 
     const auto &weights_dims = prb->weights_dims();
     if (dnnl_memory_desc_equal(&wei_md, &def_md)) {
         assert(prb->wtag != tag::any);
         wei_md = dnn_mem_t::init_md(prb->ndims, weights_dims.data(),
-                prb->cfg[WEI].dt, prb->wtag, prb->strides[STRIDES_WEI]);
+                prb->wei_dt(), prb->wtag, prb->strides[STRIDES_WEI]);
     }
 
     if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
         assert(prb->dtag != tag::any);
         dst_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
-                prb->cfg[DST].dt, prb->dtag, prb->strides[STRIDES_DST]);
+                prb->dst_dt(), prb->dtag, prb->strides[STRIDES_DST]);
     }
     if (prb->bia_dt != dnnl_data_type_undef
             && dnnl_memory_desc_equal(&bia_md, &def_md)) {
@@ -384,10 +375,7 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(fill_data(SRC, prb, src_dt, src_fp, res), WARN);
     SAFE(fill_data(WEI, prb, wei_dt, wei_fp, res), WARN);
     const int sum_idx = prb->attr.post_ops.find(attr_t::post_ops_t::SUM);
-    if (sum_idx >= 0) {
-        const auto sum_dt = prb->attr.post_ops.entry[sum_idx].sum.dt;
-        SAFE(fill_data(DST, prb, dst_dt, dst_fp, res, sum_dt), WARN);
-    }
+    if (sum_idx >= 0) SAFE(fill_data(DST, prb, dst_dt, dst_fp, res), WARN);
     if (prb->bia_dt != dnnl_data_type_undef)
         SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 

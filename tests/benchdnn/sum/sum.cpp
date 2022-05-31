@@ -52,7 +52,7 @@ dnnl_status_t init_pd(dnnl_engine_t engine, const prb_t *prb,
 
     return dnnl_sum_primitive_desc_create(&spd,
             prb->dtag != tag::undef ? &dst_d : nullptr, prb->n_inputs(),
-            prb->scales.data(), src_d.data(), dnnl_attr, engine);
+            prb->input_scales.data(), src_d.data(), dnnl_attr, engine);
 }
 
 int fill_src(
@@ -83,7 +83,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_sum_po(prb->attr, res);
 }
 
-void skip_invalid_prb(const prb_t *prb, res_t *res) {}
+void skip_invalid_prb(const prb_t *prb, res_t *res) {
+    // See `skip_invalid_inplace` for details.
+    if (prb->inplace) {
+        skip_invalid_inplace(
+                res, prb->sdt[0], prb->ddt, prb->stag[0], prb->dtag);
+        if (res->state == SKIPPED) return;
+    }
+}
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
@@ -108,18 +115,11 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
     const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
-    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-
-    args_t args, ref_args;
-    args.set(DNNL_ARG_DST, dst_dt);
-    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-
     std::vector<dnn_mem_t> src_fp, src_dt;
     src_fp.reserve(prb->n_inputs());
     src_dt.reserve(prb->n_inputs());
 
+    args_t args, ref_args;
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const auto &src_md
                 = query_md(const_pd, DNNL_ARG_MULTIPLE_SRC + i_input);
@@ -130,6 +130,15 @@ int doit(const prb_t *prb, res_t *res) {
         if (is_bench_mode(CORR))
             ref_args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_fp[i_input]);
     }
+    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
+    dnn_mem_t placeholder_dst_dt;
+
+    if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(dst_md, test_engine); }
+    dnn_mem_t &dst_dt = prb->inplace ? src_dt[0] : placeholder_dst_dt;
+    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+
+    args.set(DNNL_ARG_DST, dst_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
