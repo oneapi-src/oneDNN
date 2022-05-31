@@ -430,9 +430,12 @@ ir_module_ptr try_lower_fusion_manager(const context_ptr &ctx,
         for (size_t idx = 0; idx < seq.size(); idx++) {
             if (seq[idx].ptr_same(l0)) {
                 if (idx != seq.size() - 2) {
-                    SC_MODULE_WARN << "Using non-parallel generator. This may "
-                                      "lead to bad performance. Op name="
-                                   << op->op_name_;
+                    if (l0->kind_ == for_type::NORMAL) {
+                        SC_MODULE_WARN
+                                << "Using non-parallel generator. This may "
+                                   "lead to bad performance. Op name="
+                                << op->op_name_;
+                    }
                 }
             }
         }
