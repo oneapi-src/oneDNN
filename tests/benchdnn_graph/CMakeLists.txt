@@ -34,6 +34,7 @@ file(GLOB SOURCES_BENCHDNN
     ${CMAKE_CURRENT_SOURCE_DIR}/../benchdnn/matmul/matmul_aux.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../benchdnn/matmul/ref_matmul.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../benchdnn/utils/*.cpp
+    ${TEST_ALLOCATOR}
     )
 set(SOURCES ${SOURCES_BENCHDNNGRAPH} ${SOURCES_BENCHDNN})
 
@@ -43,6 +44,7 @@ include_directories_with_host_compiler(
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN
     ${PROJECT_SOURCE_DIR}/third_party/oneDNN/src
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/tests
     ${PROJECT_SOURCE_DIR}/tests/benchdnn
     ${PROJECT_SOURCE_DIR}/tests/benchdnn/utils
     )
