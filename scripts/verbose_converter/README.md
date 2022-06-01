@@ -99,46 +99,49 @@ most time consuming for this run. This will accumulate the number of calls,
 and the timings information for all calls with the same primitive kind.
 The output is sorted by highest total time to lowest.
 ```
-> python3 verbose_converter.py -i input.log -g breakdown -k prim_kind
-prim_kind,ncalls,agg_time(ms),overall%
-inner_product,300,416.82,71.71
-convolution,500,126.54,21.77
-lrn,200,27.90,4.80
-pooling,300,3.73,0.64
-eltwise,500,3.44,0.59
-reorder,205,2.81,0.48
+> python3  ./scripts/verbose_converter/verbose_converter.py -i input.log -g breakdown -k prim_kind | column -t -s,
+prim_kind      ncalls  time(ms)  overall%  agg_ncalls(avg)  agg_time(ms)  agg_overall%
+inner_product  300     311.48    45.40     300.00           311.48        45.40
+convolution    500     137.46    20.03     400.00           448.94        65.43
+eltwise        500     79.14     11.53     433.33           528.08        76.97
+reorder        307     71.82     10.47     401.75           599.90        87.44
+pooling        300     53.41     7.78      381.40           653.31        95.22
+lrn            200     32.79     4.78      351.17           686.10        100.00
 ```
 
 If we want more details, we can further break that down by shapes as well. So
 all primitives with the same primitive kind and shapes, will have they count
 call and timings accumulated into one line of the output as follow:
 ```
-> python3 verbose_converter.py -i input.log -g breakdown -k prim_kind shapes
-prim_kind,shapes,ncalls,agg_time(ms),overall%
-inner_product,mb1ic256ih6iw6oc4096,100,272.12,46.82
-inner_product,mb1ic4096oc4096,100,115.82,19.93
-convolution,g2mb1_ic96oc256_ih27oh27kh5sh1dh0ph2_iw27ow27kw5sw1dw0pw2,100,37.31,6.42
-convolution,mb1_ic256oc384_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,100,30.69,5.28
-inner_product,mb1ic4096oc1000,100,28.89,4.97
-convolution,g2mb1_ic384oc384_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,100,23.41,4.03
-convolution,mb1_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,100,19.80,3.41
-lrn,mb1ic96ih55iw55ls5beta0.75,100,18.19,3.13
-convolution,g2mb1_ic384oc256_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,100,15.32,2.64
-lrn,mb1ic256ih27iw27ls5beta0.75,100,9.70,1.67
-pooling,mb1ic96_ih55oh27kh3sh2dh0ph0_iw55ow27kw3sw2dw0pw0,100,1.89,0.32
-pooling,mb1ic256_ih27oh13kh3sh2dh0ph0_iw27ow13kw3sw2dw0pw0,100,1.31,0.23
-eltwise,1x96x55x55,100,1.29,0.22
-reorder,96x3x11x11,1,1.18,0.20
-eltwise,1x384x13x13,200,0.92,0.16
-eltwise,1x256x27x27,100,0.79,0.14
-pooling,mb1ic256_ih13oh6kh3sh2dh0ph0_iw13ow6kw3sw2dw0pw0,100,0.53,0.09
-reorder,1x256x6x6,100,0.51,0.09
-eltwise,1x256x13x13,100,0.44,0.08
-reorder,384x256x3x3,1,0.26,0.04
-reorder,2x192x192x3x3,1,0.26,0.04
-reorder,1x1000,100,0.23,0.04
-reorder,2x128x192x3x3,1,0.20,0.04
-reorder,2x128x48x5x5,1,0.17,0.03
+> python3  ./scripts/verbose_converter/verbose_converter.py -i input.log -g breakdown -k prim_kind shapes | column -t -s,
+prim_kind      shapes                                                      ncalls  time(ms)  overall%  agg_ncalls(avg)  agg_time(ms)  agg_overall%
+inner_product  mb1ic256ih6iw6oc4096                                        100     175.46    25.57     100.00           175.46        25.57
+inner_product  mb1ic4096oc4096                                             100     89.37     13.03     100.00           264.83        38.60
+inner_product  mb1ic4096oc1000                                             100     46.65     6.80      100.00           311.48        45.40
+convolution    mb1_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0   100     32.22     4.70      100.00           343.70        50.10
+convolution    g2mb1_ic96oc256_ih27oh27kh5sh1dh0ph2_iw27ow27kw5sw1dw0pw2   100     31.47     4.59      100.00           375.17        54.68
+eltwise        1x384x13x13                                                 200     31.43     4.58      116.67           406.60        59.26
+convolution    mb1_ic256oc384_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1    100     26.86     3.91      114.29           433.46        63.18
+reorder        96x3x11x11                                                  1       26.72     3.89      100.12           460.18        67.07
+convolution    g2mb1_ic384oc384_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1  100     24.56     3.58      100.11           484.74        70.65
+convolution    g2mb1_ic384oc256_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1  100     22.34     3.26      100.10           507.09        73.91
+pooling        mb1ic256_ih27oh13kh3sh2dh0ph0_iw27ow13kw3sw2dw0pw0          100     20.23     2.95      100.09           527.32        76.86
+pooling        mb1ic96_ih55oh27kh3sh2dh0ph0_iw55ow27kw3sw2dw0pw0           100     18.08     2.64      100.08           545.40        79.49
+lrn            mb1ic96ih55iw55ls5beta0.75                                  100     16.90     2.46      100.08           562.30        81.96
+reorder        1x3x227x227                                                 100     16.66     2.43      100.07           578.96        84.38
+eltwise        1x256x27x27                                                 100     16.48     2.40      100.07           595.44        86.79
+eltwise        1x96x55x55                                                  100     16.23     2.37      100.06           611.67        89.15
+lrn            mb1ic256ih27iw27ls5beta0.75                                 100     15.89     2.32      100.06           627.56        91.47
+reorder        1x256x6x6                                                   100     15.19     2.21      100.06           642.75        93.68
+pooling        mb1ic256_ih13oh6kh3sh2dh0ph0_iw13ow6kw3sw2dw0pw0            100     15.10     2.20      100.05           657.85        95.88
+eltwise        1x256x13x13                                                 100     15.00     2.19      100.05           672.85        98.07
+reorder        4096x4096                                                   1       8.29      1.21      95.33            681.14        99.28
+reorder        1000x4096                                                   1       2.11      0.31      91.05            683.25        99.58
+reorder        384x256x3x3                                                 1       0.96      0.14      87.13            684.21        99.73
+reorder        2x128x192x3x3                                               1       0.72      0.10      83.54            684.93        99.83
+reorder        2x192x192x3x3                                               1       0.52      0.08      80.24            685.45        99.91
+reorder        2x128x48x5x5                                                1       0.46      0.07      77.19            685.91        99.97
+reorder        1x1000                                                      100     0.18      0.03      78.04            686.10        100.00
 ```
 
 
