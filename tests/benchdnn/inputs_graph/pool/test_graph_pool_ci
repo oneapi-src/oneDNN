@@ -6,3 +6,13 @@
 --reset
 --alg=MAX,AVG_NP,AVG_P --dir=FWD_I,FWD_D --attr-post-ops=add:f32:common,add:f32:per_oc
 mb1ic64_ih600iw600_oh300ow300_kh3kw3_dh0dw0_ph1pw1_sh2sw2
+
+# multiple binary post op
+--reset
+--alg=MAX,AVG_NP,AVG_P --dir=FWD_I,FWD_D
+--attr-post-ops=mul:f32:common+add:f32:per_oc+mul:f32:common,\
+mul:f32:per_oc+min:f32:per_oc+add:f32:common, \
+div:f32:per_oc+mul:f32:common+sub:f32:common
+mb16ic64_iw32ow16_kw3sw2 # 1d
+mb2ic128_ih4oh2_kh3 # 2d
+ic9_id22ih62iw42_od11oh31ow21_kd2kh4kw3_sd2sh2sw2_pd1ph1pw1 # 3d

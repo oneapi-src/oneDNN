@@ -266,11 +266,19 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
-    if (!prb->attr.post_ops.entry.empty()) {
-        binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
-        binary_po_dt.emplace_back(make_dnn_mem(ins.back(), prb->tag));
-        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
-        ::binary::fill_mem(po_idx, binary_po_dt.back(), binary_po_fp.back());
+
+    const std::vector<size_t> post_bin_indices
+            = get_post_bin_indices(prb->attr.post_ops.entry);
+
+    size_t idx_ins = 0;
+    for (size_t i = 0; i < post_bin_indices.size(); i++) {
+        binary_po_fp.emplace_back(
+                make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins[idx_ins], prb->tag));
+        const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                   static_cast<int>(post_bin_indices[i]))
+                | DNNL_ARG_SRC_1;
+        ::binary::fill_mem(po_idx, binary_po_dt[i], binary_po_fp[i]);
         binary_po_args.push_back(po_idx);
     }
     const dnnl::graph::engine &eng = get_test_engine();
@@ -281,10 +289,14 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     if (is_fwd) {
         tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(dst_dt));
-        if (!prb->attr.post_ops.entry.empty()) {
-            tensors_in.emplace_back(dnnl::graph::tensor(
-                    ins.back(), eng, static_cast<void *>(binary_po_dt.back())));
+
+        idx_ins = 0;
+        for (size_t i = 0; i < prb->attr.post_ops.entry.size(); i++) {
+            dnnl::graph::tensor bin_tensor(
+                    ins[++idx_ins], eng, static_cast<void *>(binary_po_dt[i]));
+            tensors_in.emplace_back(bin_tensor);
         }
+
         if (is_bench_mode(CORR)) {
             args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
