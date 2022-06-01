@@ -623,6 +623,9 @@ public:
 
         impl::engine_t &engine = get_engine();
 
+        SKIP_IF(engine.kind() == impl::engine_kind::gpu && is_training,
+                "Skip the case due to regression of sum primitive on GPU");
+
         // Tensor dimensions.
         const impl::dim_t N = params.N, // batch size
                 IC = params.IC, // channels
