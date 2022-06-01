@@ -251,21 +251,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
                    "strided dimensions.";
     }
 
-    bool is_a_grf_blocked
-            = (a_layout().innermost_block_layout().size() % grf_size() == 0);
-    if (is_f64_conv()) {
-        allow_grf_reorder = false;
-    } else if (!is_dp_fma()
-            && !utils::everyone_is(a_data_type, b_data_type, data_type::f32)) {
-        allow_grf_reorder = true;
-    } else if (is_small_ic() && is_dp_fma()) {
-        allow_grf_reorder = true;
-    } else if (!is_a_grf_blocked
-            && (ic_blk * a_data_type_size % grf_size() != 0
-                    || ic != bh->padded_size("ic"))) {
-        allow_grf_reorder = true;
-    }
-
+    set_allow_grf_reorder();
     CHECK(init_zero_points_config(conv_pd));
 
     const int max_unroll = (zp_cfg.do_src_compensation) ? 3 : 9;
@@ -373,16 +359,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     kernel_grid_dim[1] = g_grid_dim * id * ih * iw_grid_dim;
     kernel_grid_dim[2] = mb_grid_dim;
 
-    bool is_a_grf_blocked
-            = (a_layout().innermost_block_layout().size() % grf_size() == 0);
-    if (!is_dp_fma()
-            && !utils::everyone_is(a_data_type, b_data_type, data_type::f32)) {
-        allow_grf_reorder = true;
-    } else if (!is_a_grf_blocked
-            && (oc_blk * a_data_type_size % grf_size() != 0
-                    || oc != bh->padded_size("oc"))) {
-        allow_grf_reorder = true;
-    }
+    set_allow_grf_reorder();
 
     // Do not perform full unrolling when there are too many inner
     // iterations.
@@ -481,7 +458,7 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
                                   "strided dimensions.";
     }
 
-    if (is_dw || is_dp_fma()) allow_grf_reorder = true;
+    set_allow_grf_reorder();
 
     mb_unroll = mb_thr_blk / mb_blk;
     ow_unroll = (ow_blk > 1 && is_dp_fma()) ? ow_thr_blk / ow_blk : 1;

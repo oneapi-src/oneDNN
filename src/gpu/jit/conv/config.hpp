@@ -28,6 +28,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/compute_engine.hpp"
+#include "gpu/jit/conv/block_helper.hpp"
 #include "gpu/jit/conv/fma_support.hpp"
 #include "gpu/jit/conv/hw_config.hpp"
 #include "gpu/jit/conv/tensor.hpp"
@@ -39,8 +40,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
-
-class block_helper_t;
 
 // Description of the convolution problem.
 class conv_problem_t {
@@ -460,7 +459,10 @@ public:
     bool data_types_ok() const {
         bool is_bf16 = utils::one_of(data_type::bf16, src_data_type,
                 wei_data_type, dst_data_type, bia_data_type);
-        if (!is_f64_conv() && utils::one_of(data_type::f64, src_data_type, wei_data_type, dst_data_type, bia_data_type)) return false;
+        if (!is_f64_conv()
+                && utils::one_of(data_type::f64, src_data_type, wei_data_type,
+                        dst_data_type, bia_data_type))
+            return false;
         if (is_bf16 && hw() <= ngen::HW::XeLP) return false;
         if (is_f64_conv() && !is_fwd) return false;
         if (is_fwd) return true;
@@ -1133,6 +1135,39 @@ private:
 
     bool is_dst_input() const { return is_bwd_d || is_bwd_w; }
     bool is_dst_output() const { return is_fwd; }
+
+    void set_allow_grf_reorder() {
+        bool is_a_grf_blocked
+                = (a_layout().innermost_block_layout().size() % grf_size()
+                        == 0);
+        if (is_fwd) {
+            if (is_f64_conv()) {
+                allow_grf_reorder = false;
+            } else if (!is_dp_fma()
+                    && !utils::everyone_is(
+                            a_data_type, b_data_type, data_type::f32)) {
+                allow_grf_reorder = true;
+            } else if (is_small_ic() && is_dp_fma()) {
+                allow_grf_reorder = true;
+            } else if (!is_a_grf_blocked
+                    && (ic_blk * a_data_type_size % grf_size() != 0
+                            || ic != bh->padded_size("ic"))) {
+                allow_grf_reorder = true;
+            }
+        } else if (is_bwd_d) {
+            if (!is_dp_fma()
+                    && !utils::everyone_is(
+                            a_data_type, b_data_type, data_type::f32)) {
+                allow_grf_reorder = true;
+            } else if (!is_a_grf_blocked
+                    && (oc_blk * a_data_type_size % grf_size() != 0
+                            || oc != bh->padded_size("oc"))) {
+                allow_grf_reorder = true;
+            }
+        } else if (is_bwd_w) {
+            if (is_dw || is_dp_fma()) allow_grf_reorder = true;
+        }
+    }
 
     static std::string prepend_groups_to_tag(const std::string &tag) {
         auto ret = tag;
