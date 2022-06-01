@@ -61,7 +61,7 @@ struct settings_t {
     }
     prb_dims_t prb_dims;
     std::vector<dir_t> dir {FWD_I};
-    std::vector<const dt_conf_t *> cfg {conf_f32};
+    std::vector<std::string> cfg {std::string()};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<std::string> stag {tag::abx}, wtag {tag::abx}, dtag {tag::abx};
     std::vector<attr_t::post_ops_t> actfunc;
@@ -81,7 +81,7 @@ struct settings_t {
 struct mlp_graph_spec_t {
     mlp_graph_spec_t(const prb_dims_t &a_dims, const std::string &wtag,
             const std::string &dtag, const dnnl_data_type_t &bia_dt,
-            const dt_conf_t *cfg, std::vector<attr_t::post_ops_t> actfunc,
+            const std::string cfg, std::vector<attr_t::post_ops_t> actfunc,
             attr_t::scale_t scales, attr_t::zero_points_t zps, dir_t dir)
         : prb_dims(a_dims)
         , cfg(cfg)
@@ -100,10 +100,16 @@ struct mlp_graph_spec_t {
                     actfunc[0].entry[i - 1].eltwise.alg));
         }
         layer_dims.push_back({batch_sz, prb_dims.dims[prb_dims.ndims - 1]});
-        mlp_src_dt = benchdnnext::convert_dt(cfg[SRC].dt);
-        mlp_wei_dt = benchdnnext::convert_dt(cfg[WEI].dt);
+        std::vector<dnnl_data_type_t> dt_vec;
+        handle_legacy_cfg(dt_vec, cfg);
+        mlp_src_dt = benchdnnext::convert_dt(dt_vec[SRC]);
+        mlp_wei_dt = (dt_vec.size() == 1)
+                ? mlp_src_dt
+                : benchdnnext::convert_dt(dt_vec[WEI]);
         mlp_bias_dt = benchdnnext::convert_dt(bia_dt);
-        mlp_dst_dt = benchdnnext::convert_dt(cfg[DST].dt);
+        mlp_dst_dt = (dt_vec.size() == 1)
+                ? mlp_src_dt
+                : benchdnnext::convert_dt(dt_vec[DST - 1]);
         assert(mlp_src_dt == mlp_dst_dt);
         has_bias = (mlp_bias_dt != graph_dt::undef);
         mlp_layer_dt
@@ -121,7 +127,7 @@ struct mlp_graph_spec_t {
     }
     ~mlp_graph_spec_t() {}
     prb_dims_t prb_dims;
-    const dt_conf_t *cfg;
+    const std::string cfg;
     std::vector<attr_t::post_ops_t> actfunc;
     int num_hidden_layers {0};
     attr_t attr;

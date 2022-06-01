@@ -42,7 +42,9 @@ void compute_ref_mlp(
         scales[0] = spec->attr.oscale.scale;
 
         ::parser::parse_prb_vdims(prb_vdims, dims_str);
-        ::matmul::prb_t matmul_prb(prb_vdims, spec->cfg, spec->raw_data_tag,
+        std::vector<dnnl_data_type_t> dt_vec;
+        handle_legacy_cfg(dt_vec, spec->cfg);
+        ::matmul::prb_t matmul_prb(prb_vdims, dt_vec, spec->raw_data_tag,
                 spec->raw_wei_tag, spec->raw_data_tag, strides,
                 benchdnnext::convert_dt(spec->mlp_bias_dt), bias_mask,
                 rt_dims_masks, attr);

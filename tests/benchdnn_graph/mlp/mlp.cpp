@@ -21,6 +21,7 @@
 
 #include "dnnl_graph_common_ext.hpp"
 #include "utils/compare.hpp"
+#include "utils/parser.hpp"
 
 #include "mlp/mlp.hpp"
 
@@ -99,8 +100,8 @@ void check_known_skipped_case(const mlp_graph_spec_t *spec, res_t *res) {
     }
 }
 
-inline int fill_data(data_kind_t kind, const dt_conf_t *cfg, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res,
+inline int fill_data(data_kind_t kind, const mlp_graph_spec_t *spec,
+        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res,
         dnnl_data_type_t sum_dt = dnnl_data_type_undef) {
 
     const auto nelems = mem_dt.nelems();
@@ -108,21 +109,32 @@ inline int fill_data(data_kind_t kind, const dt_conf_t *cfg, dnn_mem_t &mem_dt,
 
     assert(mem_dt.nelems() == mem_fp.nelems());
 
-    const auto &c = cfg[kind];
-    float c_f_min = c.f_min, c_f_max = c.f_max, c_f_scale = c.f_scale;
+    vdims_t strides {vdims_t(STRIDES_SIZE)};
+    std::vector<::matmul::dims_mask_t> rt_dims_masks {};
+    int bias_mask = 2;
+    prb_vdims_t prb_vdims;
+    std::string dims_str = dims2str(spec->layer_dims[0]);
+    dims_str = dims_str + ":" + dims2str(spec->weight_dims[0]);
+    //pick only the activation function for that layer.
+    attr_t attr;
+    attr.post_ops.entry.push_back(spec->attr.post_ops.entry[0]);
+    attr.insert(spec->attr.oscale);
+    attr.insert(spec->attr.zero_points);
+    float *scales = (float *)zmalloc(sizeof(float), 4);
+    SAFE_V(scales != nullptr ? OK : FAIL);
+    scales[0] = spec->attr.oscale.scale;
+    ::parser::parse_prb_vdims(prb_vdims, dims_str);
 
-    if (kind == BIA && mem_dt.dt() == dnnl_u8) c_f_min = 0;
+    std::vector<dnnl_data_type_t> dt_vec;
+    handle_legacy_cfg(dt_vec, spec->cfg);
 
-    const bool dst_with_diff_sum_dt = kind == DST
-            && sum_dt != dnnl_data_type_undef && sum_dt != mem_dt.dt();
-    if (dst_with_diff_sum_dt) {
-        mem_dt.set_dt(sum_dt);
-        if (sum_dt == dnnl_s8 || sum_dt == dnnl_u8) {
-            c_f_min = lowest_dt(sum_dt);
-            c_f_max = max_dt(sum_dt);
-        }
-        if (sum_dt == dnnl_s32) c_f_scale = 1;
-    }
+    ::matmul::prb_t matmul_prb(prb_vdims, dt_vec, spec->raw_data_tag,
+            spec->raw_wei_tag, spec->raw_data_tag, strides,
+            benchdnnext::convert_dt(spec->mlp_bias_dt), bias_mask,
+            rt_dims_masks, attr);
+    matmul_prb.scales = scales;
+    ::matmul::cfg_t cfg(&matmul_prb, {SRC, WEI, BIA, DST});
+    const auto density = cfg.get_density(kind, matmul_prb.k);
 
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t n_chunks = 16;
@@ -135,33 +147,39 @@ inline int fill_data(data_kind_t kind, const dt_conf_t *cfg, dnn_mem_t &mem_dt,
         // repeating patterns. We could use discard(idx_start) too but
         // it has a complexity in O(idx_start). We also add 1 to avoid
         // seeding with 0.
-        std::minstd_rand msr(kind * nelems + idx_start + 1);
-        msr.discard(1);
+        std::minstd_rand int_seed(kind * nelems + idx_start + 1);
+        int_seed.discard(1);
+        std::minstd_rand b_seed(kind * nelems + idx_start + 1);
+        b_seed.discard(10);
 
-        std::uniform_int_distribution<> gen(c_f_min, c_f_max);
+        std::uniform_int_distribution<> gen(
+                cfg.get_range_min(kind), cfg.get_range_max(kind));
+        std::bernoulli_distribution b_dist(density);
 
-        // make sure the first element is not zero
+        // make sure the first element is positive
         if (idx_start == 0) {
             float val = 0;
-            while (val == 0)
-                val = (float)gen(msr) * c_f_scale;
-            mem_fp.set_elem(0, val);
+            while (val <= 0)
+                val = gen(int_seed);
+            mem_fp.set_elem(
+                    0, round_to_nearest_representable(cfg.get_dt(kind), val));
             idx_start += 1;
         }
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            auto val = (float)gen(msr) * c_f_scale;
-            mem_fp.set_elem(idx, val);
+            bool is_one = density == 1.f ? true : b_dist(b_seed);
+            float val = is_one * gen(int_seed);
+            mem_fp.set_elem(
+                    idx, round_to_nearest_representable(cfg.get_dt(kind), val));
         }
     });
 
-    // work-around mistrusted when A > 0 && B < 0  && C.dt = u8 (or relu)
-    if (kind == WEI && nelems == 1 && cfg[DST].dt == dnnl_u8) {
-        if (c.f_max >= 1) mem_fp.set_elem(0, c_f_scale);
-    }
-
+    const bool swap_dt
+            = kind == DST && cfg.get_orig_dt(kind) != cfg.get_dt(kind);
+    if (swap_dt) mem_dt.set_dt(cfg.get_dt(kind));
     SAFE(mem_dt.reorder(mem_fp), WARN);
-    if (dst_with_diff_sum_dt) mem_dt.set_dt(cfg[DST].dt);
+    if (swap_dt) mem_dt.set_dt(cfg.get_orig_dt(kind));
+
     return OK;
 }
 
@@ -224,7 +242,7 @@ int doit(const mlp_graph_spec_t *spec, res_t *res) {
             if (lut_info.dt_mem_idx == -1) {
                 mem_dt.push_back(make_dnn_mem(lut_info.lt, tag::abx));
                 mem_fp.push_back(make_dnn_mem(lut_info.lt, dt::f32, tag::abx));
-                SAFE(fill_data(lut_info.data_fill_idx, spec->cfg, mem_dt.back(),
+                SAFE(fill_data(lut_info.data_fill_idx, spec, mem_dt.back(),
                              mem_fp.back(), res),
                         WARN);
                 lut_info.fp_mem_idx = mem_idx;
@@ -312,8 +330,10 @@ int doit(const mlp_graph_spec_t *spec, res_t *res) {
 
         compute_ref_mlp(spec, ref_args_vec);
         compare::compare_t cmp;
-        cmp.set_threshold(spec->cfg[DST].eps);
         cmp.set_data_kind(DST);
+        const auto dt = benchdnnext::convert_dt(spec->mlp_dst_dt);
+        const float trh = dt == dnnl_f32 ? 1e-6f : epsilon_dt(dt);
+        cmp.set_threshold(trh);
         cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
         tensor_name = (spec->is_mlp_int8)
                 ? STRINGIFY(DATA_INT8_)
