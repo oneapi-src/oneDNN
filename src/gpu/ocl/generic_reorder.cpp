@@ -112,12 +112,15 @@ dimensions_t query_dims_and_blocks(const memory_desc_wrapper &mdw) {
     // Calculate info for inner blocks
     dimensions_t inner_blks(nblks);
     std::vector<int> steps(ndims, 1);
-    for (int i = 0; i < nblks; ++i) {
+    dim_t blks_size = 1;
+    for (int i = nblks - 1; i >= 0; --i) {
         auto &blk = inner_blks[i];
         blk.idx = desc.inner_idxs[i];
         blk.size = desc.inner_blks[i];
         blk.step = steps[blk.idx];
+        // steps increase in reverse order of how blocks are listed
         steps[blk.idx] *= blk.size;
+        blks_size *= blk.size;
     }
 
     // Divide dim by its step to get block size
@@ -131,15 +134,18 @@ dimensions_t query_dims_and_blocks(const memory_desc_wrapper &mdw) {
     const auto end = blocks.end();
     blocks.erase(std::remove_if(blocks.begin(), end, size_1), end);
 
+    dim_t stride = blocks.empty() ? 1 : desc.strides[blocks[0].idx];
     for (auto &blk : inner_blks) {
         if (blk.size == 1) continue; // Can safely ignore blocks of size 1
-        if (blocks[0].idx == blk.idx) {
-            // Combine blocks with repeated dimension
+        if (blocks.empty() || blocks[0].idx != blk.idx || blks_size != stride) {
+            blocks.insert(blocks.begin(), blk);
+        } else {
+            // Combine blocks with repeated index if there is no extra padding
             blk.size *= blocks[0].size;
             blocks[0] = blk;
-        } else {
-            blocks.insert(blocks.begin(), blk);
         }
+        blks_size /= blk.size;
+        stride = blks_size;
     }
 
     if (blocks.empty() && ndims > 0) {
@@ -175,63 +181,11 @@ bool is_generic_faster_than_ref(
     return nelems > scale * max_nd_ref_nelems;
 }
 
-struct successor_t {
-    int idx;
-    dim_t size;
-    dim_t last_size;
-
-    successor_t(const dimension_t &a, const dimension_t &b)
-        : idx(b.idx), size(b.size), last_size(a.size) {}
-};
-
-struct block_successor_t {
-    using inner_iter = dimensions_t::const_iterator;
-
-    struct iterator {
-        using value_type = successor_t;
-        bool operator==(const iterator &other) const { return it == other.it; }
-        bool operator!=(const iterator &other) const { return it != other.it; }
-        value_type operator*() const { return {*(it - 1), *it}; }
-        iterator &operator++() { return advance(); }
-        iterator operator++(int) {
-            iterator cpy = *this;
-            advance();
-            return cpy;
-        }
-
-        iterator(inner_iter start, inner_iter end, int idx)
-            : it(start), end(end), idx(idx) {
-            operator++();
-        }
-
-    private:
-        iterator &advance() {
-            while (it != end) {
-                if ((*it++).idx == idx) break;
-            }
-            return *this;
-        }
-
-        inner_iter it;
-        inner_iter end;
-        int idx;
-    };
-
-    iterator begin() const { return {it_start, it_end, idx}; }
-    iterator end() const { return {it_end, it_end, idx}; }
-
-    block_successor_t(const dimensions_t &blks, int idx)
-        : idx(idx), it_start(blks.begin()), it_end(blks.end()) {}
-
-private:
-    int idx;
-    inner_iter it_start;
-    inner_iter it_end;
-};
+using dim_pair_t = std::array<dimension_t, 2>;
 
 // Return whether the two blocks represent an equal part of the same dimension.
-bool equal_blocks(const successor_t &a, const successor_t &b) {
-    return (a.idx == b.idx && a.size == b.size && a.last_size == b.last_size);
+bool equal_blocks(const dim_pair_t &a, const dim_pair_t &b) {
+    return (a[0].size == b[0].size && a[1].size == b[1].size);
 }
 
 // Combine dimension j into dimension i.
@@ -264,30 +218,39 @@ void combine(memory_desc_t &md, int i, int j) {
     auto &idxs = desc.inner_idxs;
     auto &blks = desc.inner_blks;
     int nblks = desc.inner_nblks;
+    auto blks_size = utils::array_product(blks, nblks);
     int count = 0;
     bool last_is_combined = false;
     dim_t blocks = 1;
     for (int k = 0; k < nblks; ++k) {
         if (idxs[k] == i || idxs[k] == j) {
             blocks *= blks[k];
-            if (last_is_combined) {
-                blks[count] *= blks[k];
+            // Combine the innermost dim and outermost block when they have the
+            // same index and no extra padding, e.g., ...A8a... -> ...a...
+            if (count == 0 && strides[i] == blks_size) {
+                md.dims[i] = md.padded_dims[i];
+                strides[i] /= blks[k];
+                blks_size /= blks[k];
+            } else if (last_is_combined) {
+                blks[count - 1] *= blks[k];
             } else {
                 last_is_combined = true;
                 blks[count] = blks[k];
                 idxs[count] = i;
+                count++;
             }
             continue;
-        } else if (last_is_combined) {
-            last_is_combined = false;
-            count++;
         }
+        last_is_combined = false;
         blks[count] = blks[k];
         idxs[count] = (idxs[k] > j ? idxs[k] - 1 : idxs[k]);
         count++;
     }
+    // We've changed Nx1x...x1xM to 1x...x1xNM by combining dims, now fix the
+    // strides of the size-1 dims by multiplying by the step of the size-N dim.
+    auto outer_step = utils::div_up(outer_size, blocks);
     for (int k = 0; k < new_ndims; ++k) {
-        if (strides[k] == outer_stride) strides[k] *= outer_size / blocks;
+        if (strides[k] == outer_stride) strides[k] *= outer_step;
     }
     desc.inner_nblks = count;
     md.ndims = new_ndims;
@@ -298,41 +261,141 @@ void remove_bit(int &mask, int bit) {
     mask = (mask & lower_bits) | ((mask >> 1) & ~lower_bits);
 }
 
+// For each dimension, determine if the inner dimensions do not account for its
+// stride. We cannot combine a dimension that does not align with the stride of
+// the next outer dimension.
+int extended_dims(const memory_desc_t &md) {
+    int mask = 0;
+    const int ndims = md.ndims;
+    const auto &blkg = md.format_desc.blocking;
+    const int nblks = blkg.inner_nblks;
+
+    auto dims = dims_by_stride(md);
+    std::vector<dim_t> blocks(ndims, 1);
+    dim_t expected_stride = 1;
+    for (int i = 0; i < nblks; ++i) {
+        auto idx = blkg.inner_idxs[i];
+        auto blks = blkg.inner_blks[i];
+        blocks[idx] *= blks;
+        expected_stride *= blks;
+    }
+
+    for (int i = 0; i < ndims; ++i) {
+        const auto &dim = dims[i];
+        auto stride = blkg.strides[dim.idx];
+        auto step = utils::div_up(dim.size, blocks[dim.idx]);
+        if (stride != expected_stride) {
+            mask |= (1 << dim.idx);
+            expected_stride = stride;
+        }
+        expected_stride *= step;
+    }
+    return mask;
+}
+
+struct pair_filter {
+public:
+    using value_type = dim_pair_t;
+
+private:
+    using iterator_t = typename dimensions_t::const_iterator;
+    using predicate_t = std::function<bool(const value_type &)>;
+
+public:
+    struct iterator {
+        bool operator==(const iterator &o) const { return it == o.it; }
+        bool operator!=(const iterator &o) const { return it != o.it; }
+        value_type operator*() const { return {*it, *(it + 1)}; }
+        iterator &operator++() {
+            advance();
+            return *this;
+        }
+        iterator operator++(int) {
+            auto cpy = *this;
+            advance();
+            return cpy;
+        }
+        iterator(iterator_t it, iterator_t end, predicate_t pred)
+            : it(it), end(end), pred(std::move(pred)) {
+            advance(true);
+        }
+
+    private:
+        void advance(bool check_first = false) {
+            if (it == end || (check_first && pred(operator*()))) return;
+            while (++it != end && !pred(operator*())) {}
+        }
+
+        iterator_t it, end;
+        predicate_t pred;
+    };
+
+    iterator begin() const { return {begin_, end_ - 1, pred}; }
+    iterator end() const { return {end_ - 1, end_ - 1, pred}; }
+    bool empty() const { return begin() == end(); }
+
+    pair_filter(const dimensions_t &iter, const predicate_t &pred)
+        : begin_(iter.begin()), end_(iter.end()), pred(pred) {}
+
+private:
+    iterator_t begin_, end_;
+    predicate_t pred;
+};
+
 #define NO_IDX (-1)
+// Find the index of the dimension that always and only follows the dimension
+// with index idx. If none exists, return NO_IDX. If no dimension with index idx
+// is present in the given block representation, return idx to delete the
+// dimension
+int successor(const dimensions_t &a, int idx) {
+    int succ;
+    auto match_idx = [&](const dim_pair_t &p) { return p[0].idx == idx; };
+    auto match_xor = [&](const dim_pair_t &p) {
+        return match_idx(p) ^ (p[1].idx == succ);
+    };
+    // idx is the index of outermost dim; it has no successor
+    if (a.back().idx == idx) return NO_IDX;
+    auto filtered = pair_filter(a, match_idx);
+    // no dim with index idx appears in block representation; delete it
+    if (filtered.empty()) return idx;
+    succ = (*filtered.begin())[1].idx;
+    // succ is the index of the innermost dim; it has no predecessor
+    if (a.front().idx == succ) return NO_IDX;
+    if (!pair_filter(a, match_xor).empty()) return NO_IDX;
+    return succ;
+}
+
 // Find the index of the dimension that ALWAYS follows dimension `idx` in the
 // given block representations. The successor dimension will be combined with
 // the given dimension, or, in the case that the given dimension does not appear
 // in the block representation, it will be deleted.
 int successor(const dimensions_t &a, const dimensions_t &b, int idx) {
-    // If idx is the outermost index, there can be no successor.
-    if (a.back().idx == idx || b.back().idx == idx) return NO_IDX;
+    auto succ = successor(a, idx);
+    if (succ == NO_IDX || succ != successor(b, idx)) return NO_IDX;
 
-    block_successor_t succ_a {a, idx};
-    block_successor_t succ_b {b, idx};
-    auto it_a = succ_a.begin();
-    auto it_b = succ_b.begin();
-    const auto end_a = succ_a.end();
-    const auto end_b = succ_b.end();
+    auto pred = [&](const dim_pair_t &p) { return p[0].idx == idx; };
+    pair_filter iter_a(a, pred);
+    pair_filter iter_b(b, pred);
 
-    // An index that never appears in the block representation should be
-    // deleted. In that case, return the given index.
-    if (it_a == end_a && it_b == end_b) return idx;
+    auto it_a = iter_a.begin();
+    auto it_b = iter_b.begin();
+    const auto end_a = iter_a.end();
+    const auto end_b = iter_b.end();
 
-    int prev_idx = NO_IDX;
     for (; it_a != end_a && it_b != end_b; ++it_a, ++it_b) {
         if (!equal_blocks(*it_a, *it_b)) return NO_IDX;
-        prev_idx = (*it_a).idx;
     }
-    return (it_a != end_a || it_b != end_b) ? NO_IDX : prev_idx;
+    return (it_a != end_a || it_b != end_b) ? NO_IDX : succ;
 }
 
 bool can_be_combined(int idx, int mask) {
     return !(idx == NO_IDX || (mask & (1 << idx)));
 }
 
-bool compress(memory_desc_t &a, memory_desc_t &b, int &mask) {
+void compress(memory_desc_t &a, memory_desc_t &b, int &mask) {
     const auto blks_a = query_dims_and_blocks(a);
     const auto blks_b = query_dims_and_blocks(b);
+    const int skip_mask = mask | extended_dims(a) | extended_dims(b);
 
     const int ndims = a.ndims;
     std::vector<int> successors(ndims, NO_IDX);
@@ -341,23 +404,22 @@ bool compress(memory_desc_t &a, memory_desc_t &b, int &mask) {
         aliases[i] = i;
         if (mask & (1 << i)) continue;
         auto succ = successor(blks_a, blks_b, i);
-        if (!can_be_combined(succ, mask)) continue;
+        if (!can_be_combined(succ, skip_mask)) continue;
         successors[i] = succ;
     }
 
-    bool compressed = false;
     for (int i = ndims - 1; i >= 0; --i) {
         int succ = successors[i];
         if (succ == NO_IDX) continue;
-        int from = std::max(i, aliases[succ]);
-        int into = std::min(i, aliases[succ]);
+        while (succ != aliases[succ])
+            succ = aliases[succ];
+        int from = std::max(i, succ);
+        int into = std::min(i, succ);
         combine(a, into, from);
         combine(b, into, from);
         remove_bit(mask, from);
         aliases[from] = into;
-        compressed = true;
     }
-    return compressed;
 }
 #undef NO_IDX
 
