@@ -57,12 +57,12 @@ class BreakdownGenerator:
         output['all'] = ofs.join(agg_keys + ['ncalls',
                                              'agg_time(ms)',
                                              "overall%"]) + '\n'
-        def my_str(s):
-            return '{val:5.2f}'.format(val=s*100)
+        def my_str(s, scale = 1):
+            return '{val:.2f}'.format(val=s*scale)
         ors='\n'
         output['all'] += ors.join([ofs.join([str(item_key),
                                              str(data[item_key][0]),
                                              my_str(data[item_key][1]),
-                                             my_str(data[item_key][1] / total_time)])
+                                             my_str(data[item_key][1] / total_time, 100)])
                                    for item_key in sorted_item_keys])
         return output
