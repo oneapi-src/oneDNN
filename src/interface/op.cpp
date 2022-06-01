@@ -31,6 +31,8 @@ dnnl_graph_op::dnnl_graph_op(
 
 status_t DNNL_GRAPH_API dnnl_graph_op_create(op_t **op, uint64_t id,
         op_kind_t kind, const char *const verbose_name) {
+    if (utils::any_null(op, verbose_name)) return status::invalid_arguments;
+
     *op = new op_t {id, kind, verbose_name};
     return status::success;
 }
@@ -42,12 +44,16 @@ status_t DNNL_GRAPH_API dnnl_graph_op_destroy(op_t *op) {
 
 status_t DNNL_GRAPH_API dnnl_graph_op_add_input(
         op_t *op, const logical_tensor_t *input) {
+    if (utils::any_null(op, input)) return status::invalid_arguments;
+
     op->add_input(*input);
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_add_output(
         op_t *op, const logical_tensor_t *output) {
+    if (utils::any_null(op, output)) return status::invalid_arguments;
+
     op->add_output(*output);
     return status::success;
 }
@@ -71,9 +77,11 @@ status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_f32(op_t *op,
 status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_bool(op_t *op,
         dnnl_graph_op_attr_t name, const uint8_t *value, size_t value_len) {
     if (utils::any_null(op, value)) return status::invalid_arguments;
+    // we don't support bool vector.
     if (value_len != 0) return status::invalid_arguments;
 
-    op->set_attr(name, *reinterpret_cast<const bool *>(value));
+    const bool val = static_cast<bool>(*value);
+    op->set_attr(name, val);
 
     return status::success;
 }
@@ -105,12 +113,16 @@ status_t DNNL_GRAPH_API dnnl_graph_op_set_attr_str(op_t *op,
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_get_id(const op_t *op, size_t *id) {
+    if (utils::any_null(op, id)) return status::invalid_arguments;
+
     *id = op->get_id();
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_op_get_kind(
         const op_t *op, op_kind_t *kind) {
+    if (utils::any_null(op, kind)) return status::invalid_arguments;
+
     *kind = op->get_kind();
     return status::success;
 }
