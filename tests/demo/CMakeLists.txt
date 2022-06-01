@@ -40,11 +40,12 @@ function(register_demo name srcs)
         return()
     endif()
 
-    add_executable(${name} ${srcs})
+    add_executable(${name} ${srcs} ${TEST_ALLOCATOR})
     target_include_directories(${name}
         PRIVATE
         ${PROJECT_SOURCE_DIR}/examples/cpp/include
         ${PROJECT_SOURCE_DIR}/tests/demo/include
+        ${PROJECT_SOURCE_DIR}/tests/
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_BINARY_DIR}/third_party/oneDNN/include
         ${PROJECT_SOURCE_DIR}/third_party/oneDNN/include

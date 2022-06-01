@@ -201,7 +201,12 @@ public:
                 *static_cast<const cl::sycl::context *>(ctx));
     }
 
-    static void free(void *ptr, const void *ctx) {
+    static void free(void *ptr, const void *dev, const void *ctx, void *event) {
+        UNUSED(dev);
+        if (event) {
+            auto sycl_deps_ptr = static_cast<cl::sycl::event *>(event);
+            sycl_deps_ptr->wait();
+        }
         cl::sycl::free(ptr, *static_cast<const cl::sycl::context *>(ctx));
     }
 };

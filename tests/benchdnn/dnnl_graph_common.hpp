@@ -39,6 +39,7 @@
 #include "dnn_graph_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "test_allocator.hpp"
 
 namespace benchdnnext {
 

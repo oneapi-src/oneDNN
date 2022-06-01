@@ -32,6 +32,8 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#include "test_allocator.hpp"
+
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
@@ -243,15 +245,6 @@ inline dnnl_graph_dim_t product(const std::vector<int64_t> &dims) {
                     std::multiplies<dnnl_graph_dim_t>());
 }
 
-void *allocate(size_t n, dnnl::graph::allocator::attribute attr) {
-    (void)attr;
-    return malloc(n);
-}
-
-void deallocate(void *ptr) {
-    free(ptr);
-}
-
 // fill the memory according to the given value
 //  src -> target memory buffer
 //  total_size -> total number of bytes of this buffer
@@ -347,16 +340,6 @@ void fill_buffer(
          int idx = (int)i[0];
          usm_buffer_casted[idx] = value;
      }).wait();
-}
-
-void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr) {
-    return malloc_device(n, *static_cast<const cl::sycl::device *>(dev),
-            *static_cast<const cl::sycl::context *>(ctx));
-}
-
-void sycl_free_wrapper(void *ptr, const void *context) {
-    free(ptr, *static_cast<const cl::sycl::context *>(context));
 }
 #endif
 

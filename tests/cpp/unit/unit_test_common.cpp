@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 
+#include "test_allocator.hpp"
 #include "unit_test_common.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
@@ -33,23 +34,15 @@ cl::sycl::context &get_context() {
     static cl::sycl::context ctx {get_device()};
     return ctx;
 }
-
-void *sycl_alloc(size_t n, const void *dev, const void *ctx,
-        impl::allocator_attr_t attr) {
-    return cl::sycl::malloc_device(n,
-            *static_cast<const cl::sycl::device *>(dev),
-            *static_cast<const cl::sycl::context *>(ctx));
-}
-void sycl_free(void *ptr, const void *ctx) {
-    return cl::sycl::free(ptr, *static_cast<const cl::sycl::context *>(ctx));
-}
 #endif // DNNL_GRAPH_WITH_SYCL
 
 impl::engine_t &get_engine() {
     if (get_test_engine_kind() == impl::engine_kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
         static auto sycl_allocator = std::shared_ptr<impl::allocator_t>(
-                impl::allocator_t::create(sycl_alloc, sycl_free),
+                impl::allocator_t::create(
+                        dnnl::graph::testing::sycl_malloc_wrapper,
+                        dnnl::graph::testing::sycl_free_wrapper),
                 [](impl::allocator_t *alloc) { alloc->release(); });
         static impl::engine_t eng(impl::engine_kind::cpu, get_device(),
                 get_context(), sycl_allocator.get());
@@ -60,7 +53,9 @@ impl::engine_t &get_engine() {
     } else {
 #ifdef DNNL_GRAPH_GPU_SYCL
         static auto sycl_allocator = std::shared_ptr<impl::allocator_t>(
-                impl::allocator_t::create(sycl_alloc, sycl_free),
+                impl::allocator_t::create(
+                        dnnl::graph::testing::sycl_malloc_wrapper,
+                        dnnl::graph::testing::sycl_free_wrapper),
                 [](impl::allocator_t *alloc) { alloc->release(); });
         static impl::engine_t eng(impl::engine_kind::gpu, get_device(),
                 get_context(), sycl_allocator.get());

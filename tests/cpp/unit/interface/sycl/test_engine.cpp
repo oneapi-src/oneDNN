@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,9 @@ public:
         auto *mem_ptr = eng.get_allocator()->allocate(
                 16, eng.sycl_device(), eng.sycl_context(), attr);
         ASSERT_NE(mem_ptr, nullptr);
-        eng.get_allocator()->deallocate(mem_ptr, eng.sycl_context());
+        sycl::event e;
+        eng.get_allocator()->deallocate(
+                mem_ptr, eng.sycl_device(), eng.sycl_context(), e);
     }
 };
 

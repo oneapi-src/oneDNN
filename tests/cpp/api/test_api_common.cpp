@@ -15,21 +15,11 @@
 *******************************************************************************/
 
 #include "test_api_common.hpp"
+#include "test_allocator.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
-
-void *sycl_alloc(size_t n, const void *dev, const void *ctx,
-        dnnl_graph_allocator_attr_t attr) {
-    return cl::sycl::malloc_device(n,
-            *static_cast<const cl::sycl::device *>(dev),
-            *static_cast<const cl::sycl::context *>(ctx));
-}
-
-void sycl_free(void *ptr, const void *ctx) {
-    return cl::sycl::free(ptr, *static_cast<const cl::sycl::context *>(ctx));
-}
 #endif // DNNL_GRAPH_WITH_SYCL
 
 void api_test_dnnl_graph_engine_create(
@@ -39,9 +29,10 @@ void api_test_dnnl_graph_engine_create(
         static cl::sycl::device dev {cl::sycl::cpu_selector {}};
         static cl::sycl::context ctx {dev};
         if (!allocator_handle) {
-            ASSERT_EQ(
-                    dnnl_graph_sycl_interop_allocator_create(
-                            &allocator_handle.allocator, sycl_alloc, sycl_free),
+            ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
+                              &allocator_handle.allocator,
+                              dnnl::graph::testing::sycl_malloc_wrapper,
+                              dnnl::graph::testing::sycl_free_wrapper),
                     dnnl_graph_success);
             ASSERT_EQ(dnnl_graph_sycl_interop_engine_create_with_allocator(
                               &engine_handle.engine, &dev, &ctx,
@@ -61,9 +52,10 @@ void api_test_dnnl_graph_engine_create(
         static cl::sycl::device dev {cl::sycl::gpu_selector {}};
         static cl::sycl::context ctx {dev};
         if (!allocator_handle) {
-            ASSERT_EQ(
-                    dnnl_graph_sycl_interop_allocator_create(
-                            &allocator_handle.allocator, sycl_alloc, sycl_free),
+            ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
+                              &allocator_handle.allocator,
+                              dnnl::graph::testing::sycl_malloc_wrapper,
+                              dnnl::graph::testing::sycl_free_wrapper),
                     dnnl_graph_success);
             ASSERT_EQ(dnnl_graph_sycl_interop_engine_create_with_allocator(
                               &engine_handle.engine, &dev, &ctx,
@@ -88,7 +80,8 @@ dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
         static cl::sycl::context ctx {dev};
         static dnnl::graph::allocator alloc
                 = dnnl::graph::sycl_interop::make_allocator(
-                        sycl_alloc, sycl_free);
+                        dnnl::graph::testing::sycl_malloc_wrapper,
+                        dnnl::graph::testing::sycl_free_wrapper);
         static dnnl::graph::engine eng
                 = dnnl::graph::sycl_interop::make_engine(dev, ctx, alloc);
 #else
@@ -101,7 +94,9 @@ dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
     static cl::sycl::device dev {cl::sycl::gpu_selector {}};
     static cl::sycl::context ctx {dev};
     static dnnl::graph::allocator alloc
-            = dnnl::graph::sycl_interop::make_allocator(sycl_alloc, sycl_free);
+            = dnnl::graph::sycl_interop::make_allocator(
+                    dnnl::graph::testing::sycl_malloc_wrapper,
+                    dnnl::graph::testing::sycl_free_wrapper);
     static dnnl::graph::engine eng
             = dnnl::graph::sycl_interop::make_engine(dev, ctx, alloc);
     return eng;

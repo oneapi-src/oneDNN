@@ -36,6 +36,7 @@ set(API_TEST_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_constant_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/api_test_main.cpp
+    ${TEST_ALLOCATOR}
     )
 
 set(sycl_rt_pattern "(DPCPP)")

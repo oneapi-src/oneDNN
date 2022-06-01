@@ -27,6 +27,10 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#ifndef UNUSED
+#define UNUSED(x) ((void)(x))
+#endif
+
 #define EXAMPLE_SWITCH_TYPE(type_enum, type_key, ...) \
     switch (type_enum) { \
         case dnnl::graph::logical_tensor::data_type::f32: { \
@@ -131,7 +135,17 @@ void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
             *static_cast<const cl::sycl::context *>(ctx));
 }
 
-void sycl_free_wrapper(void *ptr, const void *context) {
+void sycl_free_wrapper(
+        void *ptr, const void *device, const void *context, void *event) {
+    // Device is not used in this example, but it may be useful for some users
+    // application.
+    UNUSED(device);
+    // immediate synchronization here is for test purpose for performance, users
+    // may need to store the ptr and event and handle them separately
+    if (event) {
+        auto sycl_deps_ptr = static_cast<cl::sycl::event *>(event);
+        sycl_deps_ptr->wait();
+    }
     free(ptr, *static_cast<const cl::sycl::context *>(context));
 }
 #endif

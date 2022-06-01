@@ -70,6 +70,8 @@ if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "THREADPOOL")
     set(TEST_THREAD ${PROJECT_SOURCE_DIR}/third_party/oneDNN/tests/test_thread.cpp)
 endif()
 
+set(TEST_ALLOCATOR ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp)
+
 add_subdirectory(cpp)
 add_subdirectory(benchdnn)
 add_subdirectory(benchdnn_graph)

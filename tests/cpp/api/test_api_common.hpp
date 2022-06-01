@@ -145,11 +145,6 @@ struct sycl_deletor {
         if (ptr) cl::sycl::free(ptr, ctx_);
     }
 };
-
-void *sycl_alloc(size_t n, const void *dev, const void *ctx,
-        dnnl_graph_allocator_attr_t attr);
-
-void sycl_free(void *ptr, const void *ctx);
 #endif // DNNL_GRAPH_WITH_SYCL
 
 struct engine_handle_t {

@@ -21,40 +21,15 @@
 
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
+#include "cpp/api/test_api_common.hpp"
+#include "test_allocator.hpp"
+
 using namespace dnnl::graph;
 using namespace cl::sycl;
 
 struct api_engine_params {
     engine::kind eng_kind_;
 };
-
-/// Below functions aim to simulate what integration layer does
-/// before creating dnnl::graph::allocator. We expect integration will
-/// wrap the real SYCL malloc_device/free functions like below, then
-/// dnnl_graph_allocator will be created with correct allocation/deallocation
-/// function pointers.
-void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr) {
-    namespace api = dnnl::graph;
-    // need to handle different allocation types according to attr.type
-    if (attr.type
-            == api::allocator::convert_to_c(
-                    api::allocator::lifetime::persistent)) {
-        // persistent memory
-    } else if (attr.type
-            == api::allocator::convert_to_c(api::allocator::lifetime::output)) {
-        // output tensor memory
-    } else {
-        // temporary memory
-    }
-
-    return malloc_device(n, *static_cast<const cl::sycl::device *>(dev),
-            *static_cast<const cl::sycl::context *>(ctx));
-}
-
-void sycl_free_wrapper(void *ptr, const void *context) {
-    free(ptr, *static_cast<const cl::sycl::context *>(context));
-}
 
 class api_engine : public ::testing::TestWithParam<api_engine_params> {
 public:
@@ -75,7 +50,8 @@ public:
                     sycl_ctx.reset(new context(*sycl_dev));
 
                     allocator alloc = dnnl::graph::sycl_interop::make_allocator(
-                            sycl_malloc_wrapper, sycl_free_wrapper);
+                            dnnl::graph::testing::sycl_malloc_wrapper,
+                            dnnl::graph::testing::sycl_free_wrapper);
                     engine e = dnnl::graph::sycl_interop::make_engine(
                             *sycl_dev, *sycl_ctx, alloc);
                 }

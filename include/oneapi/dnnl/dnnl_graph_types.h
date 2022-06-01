@@ -316,10 +316,11 @@ typedef void *(*dnnl_graph_cpu_allocate_f)(size_t, dnnl_graph_allocator_attr_t);
 /// Deallocation call-back function interface for CPU
 typedef void (*dnnl_graph_cpu_deallocate_f)(void *);
 /// Allocation call-back function interface for SYCL device
-typedef void *(*dnnl_graph_sycl_allocate_f)(
-        size_t, const void *, const void *, dnnl_graph_allocator_attr_t);
-/// Deallocation call-back function interface for SYCL device
-typedef void (*dnnl_graph_sycl_deallocate_f)(void *, const void *);
+typedef void *(*dnnl_graph_sycl_allocate_f)(size_t size, const void *dev,
+        const void *context, dnnl_graph_allocator_attr_t attr);
+/// brief Deallocation call-back function interface for SYCL device
+typedef void (*dnnl_graph_sycl_deallocate_f)(
+        void *buf, const void *dev, const void *context, void *event);
 
 /// @} dnnl_graph_api_allocator
 

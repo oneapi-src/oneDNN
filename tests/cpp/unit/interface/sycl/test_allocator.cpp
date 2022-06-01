@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 #include "interface/allocator.hpp"
 #include "interface/c_types_map.hpp"
 
+#include "test_allocator.hpp"
+
 #include <CL/sycl.hpp>
 
 namespace impl = dnnl::graph::impl;
@@ -26,30 +28,6 @@ namespace impl = dnnl::graph::impl;
 struct test_allocator_params {
     impl::engine_kind_t eng_kind_;
 };
-
-/// Below functions aim to simulate what integration layer does
-/// before creating dnnl::graph::allocator. We expect integration will
-/// wrap the real SYCL malloc_device/free functions like below, then
-/// dnnl_graph_allocator will be created with correct allocation/deallocation
-/// function pointers.
-void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::impl::allocator_attr_t attr) {
-    // need to handle different allocation types according to attr.type
-    if (attr.type == dnnl::graph::impl::allocator_lifetime::persistent) {
-        // persistent memory
-    } else if (attr.type == dnnl::graph::impl::allocator_lifetime::output) {
-        // output tensor memory
-    } else {
-        // temporary memory
-    }
-
-    return malloc_device(n, *static_cast<const cl::sycl::device *>(dev),
-            *static_cast<const cl::sycl::context *>(ctx));
-}
-
-void sycl_free_wrapper(void *ptr, const void *context) {
-    free(ptr, *static_cast<const cl::sycl::context *>(context));
-}
 
 class TestAllocator : public ::testing::TestWithParam<test_allocator_params> {
 public:
@@ -72,7 +50,8 @@ public:
         void *mem_ptr = alloc.allocate(
                 static_cast<size_t>(16), q.get_device(), q.get_context(), attr);
         ASSERT_NE(mem_ptr, nullptr);
-        alloc.deallocate(mem_ptr, q.get_context());
+        sycl::event e;
+        alloc.deallocate(mem_ptr, q.get_device(), q.get_context(), e);
         alloc.release();
     }
 
@@ -93,7 +72,8 @@ public:
                 dnnl::graph::impl::allocator_lifetime::persistent);
         ASSERT_EQ(alloc_attr.data.alignment, 1024);
         dnnl::graph::impl::allocator_t &sycl_alloc = *impl::allocator_t::create(
-                sycl_malloc_wrapper, sycl_free_wrapper);
+                dnnl::graph::testing::sycl_malloc_wrapper,
+                dnnl::graph::testing::sycl_free_wrapper);
         for (const auto &plt : platform_list) {
             auto device_list = plt.get_devices();
             for (const auto &dev : device_list) {
@@ -105,7 +85,8 @@ public:
                     auto *mem_ptr = sycl_alloc.allocate(static_cast<size_t>(16),
                             *sycl_dev, *sycl_ctx, alloc_attr);
                     ASSERT_NE(mem_ptr, nullptr);
-                    sycl_alloc.deallocate(mem_ptr, *sycl_ctx);
+                    sycl::event e;
+                    sycl_alloc.deallocate(mem_ptr, *sycl_dev, *sycl_ctx, e);
                 }
             }
         }

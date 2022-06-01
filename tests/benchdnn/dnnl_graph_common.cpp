@@ -792,20 +792,10 @@ fill_status_t po_handlers_t::low_precision_handler_t::handle_quant_dequant_(
 }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-void *sycl_alloc(size_t n, const void *dev, const void *ctx,
-        dnnl::graph::allocator::attribute attr) {
-    return cl::sycl::malloc_shared(n,
-            *static_cast<const cl::sycl::device *>(dev),
-            *static_cast<const cl::sycl::context *>(ctx));
-}
-
-void sycl_free(void *ptr, const void *ctx) {
-    return cl::sycl::free(ptr, *static_cast<const cl::sycl::context *>(ctx));
-}
-
 const dnnl::graph::engine &get_graph_engine() {
-    static auto sycl_allocator {
-            dnnl::graph::sycl_interop::make_allocator(sycl_alloc, sycl_free)};
+    static auto sycl_allocator {dnnl::graph::sycl_interop::make_allocator(
+            dnnl::graph::testing::sycl_malloc_wrapper,
+            dnnl::graph::testing::sycl_free_wrapper)};
     static dnnl::engine test_eng {::get_test_engine()};
     static cl::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
     static cl::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};

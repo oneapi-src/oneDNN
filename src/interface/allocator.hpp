@@ -252,15 +252,20 @@ public:
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    void deallocate(void *buffer, const cl::sycl::context &ctx) const {
+    void deallocate(void *buffer, const cl::sycl::device &dev,
+            const cl::sycl::context &ctx, cl::sycl::event deps) const {
         if (buffer) {
 #ifndef NDEBUG
             monitor_t::lock_write();
             monitor_t::record_deallocate(this, buffer);
-            sycl_free_(buffer, static_cast<const void *>(&ctx));
+            sycl_free_(buffer, static_cast<const void *>(&dev),
+                    static_cast<const void *>(&ctx),
+                    static_cast<void *>(&deps));
             monitor_t::unlock_write();
 #else
-            sycl_free_(buffer, static_cast<const void *>(&ctx));
+            sycl_free_(buffer, static_cast<const void *>(&dev),
+                    static_cast<const void *>(&ctx),
+                    static_cast<void *>(&deps));
 #endif
         }
     }

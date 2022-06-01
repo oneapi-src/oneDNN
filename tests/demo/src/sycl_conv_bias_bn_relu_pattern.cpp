@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
             ? sycl::queue(gpu_selector {}, sycl::property::queue::in_order {})
             : sycl::queue(cpu_selector {}, sycl::property::queue::in_order {});
 
-    allocator alloc = sycl_interop::make_allocator(sycl_malloc_wrapper, sycl_free_wrapper);
+    allocator alloc = sycl_interop::make_allocator(dnnl::graph::testing::sycl_malloc_wrapper, dnnl::graph::testing::sycl_free_wrapper);
     engine eng = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
 
     /// construct a new stream

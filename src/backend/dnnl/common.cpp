@@ -74,13 +74,19 @@ void dnnl_allocator_t::free(
         void *p, const dnnl::engine &p_engine, const impl::allocator_t *alc) {
     if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
-        return alc->deallocate(p, dnnl::sycl_interop::get_context(p_engine));
+        // todo(xinyu): pass returned_event from kernel
+        cl::sycl::event e;
+        return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
+                dnnl::sycl_interop::get_context(p_engine), e);
 #else
         return alc->deallocate(p);
 #endif
     } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
-        return alc->deallocate(p, dnnl::sycl_interop::get_context(p_engine));
+        // todo(xinyu): pass returned_event from kernel
+        cl::sycl::event e;
+        return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
+                dnnl::sycl_interop::get_context(p_engine), e);
 #endif
     }
 }

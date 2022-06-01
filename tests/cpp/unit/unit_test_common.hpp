@@ -36,8 +36,6 @@ namespace impl = dnnl::graph::impl;
 #ifdef DNNL_GRAPH_WITH_SYCL
 cl::sycl::device &get_device();
 cl::sycl::context &get_context();
-void *sycl_alloc(size_t n, const void *dev, const void *ctx);
-void sycl_free(void *ptr, const void *ctx);
 #endif // DNNL_GRAPH_WITH_SYCL
 
 impl::engine_t &get_engine();

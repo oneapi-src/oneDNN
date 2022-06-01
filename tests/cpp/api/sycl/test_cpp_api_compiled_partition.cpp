@@ -24,6 +24,7 @@
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 
 #include "cpp/api/test_api_common.hpp"
+#include "test_allocator.hpp"
 
 using namespace dnnl::graph;
 namespace sycl = cl::sycl;
@@ -59,7 +60,9 @@ TEST(ApiExecute, ConvReLU) {
 
     auto partition = g.get_partitions()[0];
 
-    allocator alloc = sycl_interop::make_allocator(sycl_alloc, sycl_free);
+    allocator alloc = sycl_interop::make_allocator(
+            dnnl::graph::testing::sycl_malloc_wrapper,
+            dnnl::graph::testing::sycl_free_wrapper);
 
     sycl::queue q = (ekind == engine::kind::gpu)
             ? sycl::queue(
@@ -139,7 +142,9 @@ TEST(SyclApiExecute, ConvReLU) {
 
     auto partition = g.get_partitions()[0];
 
-    allocator alloc = sycl_interop::make_allocator(sycl_alloc, sycl_free);
+    allocator alloc = sycl_interop::make_allocator(
+            dnnl::graph::testing::sycl_malloc_wrapper,
+            dnnl::graph::testing::sycl_free_wrapper);
 
     sycl::queue q = (ekind == engine::kind::gpu)
             ? sycl::queue(

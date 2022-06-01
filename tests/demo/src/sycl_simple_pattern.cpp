@@ -242,7 +242,7 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     /// Create a #dnnl::graph::allocator with two user-defined #dnnl_graph_sycl_allocate_f and #dnnl_graph_sycl_deallocate_f call-back functions.
     /// @snippet sycl_simple_pattern.cpp Create allocator
     //[Create allocator]
-    allocator alloc = sycl_interop::make_allocator(sycl_malloc_wrapper, sycl_free_wrapper);
+    allocator alloc = sycl_interop::make_allocator(dnnl::graph::testing::sycl_malloc_wrapper, dnnl::graph::testing::sycl_free_wrapper);
     //[Create allocator]
 
     /// Define SYCL queue (code outside of oneDNN graph)
