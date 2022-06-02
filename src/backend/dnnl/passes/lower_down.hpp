@@ -190,6 +190,8 @@ impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg);
 impl::status_t remove_quant_data_with_no_effect(
         std::shared_ptr<subgraph_t> &sg);
 
+impl::status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
