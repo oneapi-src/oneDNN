@@ -1249,6 +1249,43 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_bf16_MHA_fusion)
                     return fused_op;
                 });
 
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_div_matmul_fusion)
+        .set_priority(10.5f)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *typecast_data
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_data, 0)});
+                    typecast_data->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op_t *typecast_weight
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_weight, 0)});
+                    typecast_weight->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op_t *div = pgraph->append_op(impl::op_kind::Divide,
+                            in_edges_t {in_edge(0, typecast_data, 0)});
+
+                    pm::pb_op_t *matmul
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    in_edges_t {in_edge(0, div, 0),
+                                            in_edge(1, typecast_weight, 0)});
+                    matmul->append_decision_function(check_input_num<2>);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_matmul_post_ops_fusion);
+                    fused_op->set_attr<std::string>("backend", "dnnl");
+                    return fused_op;
+                });
+
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass

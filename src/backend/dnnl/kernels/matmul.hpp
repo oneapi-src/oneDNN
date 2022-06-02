@@ -90,6 +90,8 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
 
+        BACKEND_DNNL_ADD_PASS(pipeline, move_scalar_div_behind_matmul);
+
         if (quantized) {
             // split quant/dequant to pairs of mul_scales and add_zps
             BACKEND_DNNL_ADD_PASS(pipeline, split_quant_dequant);

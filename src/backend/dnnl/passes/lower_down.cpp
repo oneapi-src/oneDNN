@@ -20,6 +20,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <set>
 #include <string>
 #include <utility>
@@ -4065,6 +4066,71 @@ impl::status_t remove_quant_data_with_no_effect(
     }
 
     return impl::status::success;
+}
+
+impl::status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg) {
+    using ltw = impl::logical_tensor_wrapper_t;
+    auto &subgraph = sg->get_mutable_ops();
+    while (true) {
+        std::vector<std::pair<impl::op_t *, impl::op_t *>> to_be_swapped;
+        for (auto &op : subgraph) {
+            bool ok = op->get_kind() == dnnl_impl::op_kind::dnnl_matmul
+                    && op->get_input_value(0)->has_producer();
+            if (!ok) continue;
+
+            impl::op_t *producer = op->get_input_op(0);
+            ok = producer->get_kind() == dnnl_impl::op_kind::dnnl_binary
+                    && dnnl::algorithm::binary_div
+                            == static_cast<dnnl::algorithm>(
+                                    producer->get_attr<int64_t>("alg_kind"));
+            if (!ok) continue;
+
+            // only match scalar div
+            auto div_src0_shape
+                    = ltw(producer->get_input_value(0)->get_logical_tensor())
+                              .vdims();
+            auto div_src1_shape
+                    = ltw(producer->get_input_value(1)->get_logical_tensor())
+                              .vdims();
+            auto div_dst_shape
+                    = ltw(producer->get_output_value(0)->get_logical_tensor())
+                              .vdims();
+            ok = div_dst_shape == div_src0_shape
+                    && std::accumulate(div_src1_shape.begin(),
+                               div_src1_shape.end(), 1,
+                               std::multiplies<int64_t>())
+                            == 1;
+            if (!ok) continue;
+
+            to_be_swapped.emplace_back(
+                    std::pair<impl::op_t *, impl::op_t *> {producer, op.get()});
+        }
+
+        if (to_be_swapped.empty()) break;
+
+        for (auto &pair : to_be_swapped) {
+            impl::op_t *div = pair.first;
+            impl::op_t *mm = pair.second;
+
+            auto div_src0 = div->get_input_value(0);
+            auto div_dst = div->get_output_value(0);
+
+            div_src0->remove_consumer(*div, 0);
+            mm->connect_input(0, div_src0);
+
+            auto mm_dst = mm->get_output_value(0);
+            div->connect_output(0, mm_dst);
+
+            impl::logical_tensor_t new_lt
+                    = impl::empty_logical_tensor_with_default_id();
+            auto new_val = std::make_shared<value_t>(*mm, 0, new_lt, true);
+            new_val->set_data_type(
+                    mm->get_input_value(0)->get_logical_tensor().data_type);
+            mm->connect_output(0, new_val);
+            div->connect_input(0, new_val);
+        }
+    }
+    return infer_shape(sg);
 }
 
 } // namespace dnnl_impl
