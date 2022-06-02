@@ -47,11 +47,14 @@ void check_correctness(const settings_t &s) {
             case alg_t::EXP_DST:
             case alg_t::GELU_ERF:
             case alg_t::GELU_TANH:
+            case alg_t::HARDSIGMOID:
+            case alg_t::HARDSWISH:
             case alg_t::LOG:
             case alg_t::LOGISTIC:
             case alg_t::LOGISTIC_DST:
             case alg_t::LOGSIGMOID:
             case alg_t::MISH:
+            case alg_t::ROUND:
             case alg_t::SQRT:
             case alg_t::SQRT_DST:
             case alg_t::SQUARE:
@@ -72,6 +75,7 @@ void check_correctness(const settings_t &s) {
             case alg_t::ELU_DST:
             case alg_t::RELU:
             case alg_t::RELU_DST:
+            case alg_t::SRELU_V2:
             case alg_t::SWISH:
                 if (i_beta != 0)
                     BENCHDNN_PRINT(2, "%s\n",
