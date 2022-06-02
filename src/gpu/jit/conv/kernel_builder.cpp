@@ -1992,11 +1992,10 @@ public:
 
     template <typename T>
     void visit_stmt(const T &obj) {
-        auto obj_type_id = T::_type_id();
-        bool is_for = (obj_type_id == for_t::_type_id());
-        bool is_stmt_group = (obj_type_id == stmt_group_t::_type_id());
-        bool is_let = (obj_type_id == let_t::_type_id());
-        bool is_stmt_seq = (obj_type_id == stmt_seq_t::_type_id());
+        bool is_for = obj.template is<for_t>();
+        bool is_stmt_group = obj.template is<stmt_group_t>();
+        bool is_let = obj.template is<let_t>();
+        bool is_stmt_seq = obj.template is<stmt_seq_t>();
 
         // Loop may contain:
         // - Another loop
@@ -2007,7 +2006,7 @@ public:
             bool ok = false;
             if (is_for || is_let || is_stmt_group || is_stmt_seq) {
                 ok = true;
-            } else if (obj_type_id == func_call_t::_type_id()) {
+            } else if (obj.template is<func_call_t>()) {
                 auto &call = obj.template as<func_call_t>();
                 ok = call.func.is_equal(funcs::barrier_func());
             }

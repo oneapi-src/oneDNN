@@ -106,16 +106,18 @@ enum ir_type_id_t {
 // Auxiliary macros to reduce boilerplate.
 #define IR_DECL_TYPE_ID(class_name) \
     using self_type = class_name; \
-    static int64_t _type_id() { return ir_type_id_t::class_name; } \
-    static int64_t _dispatch_type_id() { return _type_id(); } \
-    int64_t type_id() const override { return _type_id(); }
+    static ir_type_id_t _type_id() { return ir_type_id_t::class_name; } \
+    static ir_type_id_t _dispatch_type_id() { return _type_id(); } \
+    ir_type_id_t type_id() const override { return _type_id(); }
 
 #define IR_DECL_DERIVED_TYPE_ID(class_name, base_name) \
     using self_type = class_name; \
-    static int64_t _type_id() { return ir_type_id_t::class_name; } \
-    int64_t type_id() const override { return _type_id(); } \
-    static int64_t _dispatch_type_id() { return base_name::_type_id(); } \
-    int64_t dispatch_type_id() const override { return _dispatch_type_id(); }
+    static ir_type_id_t _type_id() { return ir_type_id_t::class_name; } \
+    ir_type_id_t type_id() const override { return _type_id(); } \
+    static ir_type_id_t _dispatch_type_id() { return base_name::_type_id(); } \
+    ir_type_id_t dispatch_type_id() const override { \
+        return _dispatch_type_id(); \
+    }
 
 #define IR_DECL_EXPR_TYPE_ID(class_name) \
     IR_DECL_TYPE_ID(class_name) \
@@ -545,12 +547,9 @@ public:
 
     ref_count_t &ref_count() { return ref_count_; }
 
-    // Unique type ID.
-    virtual int64_t type_id() const = 0;
-
     // Type ID used for dispatching in ir_visitor_t and ir_mutator_t.
     // For some IR objects
-    virtual int64_t dispatch_type_id() const { return type_id(); }
+    virtual ir_type_id_t dispatch_type_id() const { return type_id(); }
 
     // Provides equality semantics.
     virtual bool is_equal(const object_impl_t &obj) const = 0;
@@ -564,13 +563,13 @@ public:
     // must match the real IR type.
     template <typename T>
     const T &as() const {
-        ir_assert(type_id() == T::_type_id());
+        ir_assert(this->is<T>());
         return *(const T *)this;
     }
 
     template <typename T>
     T &as() {
-        ir_assert(type_id() == T::_type_id());
+        ir_assert(this->is<T>());
         return *(T *)this;
     }
 
@@ -578,13 +577,13 @@ public:
     // doesn't match the real IR type, returns nullptr.
     template <typename T>
     const T *as_ptr() const {
-        if (type_id() != T::_type_id()) return nullptr;
+        if (!this->is<T>()) return nullptr;
         return (const T *)this;
     }
 
     template <typename T>
     T *as_ptr() {
-        if (type_id() != T::_type_id()) return nullptr;
+        if (!this->is<T>()) return nullptr;
         return (T *)this;
     }
 
@@ -601,6 +600,9 @@ public:
     IR_DEFINE_DUMP()
 
 private:
+    // Unique type ID.
+    virtual ir_type_id_t type_id() const = 0;
+
     ref_count_t ref_count_;
 };
 
@@ -653,9 +655,7 @@ public:
 
     bool is_empty() const { return !impl_; }
 
-    int64_t type_id() const { return impl_->type_id(); }
-
-    int64_t dispatch_type_id() const { return impl_->dispatch_type_id(); }
+    ir_type_id_t dispatch_type_id() const { return impl_->dispatch_type_id(); }
 
     template <typename T>
     const T &as() const {

@@ -363,7 +363,7 @@ public:
     }
 
 #define CASE(type, var_field, is_pre) \
-    if (obj.type_id() == type::_type_id()) { \
+    if (obj.is<type>()) { \
         visit_scope((const type &)obj, ((const type &)obj).var_field, is_pre); \
         return; \
     }
