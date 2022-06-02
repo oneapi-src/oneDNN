@@ -3378,7 +3378,7 @@ public:
             auto &mask = send_t::arg_mask(args);
             // If all channels are disabled for writing, quick return.
             if (all_of(mask, expr_t(false))) {
-                if (send_func.is_load()) {
+                if (send_func.is_load() || send_func.is_load_2d()) {
                     auto reg_buf_op = eval(send_t::arg_reg_buf(args), scope);
                     zero_out_data_payload(send_func, send_func.nmasks(),
                             reg_buf_op.reg_buf_data());
