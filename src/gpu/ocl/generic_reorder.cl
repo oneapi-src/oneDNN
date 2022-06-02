@@ -80,9 +80,6 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         b[S_BLK_IDX_2] += iter[2] * S_BLK_STEP_2;
         b[S_BLK_IDX_3] += iter[3] * S_BLK_STEP_3;
 
-        const uint src_off = SRC_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
-                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
-
 #if S_MOD_3 > 1
         b[S_IDX_3] += S_MUL_3 * ((sgId / S_DIV_3) % S_MOD_3);
 #endif
@@ -95,6 +92,12 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
 #if S_MOD_0 > 1
         b[S_IDX_0] += S_MUL_0 * ((sgId / S_DIV_0) % S_MOD_0);
 #endif
+
+        // In a majority of cases, src_off contains neighboring values for
+        // neighboring workitems. Exceptions occur when the src tensor has
+        // additional striding in some dimension(s).
+        const uint src_off = SRC_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+                d[3] + b[3], d[4] + b[4], d[5] + b[5]);
 
         // Data in cache (local mem) is organized as if it had 'fedcba' format
         // tag. This is neither src's nor dst's format so some performance is
@@ -113,12 +116,7 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         const int pad
                 = pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5;
         if (!pad_sgid) {
-            // src_off is based on coordinates of blocks and returns same
-            // result for each workitem in subgroup. This is to make sure
-            // offset calculation is simple enough that compiler won't split
-            // this burst into single bytes accesses. Yet each workitem will
-            // read different address thanks to "+sgID" statement
-            SRC_DATA_T src_tmp = pad ? 0 : src[src_off + sgId];
+            SRC_DATA_T src_tmp = pad ? 0 : src[src_off];
             cache[cache_idx] = src_tmp;
         }
     }
@@ -163,6 +161,10 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         b[D_IDX_0] += D_MUL_0 * ((sgId / D_DIV_0) % D_MOD_0);
 #endif
 
+        // In a majority of cases, dst_off contains neighboring values for
+        // neighboring workitems. Exceptions occur when the dst tensor has
+        // additional striding in some dimension(s), e.g., when reorder is used
+        // in reference concat.
         const uint dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
                 d[3] + b[3], d[4] + b[4], d[5] + b[5]);
 
