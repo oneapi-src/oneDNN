@@ -293,7 +293,8 @@ private:
 
     send_t(ngen::HW hw, send_op_t op, send_address_t address,
             const type_t &type, int slots)
-        : hw(hw)
+        : func_impl_t(_type_info())
+        , hw(hw)
         , op(op)
         , address(address)
         , type(type)
@@ -302,7 +303,8 @@ private:
 
     send_t(ngen::HW hw, send_op_t op, const type_t &type,
             const block_2d_info_t &block_2d_info)
-        : hw(hw)
+        : func_impl_t(_type_info())
+        , hw(hw)
         , op(op)
         , address(send_address_t::a64)
         , type(type)

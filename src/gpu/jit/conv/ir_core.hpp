@@ -71,7 +71,7 @@
     HANDLE_STMT_IR_OBJECTS() \
     HANDLE_IR_OBJECT(func_impl_t)
 
-enum ir_type_id_t {
+enum ir_type_id_t : uint8_t {
 #define HANDLE_IR_OBJECT(type) type,
 
     // Create typeid for objects which can be visited/mutated. These need to be
@@ -103,21 +103,26 @@ enum ir_type_id_t {
 #undef HANDLE_IR_OBJECT
 };
 
+struct type_info_t {
+    type_info_t(ir_type_id_t type_id) : type_id(type_id) {};
+    ir_type_id_t type_id;
+};
+
 // Auxiliary macros to reduce boilerplate.
 #define IR_DECL_TYPE_ID(class_name) \
     using self_type = class_name; \
     static ir_type_id_t _type_id() { return ir_type_id_t::class_name; } \
     static ir_type_id_t _dispatch_type_id() { return _type_id(); } \
-    ir_type_id_t type_id() const override { return _type_id(); }
+    static type_info_t _type_info() { return type_info_t(_type_id()); }
 
 #define IR_DECL_DERIVED_TYPE_ID(class_name, base_name) \
     using self_type = class_name; \
     static ir_type_id_t _type_id() { return ir_type_id_t::class_name; } \
-    ir_type_id_t type_id() const override { return _type_id(); } \
     static ir_type_id_t _dispatch_type_id() { return base_name::_type_id(); } \
     ir_type_id_t dispatch_type_id() const override { \
         return _dispatch_type_id(); \
-    }
+    } \
+    static type_info_t _type_info() { return type_info_t(_type_id()); }
 
 #define IR_DECL_EXPR_TYPE_ID(class_name) \
     IR_DECL_TYPE_ID(class_name) \
@@ -539,7 +544,8 @@ HANDLE_TRAVERSE_TARGETS()
 // the reference counter stored inside the object.
 class object_impl_t {
 public:
-    object_impl_t() = default;
+    object_impl_t(type_info_t type_info)
+        : ref_count_(), type_info_(type_info) {};
 
     object_impl_t(const object_impl_t &) = delete;
 
@@ -601,9 +607,10 @@ public:
 
 private:
     // Unique type ID.
-    virtual ir_type_id_t type_id() const = 0;
+    ir_type_id_t type_id() const { return type_info_.type_id; };
 
     ref_count_t ref_count_;
+    type_info_t type_info_;
 };
 
 // Base wrapper for IR objects.
@@ -850,7 +857,8 @@ class expr_impl_t : public object_impl_t {
 public:
     IR_DECL_TYPE_ID(expr_impl_t)
 
-    expr_impl_t(const type_t &type) : type(type) {}
+    expr_impl_t(type_info_t type_info, const type_t &type)
+        : object_impl_t(type_info), type(type) {}
 
     type_t type;
 };
@@ -1003,7 +1011,8 @@ public:
 
 private:
     binary_op_t(op_kind_t op_kind, const expr_t &a, const expr_t &b, type_t ty)
-        : expr_impl_t((ty.is_undef()) ? binary_op_type(op_kind, a, b) : ty)
+        : expr_impl_t(_type_info(),
+                (ty.is_undef()) ? binary_op_type(op_kind, a, b) : ty)
         , op_kind(op_kind)
         , a(a)
         , b(b) {}
@@ -1031,7 +1040,8 @@ public:
     bool value;
 
 private:
-    bool_imm_t(bool value) : expr_impl_t(type_t::_bool()), value(value) {}
+    bool_imm_t(bool value)
+        : expr_impl_t(_type_info(), type_t::_bool()), value(value) {}
 };
 
 // Cast between data types. In general conversion follows the C++ casting
@@ -1082,7 +1092,7 @@ public:
 
 private:
     cast_t(const type_t &type, const expr_t &expr, bool saturate)
-        : expr_impl_t(type), expr(expr), saturate(saturate) {
+        : expr_impl_t(_type_info(), type), expr(expr), saturate(saturate) {
         if (!is_bool_vec_u16()) {
             ir_assert(type.elems() == expr.type().elems())
                     << "Number of elements must match.";
@@ -1123,7 +1133,8 @@ public:
 
 private:
     float_imm_t(double value, const type_t &type = type_t::undef())
-        : expr_impl_t(type.is_undef() ? type_t::f32() : type), value(value) {}
+        : expr_impl_t(_type_info(), type.is_undef() ? type_t::f32() : type)
+        , value(value) {}
 };
 
 // Integer immediate value.
@@ -1167,7 +1178,7 @@ public:
 
 private:
     int_imm_t(int64_t value, const type_t &type = type_t::undef())
-        : expr_impl_t(type.is_undef() ? shrink_type(value) : type)
+        : expr_impl_t(_type_info(), type.is_undef() ? shrink_type(value) : type)
         , value(value) {}
 
     static type_t shrink_type(int64_t v) {
@@ -1207,7 +1218,8 @@ public:
 
 private:
     iif_t(const expr_t &cond, const expr_t &true_expr, const expr_t &false_expr)
-        : expr_impl_t(common_type(true_expr.type(), false_expr.type()))
+        : expr_impl_t(
+                _type_info(), common_type(true_expr.type(), false_expr.type()))
         , cond(cond)
         , true_expr(true_expr)
         , false_expr(false_expr) {}
@@ -1262,7 +1274,10 @@ public:
 private:
     load_t(const type_t &_type, const expr_t &_buf, const expr_t &_off,
             int _stride)
-        : expr_impl_t(_type), buf(_buf), off(_off), stride(_stride) {
+        : expr_impl_t(_type_info(), _type)
+        , buf(_buf)
+        , off(_off)
+        , stride(_stride) {
         normalize_ptr(type, buf, off);
         ir_assert(is_var(buf)) << buf;
         ir_assert(buf.type().is_ptr()) << buf;
@@ -1310,7 +1325,7 @@ public:
 
 private:
     nary_op_t(op_kind_t op_kind, const std::vector<expr_t> &args)
-        : expr_impl_t(nary_op_type(op_kind, args))
+        : expr_impl_t(_type_info(), nary_op_type(op_kind, args))
         , op_kind(op_kind)
         , args(args) {}
 };
@@ -1349,7 +1364,7 @@ public:
 
 private:
     ptr_t(const expr_t &base, const expr_t &off)
-        : expr_impl_t(base.type()), base(base), off(off) {
+        : expr_impl_t(_type_info(), base.type()), base(base), off(off) {
         normalize(this->base, this->off);
     }
 };
@@ -1442,7 +1457,9 @@ public:
 
 private:
     shuffle_t(const std::vector<expr_t> &vec, const std::vector<int> &idx)
-        : expr_impl_t(shuffle_type(vec, idx)), vec(vec), idx(idx) {
+        : expr_impl_t(_type_info(), shuffle_type(vec, idx))
+        , vec(vec)
+        , idx(idx) {
         ir_assert(idx.size() > 1) << "Unexpected empty or scalar shuffle.";
     }
 
@@ -1497,7 +1514,8 @@ public:
 private:
     ternary_op_t(op_kind_t op_kind, const expr_t &a, const expr_t &b,
             const expr_t &c, type_t ty)
-        : expr_impl_t((ty.is_undef()) ? ternary_op_type(op_kind, a, b, c) : ty)
+        : expr_impl_t(_type_info(),
+                (ty.is_undef()) ? ternary_op_type(op_kind, a, b, c) : ty)
         , op_kind(op_kind)
         , a(a)
         , b(b)
@@ -1537,7 +1555,9 @@ public:
 
 private:
     unary_op_t(op_kind_t op_kind, const expr_t &a)
-        : expr_impl_t(unary_op_type(op_kind, a)), op_kind(op_kind), a(a) {}
+        : expr_impl_t(_type_info(), unary_op_type(op_kind, a))
+        , op_kind(op_kind)
+        , a(a) {}
 };
 
 class var_t : public expr_impl_t {
@@ -1561,7 +1581,7 @@ public:
 
 private:
     var_t(const type_t &type, const std::string &name)
-        : expr_impl_t(type), name(name) {}
+        : expr_impl_t(_type_info(), type), name(name) {}
 };
 
 // Convertor from C++ type to IR expression.
@@ -1677,6 +1697,7 @@ expr_t shift_ptr(op_kind_t op_kind, const expr_t &a, const expr_t &b);
 class stmt_impl_t : public object_impl_t {
 public:
     IR_DECL_TYPE_ID(stmt_impl_t)
+    stmt_impl_t(type_info_t type_info) : object_impl_t(type_info) {}
 };
 
 // Wrapper for IR statement objects.
@@ -1714,7 +1735,10 @@ enum class alloc_kind_t {
     global, // Global memory.
 };
 
-class alloc_attr_impl_t : public object_impl_t {};
+class alloc_attr_impl_t : public object_impl_t {
+public:
+    alloc_attr_impl_t(type_info_t type_info) : object_impl_t(type_info) {}
+};
 
 class alloc_attr_t : public object_t {
 public:
@@ -1765,7 +1789,7 @@ public:
 
 private:
     grf_permute_attr_t(const std::shared_ptr<grf_permutation_t> &grf_perm)
-        : grf_perm(grf_perm) {}
+        : alloc_attr_impl_t(_type_info()), grf_perm(grf_perm) {}
 };
 
 // Allocation attribute to store extra information to avoid bank conflicts.
@@ -1796,7 +1820,10 @@ private:
     bank_conflict_attr_t(const std::vector<expr_t> &bufs,
             const std::vector<int> &buf_sizes,
             const std::vector<stmt_t> &instructions)
-        : bufs(bufs), buf_sizes(buf_sizes), instructions(instructions) {}
+        : alloc_attr_impl_t(_type_info())
+        , bufs(bufs)
+        , buf_sizes(buf_sizes)
+        , instructions(instructions) {}
 };
 
 // Allocation for SLM and GRF buffers.
@@ -1865,7 +1892,12 @@ public:
 private:
     alloc_t(const expr_t &buf, int size, alloc_kind_t kind,
             const std::vector<alloc_attr_t> &attrs, const stmt_t &body)
-        : buf(buf), size(size), kind(kind), attrs(attrs), body(body) {
+        : stmt_impl_t(_type_info())
+        , buf(buf)
+        , size(size)
+        , kind(kind)
+        , attrs(attrs)
+        , body(body) {
         ir_assert(buf.type().is_ptr()) << buf;
     }
 };
@@ -1929,7 +1961,8 @@ public:
 private:
     store_t(const expr_t &_buf, const expr_t &_off, const expr_t &_value,
             int _stride, const expr_t &_mask, bool _fill_mask0)
-        : buf(_buf)
+        : stmt_impl_t(_type_info())
+        , buf(_buf)
         , off(_off)
         , value(_value)
         , stride(_stride)
@@ -1983,7 +2016,12 @@ public:
 private:
     for_t(const expr_t &var, const expr_t &init, const expr_t &bound,
             const stmt_t &body, int unroll)
-        : var(var), init(init), bound(bound), body(body), unroll(unroll) {}
+        : stmt_impl_t(_type_info())
+        , var(var)
+        , init(init)
+        , bound(bound)
+        , body(body)
+        , unroll(unroll) {}
 };
 
 // If-else statement.
@@ -2022,7 +2060,10 @@ public:
 
 private:
     if_t(const expr_t &cond, const stmt_t &body, const stmt_t &else_body)
-        : cond(cond), body(body), else_body(else_body) {}
+        : stmt_impl_t(_type_info())
+        , cond(cond)
+        , body(body)
+        , else_body(else_body) {}
 };
 
 // Let statement, used to bind a variable to a value within a scope.
@@ -2060,7 +2101,7 @@ public:
 
 private:
     let_t(const expr_t &var, const expr_t &value, const stmt_t &body)
-        : var(var), value(value), body(body) {
+        : stmt_impl_t(_type_info()), var(var), value(value), body(body) {
         if (!value.is_empty() && !is_const(value))
             ir_assert(var.type() == value.type());
     }
@@ -2184,7 +2225,7 @@ public:
 
 private:
     stmt_group_t(const stmt_label_t &label, const stmt_t &body)
-        : label(label), body(body) {}
+        : stmt_impl_t(_type_info()), label(label), body(body) {}
 };
 
 // Statement sequence, allows combining two statements.
@@ -2217,7 +2258,7 @@ public:
 
 private:
     stmt_seq_t(const stmt_t &head, const stmt_t &tail)
-        : head(head), tail(tail) {}
+        : stmt_impl_t(_type_info()), head(head), tail(tail) {}
 };
 
 inline stmt_t stmt_t::append(const stmt_t &s) const {
@@ -2226,7 +2267,10 @@ inline stmt_t stmt_t::append(const stmt_t &s) const {
 }
 
 // Function call attribute.
-class func_call_attr_impl_t : public object_impl_t {};
+class func_call_attr_impl_t : public object_impl_t {
+public:
+    func_call_attr_impl_t(type_info_t type_info) : object_impl_t(type_info) {}
+};
 
 class func_call_attr_t : public object_t {
 public:
@@ -2296,13 +2340,15 @@ public:
 
 private:
     instruction_modifier_attr_t(const ngen_proxy::InstructionModifier &mod)
-        : mod(mod) {}
+        : func_call_attr_impl_t(_type_info()), mod(mod) {}
 };
 
 // Base class for function IR objects.
 class func_impl_t : public object_impl_t {
 public:
     IR_DECL_TYPE_ID(func_impl_t)
+
+    func_impl_t(type_info_t type_info) : object_impl_t(type_info) {}
 
     stmt_t call(const std::vector<expr_t> &args,
             const func_call_attr_t &attr = {}) const;
@@ -2372,7 +2418,7 @@ public:
 private:
     func_call_t(const func_t &func, const std::vector<expr_t> &args,
             const func_call_attr_t &attr)
-        : func(func), args(args), attr(attr) {
+        : stmt_impl_t(_type_info()), func(func), args(args), attr(attr) {
         ir_assert(!func.is_empty());
     }
 };
@@ -2419,7 +2465,8 @@ public:
     std::string name;
 
 private:
-    builtin_t(const std::string &name) : name(name) {}
+    builtin_t(const std::string &name)
+        : func_impl_t(_type_info()), name(name) {}
 };
 
 #ifndef SANITY_CHECK

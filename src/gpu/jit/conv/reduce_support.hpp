@@ -62,7 +62,9 @@ public:
 
 private:
     reduce_t(const layout_t &src_layout, const layout_t &dst_layout)
-        : src_layout(src_layout), dst_layout(dst_layout) {}
+        : func_impl_t(_type_info())
+        , src_layout(src_layout)
+        , dst_layout(dst_layout) {}
 };
 
 stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,

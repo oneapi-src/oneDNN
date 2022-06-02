@@ -73,7 +73,7 @@ public:
     int id;
 
 private:
-    pexpr_t(int id) : expr_impl_t(type_t::undef()), id(id) {}
+    pexpr_t(int id) : expr_impl_t(_type_info(), type_t::undef()), id(id) {}
 };
 
 // Pattern expression for int_imm_t, used as a wild card during pattern
@@ -124,7 +124,7 @@ public:
 
 private:
     pint_imm_t(int id, int64_t value)
-        : expr_impl_t(type_t::undef()), id(id), value(value) {}
+        : expr_impl_t(_type_info(), type_t::undef()), id(id), value(value) {}
 };
 
 // Stores already matched pairs of <pattern expression, matched expression>.
@@ -1028,12 +1028,12 @@ public:
     std::vector<expr_t> factors;
 
 private:
-    factored_expr_t(const expr_t &e) : expr_impl_t(e.type()) {
+    factored_expr_t(const expr_t &e) : expr_impl_t(_type_info(), e.type()) {
         init_factors(e);
     }
 
     factored_expr_t(const type_t &type, const std::vector<expr_t> &factors)
-        : expr_impl_t(type) {
+        : expr_impl_t(_type_info(), type) {
         init_normalize(factors);
     }
 

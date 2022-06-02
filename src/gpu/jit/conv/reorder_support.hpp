@@ -106,7 +106,9 @@ public:
 
 private:
     reorder_t(const layout_t &src_layout, const layout_t &dst_layout)
-        : src_layout(src_layout), dst_layout(dst_layout) {}
+        : func_impl_t(_type_info())
+        , src_layout(src_layout)
+        , dst_layout(dst_layout) {}
 };
 
 inline stmt_t create_reorder_stmt(const layout_t &src, const layout_t &dst,

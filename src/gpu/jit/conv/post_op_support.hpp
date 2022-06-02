@@ -111,7 +111,11 @@ public:
 
 private:
     eltwise_t(alg_kind_t alg_kind, float scale, float alpha, float beta)
-        : alg_kind(alg_kind), scale(scale), alpha(alpha), beta(beta) {}
+        : func_impl_t(_type_info())
+        , alg_kind(alg_kind)
+        , scale(scale)
+        , alpha(alpha)
+        , beta(beta) {}
 };
 
 class post_op_tensor_info_t {

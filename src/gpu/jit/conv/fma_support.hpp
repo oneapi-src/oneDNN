@@ -172,7 +172,8 @@ private:
     dpas_t(bool is_dpasw, int exec_size, int sdepth, int rcount,
             const type_t &dst_type, const type_t &src1_type,
             const type_t &src2_type)
-        : is_dpasw(is_dpasw)
+        : func_impl_t(_type_info())
+        , is_dpasw(is_dpasw)
         , exec_size(exec_size)
         , sdepth(sdepth)
         , rcount(rcount)
@@ -269,7 +270,8 @@ private:
     mad_t(ngen::HW hw, const type_t &dst_type, int exec_size,
             const type_t &src1_type, int src1_stride, const type_t &src2_type,
             int src2_stride)
-        : dst_type(dst_type)
+        : func_impl_t(_type_info())
+        , dst_type(dst_type)
         , src1_type(src1_type)
         , src2_type(src2_type)
         , exec_size(exec_size)
