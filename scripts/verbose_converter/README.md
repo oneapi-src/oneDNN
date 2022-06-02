@@ -100,13 +100,13 @@ and the timings information for all calls with the same primitive kind.
 The output is sorted by highest total time to lowest.
 ```
 > python3 verbose_converter.py -i input.log -g breakdown -k prim_kind
-prim_kind,occurences,aggregate_time(ms)
-inner_product,301,311.4811789999998
-convolution,501,137.45923599999998
-eltwise,501,79.14037930000006
-reorder,308,71.8202645440002
-pooling,301,53.40942570000002
-lrn,201,32.78637499999999
+prim_kind,ncalls,agg_time(ms),overall%
+inner_product,300,416.82,71.71
+convolution,500,126.54,21.77
+lrn,200,27.90,4.80
+pooling,300,3.73,0.64
+eltwise,500,3.44,0.59
+reorder,205,2.81,0.48
 ```
 
 If we want more details, we can further break that down by shapes as well. So
@@ -114,34 +114,31 @@ all primitives with the same primitive kind and shapes, will have they count
 call and timings accumulated into one line of the output as follow:
 ```
 > python3 verbose_converter.py -i input.log -g breakdown -k prim_kind shapes
-prim_kind,shapes,occurences,aggregate_time(ms)
-inner_product,mb1ic256ih6iw6oc4096,101,175.4616299999999
-inner_product,mb1ic4096oc4096,101,89.36720599999997
-inner_product,mb1ic4096oc1000,101,46.652343
-convolution,mb1_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,101,32.21972500000001
-convolution,g2mb1_ic96oc256_ih27oh27kh5sh1dh0ph2_iw27ow27kw5sw1dw0pw2,101,31.473633000000007
-eltwise,1x384x13x13,201,31.428715300000018
-convolution,mb1_ic256oc384_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,101,26.85766700000001
-reorder,96x3x11x11,2,26.717
-convolution,g2mb1_ic384oc384_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,101,24.563482999999998
-convolution,g2mb1_ic384oc256_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,101,22.344727999999993
-pooling,mb1ic256_ih27oh13kh3sh2dh0ph0_iw27ow13kw3sw2dw0pw0,101,20.230471000000005
-pooling,mb1ic96_ih55oh27kh3sh2dh0ph0_iw55ow27kw3sw2dw0pw0,101,18.083004999999993
-lrn,mb1ic96ih55iw55ls5beta0.75,101,16.899171000000006
-reorder,1x3x227x227,101,16.661868000000005
-eltwise,1x256x27x27,101,16.480463000000007
-eltwise,1x96x55x55,101,16.232178000000008
-lrn,mb1ic256ih27iw27ls5beta0.75,101,15.887204000000008
-reorder,1x256x6x6,101,15.192869100000005
-pooling,mb1ic256_ih13oh6kh3sh2dh0ph0_iw13ow6kw3sw2dw0pw0,101,15.095949699999998
-eltwise,1x256x13x13,101,14.999022999999998
-reorder,4096x4096,2,8.29321
-reorder,1000x4096,2,2.10693
-reorder,384x256x3x3,2,0.963867
-reorder,2x128x192x3x3,2,0.716064
-reorder,2x192x192x3x3,2,0.520996
-reorder,2x128x48x5x5,2,0.464111
-reorder,1x1000,101,0.1833494439999998
+prim_kind,shapes,ncalls,agg_time(ms),overall%
+inner_product,mb1ic256ih6iw6oc4096,100,272.12,46.82
+inner_product,mb1ic4096oc4096,100,115.82,19.93
+convolution,g2mb1_ic96oc256_ih27oh27kh5sh1dh0ph2_iw27ow27kw5sw1dw0pw2,100,37.31,6.42
+convolution,mb1_ic256oc384_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,100,30.69,5.28
+inner_product,mb1ic4096oc1000,100,28.89,4.97
+convolution,g2mb1_ic384oc384_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,100,23.41,4.03
+convolution,mb1_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,100,19.80,3.41
+lrn,mb1ic96ih55iw55ls5beta0.75,100,18.19,3.13
+convolution,g2mb1_ic384oc256_ih13oh13kh3sh1dh0ph1_iw13ow13kw3sw1dw0pw1,100,15.32,2.64
+lrn,mb1ic256ih27iw27ls5beta0.75,100,9.70,1.67
+pooling,mb1ic96_ih55oh27kh3sh2dh0ph0_iw55ow27kw3sw2dw0pw0,100,1.89,0.32
+pooling,mb1ic256_ih27oh13kh3sh2dh0ph0_iw27ow13kw3sw2dw0pw0,100,1.31,0.23
+eltwise,1x96x55x55,100,1.29,0.22
+reorder,96x3x11x11,1,1.18,0.20
+eltwise,1x384x13x13,200,0.92,0.16
+eltwise,1x256x27x27,100,0.79,0.14
+pooling,mb1ic256_ih13oh6kh3sh2dh0ph0_iw13ow6kw3sw2dw0pw0,100,0.53,0.09
+reorder,1x256x6x6,100,0.51,0.09
+eltwise,1x256x13x13,100,0.44,0.08
+reorder,384x256x3x3,1,0.26,0.04
+reorder,2x192x192x3x3,1,0.26,0.04
+reorder,1x1000,100,0.23,0.04
+reorder,2x128x192x3x3,1,0.20,0.04
+reorder,2x128x48x5x5,1,0.17,0.03
 ```
 
 
