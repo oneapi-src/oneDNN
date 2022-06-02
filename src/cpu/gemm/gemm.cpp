@@ -205,15 +205,9 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
 #ifdef __MMA__
     int ATflag = (*transa == 'T') || (*transa == 't');
     int BTflag = (*transb == 'T') || (*transb == 't');
-    int m = (int)*M;
-    int n = (int)*N;
-    int k = (int)*K;
-    int lda = (int)*LDA;
-    int ldb = (int)*LDB;
-    int ldc = (int)*LDC;
 
-    return cblas_gemm_s8u8s32_ppc64(ATflag, BTflag, offsetc, m, n, k, *alpha, A,
-            lda, ao, B, ldb, bo, C, *beta, ldc, co, 0);
+    return cblas_gemm_s8x8s32_ppc64(ATflag, BTflag, offsetc, *M, *N, *K, *alpha,
+            A, *LDA, ao, B, *LDB, bo, C, *beta, *LDC, co, 0);
 #endif
 #endif
 
@@ -251,16 +245,16 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
 #ifdef __MMA__
     int ATflag = (*transa == 'T') || (*transa == 't');
     int BTflag = (*transb == 'T') || (*transb == 't');
-    int m = (int)*M;
-    int n = (int)*N;
-    int k = (int)*K;
-    int lda = (int)*LDA;
-    int ldb = (int)*LDB;
-    int ldc = (int)*LDC;
 
-    return cblas_gemm_s8u8s32_ppc64(ATflag, BTflag, offsetc, m, n, k, *alpha, A,
-            lda, ao, (const uint8_t *)B, ldb, (const uint8_t *)bo, C, *beta,
-            ldc, co, 1);
+    // Note please that the coercion of "B" and "bo" from int8_t to uint8_t is
+    // accompanied by the last parameter being set to "1" instead of "0", as
+    // in the analogous call in the previous routine above.
+    // This last parameter flags the fact of the coercion, so the called routine
+    // can process "B" and "bo" appropriately.
+
+    return cblas_gemm_s8x8s32_ppc64(ATflag, BTflag, offsetc, *M, *N, *K, *alpha,
+            A, *LDA, ao, (const uint8_t *)B, *LDB, (const uint8_t *)bo, C,
+            *beta, *LDC, co, 1);
 #endif
 #endif
 

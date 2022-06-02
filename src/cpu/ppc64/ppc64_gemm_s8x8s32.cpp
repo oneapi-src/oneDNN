@@ -24,11 +24,11 @@ namespace impl {
 namespace cpu {
 namespace ppc64 {
 
-dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
-        char const *offsetc, int m, int n, int k, float alpha,
-        signed char const *A, int lda, signed char const *ao,
-        unsigned char const *B, int ldb, unsigned char const *bo, int *C,
-        float beta, int ldc, int const *co, int flipB_flag) {
+dnnl_status_t cblas_gemm_s8x8s32_ppc64(int ATflag, int BTflag,
+        char const *offsetc, dim_t m, dim_t n, dim_t k, float alpha,
+        int8_t const *A, dim_t lda, int8_t const *ao, uint8_t const *B,
+        dim_t ldb, uint8_t const *bo, int *C, float beta, dim_t ldc,
+        int const *co, int flipB_flag) {
 
     int m_cap, n_cap, k_cap;
     m_cap = (m + 3) & (~3);
@@ -50,8 +50,8 @@ dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
         for (int i = 0; i < a_size; ++i)
             Ashort[i] = ((short)A[i]) - (short)*ao;
         if (flipB_flag) {
-            const signed char *Bflip = (const signed char *)B;
-            const signed char *bo_flip = (const signed char *)bo;
+            const int8_t *Bflip = (const int8_t *)B;
+            const int8_t *bo_flip = (const int8_t *)bo;
             for (int i = 0; i < b_size; ++i)
                 Bshort[i] = ((short)(Bflip[i])) - (short)*bo_flip;
         } else {
@@ -83,19 +83,17 @@ dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
         free(APraw);
         free(BPraw);
     } else {
-        signed char *AP, *APraw;
-        unsigned char *BP, *BPraw;
-        APraw = (signed char *)malloc(
-                (m_cap * k_cap + 3) * sizeof(unsigned char), 4096);
-        BPraw = (unsigned char *)malloc(
-                (k_cap * n_cap + 3) * sizeof(signed char), 4096);
+        int8_t *AP, *APraw;
+        uint8_t *BP, *BPraw;
+        APraw = (int8_t *)malloc((m_cap * k_cap + 3) * sizeof(uint8_t), 4096);
+        BPraw = (uint8_t *)malloc((k_cap * n_cap + 3) * sizeof(int8_t), 4096);
         if (utils::any_null(APraw, BPraw)) {
             free(APraw);
             free(BPraw);
             return dnnl_out_of_memory;
         }
-        AP = (signed char *)((((unsigned long)APraw) + 3) & (~3));
-        BP = (unsigned char *)((((unsigned long)BPraw) + 3) & (~3));
+        AP = (int8_t *)((((unsigned long)APraw) + 3) & (~3));
+        BP = (uint8_t *)((((unsigned long)BPraw) + 3) & (~3));
         if (ATflag)
             pack_N16_8bit(k, m, A, lda, AP);
         else
@@ -136,7 +134,7 @@ dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
             if (ATflag) {
                 for (int i = 0; i < m; ++i) {
                     int ca = 0;
-                    const signed char *at = &A[lda * i];
+                    const int8_t *at = &A[lda * i];
                     for (int j = 0; j < k; ++j) {
                         ca += (int)*at++;
                     }
@@ -145,7 +143,7 @@ dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
             } else {
                 for (int j = 0; j < k; ++j) {
                     int *ca = comparray;
-                    const signed char *at = &A[lda * j];
+                    const int8_t *at = &A[lda * j];
                     for (int i = 0; i < m; ++i) {
                         *ca++ += (int)*at++;
                     }
@@ -185,7 +183,7 @@ dnnl_status_t cblas_gemm_s8u8s32_ppc64(int ATflag, int BTflag,
 
 } // namespace ppc64
 } // namespace cpu
-} //namespace impl
+} // namespace impl
 } // namespace dnnl
 
 #endif // __MMA__

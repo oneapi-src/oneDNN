@@ -17,6 +17,9 @@
 #include <altivec.h>
 #include "cpu/simple_q10n.hpp"
 
+namespace dnnl {
+namespace impl {
+
 typedef int int_A1 __attribute__((aligned(1)));
 #define memcpy_4(_d, _s) *((int_A1 *)(_d)) = *((int_A1 *)(_s));
 
@@ -102,10 +105,10 @@ typedef int int_A1 __attribute__((aligned(1)));
 
 #define memcpy_n(_d, _s, _n) \
     { \
-        char *_di, *_si; \
+        int8_t *_di, *_si; \
         int _i; \
-        _di = (char *)(_d); \
-        _si = (char *)(_s); \
+        _di = (int8_t *)(_d); \
+        _si = (int8_t *)(_s); \
         for (_i = 0; _i < _n; ++_i) \
             *_di++ = *_si++; \
     }
@@ -113,8 +116,10 @@ typedef int int_A1 __attribute__((aligned(1)));
 uint64_t mker;
 
 typedef __vector short vec_i16 __attribute__((aligned(2)));
+typedef __vector unsigned char vec_t;
+typedef __vector signed char vec_st;
 
-int pack_N16_16bit(int k, int m, short *a, int lda, short *ap) {
+int pack_N16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
     int i, j;
     int fastpath;
     short *a_offset;
@@ -399,7 +404,7 @@ int pack_N16_16bit(int k, int m, short *a, int lda, short *ap) {
     return 0;
 }
 
-int pack_T16_16bit(int k, int m, short *a, int lda, short *ap) {
+int pack_T16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
     int i, j;
     int fastpath;
     short *a_offset;
@@ -586,7 +591,7 @@ int pack_T16_16bit(int k, int m, short *a, int lda, short *ap) {
     return 0;
 }
 
-int pack_T8_16bit(int k, int n, short *b, int ldb, short *bp) {
+int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
     int i, j;
     int fastpath;
     short *b_offset, *b_offset1, *b_offset2, *b_offset3, *b_offset4, *b_offset5,
@@ -983,7 +988,7 @@ int pack_T8_16bit(int k, int n, short *b, int ldb, short *bp) {
     return 0;
 }
 
-int pack_N8_16bit(int k, int n, short *b, int ldb, short *bp) {
+int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
     int i, j, k_skip;
     int fastpath;
     short *b_offset;
@@ -995,9 +1000,8 @@ int pack_N8_16bit(int k, int n, short *b, int ldb, short *bp) {
     vec_i16 vtemp01, vtemp02, vtemp03, vtemp04;
     vec_i16 vtemp05, vtemp06, vtemp07, vtemp08;
     vec_i16 vtemp09, vtemp10, vtemp11, vtemp12;
-    __vector char mask
-            = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
-    __vector char mask1
+    vec_t mask = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
+    vec_t mask1
             = {8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31};
     fastpath = (((k & 1) == 0) && (n & 3) == 0);
 
@@ -1276,18 +1280,16 @@ exit:
     return 0;
 }
 
-int pack_T16_8bit(
-        int k, int m, const signed char *a, int lda, signed char *ap) {
+int pack_T16_8bit(dim_t k, dim_t m, const int8_t *a, dim_t lda, int8_t *ap) {
     int i, j;
     int fastpath;
-    const signed char *a_offset;
-    const signed char *a_off[4];
-    signed char *ap_offset;
+    const int8_t *a_offset;
+    const int8_t *a_off[4];
+    int8_t *ap_offset;
     int m_cap = (m + 3) & ~3;
     int k_cap = (k + 3) & ~3;
-    __vector signed char vw0, vw1, vw2, vw3, vap[4];
-    __vector unsigned char swiz
-            = {0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15};
+    vec_st vw0, vw1, vw2, vw3, vap[4];
+    vec_t swiz = {0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15};
     a_offset = a;
     ap_offset = ap;
     fastpath = (((k & 3) == 0) && (m & 3) == 0);
@@ -1303,10 +1305,10 @@ int pack_T16_8bit(
 
         i = (k >> 2);
         while (i) {
-            vw0 = vec_splat_s8((signed char)0);
-            vw1 = vec_splat_s8((signed char)0);
-            vw2 = vec_splat_s8((signed char)0);
-            vw3 = vec_splat_s8((signed char)0);
+            vw0 = vec_splat_s8((int8_t)0);
+            vw1 = vec_splat_s8((int8_t)0);
+            vw2 = vec_splat_s8((int8_t)0);
+            vw3 = vec_splat_s8((int8_t)0);
             int *temp0, *temp1, *temp2, *temp3;
             temp0 = (int *)&vw0;
             temp1 = (int *)&vw1;
@@ -1353,10 +1355,10 @@ int pack_T16_8bit(
         if (k < k_cap) {
             int delk = k_cap - k;
             int nbytes = ((j > 1) || (!m_skip)) ? 4 : 4 - (m_cap - m);
-            vw0 = vec_splat_s8((signed char)0);
-            vw1 = vec_splat_s8((signed char)0);
-            vw2 = vec_splat_s8((signed char)0);
-            vw3 = vec_splat_s8((signed char)0);
+            vw0 = vec_splat_s8((int8_t)0);
+            vw1 = vec_splat_s8((int8_t)0);
+            vw2 = vec_splat_s8((int8_t)0);
+            vw3 = vec_splat_s8((int8_t)0);
             int *temp0, *temp1, *temp2, *temp3;
             temp0 = (int *)&vw0;
             temp1 = (int *)&vw1;
@@ -1409,8 +1411,8 @@ int pack_T16_8bit(
 
         i = (k >> 2);
         while (i) {
-            vw0 = vec_splat_s8((signed char)0);
-            vw1 = vec_splat_s8((signed char)0);
+            vw0 = vec_splat_s8((int8_t)0);
+            vw1 = vec_splat_s8((int8_t)0);
             int *temp0, *temp1;
             temp0 = (int *)&vw0;
             temp1 = (int *)&vw1;
@@ -1444,8 +1446,8 @@ int pack_T16_8bit(
         if (k < k_cap) {
             int delk = k_cap - k;
             int nbytes = (!m_skip) ? 4 : 4 - (m_cap - m);
-            vw0 = vec_splat_s8((signed char)0);
-            vw1 = vec_splat_s8((signed char)0);
+            vw0 = vec_splat_s8((int8_t)0);
+            vw1 = vec_splat_s8((int8_t)0);
             int *temp0, *temp1;
             temp0 = (int *)&vw0;
             temp1 = (int *)&vw1;
@@ -1484,7 +1486,7 @@ int pack_T16_8bit(
 
         i = (k >> 2);
         while (i) {
-            vw0 = vec_splat_s8((signed char)0);
+            vw0 = vec_splat_s8((int8_t)0);
             int *temp0;
             temp0 = (int *)&vw0;
             if (fastpath) {
@@ -1513,7 +1515,7 @@ int pack_T16_8bit(
         if (k < k_cap) {
             int delk = k_cap - k;
             int nbytes = (!m_skip) ? 4 : 4 - (m_cap - m);
-            vw0 = vec_splat_s8((signed char)0);
+            vw0 = vec_splat_s8((int8_t)0);
             int *temp0;
             temp0 = (int *)&vw0;
             memcpy_n(&temp0[0], &a_off[0][0], nbytes);
@@ -1532,13 +1534,12 @@ int pack_T16_8bit(
     return 0;
 }
 
-int pack_N8_8bit(
-        int k, int n, const unsigned char *b, int ldb, unsigned char *bp) {
+int pack_N8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
     int i, j;
     int fastpath;
-    const unsigned char *b_offset;
-    const unsigned char *b_off[8];
-    unsigned char *bp_offset;
+    const uint8_t *b_offset;
+    const uint8_t *b_off[8];
+    uint8_t *bp_offset;
     int n_cap = (n + 3) & ~3;
     int k_cap = (k + 3) & ~3;
     fastpath = (((k & 3) == 0) && (n & 3) == 0);
@@ -1727,12 +1728,11 @@ int pack_N8_8bit(
     return 0;
 }
 
-int pack_N16_8bit(
-        int k, int m, const signed char *a, int lda, signed char *ap) {
+int pack_N16_8bit(dim_t k, dim_t m, const int8_t *a, dim_t lda, int8_t *ap) {
     int i, j, ii;
     int fastpath;
-    const signed char *a_offset, *a_off[16];
-    signed char *ap_offset;
+    const int8_t *a_offset, *a_off[16];
+    int8_t *ap_offset;
     int m_cap = (m + 3) & ~3;
     int k_cap = (k + 3) & ~3;
     a_offset = a;
@@ -1908,19 +1908,17 @@ int pack_N16_8bit(
     return 0;
 }
 
-int pack_T8_8bit(
-        int k, int n, const unsigned char *b, int ldb, unsigned char *bp) {
+int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
     int i, j, ii;
     int fastpath;
-    const unsigned char *b_offset;
-    const unsigned char *b_off[8];
-    unsigned char *bp_offset, *bp_offset1, *bp_offset2;
+    const uint8_t *b_offset;
+    const uint8_t *b_off[8];
+    uint8_t *bp_offset, *bp_offset1, *bp_offset2;
     int n_cap = (n + 3) & ~3;
     int k_cap = (k + 3) & ~3;
     int delk = k_cap - k;
-    __vector unsigned char vw0, vw1, vw2, vw3, vbp[4];
-    __vector unsigned char swiz
-            = {0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15};
+    vec_t vw0, vw1, vw2, vw3, vbp[4];
+    vec_t swiz = {0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15};
     b_offset = b;
     bp_offset = bp;
     bp_offset2 = bp + k_cap * (n_cap & ~7);
@@ -1937,10 +1935,10 @@ int pack_T8_8bit(
 
         i = (n_cap >> 3);
         while (i) {
-            vw0 = vec_splat_u8((unsigned char)0);
-            vw1 = vec_splat_u8((unsigned char)0);
-            vw2 = vec_splat_u8((unsigned char)0);
-            vw3 = vec_splat_u8((unsigned char)0);
+            vw0 = vec_splat_u8((uint8_t)0);
+            vw1 = vec_splat_u8((uint8_t)0);
+            vw2 = vec_splat_u8((uint8_t)0);
+            vw3 = vec_splat_u8((uint8_t)0);
             int *temp0, *temp1, *temp2, *temp3;
             temp0 = (int *)&vw0;
             temp1 = (int *)&vw1;
@@ -1986,8 +1984,8 @@ int pack_T8_8bit(
         } // end of while (i)
 
         if (n_cap & 4) {
-            vw0 = vec_splat_u8((unsigned char)0);
-            vw1 = vec_splat_u8((unsigned char)0);
+            vw0 = vec_splat_u8((uint8_t)0);
+            vw1 = vec_splat_u8((uint8_t)0);
             int *temp0, *temp1;
             temp0 = (int *)&vw0;
             temp1 = (int *)&vw1;
@@ -2034,8 +2032,8 @@ int pack_T8_8bit(
 
         i = (n_cap >> 3);
         while (i) {
-            vw0 = vec_splat_u8((unsigned char)0);
-            vw1 = vec_splat_u8((unsigned char)0);
+            vw0 = vec_splat_u8((uint8_t)0);
+            vw1 = vec_splat_u8((uint8_t)0);
             int *temp0, *temp1;
             temp0 = (int *)&vw0;
             temp1 = (int *)&vw1;
@@ -2069,7 +2067,7 @@ int pack_T8_8bit(
 
         if (n_cap & 4) {
             int nbytes = 4 - (n_cap - n);
-            vw0 = vec_splat_u8((unsigned char)0);
+            vw0 = vec_splat_u8((uint8_t)0);
             int *temp0;
             temp0 = (int *)&vw0;
             if (fastpath) {
@@ -2091,7 +2089,6 @@ int pack_T8_8bit(
     return 0;
 }
 
-typedef __vector unsigned char vec_t;
 typedef __vector signed int v4si_t __attribute__((aligned(4)));
 
 #define SWIZZLE_4x4 \
@@ -2243,8 +2240,8 @@ typedef __vector signed int v4si_t __attribute__((aligned(4)));
 
 #define MMA __builtin_mma_xvi16ger2pp
 
-void gemm_kernel_16bit(int m, int n, int k, float alpha, short *A, short *B,
-        int *C, float beta, int ldc) {
+void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
+        short *B, int *C, float beta, dim_t ldc) {
     int i;
     int m_cap = (m + 3) & ~3;
     int n_cap = (n + 3) & ~3;
@@ -2253,13 +2250,11 @@ void gemm_kernel_16bit(int m, int n, int k, float alpha, short *A, short *B,
     int n_skip = (n & 8) != (n_cap & 8);
     int fastpath;
     v4si_t result[4], result_i[4], result_t[4];
-    __vector unsigned char swizA
-            = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
-    __vector unsigned char swizB
+    vec_t swizA = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
+    vec_t swizB
             = {8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31};
-    __vector unsigned char swizC
-            = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
-    __vector unsigned char swizD
+    vec_t swizC = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
+    vec_t swizD
             = {8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31};
     fastpath = ((alpha == 1.0) && (beta == 0.0));
 
@@ -3080,8 +3075,8 @@ void gemm_kernel_16bit(int m, int n, int k, float alpha, short *A, short *B,
 #undef MMA
 #define MMA __builtin_mma_xvi8ger4pp
 
-void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
-        unsigned char *B, int *C, float beta, int ldc) {
+void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
+        uint8_t *B, int *C, float beta, dim_t ldc) {
     int i;
     int m_cap = (m + 3) & ~3;
     int n_cap = (n + 3) & ~3;
@@ -3090,13 +3085,11 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
     int n_skip = (n & 8) != (n_cap & 8);
     int fastpath;
     v4si_t result[4], result_i[4], result_t[4];
-    __vector unsigned char swizA
-            = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
-    __vector unsigned char swizB
+    vec_t swizA = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
+    vec_t swizB
             = {8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31};
-    __vector unsigned char swizC
-            = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
-    __vector unsigned char swizD
+    vec_t swizC = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
+    vec_t swizD
             = {8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31};
     fastpath = ((alpha == 1.0) && (beta == 0.0));
 
@@ -3105,7 +3098,7 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
     while (i) {
         int j;
         int *CO;
-        signed char *AO;
+        int8_t *AO;
         CO = C;
         C += ldc << 3;
         AO = A;
@@ -3115,7 +3108,7 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
         j = m_cap >> 4;
         m_skip = (m >> 4) != (m_cap >> 4);
         while (j) {
-            unsigned char *BO = B;
+            uint8_t *BO = B;
             v4si_t *rowC;
             __vector_quad acc0, acc1, acc2, acc3, acc4, acc5, acc6, acc7;
             SET_ACC_ZERO8();
@@ -3275,7 +3268,7 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
         m_skip = (m & 8) != (m_cap & 8);
 
         if (m_cap & 8) {
-            unsigned char *BO = B;
+            uint8_t *BO = B;
             v4si_t *rowC;
             __vector_quad acc0, acc1, acc2, acc3;
             SET_ACC_ZERO4();
@@ -3402,7 +3395,7 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
         m_skip = (m & 4) != (m_cap & 4);
 
         if (m_cap & 4) {
-            unsigned char *BO = B;
+            uint8_t *BO = B;
             v4si_t *rowC;
             __vector_quad acc0, acc1;
             __builtin_mma_xxsetaccz(&acc0);
@@ -3532,7 +3525,7 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
     if (n_cap & 4) {
         int j;
         int *CO;
-        signed char *AO;
+        int8_t *AO;
         CO = C;
         C += ldc << 2;
         AO = A;
@@ -3540,8 +3533,8 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
         /* Loop for m >= 32. */
         m_skip = (m >> 5) != (m_cap >> 5);
         for (j = 0; j < (m_cap >> 5); j++) {
-            unsigned char *BO = B;
-            signed char *A1 = AO + (16 * k_cap);
+            uint8_t *BO = B;
+            int8_t *A1 = AO + (16 * k_cap);
             v4si_t *rowC;
             __vector_quad acc0, acc1, acc2, acc3, acc4, acc5, acc6, acc7;
             SET_ACC_ZERO8();
@@ -3666,7 +3659,7 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
         m_skip = (m & 16) != (m_cap & 16);
 
         if (m_cap & 16) {
-            unsigned char *BO = B;
+            uint8_t *BO = B;
             v4si_t *rowC;
             __vector_quad acc0, acc1, acc2, acc3;
             SET_ACC_ZERO4();
@@ -3763,7 +3756,7 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
         m_skip = (m & 8) != (m_cap & 8);
 
         if (m_cap & 8) {
-            unsigned char *BO = B;
+            uint8_t *BO = B;
             v4si_t *rowC;
             __vector_quad acc0, acc1;
             __builtin_mma_xxsetaccz(&acc0);
@@ -3848,7 +3841,7 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
         m_skip = (m & 4) != (m_cap & 4);
 
         if (m_cap & 4) {
-            unsigned char *BO = B;
+            uint8_t *BO = B;
             v4si_t *rowC;
             __vector_quad acc0;
             __builtin_mma_xxsetaccz(&acc0);
@@ -3913,3 +3906,6 @@ void gemm_kernel_8bit(int m, int n, int k, float alpha, signed char *A,
     }
     return;
 }
+
+} // namespace impl
+} // namespace dnnl

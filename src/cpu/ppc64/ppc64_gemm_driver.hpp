@@ -21,10 +21,10 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace ppc64 {
-dnnl_status_t cblas_gemm_s8u8s32_ppc64(int, int, char const *, int, int, int,
-        float, signed char const *, int, signed char const *,
-        unsigned char const *, int, unsigned char const *, int *, float, int,
-        int const *, int);
+
+dnnl_status_t cblas_gemm_s8x8s32_ppc64(int, int, char const *, dim_t, dim_t,
+        dim_t, float, int8_t const *, dim_t, int8_t const *, uint8_t const *,
+        dim_t, uint8_t const *, int *, float, dim_t, int const *, int);
 
 } // namespace ppc64
 } // namespace cpu
