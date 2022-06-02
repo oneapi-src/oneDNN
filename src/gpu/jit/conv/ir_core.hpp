@@ -104,8 +104,11 @@ enum ir_type_id_t : uint8_t {
 };
 
 struct type_info_t {
-    type_info_t(ir_type_id_t type_id) : type_id(type_id) {};
+    type_info_t(ir_type_id_t type_id, bool is_expr, bool is_stmt)
+        : type_id(type_id), is_expr(is_expr), is_stmt(is_stmt) {};
     ir_type_id_t type_id;
+    bool is_expr;
+    bool is_stmt;
 };
 
 // Auxiliary macros to reduce boilerplate.
@@ -113,7 +116,9 @@ struct type_info_t {
     using self_type = class_name; \
     static ir_type_id_t _type_id() { return ir_type_id_t::class_name; } \
     static ir_type_id_t _dispatch_type_id() { return _type_id(); } \
-    static type_info_t _type_info() { return type_info_t(_type_id()); }
+    static type_info_t _type_info() { \
+        return type_info_t(_type_id(), _is_expr(), _is_stmt()); \
+    }
 
 #define IR_DECL_DERIVED_TYPE_ID(class_name, base_name) \
     using self_type = class_name; \
@@ -122,15 +127,17 @@ struct type_info_t {
     ir_type_id_t dispatch_type_id() const override { \
         return _dispatch_type_id(); \
     } \
-    static type_info_t _type_info() { return type_info_t(_type_id()); }
+    static type_info_t _type_info() { \
+        return type_info_t(_type_id(), _is_expr(), _is_stmt()); \
+    }
 
 #define IR_DECL_EXPR_TYPE_ID(class_name) \
     IR_DECL_TYPE_ID(class_name) \
-    bool is_expr() const override { return true; }
+    static bool _is_expr() { return true; };
 
 #define IR_DECL_STMT_TYPE_ID(class_name) \
     IR_DECL_TYPE_ID(class_name) \
-    bool is_stmt() const override { return true; }
+    static bool _is_stmt() { return true; };
 
 #define IR_DECL_MUTATE(mutator_template) \
     object_t _mutate(mutator_template &mutator) const override { \
@@ -562,8 +569,10 @@ public:
 
     virtual size_t get_hash() const = 0;
 
-    virtual bool is_expr() const { return false; }
-    virtual bool is_stmt() const { return false; }
+    static bool _is_expr() { return false; };
+    static bool _is_stmt() { return false; };
+    bool is_expr() const { return type_info_.is_expr; }
+    bool is_stmt() const { return type_info_.is_stmt; }
 
     // Downcasts the object to the IR type, returns a reference. The IR type
     // must match the real IR type.
