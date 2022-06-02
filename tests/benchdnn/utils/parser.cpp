@@ -699,7 +699,7 @@ bool parse_bench_settings(const char *str) {
         help_ss << "===================\n";
         help_ss << "(More technical details available at "
                    "https://github.com/oneapi-src/oneDNN/blob/master/tests/"
-                   "benchdnn/doc/knobs_"
+                   "benchdnn/doc/driver_"
                 << driver_name << ".md)\n\n";
         end_msg = true;
     }

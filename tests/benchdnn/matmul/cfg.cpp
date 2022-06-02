@@ -23,7 +23,7 @@ float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
     if (density_args.data_kind != SRC) return density;
 
-    // Find the number of accumulators save to use with the following equations:
+    // Find the number of accumulators safe to use with the following equations:
     // Integer value can be expressed exactly with floating-point is
     // `PREC = (1 << std::numeric_limit::digits(dst_dt))`.
     // SUM_1_N(VALUES) <= PREC.   This should hold to get precise answer.
