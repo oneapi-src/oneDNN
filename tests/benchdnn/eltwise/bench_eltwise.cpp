@@ -109,8 +109,8 @@ void check_correctness(const settings_t &s) {
 }
 
 static const std::string help_alpha_beta
-        = "FLOAT    (Default: {0.f, 0.25f, -0.25f})\n    Specifies algorithm "
-          "parameter extension where applicable.\n";
+        = "FLOAT    (Default: 0.f)\n    Specifies algorithm parameter "
+          "extension where applicable.\n";
 
 int bench(int argc, char **argv) {
     driver_name = "eltwise";
