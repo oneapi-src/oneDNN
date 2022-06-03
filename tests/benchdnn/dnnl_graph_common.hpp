@@ -547,6 +547,15 @@ public:
     };
 };
 
+fill_status_t append_graph_with_eltwise(
+        const attr_t::post_ops_t::entry_t &eltw_entry);
+std::pair<fill_status_t, size_t> append_graph_with_binary(
+        const attr_t::post_ops_t::entry_t &bin_entry);
+std::pair<fill_status_t, size_t> append_graph_with_sum(
+        const attr_t::post_ops_t::entry_t &bin_entry);
+
+fill_status_t append_graph_with_swish(
+        const attr_t::post_ops_t::entry_t &swish_entry, size_t src1_id);
 inline bool is_plain(dnnl_format_tag_t fmt_tag) {
     return fmt_tag >= dnnl_a && fmt_tag <= dnnl_abcdefghijlk;
 }

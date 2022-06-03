@@ -714,6 +714,117 @@ fill_status_t po_handlers_t::sum_po_handler_t::operator()(graph_prb_t &p) {
     return fill_status::DONE;
 }
 
+fill_status_t append_graph_with_eltwise(
+        const attr_t::post_ops_t::entry_t &eltw_entry) {
+    const auto eltw_op_kind = convert_alg_kind(eltw_entry.eltwise.alg);
+    if (eltw_op_kind == dnnl::graph::op::kind::LastSymbol)
+        return fill_status::UNSUPPORTED_OP;
+
+    graph_t &graph = graph_t::get();
+
+    const auto op_id = graph.generate_id_for(entry_kind::ELTWISE);
+    const auto src_id = graph.generate_id_for(op_id, lt_kind::SRC, true);
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+
+    graph.create_lt(dst_id, graph.get_lt(src_id));
+
+    const auto attrs = convert_eltw_entry(eltw_op_kind, eltw_entry);
+
+    dnnl::graph::op eltw_op(op_id, eltw_op_kind, graph.stringify_id(op_id));
+    for (const auto &kv : attrs)
+        eltw_op.set_attr(kv.first, kv.second);
+    // special cases
+    if (eltw_entry.kind == attr_t::post_ops_t::kind_t::SRELU)
+        eltw_op.set_attr<int64_t>("beta", 1);
+    else if (eltw_entry.kind == attr_t::post_ops_t::kind_t::LOGSIGMOID)
+        eltw_op.set_attr<int64_t>("beta", -1);
+
+    graph.append(op_id, eltw_op, {src_id}, {dst_id});
+
+    return fill_status_t::DONE;
+}
+
+std::pair<fill_status_t, size_t> append_graph_with_binary(
+        const attr_t::post_ops_t::entry_t &bin_entry) {
+    const auto bin_op_kind = convert_alg_kind(bin_entry.binary.alg);
+    if (bin_op_kind == dnnl::graph::op::kind::LastSymbol)
+        return std::make_pair(fill_status::UNSUPPORTED_OP, 0);
+
+    graph_t &graph = graph_t::get();
+
+    const auto op_id = graph.generate_id_for(entry_kind::BINARY);
+    const auto src0_id = graph.generate_id_for(op_id, lt_kind::SRC, true);
+    const auto src1_id = graph.generate_id_for(op_id, lt_kind::SRC1);
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+
+    const auto bin_src1_dt
+            = dequantize_dtype(convert_dt(bin_entry.binary.src1_dt));
+    const auto cur_dst_lt = graph.get_lt(src0_id);
+    const auto bin_src1_dims = convert_bin_policy(
+            cur_dst_lt.get_dims(), bin_entry.binary.policy);
+
+    graph.create_lt(src1_id, bin_src1_dt, bin_src1_dims, bin_entry.binary.tag);
+    graph.create_lt(dst_id, cur_dst_lt);
+
+    const std::string auto_broadcast
+            = bin_src1_dims == cur_dst_lt.get_dims() ? "none" : "numpy";
+
+    dnnl::graph::op bin_op(op_id, bin_op_kind, graph.stringify_id(op_id));
+    bin_op.set_attr("auto_broadcast", auto_broadcast);
+
+    graph.append(op_id, bin_op, {src0_id, src1_id}, {dst_id});
+
+    return std::make_pair(fill_status_t::DONE, src1_id);
+}
+
+std::pair<fill_status_t, size_t> append_graph_with_sum(
+        const attr_t::post_ops_t::entry_t &bin_entry) {
+    graph_t &graph = graph_t::get();
+
+    const auto op_id = graph.generate_id_for(entry_kind::SUM);
+    const auto src0_id = graph.generate_id_for(op_id, lt_kind::SRC, true);
+    const auto src1_id = graph.generate_id_for(op_id, lt_kind::SRC1);
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+
+    const auto cur_dst_lt = graph.get_lt(src0_id);
+
+    graph.create_lt(src1_id, cur_dst_lt);
+    graph.create_lt(dst_id, cur_dst_lt);
+
+    dnnl::graph::op sum_op(
+            op_id, dnnl::graph::op::kind::Add, graph.stringify_id(op_id));
+    sum_op.set_attr("auto_broadcast", std::string("none"));
+
+    graph.append(op_id, sum_op, {src0_id, src1_id}, {dst_id});
+
+    return std::make_pair(fill_status_t::DONE, src1_id);
+}
+
+fill_status_t append_graph_with_swish(
+        const attr_t::post_ops_t::entry_t &swish_entry, size_t src1_id) {
+    attr_t::post_ops_t::entry_t new_eltw_entry = swish_entry;
+    // force eltwise handler to use Sigmoid
+    new_eltw_entry.eltwise.alg = dnnl_eltwise_logistic;
+    fill_status_t status = append_graph_with_eltwise(new_eltw_entry);
+    BENCHDNNEXT_VERIFY(status);
+
+    // handle special binary case
+    graph_t &graph = graph_t::get();
+
+    const auto op_id = graph.generate_id_for(entry_kind::BINARY);
+    const auto src0_id = graph.generate_id_for(op_id, lt_kind::SRC, true);
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+
+    graph.create_lt(dst_id, graph.get_lt(src0_id));
+
+    dnnl::graph::op bin_op(
+            op_id, dnnl::graph::op::kind::Multiply, graph.stringify_id(op_id));
+
+    graph.append(op_id, bin_op, {src0_id, src1_id}, {dst_id});
+
+    return fill_status::DONE;
+}
+
 quant_data_t sum_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
         const std::string &tag,
         dnnl::graph::logical_tensor::data_type default_dt) {
