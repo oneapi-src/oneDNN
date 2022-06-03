@@ -650,7 +650,8 @@ public:
     bool fuse_spatial; // Apply blocking to fused spatial (otherwise only `w` is blocked).
     bool hoist_masks_from_compute_loop; // Whether to move send mask initialization out of compute loop.
     bool allow_slm_tg_slicing; // Whether to allow thread group split for SLM load/store.
-    bool use_2d_send; // Whether to use 2D block messages.
+    bool use_a_2d_send; // Whether to use 2D block messages for A.
+    bool use_b_2d_send; // Whether to use 2D block messages for B.
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 

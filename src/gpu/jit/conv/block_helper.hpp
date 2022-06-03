@@ -336,6 +336,11 @@ public:
         c_type_ = c_type;
     }
 
+    void set_use_2d_send(bool use_a_2d_send, bool use_b_2d_send) {
+        use_a_2d_send_ = use_a_2d_send;
+        use_b_2d_send_ = use_b_2d_send;
+    }
+
     void set_max_m_tg_dim(int value) {
         m_dim().set_max_dim(tile_level_t::tg, value);
     }
@@ -657,6 +662,9 @@ private:
     data_type_t a_type_ = data_type::undef;
     data_type_t b_type_ = data_type::undef;
     data_type_t c_type_ = data_type::undef;
+
+    bool use_a_2d_send_ = false;
+    bool use_b_2d_send_ = false;
 
     // Whether K computation can be split across threads in thread group.
     bool allow_k_tg_slicing_ = false;

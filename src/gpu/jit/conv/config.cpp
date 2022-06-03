@@ -34,6 +34,7 @@ status_t conv_config_t::init_common_blocking() {
     bh->set_hw_config(hw_cfg);
     bh->set_fma_kind(fma_kind);
     bh->set_abc_types(a_data_type, b_data_type, acc_data_type);
+    bh->set_use_2d_send(use_a_2d_send, use_b_2d_send);
 
     bh->set_dim("mb", mb);
     bh->set_dim("g", g);
@@ -164,6 +165,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         if (kw != 1) bh->set_max_iter_dim("ic", wei_ic_blk);
     }
 
+    bool use_2d_send = use_a_2d_send && use_b_2d_send;
     bool use_sp_blocking = false;
     if (use_2d_send) {
         use_sp_blocking = false;
@@ -242,7 +244,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     kernel_grid_dim[1] = g_grid_dim * osp_grid_dim;
     kernel_grid_dim[2] = mb_grid_dim;
 
-    if (use_2d_send && sw != 1 && (kw != 1 || pw != 0)) {
+    if (use_a_2d_send && sw != 1 && (kw != 1 || pw != 0)) {
         ir_assert(osp_thr_blk == 1)
                 << "Can't use 2D block messages for non-trivial "
                    "strided dimensions.";
@@ -292,6 +294,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     bh->set_vector_dim(is_dw ? "g" : "ic");
     bh->allow_split({"ic"});
 
+    bool use_2d_send = use_a_2d_send && use_b_2d_send;
     bool use_w_blocking = false;
     if (use_2d_send) {
         use_w_blocking = false;
@@ -470,7 +473,7 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
             * oh_grid_dim * ow_grid_dim;
     kernel_grid_dim[2] = g_grid_dim * mb_grid_dim;
 
-    if (use_2d_send && sw != 1 && (kw != 1 || pw != 0)) {
+    if (use_a_2d_send && sw != 1 && (kw != 1 || pw != 0)) {
         ir_assert(ow_blk == 1) << "Can't use 2D block messages for non-trivial "
                                   "strided dimensions.";
     }
@@ -910,55 +913,65 @@ bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
 }
 
 void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
-    use_2d_send = false;
+    use_a_2d_send = false;
+    use_b_2d_send = false;
 #ifdef GEN_CONV_DEBUG
     int env_value = getenv_int("use_2d_send", -1);
     if (env_value != -1) {
-        use_2d_send = (bool)env_value;
+        use_a_2d_send = (bool)env_value;
+        use_b_2d_send = (bool)env_value;
         return;
     }
 #endif
     if (!is_dp_fma()) return;
-    if (is_small_ic()) return;
     if (hw() < ngen::HW::XeHPC) return;
 
     // Can't use 2D block messages for non-trivial strided dimensions.
     if ((is_fwd || is_bwd_w) && mb < 16 && sw != 1 && (kw != 1 || pw != 0))
         return;
 
-    auto &wei_md = *conv_pd->invariant_wei_md();
-    bool wei_hwio = matches_tag(wei_md, "xba");
-    bool wei_oihw = matches_tag(wei_md, "abx");
-    if (wei_md.format_kind != format_kind::any && !wei_hwio && !wei_oihw)
-        return;
+    auto is_a_plain_ok = [&]() {
+        auto &md = (is_fwd || is_bwd_w) ? *conv_pd->invariant_src_md()
+                                        : *conv_pd->invariant_dst_md();
+        return matches_tag(md, "axb");
+    };
 
-    if (is_fwd || is_bwd_w) {
-        if (!matches_tag(*conv_pd->invariant_src_md(), "axb")) return;
-    }
+    auto is_b_plain_ok = [&]() {
+        if (is_bwd_w) return matches_tag(*conv_pd->invariant_dst_md(), "axb");
+        auto &wei_md = *conv_pd->invariant_wei_md();
+        bool wei_hwio = matches_tag(wei_md, "xba");
+        bool wei_oihw = matches_tag(wei_md, "abx");
+        return wei_md.format_kind != format_kind::any && (wei_hwio || wei_oihw);
+    };
 
-    if (is_bwd_d || is_bwd_w) {
-        if (!matches_tag(*conv_pd->invariant_dst_md(), "axb")) return;
-    }
-
+    // Check 2D block message limitations for A.
+    // FWD:   NHWC (src)
+    // BWD_D: NHWC (dst)
+    // BWD_W: NHWC (src)
+    bool a_ok = is_a_plain_ok();
     int a_width = (is_fwd || is_bwd_w) ? ic : oc;
-    int b_width = oc;
     int a_max_height = std::max((is_fwd || is_bwd_w) ? iw : ow, mb);
-    int b_max_height = (is_fwd || is_bwd_d) ? ic : std::max(ow, mb);
     int a_max_pitch
             = (is_fwd || is_bwd_w) ? (ic * id * ih * iw) : (oc * od * oh * ow);
-    int b_max_pitch = (is_fwd || is_bwd_d) ? oc : (oc * od * oh * ow);
+    if (!block_2d_width_ok(a_width, a_data_type_size)) a_ok = false;
+    if (!block_2d_height_ok(a_max_height)) a_ok = false;
+    if (!block_2d_pitch_ok(a_width, a_data_type_size)) a_ok = false;
+    if (!block_2d_pitch_ok(a_max_pitch, a_data_type_size)) a_ok = false;
+    if (a_ok) use_a_2d_send = true;
 
-    // 2D block message limitations.
-    if (!block_2d_width_ok(a_width, a_data_type_size)) return;
-    if (!block_2d_width_ok(b_width, b_data_type_size)) return;
-    if (!block_2d_height_ok(a_max_height)) return;
-    if (!block_2d_height_ok(b_max_height)) return;
-    if (!block_2d_pitch_ok(a_width, a_data_type_size)) return;
-    if (!block_2d_pitch_ok(b_width, b_data_type_size)) return;
-    if (!block_2d_pitch_ok(a_max_pitch, a_data_type_size)) return;
-    if (!block_2d_pitch_ok(b_max_pitch, b_data_type_size)) return;
-
-    use_2d_send = true;
+    // Check 2D block message limitations for B.
+    // FWD:   HWIO (wei)
+    // BWD_D: HWOI (wei)
+    // BWD_W: NHWC (dst)
+    bool b_ok = is_b_plain_ok();
+    int b_width = (is_fwd || is_bwd_w) ? oc : ic;
+    int b_max_height = is_fwd ? ic : (is_bwd_d ? oc : std::max(ow, mb));
+    int b_max_pitch = (is_fwd || is_bwd_d) ? b_width : (oc * od * oh * ow);
+    if (!block_2d_width_ok(b_width, b_data_type_size)) b_ok = false;
+    if (!block_2d_height_ok(b_max_height)) b_ok = false;
+    if (!block_2d_pitch_ok(b_width, b_data_type_size)) b_ok = false;
+    if (!block_2d_pitch_ok(b_max_pitch, b_data_type_size)) b_ok = false;
+    if (b_ok) use_b_2d_send = true;
 }
 
 void conv_config_t::init_fuse_spatial() {
@@ -991,6 +1004,7 @@ void conv_config_t::init_hoist_masks_from_compute_loop() {
         return;
     }
 #endif
+    bool use_2d_send = use_a_2d_send && use_b_2d_send;
     if (!use_2d_send && !fuse_spatial) return;
 
     // Both nhwc layouts and mask hoisting require extra GRF memory so avoid
@@ -1005,7 +1019,8 @@ void conv_config_t::init_bwd_d_optimize_strided(int iw_thr_blk) {
     bwd_d_optimize_strided_iw = false;
     if (!is_bwd_d) return;
     bwd_d_optimize_strided = true;
-    if (is_compute_nhwc("dst")) return;
+
+    if (!use_a_2d_send && is_compute_nhwc("dst")) return;
     if (iw_thr_blk > 1) return;
     if (is_stride1()) return;
     if (iw % sw != 0) return;
@@ -1316,8 +1331,9 @@ private:
             int load_elems
                     = (use_slm ? per_thr_elems : ab_sub_tile_elems(is_a));
             auto layout = get_gmem_layout(is_a);
+            bool use_2d_send = (is_a ? cfg_.use_a_2d_send : cfg_.use_b_2d_send);
             access_grf_usage_helper_t load(layout, load_elems, reg_bytes_,
-                    /*is_slm=*/false, cfg_.use_2d_send);
+                    /*is_slm=*/false, use_2d_send);
             if (is_a && !use_slm && cfg_.fma_kind == fma_kind_t::dpasw)
                 load.enable_fused_eus_sharing();
             int mult = (use_slm ? cfg_.gmem_bufs : 1);
@@ -1328,10 +1344,12 @@ private:
             } else {
                 int sub_tiles = (is_a ? cfg_.a_sub_tiles : cfg_.b_sub_tiles);
                 int mult = (use_slm ? 1 : sub_tiles);
+                bool use_2d_send
+                        = (is_a ? cfg_.use_a_2d_send : cfg_.use_b_2d_send);
                 regs += mult * load.header_regs();
                 if (cfg_.use_prefetch) {
                     access_grf_usage_helper_t prefetch(layout, per_thr_elems,
-                            reg_bytes_, /*is_slm=*/false, cfg_.use_2d_send);
+                            reg_bytes_, /*is_slm=*/false, use_2d_send);
                     regs += prefetch.header_regs();
                 }
             }
