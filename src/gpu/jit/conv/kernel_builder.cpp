@@ -3318,6 +3318,16 @@ public:
             return s;
         };
 
+        int reduce_iter_bytes = cfg_.k_blk * cfg_.a_data_type_size;
+        // Add periodic signal-wait thread group synchronization in some cases.
+        // This is to ensure threads access close reduction blocks and able to
+        // reuse their common data from L1.
+        bool do_sync
+                = (cfg_.hw() >= ngen::HW::XeHPC) && (reduce_iter_bytes > 32);
+        if (cfg_.use_a_slm || cfg_.use_b_slm) do_sync = false;
+        // Distance in iterations between signal and wait.
+        int sync_dist = 3;
+
         // Ramp-up.
         for (int i = 0; i < it.ramp_up_iters; i++) {
             body = stmt_seq_t::make(body, create_iteration(it, sbid_mgr));
@@ -3331,13 +3341,22 @@ public:
             bool has_loop = (extent > 1);
 
             stmt_t loop_body;
+            bool do_sync_wait = false;
             for (int i = 0; i < it.unroll(); i++) {
+                if (do_sync && i % sync_dist == 0) {
+                    loop_body = loop_body.append(do_sync_wait
+                                    ? funcs::barrier_wait()
+                                    : funcs::signal());
+                    do_sync_wait = !do_sync_wait;
+                }
                 loop_body = loop_body.append(create_iteration(
                         it, sbid_mgr, /*in_loop_body=*/has_loop));
                 ir_assert(it.do_mul());
                 loop_body = append_outer_post_inc(loop_body);
                 ++it;
             }
+            if (do_sync && do_sync_wait)
+                loop_body = loop_body.append(funcs::barrier_wait());
             if (!has_loop) {
                 body = body.append(loop_body);
             } else {
