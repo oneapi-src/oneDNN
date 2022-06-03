@@ -24,11 +24,12 @@
 #include "matmul/graph_matmul.hpp"
 
 #include <algorithm>
+#include <tuple>
 
 namespace benchdnnext {
 namespace matmul {
 
-void check_known_skipped_case_graph(
+static void check_known_skipped_case_graph(
         const ::matmul::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
@@ -71,175 +72,28 @@ static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
     return quant_data_t();
 }
 
-fill_status_t matmul_graph_prb_t::handle_main_op_(const ::matmul::prb_t *prb) {
-    using op = dnnl::graph::op;
+static quant_data_t get_qdata_for(
+        const attr_t::post_ops_t::entry_t &entry, const ::matmul::prb_t *prb) {
+    if (entry.is_binary_kind())
+        return bin_po_entry2quant_data(
+                entry, prb->dtag, convert_dt(prb->dst_dt()));
+    else if (entry.is_sum_kind())
+        return sum_po_entry2quant_data(
+                entry, prb->dtag, convert_dt(prb->dst_dt()));
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
-
-    // this is needed to align with po_handlers convention
-    // some patterns like `matmul + bias + swish` may want to
-    // reuse bias output via `tensor_id["bias"].back() + "_DST"`
-    if (has_post_bia_) tensor_id["bias"].push_back(TENSOR_ID);
-
-    const auto orig_src_dt = convert_dt(prb->src_dt());
-    const auto orig_wei_dt = convert_dt(prb->wei_dt());
-    const auto orig_dst_dt = convert_dt(prb->dst_dt());
-
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string WEI {TENSOR_ID + "_WEI"};
-    const std::string BIA {TENSOR_ID + "_BIA"};
-    const std::string DST {TENSOR_ID + "_DST"};
-
-    const auto is_lprec
-            = is_low_precision({orig_src_dt, orig_wei_dt, orig_dst_dt});
-    const auto with_tc = with_typecast({orig_src_dt, orig_wei_dt, orig_dst_dt});
-    const auto change_dt = is_lprec || with_tc;
-    const auto default_dt = (with_tc) ? dt::bf16 : dt::f32;
-    const auto src_dt = (change_dt) ? default_dt : orig_src_dt;
-    const auto wei_dt = (change_dt) ? default_dt : orig_wei_dt;
-    const auto dst_dt = (change_dt) ? default_dt : orig_dst_dt;
-
-    const auto src_dims
-            = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
-    const auto wei_dims = get_runtime_dims(
-            prb->weights_dims(), prb->weights_runtime_dim_mask());
-    const auto dst_dims
-            = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
-
-    tensor_descs_.emplace(SRC, src_dt, src_dims, prb->stag);
-    tensor_descs_.emplace(WEI, wei_dt, wei_dims, prb->wtag,
-            tensor_descs_t::property_type::constant);
-    tensor_descs_.emplace(DST, dst_dt, dst_dims, prb->dtag);
-    if (has_post_bia_) {
-        std::vector<int64_t> bia_dims(dst_dims.size());
-        for (int i = 0; i < prb->ndims; ++i)
-            bia_dims[i] = (prb->bia_mask & (1 << i)) ? dst_dims[i] : 1;
-        bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
-        tensor_descs_.emplace(BIA, convert_dt(prb->bia_dt), bia_dims,
-                lt::strided, tensor_descs_t::property_type::constant);
-    }
-
-    std::vector<dnnl::graph::logical_tensor> lt_inputs {
-            tensor_descs_[SRC], tensor_descs_[WEI]};
-    std::vector<dnnl::graph::logical_tensor> lt_outputs {tensor_descs_[DST]};
-    if (has_post_bia_) lt_inputs.push_back(tensor_descs_[BIA]);
-
-    op matmul(new_op_id, op::kind::MatMul, lt_inputs, lt_outputs, "matmul");
-
-    matmul.set_attr("transpose_a", false).set_attr("transpose_b", false);
-
-    ops_.emplace_back(matmul);
-    curr_out_map_ids_.assign({TENSOR_ID});
-
-    return fill_status::DONE;
+    BENCHDNN_PRINT(0,
+            "warning: returning default quant_data_t for %s post op\n",
+            entry.is_binary_kind() ? "binary" : "sum");
+    return quant_data_t();
 }
 
-fill_status_t matmul_graph_prb_t::handle_elt_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.matmul.eltw_handler(*this, po_entry, has_post_bia_);
-}
-
-fill_status_t matmul_graph_prb_t::handle_bin_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.matmul.bin_handler(*this, po_entry);
-}
-
-fill_status_t matmul_graph_prb_t::handle_sum_() {
-    return po_handler.matmul.sum_handler(*this);
-}
-
-fill_status_t matmul_graph_prb_t::handle_typecast_(const ::matmul::prb_t *prb) {
-    using op = dnnl::graph::op;
-
-    const std::string SRC = tensor_id["main"].back() + "_SRC";
-    const std::string WEI = tensor_id["main"].back() + "_WEI";
-
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["typecast"].push_back(TENSOR_ID);
-    const std::string TCSRC {TENSOR_ID + "_SRC"};
-    const std::string TCWEI {TENSOR_ID + "_WEI"};
-
-    tensor_descs_.emplace(TCSRC, dt::f32,
-            get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask()),
-            prb->stag);
-    tensor_descs_.emplace(TCWEI, dt::f32,
-            get_runtime_dims(
-                    prb->weights_dims(), prb->weights_runtime_dim_mask()),
-            prb->wtag);
-
-    op typecast_src(ops_.size(), op::kind::TypeCast, {tensor_descs_[TCSRC]},
-            {tensor_descs_[SRC]}, "typecast_src");
-    ops_.emplace_back(typecast_src);
-    op typecast_wei(ops_.size(), op::kind::TypeCast, {tensor_descs_[TCWEI]},
-            {tensor_descs_[WEI]}, "typecast_wei");
-    ops_.emplace_back(typecast_wei);
-
-    return fill_status_t::DONE;
-}
-
-fill_status_t matmul_graph_prb_t::handle_low_precision_(
+static std::vector<dnnl::graph::logical_tensor::data_type> collect_data_types(
         const ::matmul::prb_t *prb) {
-    const auto src_dt = convert_dt(prb->src_dt());
-    const auto wei_dt = convert_dt(prb->wei_dt());
-    const auto dst_dt = convert_dt(prb->dst_dt());
-    const bool with_tc = with_typecast({src_dt, wei_dt, dst_dt});
-    const std::string OP_REPR = with_tc ? "typecast" : "main";
-    const auto src_lt_id = tensor_id[OP_REPR].back() + "_SRC";
-    const auto wei_lt_id = tensor_id[OP_REPR].back() + "_WEI";
-    const auto dst_lt_id = curr_out_map_ids_.back() + "_DST";
-
-    fill_status_t status
-            = po_handler.matmul.low_precision_handler.insert_dequant_before(
-                    src_lt_id, get_qdata_for(SRC, prb), *this);
-    BENCHDNNEXT_VERIFY(status);
-
-    status = po_handler.matmul.low_precision_handler.insert_dequant_before(
-            wei_lt_id, get_qdata_for(WEI, prb), *this, true);
-    BENCHDNNEXT_VERIFY(status);
-
-    // `with_qdst == false` means that we are dealing
-    // with Quantized lacking pattern, like x8s8f32 or x8s8bf16
-    const bool with_qdst = dt::u8 == dst_dt || dt::s8 == dst_dt;
-    if (with_qdst) {
-        status = po_handler.matmul.low_precision_handler.insert_quant_after(
-                dst_lt_id, get_qdata_for(DST, prb), *this);
-        BENCHDNNEXT_VERIFY(status);
-    }
-
-    for (const auto &entry : prb->attr.post_ops.entry) {
-        if (entry.is_sum_kind()) {
-            const auto sum_src1_lt_id = tensor_id["sum"].back() + "_SRC";
-            status = po_handler.matmul.low_precision_handler
-                             .insert_dequant_before(sum_src1_lt_id,
-                                     sum_po_entry2quant_data(entry, prb->dtag,
-                                             convert_dt(prb->dst_dt())),
-                                     *this);
-            BENCHDNNEXT_VERIFY(status);
-            break;
-        }
-    }
-
-    size_t bin_id {0};
-    for (const auto &entry : prb->attr.post_ops.entry) {
-        if (is_dequantize_required_for(entry)) {
-            const auto bin_src1_lt_id = tensor_id["binary"][bin_id] + "_SRC";
-            status = po_handler.deconv.low_precision_handler
-                             .insert_dequant_before(bin_src1_lt_id,
-                                     bin_po_entry2quant_data(entry, prb->dtag,
-                                             convert_dt(prb->dst_dt())),
-                                     *this);
-            BENCHDNNEXT_VERIFY(status);
-        }
-        ++bin_id;
-    }
-
-    return ctor_status;
+    return {convert_dt(prb->src_dt()), convert_dt(prb->wei_dt()),
+            convert_dt(prb->dst_dt())};
 }
 
-dims_t get_runtime_dims(
+static dims_t get_runtime_dims(
         const dims_t &dims, const ::matmul::dims_mask_t &mask) noexcept {
     if (mask.none() || dims.empty()) return dims;
     dims_t runtime_dims;
@@ -251,6 +105,123 @@ dims_t get_runtime_dims(
     return runtime_dims;
 }
 
+fill_status_t append_graph_with_block(const ::matmul::prb_t *prb) {
+    graph_t &graph = graph_t::get();
+
+    const auto orig_dts = collect_data_types(prb);
+    const auto with_dq = is_low_precision(orig_dts);
+    const auto with_tc = with_typecast(orig_dts);
+    const auto connect_to_previous_block = !with_dq && graph.has_blocks();
+
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::MATMUL);
+    auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, lt_kind::SRC);
+    auto wei_id = graph.generate_id_for(op_id, lt_kind::WEI);
+    const auto bia_id = graph.generate_id_for(op_id, lt_kind::BIA);
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+
+    const auto change_dt = with_dq || with_tc;
+    const auto default_dt = with_tc ? dt::bf16 : dt::f32;
+    const auto src_dt = change_dt ? default_dt : orig_dts[0];
+    const auto wei_dt = change_dt ? default_dt : orig_dts[1];
+    const auto dst_dt = change_dt ? default_dt : orig_dts[2];
+    const auto bia_dt = convert_dt(prb->bia_dt);
+
+    const auto src_dims
+            = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
+    const auto wei_dims = get_runtime_dims(
+            prb->weights_dims(), prb->weights_runtime_dim_mask());
+    const auto dst_dims
+            = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
+
+    graph.create_lt(src_id, src_dt, src_dims, prb->stag);
+    graph.create_lt(wei_id, wei_dt, wei_dims, prb->wtag,
+            dnnl::graph::logical_tensor::property_type::constant);
+    graph.create_lt(dst_id, dst_dt, dst_dims, prb->dtag);
+    const bool with_bia
+            = bia_dt != dnnl::graph::logical_tensor::data_type::undef;
+    if (with_bia) {
+        dims_t bia_dims(dst_dims.size());
+        for (int i = 0; i < prb->ndims; ++i)
+            bia_dims[i] = (prb->bia_mask & (1 << i)) ? dst_dims[i] : 1;
+        bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
+        graph.create_lt(bia_id, bia_dt, bia_dims,
+                dnnl::graph::logical_tensor::layout_type::strided,
+                dnnl::graph::logical_tensor::property_type::constant);
+    }
+
+    std::vector<size_t> src_ids {src_id, wei_id};
+    std::vector<size_t> dst_ids {dst_id};
+    if (with_bia) src_ids.push_back(bia_id);
+
+    dnnl::graph::op mm_op(
+            op_id, dnnl::graph::op::kind::MatMul, graph.stringify_id(op_id));
+    mm_op.set_attr("transpose_a", false).set_attr("transpose_b", false);
+
+    graph.append(op_id, mm_op, src_ids, dst_ids);
+
+    fill_status_t status;
+    // if required - apply typecast to block inputs
+    if (with_tc) {
+        std::tie(status, src_id) = insert_typecast_before(src_id);
+        BENCHDNNEXT_VERIFY(status);
+        std::tie(status, wei_id) = insert_typecast_before(wei_id, true);
+        BENCHDNNEXT_VERIFY(status);
+    }
+
+    // if required - apply dequantize to block inputs
+    if (with_dq) {
+        status = insert_dequant_before(src_id, get_qdata_for(SRC, prb));
+        BENCHDNNEXT_VERIFY(status);
+        status = insert_dequant_before(wei_id, get_qdata_for(WEI, prb), true);
+        BENCHDNNEXT_VERIFY(status);
+    }
+
+    // handle post ops
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        const auto with_src1_dq
+                = entry.is_sum_kind() || is_dequantize_required_for(entry);
+        size_t po_src1_id;
+        if (entry.is_binary_kind()) {
+            std::tie(status, po_src1_id) = append_graph_with_binary(entry);
+            BENCHDNNEXT_VERIFY(status);
+            if (with_src1_dq) {
+                status = insert_dequant_before(
+                        po_src1_id, get_qdata_for(entry, prb));
+                BENCHDNNEXT_VERIFY(status);
+            }
+        } else if (entry.is_eltwise_kind()) {
+            const bool is_swish
+                    = entry.kind == attr_t::post_ops_t::kind_t::SWISH
+                    && with_bia;
+            status = is_swish ? append_graph_with_swish(entry, dst_id)
+                              : append_graph_with_eltwise(entry);
+            BENCHDNNEXT_VERIFY(status);
+        } else if (entry.is_sum_kind()) {
+            std::tie(status, po_src1_id) = append_graph_with_sum(entry);
+            BENCHDNNEXT_VERIFY(status);
+            if (with_dq && with_src1_dq) {
+                status = insert_dequant_before(
+                        po_src1_id, get_qdata_for(entry, prb));
+                BENCHDNNEXT_VERIFY(status);
+            }
+        }
+    }
+
+    // if required - add quantize op
+    if (is_low_precision({orig_dts[2]})) {
+        status = insert_quant_after(
+                graph.get_cur_block_out_id(), get_qdata_for(DST, prb));
+        BENCHDNNEXT_VERIFY(status);
+    }
+
+    graph.close_block();
+
+    return fill_status::DONE;
+}
+
 int doit(const ::matmul::prb_t *prb, res_t *res) {
     using dt = dnnl::graph::logical_tensor::data_type;
     res->impl_name = "graph";
@@ -259,22 +230,28 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    matmul_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto mode = convert_fpmath_mode(prb->attr.fpmath_mode);
-    auto graph_h = graph_prb.to_graph(mode);
+    auto &graph = graph_t::get();
 
+    auto mode = convert_fpmath_mode(prb->attr.fpmath_mode);
     // Filter partitions
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    const auto partitions = graph.get_partitions(mode);
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -305,16 +282,15 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
     const std::vector<attr_t::post_ops_t::entry_t> &po_entry
             = prb->attr.post_ops.entry;
     const std::vector<size_t> post_bin_indices = get_post_bin_indices(po_entry);
-    if (graph_prb.has_post_bin()) {
-        for (size_t i = 0; i < post_bin_indices.size(); i++) {
-            binary_po_fp.emplace_back(
-                    make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx));
-            binary_po_dt.emplace_back(make_dnn_mem(ins[idx_ins], tag::abx));
-            binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(
-                                     static_cast<int>(post_bin_indices[i])),
-                    binary_po_dt[i], binary_po_fp[i]);
-        }
+    for (size_t i = 0; i < post_bin_indices.size(); i++) {
+        binary_po_fp.emplace_back(
+                make_dnn_mem(ins[++idx_ins], dt::f32, tag::abx));
+        binary_po_dt.emplace_back(make_dnn_mem(ins[idx_ins], tag::abx));
+        binary::fill_mem(DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                 static_cast<int>(post_bin_indices[i])),
+                binary_po_dt[i], binary_po_fp[i]);
     }
+
     const dnnl::graph::engine &eng = get_test_engine();
 
     idx_ins = 0;
@@ -387,6 +363,8 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
+
+    cleanup();
 
     return OK;
 }
