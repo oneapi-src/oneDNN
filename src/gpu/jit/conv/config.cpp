@@ -1045,11 +1045,12 @@ void conv_config_t::init_bwd_d_optimize_strided(int iw_thr_blk) {
     bwd_d_optimize_strided = false;
     bwd_d_optimize_strided_iw = false;
     if (!is_bwd_d) return;
+    if (is_stride1()) return;
+
     bwd_d_optimize_strided = true;
 
     if (!use_a_2d_send && is_compute_nhwc("dst")) return;
     if (iw_thr_blk > 1) return;
-    if (is_stride1()) return;
     if (iw % sw != 0) return;
     bwd_d_optimize_strided_iw = true;
 }
