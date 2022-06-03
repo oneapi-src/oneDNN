@@ -864,4 +864,112 @@ const dnnl::graph::stream &get_test_stream() {
     }
 }
 
+std::string entry_kind2str(entry_kind_t ekind) {
+    switch (ekind) {
+        case entry_kind::NONE: return "NONE";
+        case entry_kind::BINARY: return "BINARY";
+        case entry_kind::BNORM: return "BNORM";
+        case entry_kind::CONCAT: return "CONCAT";
+        case entry_kind::CONV: return "CONV";
+        case entry_kind::ELTWISE: return "ELTWISE";
+        case entry_kind::LNORM: return "LNORM";
+        case entry_kind::MATMUL: return "MATMUL";
+        case entry_kind::POOL: return "POOL";
+        case entry_kind::PRELU: return "PRELU";
+        case entry_kind::REDUCTION: return "REDUCTION";
+        case entry_kind::REORDER: return "REORDER";
+        case entry_kind::RESAMPLING: return "RESAMPLING";
+        case entry_kind::SOFTMAX: return "SOFTMAX";
+        case entry_kind::SUM: return "SUM";
+        case entry_kind::QUANTIZE: return "QUANTIZE";
+        case entry_kind::DEQUANTIZE: return "DEQUANTIZE";
+        case entry_kind::TYPECAST: return "TYPECAST";
+        case entry_kind::RESHAPE: return "RESHAPE";
+        case entry_kind::TRANSPOSE: return "TRANSPOSE";
+        default: return "";
+    }
+}
+
+std::string lt_kind2str(lt_kind_t lkind) {
+    switch (lkind) {
+        case lt_kind::NONE: return "NONE";
+        case lt_kind::SRC: return "SRC";
+        case lt_kind::SRC1: return "SRC1";
+        case lt_kind::WEI: return "WEI";
+        case lt_kind::BIA: return "BIA";
+        case lt_kind::DST: return "DST";
+        case lt_kind::MEAN: return "MEAN";
+        case lt_kind::VAR: return "VAR";
+        case lt_kind::SC: return "SC";
+        case lt_kind::SH: return "SH";
+        case lt_kind::DIFF_SRC: return "DIFF_SRC";
+        case lt_kind::DIFF_WEI: return "DIFF_WEI";
+        case lt_kind::DIFF_DST: return "DIFF_DST";
+        case lt_kind::SC_DIFF: return "SC_DIFF";
+        case lt_kind::SH_DIFF: return "SH_DIFF";
+        case lt_kind::SRC_I: return "SRC_I";
+        default:
+            const auto raw_lkind = static_cast<size_t>(lkind);
+            if (raw_lkind > static_cast<size_t>(lt_kind::SRC_I)) return "SRC_I";
+            return "";
+    }
+}
+
+void graph_t::create_lt(size_t aid, dt dtype, const dims_t &adims,
+        const std::string &atag,
+        dnnl::graph::logical_tensor::property_type ptype) {
+    size_t ndims = adims.size();
+    const std::string dnnl_fmt_tag_str
+            = normalize_tag(atag, static_cast<int>(ndims));
+    const dnnl_format_tag_t fmt_tag = dnnl_fmt_str2tag(dnnl_fmt_tag_str);
+    if (fmt_tag == dnnl_format_tag_undef) {
+        []() {
+            SAFE(FAIL, CRIT);
+            return 0;
+        }();
+        return;
+    }
+
+    if (fmt_tag == dnnl_format_tag_any) {
+        create_lt(aid, dtype, adims, lt::strided, ptype);
+        return;
+    }
+
+#ifndef DNNL_GRAPH_LAYOUT_DEBUG
+    if (!is_plain(fmt_tag)) {
+        []() {
+            BENCHDNN_PRINT(0, "error: %s\n",
+                    "to use dnnl opaque blocked formats, please build the "
+                    "library with \"DNNL_GRAPH_LAYOUT_DEBUG=ON\"");
+            SAFE(FAIL, CRIT);
+            return 0;
+        }();
+    }
+#endif // DNNL_GRAPH_LAYOUT_DEBUG
+
+    const std::string ou_fmt_str = get_ou_format(dnnl_fmt_tag_str);
+
+    static_assert(DNNL_GRAPH_MAX_NDIMS == DNNL_MAX_NDIMS,
+            "Maximum number of dimensions of primitive and graph is not "
+            "the same.");
+
+    if (is_plain(fmt_tag)) {
+        dims_t strides(ndims, 0);
+        dim_t acc = 1;
+        // if the layout can be described with strides, let's calculate
+        // the strides according to the given tag.
+        for (int d = static_cast<int>(ndims) - 1; d >= 0; --d) {
+            const size_t coord = static_cast<size_t>(ou_fmt_str[d] - 'a');
+            strides[coord] = acc;
+            acc *= adims[coord];
+        }
+        create_lt(aid, dtype, adims, strides, ptype);
+    } else {
+        const size_t dnnl_layout_id
+                = encode_dnnl_layout(static_cast<size_t>(fmt_tag));
+        dnnl::graph::logical_tensor t(aid, dtype, adims, dnnl_layout_id, ptype);
+        lts_.emplace(aid, t);
+    }
+}
+
 } // namespace benchdnnext

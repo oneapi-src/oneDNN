@@ -23,7 +23,9 @@
 #include <map>
 #include <numeric>
 #include <string>
+#include <utility>
 #include <vector>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
@@ -544,6 +546,240 @@ public:
         } resampling;
     };
 };
+
+inline bool is_plain(dnnl_format_tag_t fmt_tag) {
+    return fmt_tag >= dnnl_a && fmt_tag <= dnnl_abcdefghijlk;
+}
+
+enum class entry_kind {
+    NONE = 0,
+    BINARY,
+    BNORM,
+    CONCAT,
+    CONV,
+    ELTWISE,
+    LNORM,
+    MATMUL,
+    POOL,
+    PRELU,
+    REDUCTION,
+    REORDER,
+    RESAMPLING,
+    SOFTMAX,
+    SUM,
+    // handling data other than f32
+    QUANTIZE,
+    DEQUANTIZE,
+    TYPECAST,
+    // handling special case - shuffle
+    RESHAPE,
+    TRANSPOSE
+};
+typedef entry_kind entry_kind_t;
+std::string entry_kind2str(entry_kind_t ekind);
+
+enum class lt_kind {
+    NONE = 0,
+    SRC,
+    SRC1,
+    WEI,
+    BIA,
+    DST,
+    MEAN,
+    VAR,
+    SC,
+    SH,
+    DIFF_SRC,
+    DIFF_WEI,
+    DIFF_DST,
+    SC_DIFF,
+    SH_DIFF,
+    SRC_I
+};
+typedef lt_kind lt_kind_t;
+std::string lt_kind2str(lt_kind_t lkind);
+
+struct id_mgr_t {
+    size_t hash(entry_kind_t ekind, size_t graph_pos) const noexcept {
+        size_t graph_pos_part = graph_pos << graph_pos_offset_;
+        return static_cast<size_t>(ekind) + graph_pos_part;
+    }
+
+    size_t hash(size_t op_id, lt_kind_t ltkind) const noexcept {
+        size_t lt_kind_part = static_cast<size_t>(ltkind) << lt_kind_offset_;
+        return op_id + lt_kind_part;
+    }
+
+    size_t increment_lt_part(size_t aid, size_t val) const noexcept {
+        return aid + (val << lt_kind_offset_);
+    }
+
+    size_t retrieve_entry_kind_part(size_t aid) const noexcept {
+        return aid & entry_kind_mask_;
+    }
+
+    size_t retrieve_lt_kind_part(size_t aid) const noexcept {
+        return (aid & lt_kind_mask_) >> lt_kind_offset_;
+    }
+
+    size_t retrieve_graph_pos_part(size_t aid) const noexcept {
+        return (aid & graph_pos_mask_) >> graph_pos_offset_;
+    }
+
+    std::string stringify_id(size_t aid) const noexcept {
+        size_t entry_kind_part = retrieve_entry_kind_part(aid);
+        size_t lt_kind_part = retrieve_lt_kind_part(aid);
+        size_t graph_pos_part = retrieve_graph_pos_part(aid);
+        std::string id_as_str;
+        if (entry_kind_part)
+            id_as_str += entry_kind2str(
+                                 static_cast<entry_kind_t>(entry_kind_part))
+                    + "_";
+        if (lt_kind_part)
+            id_as_str
+                    += lt_kind2str(static_cast<lt_kind_t>(lt_kind_part)) + "_";
+        if (!id_as_str.empty()) id_as_str += std::to_string(graph_pos_part);
+        return id_as_str;
+    }
+
+private:
+    // entry_kind occupies first 5-bits
+    const size_t lt_kind_offset_ {0x5};
+    // 5 bits for entry_kind + 6 bits for lt_kind
+    const size_t graph_pos_offset_ {0xb};
+    //              11111 <- LSB
+    const size_t entry_kind_mask_ {0x1f};
+    //        11111100000 <- LSB
+    const size_t lt_kind_mask_ {0x7e0};
+    // 111111100000000000 <- LSB
+    const size_t graph_pos_mask_ {0x3f800};
+};
+
+struct graph_t {
+    static graph_t &get() {
+        static graph_t g;
+        return g;
+    }
+
+    size_t generate_id_for(entry_kind_t ekind) const {
+        return id_mgr_.hash(ekind, ops_.size());
+    }
+
+    size_t generate_id_for(size_t op_id, lt_kind_t lkind,
+            bool prefer_append = false) const noexcept {
+        if (prefer_append)
+            return cur_block_out_id_;
+        else
+            return id_mgr_.hash(op_id, lkind);
+    }
+
+    size_t generate_id_for(size_t op_id, lt_kind_t lkind, size_t occurrence,
+            bool prefer_append = false) const noexcept {
+        if (occurrence == 0 || lkind != lt_kind::SRC_I)
+            return generate_id_for(op_id, lkind);
+        return id_mgr_.increment_lt_part(
+                id_mgr_.hash(op_id, lkind), occurrence);
+    }
+
+    std::string stringify_id(size_t aid) const {
+        return id_mgr_.stringify_id(aid);
+    }
+
+    template <typename... Args>
+    void create_lt(size_t aid, Args... args) {
+        dnnl::graph::logical_tensor lt(aid, std::forward<Args>(args)...);
+        lts_.emplace(aid, lt);
+    }
+
+    void create_lt(size_t aid, const dnnl::graph::logical_tensor &lt) {
+        if (lt.get_layout_type()
+                == dnnl::graph::logical_tensor::layout_type::opaque)
+            create_lt(aid, lt.get_data_type(), lt.get_dims(),
+                    lt.get_layout_type());
+        else
+            create_lt(aid, lt.get_data_type(), lt.get_dims(), lt.get_strides());
+    }
+
+    void create_lt(size_t aid, dt dtype, const dims_t &adims,
+            const std::string &atag,
+            dnnl::graph::logical_tensor::property_type ptype
+            = dnnl::graph::logical_tensor::property_type::undef);
+
+    void append(size_t op_id, dnnl::graph::op &aop,
+            const std::vector<size_t> &src_ids,
+            const std::vector<size_t> &dst_ids, bool is_after = true) {
+        for (auto src_id : src_ids)
+            aop.add_input(get_lt(src_id));
+        for (auto dst_id : dst_ids)
+            aop.add_output(get_lt(dst_id));
+        ops_.emplace_back(aop);
+
+        if (is_after) cur_block_out_id_ = dst_ids.front();
+    }
+
+    dnnl::graph::logical_tensor get_lt(size_t lt_id) const {
+        if (lts_.count(lt_id))
+            return lts_.at(lt_id);
+        else
+            return get_empty_lt(lt_id);
+    }
+
+    bool has_blocks() const noexcept { return last_block_out_id_ > 0; }
+
+    size_t get_last_block_out_id() const noexcept { return last_block_out_id_; }
+
+    size_t get_cur_block_out_id() const noexcept { return cur_block_out_id_; }
+
+    std::vector<dnnl::graph::partition> get_partitions(
+            dnnl::graph::graph::fpmath_mode mode
+            = dnnl::graph::graph::fpmath_mode::strict,
+            dnnl::graph::partition::policy p
+            = dnnl::graph::partition::policy::fusion) const {
+        const dnnl::graph::engine &engine = benchdnnext::get_test_engine();
+        dnnl::graph::graph graph(engine.get_kind(), mode);
+        for (auto &&op : ops_)
+            graph.add_op(op);
+        return graph.get_partitions(p);
+    }
+
+    void update_lts(const std::vector<dnnl::graph::logical_tensor> &lts) {
+        for (const auto &lt : lts)
+            if (lts_.count(lt.get_id())) lts_[lt.get_id()] = lt;
+    }
+
+    void close_block() noexcept { last_block_out_id_ = cur_block_out_id_; }
+
+    void clear() noexcept {
+        ops_.clear();
+        lts_.clear();
+        cur_block_out_id_ = 0;
+        last_block_out_id_ = 0;
+    };
+
+private:
+    graph_t() = default;
+    ~graph_t() = default;
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(graph_t);
+
+    dnnl::graph::logical_tensor get_empty_lt(size_t aid) const {
+        BENCHDNN_PRINT(0,
+                "warning: empty logical tensors was returned for id: %s\n",
+                stringify_id(aid).c_str());
+        return dnnl::graph::logical_tensor();
+    }
+
+    std::vector<dnnl::graph::op> ops_;
+    std::unordered_map<size_t, dnnl::graph::logical_tensor> lts_;
+
+    id_mgr_t id_mgr_;
+
+    size_t cur_block_out_id_ {0};
+    size_t last_block_out_id_ {0};
+};
+
+inline void cleanup() {
+    graph_t::get().clear();
+}
 
 } // namespace benchdnnext
 

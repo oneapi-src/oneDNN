@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +40,10 @@ inline bool with_typecast(const std::vector<graph_dt> &dtypes) {
 }
 
 inline graph_dt set_main_op_dtype(graph_dt dtype) {
+    return is_low_precision({dtype}) ? graph_dt::f32 : dtype;
+}
+
+inline graph_dt dequantize_dtype(graph_dt dtype) {
     return is_low_precision({dtype}) ? graph_dt::f32 : dtype;
 }
 
