@@ -556,6 +556,16 @@ std::pair<fill_status_t, size_t> append_graph_with_sum(
 
 fill_status_t append_graph_with_swish(
         const attr_t::post_ops_t::entry_t &swish_entry, size_t src1_id);
+
+std::pair<fill_status_t, size_t> insert_typecast_before(
+        size_t dst_id, bool as_constant = false);
+
+fill_status_t insert_dequant_before(
+        size_t lt_id, const quant_data_t &qdata, bool as_constant = false);
+fill_status_t insert_quant_after(size_t lt_id, const quant_data_t &qdata);
+fill_status_t handle_quant_dequant(size_t lt_id, const quant_data_t &qdata,
+        bool as_constant, dnnl::graph::op::kind op_kind);
+
 inline bool is_plain(dnnl_format_tag_t fmt_tag) {
     return fmt_tag >= dnnl_a && fmt_tag <= dnnl_abcdefghijlk;
 }

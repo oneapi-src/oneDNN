@@ -902,6 +902,88 @@ fill_status_t po_handlers_t::low_precision_handler_t::handle_quant_dequant_(
     return fill_status::DONE;
 }
 
+std::pair<fill_status_t, size_t> insert_typecast_before(
+        size_t dst_id, bool as_constant) {
+    graph_t &graph = graph_t::get();
+
+    const auto op_id = graph.generate_id_for(entry_kind::TYPECAST);
+    const auto src_id = graph.generate_id_for(op_id, lt_kind::SRC);
+
+    const auto ptype = as_constant
+            ? dnnl::graph::logical_tensor::property_type::constant
+            : dnnl::graph::logical_tensor::property_type::undef;
+
+    const auto dst_lt = graph.get_lt(dst_id);
+    const auto src_dt = dnnl::graph::logical_tensor::data_type::f32;
+    if (dst_lt.get_layout_type()
+            == dnnl::graph::logical_tensor::layout_type::strided)
+        graph.create_lt(
+                src_id, src_dt, dst_lt.get_dims(), dst_lt.get_strides(), ptype);
+    else
+        graph.create_lt(src_id, src_dt, dst_lt.get_dims(),
+                dst_lt.get_layout_id(), ptype);
+
+    dnnl::graph::op tc_op(
+            op_id, dnnl::graph::op::kind::TypeCast, graph.stringify_id(op_id));
+
+    graph.append(op_id, tc_op, {src_id}, {dst_id}, false);
+
+    return std::make_pair(fill_status::DONE, src_id);
+}
+
+fill_status_t insert_dequant_before(
+        size_t dst_id, const quant_data_t &qdata, bool as_constant) {
+    return handle_quant_dequant(
+            dst_id, qdata, as_constant, dnnl::graph::op::kind::Dequantize);
+}
+
+fill_status_t insert_quant_after(size_t src_id, const quant_data_t &qdata) {
+    return handle_quant_dequant(
+            src_id, qdata, false, dnnl::graph::op::kind::Quantize);
+}
+
+fill_status_t handle_quant_dequant(size_t existing_lt_id,
+        const quant_data_t &qdata, bool as_constant,
+        dnnl::graph::op::kind op_kind) {
+    graph_t &graph = graph_t::get();
+
+    const bool is_quant = op_kind == dnnl::graph::op::kind::Quantize;
+    const bool connect_to_previous_block = !is_quant && graph.has_blocks();
+    const auto op_id = graph.generate_id_for(
+            is_quant ? entry_kind::QUANTIZE : entry_kind::DEQUANTIZE);
+    const auto new_lt_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(
+                    op_id, is_quant ? lt_kind::DST : lt_kind::SRC);
+
+    const auto ptype = as_constant
+            ? dnnl::graph::logical_tensor::property_type::constant
+            : dnnl::graph::logical_tensor::property_type::undef;
+
+    const auto existing_lt = graph.get_lt(existing_lt_id);
+    if (!qdata.tag.empty())
+        graph.create_lt(
+                new_lt_id, qdata.dt, existing_lt.get_dims(), qdata.tag, ptype);
+    else if (!qdata.strides.empty())
+        graph.create_lt(new_lt_id, qdata.dt, existing_lt.get_dims(),
+                qdata.strides, ptype);
+    else
+        return fill_status::UNKNOWN_ERROR;
+
+    dnnl::graph::op q_op(op_id, op_kind, graph.stringify_id(op_id));
+    q_op.set_attr("scales", qdata.scales)
+            .set_attr("zps", qdata.zps)
+            .set_attr("qtype", qdata.qtype)
+            .set_attr("axis", qdata.axis);
+
+    if (is_quant)
+        graph.append(op_id, q_op, {existing_lt_id}, {new_lt_id});
+    else
+        graph.append(op_id, q_op, {new_lt_id}, {existing_lt_id}, false);
+
+    return fill_status::DONE;
+}
+
 #ifdef DNNL_GRAPH_WITH_SYCL
 const dnnl::graph::engine &get_graph_engine() {
     static auto sycl_allocator {dnnl::graph::sycl_interop::make_allocator(
