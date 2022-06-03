@@ -27,7 +27,8 @@
 namespace benchdnnext {
 namespace concat {
 
-void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {
+static void check_ranks_shapes_and_dtypes(
+        const ::concat::prb_t *prb, res_t *res) {
     auto rank = prb->vdims[0].size();
     auto axis = prb->axis;
 
@@ -81,7 +82,8 @@ void check_ranks_shapes_and_dtypes(const ::concat::prb_t *prb, res_t *res) {
     }
 }
 
-void check_known_skipped_case_graph(const ::concat::prb_t *prb, res_t *res) {
+static void check_known_skipped_case_graph(
+        const ::concat::prb_t *prb, res_t *res) {
     // srcs and dst should have same tags
     const auto tag = prb->dtag;
     const auto same_tags = std::all_of(prb->stag.cbegin(), prb->stag.cend(),
@@ -105,56 +107,62 @@ static quant_data_t get_qdata_for(
     return quant_data_t();
 }
 
-fill_status_t concat_graph_prb_t::handle_main_op_(const ::concat::prb_t *prb) {
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string DST {TENSOR_ID + "_DST"};
-
-    auto src_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->sdt));
-    auto dst_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->ddt));
-
-    std::vector<dnnl::graph::logical_tensor> tensor_descs_srcs;
-    tensor_descs_srcs.reserve(prb->n_inputs());
-
-    for (auto i = 0; i < prb->n_inputs(); ++i) {
-        const auto SRC_I = SRC + std::to_string(i);
-        tensor_descs_.emplace(SRC_I, src_dt, prb->vdims[i], prb->stag[i]);
-        tensor_descs_srcs.emplace_back(tensor_descs_[SRC_I]);
-    }
-    tensor_descs_.emplace(DST, dst_dt, prb->dst_dims, prb->dtag);
-
-    dnnl::graph::op concat(new_op_id, dnnl::graph::op::kind::Concat,
-            tensor_descs_srcs, {tensor_descs_[DST]}, "concat");
-
-    concat.set_attr("axis", static_cast<int64_t>(prb->axis));
-
-    ops_.emplace_back(concat);
-    curr_out_map_ids_.assign({TENSOR_ID});
-
-    return fill_status::DONE;
+static std::vector<dnnl::graph::logical_tensor::data_type> collect_data_types(
+        const ::concat::prb_t *prb) {
+    return {convert_dt(prb->sdt), convert_dt(prb->ddt)};
 }
 
-fill_status_t concat_graph_prb_t::handle_low_precision_(
-        const ::concat::prb_t *prb) {
-    const std::string OP_REPR = "main";
-    const auto src_base_lt_id = tensor_id[OP_REPR].back() + "_SRC";
-    const auto dst_lt_id = curr_out_map_ids_.back() + "_DST";
+fill_status_t append_graph_with_block(const ::concat::prb_t *prb) {
+    graph_t &graph = graph_t::get();
+
+    const auto orig_dts = collect_data_types(prb);
+    const auto with_dq = is_low_precision(orig_dts);
+    const auto connect_to_previous_block = !with_dq && graph.has_blocks();
+
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::CONCAT);
+
+    auto src_dt = dequantize_dtype(orig_dts[0]);
+    std::vector<size_t> src_ids;
+    for (size_t i = 0; i < prb->n_inputs(); ++i) {
+        const auto src_i_id = (i == 0 && connect_to_previous_block)
+                ? graph.get_last_block_out_id()
+                : graph.generate_id_for(op_id, lt_kind::SRC_I, i);
+        graph.create_lt(src_i_id, src_dt, prb->vdims[i], prb->stag[i]);
+        src_ids.push_back(src_i_id);
+    }
+
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+    auto dst_dt = dequantize_dtype(orig_dts[1]);
+    graph.create_lt(dst_id, dst_dt, prb->dst_dims, prb->dtag);
+    std::vector<size_t> dst_ids {dst_id};
+
+    dnnl::graph::op concat_op(
+            op_id, dnnl::graph::op::kind::Concat, graph.stringify_id(op_id));
+    concat_op.set_attr<int64_t>("axis", prb->axis);
+
+    graph.append(op_id, concat_op, src_ids, dst_ids);
 
     fill_status_t status;
-    for (int i = 0; i < prb->n_inputs(); ++i) {
-        const auto src_lt_id = src_base_lt_id + std::to_string(i);
-        status = po_handler.concat.low_precision_handler.insert_dequant_before(
-                src_lt_id, get_qdata_for(SRC, prb, i), *this);
+    // if required - apply dequantize to block inputs
+    if (with_dq) {
+        for (size_t i = 0; i < src_ids.size(); ++i) {
+            status = insert_dequant_before(
+                    src_ids[i], get_qdata_for(SRC, prb, i));
+            BENCHDNNEXT_VERIFY(status);
+        }
+    }
+
+    // if required - add quantize op
+    if (is_low_precision({orig_dts[1]})) {
+        status = insert_quant_after(
+                graph.get_cur_block_out_id(), get_qdata_for(DST, prb));
         BENCHDNNEXT_VERIFY(status);
     }
 
-    status = po_handler.concat.low_precision_handler.insert_quant_after(
-            dst_lt_id, get_qdata_for(DST, prb), *this);
-    BENCHDNNEXT_VERIFY(status);
+    graph.close_block();
 
-    return status;
+    return fill_status::DONE;
 }
 
 int doit(const ::concat::prb_t *prb, res_t *res) {
@@ -171,21 +179,27 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
     check_ranks_shapes_and_dtypes(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    concat_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
     // // Filter partitions
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -233,6 +247,8 @@ int doit(const ::concat::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
+
+    cleanup();
 
     return OK;
 }
