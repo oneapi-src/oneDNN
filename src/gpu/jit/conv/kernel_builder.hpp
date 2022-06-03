@@ -87,8 +87,16 @@ public:
 
     const std::array<expr_t, 3> &local_id() const { return local_id_; }
 
-    static std::vector<int> compute_blocks(
-            const layout_t &src, const layout_t &dst, int &threads);
+    static void compute_blocks(const layout_t &src, const layout_t &dst,
+            std::vector<int> &tile_blocks, std::vector<int> &tg_blocks);
+
+    static void compute_grid(const layout_t &src, const layout_t &dst,
+            const std::vector<int> &tile_blocks,
+            const std::vector<int> &tg_blocks, std::array<int, 3> &kernel_grid,
+            std::array<int, 3> &tg_grid, std::vector<int> *dim2grid = nullptr);
+
+    static compute::nd_range_t nd_range(
+            int simd, const layout_t &src, const layout_t &dst);
 
 private:
     void build();

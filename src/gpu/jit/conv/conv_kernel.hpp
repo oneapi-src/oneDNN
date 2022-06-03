@@ -2622,10 +2622,7 @@ public:
         // Handle IR-based reorder.
         ir_assert(reorder_kernel_t<>::is_ir_based_reorder(src, dst));
 
-        int nthreads;
-        auto blocks
-                = reorder_kernel_builder_t::compute_blocks(src, dst, nthreads);
-        return compute::nd_range_t({nthreads * simd, 1, 1}, {simd, 1, 1});
+        return reorder_kernel_builder_t::nd_range(simd, src, dst);
     }
 
 private:

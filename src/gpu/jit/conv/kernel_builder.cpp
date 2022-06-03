@@ -21,6 +21,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <utility>
 #include <vector>
 #include <unordered_map>
@@ -6427,7 +6428,7 @@ stmt_t inject_compute_loop_label(const stmt_t &s) {
 void init_kernel_grid(const std::array<int, 3> &kernel_grid_dims,
         const std::array<int, 3> &tg_grid_dims, int simd_size,
         constraint_set_t &cset, grid_info_t &kernel_grid, grid_info_t &tg_grid,
-        std::array<expr_t, 3> &local_id) {
+        std::array<expr_t, 3> &local_id, std::vector<stmt_t> &init_stmts) {
     int grid_ndims = 3;
     kernel_grid = grid_info_t(grid_ndims);
     tg_grid = grid_info_t(grid_ndims);
@@ -6451,6 +6452,12 @@ void init_kernel_grid(const std::array<int, 3> &kernel_grid_dims,
         cset.add_constraint(tg_grid.idx(i) >= 0);
         cset.add_constraint(tg_grid.idx(i) < tg_grid_dims[i]);
     }
+
+    for (int i = 0; i < grid_ndims; i++) {
+        auto value = local_id[i];
+        if (i == 0) value /= simd_size;
+        init_stmts.push_back(let_t::make(tg_grid.idx(i), value));
+    }
 }
 
 void kernel_builder_t::build() {
@@ -6459,18 +6466,11 @@ void kernel_builder_t::build() {
 
     trace_reset();
 
+    std::vector<stmt_t> init_stmts;
     init_kernel_grid(cfg_.kernel_grid_dim, cfg_.tg_grid_dim, cfg_.simd_size(),
-            init_cset, kernel_grid_, tg_grid_, local_id_);
+            init_cset, kernel_grid_, tg_grid_, local_id_, init_stmts);
 
     gemm_schedule_t gemm_schedule(init_cset, kernel_grid_, tg_grid_);
-
-    std::vector<stmt_t> init_stmts;
-    int grid_ndims = 3;
-    for (int i = 0; i < grid_ndims; i++) {
-        auto value = local_id_[i];
-        if (i == 0) value /= cfg_.simd_size();
-        init_stmts.push_back(let_t::make(tg_grid_.idx(i), value));
-    }
 
     // Initialize memory buffers.
     std::vector<stmt_t> inner_lets;
@@ -6595,8 +6595,9 @@ void kernel_builder_t::build() {
     trace_perf();
 }
 
-std::vector<int> reorder_kernel_builder_t::compute_blocks(
-        const layout_t &src, const layout_t &dst, int &threads) {
+void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
+        const layout_t &dst, std::vector<int> &tile_blocks,
+        std::vector<int> &tg_blocks) {
     ir_assert(src.ndims() == dst.ndims());
     int ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
@@ -6608,18 +6609,29 @@ std::vector<int> reorder_kernel_builder_t::compute_blocks(
         inner_dims[i] = std::max(src_inner.dim(i), dst_inner.dim(i));
     }
 
-    std::vector<int> candidate_dim_idxs;
-    for (int i = 0; i < ndims; i++) {
-        if (inner_dims[i] != 1) candidate_dim_idxs.push_back(i);
-    }
+    std::vector<int> sorted_dim_idxs(ndims);
+    std::iota(sorted_dim_idxs.begin(), sorted_dim_idxs.end(), 0);
 
-    for (dim_t dim_limit : {16, 1}) {
-        if (candidate_dim_idxs.size() >= 2) break;
-        for (int i = 0; i < ndims; i++) {
-            if (inner_dims[i] != 1 || dims[i] == 1) continue;
-            if (dims[i] >= dim_limit) candidate_dim_idxs.push_back(i);
+    auto get_key = [&](int i) {
+        for (auto *l : {&src_inner, &dst_inner}) {
+            if (!l->blocks().empty() && l->blocks()[0].dim_idx == i) return 0;
         }
-    }
+        if (inner_dims[i] != 1) return 1;
+        int src_blk_idx = 0;
+        for (auto &b : src.blocks()) {
+            if (b.dim_idx == i) break;
+            src_blk_idx++;
+        }
+        int dst_blk_idx = 0;
+        for (auto &b : dst.blocks()) {
+            if (b.dim_idx == i) break;
+            dst_blk_idx++;
+        }
+        return 2 + std::min(src_blk_idx, dst_blk_idx);
+    };
+
+    std::sort(sorted_dim_idxs.begin(), sorted_dim_idxs.end(),
+            [&](int a, int b) { return get_key(a) < get_key(b); });
 
     auto get_block = [&](int dim_idx) {
         dim_t max_block = 16;
@@ -6628,21 +6640,79 @@ std::vector<int> reorder_kernel_builder_t::compute_blocks(
         return (int)utils::max_div(dim, max_block);
     };
 
-    dim_t max_total_block = 256;
+    dim_t max_total_block = 512;
     dim_t total_block = 1;
-    std::vector<int> blocks(ndims, 1);
-    for (int idx : candidate_dim_idxs) {
+    bool tg_block_found = false;
+    tile_blocks.resize(ndims, 1);
+    tg_blocks.resize(ndims, 1);
+    for (int idx : sorted_dim_idxs) {
         int block = get_block(idx);
-        if (total_block * block >= max_total_block) break;
-        blocks[idx] = block;
+        if (total_block * block >= max_total_block) {
+            block = utils::max_div(block, (int)(max_total_block / total_block));
+        }
+        int tg_factor = 2;
+        if (!tg_block_found) {
+            int outer = utils::div_up(dims[idx], block);
+            if (outer % tg_factor == 0) {
+                tg_blocks[idx] = tg_factor;
+                tg_block_found = true;
+            }
+        }
+        ir_assert(block >= 1);
+        tile_blocks[idx] = block;
         total_block *= block;
     }
+    ir_assert(total_block <= max_total_block);
+}
 
-    threads = 1;
+void reorder_kernel_builder_t::compute_grid(const layout_t &src,
+        const layout_t &dst, const std::vector<int> &tile_blocks,
+        const std::vector<int> &tg_blocks, std::array<int, 3> &kernel_grid,
+        std::array<int, 3> &tg_grid, std::vector<int> *dim2grid) {
+    int ndims = src.ndims();
+    std::vector<dim_t> dims(ndims);
     for (int i = 0; i < ndims; i++) {
-        threads *= utils::div_up(dims[i], blocks[i]);
+        dims[i] = std::max(src.dim(i), dst.dim(i));
     }
-    return blocks;
+
+    if (dim2grid) dim2grid->resize(ndims, -1);
+
+    const int grid_ndims = 3;
+    for (int i = 0; i < grid_ndims; i++) {
+        kernel_grid[i] = 1;
+        tg_grid[i] = 1;
+    }
+
+    int grid_idx = 0;
+    int max_grid_idx = grid_ndims - 1;
+    for (int i = 0; i < ndims; i++) {
+        if (dim2grid) (*dim2grid)[i] = grid_idx;
+        int outer = utils::div_up(dims[i], tile_blocks[i] * tg_blocks[i]);
+        tg_grid[grid_idx] *= tg_blocks[i];
+        kernel_grid[grid_idx] *= outer;
+        if (outer != 1 && grid_idx != max_grid_idx) grid_idx++;
+    }
+}
+
+compute::nd_range_t reorder_kernel_builder_t::nd_range(
+        int simd, const layout_t &src, const layout_t &dst) {
+    std::vector<int> tile_blocks;
+    std::vector<int> tg_blocks;
+    compute_blocks(src, dst, tile_blocks, tg_blocks);
+    std::array<int, 3> kernel_grid;
+    std::array<int, 3> tg_grid;
+    compute_grid(src, dst, tile_blocks, tg_blocks, kernel_grid, tg_grid);
+    std::array<size_t, 3> global;
+    std::array<size_t, 3> local;
+    for (size_t i = 0; i < kernel_grid.size(); i++) {
+        global[i] = kernel_grid[i] * tg_grid[i];
+        local[i] = tg_grid[i];
+        if (i == 0) {
+            global[i] *= simd;
+            local[i] *= simd;
+        }
+    }
+    return compute::nd_range_t(global.data(), local.data());
 }
 
 void reorder_kernel_builder_t::build() {
@@ -6656,18 +6726,26 @@ void reorder_kernel_builder_t::build() {
         vars.push_back(var_t::make(type_t::s32(), std::string(1, letter)));
     }
 
-    int threads = 1;
-    auto blocks = compute_blocks(src_layout_, dst_layout_, threads);
+    std::vector<int> tg_blocks;
+    std::vector<int> tile_blocks;
+    compute_blocks(src_layout_, dst_layout_, tile_blocks, tg_blocks);
 
     ir_info() << "Reorder configuration:" << std::endl;
-    ir_info() << "  Tile size:                  "
-              << ir_utils::make_seq_print_helper(blocks, " x ") << std::endl;
+    ir_info() << "  Source layout:              " << src_layout_ << std::endl;
+    ir_info() << "  Destination layout:         " << dst_layout_ << std::endl;
+    ir_info() << "  Tile size per thread:       "
+              << ir_utils::make_seq_print_helper(tile_blocks, " x ")
+              << std::endl;
 
-    std::array<int, 3> kernel_grid_dims = {threads, 1, 1};
-    std::array<int, 3> tg_grid_dims = {1, 1, 1};
+    std::array<int, 3> kernel_grid_dims;
+    std::array<int, 3> tg_grid_dims;
+    std::vector<int> dim2grid;
+    compute_grid(src_layout_, dst_layout_, tile_blocks, tg_blocks,
+            kernel_grid_dims, tg_grid_dims, &dim2grid);
 
+    std::vector<stmt_t> init_stmts;
     init_kernel_grid(kernel_grid_dims, tg_grid_dims, hw_cfg_.simd_size(),
-            init_cset, kernel_grid_, tg_grid_, local_id_);
+            init_cset, kernel_grid_, tg_grid_, local_id_, init_stmts);
 
     auto &x = view_t::placeholder_var();
 
@@ -6701,22 +6779,30 @@ void reorder_kernel_builder_t::build() {
     schedule.set_view(src_view);
     schedule.set_view(dst_view);
 
-    std::vector<expr_t> fused_idxs;
+    std::array<std::vector<expr_t>, 3> fused_idxs;
     for (int i = 0; i < ndims; i++) {
-        if (blocks[i] == 1) {
-            fused_idxs.push_back(vars[i]);
-            continue;
+        auto v = vars[i];
+        if (tile_blocks[i] != 1) {
+            expr_t outer, inner;
+            schedule.split(v, tile_blocks[i], outer, inner);
+            schedule.tensorize(inner);
+            v = outer;
         }
-        expr_t outer;
-        expr_t inner;
-        schedule.split(vars[i], blocks[i], outer, inner);
-        schedule.tensorize(inner);
-        fused_idxs.push_back(outer);
+        if (tg_blocks[i] != 1) {
+            expr_t outer, inner;
+            schedule.split(v, tg_blocks[i], outer, inner);
+            schedule.bind(inner, tg_grid_.idx(dim2grid[i]));
+            v = outer;
+        }
+        fused_idxs[dim2grid[i]].push_back(v);
     }
 
-    auto tg_idx = schedule.fuse(fused_idxs);
-
-    schedule.bind(tg_idx, kernel_grid_.idx(0));
+    for (size_t i = 0; i < fused_idxs.size(); i++) {
+        auto &vec = fused_idxs[i];
+        if (vec.empty()) continue;
+        auto var = (vec.size() == 1 ? vec[0] : schedule.fuse(vec));
+        schedule.bind(var, kernel_grid_.idx(i));
+    }
 
     schedule.finalize();
 
@@ -6768,6 +6854,7 @@ void reorder_kernel_builder_t::build() {
 
     stmt_ = schedule.create_loop_nest(stmt_);
     stmt_ = schedule.create_bind_stmt(stmt_);
+    stmt_ = inject_let_stmts(stmt_, init_stmts);
     stmt_ = inject_alloc_stmts(stmt_, allocs);
     stmt_ = inject_external_var_let(stmt_);
 
@@ -6778,6 +6865,7 @@ void reorder_kernel_builder_t::build() {
     stmt_ = eliminate_common_subexprs(stmt_, ir_ctx, hw_cfg_.grf_size(),
             hw_cfg_.regs() * hw_cfg_.grf_size());
     stmt_ = simplify_pass(stmt_, init_cset);
+    stmt_ = optimize_alloc_let(stmt_);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
     ir_trace() << "Reorder kernel body:\n" << stmt_ << std::endl;
