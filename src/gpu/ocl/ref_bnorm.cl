@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -252,7 +252,7 @@ KERNEL_ATTR
 __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
-        float eps) {
+        float eps, __global DATA_T *src_add) {
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
     const int d = GWS_GET_ID();
@@ -283,6 +283,9 @@ __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
     float v0 = TO_DEF_ACC_DATA_T(src[off]);
     float sqrt_variance = 1.0f / sqrt(v_variance + eps);
     float bn_res = sm * (v0 - v_mean) * sqrt_variance + sv;
+#if FUSE_BN_ADD_RELU == 1
+    bn_res += TO_DEF_ACC_DATA_T(src_add[off]);
+#endif
 
 #if FUSE_BN_RELU == 1
     if (bn_res <= 0) {
@@ -470,7 +473,7 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
         __global DATA_T *diff_src, __global float *diff_scaleshift,
-        __global float *diff_shift, float eps) {
+        __global float *diff_shift, float eps, __global DATA_T *diff_src_add) {
 
 #if USE_16MB_UNROLL == 1
     const int n = GWS_GET_MB();
@@ -507,6 +510,9 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
 
     const uint d_off = SRC_OFF(n, c, d, h, w);
     diff_src += d_off;
+#if FUSE_BN_ADD_RELU == 1
+    diff_src_add += d_off;
+#endif
     diff_dst += d_off;
     src += d_off;
 
@@ -521,10 +527,18 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
     VECT_INT_T blockWS0 = VECT_CHAR_TO_INT(
             AS_VECT_CHAR_T(VECT_UCHAR_READ((const __global uchar *)&ws[0])));
     blockD0 = select((VECT_FLOAT_T)0.0f, blockD0, blockWS0);
+#if FUSE_BN_ADD_RELU == 1
+    VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)&diff_src_add[0],
+            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD0)));
+#endif
 #ifdef MB16
     VECT_INT_T blockWS1 = VECT_CHAR_TO_INT(AS_VECT_CHAR_T(
             VECT_UCHAR_READ((const __global uchar *)&ws[8 * IC_BLOCK])));
     blockD1 = select((VECT_FLOAT_T)0.0f, blockD1, blockWS1);
+#if FUSE_BN_ADD_RELU == 1
+    VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)&diff_src_add[8 * 16],
+            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD1)));
+#endif
 #endif
 #endif
 
@@ -583,6 +597,9 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
     float dd = TO_DEF_ACC_DATA_T(diff_dst[off]);
 #if FUSE_BN_RELU == 1
     if (!ws[off]) dd = 0;
+#if FUSE_BN_ADD_RELU == 1
+    diff_src_add[off] = TO_DATA_T(dd);
+#endif
 #endif
 
     float v_diff_src = dd;

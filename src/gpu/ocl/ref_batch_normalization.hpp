@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,7 +67,8 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
                             compute::device_ext_t::intel_subgroups);
             if (!ok) return status::unimplemented;
 
-            if (is_training() && fuse_norm_relu()) init_default_ws(8);
+            if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu()))
+                init_default_ws(8);
 
             status_t status = init_conf(engine);
             if (status != status::success) return status;
@@ -153,7 +154,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            if (fuse_norm_relu()) {
+            if (fuse_norm_relu() || fuse_norm_add_relu()) {
                 init_default_ws(8);
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }

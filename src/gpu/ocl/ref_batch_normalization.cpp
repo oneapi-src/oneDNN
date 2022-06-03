@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.use_shift = pd->use_shift();
     conf.save_stats = pd->is_training();
     conf.is_training = pd->is_training();
-    conf.fuse_norm_relu = pd->fuse_norm_relu();
+    conf.fuse_norm_relu = pd->fuse_norm_relu() || pd->fuse_norm_add_relu();
+    conf.fuse_norm_add_relu = pd->fuse_norm_add_relu();
     conf.calculate_stats = !pd->stats_is_src();
     conf.with_relu = pd->with_relu_post_op();
     conf.eps = bd.batch_norm_epsilon;
@@ -252,6 +253,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("SAVE_STATS", conf.save_stats);
     kernel_ctx.define_int("IS_TRAINING", conf.is_training);
     kernel_ctx.define_int("FUSE_BN_RELU", conf.fuse_norm_relu);
+    kernel_ctx.define_int("FUSE_BN_ADD_RELU", conf.fuse_norm_add_relu);
     kernel_ctx.define_int("CALCULATE_STATS", conf.calculate_stats);
     kernel_ctx.define_int("USE_SCALESHIFT", conf.use_scaleshift);
     kernel_ctx.define_int("USE_SCALE", conf.use_scale);
@@ -306,6 +308,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     const auto &conf = pd()->conf;
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &src_add = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
 
     auto &mean_ = pd()->stats_is_src()
             ? CTX_IN_STORAGE(DNNL_ARG_MEAN)
@@ -410,6 +413,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     arg_list.set(5, shift);
     arg_list.set(6, ws);
     arg_list.set(7, conf.eps);
+    arg_list.set(8, src_add);
 
     auto nd_range = conf.dispatch.nd_range();
 
@@ -455,6 +459,8 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
 
     auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
+    auto &diff_src_add = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC_1, status);
     CHECK(status);
     auto &diff_scaleshift_ = CTX_OUT_CLEAN_STORAGE(
             conf.diff_scale ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
@@ -511,6 +517,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     arg_list.set(7, diff_scaleshift);
     arg_list.set(8, diff_shift);
     arg_list.set(9, conf.eps);
+    arg_list.set(10, diff_src_add);
 
     nd_range = conf.dispatch.nd_range();
 
