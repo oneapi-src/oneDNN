@@ -495,13 +495,13 @@ view_t view_t::substitute(const expr_t &from, const expr_t &to) const {
 
 std::vector<expr_t> view_t::create_vvars(int nvdims) {
     static const int max_nvdims = 128;
-    static std::vector<expr_t> _vvars;
-    static std::once_flag initialized;
-    std::call_once(initialized, [&]() {
+    static thread_local std::vector<expr_t> _vvars([] {
+        std::vector<expr_t> ret;
+        ret.reserve(max_nvdims);
         for (int i = 0; i < max_nvdims; i++)
-            _vvars.push_back(
-                    var_t::make(type_t::s32(), "_" + std::to_string(i)));
-    });
+            ret.push_back(var_t::make(type_t::s32(), "_" + std::to_string(i)));
+        return ret;
+    }());
 
     ir_assert(nvdims <= max_nvdims) << "Too many dimensions: " << nvdims;
     return std::vector<expr_t>(_vvars.begin(), _vvars.begin() + nvdims);

@@ -215,7 +215,7 @@ public:
 
     static bool is_enabled() {
 #ifdef GEN_CONV_DEBUG
-        static int log_level = getenv_int("log_level", LOG_LEVEL);
+        static const int log_level(getenv_int("log_level", LOG_LEVEL));
         return log_level >= level;
 #else
         return LOG_LEVEL >= level;
