@@ -596,9 +596,9 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
     int oc_chunks = j.nb_oc / j.nb_oc_blocking;
     auto calc_mem_cost = [=](int nb_os_blocking, int nthr_mb, int nthr_oc,
                                  int nthr_ic) {
-        int src_size = j.ic * j.mb;
-        int dst_size = j.oc * j.mb;
-        int wei_size = j.ic * j.oc;
+        float src_size = static_cast<float>(j.ic) * j.mb;
+        float dst_size = static_cast<float>(j.oc) * j.mb;
+        float wei_size = static_cast<float>(j.ic) * j.oc;
         int os_chunks = div_up(j.nb_os, nb_os_blocking);
         float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
 
@@ -606,10 +606,10 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         if (is_bf16) {
             oi_channels_ratio = ((j.oc > 3 * j.ic && os_chunks > 1)
                                         || (os_chunks == 1 && j.ic > j.oc))
-                    ? (float)src_size / dst_size
-                    : (float)dst_size / src_size;
+                    ? src_size / dst_size
+                    : dst_size / src_size;
         } else {
-            oi_channels_ratio = (float)src_size / dst_size;
+            oi_channels_ratio = src_size / dst_size;
         }
 
         auto get_src_coef = [=]() {
