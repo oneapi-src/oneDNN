@@ -25,23 +25,15 @@
 namespace benchdnnext {
 namespace shuffle {
 
-void check_known_skipped_case_graph(const ::shuffle::prb_t *prb, res_t *res) {
+static void check_known_skipped_case_graph(
+        const ::shuffle::prb_t *prb, res_t *res) {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
     skip_invalid_and_unimplemented_prb(prb, res);
 }
 
-fill_status_t shuffle_graph_prb_t::handle_main_op_(
-        const ::shuffle::prb_t *prb) {
-    const auto add_reshape = [this](const size_t id,
-                                     const dnnl::graph::logical_tensor &src,
-                                     const dnnl::graph::logical_tensor &dst) {
-        dnnl::graph::op reshape(id, dnnl::graph::op::kind::StaticReshape, {src},
-                {dst}, "reshape");
-        reshape.set_attr("shape", dst.get_dims())
-                .set_attr("special_zero", false);
-        ops_.emplace_back(reshape);
-    };
+fill_status_t append_graph_with_block(const ::shuffle::prb_t *prb) {
+    graph_t &graph = graph_t::get();
 
     const auto data_type = convert_dt(prb->dt);
     const int64_t axis = prb->axis;
@@ -89,42 +81,55 @@ fill_status_t shuffle_graph_prb_t::handle_main_op_(
     // input and output dims of the whole pattern must equal
     const auto reshape1_dst_dims = prb->dims;
 
-    const auto reshape0_id = ops_.size();
-    const std::string RESHAPE0_ID_STR = std::to_string(reshape0_id);
-    tensor_id["reshape" + std::to_string(reshape0_id)].push_back(
-            RESHAPE0_ID_STR);
-    const std::string RESHAPE0_SRC {RESHAPE0_ID_STR + "_SRC"};
-    const std::string RESHAPE0_DST {RESHAPE0_ID_STR + "_DST"};
-    tensor_descs_.emplace(RESHAPE0_SRC, data_type, reshape0_src_dims, tag);
-    tensor_descs_.emplace(RESHAPE0_DST, data_type, reshape0_dst_dims, tag);
+    const auto reshape0_op_id = graph.generate_id_for(entry_kind::RESHAPE);
+    const auto reshape0_src_id = graph.has_blocks()
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(reshape0_op_id, lt_kind::SRC);
+    const auto reshape0_dst_id
+            = graph.generate_id_for(reshape0_op_id, lt_kind::DST);
 
-    add_reshape(reshape0_id, tensor_descs_[RESHAPE0_SRC],
-            tensor_descs_[RESHAPE0_DST]);
+    graph.create_lt(reshape0_src_id, data_type, reshape0_src_dims, tag);
+    graph.create_lt(reshape0_dst_id, data_type, reshape0_dst_dims, tag);
 
-    const auto transpose_id = ops_.size();
-    const std::string TRANSPOSE_ID_STR = std::to_string(transpose_id);
-    tensor_id["transpose"].push_back(TRANSPOSE_ID_STR);
-    const std::string TRANSPOSE_DST {TRANSPOSE_ID_STR + "_DST"};
-    tensor_descs_.emplace(TRANSPOSE_DST, data_type, transpose_dst_dims, tag);
+    dnnl::graph::op reshape0_op(reshape0_op_id,
+            dnnl::graph::op::kind::StaticReshape,
+            graph.stringify_id(reshape0_op_id));
+    reshape0_op.set_attr("shape", reshape0_dst_dims)
+            .set_attr("special_zero", false);
 
-    dnnl::graph::op transpose(transpose_id,
+    graph.append(
+            reshape0_op_id, reshape0_op, {reshape0_src_id}, {reshape0_dst_id});
+
+    const auto transpose_op_id = graph.generate_id_for(entry_kind::TRANSPOSE);
+    const auto transpose_dst_id
+            = graph.generate_id_for(transpose_op_id, lt_kind::DST);
+
+    graph.create_lt(transpose_dst_id, data_type, transpose_dst_dims, tag);
+
+    dnnl::graph::op transpose_op(transpose_op_id,
             dnnl::graph::op::kind::StaticTranspose,
-            {tensor_descs_[RESHAPE0_DST]}, {tensor_descs_[TRANSPOSE_DST]},
-            "transpose");
-    transpose.set_attr("order", transpose_order);
-    ops_.emplace_back(transpose);
+            graph.stringify_id(transpose_op_id));
+    transpose_op.set_attr("order", transpose_order);
 
-    const auto reshape1_id = ops_.size();
-    const std::string RESHAPE1_ID_STR = std::to_string(reshape1_id);
-    tensor_id["reshape" + std::to_string(reshape1_id)].push_back(
-            RESHAPE1_ID_STR);
-    const std::string RESHAPE1_DST {RESHAPE1_ID_STR + "_DST"};
-    tensor_descs_.emplace(RESHAPE1_DST, data_type, reshape1_dst_dims, tag);
+    graph.append(transpose_op_id, transpose_op, {reshape0_dst_id},
+            {transpose_dst_id});
 
-    add_reshape(reshape1_id, tensor_descs_[TRANSPOSE_DST],
-            tensor_descs_[RESHAPE1_DST]);
+    const auto reshape1_op_id = graph.generate_id_for(entry_kind::RESHAPE);
+    const auto reshape1_dst_id
+            = graph.generate_id_for(reshape1_op_id, lt_kind::DST);
 
-    curr_out_map_ids_.assign({RESHAPE1_ID_STR});
+    graph.create_lt(reshape1_dst_id, data_type, reshape1_dst_dims, tag);
+
+    dnnl::graph::op reshape1_op(reshape1_op_id,
+            dnnl::graph::op::kind::StaticReshape,
+            graph.stringify_id(reshape1_op_id));
+    reshape1_op.set_attr("shape", reshape1_dst_dims)
+            .set_attr("special_zero", false);
+
+    graph.append(
+            reshape1_op_id, reshape1_op, {transpose_dst_id}, {reshape1_dst_id});
+
+    graph.close_block();
 
     return fill_status::DONE;
 }
@@ -132,7 +137,6 @@ fill_status_t shuffle_graph_prb_t::handle_main_op_(
 // In oneDNN Graph we use a specific
 // combination of Reshape -> Transpose -> Reshape chain,
 // to describe a single Shuffle op.
-// See @example cpu_shuffle_pattern_f32.cpp for more information.
 int doit(const ::shuffle::prb_t *prb, res_t *res) {
     res->impl_name = "graph";
     if (bench_mode == LIST) return res->state = LISTED, OK;
@@ -140,21 +144,27 @@ int doit(const ::shuffle::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    shuffle_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
     // Filter partitions
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -203,6 +213,8 @@ int doit(const ::shuffle::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
+
+    cleanup();
 
     return OK;
 }
