@@ -545,8 +545,8 @@ public:
         return true;
     }
 
-    bool is_nhwc(const std::string &tag) const {
-        auto &layout = tensor_config.user_layout(tag);
+    bool is_compute_nhwc(const std::string &tag) const {
+        auto &layout = tensor_config.compute_layout(tag);
         return matches_tag(layout, "axb");
     }
 

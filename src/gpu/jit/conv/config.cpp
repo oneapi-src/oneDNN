@@ -167,7 +167,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     bool use_sp_blocking = false;
     if (use_2d_send) {
         use_sp_blocking = false;
-    } else if (is_nhwc("src")) {
+    } else if (is_compute_nhwc("src")) {
         use_sp_blocking = should_use_spatial_blocking(od, oh, ow);
     } else if (src_layout.inner_block(0) == 1) {
         use_sp_blocking = true;
@@ -295,7 +295,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     bool use_w_blocking = false;
     if (use_2d_send) {
         use_w_blocking = false;
-    } else if (is_nhwc("dst")) {
+    } else if (is_compute_nhwc("dst")) {
         use_w_blocking = should_use_spatial_blocking(id, ih, iw);
     } else if (dst_layout.inner_block(0) == 1) {
         use_w_blocking = true;
@@ -995,7 +995,7 @@ void conv_config_t::init_hoist_masks_from_compute_loop() {
 
     // Both nhwc layouts and mask hoisting require extra GRF memory so avoid
     // enabling both.
-    if (!use_2d_send && is_nhwc("src")) return;
+    if (!use_2d_send && is_compute_nhwc("src")) return;
 
     hoist_masks_from_compute_loop = true;
 }
@@ -1005,7 +1005,7 @@ void conv_config_t::init_bwd_d_optimize_strided(int iw_thr_blk) {
     bwd_d_optimize_strided_iw = false;
     if (!is_bwd_d) return;
     bwd_d_optimize_strided = true;
-    if (is_nhwc("dst")) return;
+    if (is_compute_nhwc("dst")) return;
     if (iw_thr_blk > 1) return;
     if (is_stride1()) return;
     if (iw % sw != 0) return;
