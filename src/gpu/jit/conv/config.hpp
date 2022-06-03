@@ -821,9 +821,9 @@ private:
         hw_cfg.set_vec_size(vec_size);
     }
 
-    void init_data_tags(convolution_pd_t *conv_pd, std::string &src_tag,
-            std::string &wei_tag, std::string &dst_tag,
-            std::string &user_wei_tag);
+    void init_data_tags(bool allow_src_reorder, bool allow_wei_reorder,
+            bool allow_dst_reorder, std::string &src_tag, std::string &wei_tag,
+            std::string &dst_tag, std::string &user_wei_tag);
     status_t init_data_layouts(convolution_pd_t *conv_pd);
 
     int slm_size() const {

@@ -550,9 +550,9 @@ static std::string build_tag(const std::vector<int> &inner_blocks,
     return tag;
 }
 
-void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
-        std::string &src_tag, std::string &wei_tag, std::string &dst_tag,
-        std::string &user_wei_tag) {
+void conv_config_t::init_data_tags(bool allow_src_reorder,
+        bool allow_wei_reorder, bool allow_dst_reorder, std::string &src_tag,
+        std::string &wei_tag, std::string &dst_tag, std::string &user_wei_tag) {
     auto pick_block = [&](int dim, int b0, int b1 = 0, int b2 = 0) {
         int blocks[3] = {b0, b1, b2};
         int prev_blk = 1;
@@ -572,13 +572,29 @@ void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
     bool is_mad = (fma_kind == fma_kind_t::mad);
     int vec_size = hw_cfg.vec_size();
 
+    // Set order and letters for blocking dimensions.
+    std::vector<int> src_idxs = {1, 0};
+    std::vector<int> dst_idxs = {1, 0};
+    std::vector<char> wei_letters(3, ' ');
+    char wei_letter = 'a';
+    for (int i = (is_dw ? 0 : 1); i < 3; i++) {
+        wei_letters[i] = wei_letter++;
+    }
+    std::vector<int> wei_idxs = {0, 1, 2}; // g, ic, oc
+    // dpas requires ic to go before oc in innermost blocks for weights.
+    if (!is_mad) std::swap(wei_idxs[1], wei_idxs[2]);
+
     // Set blocks for source layout.
     int src_n_blk = 1;
     int src_c_blk = 1;
     if (is_small_ic() && !is_dw && !is_bwd_d) {
-        if (is_dp_fma()) {
+        if (is_dp_fma() && is_bwd_w && allow_src_reorder) {
+            src_c_blk = 4;
+            src_n_blk = pick_block(mb, 32 / src_type_size);
+            std::swap(src_idxs[0], src_idxs[1]);
+        } else if (is_dp_fma()) {
             src_c_blk = 4 / src_type_size;
-            src_n_blk = pick_block(mb, 8);
+            src_n_blk = pick_block(mb, 8, 16);
         }
     } else if (is_mad && is_f32_conv()) {
         src_c_blk = (is_src_byte ? 32 : 16);
@@ -653,26 +669,12 @@ void conv_config_t::init_data_tags(convolution_pd_t *conv_pd,
         }
     }
 
-    src_tag = build_tag({src_n_blk, src_c_blk}, {1, 1}, {'a', 'b'}, {1, 0});
-    dst_tag = build_tag({dst_n_blk, dst_c_blk}, {1, 1}, {'a', 'b'}, {1, 0});
-
-    std::vector<char> wei_letters(3, ' ');
-    char wei_letter = 'a';
-    for (int i = (is_dw ? 0 : 1); i < 3; i++) {
-        wei_letters[i] = wei_letter++;
-    }
-    std::vector<int> wei_idxs = {0, 1, 2}; // g, ic, oc
-    // dpas requires ic to go before oc in innermost blocks for weights.
-    if (!is_mad) std::swap(wei_idxs[1], wei_idxs[2]);
+    src_tag = build_tag({src_n_blk, src_c_blk}, {1, 1}, {'a', 'b'}, src_idxs);
+    dst_tag = build_tag({dst_n_blk, dst_c_blk}, {1, 1}, {'a', 'b'}, dst_idxs);
 
     auto common_wei_tag = build_tag({wei_g_blk, wei_o_blk, wei_i_blk},
             {1, wei_o_blk_outer, wei_i_blk_outer}, wei_letters, wei_idxs);
 
-    // Allow internal weights reorder in some cases. The goal is to have
-    // aligned weights layouts between fwd/bwd_d/bwd_w to reduce potential
-    // weights reorders during training. In general it's more efficient than
-    // the external reorder but it has a number of restrictions.
-    bool allow_wei_reorder = is_ge_xe_hpc() && !is_mad;
     // Backward by data requires flipped ic/oc in weights.
     if (is_bwd_d) {
         if (is_mad) {
@@ -708,28 +710,43 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     auto &dst_md = *conv_pd->invariant_dst_md();
     auto &bia_md = *conv_pd->invariant_bia_md();
 
-    init_data_tags(conv_pd, src_tag, wei_tag, dst_tag, user_wei_tag);
-
-    if (user_src_tag.empty()) user_src_tag = src_tag;
-    if (user_wei_tag.empty()) user_wei_tag = wei_tag;
-    if (user_dst_tag.empty()) user_dst_tag = dst_tag;
-
     // If src/dst is nhwc then set the other one with any to nhwc too.
     if (matches_tag(src_md, "axb") || matches_tag(dst_md, "axb")) {
         set_default_format(src_md, "axb");
         set_default_format(dst_md, "axb");
     }
 
+    bool allow_src_reorder = false;
+    // Allow internal weights reorder in some cases. The goal is to have
+    // aligned weights layouts between fwd/bwd_d/bwd_w to reduce potential
+    // weights reorders during training. In general it's more efficient than
+    // the external reorder but it has a number of restrictions.
+    bool allow_wei_reorder = is_ge_xe_hpc() && is_dp_fma();
+    bool allow_dst_reorder = false;
+    if (matches_tag(src_md, "axb") && (is_fwd || is_bwd_w) && is_small_ic()
+            && !is_dw) {
+        allow_src_reorder = true;
+    }
+
+    init_data_tags(allow_src_reorder, allow_dst_reorder, allow_wei_reorder,
+            src_tag, wei_tag, dst_tag, user_wei_tag);
+
+    if (user_src_tag.empty()) user_src_tag = src_tag;
+    if (user_wei_tag.empty()) user_wei_tag = wei_tag;
+    if (user_dst_tag.empty()) user_dst_tag = dst_tag;
+
     bool wei_prepend_groups = (with_groups && !is_dw);
 
     if (is_pure_nhwc(src_md, user_src_tag)
             || is_pure_nhwc(dst_md, user_dst_tag)) {
-        src_tag = user_src_tag = "axb";
-        dst_tag = user_dst_tag = "axb";
+        user_src_tag = "axb";
+        user_dst_tag = "axb";
+        if (!allow_src_reorder) src_tag = user_src_tag;
+        if (!allow_dst_reorder) dst_tag = user_dst_tag;
         bool wei_hwio = false;
         bool user_wei_hwio = false;
         if (hw() >= ngen::HW::XeHPC) {
-            if (use_2d_send) {
+            if (use_a_2d_send && use_b_2d_send) {
                 wei_hwio = true;
                 user_wei_hwio = true;
             } else if (is_small_ic() && (is_fwd || is_bwd_w)) {
@@ -738,7 +755,13 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
                 user_wei_hwio = true;
             }
         }
-        if (wei_hwio) wei_tag = "xba";
+        if (wei_hwio) {
+            if (is_bwd_d && !is_small_ic()) {
+                wei_tag = "xab";
+            } else {
+                wei_tag = "xba";
+            }
+        }
         if (user_wei_hwio) {
             auto tag
                     = wei_prepend_groups ? prepend_groups_to_tag("xba") : "xba";
