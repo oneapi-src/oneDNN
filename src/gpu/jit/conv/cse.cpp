@@ -736,15 +736,12 @@ stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
     return stmt;
 }
 
-stmt_t eliminate_common_subexprs(
-        const stmt_t &_stmt, const conv_config_t &cfg, ir_context_t &ir_ctx) {
+stmt_t eliminate_common_subexprs(const stmt_t &_stmt, ir_context_t &ir_ctx,
+        int grf_size, int memory_usage_limit) {
     trace_start();
     stmt_t stmt;
     cse_context_t cse_ctx(ir_ctx);
 
-    // Max amount of GRF memory allowed to use for temporary variables.
-    int grf_size = cfg.grf_size();
-    int memory_usage_limit = (cfg.regs() - cfg.reserved_regs) * grf_size;
     stmt = eliminate_common_subexprs_impl(
             _stmt, cse_ctx, grf_size, memory_usage_limit, 0);
     // Retry if statement is empty, rely on the updated

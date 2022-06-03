@@ -6775,6 +6775,8 @@ void reorder_kernel_builder_t::build() {
     stmt_ = lift_buffer_offsets_in_send(stmt_);
     stmt_ = inject_send(stmt_, ir_ctx, init_cset);
     stmt_ = split_wide_stores(hw_cfg_.hw(), stmt_);
+    stmt_ = eliminate_common_subexprs(stmt_, ir_ctx, hw_cfg_.grf_size(),
+            hw_cfg_.regs() * hw_cfg_.grf_size());
     stmt_ = simplify_pass(stmt_, init_cset);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
