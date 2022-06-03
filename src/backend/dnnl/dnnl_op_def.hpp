@@ -37,7 +37,8 @@ op_schema_t get_op_schema();
 
 DNNL_GRAPH_OP_SCHEMA(binary_post_ops_fusion, 1,
         op_schema_t()
-                .set_num_inputs(2)
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({2, 5}))
                 .set_num_outputs(1)
                 .set_input(0, "lhs", "first input tensor")
                 .set_input(1, "rhs", "second input tensor")
