@@ -962,9 +962,13 @@ void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
     auto is_b_plain_ok = [&]() {
         if (is_bwd_w) return matches_tag(*conv_pd->invariant_dst_md(), "axb");
         auto &wei_md = *conv_pd->invariant_wei_md();
-        bool wei_hwio = matches_tag(wei_md, "xba");
-        bool wei_oihw = matches_tag(wei_md, "abx");
-        return wei_md.format_kind != format_kind::any && (wei_hwio || wei_oihw);
+        if (wei_md.format_kind != format_kind::any) {
+            bool wei_hwio = matches_tag(wei_md, "xba");
+            bool wei_oihw = matches_tag(wei_md, "abx");
+            return wei_hwio || wei_oihw;
+        }
+        // Weights will be returned as hwio for "any" query.
+        return is_a_plain_ok();
     };
 
     // Check 2D block message limitations for A.
