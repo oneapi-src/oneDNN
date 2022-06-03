@@ -22,7 +22,7 @@
 namespace benchdnnext {
 namespace eltwise {
 
-void check_known_skipped_case_graph(
+static void check_known_skipped_case_graph(
         const ::eltwise::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
@@ -42,34 +42,42 @@ static quant_data_t get_qdata_for(int arg, const ::eltwise::prb_t *prb) {
     return quant_data_t();
 }
 
-fill_status_t eltwise_graph_prb_t::handle_main_op_(
-        const ::eltwise::prb_t *prb) {
-    using op = dnnl::graph::op;
+static quant_data_t get_qdata_for(
+        const attr_t::post_ops_t::entry_t &entry, const ::eltwise::prb_t *prb) {
+    return bin_po_entry2quant_data(entry, prb->tag, convert_dt(prb->dt));
+}
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
+fill_status_t append_graph_with_block(const ::eltwise::prb_t *prb) {
+    graph_t &graph = graph_t::get();
 
-    auto common_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->dt));
+    const auto with_dq = is_low_precision({convert_dt(prb->dt)});
+    const auto connect_to_previous_block = !with_dq && graph.has_blocks();
 
-    std::vector<dnnl::graph::logical_tensor> ltensors_in;
-    std::vector<dnnl::graph::logical_tensor> ltensors_out;
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::ELTWISE);
+    const auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, lt_kind::SRC);
 
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    tensor_descs_.emplace(SRC, common_dt, prb->dims, prb->tag);
-    ltensors_in.push_back({tensor_descs_[SRC]});
+    auto common_dt = dequantize_dtype(convert_dt(prb->dt));
+
+    graph.create_lt(src_id, common_dt, prb->dims, prb->tag);
+    std::vector<size_t> src_ids {src_id};
+    std::vector<size_t> dst_ids {};
 
     if (prb->dir & FLAG_FWD) {
-        const std::string DST {TENSOR_ID + "_DST"};
-        tensor_descs_.emplace(DST, common_dt, prb->dims, prb->tag);
-        ltensors_out.push_back({tensor_descs_[DST]});
+        const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+        graph.create_lt(dst_id, common_dt, prb->dims, prb->tag);
+        dst_ids.push_back(dst_id);
     } else {
-        const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
-        const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
-        tensor_descs_.emplace(DIFF_SRC, common_dt, prb->dims, prb->tag);
-        tensor_descs_.emplace(DIFF_DST, common_dt, prb->dims, prb->tag);
-        ltensors_in.push_back({tensor_descs_[DIFF_DST]});
-        ltensors_out.push_back({tensor_descs_[DIFF_SRC]});
+        const auto diff_src_id
+                = graph.generate_id_for(op_id, lt_kind::DIFF_SRC);
+        const auto diff_dst_id
+                = graph.generate_id_for(op_id, lt_kind::DIFF_DST);
+        graph.create_lt(diff_src_id, common_dt, prb->dims, prb->tag);
+        graph.create_lt(diff_dst_id, common_dt, prb->dims, prb->tag);
+        src_ids.push_back(diff_src_id);
+        dst_ids.push_back(diff_dst_id);
     }
 
     const auto dnnl_kind = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
@@ -80,83 +88,77 @@ fill_status_t eltwise_graph_prb_t::handle_main_op_(
     else if (dnnl_kind == dnnl_eltwise_logsigmoid)
         softplus_beta = -1;
 
-    op eltwise_op(new_op_id, op_kind, ltensors_in, ltensors_out, "eltwise");
+    dnnl::graph::op eltw_op(op_id, op_kind, graph.stringify_id(op_id));
 
-    //Set alpha, beta, min and max for relevant ops
+    // set alpha, beta, min and max for relevant ops
     switch (op_kind) {
         case dnnl::graph::op::kind::Elu:
-            eltwise_op.set_attr("alpha", prb->alpha);
+            eltw_op.set_attr("alpha", prb->alpha);
             break;
         case dnnl::graph::op::kind::EluBackprop:
-            eltwise_op.set_attr("alpha", prb->alpha);
-            eltwise_op.set_attr("use_dst", prb->use_dst());
+            eltw_op.set_attr("alpha", prb->alpha);
+            eltw_op.set_attr("use_dst", prb->use_dst());
             break;
         case dnnl::graph::op::kind::ReLUBackprop:
         case dnnl::graph::op::kind::SigmoidBackprop:
         case dnnl::graph::op::kind::SqrtBackprop:
         case dnnl::graph::op::kind::TanhBackprop:
-            eltwise_op.set_attr("use_dst", prb->use_dst());
+            eltw_op.set_attr("use_dst", prb->use_dst());
             break;
         case dnnl::graph::op::kind::HardTanh:
-            eltwise_op.set_attr("min", prb->alpha);
-            eltwise_op.set_attr("max", prb->beta);
+            eltw_op.set_attr("min", prb->alpha);
+            eltw_op.set_attr("max", prb->beta);
             break;
         case dnnl::graph::op::kind::HardTanhBackprop:
-            eltwise_op.set_attr("min", prb->alpha);
-            eltwise_op.set_attr("max", prb->beta);
+            eltw_op.set_attr("min", prb->alpha);
+            eltw_op.set_attr("max", prb->beta);
             // Since backend uses clp_v2 for HardTanhBackprop
-            eltwise_op.set_attr("use_dst", prb->use_dst());
+            eltw_op.set_attr("use_dst", prb->use_dst());
             break;
         case dnnl::graph::op::kind::SoftPlus:
         case dnnl::graph::op::kind::SoftPlusBackprop:
-            eltwise_op.set_attr("beta", softplus_beta);
+            eltw_op.set_attr("beta", softplus_beta);
             break;
         default: break;
     }
 
-    ops_.emplace_back(eltwise_op);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, eltw_op, src_ids, dst_ids);
+
+    fill_status_t status;
+    // if required - apply dequantize to block inputs
+    if (with_dq) {
+        status = insert_dequant_before(src_id, get_qdata_for(SRC, prb));
+        BENCHDNNEXT_VERIFY(status);
+    }
+
+    // handle post ops
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        const auto with_src1_dq = is_dequantize_required_for(entry);
+        size_t po_src1_id;
+        if (entry.is_binary_kind()) {
+            std::tie(status, po_src1_id) = append_graph_with_binary(entry);
+            BENCHDNNEXT_VERIFY(status);
+            if (with_src1_dq) {
+                status = insert_dequant_before(
+                        po_src1_id, get_qdata_for(entry, prb));
+                BENCHDNNEXT_VERIFY(status);
+            }
+        }
+    }
+
+    // if required - add quantize op
+    if (with_dq) {
+        status = insert_quant_after(
+                graph.get_cur_block_out_id(), get_qdata_for(DST, prb));
+        BENCHDNNEXT_VERIFY(status);
+    }
+
+    graph.close_block();
 
     return fill_status::DONE;
 }
 
-fill_status_t eltwise_graph_prb_t::handle_bin_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.eltwise.bin_handler(*this, po_entry);
-}
-
-fill_status_t eltwise_graph_prb_t::handle_low_precision_(
-        const ::eltwise::prb_t *prb) {
-    const std::string OP_REPR = "main";
-    const auto src_lt_id = tensor_id[OP_REPR].back() + "_SRC";
-    const auto dst_lt_id = curr_out_map_ids_.back() + "_DST";
-
-    fill_status_t status
-            = po_handler.eltwise.low_precision_handler.insert_dequant_before(
-                    src_lt_id, get_qdata_for(SRC, prb), *this);
-    BENCHDNNEXT_VERIFY(status);
-
-    status = po_handler.eltwise.low_precision_handler.insert_quant_after(
-            dst_lt_id, get_qdata_for(DST, prb), *this);
-    BENCHDNNEXT_VERIFY(status);
-
-    for (const auto &entry : prb->attr.post_ops.entry) {
-        if (is_dequantize_required_for(entry)) {
-            const auto bin_src1_lt_id = tensor_id["binary"].back() + "_SRC";
-            status = po_handler.eltwise.low_precision_handler
-                             .insert_dequant_before(bin_src1_lt_id,
-                                     bin_po_entry2quant_data(entry, prb->tag,
-                                             convert_dt(prb->dt)),
-                                     *this);
-            BENCHDNNEXT_VERIFY(status);
-            break;
-        }
-    }
-
-    return status;
-}
-
-void graph_bwd_check_correctness(const ::eltwise::prb_t *prb,
+static void graph_bwd_check_correctness(const ::eltwise::prb_t *prb,
         const args_t &args, const args_t &ref_args, res_t *res) {
     compare::compare_t cmp;
     cmp.set_data_kind(SRC);
@@ -177,20 +179,26 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    eltwise_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -216,7 +224,7 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
     // eltwise operator supports only relu-add (single binary post-op)
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
-    if (graph_prb.has_post_bin()) {
+    if (!prb->attr.post_ops.entry.empty()) {
         binary_po_fp.emplace_back(
                 make_dnn_mem(ins.back(), dt::f32, (prb->tag).c_str()));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), (prb->tag).c_str()));
@@ -236,7 +244,7 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
                 dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
         tensors_out.emplace_back(
                 dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
-        if (graph_prb.has_post_bin()) {
+        if (!prb->attr.post_ops.entry.empty()) {
             tensors_in.emplace_back(dnnl::graph::tensor(
                     ins.back(), eng, static_cast<void *>(binary_po_dt.back())));
         }
@@ -255,8 +263,6 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
         SAFE(measure_perf(
                      res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
                 WARN);
-
-        return OK;
     } else {
         if (prb->use_dst()) {
             tensors_in.emplace_back(dnnl::graph::tensor(
@@ -302,8 +308,12 @@ int doit(const ::eltwise::prb_t *prb, res_t *res) {
         SAFE(measure_perf(
                      res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
                 WARN);
-        return OK;
     }
+
+    cleanup();
+
+    return OK;
 }
+
 } // namespace eltwise
 } // namespace benchdnnext
