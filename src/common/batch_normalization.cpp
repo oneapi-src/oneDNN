@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,7 +83,8 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     bd.batch_norm_epsilon = epsilon;
 
     unsigned bnorm_flags = dnnl_use_global_stats | dnnl_use_scaleshift
-            | dnnl_fuse_norm_relu | dnnl_use_scale | dnnl_use_shift;
+            | dnnl_fuse_norm_relu | dnnl_fuse_norm_add_relu | dnnl_use_scale
+            | dnnl_use_shift;
     if ((~bnorm_flags & flags) != 0) return invalid_arguments;
     // dnnl_use_scaleshift can't be mixed with dnnl_use_scale or dnnl_use_shift
     if ((flags & dnnl_use_scaleshift)

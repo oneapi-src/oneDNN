@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,6 +67,9 @@ struct batch_normalization_pd_t : public primitive_desc_t {
         return desc_.flags & dnnl_use_global_stats;
     }
     bool fuse_norm_relu() const { return desc_.flags & dnnl_fuse_norm_relu; }
+    bool fuse_norm_add_relu() const {
+        return desc_.flags & dnnl_fuse_norm_add_relu;
+    }
     bool with_relu_post_op(bool require_nslope_zero = true) const {
         const auto &p = this->attr()->post_ops_;
         const bool nslope_zero_ok
@@ -138,6 +141,8 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
+        if (arg == DNNL_ARG_SRC_1 && fuse_norm_add_relu())
+            return arg_usage_t::input;
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         if (utils::one_of(arg, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE)) {
@@ -160,6 +165,7 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
 
     const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
+            case DNNL_ARG_SRC_1:
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_DST: return dst_md(0);
             case DNNL_ARG_MEAN: return stats_is_src() ? src_md(1) : dst_md(1);
@@ -199,7 +205,7 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
 
     int n_inputs() const override {
         return 1 + 2 * stats_is_src() + use_scaleshift() + use_scale()
-                + use_shift();
+                + use_shift() + fuse_norm_add_relu();
     }
     int n_outputs() const override {
         return 1 + !types::is_zero_md(workspace_md())
@@ -236,6 +242,8 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
             return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DIFF_SRC_1 && fuse_norm_add_relu())
+            return arg_usage_t::output;
 
         if (arg == DNNL_ARG_DIFF_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::output;
@@ -254,6 +262,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
             case DNNL_ARG_SCALE_SHIFT:
             case DNNL_ARG_SCALE:
             case DNNL_ARG_SHIFT: return weights_md(0);
+            case DNNL_ARG_DIFF_SRC_1:
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
             case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
             case DNNL_ARG_DIFF_SCALE_SHIFT:
@@ -291,7 +300,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
                 + use_scale() + use_shift();
     }
     int n_outputs() const override {
-        return 1
+        return 1 + fuse_norm_add_relu()
                 + (!types::is_zero_md(diff_weights_md()))
                 * (use_scaleshift() + use_scale() + use_shift());
     }
