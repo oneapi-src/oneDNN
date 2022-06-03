@@ -639,6 +639,7 @@ bool access_builder_t::try_build_2d() {
         expr_t x(0);
         expr_t y(0);
 
+        bool skip_send = false;
         if (!use_virtual_surface) {
             std::swap(x, _x);
             std::swap(y, _y);
@@ -647,8 +648,12 @@ bool access_builder_t::try_build_2d() {
             if (h_tstride != 1) {
                 if (!stride_dimension_ok(
                             mem_view_, h_dim_idx, b1.dim_idx, vstart)) {
-                    ok = false;
-                    return;
+                    if (send.is_prefetch_2d()) {
+                        skip_send = true;
+                    } else {
+                        ok = false;
+                        return;
+                    }
                 }
                 y /= h_tstride;
             }
@@ -664,11 +669,13 @@ bool access_builder_t::try_build_2d() {
             return;
         }
 
-        auto reg_buf = (send.is_prefetch_2d()
-                        ? expr_t()
-                        : reg_buf_ + reg_layout_walker_->offset_bytes());
-        auto send_stmt = send(mem_buf_, off, reg_buf, mask, x, y);
-        stmt_ = stmt_.append(send_stmt);
+        if (!skip_send) {
+            auto reg_buf = (send.is_prefetch_2d()
+                            ? expr_t()
+                            : reg_buf_ + reg_layout_walker_->offset_bytes());
+            auto send_stmt = send(mem_buf_, off, reg_buf, mask, x, y);
+            stmt_ = stmt_.append(send_stmt);
+        }
 
         reg_layout_walker_->advance(send.access_size() / mem_type_.size());
     });
