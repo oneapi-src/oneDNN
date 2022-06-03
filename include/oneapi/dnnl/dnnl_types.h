@@ -1651,6 +1651,21 @@ typedef enum {
     ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
     ///    diff wrt shift (hence one extra output used)
     dnnl_use_shift = 0x10U,
+
+    /// Fuse with Add and then fuse with ReLU
+    ///
+    /// If specified:
+    ///
+    ///  - on forward propagation apply elementwise binary Add operation to
+    ///    to the normalization results with an additional input tensor and then
+    ///    implies negative slope being 0.
+    ///  - on training primitive requires workspace (required to be able to
+    ///    perform backward pass).
+    ///  - on backward propagation save the result of backward ReLU operation
+    ///    with input tensor and workspace from forward pass to extra output
+    ///    tensor and then perform backward normalization.
+    dnnl_fuse_norm_add_relu = 0x20U,
+
 } dnnl_normalization_flags_t;
 
 /// @} dnnl_api_primitives_common

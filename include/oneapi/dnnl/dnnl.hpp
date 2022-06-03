@@ -727,6 +727,11 @@ enum class normalization_flags : unsigned {
     /// is fused with ReLU using the post-ops API.
     fuse_norm_relu = dnnl_fuse_norm_relu,
 
+    /// Fuse normalization with elementwise binary Add and then fuse with ReLU.
+    /// On training, normalization will require the workspace to implement
+    /// backward propagation. On inference, the workspace is not required.
+    fuse_norm_add_relu = dnnl_fuse_norm_add_relu,
+
     /// Use scale parameter. If specified, the user is expected to pass scale as
     /// input on forward propagation. On backward propagation of type
     /// #dnnl::prop_kind::backward, the library computes its derivative.
