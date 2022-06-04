@@ -83,6 +83,7 @@ struct jit_brgemm_primitive_conf_t {
     int amx_buf_size_per_thread;
     brgemm_kernel_prefetching_t hint_prefetching
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
+    bool ip_bwd_w_local_buffers_for_input_tensors;
 };
 
 } // namespace x64

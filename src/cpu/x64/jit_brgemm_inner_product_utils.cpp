@@ -583,23 +583,28 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
 }
 
 void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
-        int &nthr_, int &nthr_mb_, int &nthr_oc_b_, int &nthr_ic_b_) {
+        int &nb_oc_blocking_, int &nb_ic_blocking_, int &nthr_, int &nthr_mb_,
+        int &nthr_oc_b_, int &nthr_ic_b_) {
     nthr_ = nthr_mb_ = nthr_oc_b_ = nthr_ic_b_ = 1;
     nb_os_blocking_ = j.nb_os_blocking;
+    nb_oc_blocking_ = j.nb_oc_blocking;
+    nb_ic_blocking_ = j.nb_ic_blocking;
 
     const bool is_f32 = everyone_is(f32, j.src_dt, j.wei_dt, j.dst_dt);
     const bool is_bf16 = everyone_is(bf16, j.src_dt, j.dst_dt);
 
     const int max_threads = j.nthr;
     const int nthr = max_threads;
-    int ic_chunks = j.nb_ic / j.nb_ic_blocking;
-    int oc_chunks = j.nb_oc / j.nb_oc_blocking;
-    auto calc_mem_cost = [=](int nb_os_blocking, int nthr_mb, int nthr_oc,
+    auto calc_mem_cost = [=](int nb_os_blocking, int nb_oc_blocking,
+                                 int nb_ic_blocking, int nthr_mb, int nthr_oc,
                                  int nthr_ic) {
         float src_size = static_cast<float>(j.ic) * j.mb;
         float dst_size = static_cast<float>(j.oc) * j.mb;
         float wei_size = static_cast<float>(j.ic) * j.oc;
         int os_chunks = div_up(j.nb_os, nb_os_blocking);
+        int oc_chunks = div_up(j.nb_oc, nb_oc_blocking);
+        int ic_chunks = div_up(j.nb_ic, nb_ic_blocking);
+
         float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
 
         float oi_channels_ratio = 0;
@@ -656,7 +661,7 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         float src_tr = 0.0f;
         if (j.use_buffer_a && !is_f32) {
             int src_tr_oc_par_work = div_up(os_chunks, nthr_mb)
-                    * div_up(ic_chunks, nthr_ic) * j.nb_ic_blocking;
+                    * div_up(ic_chunks, nthr_ic) * nb_ic_blocking;
             src_tr = get_src_coef() * div_up(src_tr_oc_par_work, nthr_oc)
                     * nb_os_blocking * j.os_block * j.ic_block;
         }
@@ -664,29 +669,29 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         float dst_tr = 0.0f;
         if (j.use_buffer_b && !is_f32) {
             int dst_tr_ic_par_work = div_up(os_chunks, nthr_mb)
-                    * div_up(oc_chunks, nthr_oc) * j.nb_oc_blocking;
+                    * div_up(oc_chunks, nthr_oc) * nb_oc_blocking;
             dst_tr = get_dst_coef() * div_up(dst_tr_ic_par_work, nthr_ic)
                     * nb_os_blocking * j.os_block * j.oc_block;
         }
 
         float src_v = get_src_coef() * div_up(os_chunks, nthr_mb)
                 * div_up(ic_chunks, nthr_ic) * nb_os_blocking * j.os_block
-                * j.nb_ic_blocking * j.ic_block;
+                * nb_ic_blocking * j.ic_block;
         float dst_v = get_dst_coef() * div_up(os_chunks, nthr_mb)
                 * div_up(oc_chunks, nthr_oc) * nb_os_blocking * j.os_block
-                * j.nb_oc_blocking * j.oc_block;
+                * nb_oc_blocking * j.oc_block;
 
         auto acc_dt_sz = types::data_type_size(j.acc_dt);
         float wei_v = get_wei_coef() * acc_dt_sz * div_up(oc_chunks, nthr_oc)
-                * div_up(ic_chunks, nthr_ic) * j.nb_oc_blocking * j.oc_block
-                * j.nb_ic_blocking * j.ic_block;
+                * div_up(ic_chunks, nthr_ic) * nb_oc_blocking * j.oc_block
+                * nb_ic_blocking * j.ic_block;
 
         float wei_r = 0;
         if (nthr_mb > 1) {
             auto wei_dt_sz = types::data_type_size(j.wei_dt);
             int wei_r_mb_par_work = div_up(oc_chunks, nthr_oc)
-                    * div_up(ic_chunks, nthr_ic) * j.nb_oc_blocking
-                    * j.nb_ic_blocking;
+                    * div_up(ic_chunks, nthr_ic) * nb_oc_blocking
+                    * nb_ic_blocking;
             wei_r = get_wei_coef() * div_up(wei_r_mb_par_work, nthr_mb)
                     * j.oc_block * j.ic_block
                     * (wei_dt_sz
@@ -697,8 +702,31 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         return src_tr + dst_tr + src_v + dst_v + wei_v + wei_r;
     };
 
-    float best_mem_cost
-            = calc_mem_cost(nb_os_blocking_, nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+    float best_mem_cost = calc_mem_cost(nb_os_blocking_, nb_oc_blocking_,
+            nb_ic_blocking_, nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+
+    /* Set range of values for nb_oc_blocking/nb_ic_blocking parameters to try.
+       Use powers-of-2 values to avoid potential issues on converting to
+       blocked weights layout stage
+    */
+    auto get_blk_values
+            = [](int max_blk_value, int init_blk, int dim_blk_limit) {
+                  int val_1st = rnd_up_pow2(init_blk);
+                  int val_end = nstl::min(max_blk_value, dim_blk_limit);
+                  std::vector<int> values;
+                  for (int val = val_1st; val <= val_end; val <<= 1)
+                      values.push_back(val);
+                  return values;
+              };
+
+    const int max_nb_oc_blocking_pow
+            = j.ip_bwd_w_local_buffers_for_input_tensors ? 4 : j.nb_oc_blocking;
+    auto nb_oc_blocking_values
+            = get_blk_values(max_nb_oc_blocking_pow, j.nb_oc_blocking, j.nb_oc);
+    const int max_nb_ic_blocking_pow
+            = j.ip_bwd_w_local_buffers_for_input_tensors ? 4 : j.nb_ic_blocking;
+    auto nb_ic_blocking_values
+            = get_blk_values(max_nb_ic_blocking_pow, j.nb_ic_blocking, j.nb_ic);
 
     /* find the best thread distribution with lowest memory cost */
     const int min_osb_chunk = is_f32 ? 32 : is_bf16 ? 8 : 1;
@@ -717,17 +745,26 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
         }
 
         const int nthr_par = nthr / nthr_mb;
-        const int nthr_oc_b_max = nstl::min(nthr_par, oc_chunks);
-        for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
-            int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, ic_chunks);
-            float mem_cost = calc_mem_cost(
-                    nb_os_blocking, nthr_mb, nthr_oc_b, nthr_ic_b);
-            if (mem_cost <= best_mem_cost) {
-                best_mem_cost = mem_cost;
-                nb_os_blocking_ = nb_os_blocking;
-                nthr_mb_ = nthr_mb;
-                nthr_oc_b_ = nthr_oc_b;
-                nthr_ic_b_ = nthr_ic_b;
+
+        for (auto nb_oc_blocking : nb_oc_blocking_values) {
+            int num_oc_chunks = div_up(j.nb_oc, nb_oc_blocking);
+            const int nthr_oc_b_max = nstl::min(nthr_par, num_oc_chunks);
+            for_(int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b)
+            for (auto nb_ic_blocking : nb_ic_blocking_values) {
+                int num_ic_chunks = div_up(j.nb_ic, nb_ic_blocking);
+
+                int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, num_ic_chunks);
+                float mem_cost = calc_mem_cost(nb_os_blocking, nb_oc_blocking,
+                        nb_ic_blocking, nthr_mb, nthr_oc_b, nthr_ic_b);
+                if (mem_cost <= best_mem_cost) {
+                    best_mem_cost = mem_cost;
+                    nb_os_blocking_ = nb_os_blocking;
+                    nb_oc_blocking_ = nb_oc_blocking;
+                    nb_ic_blocking_ = nb_ic_blocking;
+                    nthr_mb_ = nthr_mb;
+                    nthr_oc_b_ = nthr_oc_b;
+                    nthr_ic_b_ = nthr_ic_b;
+                }
             }
         }
     }
@@ -794,16 +831,24 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_oc_big_2_pow = jbgp.oc >= 512 && math::is_pow2(jbgp.oc);
     const bool is_huge_oc = jbgp.oc >= 4 * 1024;
     jbgp.use_buffer_b = jbgp.dst_dt == bf16 || is_oc_big_2_pow || is_huge_oc;
-    jbgp.harness = jbgp.os >= 5 * (jbgp.ic + jbgp.oc) && jbgp.nb_os >= 256
+    const bool os_dim_dominating = jbgp.os >= 5 * (jbgp.ic + jbgp.oc);
+    const int big_nb_os_threshold = is_amx_bf16 ? 64 : 256;
+    jbgp.ip_bwd_w_local_buffers_for_input_tensors
+            = is_amx_bf16 && jbgp.nb_os >= big_nb_os_threshold;
+    jbgp.harness = os_dim_dominating && jbgp.nb_os >= big_nb_os_threshold
             ? harness_mb_reduction
             : harness_2d_reduction;
 
-    int nb_os_blocking, nthr, nthr_mb, nthr_oc, nthr_ic;
+    int nb_os_blocking, nb_oc_blocking, nb_ic_blocking, nthr, nthr_mb, nthr_oc,
+            nthr_ic;
     // Caution: thread_balance requires `use_buffer_a` and `use_buffer_b`
     // fields of jbgp to be properly set
-    thread_balance(jbgp, nb_os_blocking, nthr, nthr_mb, nthr_oc, nthr_ic);
+    thread_balance(jbgp, nb_os_blocking, nb_oc_blocking, nb_ic_blocking, nthr,
+            nthr_mb, nthr_oc, nthr_ic);
 
     jbgp.nb_os_blocking = nb_os_blocking;
+    jbgp.nb_oc_blocking = nb_oc_blocking;
+    jbgp.nb_ic_blocking = nb_ic_blocking;
     jbgp.nthr = nthr;
     jbgp.nthr_mb = nthr_mb;
     jbgp.nthr_oc_b = nthr_oc;
@@ -1041,13 +1086,20 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 types::data_type_size(jbgp.acc_dt));
     }
     if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_weights) {
-        const dim_t ic_chunks = div_up(
-                div_up(jbgp.nb_ic, jbgp.nb_ic_blocking), jbgp.nthr_ic_b);
-        const dim_t os_chunks
-                = div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
+        const dim_t num_ic_chunks_per_thread
+                = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+                ? 1
+                : div_up(div_up(jbgp.nb_ic, jbgp.nb_ic_blocking),
+                        jbgp.nthr_ic_b);
+        const dim_t num_os_chunks_per_thread
+                = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+                ? 1
+                : div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
+        const dim_t num_elems_per_thread = num_ic_chunks_per_thread
+                * num_os_chunks_per_thread * jbgp.gemm_batch_size
+                * jbgp.os_block * jbgp.ic_block * jbgp.nb_ic_blocking;
         scratchpad.book(key_brgemm_primitive_buffer_a,
-                jbgp.nthr * ic_chunks * os_chunks * jbgp.gemm_batch_size
-                        * jbgp.os_block * jbgp.ic_block * jbgp.nb_ic_blocking,
+                jbgp.nthr * num_elems_per_thread,
                 types::data_type_size(jbgp.src_dt));
     } else if (jbgp.use_buffer_a && jbgp.prop_kind == dnnl_backward_data) {
         scratchpad.book(key_brgemm_primitive_buffer_a,
@@ -1061,11 +1113,14 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     }
 
     if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_weights) {
-        int os_chunks
-                = div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
+        int num_os_chunks_per_thread
+                = jbgp.ip_bwd_w_local_buffers_for_input_tensors
+                ? 1
+                : div_up(div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
+        const dim_t num_elems_per_thread = num_os_chunks_per_thread
+                * jbgp.gemm_batch_size * jbgp.os_block * jbgp.LDB;
         scratchpad.book(key_brgemm_primitive_buffer_b,
-                (size_t)jbgp.nthr * os_chunks * jbgp.gemm_batch_size
-                        * jbgp.os_block * jbgp.LDB,
+                (size_t)jbgp.nthr * num_elems_per_thread,
                 types::data_type_size(jbgp.dst_dt));
     }
 

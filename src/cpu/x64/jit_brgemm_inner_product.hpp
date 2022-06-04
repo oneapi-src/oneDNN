@@ -558,6 +558,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
     }
 
 private:
+    enum loop_order_t { osc_icc_occ, osc_occ_icc, occ_icc_osc };
     struct thread_info_t;
     std::unique_ptr<jit_brgemm_kernel_diff_bias_t> kernels_db_[2][2];
     std::unique_ptr<brgemm_kernel_t>
