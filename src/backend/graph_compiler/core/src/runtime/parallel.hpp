@@ -16,21 +16,21 @@
 
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_PARALLEL_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_PARALLEL_HPP
+#include <runtime/config.hpp>
 #include <runtime/generic_val.hpp>
 #include <util/def.hpp>
 
 extern "C" SC_API void sc_parallel_call_cpu(
         void (*pfunc)(int64_t, sc::generic_val *), int64_t begin, int64_t end,
         int64_t step, sc::generic_val *args);
-// stub function to call the thread pool implementation in rtl_ctx
-extern "C" SC_API void sc_parallel_call_cpu_with_env(
-        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
-        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
-        int64_t step, sc::generic_val *args);
-// the default implementation of SC's thread pool (based on OMP)
+// the default implementation of SC's thread pool
 extern "C" SC_API void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
         void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
         int64_t step, sc::generic_val *args);
+
+namespace sc {
+extern thread_pool_table sc_pool_table;
+}
 
 #endif

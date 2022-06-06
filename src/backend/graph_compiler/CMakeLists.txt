@@ -42,7 +42,7 @@ else()
     endif()
 endif()
 
-if(DNNL_GRAPH_CPU_RUNTIME MATCHES "(TBB|SEQ|DPCPP|THREADPOOL)$")
+if(DNNL_GRAPH_CPU_RUNTIME MATCHES "(DPCPP|THREADPOOL)$")
     message(FATAL_ERROR "Graph compiler backend does not support the chosen CPU runtime. "
     "Consider changing DNNL_GRAPH_CPU_RUNTIME to OMP or turning off graph compiler backend.")
 endif()
@@ -53,9 +53,7 @@ if(NOT DNNL_GRAPH_GPU_RUNTIME MATCHES "NONE")
 endif()
 
 message(STATUS "Graph compiler backend is enabled.")
-if(DNNL_GRAPH_CPU_RUNTIME STREQUAL "OMP")
-    set(SC_OMP_ENABLED "ON")
-endif()
+set(SC_CPU_RUNTIME ${DNNL_GRAPH_CPU_RUNTIME})
 
 if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
     add_definitions(-DSC_DLL)

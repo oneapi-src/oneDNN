@@ -20,6 +20,7 @@
 #ifdef SC_ENABLE_L0_BACKEND
 #include <runtime/l0_runtime.hpp>
 #endif
+#include <runtime/config.hpp>
 #include <runtime/memorypool.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
@@ -58,7 +59,14 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_dump_tensor", (void *)sc_dump_tensor},
             {"sc_value_check", (void *)sc_value_check},
             {"sc_parallel_call_cpu_with_env",
-                    (void *)&sc_parallel_call_cpu_with_env},
+                    (void *)runtime_config_t::get()
+                            .thread_pool_table_->parallel_call},
+            {"sc_is_in_parallel",
+                    (void *)runtime_config_t::get()
+                            .thread_pool_table_->is_in_parallel},
+            {"sc_get_thread_id",
+                    (void *)runtime_config_t::get()
+                            .thread_pool_table_->get_thread_id},
     };
     return table;
 }

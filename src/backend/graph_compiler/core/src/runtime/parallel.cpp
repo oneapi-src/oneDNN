@@ -14,16 +14,30 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <memory>
 #include "config.hpp"
 #include "context.hpp"
 #include <runtime/generic_val.hpp>
 #include <runtime/parallel.hpp>
 #include <util/simple_math.hpp>
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
+// clang-format off
+#define TBB_PREVIEW_GLOBAL_CONTROL 1
+#include <tbb/parallel_for_each.h>
+#include <tbb/task_arena.h>
+#include <tbb/task_scheduler_init.h>
+#include <tbb/global_control.h>
+// clang-format on
+#endif
+
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
+#include <omp.h>
+#endif
 
 // todo: handle signed integers
 extern "C" void sc_parallel_call_cpu(void (*pfunc)(int64_t, sc::generic_val *),
         int64_t begin, int64_t end, int64_t step, sc::generic_val *args) {
-#ifdef SC_OMP_ENABLED
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 #pragma omp parallel for
 #endif
     for (int64_t i = begin; i < end; i += step) {
@@ -31,11 +45,63 @@ extern "C" void sc_parallel_call_cpu(void (*pfunc)(int64_t, sc::generic_val *),
     }
 }
 
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
+#error "unimplemented"
+#elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
+static tbb::task_scheduler_init init;
 extern "C" void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
         void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
         int64_t step, sc::generic_val *args) {
-#ifdef SC_OMP_ENABLED
+    tbb::parallel_for(begin, end, step,
+            [&](int64_t i) { pfunc(rtl_ctx, module_env, i, args); });
+}
+
+static int get_num_threads() {
+    return tbb::global_control::active_value(
+            tbb::global_control::max_allowed_parallelism);
+}
+
+static std::unique_ptr<tbb::global_control> gctrl;
+static void set_num_threads(int num) {
+    gctrl = std::unique_ptr<tbb::global_control>(new tbb::global_control(
+            tbb::global_control::max_allowed_parallelism, num));
+}
+
+static int get_thread_num() {
+    return tbb::task_arena::current_thread_index();
+}
+static int get_in_parallel() {
+    return 0;
+}
+
+#else
+
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
+#define get_num_threads omp_get_max_threads
+#define set_num_threads omp_set_num_threads
+#define get_thread_num omp_get_thread_num
+#define get_in_parallel omp_in_parallel
+#else
+static int get_num_threads() {
+    return 1;
+}
+
+static void set_num_threads(int num) {}
+static int get_thread_num() {
+    return 0;
+}
+static int get_in_parallel() {
+    return 0;
+}
+#endif
+
+// omp or sequential
+extern "C" void sc_parallel_call_cpu_with_env_impl(
+        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
+        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
+        int64_t step, sc::generic_val *args) {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
 #pragma omp parallel for
 #endif
     for (int64_t i = begin; i < end; i += step) {
@@ -43,12 +109,8 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
     }
 }
 
-extern "C" void sc_parallel_call_cpu_with_env(
-        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
-        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
-        int64_t step, sc::generic_val *args) {
-    sc::runtime::stream_t *stream
-            = reinterpret_cast<sc::runtime::stream_t *>(rtl_ctx);
-    stream->vtable()->parallel_call(
-            pfunc, rtl_ctx, module_env, begin, end, step, args);
+#endif
+namespace sc {
+thread_pool_table sc_pool_table {&sc_parallel_call_cpu_with_env_impl,
+        &get_num_threads, &set_num_threads, &get_thread_num, &get_in_parallel};
 }

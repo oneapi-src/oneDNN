@@ -52,4 +52,9 @@
 #define SC_CFAKE_JIT_ENABLED 1
 #endif
 
+#define SC_THREAD_POOL_SEQ 0
+#define SC_THREAD_POOL_OMP 1
+#define SC_THREAD_POOL_TBB 2
+#define SC_THREAD_POOL_CUSTOM 3
+
 #endif

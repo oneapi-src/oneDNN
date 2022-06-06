@@ -20,7 +20,7 @@ file(GLOB_RECURSE SC_RUNTIME_SOURCES
     )
 
 add_library(graphcompiler_runtime STATIC ${SC_RUNTIME_SOURCES})
-target_link_libraries(graphcompiler_runtime PRIVATE ${DNNL_LIBNAME})
+target_link_libraries(graphcompiler_runtime PRIVATE ${DNNL_LIBNAME} "${EXTRA_SHARED_LIBS}")
 if(IGC_PATH)
     target_link_libraries(graphcompiler_runtime PRIVATE ze_loader)
 endif()

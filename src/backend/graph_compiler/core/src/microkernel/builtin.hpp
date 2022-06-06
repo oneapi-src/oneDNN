@@ -325,6 +325,12 @@ expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,
 // makes a call node to sc_value_check function
 expr call_value_check(expr tsr, expr name, expr size);
 
+// gets the IR func for get_thread_id. @see thread_pool_table::get_thread_id
+func_t get_thread_id_func();
+
+// gets the IR func for is_in_parallel. @see thread_pool_table::is_in_parallel
+func_t get_is_in_parallel_func();
+
 } // namespace builtin
 } // namespace sc
 

@@ -17,20 +17,49 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_PARALLEL_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_PARALLEL_HPP
 
+#include <utility>
 #include <runtime/config.hpp>
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
+#include <tbb/parallel_for.h>
+#endif
 
 namespace sc {
 namespace utils {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
+template <typename F>
+void parallel(F &&f, int64_t begin, int64_t end, int64_t step = 1,
+        int num_threads = runtime_config_t::get().get_num_threads()) {
+    tbb::parallel_for(begin, end, step, [&](int64_t i) { f(i, end); });
+}
+
+template <typename F>
+void parallel_for(int64_t begin, int64_t end, int64_t step, F &&f) {
+    tbb::parallel_for(begin, end, step, std::forward<F>(f));
+}
+
+#else
 template <typename F>
 void parallel(F f, int64_t begin, int64_t end, int64_t step = 1,
-        int numthreads = runtime_config_t::get().get_num_threads()) {
-#ifdef SC_OMP_ENABLED
-#pragma omp parallel for num_threads(numthreads)
+        int num_threads = runtime_config_t::get().get_num_threads()) {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
+#pragma omp parallel for num_threads(num_threads)
 #endif
     for (int64_t i = begin; i < end; i += step) {
         f(i, end);
     }
 }
+
+template <typename F>
+void parallel_for(int64_t begin, int64_t end, int64_t step, F &&f) {
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
+#pragma omp parallel for
+#endif
+    for (int64_t i = begin; i < end; i += step) {
+        f(i);
+    }
+}
+#endif
+
 } // namespace utils
 } // namespace sc
 

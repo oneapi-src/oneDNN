@@ -49,10 +49,6 @@
 #include "x86simd/vec_u8x16.hpp"
 #endif
 
-#ifdef SC_OMP_ENABLED
-#include <omp.h>
-#endif
-
 #include <runtime/generic_val.hpp>
 
 namespace sc {

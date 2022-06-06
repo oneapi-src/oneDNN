@@ -17,14 +17,12 @@
 #include <cmath>
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef SC_OMP_ENABLED
-#include <omp.h>
-#endif
 #include "config.hpp"
 #include <runtime/data_type.hpp>
 #include <runtime/env_var.hpp>
 #include <runtime/env_vars.hpp>
 #include <runtime/logging.hpp>
+#include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
 #include <util/os.hpp>
 #ifdef _WIN32
@@ -93,24 +91,9 @@ runtime_config_t &runtime_config_t::get() {
     return cfg;
 }
 
-#ifdef SC_OMP_ENABLED
-int runtime_config_t::get_num_threads() {
-    return omp_get_max_threads();
-}
-
-void runtime_config_t::set_num_threads(int num) {
-    return omp_set_num_threads(num);
-}
-#else
-int runtime_config_t::get_num_threads() {
-    return 1;
-}
-
-void runtime_config_t::set_num_threads(int num) {}
-#endif
-
 using namespace env_key;
 runtime_config_t::runtime_config_t() {
+    thread_pool_table_ = &sc_pool_table;
     trace_initial_cap_ = 2048 * 1024;
     trace_out_path_ = utils::getenv_string(env_names[SC_TRACE]);
     execution_verbose_

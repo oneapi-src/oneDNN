@@ -90,9 +90,26 @@ set(SC_CPP_VER 11)
 
 link_directories(${INSTALL_DIR}/lib)
 
-if(SC_OMP_ENABLED STREQUAL ON)
-    add_definitions("-DSC_OMP_ENABLED=1")
+if(NOT "${SC_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ)$")
+    message(FATAL_ERROR "Unsupported CPU runtime: ${SC_CPU_RUNTIME}")
+endif()
+
+SET(DNNL_CPU_RUNTIME ${SC_CPU_RUNTIME})
+SET(DNNL_CPU_THREADING_RUNTIME ${SC_CPU_RUNTIME})
+
+if(${SC_CPU_RUNTIME} STREQUAL "OMP")
+    set(SC_OMP_ENABLED ON)
+    add_definitions("-DSC_CPU_THREADPOOL=1")
     find_package(OpenMP REQUIRED)
+endif()
+
+if(${SC_CPU_RUNTIME} STREQUAL "TBB")
+    include("cmake/TBB.cmake")
+    add_definitions("-DSC_CPU_THREADPOOL=2")
+endif()
+
+if(${SC_CPU_RUNTIME} STREQUAL "SEQ")
+    add_definitions("-DSC_CPU_THREADPOOL=0")
 endif()
 
 ##############################

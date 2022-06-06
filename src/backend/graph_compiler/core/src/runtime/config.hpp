@@ -18,14 +18,31 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_CONFIG_HPP
 #include <stdint.h>
 #include <string>
+#include <runtime/generic_val.hpp>
 #include <util/def.hpp>
 
 namespace sc {
 
+struct thread_pool_table {
+    // submits job in thread pool
+    void (*parallel_call)(void (*pfunc)(void *, void *, int64_t, generic_val *),
+            void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
+            int64_t step, generic_val *args);
+    // gets the max number of threads in pool
+    int (*get_num_threads)();
+    // sets the max number of threads in pool
+    void (*set_num_threads)(int v);
+    // get the current thread id in pool. Should be 0~N
+    int (*get_thread_id)();
+    // returns non-zero if is in parallel section
+    int (*is_in_parallel)();
+};
+
 struct SC_INTERNAL_API runtime_config_t {
+    thread_pool_table *thread_pool_table_;
     // if in muti-instance simulation, the number of threads per instance.
-    int get_num_threads();
-    void set_num_threads(int num);
+    int get_num_threads() { return thread_pool_table_->get_num_threads(); }
+    void set_num_threads(int num) { thread_pool_table_->set_num_threads(num); }
     bool amx_exclusive_;
     std::string trace_out_path_;
     int trace_initial_cap_;

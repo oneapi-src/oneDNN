@@ -435,5 +435,22 @@ std::vector<expr> create_initialed_postops_data() {
     return data;
 }
 
+static func_t set_pure_function(func_t f) {
+    f->attr()["pure"] = true;
+    return f;
+}
+
+func_t get_thread_id_func() {
+    static func_t func = set_pure_function(
+            _decl_func("sc_get_thread_id", datatypes::s32, {}));
+    return func;
+}
+
+func_t get_is_in_parallel_func() {
+    static func_t func = set_pure_function(
+            _decl_func("sc_is_in_parallel", datatypes::s32, {}));
+    return func;
+}
+
 } // namespace builtin
 } // namespace sc
