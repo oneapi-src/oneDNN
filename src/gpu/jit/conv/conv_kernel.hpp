@@ -140,7 +140,7 @@ ngen::Immediate to_ngen(
         ir_assert(utils::one_of(type, type_t::undef(), type_t::f32()))
                 << "Conversion is not supported.";
         auto &imm = expr.as<float_imm_t>();
-        if(imm.type.is_f32()){
+        if (imm.type.is_f32()){
             return ngen::Immediate((float)imm.value);
         }
         return ngen::Immediate(imm.value);
@@ -3433,6 +3433,8 @@ public:
             signal(obj.attr);
         } else if (func.is_equal(funcs::slm_fence_func())) {
             slm_fence(obj.attr);
+        } else if (func.is_equal(funcs::swsb_long_sync_func())) {
+            swsb_long_sync();
         } else {
             ir_error_not_expected() << object_t(obj);
         }
@@ -3617,6 +3619,10 @@ private:
         if (!attr.is_empty())
             mod = mod | to_ngen(attr.as<instruction_modifier_attr_t>().mod);
         host_->barriermsg(mod, host_->signal_header_);
+    }
+
+    void swsb_long_sync() {
+        host_->sync(ngen::SyncFunction::nop, ngen::SWSB<uint64_t>(1));
     }
 
     void barrier_wait() { host_->barrierwait(); }

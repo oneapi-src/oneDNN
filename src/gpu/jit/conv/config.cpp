@@ -90,8 +90,7 @@ status_t conv_config_t::init_common_blocking() {
 
     // Set base blocks to align kernel blocking with layout blocking.
     if (is_fwd) {
-        bh->set_base_iter_block(
-                "mb", is_f64_conv() ? 1 : src_layout.inner_block(0));
+        bh->set_base_iter_block("mb", src_layout.inner_block(0));
         int src_g_blk = src_layout.inner_block(1);
         int wei_g_blk = wei_layout.inner_block(0);
         bh->set_base_iter_block("g", src_g_blk, wei_g_blk);
@@ -128,13 +127,6 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     init_use_ow_kw_grf_cache();
 
     const char *osp_name = fuse_spatial ? "osp" : "ow";
-
-    if (is_f64_conv()) {
-        bh->set_max_iter_dim("mb", 1);
-        bh->set_max_iter_dim(osp_name, 1);
-        bh->set_pref_tg_block("mb");
-        bh->set_max_m_tg_dim(8);
-    }
 
     if (use_ow_kw_grf_cache) {
         bh->set_max_iter_dim("mb", 1);
@@ -186,7 +178,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         if (is_dw) bh->set_pref_tg_block(osp_name);
         bh->allow_split({osp_name, "mb"});
         bh->reorder({osp_name, "mb"});
-    } else if (!is_f64_conv()) {
+    } else {
         const int large_sp_threshold = is_ge_xe_hpc() ? 128 : 256;
         if (!is_dw && osp > large_sp_threshold) bh->set_pref_tg_block("oc");
         bh->reorder({"mb", osp_name});
