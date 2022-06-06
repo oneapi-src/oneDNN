@@ -360,7 +360,6 @@ struct pool_conf_t {
     int vect_dt_n;
     int nvect;
     compute::dispatch_t dispatch;
-    compute::gpu_arch_t gpu_arch;
     int sub_group_size;
     int global_pool_spatial_chunk;
 

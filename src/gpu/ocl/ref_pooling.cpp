@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,9 +42,6 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     conf.dispatch.generate();
 
     conf.attr_info = attr_info_t::create(pd->attr());
-    // needed for WA in init_kernel_ctx_common()
-    // TODO: remove this workaround once it fixed
-    conf.gpu_arch = compute_engine->device_info()->gpu_arch();
 
     return status::success;
 };
@@ -87,13 +84,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             "ALG_AVG_P", (conf.alg == pooling_avg_include_padding));
 
     def_attr_info(kernel_ctx, conf.attr_info, post_ops);
-
-    // WA for compiler issue w/ postops optimization
-    // TODO: remove this workaround once it fixed
-    if (conf.alg == pooling_avg_include_padding && post_ops.len() > 0
-            && conf.gpu_arch == compute::gpu_arch_t::xe_hp) {
-        kernel_ctx.add_option("-cl-opt-disable");
-    }
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
