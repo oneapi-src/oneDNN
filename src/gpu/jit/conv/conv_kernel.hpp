@@ -2057,6 +2057,7 @@ private:
             auto &last = ab_layout.blocks().back();
             int max_stride = int(last.stride * last.block);
             if (last.stride > 4) return false;
+            if ((int)last.stride == 4 && type.size() <= 2) return false;
             int max_stride_bytes = max_stride * type.size();
             int grf_size = ngen::GRF::bytes(hw);
             if (max_stride_bytes > 2 * grf_size) return false;
@@ -2896,6 +2897,35 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 auto s_int = d.reinterpret(i_type);
                 host->emov(esize, d_int, s_int);
             }
+        }
+        return;
+    }
+
+    if (src_b && dst_b && src_stride == 4) {
+        int step = get_step();
+        auto tmp0 = scope.alloc_reg_buf_data(
+                utils::div_up(step * src_type_size * src_stride, grf_size));
+        auto tmp1 = scope.alloc_reg_buf_data(
+                utils::div_up(step * dst_type_size * dst_stride, grf_size));
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+            auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
+                    esize, src_stride);
+            auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
+                    esize, dst_stride);
+            if (s.offset() != 0) {
+                auto t = tmp0.format(0, src_type, esize, src_stride);
+                host->emov(esize, t, s);
+                s = t;
+            }
+            if (d.offset() != 0) {
+                auto t = tmp1.format(0, dst_type, esize, dst_stride);
+                host->emov(esize, t, s);
+                s = t;
+            }
+            host->emov(esize, d, s);
         }
         return;
     }
