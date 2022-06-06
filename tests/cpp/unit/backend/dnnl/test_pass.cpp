@@ -7582,8 +7582,8 @@ TEST(Pass, FuseToInt8PoolAdd) {
                     "int8_maxpool_fusion", "int8_maxpool_add_fusion"}};
 
     for (const auto &conf : confs) {
-        op_kind_t base_op;
-        op_kind_t fused_op;
+        op_kind_t base_op = impl::op_kind::Wildcard;
+        op_kind_t fused_op = impl::op_kind::Wildcard;
         std::string failing_fuse;
         std::string passing_fuse;
         std::tie(base_op, fused_op, failing_fuse, passing_fuse) = conf;
