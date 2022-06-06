@@ -77,7 +77,7 @@ fill_status_t bnorm_graph_prb_t::handle_main_op_() {
     using op = dnnl::graph::op;
     using graph_dt = dnnl::graph::logical_tensor::data_type;
 
-    std::string op_name {};
+    std::string op_name = "";
     op::kind op_kind {op::kind::LastSymbol};
     std::vector<dnnl::graph::logical_tensor> inputs {};
     std::vector<dnnl::graph::logical_tensor> outputs {};

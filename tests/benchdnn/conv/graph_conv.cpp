@@ -61,7 +61,7 @@ fill_status_t conv_graph_prb_t::handle_main_op_() {
     auto wei_dt = benchdnnext::set_main_op_dtype(spec_.wei_dt);
     auto dst_dt = benchdnnext::set_main_op_dtype(spec_.dst_dt);
 
-    std::string op_name {};
+    std::string op_name = "";
     kind op_kind {kind::LastSymbol};
     std::vector<logical_tensor> inputs {};
     std::vector<logical_tensor> outputs {};

@@ -125,7 +125,7 @@ fill_status_t deconv_graph_prb_t::handle_main_op_() {
         tensor_descs_.emplace(WEI, wei_dt, wei_dims, spec_.raw_wei_tag);
     }
 
-    std::string op_name {};
+    std::string op_name = "";
     kind op_kind {kind::LastSymbol};
     std::vector<logical_tensor> inputs {};
     std::vector<logical_tensor> outputs {};
