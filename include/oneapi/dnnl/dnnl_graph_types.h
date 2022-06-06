@@ -163,14 +163,14 @@ typedef enum {
 typedef enum {
     /// Default behavior, no downconversions allowed
     dnnl_graph_fpmath_mode_strict = 0,
-    /// Implicit f32->bf16 or f32->f19 conversions allowed
+    /// Implicit f32->bf16 or f32->tf32 conversions allowed
     dnnl_graph_fpmath_mode_bf16 = 1,
-    /// Implicit f32->f16 or f32->f19 conversions allowed
+    /// Implicit f32->f16 or f32->tf32 conversions allowed
     dnnl_graph_fpmath_mode_f16 = 2,
-    /// Implicit f32->f16 or f32->bf16 or f32->f19 conversions allowed
+    /// Implicit f32->f16 or f32->bf16 or f32->tf32 conversions allowed
     dnnl_graph_fpmath_mode_any = 3,
-    /// Implicit f32->f19 conversions allowed
-    dnnl_graph_fpmath_mode_f19 = 4,
+    /// Implicit f32->tf32 conversions allowed
+    dnnl_graph_fpmath_mode_tf32 = 4,
 } dnnl_graph_fpmath_mode_t;
 
 /// @}

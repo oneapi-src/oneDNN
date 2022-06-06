@@ -73,7 +73,7 @@ fpmath_mode_t get_default_fpmath_mode() {
             default_fpmath_mode = fpmath_mode::strict;
         if (val.compare("bf16") == 0) default_fpmath_mode = fpmath_mode::bf16;
         if (val.compare("f16") == 0) default_fpmath_mode = fpmath_mode::f16;
-        if (val.compare("f19") == 0) default_fpmath_mode = fpmath_mode::f19;
+        if (val.compare("tf32") == 0) default_fpmath_mode = fpmath_mode::tf32;
         if (val.compare("any") == 0) default_fpmath_mode = fpmath_mode::any;
     }
     return default_fpmath_mode;

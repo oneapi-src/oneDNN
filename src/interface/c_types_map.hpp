@@ -77,7 +77,7 @@ const fpmath_mode_t strict = dnnl_graph_fpmath_mode_strict;
 const fpmath_mode_t bf16 = dnnl_graph_fpmath_mode_bf16;
 const fpmath_mode_t f16 = dnnl_graph_fpmath_mode_f16;
 const fpmath_mode_t any = dnnl_graph_fpmath_mode_any;
-const fpmath_mode_t f19 = dnnl_graph_fpmath_mode_f19;
+const fpmath_mode_t tf32 = dnnl_graph_fpmath_mode_tf32;
 }; // namespace fpmath_mode
 
 using op_kind_t = dnnl_graph_op_kind_t;

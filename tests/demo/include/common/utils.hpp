@@ -209,8 +209,8 @@ dnnl::graph::graph::fpmath_mode fpmath_mode_kind_str2kind(std::string kind) {
         return dnnl::graph::graph::fpmath_mode::f16;
     } else if (kind == "any") {
         return dnnl::graph::graph::fpmath_mode::any;
-    } else if (kind == "f19") {
-        return dnnl::graph::graph::fpmath_mode::f19;
+    } else if (kind == "tf32") {
+        return dnnl::graph::graph::fpmath_mode::tf32;
     } else {
         return dnnl::graph::graph::fpmath_mode::strict;
     }

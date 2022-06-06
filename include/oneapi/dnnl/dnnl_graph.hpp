@@ -1535,14 +1535,14 @@ public:
     enum class fpmath_mode {
         /// Default behavior, no downconversions allowed
         strict = dnnl_graph_fpmath_mode_strict,
-        /// Implicit f32->bf16 or f32->f19 conversions allowed
+        /// Implicit f32->bf16 or f32->tf32 conversions allowed
         bf16 = dnnl_graph_fpmath_mode_bf16,
-        /// Implicit f32->f16 or f32->f19 conversions allowed
+        /// Implicit f32->f16 or f32->tf32 conversions allowed
         f16 = dnnl_graph_fpmath_mode_f16,
-        /// Implicit f32->f16 or f32->bf16 or f32->f19 conversions allowed
+        /// Implicit f32->f16 or f32->bf16 or f32->tf32 conversions allowed
         any = dnnl_graph_fpmath_mode_any,
-        /// Implicit f32->f19 conversions allowed
-        f19 = dnnl_graph_fpmath_mode_f19,
+        /// Implicit f32->tf32 conversions allowed
+        tf32 = dnnl_graph_fpmath_mode_tf32,
     };
 
     /// Constructs a graph session using device information

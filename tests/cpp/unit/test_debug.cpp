@@ -81,13 +81,13 @@ TEST(DebugUtilsTest, FpmathMode2str) {
     EXPECT_STREQ("bf16", fpmath_mode2str(fpmath_mode::bf16));
     EXPECT_STREQ("f16", fpmath_mode2str(fpmath_mode::f16));
     EXPECT_STREQ("any", fpmath_mode2str(fpmath_mode::any));
-    EXPECT_STREQ("f19", fpmath_mode2str(fpmath_mode::f19));
+    EXPECT_STREQ("tf32", fpmath_mode2str(fpmath_mode::tf32));
 #ifndef NDEBUG
     EXPECT_DEATH(
-            fpmath_mode2str(static_cast<fpmath_mode_t>(fpmath_mode::f19 + 1)),
+            fpmath_mode2str(static_cast<fpmath_mode_t>(fpmath_mode::tf32 + 1)),
             "unknown fpmath_mode");
 #else
     EXPECT_STREQ("unknown fpmath_mode",
-            fpmath_mode2str(static_cast<fpmath_mode_t>(fpmath_mode::f19 + 1)));
+            fpmath_mode2str(static_cast<fpmath_mode_t>(fpmath_mode::tf32 + 1)));
 #endif
 }
