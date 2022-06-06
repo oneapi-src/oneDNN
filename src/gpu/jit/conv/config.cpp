@@ -982,8 +982,8 @@ void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
             = (is_fwd || is_bwd_w) ? (ic * id * ih * iw) : (oc * od * oh * ow);
     if (!block_2d_width_ok(a_width, a_data_type_size)) a_ok = false;
     if (!block_2d_height_ok(a_max_height)) a_ok = false;
-    if (!block_2d_pitch_ok(a_width, a_data_type_size)) a_ok = false;
-    if (!block_2d_pitch_ok(a_max_pitch, a_data_type_size)) a_ok = false;
+    if (!block_2d_pitch_ok(hw_cfg, a_width, a_data_type_size)) a_ok = false;
+    if (!block_2d_pitch_ok(hw_cfg, a_max_pitch, a_data_type_size)) a_ok = false;
     if (a_ok) use_a_2d_send = true;
 
     // Check 2D block message limitations for B.
@@ -996,8 +996,8 @@ void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
     int b_max_pitch = (is_fwd || is_bwd_d) ? b_width : (oc * od * oh * ow);
     if (!block_2d_width_ok(b_width, b_data_type_size)) b_ok = false;
     if (!block_2d_height_ok(b_max_height)) b_ok = false;
-    if (!block_2d_pitch_ok(b_width, b_data_type_size)) b_ok = false;
-    if (!block_2d_pitch_ok(b_max_pitch, b_data_type_size)) b_ok = false;
+    if (!block_2d_pitch_ok(hw_cfg, b_width, b_data_type_size)) b_ok = false;
+    if (!block_2d_pitch_ok(hw_cfg, b_max_pitch, b_data_type_size)) b_ok = false;
     if (b_ok) use_b_2d_send = true;
 }
 

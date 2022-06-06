@@ -17,6 +17,7 @@
 #ifndef GPU_JIT_CONV_SLM_REDUCE_BUILDER_HPP
 #define GPU_JIT_CONV_SLM_REDUCE_BUILDER_HPP
 
+#include "gpu/jit/conv/hw_config.hpp"
 #include "gpu/jit/conv/ir.hpp"
 #include "gpu/jit/conv/tensor.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
@@ -32,7 +33,7 @@ class slm_reduce_builder_t {
 public:
     slm_reduce_builder_t() = default;
 
-    slm_reduce_builder_t(const ngen::HW &hw, ir_context_t &ir_ctx,
+    slm_reduce_builder_t(const hw_config_t &hw_cfg, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const grid_info_t &tg_grid,
             const expr_t &reg_buf, const layout_t &reg_layout,
             const tensor_t &thr_tile, int dim = 2);
@@ -71,7 +72,7 @@ private:
         return mask;
     }
 
-    ngen::HW hw_;
+    hw_config_t hw_cfg_;
     grid_info_t tg_grid_;
 
     expr_t reg_buf_;

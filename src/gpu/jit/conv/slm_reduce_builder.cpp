@@ -28,11 +28,11 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-slm_reduce_builder_t::slm_reduce_builder_t(const ngen::HW &hw,
+slm_reduce_builder_t::slm_reduce_builder_t(const hw_config_t &hw_cfg,
         ir_context_t &ir_ctx, const constraint_set_t &cset,
         const grid_info_t &tg_grid, const expr_t &reg_buf,
         const layout_t &reg_layout, const tensor_t &thr_tile, int dim)
-    : hw_(hw)
+    : hw_cfg_(hw_cfg)
     , tg_grid_(tg_grid)
     , reg_buf_(reg_buf)
     , reg_layout_(reg_layout)
@@ -70,7 +70,7 @@ void slm_reduce_builder_t::build(
         write_start[ndims + i] = tg_grid_.idx(i);
     }
     auto write_tile = tensor_t(write_dims, write_start);
-    auto write = make_access_builder(hw_, ir_ctx, cset,
+    auto write = make_access_builder(hw_cfg_, ir_ctx, cset,
             view_t(slm_layout.map(write_tile)), slm_buf_, reg_buf_,
             send_op_t::store, send_address_t::slm);
     store_stmt_ = write.stmt();
@@ -94,12 +94,12 @@ void slm_reduce_builder_t::build(
         read_start[ndims + i] = (i == dim_) ? 0 : tg_grid_.idx(i);
     }
     tensor_t read_tile(read_dims, read_start);
-    auto read = make_access_builder(hw_, ir_ctx, cset,
+    auto read = make_access_builder(hw_cfg_, ir_ctx, cset,
             view_t(slm_layout.map(read_tile)), slm_buf_, tmp_reg_buf_,
             send_op_t::load, send_address_t::slm);
 
     load_stmt_ = load_stmt_.append(
-            create_zero_out_stmt(hw_, reg_buf_, reg_layout_.size()));
+            create_zero_out_stmt(hw_cfg_.hw(), reg_buf_, reg_layout_.size()));
     load_stmt_ = load_stmt_.append(read.stmt());
 
     tmp_reg_buf_size_ = std::max(tmp_reg_buf_size_, read.reg_buf_size());

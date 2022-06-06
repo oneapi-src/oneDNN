@@ -19,6 +19,7 @@
 
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/device_info.hpp"
+#include "gpu/jit/conv/ir_core.hpp"
 #include "gpu/jit/conv/utils.hpp"
 #include "gpu/jit/ngen_type_bridge.hpp"
 

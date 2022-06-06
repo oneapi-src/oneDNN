@@ -4910,7 +4910,7 @@ public:
 
     stmt_t create_store_stmt(
             ir_context_t &ir_ctx, const constraint_set_t &cset) const {
-        auto r2g = make_access_builder(cfg_.hw(), ir_ctx, cset,
+        auto r2g = make_access_builder(cfg_.hw_cfg, ir_ctx, cset,
                 b_reduced_thr_view_, b_reduced_mem_buf_, b_reduced_reg_buf_,
                 send_op_t::atomic_fadd, send_address_t::a64);
         // TODO: Check that layouts match.
@@ -5047,7 +5047,7 @@ private:
         send_hint = get_send_hint(hw_cfg_, send_op_t::load,
                 fma_helper_.fma_kind(), abc_kind_, mem_view, gemm_schedule_,
                 allow_2d_load_);
-        auto read = make_access_builder(hw_cfg_.hw(), ir_ctx, cset_, mem_view,
+        auto read = make_access_builder(hw_cfg_, ir_ctx, cset_, mem_view,
                 use_slm_ ? slm_buf_ : mem_buf_, reg_buf_, send_op,
                 use_slm_ ? send_address_t::slm : send_address_t::a64,
                 send_hint);
@@ -5662,7 +5662,7 @@ private:
                 i < m_blk * simd_per_ic; i += dims[0]) {
             const int b = i * d_type.size();
             view_t zpv(layout_t(d_type, 0, dims));
-            auto read = make_access_builder(cfg_.hw(), ir_ctx_, cset_, zpv,
+            auto read = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_, zpv,
                     kernel_info_.find_arg("src_zero_points")[offs + b],
                     src_zp[b], send_op_t::load, send_address_t::a64);
             data = data.append(read.stmt());
@@ -6007,7 +6007,7 @@ public:
         auto thr_tile = gemm_schedule_.c_thr_tile(/*is_relative=*/false);
 
         if (gemm_schedule_.with_thread_group_k_slicing()) {
-            slm_reduce_builder_t slm_reduce_builder(cfg_.hw(), ir_ctx_, cset_,
+            slm_reduce_builder_t slm_reduce_builder(cfg_.hw_cfg, ir_ctx_, cset_,
                     gemm_schedule_.tg_grid(), c_buf, c_thr_reg_layout,
                     thr_tile);
             c_store_stmt_ = c_store_stmt_.append(slm_reduce_builder.stmt());
@@ -6210,8 +6210,9 @@ private:
         expr_t x_g2s_reg_buf = g2s_ctx.create_buf("g2s");
 
         // GMEM -> GRF load.
-        auto x_read = make_access_builder(cfg_.hw(), ir_ctx_, cset_, x_g2s_view,
-                xp_buf, x_g2s_reg_buf, send_op_t::load, send_address_t::a64);
+        auto x_read = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_,
+                x_g2s_view, xp_buf, x_g2s_reg_buf, send_op_t::load,
+                send_address_t::a64);
         ir_trace() << tag << " GMEM to GRF load:\n"
                    << x_read.str() << std::endl;
 
@@ -6222,7 +6223,7 @@ private:
         g2s_load_stmt_ = g2s_load_stmt_.append(load_stmt);
 
         // GRF -> SLM store.
-        auto x_write = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
+        auto x_write = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_,
                 view_t(slm_thr_layout), x_slm_buf, x_g2s_reg_buf,
                 send_op_t::store, send_address_t::slm);
         ir_trace() << tag << " GRF to SLM store:\n"
@@ -6277,7 +6278,7 @@ private:
                 gemm_schedule_);
 
         // GMEM prefetch.
-        auto x_prefetch = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
+        auto x_prefetch = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_,
                 thr_view, xp_buf, expr_t(), send_op_t::prefetch,
                 send_address_t::a64, send_hint);
         ir_trace() << tag << " GMEM prefetch:\n"
@@ -6842,14 +6843,12 @@ void reorder_kernel_builder_t::build() {
         allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
     }
 
-    auto read
-            = make_access_builder(hw_cfg_.hw(), ir_ctx, init_cset, src_thr_view,
-                    src_buf, reg_buf, send_op_t::load, send_address_t::a64);
+    auto read = make_access_builder(hw_cfg_, ir_ctx, init_cset, src_thr_view,
+            src_buf, reg_buf, send_op_t::load, send_address_t::a64);
     auto read_stmt = read.stmt();
 
-    auto write
-            = make_access_builder(hw_cfg_.hw(), ir_ctx, init_cset, dst_thr_view,
-                    dst_buf, reg_buf, send_op_t::store, send_address_t::a64);
+    auto write = make_access_builder(hw_cfg_, ir_ctx, init_cset, dst_thr_view,
+            dst_buf, reg_buf, send_op_t::store, send_address_t::a64);
     auto write_stmt = write.stmt();
 
     auto read_layout = read.reg_layout();

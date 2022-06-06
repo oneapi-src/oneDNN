@@ -118,9 +118,9 @@ private:
 //   - When a post-op is not zero preserving
 class post_op_tensor_t {
 public:
-    post_op_tensor_t(ngen::HW hw, ir_context_t &ir_ctx,
+    post_op_tensor_t(const hw_config_t &hw_cfg, ir_context_t &ir_ctx,
             const constraint_set_t &cset, const post_op_tensor_info_t &info)
-        : hw_(hw), ir_ctx_(&ir_ctx), cset_(&cset), info_(info) {
+        : hw_cfg_(hw_cfg), ir_ctx_(&ir_ctx), cset_(&cset), info_(info) {
         if (!mem_buf().is_empty()) {
             auto &type = mem_buf().type();
             if (!type.is_ptr()) {
@@ -251,7 +251,7 @@ public:
         ir_assert(reg_buf_.is_empty());
 
         reg_buf_ = make_tmp_reg_buffer();
-        auto read = make_access_builder(hw_, *ir_ctx_, *cset_, mem_view(),
+        auto read = make_access_builder(hw_cfg_, *ir_ctx_, *cset_, mem_view(),
                 mem_buf(), reg_buf_, send_op_t::load, send_address_t::a64);
         reg_layout_ = read.reg_layout();
         register_buffer(reg_buf_, read.reg_buf_size());
@@ -261,8 +261,9 @@ public:
     stmt_t build_prefetch_stmt() const {
         ir_assert(needs_load());
 
-        auto prefetch = make_access_builder(hw_, *ir_ctx_, *cset_, mem_view(),
-                mem_buf(), expr_t(), send_op_t::prefetch, send_address_t::a64);
+        auto prefetch = make_access_builder(hw_cfg_, *ir_ctx_, *cset_,
+                mem_view(), mem_buf(), expr_t(), send_op_t::prefetch,
+                send_address_t::a64);
         return prefetch.stmt();
     }
 
@@ -287,7 +288,7 @@ public:
 
     stmt_t build_zero_out_stmt() const {
         ir_assert(needs_store());
-        return create_zero_out_stmt(hw_, reg_buf_, reg_layout_.size());
+        return create_zero_out_stmt(hw_cfg_.hw(), reg_buf_, reg_layout_.size());
     }
 
     stmt_t build_reduce_stmt() {
@@ -306,7 +307,7 @@ public:
         }
 
         // Apply optional scaling.
-        stmt = stmt.append(create_mul_add_stmt(hw_, reg_buf_,
+        stmt = stmt.append(create_mul_add_stmt(hw_cfg_.hw(), reg_buf_,
                 reg_layout_.size(), reg_layout_.type(), info_.scale(), 0));
 
         return stmt;
@@ -315,8 +316,8 @@ public:
     stmt_t build_slm_store_stmt(const grid_info_t &tg_grid) {
         ir_assert(needs_store());
         tensor_t tile(mem_view().vdims());
-        slm_reduce_builder_ = slm_reduce_builder_t(
-                hw_, *ir_ctx_, *cset_, tg_grid, reg_buf_, reg_layout_, tile, 1);
+        slm_reduce_builder_ = slm_reduce_builder_t(hw_cfg_, *ir_ctx_, *cset_,
+                tg_grid, reg_buf_, reg_layout_, tile, 1);
         return slm_reduce_builder_.store_stmt();
     }
 
@@ -338,7 +339,7 @@ public:
     stmt_t build_store_stmt() const {
         ir_assert(needs_store());
 
-        auto write = make_access_builder(hw_, *ir_ctx_, *cset_, mem_view(),
+        auto write = make_access_builder(hw_cfg_, *ir_ctx_, *cset_, mem_view(),
                 mem_buf(), reg_buf(), send_op_t::atomic_fadd,
                 send_address_t::a64);
         ir_assert(write.reg_layout() == reg_layout());
@@ -400,7 +401,7 @@ private:
         allocs_.push_back(alloc_t::make(buf, size, alloc_kind_t::grf));
     }
 
-    ngen::HW hw_;
+    hw_config_t hw_cfg_;
     ir_context_t *ir_ctx_;
     const constraint_set_t *cset_;
 
@@ -606,7 +607,7 @@ public:
         int tensor_idx = 0;
         for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
             post_op_tensor_t po_tensor(
-                    cfg_.hw(), ir_ctx_, cset_, po_tensor_info);
+                    cfg_.hw_cfg, ir_ctx_, cset_, po_tensor_info);
             po_tensor = po_tensor.create_sub_tensor(thr_tile);
             if (po_tensor_info.buf().is_empty()) {
                 // C tensor.
@@ -814,7 +815,7 @@ private:
                                              : send_op_t::store;
         auto send_hint = get_send_hint(cfg_.hw_cfg, send_op, abc_kind_t::c,
                 c_mem_tile_view, gemm_schedule_);
-        auto r2g = make_access_builder(cfg_.hw(), ir_ctx_, cset_,
+        auto r2g = make_access_builder(cfg_.hw_cfg, ir_ctx_, cset_,
                 c_mem_tile_view, c_mem_buf_, tmp_reg_buf, send_op,
                 send_address_t::a64, send_hint);
 
