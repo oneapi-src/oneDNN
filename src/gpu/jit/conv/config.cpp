@@ -165,11 +165,8 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         if (kw != 1) bh->set_max_iter_dim("ic", wei_ic_blk);
     }
 
-    bool use_2d_send = use_a_2d_send && use_b_2d_send;
     bool use_sp_blocking = false;
-    if (use_2d_send) {
-        use_sp_blocking = false;
-    } else if (is_compute_nhwc("src")) {
+    if (is_compute_nhwc("src")) {
         use_sp_blocking = should_use_spatial_blocking(od, oh, ow);
     } else if (src_layout.inner_block(0) == 1) {
         use_sp_blocking = true;
@@ -185,10 +182,6 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         const int large_sp_threshold = is_ge_xe_hpc() ? 128 : 256;
         if (!is_dw && osp > large_sp_threshold) bh->set_pref_tg_block("oc");
         bh->reorder({"mb", osp_name});
-        auto spatial_dim = fuse_spatial ? osp : ow;
-        if (!use_2d_send && mb >= 128
-                && (spatial_dim % 4 != 0 || spatial_dim < 64))
-            bh->allow_split({"mb"});
     }
 
     if (is_dp_fma()) { bh->set_base_iter_block("oc", 32); }
@@ -198,7 +191,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
 
     bh->reorder({"ic", "kw"});
 
-    if (use_2d_send) {
+    if (use_a_2d_send && use_b_2d_send) {
         int src_type_size = (int)types::data_type_size(src_data_type);
         // Use 64-byte reduction step to avoid partial cache line loads.
         bh->set_base_iter_block("ic", 64 / src_type_size);
@@ -294,11 +287,8 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     bh->set_vector_dim(is_dw ? "g" : "ic");
     bh->allow_split({"ic"});
 
-    bool use_2d_send = use_a_2d_send && use_b_2d_send;
     bool use_w_blocking = false;
-    if (use_2d_send) {
-        use_w_blocking = false;
-    } else if (is_compute_nhwc("dst")) {
+    if (is_compute_nhwc("dst")) {
         use_w_blocking = should_use_spatial_blocking(id, ih, iw);
     } else if (dst_layout.inner_block(0) == 1) {
         use_w_blocking = true;
@@ -311,11 +301,9 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     } else {
         bh->reorder({"mb", "iw"});
         bh->set_base_iter_block("mb", 8);
-        if (!use_2d_send && mb >= 128 && (iw % 4 != 0 || iw < 64))
-            bh->allow_split({"mb"});
     }
 
-    if (use_2d_send) {
+    if (use_a_2d_send && use_b_2d_send) {
         int dst_type_size = (int)types::data_type_size(dst_data_type);
         bh->set_base_iter_block("oc", 64 / dst_type_size);
         if (!is_stride1()) bh->allow_split({"mb"});
@@ -333,6 +321,11 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
         for (int tg_dim = iw_tg_dim0; tg_dim >= 1; tg_dim /= 2) {
             if ((iw / sw) % tg_dim == 0) {
                 bh->set_tg_dim("iw", tg_dim);
+                int mb_iter_dim = bh->iter_dim("mb");
+                int new_mb_tg_dim = bh->tg_dim("mb") * iw_tg_dim0 / tg_dim;
+                if (mb_iter_dim * new_mb_tg_dim <= mb) {
+                    bh->set_tg_dim("mb", new_mb_tg_dim);
+                }
                 break;
             }
         }
@@ -1031,12 +1024,15 @@ void conv_config_t::init_hoist_masks_from_compute_loop() {
         return;
     }
 #endif
-    bool use_2d_send = use_a_2d_send && use_b_2d_send;
-    if (!use_2d_send && !fuse_spatial) return;
+    if (use_a_2d_send && use_b_2d_send) {
+        hoist_masks_from_compute_loop = true;
+        return;
+    }
+    if (!fuse_spatial) return;
 
     // Both nhwc layouts and mask hoisting require extra GRF memory so avoid
     // enabling both.
-    if (!use_2d_send && is_compute_nhwc("src")) return;
+    if (is_compute_nhwc("src")) return;
 
     hoist_masks_from_compute_loop = true;
 }
