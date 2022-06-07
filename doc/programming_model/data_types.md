@@ -160,4 +160,4 @@ types that oneDNN recognizes.
   for double-precision floating-point.
 
   - f16 operations may accumulate to f16 on the GPU architectures older than
-  Xe-HP. Newer architectures accumulate to f32.
+  Xe-HPC. Newer architectures accumulate to f32.
