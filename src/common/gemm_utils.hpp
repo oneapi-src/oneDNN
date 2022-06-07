@@ -101,12 +101,9 @@ static inline void create_2d_desc(memory_desc_t *md_2d, int d0, int d1,
     }
 }
 
-static inline status_t create_gemm_pd(
-        std::shared_ptr<primitive_desc_t> &gemm_pd_, engine_t *engine,
-        const memory_desc_t *a_md, const memory_desc_t *b_md,
-        const memory_desc_t *c_md, const memory_desc_t *bias_md,
-        data_type_t acc_dt, const primitive_attr_t *attr,
-        bool skip_ref = false) {
+static inline gemm_desc_t create_gemm_desc(const memory_desc_t *a_md,
+        const memory_desc_t *b_md, const memory_desc_t *c_md,
+        const memory_desc_t *bias_md, data_type_t acc_dt, engine_t *engine) {
     auto gemm_desc = gemm_desc_t();
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.a_desc = *a_md;
@@ -114,6 +111,23 @@ static inline status_t create_gemm_pd(
     gemm_desc.c_desc = *c_md;
     gemm_desc.bias_desc = *bias_md;
     gemm_desc.acc_type = acc_dt;
+    // Downgrade accumulation type for f16 if allowed.
+    if (engine->mayiuse_f16_accumulator_with_f16()
+            && utils::everyone_is(
+                    data_type::f16, a_md->data_type, b_md->data_type)) {
+        gemm_desc.acc_type = data_type::f16;
+    }
+    return gemm_desc;
+}
+
+static inline status_t create_gemm_pd(
+        std::shared_ptr<primitive_desc_t> &gemm_pd_, engine_t *engine,
+        const memory_desc_t *a_md, const memory_desc_t *b_md,
+        const memory_desc_t *c_md, const memory_desc_t *bias_md,
+        data_type_t acc_dt, const primitive_attr_t *attr,
+        bool skip_ref = false) {
+    auto gemm_desc
+            = create_gemm_desc(a_md, b_md, c_md, bias_md, acc_dt, engine);
 
     primitive_attr_t gemm_attr = *attr;
 

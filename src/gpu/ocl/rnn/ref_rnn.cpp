@@ -601,18 +601,14 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                       int k, int lda, int ldb, int ldc, data_type_t a_dt,
                       data_type_t b_dt, data_type_t c_dt, bool is_B_trans,
                       float beta) -> status_t {
-        auto gemm_desc = gemm_desc_t();
         memory_desc_t a_md, b_md, c_md;
         create_2d_desc(&b_md, k, m, a_dt, transpose::notrans, lda);
         create_2d_desc(&a_md, n, k, b_dt,
                 is_B_trans ? transpose::trans : transpose::notrans, ldb);
         create_2d_desc(&c_md, n, m, c_dt, transpose::notrans, ldc);
-        gemm_desc.primitive_kind = primitive_kind::gemm;
-        gemm_desc.a_desc = a_md;
-        gemm_desc.b_desc = b_md;
-        gemm_desc.c_desc = c_md;
-        gemm_desc.bias_desc = glob_zero_md;
-        gemm_desc.acc_type = c_dt;
+
+        auto gemm_desc = create_gemm_desc(
+                &a_md, &b_md, &c_md, &glob_zero_md, c_dt, engine);
 
         primitive_attr_t attr;
         attr.post_ops_.append_sum(beta);

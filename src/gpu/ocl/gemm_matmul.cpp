@@ -57,13 +57,8 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     gemm_args.c_zero_point = c0;
     gemm_args.output_scales = scales;
     gemm_args.exec_args = ctx.args();
-    auto gemm_desc = gemm_desc_t();
-    gemm_desc.primitive_kind = primitive_kind::gemm;
-    gemm_desc.a_desc = *src_d.md_;
-    gemm_desc.b_desc = *weights_d.md_;
-    gemm_desc.c_desc = *dst_d.md_;
-    gemm_desc.bias_desc = *bia_d.md_;
-    gemm_desc.acc_type = pd()->desc()->accum_data_type;
+    auto gemm_desc = create_gemm_desc(src_d.md_, weights_d.md_, dst_d.md_,
+            bia_d.md_, pd()->desc()->accum_data_type, ctx.stream()->engine());
 
     gemm_exec_ctx_t gemm_ctx(ctx, gemm_args, &gemm_desc);
 
