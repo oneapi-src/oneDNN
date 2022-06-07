@@ -645,7 +645,12 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
                         4.0f - j.mb / 2048 * wei_compensation_scale, 1.0f);
             }
 
-            return nstl::max(wei_compensation_scale, 1.0f);
+            // limit the range of coefficient values to have more stable behavior
+            // for extreme cases
+            const float low_limit = 1.0f;
+            const float upper_limit = 1024.0f;
+            return utils::saturate(
+                    low_limit, upper_limit, wei_compensation_scale);
         };
 
         float src_tr = 0.0f;
