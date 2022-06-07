@@ -96,11 +96,13 @@ int fill_zps(const ::reorder::prb_t *prb, const int64_t axis,
             dst_zps.emplace_back(0);
         } else if (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8) {
             //Quantize Op
+            src_zps.emplace_back(0);
             dst_zps.emplace_back(prb->dst_zp[0]);
         } else if ((prb->sdt == dnnl_s8 || prb->sdt == dnnl_u8)
                 && prb->ddt == dnnl_f32) {
             //Dequantize Op
             src_zps.emplace_back(prb->src_zp[0]);
+            dst_zps.emplace_back(0);
         }
     } else {
         //TODO: needs update for PER_DIM_01
