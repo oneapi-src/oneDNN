@@ -1,0 +1,11 @@
+--reset
+
+--batch=test_brgemm_f32
+
+--batch=test_brgemm_bf16
+
+--batch=test_brgemm_int8
+
+--batch=harness_brgemm_skip_acc
+
+--batch=harness_brgemm_fpmath

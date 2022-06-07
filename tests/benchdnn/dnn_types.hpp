@@ -356,7 +356,7 @@ struct attr_t {
     dnnl_scratchpad_mode_t scratchpad_mode;
     dnnl_fpmath_mode_t fpmath_mode;
 
-    bool is_def() const;
+    bool is_def(bool skip_fpmath = false) const;
 };
 
 struct isa_hints_t {
