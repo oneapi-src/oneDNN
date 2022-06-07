@@ -284,57 +284,12 @@ static sc_data_format_t infer_broadcast_format(
         }
     }
     // start infer the format code
-    if (target_lt_format_code.is_batch_format()
-            == bc_lt_format_code.is_batch_format()) {
-        // if both batch OR both non-batch
-        // smaller side's format code == larger side's format code
-        COMPILE_ASSERT(target_lt_format_code.norig_dims()
-                        == bc_lt_format_code.norig_dims(),
-                "Unsupported case for binary_elementwise query format.");
-        return sc_data_format_t(target_lt.get_format().format_code_, blocks);
-    } else {
-        // if one side is batch and another is non-batch
-        // needs to cast the dimension axis inside the storage args
-        if (target_lt_format_code.is_batch_format()
-                && !bc_lt_format_code.is_batch_format()) {
-            int dim_difference = bc_lt_format_code.norig_dims()
-                    - target_lt_format_code.norig_dims();
-            assert(dim_difference >= 0);
-            std::vector<int> bc_lt_storage_args(
-                    target_lt_format_code.ndims() + dim_difference, -1);
-            std::iota(bc_lt_storage_args.begin(), bc_lt_storage_args.end(), 0);
-            for (int i = 0; i < target_lt_format_code.ndims(); ++i) {
-                bc_lt_storage_args[i + dim_difference]
-                        = target_lt_format_code.get(i) + dim_difference;
-            }
-            return sc_data_format_t(false, bc_lt_storage_args, blocks);
-        } else {
-            int dim_difference = bc_lt_format_code.norig_dims()
-                    - target_lt_format_code.norig_dims();
-            std::vector<int> bc_lt_storage_args(
-                    bc_lt_format_code.norig_dims() + block_dim,
-                    -1); // ensure reorder is convertiable
-            for (int i = 0; i < target_lt_format_code.ndims(); ++i) {
-                if (i + dim_difference >= 0) {
-                    COMPILE_ASSERT(
-                            target_lt_format_code.get(i) + dim_difference >= 0,
-                            "Unsupported format encountered in "
-                            "binary_elementwise query format.");
-                    bc_lt_storage_args[i + dim_difference]
-                            = target_lt_format_code.get(i) + dim_difference;
-                }
-            }
-            if (std::find(bc_lt_storage_args.begin(), bc_lt_storage_args.end(),
-                        -1)
-                    != bc_lt_storage_args.end()) {
-                COMPILE_ASSERT(0,
-                        "Unsupported format encountered in "
-                        "binary elementwise query format.");
-            }
-            return sc_data_format_t(true, bc_lt_storage_args, blocks);
-        }
-    }
-    return sc_data_format_t(target_lt.get_format().format_code_);
+    // if both batch OR both non-batch
+    // smaller side's format code == larger side's format code
+    COMPILE_ASSERT(target_lt_format_code.norig_dims()
+                    == bc_lt_format_code.norig_dims(),
+            "Unsupported case for binary_elementwise query format.");
+    return sc_data_format_t(target_lt.get_format().format_code_, blocks);
 }
 
 void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
@@ -488,10 +443,6 @@ bool binary_elementwise_op_impl_t::register_brgemm_fusion(
 sc_dims binary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() {
     auto &in0_detail = info_.inputs_[0]->details_;
     auto &in1_detail = info_.inputs_[1]->details_;
-    if (in0_detail.get_format().format_code_.is_batch_format()
-            != in1_detail.get_format().format_code_.is_batch_format()) {
-        return {};
-    }
     auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
     int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
             info_.outputs_[0]);

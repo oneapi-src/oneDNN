@@ -47,10 +47,8 @@ enum class sc_format_category {
  * The slots 0~14 (15 slots) store the original axis index of the corresponding
  * dimension. For a N-dimension format, any slots with index >=N should contain
  * a value of (0xF). For example, NCHWc =>[0,1,2,3,1,-1,-1,...]
- * The slot15 is a control block, which indicates whether the format is in batch
- * mode. The batch mode means that we only care about the last a few dimensions
- * in the real/original shape. The original axis with index 0 in batch mode is
- * the leftmost axis in the original shape we are interested.
+ * The slot15 is a control block, which is initially set to be 0 and can be used
+ * for other purpose in the future.
  */
 struct SC_API sc_data_format_kind_t {
     static constexpr int NUM_SLOTS = 16;
@@ -63,7 +61,6 @@ struct SC_API sc_data_format_kind_t {
         return 0xf & (storage_ >> (idx * BITS_PER_SLOT));
     }
     constexpr int get_control_block() const { return get(MAX_DIMS); }
-    constexpr bool is_batch_format() const { return get_control_block() == 1; }
     void set(int idx, int data) { storage_ = set_ith_int(storage_, idx, data); }
     constexpr sc_data_format_kind_t(uint64_t storage) : storage_(storage) {}
     constexpr sc_data_format_kind_t() : storage_(0xffffffffffffffff) {}
@@ -85,15 +82,14 @@ private:
 
 public:
     template <typename... Args>
-    constexpr sc_data_format_kind_t(bool is_batch, Args... args)
+    constexpr sc_data_format_kind_t(Args... args)
         : storage_(make_storage<0>(
-                set_ith_int(0xffffffffffffffff, MAX_DIMS, (int)is_batch),
-                args...)) {
+                set_ith_int(0xffffffffffffffff, MAX_DIMS, 0), args...)) {
         static_assert(sizeof...(args) <= MAX_DIMS,
                 "At most 15 dimensions are supported");
     }
 
-    sc_data_format_kind_t(bool is_batch, const std::vector<int> &storage_args);
+    sc_data_format_kind_t(const std::vector<int> &storage_args);
 
     constexpr sc_data_format_kind_t(const sc_data_format_kind_t &) = default;
     sc_data_format_kind_t &operator=(const sc_data_format_kind_t &) = default;
@@ -107,13 +103,10 @@ public:
 
     constexpr operator uint64_t() const { return storage_; }
 
-    // gets the number of dimensions. For any, returns -1. For batch format,
-    // returns the number of dims specified by the format. e.g. X_YZyz => 4
+    // gets the number of dimensions. For any, returns -1.
     int ndims() const;
 
-    // gets the number of original dimensions. For any, returns -1. For batch
-    // format, returns the number of dims specified by the format. e.g. X_YZyz
-    // => 2
+    // gets the number of original dimensions. For any, returns -1.
     int norig_dims() const;
 
     // checks if the format is valid. If not, throws an runtime_exception
@@ -150,59 +143,49 @@ public:
 };
 
 namespace format_kinds {
-#define SC_DEF_FMT(name, batch, ...) \
-    constexpr sc_data_format_kind_t name {batch, __VA_ARGS__};
+#define SC_DEF_FMT(name, ...) \
+    constexpr sc_data_format_kind_t name {__VA_ARGS__};
 /* this format means continous memory format, which can be converted to
          any format*/
 SC_DEF_FMT(any, 0xffffffffffffffff)
-SC_DEF_FMT(A, false, 0)
-SC_DEF_FMT(AB, false, 0, 1)
-SC_DEF_FMT(BA, false, 1, 0)
-SC_DEF_FMT(ABC, false, 0, 1, 2)
-SC_DEF_FMT(ABCD, false, 0, 1, 2, 3)
-SC_DEF_FMT(ABCDE, false, 0, 1, 2, 3, 4)
-
-// special formats: X means any number of axises for batch, Y and Z
-// means the last two axises in plain dims
-SC_DEF_FMT(X_YZ, true, 0, 1)
-SC_DEF_FMT(X_ZY, true, 1, 0)
+SC_DEF_FMT(A, 0)
+SC_DEF_FMT(AB, 0, 1)
+SC_DEF_FMT(BA, 1, 0)
+SC_DEF_FMT(ABC, 0, 1, 2)
+SC_DEF_FMT(ABCD, 0, 1, 2, 3)
+SC_DEF_FMT(ABCDE, 0, 1, 2, 3, 4)
 
 // blocked format start
-SC_DEF_FMT(Aa, false, 0, 0)
-SC_DEF_FMT(ABab, false, 0, 1, 0, 1)
-SC_DEF_FMT(ABba, false, 0, 1, 1, 0)
-SC_DEF_FMT(BAab, false, 1, 0, 0, 1)
-SC_DEF_FMT(ABCDb, false, 0, 1, 2, 3, 1)
-SC_DEF_FMT(ABCDba, false, 0, 1, 2, 3, 1, 0)
+SC_DEF_FMT(Aa, 0, 0)
+SC_DEF_FMT(ABab, 0, 1, 0, 1)
+SC_DEF_FMT(ABba, 0, 1, 1, 0)
+SC_DEF_FMT(BAab, 1, 0, 0, 1)
+SC_DEF_FMT(ABCDb, 0, 1, 2, 3, 1)
+SC_DEF_FMT(ABCDba, 0, 1, 2, 3, 1, 0)
 // for bert
-SC_DEF_FMT(ABDCcd, false, 0, 1, 3, 2, 2, 3)
-SC_DEF_FMT(ABDCcdc, false, 0, 1, 3, 2, 2, 3, 2)
-SC_DEF_FMT(ABCDdcd, false, 0, 1, 2, 3, 3, 2, 3)
-SC_DEF_FMT(ABCDEb, false, 0, 1, 2, 3, 4, 1)
-SC_DEF_FMT(ABCDEba, false, 0, 1, 2, 3, 4, 1, 0)
-
-// special formats: see X_ZY
-SC_DEF_FMT(X_YZyz, true, 0, 1, 0, 1)
-SC_DEF_FMT(X_ZYyz, true, 1, 0, 0, 1)
+SC_DEF_FMT(ABDCcd, 0, 1, 3, 2, 2, 3)
+SC_DEF_FMT(ABDCcdc, 0, 1, 3, 2, 2, 3, 2)
+SC_DEF_FMT(ABCDdcd, 0, 1, 2, 3, 3, 2, 3)
+SC_DEF_FMT(ABCDEb, 0, 1, 2, 3, 4, 1)
+SC_DEF_FMT(ABCDEba, 0, 1, 2, 3, 4, 1, 0)
 
 // vnni format
-SC_DEF_FMT(KCRSckc, false, 0, 1, 2, 3, 1, 0, 1)
-SC_DEF_FMT(KCDRSckc, false, 0, 1, 2, 3, 4, 1, 0, 1)
-SC_DEF_FMT(NKknk, false, 1, 0, 0, 1, 0)
-SC_DEF_FMT(BNKknk, true, 1, 0, 0, 1, 0)
+SC_DEF_FMT(KCRSckc, 0, 1, 2, 3, 1, 0, 1)
+SC_DEF_FMT(KCDRSckc, 0, 1, 2, 3, 4, 1, 0, 1)
+SC_DEF_FMT(NKknk, 1, 0, 0, 1, 0)
+SC_DEF_FMT(BNKknk, 1, 0, 0, 1, 0)
 
 // used for bertBMM
-SC_DEF_FMT(ACBD, false, 0, 2, 1, 3)
-SC_DEF_FMT(ABCDdc, false, 0, 1, 2, 3, 3, 2)
-SC_DEF_FMT(ABCDcd, false, 0, 1, 2, 3, 2, 3)
-SC_DEF_FMT(ACBDdc, false, 0, 2, 1, 3, 3, 2)
-SC_DEF_FMT(ACBDcd, false, 0, 2, 1, 3, 2, 3)
-SC_DEF_FMT(ACBDcdc, false, 0, 2, 1, 3, 2, 3, 2)
+SC_DEF_FMT(ACBD, 0, 2, 1, 3)
+SC_DEF_FMT(ABCDdc, 0, 1, 2, 3, 3, 2)
+SC_DEF_FMT(ABCDcd, 0, 1, 2, 3, 2, 3)
+SC_DEF_FMT(ACBDdc, 0, 2, 1, 3, 3, 2)
+SC_DEF_FMT(ACBDcd, 0, 2, 1, 3, 2, 3)
+SC_DEF_FMT(ACBDcdc, 0, 2, 1, 3, 2, 3, 2)
 
 constexpr auto NCHW = ABCD, KCRS = ABCD, NKHW = ABCD, MK = AB, KN = AB, NK = BA,
-               MN = AB, BMK = X_YZ, BKN = X_YZ, NCHWc = ABCDb, NKHWk = ABCDb,
-               KCRSck = ABCDba, MKmk = ABab, NKkn = BAab, MNmn = ABab,
-               BMKmk = X_YZyz, BNKkn = X_ZYyz, BMNmn = X_YZyz, NCDHW = ABCDE,
+               MN = AB, NCHWc = ABCDb, NKHWk = ABCDb, KCRSck = ABCDba,
+               MKmk = ABab, NKkn = BAab, MNmn = ABab, NCDHW = ABCDE,
                KCDRS = ABCDE, NCDHWc = ABCDEb, KCDRSck = ABCDEba;
 #undef SC_DEF_FMT
 }; // namespace format_kinds
@@ -214,9 +197,9 @@ struct SC_API sc_data_format_t {
             sc_data_format_kind_t format_code, const blocking_t &blocks = {0})
         : format_code_(format_code), blocks_(blocks) {}
 
-    sc_data_format_t(bool is_batch, const std::vector<int> &storage_args,
+    sc_data_format_t(const std::vector<int> &storage_args,
             const blocking_t &blocks = {0})
-        : format_code_(is_batch, storage_args), blocks_(blocks) {}
+        : format_code_(storage_args), blocks_(blocks) {}
 
     bool operator==(const sc_data_format_t &other) const {
         return format_code_ == other.format_code_ && blocks_ == other.blocks_;
@@ -259,23 +242,14 @@ struct SC_API sc_data_format_t {
     constexpr static inline sc_data_format_t MK() {
         return sc_data_format_t(format_kinds::MK);
     }
-    constexpr static inline sc_data_format_t BMK() {
-        return sc_data_format_t(format_kinds::BMK);
-    }
     constexpr static inline sc_data_format_t MKmk(int m, int k) {
         return sc_data_format_t(format_kinds::MKmk, {m, k, 0, 0});
-    }
-    constexpr static inline sc_data_format_t BMKmk(int m, int k) {
-        return sc_data_format_t(format_kinds::BMKmk, {m, k, 0, 0});
     }
     constexpr static inline sc_data_format_t KN() {
         return sc_data_format_t(format_kinds::KN);
     }
     constexpr static inline sc_data_format_t NK() {
         return sc_data_format_t(format_kinds::NK);
-    }
-    constexpr static inline sc_data_format_t BKN() {
-        return sc_data_format_t(format_kinds::BKN);
     }
     constexpr static inline sc_data_format_t NKkn(int k, int n) {
         return sc_data_format_t(format_kinds::NKkn, {k, n, 0, 0});
@@ -285,15 +259,6 @@ struct SC_API sc_data_format_t {
     }
     constexpr static inline sc_data_format_t NKkn4k(int k, int n) {
         return sc_data_format_t(format_kinds::NKknk, {k, n, 4});
-    }
-    constexpr static inline sc_data_format_t BNKkn(int k, int n) {
-        return sc_data_format_t(format_kinds::BNKkn, {k, n, 0, 0});
-    }
-    constexpr static inline sc_data_format_t BNKkn2k(int k, int n) {
-        return sc_data_format_t(format_kinds::BNKknk, {k, n, 2});
-    }
-    constexpr static inline sc_data_format_t BNKkn4k(int k, int n) {
-        return sc_data_format_t(format_kinds::BNKknk, {k, n, 4});
     }
     constexpr static inline sc_data_format_t NCDHW() {
         return sc_data_format_t(format_kinds::NCDHW);

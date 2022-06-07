@@ -110,22 +110,13 @@ graph_tensor_ptr op_traits::batchwise_shrinkable_t::shrink_gt(
                 [](const sc_dim &d) { return 1; });
     } else {
         auto plain_dims = orig_gt->details_.get_plain_dims();
-        auto plain_fmt = orig_gt->details_.get_format().to_plain();
         new_plain_dims = plain_dims;
         int real_shrink = shrink_offset;
-        int bs_size = 0;
-        if (plain_fmt.format_code_.is_batch_format()) {
-            bs_size = plain_dims.size() - plain_fmt.format_code_.norig_dims();
-            std::transform(new_plain_dims.begin(),
-                    new_plain_dims.begin() + std::min(shrink_offset, bs_size),
-                    new_plain_dims.begin(), [](const sc_dim &d) { return 1; });
-            real_shrink = std::max(0, shrink_offset - bs_size);
-        }
         if (real_shrink) {
             for (int block_i = 0; block_i < real_shrink; block_i++) {
-                sc_dim cur_dim = blocking_dims[bs_size + block_i];
+                sc_dim cur_dim = blocking_dims[block_i];
                 int plain_i = blocking_fmt.format_code_.get(block_i);
-                new_plain_dims[bs_size + plain_i] /= cur_dim;
+                new_plain_dims[plain_i] /= cur_dim;
             }
         }
     }
@@ -179,14 +170,9 @@ sc_data_format_t op_traits::batchwise_shrinkable_t::shrink_format_by_plain_dims(
     if (!old_fmt.is_blocking()) { return old_fmt; }
     auto old_blocks = old_fmt.blocks_;
     auto new_blocks = old_blocks;
-    int bs_size = 0;
-    if (old_fmt.format_code_.is_batch_format()) {
-        bs_size = old_plain_dims.size() - old_fmt.format_code_.norig_dims();
-    }
-    for (int i = bs_size; i < static_cast<int>(old_plain_dims.size()); i++) {
+    for (int i = 0; i < static_cast<int>(old_plain_dims.size()); i++) {
         if (plain_dims[i] != old_plain_dims[i]) {
-            auto old_blocks_i
-                    = old_fmt.format_code_.collect_blocking_index(i - bs_size);
+            auto old_blocks_i = old_fmt.format_code_.collect_blocking_index(i);
             std::reverse(old_blocks_i.begin(), old_blocks_i.end());
             bool reset_new_block = false;
             for (auto &j : old_blocks_i) {

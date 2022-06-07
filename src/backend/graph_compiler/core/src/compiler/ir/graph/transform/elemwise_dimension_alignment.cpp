@@ -76,8 +76,7 @@ static void infer_aligned_shape(const logical_tensor_t &a,
             storage_args[i] = sequential_fill_up++;
         }
     }
-    new_format = sc_data_format_t(b_format.format_code_.is_batch_format(),
-            storage_args, b_format.blocks_);
+    new_format = sc_data_format_t(storage_args, b_format.blocks_);
 }
 
 /*

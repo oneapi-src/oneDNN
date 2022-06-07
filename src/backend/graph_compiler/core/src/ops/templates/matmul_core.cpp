@@ -320,21 +320,22 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(const logical_tensor_t &ta,
   std::vector<std::pair<expr, expr>> &fidx1,
   std::vector<std::pair<expr, expr>> &fidx2,
   std::vector<std::pair<expr, expr>> &fidx3) {
-  if (ta.get_format().format_code_.is_batch_format()
-    || ta.get_plain_dims().size() == 2) {
+  bool update_a = false, update_b = false, update_c = false;
+  if (ta.get_plain_dims().size() == 2) {
     if (!ta.get_format().is_blocking()) {
-      // BMK or MK
+      // MK
       LDA = ta.get_plain_dims()[ta.get_plain_dims().size() - 1];
       stride_a = K_block;
     }
+    update_a = true;
+  }
+  if (tb.get_plain_dims().size() == 2) {
     if (!tb.get_format().is_blocking()) {
       COMPILE_ASSERT(tb.dtype_ == datatypes::f32,
         "the datatype of B must be f32 when B is plain.");
       if (tb.get_format().is_same_format_kind(
-            sc_data_format_t(format_kinds::BKN))
-        || tb.get_format().is_same_format_kind(
-          sc_data_format_t(format_kinds::KN))) {
-        // BKN or KN
+            sc_data_format_t(format_kinds::KN))) {
+        // KN
         LDB = tb.get_plain_dims()[tb.get_plain_dims().size() - 1];
         stride_b = LDB * K_block;
         assert(bidx.size() >= 2);
@@ -346,15 +347,19 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(const logical_tensor_t &ta,
             << ", brgemm does not support K axis is the last axis for B");
       }
     }
-    if (!tc.get_format().is_blocking()) {
-      // BMN or MN
-      LDC = tb.get_plain_dims()[tb.get_plain_dims().size() - 1];
-    }
-    return;
+    update_b = true;
   }
+  if (!tc.get_format().is_blocking() && tc.get_plain_dims().size() == 2) {
+    // MN
+    LDC = tb.get_plain_dims()[tb.get_plain_dims().size() - 1];
+    update_c = true;
+  }
+
   bool flag_s = false; // used for updating stride_a/stride_b
   bool flag_l = false; // used for updating LDA/LDB/LDC
-  int bds = ta.get_plain_dims().size() - 2;
+  int bds_a = ta.get_plain_dims().size() - 2;
+  int bds_b = tb.get_plain_dims().size() - 2;
+  int bds_c = bds_a > bds_b ? bds_a : bds_b;
   std::vector<expr> aidx_ = aidx;
   std::vector<expr> bidx_ = bidx;
   std::vector<expr> cidx_ = cidx;
@@ -364,152 +369,158 @@ void gen_matmul_core_t::get_brgemm_and_fusion_params(const logical_tensor_t &ta,
   int batch_idx = 0;
 
   // update aidx, LDA and stride_a according to the format of tensor A
-  if (!ta.get_format().is_blocking()) {
-    LDA = 1;
-    stride_a = K_block;
-    size_t flag_l_idx = 0, flag_s_idx = 0;
-    for (size_t i = 0; i < ta.get_plain_dims().size(); i++) {
-      if (ta.get_format().format_code_.get(i) == bds) { // M axis
-        aidx_[i] = aidx[bds];
-        flag_l = true;
-        flag_l_idx = i;
-      } else if (ta.get_format().format_code_.get(i)
-        == bds + 1) { // K(reduce) axis
-        aidx_[i] = aidx[bds + 1];
-        flag_s = true;
-        flag_s_idx = i;
-      } else { // Batch axes
-        aidx_[i] = aidx[batch_idx];
-        batch_idx++;
+  if (!update_a) {
+    if (!ta.get_format().is_blocking()) {
+      LDA = 1;
+      stride_a = K_block;
+      size_t flag_l_idx = 0, flag_s_idx = 0;
+      for (size_t i = 0; i < ta.get_plain_dims().size(); i++) {
+        if (ta.get_format().format_code_.get(i) == bds_a) { // M axis
+          aidx_[i] = aidx[bds_a];
+          flag_l = true;
+          flag_l_idx = i;
+        } else if (ta.get_format().format_code_.get(i)
+          == bds_a + 1) { // K(reduce) axis
+          aidx_[i] = aidx[bds_a + 1];
+          flag_s = true;
+          flag_s_idx = i;
+        } else { // Batch axes
+          aidx_[i] = aidx[batch_idx];
+          batch_idx++;
+        }
+        if (flag_l && flag_l_idx < i) { LDA *= ta.get_blocking_dims()[i]; }
+        if (flag_s && flag_s_idx < i) { stride_a *= ta.get_blocking_dims()[i]; }
       }
-      if (flag_l && flag_l_idx < i) { LDA *= ta.get_blocking_dims()[i]; }
-      if (flag_s && flag_s_idx < i) { stride_a *= ta.get_blocking_dims()[i]; }
-    }
-  } else {
-    for (size_t i = 0; i < ta.get_plain_dims().size(); i++) {
-      if (ta.get_format().format_code_.get(i)
-        == ta.get_format().format_code_.get(ta.get_plain_dims().size())) {
-        // M axis
-        aidx_[i] = aidx[bds];
-      } else if (ta.get_format().format_code_.get(i)
-        == ta.get_format().format_code_.get(ta.get_plain_dims().size() + 1)) {
-        // K(reduce) axis
-        aidx_[i] = aidx[bds + 1];
-        flag_s = true;
-        continue;
-      } else { // Batch axes
-        aidx_[i] = aidx[batch_idx];
-        batch_idx++;
+    } else {
+      for (size_t i = 0; i < ta.get_plain_dims().size(); i++) {
+        if (ta.get_format().format_code_.get(i)
+          == ta.get_format().format_code_.get(ta.get_plain_dims().size())) {
+          // M axis
+          aidx_[i] = aidx[bds_a];
+        } else if (ta.get_format().format_code_.get(i)
+          == ta.get_format().format_code_.get(ta.get_plain_dims().size() + 1)) {
+          // K(reduce) axis
+          aidx_[i] = aidx[bds_a + 1];
+          flag_s = true;
+          continue;
+        } else { // Batch axes
+          aidx_[i] = aidx[batch_idx];
+          batch_idx++;
+        }
+        if (flag_s) { stride_a *= ta.get_blocking_dims()[i]; }
       }
-      if (flag_s) { stride_a *= ta.get_blocking_dims()[i]; }
     }
+    aidx.swap(aidx_);
   }
-  aidx.swap(aidx_);
 
   flag_s = false;
   flag_l = false;
   batch_idx = 0;
   // update bidx and stride_b according to the format of tensor B
-  if (!tb.get_format().is_blocking()) {
-    COMPILE_ASSERT(tb.dtype_ == datatypes::f32,
-      "the datatype of B must be f32 when B is plain.");
-    LDB = 1;
-    stride_b = K_block;
-    size_t flag_l_idx = 0, flag_s_idx = 0;
-    for (size_t i = 0; i < tb.get_plain_dims().size(); i++) {
-      if (tb.get_format().format_code_.get(i) == bds) { // K(reduce) axis
-        bidx_[i] = bidx[bds + 1];
-        flag_l = true;
-        flag_l_idx = i;
-        flag_s = true;
-        flag_s_idx = i;
-      } else if (tb.get_format().format_code_.get(i) == bds + 1) { // N axis
-        bidx_[i] = bidx[bds];
-      } else { // Batch axes
-        bidx_[i] = bidx[batch_idx];
-        batch_idx++;
+  if (!update_b) {
+    if (!tb.get_format().is_blocking()) {
+      COMPILE_ASSERT(tb.dtype_ == datatypes::f32,
+        "the datatype of B must be f32 when B is plain.");
+      LDB = 1;
+      stride_b = K_block;
+      size_t flag_l_idx = 0, flag_s_idx = 0;
+      for (size_t i = 0; i < tb.get_plain_dims().size(); i++) {
+        if (tb.get_format().format_code_.get(i) == bds_b) { // K(reduce) axis
+          bidx_[i] = bidx[bds_b + 1];
+          flag_l = true;
+          flag_l_idx = i;
+          flag_s = true;
+          flag_s_idx = i;
+        } else if (tb.get_format().format_code_.get(i) == bds_b + 1) { // N axis
+          bidx_[i] = bidx[bds_b];
+        } else { // Batch axes
+          bidx_[i] = bidx[batch_idx];
+          batch_idx++;
+        }
+        if (flag_l && flag_l_idx < i) { LDB *= tb.get_blocking_dims()[i]; }
+        if (flag_s && flag_s_idx < i) { stride_b *= tb.get_blocking_dims()[i]; }
       }
-      if (flag_l && flag_l_idx < i) { LDB *= tb.get_blocking_dims()[i]; }
-      if (flag_s && flag_s_idx < i) { stride_b *= tb.get_blocking_dims()[i]; }
-    }
-  } else {
-    for (size_t i = 0; i < tb.get_plain_dims().size(); i++) {
-      if (tb.get_format().format_code_.get(i)
-        == tb.get_format().format_code_.get(tb.get_plain_dims().size())) {
-        // K(reduce) axis
-        bidx_[i] = bidx[bds + 1];
-        flag_s = true;
-        continue;
-      } else if (tb.get_format().format_code_.get(i)
-        == tb.get_format().format_code_.get(tb.get_plain_dims().size() + 1)) {
-        // N axis
-        bidx_[i] = bidx[bds];
-      } else { // Batch axes
-        bidx_[i] = bidx[batch_idx];
-        batch_idx++;
+    } else {
+      for (size_t i = 0; i < tb.get_plain_dims().size(); i++) {
+        if (tb.get_format().format_code_.get(i)
+          == tb.get_format().format_code_.get(tb.get_plain_dims().size())) {
+          // K(reduce) axis
+          bidx_[i] = bidx[bds_b + 1];
+          flag_s = true;
+          continue;
+        } else if (tb.get_format().format_code_.get(i)
+          == tb.get_format().format_code_.get(tb.get_plain_dims().size() + 1)) {
+          // N axis
+          bidx_[i] = bidx[bds_b];
+        } else { // Batch axes
+          bidx_[i] = bidx[batch_idx];
+          batch_idx++;
+        }
+        if (flag_s) { stride_b *= tb.get_blocking_dims()[i]; }
       }
-      if (flag_s) { stride_b *= tb.get_blocking_dims()[i]; }
     }
+    bidx.swap(bidx_);
   }
-  bidx.swap(bidx_);
 
   flag_l = false;
   batch_idx = 0;
   // update cidx and fidx according to the format of tensor C
-  if (!tc.get_format().is_blocking()) {
-    LDC = 1;
-    for (size_t i = 0; i < tc.get_plain_dims().size(); i++) {
-      if (tc.get_format().format_code_.get(i) == bds) { // M axis
-        cidx_[i] = cidx[bds];
-        fidx1_[i] = fidx1[bds];
-        fidx2_[i] = fidx2[bds];
-        fidx3_[i] = fidx3[bds];
-        flag_l = true;
-        continue;
-      } else if (tc.get_format().format_code_.get(i) == bds + 1) { // N axis
-        cidx_[i] = cidx[bds + 1];
-        fidx1_[i] = fidx1[bds + 1];
-        fidx2_[i] = fidx2[bds + 1];
-        fidx3_[i] = fidx3[bds + 1];
-      } else { // Batch axes
-        cidx_[i] = cidx[batch_idx];
-        fidx1_[i] = fidx1[batch_idx];
-        fidx2_[i] = fidx2[batch_idx];
-        fidx3_[i] = fidx3[batch_idx];
-        batch_idx++;
+  if (!update_c) {
+    if (!tc.get_format().is_blocking()) {
+      LDC = 1;
+      for (size_t i = 0; i < tc.get_plain_dims().size(); i++) {
+        if (tc.get_format().format_code_.get(i) == bds_c) { // M axis
+          cidx_[i] = cidx[bds_c];
+          fidx1_[i] = fidx1[bds_c];
+          fidx2_[i] = fidx2[bds_c];
+          fidx3_[i] = fidx3[bds_c];
+          flag_l = true;
+          continue;
+        } else if (tc.get_format().format_code_.get(i) == bds_c + 1) { // N axis
+          cidx_[i] = cidx[bds_c + 1];
+          fidx1_[i] = fidx1[bds_c + 1];
+          fidx2_[i] = fidx2[bds_c + 1];
+          fidx3_[i] = fidx3[bds_c + 1];
+        } else { // Batch axes
+          cidx_[i] = cidx[batch_idx];
+          fidx1_[i] = fidx1[batch_idx];
+          fidx2_[i] = fidx2[batch_idx];
+          fidx3_[i] = fidx3[batch_idx];
+          batch_idx++;
+        }
+        if (flag_l) { LDC *= tc.get_blocking_dims()[i]; }
       }
-      if (flag_l) { LDC *= tc.get_blocking_dims()[i]; }
-    }
-  } else {
-    for (size_t i = 0; i < tc.get_plain_dims().size(); i++) {
-      if (tc.get_format().format_code_.get(i)
-        == tc.get_format().format_code_.get(tc.get_plain_dims().size())) {
-        // M axis
-        cidx_[i] = cidx[bds];
-        fidx1_[i] = fidx1[bds];
-        fidx2_[i] = fidx2[bds];
-        fidx3_[i] = fidx3[bds];
-      } else if (tc.get_format().format_code_.get(i)
-        == tc.get_format().format_code_.get(tc.get_plain_dims().size() + 1)) {
-        // N axis
-        cidx_[i] = cidx[bds + 1];
-        fidx1_[i] = fidx1[bds + 1];
-        fidx2_[i] = fidx2[bds + 1];
-        fidx3_[i] = fidx3[bds + 1];
-      } else {
-        // Batch axes
-        cidx_[i] = cidx[batch_idx];
-        fidx1_[i] = fidx1[batch_idx];
-        fidx2_[i] = fidx2[batch_idx];
-        fidx3_[i] = fidx3[batch_idx];
-        batch_idx++;
+    } else {
+      for (size_t i = 0; i < tc.get_plain_dims().size(); i++) {
+        if (tc.get_format().format_code_.get(i)
+          == tc.get_format().format_code_.get(tc.get_plain_dims().size())) {
+          // M axis
+          cidx_[i] = cidx[bds_c];
+          fidx1_[i] = fidx1[bds_c];
+          fidx2_[i] = fidx2[bds_c];
+          fidx3_[i] = fidx3[bds_c];
+        } else if (tc.get_format().format_code_.get(i)
+          == tc.get_format().format_code_.get(tc.get_plain_dims().size() + 1)) {
+          // N axis
+          cidx_[i] = cidx[bds_c + 1];
+          fidx1_[i] = fidx1[bds_c + 1];
+          fidx2_[i] = fidx2[bds_c + 1];
+          fidx3_[i] = fidx3[bds_c + 1];
+        } else {
+          // Batch axes
+          cidx_[i] = cidx[batch_idx];
+          fidx1_[i] = fidx1[batch_idx];
+          fidx2_[i] = fidx2[batch_idx];
+          fidx3_[i] = fidx3[batch_idx];
+          batch_idx++;
+        }
       }
     }
+    cidx.swap(cidx_);
+    fidx1.swap(fidx1_);
+    fidx2.swap(fidx2_);
+    fidx3.swap(fidx3_);
   }
-  cidx.swap(cidx_);
-  fidx1.swap(fidx1_);
-  fidx2.swap(fidx2_);
-  fidx3.swap(fidx3_);
 }
 
 void gen_matmul_core_t::schedule_loops(context_ptr ctx,

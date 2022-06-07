@@ -41,7 +41,7 @@ matmul_op::matmul_op(const std::vector<graph_tensor_ptr> &ins,
 }
 
 static void transed_matmul(const std::shared_ptr<sc_graph_t> &graph,
-        any_map_t &attrs, bool is_batch, const graph_tensor_ptr &ins0,
+        any_map_t &attrs, const graph_tensor_ptr &ins0,
         const graph_tensor_ptr &ins1, graph_tensor_ptr &trans0,
         graph_tensor_ptr &trans1) {
     if (attrs.get_or_else("transpose_a", false)) {
@@ -95,8 +95,8 @@ std::shared_ptr<sc_graph_t> matmul_op::get_graph_impl() {
     // inputs[0](the left matrix) and inputs[1](the right matrix).
     graph_tensor_ptr trans0 = ins->get_outputs()[0],
                      trans1 = ins->get_outputs()[1];
-    transed_matmul(graph, attrs_, false, ins->get_outputs()[0],
-            ins->get_outputs()[1], trans0, trans1);
+    transed_matmul(graph, attrs_, ins->get_outputs()[0], ins->get_outputs()[1],
+            trans0, trans1);
 
     bool is_bf16 = false;
     if (inputs[0]->details_.dtype_ == datatypes::bf16

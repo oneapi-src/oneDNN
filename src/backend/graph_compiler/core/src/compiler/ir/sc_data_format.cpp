@@ -22,11 +22,11 @@
 namespace sc {
 
 sc_data_format_kind_t::sc_data_format_kind_t(
-        bool is_batch, const std::vector<int> &storage_args) {
+        const std::vector<int> &storage_args) {
     COMPILE_ASSERT(storage_args.size() <= sc_data_format_kind_t::MAX_DIMS,
             "storage size should be less than MAX_DIMS");
     uint64_t res = set_ith_int(
-            0xffffffffffffffff, sc_data_format_kind_t::MAX_DIMS, (int)is_batch);
+            0xffffffffffffffff, sc_data_format_kind_t::MAX_DIMS, 0);
     for (size_t i = 0; i < storage_args.size(); ++i) {
         res = set_ith_int(res, i, storage_args[i]);
     }
@@ -143,13 +143,6 @@ bool sc_data_format_t::is_convertible(const sc_data_format_t &other) const {
             || other.format_code_ == format_kinds::any) {
         return true;
     }
-
-    if ((format_code_.is_batch_format()
-                && !other.format_code_.is_batch_format())
-            || (!format_code_.is_batch_format()
-                    && other.format_code_.is_batch_format())) {
-        return false;
-    }
     return format_code_.norig_dims() == other.format_code_.norig_dims();
 }
 
@@ -180,12 +173,11 @@ bool sc_data_format_kind_t::is_blocking() const {
 }
 
 sc_data_format_kind_t sc_data_format_kind_t::to_plain() const {
-    bool is_batch = is_batch_format();
     std::vector<int> storage(this->norig_dims());
     for (int i = 0; i < this->norig_dims(); i++) {
         storage[i] = i;
     }
-    return sc_data_format_kind_t(is_batch, storage);
+    return sc_data_format_kind_t(storage);
 }
 
 bool sc_data_format_t::is_blocking() const {
@@ -234,7 +226,6 @@ std::ostream &operator<<(std::ostream &os, const sc_data_format_t &in) {
     if (in.is_any()) { return os << "any"; }
     int out[sc_data_format_kind_t::MAX_DIMS] = {0};
     int num_blocking = 0;
-    if (in.format_code_.is_batch_format()) { os << "X_"; }
     for (int i = 0; i < sc_data_format_kind_t::MAX_DIMS; i++) {
         int orig_idx = in.format_code_.get(i);
         if (orig_idx != sc_data_format_kind_t::UNDEF_DIM) {
@@ -320,24 +311,11 @@ sc_dims sc_data_format_t::get_blocking_shapes(
     size_t num_plain_dims = format.format_code_.norig_dims();
     size_t num_format_dims = format.format_code_.ndims();
     size_t num_out_dims = num_format_dims;
-    if (format.format_code_.is_batch_format()) {
-        COMPILE_ASSERT(plain_shapes.size() >= num_plain_dims,
-                "Wrong number of dimensions for batch format: "
-                        << format << ", plain shape = "
-                        << utils::print_vector(plain_shapes));
-        base_out_dim = plain_shapes.size() - num_plain_dims;
-        num_out_dims = base_out_dim + num_out_dims;
-        ret.reserve(num_out_dims);
-        for (size_t i = 0; i < base_out_dim; i++) {
-            ret.push_back(plain_shapes[i]);
-        }
-    } else {
-        ret.reserve(num_out_dims);
-        COMPILE_ASSERT(plain_shapes.size() == num_plain_dims,
-                "Wrong number of dimensions for format: "
-                        << format << ", plain shape = "
-                        << utils::print_vector(plain_shapes));
-    };
+    ret.reserve(num_out_dims);
+    COMPILE_ASSERT(plain_shapes.size() == num_plain_dims,
+            "Wrong number of dimensions for format: "
+                    << format
+                    << ", plain shape = " << utils::print_vector(plain_shapes));
     if (!is_fixed_blocks(format.blocks_, 4)) {
         return sc_dims(num_out_dims, -1);
     }
@@ -396,28 +374,14 @@ sc_dims sc_data_format_t::get_padded_plain_shapes(
     size_t num_plain_dims = format.format_code_.norig_dims();
     size_t num_format_dims = format.format_code_.ndims();
     size_t num_out_dims = num_plain_dims;
-    if (format.format_code_.is_batch_format()) {
-        COMPILE_ASSERT(real_shapes.size() >= num_format_dims,
-                "Wrong number of dimensions for batch format: "
-                        << format << ", real shape = "
-                        << utils::print_vector(real_shapes));
-        base_out_dim = real_shapes.size() - num_format_dims;
-        num_out_dims = base_out_dim + num_plain_dims;
-        ret.reserve(num_out_dims);
-        for (size_t i = 0; i < base_out_dim; i++) {
-            ret.push_back(real_shapes[i]);
-        }
-    } else {
-        ret.reserve(num_out_dims);
-        COMPILE_ASSERT(real_shapes.size() == num_format_dims,
-                "Wrong number of dimensions for format: "
-                        << format << ", real shape = "
-                        << utils::print_vector(real_shapes));
-    };
+    ret.reserve(num_out_dims);
+    COMPILE_ASSERT(real_shapes.size() == num_format_dims,
+            "Wrong number of dimensions for format: "
+                    << format
+                    << ", real shape = " << utils::print_vector(real_shapes));
     if (!is_fixed_blocks(format.blocks_, 4)) {
         return sc_dims(num_out_dims, -1);
     }
-
     COMPILE_ASSERT(real_shapes.size() <= sc_data_format_kind_t::MAX_DIMS,
             "Too many dims in plain shapes");
     for (auto out_idx = base_out_dim; out_idx < num_out_dims; out_idx++) {

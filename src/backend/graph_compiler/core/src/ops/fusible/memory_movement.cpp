@@ -94,8 +94,7 @@ void transpose_op_t::query_format(context_ptr ctx,
         int axis = in_format_code.get(i);
         storage_args.push_back(order_map[axis]);
     }
-    auto out_format = sc_data_format_t(
-            in_format_code.is_batch_format(), storage_args, in_format.blocks_);
+    auto out_format = sc_data_format_t(storage_args, in_format.blocks_);
 
     in_formats.push_back(std::vector<sc_data_format_t> {in_format});
     out_formats.push_back(std::vector<sc_data_format_t> {out_format});
@@ -220,13 +219,6 @@ bool tensor_view_op_t::try_penetrate(
         sc_data_format_t &new_output_format) const {
     auto input_plain_shapes = info_.inputs_[0]->details_.get_plain_dims();
     auto input_format = info_.inputs_[0]->details_.get_format();
-    // if it is batch format return false
-    if (input_format.format_code_.is_batch_format()
-            || info_.outputs_[0]
-                       ->details_.get_format()
-                       .format_code_.is_batch_format()) {
-        return false;
-    }
     auto output_plain_shapes = info_.outputs_[0]->details_.get_plain_dims();
     auto input_size = input_plain_shapes.size();
     auto output_size = output_plain_shapes.size();

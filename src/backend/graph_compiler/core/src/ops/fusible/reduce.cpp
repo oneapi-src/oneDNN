@@ -49,10 +49,6 @@ std::vector<int> transform_axis_plain2blocking(
         const graph_tensor_ptr &gt, const std::vector<int> &plain_axis) {
     auto fmt = gt->details_.get_format();
     int bs_ndim = 0;
-    if (fmt.format_code_.is_batch_format()) {
-        bs_ndim = static_cast<int>(gt->details_.get_blocking_dims().size())
-                - fmt.format_code_.ndims();
-    }
     // If format is any, just return.
     if (fmt.is_any()) { return plain_axis; }
     std::vector<int> real_axis;
@@ -79,9 +75,7 @@ static sc_data_format_t get_reduced_format(const sc_data_format_t &in_fmt,
         const std::vector<int> &rd_axis, size_t nlogical_dims) {
     auto base_fmt = in_fmt;
     // we should set the blocking of the reduce axies to 1
-    int ax_offset = in_fmt.format_code_.is_batch_format()
-            ? (nlogical_dims - in_fmt.format_code_.norig_dims())
-            : 0;
+    int ax_offset = 0;
     for (int ax : rd_axis) {
         for (int blocking_idx :
                 in_fmt.format_code_.collect_blocking_index(ax - ax_offset)) {

@@ -183,7 +183,7 @@ sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
                 }
             }
         }
-        lt_format = sc::sc_data_format_t(false, storage_args);
+        lt_format = sc::sc_data_format_t(storage_args);
         return std::make_shared<sc::graph_tensor>(nullptr, lt_format,
                 std::vector<int64_t> {lt.dims, lt.dims + lt.ndims},
                 convert_data_type(lt.data_type), ordered_strides);

@@ -116,10 +116,7 @@ sc_dims reorder_op_t::get_bwise_fuse_shrink_dims() {
     int offset = op_traits::batchwise_shrinkable_t::get_shrinkable_offset(
             gt, false);
     auto fmt = gt->details_.get_format();
-    int bs_size = gt->details_.get_blocking_dims().size()
-            - fmt.format_code_.ndims();
     // check aother gt legalize
-    int offset_wo_bs = offset - bs_size;
     auto gt_blocks = fmt.get_blocked_axis();
     auto another_gt = use_out_loop ? get_inputs()[0] : get_outputs()[0];
     auto another_fmt = another_gt->details_.get_format();
@@ -127,7 +124,7 @@ sc_dims reorder_op_t::get_bwise_fuse_shrink_dims() {
     auto p2b_map = another_fmt.format_code_.collect_p2b_mapping();
     int cnt = 0, no_stride_cnt = 0;
     bool bwise_strided = false;
-    for (; cnt < offset_wo_bs; cnt++) {
+    for (; cnt < offset; cnt++) {
         auto plain_pos = fmt.format_code_.get(cnt);
         // check can shrink another gt
         if (gt_blocks[plain_pos].empty()
@@ -145,7 +142,7 @@ sc_dims reorder_op_t::get_bwise_fuse_shrink_dims() {
         if (!bwise_strided) {
             if (p2b_map[plain_pos].front() != cnt)
                 bwise_strided = true;
-            else if (bs_size + cnt > 0) {
+            else if (cnt > 0) {
                 if (!gt_blocks[plain_pos].empty()
                         && another_gt_blocks[plain_pos].empty()) {
                     bwise_strided = true;
@@ -167,11 +164,11 @@ sc_dims reorder_op_t::get_bwise_fuse_shrink_dims() {
                 true);
         attrs_.set(op_attr_key::bwise_no_strided_dims,
                 sc_dims {gt->details_.get_blocking_dims().begin(),
-                        gt->details_.get_blocking_dims().begin() + bs_size
+                        gt->details_.get_blocking_dims().begin()
                                 + no_stride_cnt});
     }
     return {gt->details_.get_blocking_dims().begin(),
-            gt->details_.get_blocking_dims().begin() + bs_size + cnt};
+            gt->details_.get_blocking_dims().begin() + cnt};
 };
 
 void reorder_op_t::collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) {
@@ -195,13 +192,11 @@ void reorder_op_t::collect_shrinked_axes_map(
     record_shrinked_axes(bw_axes_map, gt, bw_size);
     auto another_gt = use_out_loop ? get_inputs()[0] : get_outputs()[0];
     auto fmt = gt->details_.get_format();
-    int bs_size = gt->details_.get_blocking_dims().size()
-            - fmt.format_code_.ndims();
     auto p2b_map = another_gt->details_.get_format()
                            .format_code_.collect_p2b_mapping();
     std::vector<int> bw_axis;
     for (int i = 0; i < bw_size; i++) {
-        if (i < bs_size)
+        if (i < 0)
             bw_axis.emplace_back(i);
         else
             bw_axis.emplace_back(p2b_map[fmt.format_code_.get(i)].front());
@@ -402,24 +397,20 @@ get_plain2block_ranges(const expr &start, const expr &length, int blocks) {
 void infer_stride2plain_reorder(slice_range &input_slice,
         sc_data_format_t input_format, sc_data_format_t output_format,
         slice_range &output_slice) {
-    int ndim_begin = static_cast<int>(input_slice.size())
-            - input_format.format_code_.norig_dims();
     output_slice = input_slice;
     for (int i = 0; i < input_format.format_code_.norig_dims(); i++) {
         int plain_axis = input_format.format_code_.get(i);
-        output_slice[plain_axis + ndim_begin] = input_slice[i + ndim_begin];
+        output_slice[plain_axis] = input_slice[i];
     }
 }
 
 void infer_plain2stride_reorder(slice_range &input_slice,
         sc_data_format_t input_format, sc_data_format_t output_format,
         slice_range &output_slice) {
-    int ndim_begin = static_cast<int>(input_slice.size())
-            - input_format.format_code_.norig_dims();
     output_slice = input_slice;
     for (int i = 0; i < output_format.format_code_.norig_dims(); i++) {
         int plain_axis = output_format.format_code_.get(i);
-        output_slice[i + ndim_begin] = input_slice[plain_axis + ndim_begin];
+        output_slice[i] = input_slice[plain_axis];
     }
 }
 
@@ -491,7 +482,6 @@ void dispatch_reorder_ranges(slice_range_list &total_ranges_list,
 void infer_stride2block_reorder(slice_range_list &input_slice_list,
         sc_data_format_t input_format, sc_data_format_t output_format,
         slice_range_list &output_slice_list) {
-    auto plain_format = input_format.to_plain();
     auto out_kind = output_format.format_code_;
     for (auto &input_slice : input_slice_list) {
         slice_range_list reorder_ranges_list;
@@ -519,15 +509,13 @@ void infer_stride2block_reorder(slice_range_list &input_slice_list,
 
         // the first is plain index, the second is block cnt
         std::unordered_map<int, std::vector<int>> block_cnt_dict;
-        int ndim_begin = static_cast<int>(plain_slice.size())
-                - plain_format.format_code_.ndims();
 
         for (int i = 0; i < out_kind.ndims(); i++) {
             int plain_pos = out_kind.get(i);
             block_cnt_dict[plain_pos].emplace_back(i);
             if (block_slice_dict[plain_pos].empty()) {
                 block_slice_dict[plain_pos].emplace_back(
-                        slice_range {plain_slice[ndim_begin + plain_pos]});
+                        slice_range {plain_slice[plain_pos]});
             } else {
                 slice_range_list update_block_slice;
                 for (auto &block_range_list : block_slice_dict[plain_pos]) {
@@ -570,13 +558,6 @@ void infer_stride2block_reorder(slice_range_list &input_slice_list,
         dispatch_reorder_ranges(
                 total_range_list, reorder_ranges_list, output_format);
 
-        if (ndim_begin) {
-            for (auto &range : reorder_ranges_list) {
-                range.insert(range.begin(), input_slice.begin(),
-                        input_slice.begin() + ndim_begin);
-            }
-        }
-
         output_slice_list.insert(output_slice_list.end(),
                 reorder_ranges_list.begin(), reorder_ranges_list.end());
     }
@@ -591,17 +572,14 @@ void infer_block2stride_reorder(slice_range_list &input_slice_list,
     for (auto &input_slice : input_slice_list) {
         slice_range_list reorder_ranges_list;
         std::unordered_map<int, slice_range_list> plain_slice_dict;
-        int ndim_begin = static_cast<int>(input_slice.size())
-                - input_format.format_code_.ndims();
         // from right to left
         for (int i = in_kind.ndims() - 1; i >= 0; i--) {
             int plain_pos = in_kind.get(i);
             if (plain_slice_dict[plain_pos].empty()) {
                 plain_slice_dict[plain_pos].emplace_back(
-                        slice_range {input_slice[i + ndim_begin]});
+                        slice_range {input_slice[i]});
             } else {
-                std::pair<expr, expr> cur_block_num_range
-                        = input_slice[i + ndim_begin];
+                std::pair<expr, expr> cur_block_num_range = input_slice[i];
                 slice_range res;
                 for (auto &cur_block_size_range :
                         plain_slice_dict[plain_pos].back()) {
@@ -634,10 +612,6 @@ void infer_block2stride_reorder(slice_range_list &input_slice_list,
             slice_range stride_range;
             infer_plain2stride_reorder(range, output_format.to_plain(),
                     output_format, stride_range);
-            if (ndim_begin) {
-                stride_range.insert(stride_range.begin(), input_slice.begin(),
-                        input_slice.begin() + ndim_begin);
-            }
             range = std::move(stride_range);
         }
         output_slice_list.insert(output_slice_list.end(),
@@ -759,23 +733,10 @@ static std::vector<expr> get_reorder_stride2stride_indexes(
     size_t num_plain_dims = in_format.format_code_.norig_dims();
     size_t num_out_dims = num_plain_dims;
     std::vector<expr> ret(num_out_dims, 0);
-    if (in_format.format_code_.is_batch_format()) {
-        COMPILE_ASSERT(in_indexes.size() >= num_plain_dims,
-                "Wrong number of dimensions for batch format: "
-                        << in_format << ", real shape = "
-                        << utils::print_vector(in_indexes));
-        base_out_dim = in_indexes.size() - num_plain_dims;
-        num_out_dims = base_out_dim + num_plain_dims;
-        ret.resize(num_out_dims, 0);
-        for (size_t i = 0; i < base_out_dim; i++) {
-            ret[i] = (in_indexes[i]);
-        }
-    } else {
-        COMPILE_ASSERT(in_indexes.size() == num_plain_dims,
-                "Wrong number of dimensions for format: "
-                        << in_format << ", real shape = "
-                        << utils::print_vector(in_indexes));
-    };
+    COMPILE_ASSERT(in_indexes.size() == num_plain_dims,
+            "Wrong number of dimensions for format: "
+                    << in_format
+                    << ", real shape = " << utils::print_vector(in_indexes));
 
     COMPILE_ASSERT(in_indexes.size() <= sc_data_format_kind_t::MAX_DIMS,
             "Too many dims in plain shapes");
@@ -805,23 +766,10 @@ static std::vector<expr> get_reorder_block2plain_indexes(
     size_t num_format_dims = format.format_code_.ndims();
     size_t num_out_dims = num_plain_dims;
     std::vector<expr> ret(num_out_dims, 0);
-    if (format.format_code_.is_batch_format()) {
-        COMPILE_ASSERT(in_indexes.size() >= num_format_dims,
-                "Wrong number of dimensions for batch format: "
-                        << format << ", real shape = "
-                        << utils::print_vector(in_indexes));
-        base_out_dim = in_indexes.size() - num_format_dims;
-        num_out_dims = base_out_dim + num_plain_dims;
-        ret.resize(num_out_dims, 0);
-        for (size_t i = 0; i < base_out_dim; i++) {
-            ret[i] = (in_indexes[i]);
-        }
-    } else {
-        COMPILE_ASSERT(in_indexes.size() == num_format_dims,
-                "Wrong number of dimensions for format: "
-                        << format << ", real shape = "
-                        << utils::print_vector(in_indexes));
-    };
+    COMPILE_ASSERT(in_indexes.size() == num_format_dims,
+            "Wrong number of dimensions for format: "
+                    << format
+                    << ", real shape = " << utils::print_vector(in_indexes));
 
     COMPILE_ASSERT(in_indexes.size() <= sc_data_format_kind_t::MAX_DIMS,
             "Too many dims in plain shapes");
@@ -870,23 +818,10 @@ static std::vector<expr> get_reorder_plain2block_indexes(
     size_t num_format_dims = format.format_code_.ndims();
     size_t num_out_dims = num_format_dims;
     std::vector<expr> ret(num_out_dims, 0);
-    if (format.format_code_.is_batch_format()) {
-        COMPILE_ASSERT(in_indexes.size() >= num_plain_dims,
-                "Wrong number of dimensions for batch format: "
-                        << format << ", real shape = "
-                        << utils::print_vector(in_indexes));
-        base_out_dim = in_indexes.size() - num_plain_dims;
-        num_out_dims = base_out_dim + num_format_dims;
-        ret.resize(num_out_dims, 0);
-        for (size_t i = 0; i < base_out_dim; i++) {
-            ret[i] = in_indexes[i];
-        }
-    } else {
-        COMPILE_ASSERT(in_indexes.size() == num_plain_dims,
-                "Wrong number of dimensions for format: "
-                        << format << ", real shape = "
-                        << utils::print_vector(in_indexes));
-    };
+    COMPILE_ASSERT(in_indexes.size() == num_plain_dims,
+            "Wrong number of dimensions for format: "
+                    << format
+                    << ", real shape = " << utils::print_vector(in_indexes));
 
     COMPILE_ASSERT(in_indexes.size() <= sc_data_format_kind_t::MAX_DIMS,
             "Too many dims in plain shapes");

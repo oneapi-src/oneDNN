@@ -118,7 +118,6 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     const matmul_core_config_t &tcfg
             = *config_data_.get_as<matmul_core_config_t>();
     int M_block = tcfg.M_block, N_block = tcfg.N_block, K_block = tcfg.K_block;
-    //     bool is_train = attrs_.get_or_else("temp.train", false);
     in_formats.reserve(2);
     sc_data_type_t B_dtype = info_.inputs_[1]->details_.dtype_;
     sc_data_format_t A_format = info_.inputs_[0]->details_.get_format();
@@ -167,122 +166,30 @@ void matmul_core_op_t::query_format(context_ptr ctx,
         } else {
             in_formats.push_back({sc_data_format_t::MK()});
         }
-        if (B_dims.size() == 2) {
-            // 2dx2d matmul
-            if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
-                in_formats.push_back(
-                        {sc_data_format_t::NKkn4k(K_block, N_block)});
-            } else if (B_dtype == datatypes::bf16) {
-                in_formats.push_back(
-                        {sc_data_format_t::NKkn2k(K_block, N_block)});
-            } else {
-                if (constant_B || B_format.is_blocking() || K % K_block
-                        || N % N_block) {
-                    in_formats.push_back(
-                            {sc_data_format_t::NKkn(K_block, N_block)});
-                } else {
-                    in_formats.push_back({sc_data_format_t::KN()});
-                }
-            }
-            if (constant_B || M % M_block || N % N_block) {
-                out_formats.push_back({sc_data_format_t(
-                        format_kinds::MNmn, {M_block, N_block})});
-            } else {
-                out_formats.push_back({sc_data_format_t(format_kinds::MNmn,
-                                               {M_block, N_block}),
-                        sc_data_format_t::MK()});
-                in_formats[0].push_back(in_formats[0][0]);
-                in_formats[1].push_back(in_formats[1][0]);
-            }
-        } else {
-            // 2dxNd matmul (N>2)
-            if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
-                in_formats.push_back(
-                        {sc_data_format_t::BNKkn4k(K_block, N_block)});
-            } else if (B_dtype == datatypes::bf16) {
-                in_formats.push_back(
-                        {sc_data_format_t::BNKkn2k(K_block, N_block)});
-            } else {
-                if (constant_B || B_format.is_blocking() || K % K_block
-                        || N % N_block) {
-                    in_formats.push_back(
-                            {sc_data_format_t::BNKkn(K_block, N_block)});
-                } else {
-                    in_formats.push_back({sc_data_format_t::BKN()});
-                }
-            }
-            if (constant_B || M % M_block || N % N_block) {
-                out_formats.push_back({sc_data_format_t(
-                        format_kinds::BMNmn, {M_block, N_block})});
-            } else {
-                out_formats.push_back({sc_data_format_t(format_kinds::BMNmn,
-                                               {M_block, N_block}),
-                        sc_data_format_t::BMK()});
-                in_formats[0].push_back(in_formats[0][0]);
-                in_formats[1].push_back(in_formats[1][0]);
-            }
-        }
     } else {
-        if (A_format.format_code_.is_batch_format()) {
-            if (constant_A || A_format.is_blocking() || M % M_block
-                    || K % K_block) {
-                in_formats.push_back(
-                        {sc_data_format_t::BMKmk(M_block, K_block)});
+        if (constant_A
+                || A_format.format_code_.get(A_blocking_dims.size() - 1)
+                        == static_cast<int>(A_dims.size() - 2)) {
+            if (A_format.blocks_[0] != M_block
+                    || A_format.blocks_[1] != K_block) {
+                in_formats.push_back({sc_data_format_t(
+                        sc_data_format_kind_t::get_2dblocking_by_dims(
+                                A_dims.size()),
+                        {M_block, K_block})});
             } else {
-                in_formats.push_back({sc_data_format_t::BMK()});
-            }
-
-            if (B_dims.size() == 2) {
-                // Ndx2d matmul (N>2)
-                if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
-                    in_formats.push_back(
-                            {sc_data_format_t::NKkn4k(K_block, N_block)});
-                } else if (B_dtype == datatypes::bf16) {
-                    in_formats.push_back(
-                            {sc_data_format_t::NKkn2k(K_block, N_block)});
-                } else {
-                    if (constant_B || B_format.is_blocking() || K % K_block
-                            || N % N_block) {
-                        in_formats.push_back(
-                                {sc_data_format_t::NKkn(K_block, N_block)});
-                    } else {
-                        in_formats.push_back({sc_data_format_t::KN()});
-                    }
-                }
-            } else {
-                // NdxMd matmul (N>2, M>2)
-                if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
-                    in_formats.push_back(
-                            {sc_data_format_t::BNKkn4k(K_block, N_block)});
-                } else if (B_dtype == datatypes::bf16) {
-                    in_formats.push_back(
-                            {sc_data_format_t::BNKkn2k(K_block, N_block)});
-                } else {
-                    if (constant_B || B_format.is_blocking() || K % K_block
-                            || N % N_block) {
-                        in_formats.push_back(
-                                {sc_data_format_t::BNKkn(K_block, N_block)});
-                    } else {
-                        in_formats.push_back({sc_data_format_t::BKN()});
-                    }
-                }
-            }
-            if (constant_B || M % M_block || N % N_block) {
-                out_formats.push_back({sc_data_format_t(
-                        format_kinds::BMNmn, {M_block, N_block})});
-            } else {
-                out_formats.push_back({sc_data_format_t(format_kinds::BMNmn,
-                                               {M_block, N_block}),
-                        sc_data_format_t::BMK()});
-                in_formats[0].push_back(in_formats[0][0]);
-                in_formats[1].push_back(in_formats[1][0]);
+                in_formats.push_back({A_format});
             }
         } else {
-            // regular ND*ND matmul (non-batch format)
-            // whether constant and no transA
-            if (constant_A
-                    || A_format.format_code_.get(A_blocking_dims.size() - 1)
-                            == static_cast<int>(A_dims.size() - 2)) {
+            if (A_format.is_plain()) {
+                if (M % M_block || K % K_block) {
+                    in_formats.push_back({sc_data_format_t(
+                            sc_data_format_kind_t::get_2dblocking_by_dims(
+                                    A_dims.size()),
+                            {M_block, K_block})});
+                } else {
+                    in_formats.push_back({A_format});
+                }
+            } else {
                 if (A_format.blocks_[0] != M_block
                         || A_format.blocks_[1] != K_block) {
                     in_formats.push_back({sc_data_format_t(
@@ -292,43 +199,59 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                 } else {
                     in_formats.push_back({A_format});
                 }
+            }
+        }
+    }
+    if (B_dims.size() == 2) {
+        if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
+            in_formats.push_back({sc_data_format_t::NKkn4k(K_block, N_block)});
+        } else if (B_dtype == datatypes::bf16) {
+            in_formats.push_back({sc_data_format_t::NKkn2k(K_block, N_block)});
+        } else {
+            if (constant_B || B_format.is_blocking() || K % K_block
+                    || N % N_block) {
+                in_formats.push_back(
+                        {sc_data_format_t::NKkn(K_block, N_block)});
             } else {
-                if (A_format.is_plain()) {
-                    if (M % M_block || K % K_block) {
+                in_formats.push_back({sc_data_format_t::KN()});
+            }
+        }
+    } else {
+        if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
+            in_formats.push_back({sc_data_format_t(
+                    sc_data_format_kind_t::get_2dblocking_by_dims(
+                            B_dims.size(), true),
+                    {K_block, N_block, 4})});
+        } else if (B_dtype == datatypes::bf16) {
+            in_formats.push_back({sc_data_format_t(
+                    sc_data_format_kind_t::get_2dblocking_by_dims(
+                            B_dims.size(), true),
+                    {K_block, N_block, 2})});
+        } else {
+            // whether constant and no transB
+            if (constant_B
+                    || B_format.format_code_.get(B_dims.size() - 1)
+                            == static_cast<int>(B_dims.size() - 2)) {
+                if (B_format.blocks_[0] != K_block
+                        || B_format.blocks_[1] != N_block) {
+                    in_formats.push_back({sc_data_format_t(
+                            sc_data_format_kind_t::get_2dblocking_by_dims(
+                                    B_dims.size()),
+                            {K_block, N_block})});
+                } else {
+                    in_formats.push_back({B_format});
+                }
+            } else {
+                if (B_format.is_plain()) {
+                    if (K % K_block || N % N_block) {
                         in_formats.push_back({sc_data_format_t(
                                 sc_data_format_kind_t::get_2dblocking_by_dims(
-                                        A_dims.size()),
-                                {M_block, K_block})});
+                                        B_dims.size()),
+                                {K_block, N_block})});
                     } else {
-                        in_formats.push_back({A_format});
+                        in_formats.push_back({B_format});
                     }
                 } else {
-                    if (A_format.blocks_[0] != M_block
-                            || A_format.blocks_[1] != K_block) {
-                        in_formats.push_back({sc_data_format_t(
-                                sc_data_format_kind_t::get_2dblocking_by_dims(
-                                        A_dims.size()),
-                                {M_block, K_block})});
-                    } else {
-                        in_formats.push_back({A_format});
-                    }
-                }
-            }
-            if (utils::is_one_of(B_dtype, datatypes::u8, datatypes::s8)) {
-                in_formats.push_back({sc_data_format_t(
-                        sc_data_format_kind_t::get_2dblocking_by_dims(
-                                B_dims.size(), true),
-                        {K_block, N_block, 4})});
-            } else if (B_dtype == datatypes::bf16) {
-                in_formats.push_back({sc_data_format_t(
-                        sc_data_format_kind_t::get_2dblocking_by_dims(
-                                B_dims.size(), true),
-                        {K_block, N_block, 2})});
-            } else {
-                // whether constant and no transB
-                if (constant_B
-                        || B_format.format_code_.get(B_dims.size() - 1)
-                                == static_cast<int>(B_dims.size() - 2)) {
                     if (B_format.blocks_[0] != K_block
                             || B_format.blocks_[1] != N_block) {
                         in_formats.push_back({sc_data_format_t(
@@ -338,48 +261,23 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                     } else {
                         in_formats.push_back({B_format});
                     }
-                } else {
-                    if (B_format.is_plain()) {
-                        if (K % K_block || N % N_block) {
-                            in_formats.push_back({sc_data_format_t(
-                                    sc_data_format_kind_t::
-                                            get_2dblocking_by_dims(
-                                                    B_dims.size()),
-                                    {K_block, N_block})});
-                        } else {
-                            in_formats.push_back({B_format});
-                        }
-                    } else {
-                        if (B_format.blocks_[0] != K_block
-                                || B_format.blocks_[1] != N_block) {
-                            in_formats.push_back({sc_data_format_t(
-                                    sc_data_format_kind_t::
-                                            get_2dblocking_by_dims(
-                                                    B_dims.size()),
-                                    {K_block, N_block})});
-                        } else {
-                            in_formats.push_back({B_format});
-                        }
-                    }
                 }
             }
-            if (constant_B || M % M_block || N % N_block) {
-                out_formats.push_back({sc_data_format_t(
-                        sc_data_format_kind_t::get_2dblocking_by_dims(
-                                C_dims.size()),
-                        {M_block, N_block})});
-            } else {
-                out_formats.push_back(
-                        {sc_data_format_t(
-                                 sc_data_format_kind_t::get_2dblocking_by_dims(
-                                         C_dims.size()),
-                                 {M_block, N_block}),
-                                sc_data_format_t::get_plain_by_dims(
-                                        C_dims.size())});
-                in_formats[0].push_back(in_formats[0][0]);
-                in_formats[1].push_back(in_formats[1][0]);
-            }
         }
+    }
+    if (constant_B || M % M_block || N % N_block) {
+        out_formats.push_back(
+                {sc_data_format_t(sc_data_format_kind_t::get_2dblocking_by_dims(
+                                          C_dims.size(), false),
+                        {M_block, N_block})});
+    } else {
+        out_formats.push_back(
+                {sc_data_format_t(sc_data_format_kind_t::get_2dblocking_by_dims(
+                                          C_dims.size(), false),
+                         {M_block, N_block}),
+                        sc_data_format_t::get_plain_by_dims(C_dims.size())});
+        in_formats[0].push_back(in_formats[0][0]);
+        in_formats[1].push_back(in_formats[1][0]);
     }
 
     // To calculate padded K of input A
@@ -487,7 +385,7 @@ sc_op_ptr matmul_core_op_t::get_data_compensation(sc_graph_t &mgr) {
         reshape_dest.at(reshape_dest.size() - 1) = 1;
         auto reshape_fmt = info_.outputs_[0]->details_.get_format();
         auto reshape_node = mgr.make("tensor_view", mul_node->get_outputs(),
-                {graph_tensor::make(reshape_dest, sc_data_format_t::BMK(),
+                {graph_tensor::make(reshape_dest, sc_data_format_t(),
                         mul_node->get_outputs()[0]->details_.dtype_)},
                 {{"shape", reshape_dest}, {"format", reshape_fmt}});
         return reshape_node;
@@ -554,7 +452,7 @@ std::vector<sc_op_ptr> matmul_core_op_t::get_s8s8_and_weight_compensation(
             reshape_dest.at(reshape_dest.size() - 2) = 1;
             auto reshape_fmt = info_.outputs_[0]->details_.get_format();
             nodes[0] = mgr.make("tensor_view", nodes[0]->get_outputs(),
-                    {graph_tensor::make(reshape_dest, sc_data_format_t::BMK(),
+                    {graph_tensor::make(reshape_dest, sc_data_format_t(),
                             nodes[0]->get_outputs()[0]->details_.dtype_)},
                     {{"shape", reshape_dest}, {"format", reshape_fmt}});
         }
@@ -581,7 +479,7 @@ std::vector<sc_op_ptr> matmul_core_op_t::get_s8s8_and_weight_compensation(
             reshape_dest.at(reshape_dest.size() - 2) = 1;
             auto reshape_fmt = info_.outputs_[0]->details_.get_format();
             nodes[1] = mgr.make("tensor_view", nodes[1]->get_outputs(),
-                    {graph_tensor::make(reshape_dest, sc_data_format_t::BMK(),
+                    {graph_tensor::make(reshape_dest, sc_data_format_t(),
                             nodes[1]->get_outputs()[0]->details_.dtype_)},
                     {{"shape", reshape_dest}, {"format", reshape_fmt}});
         }
@@ -632,8 +530,6 @@ sc_dims matmul_core_op_t::get_bwise_fuse_shrink_dims() {
          inp_fmt = info_.inputs_[0]->details_.get_format();
     auto output_dims = info_.outputs_[0]->details_.get_blocking_dims();
     int bs_size = get_batch_dims().size();
-    if (out_fmt.format_code_.is_batch_format())
-        return {output_dims.begin(), output_dims.begin() + bs_size};
 
     auto out_p2b_map = out_fmt.format_code_.collect_p2b_mapping(),
          inp_p2b_map = inp_fmt.format_code_.collect_p2b_mapping();
@@ -696,19 +592,9 @@ void matmul_core_op_t::collect_shrinked_axes_map(
     auto get_idx = [](const graph_tensor_ptr &gt) {
         std::vector<int> batch;
         auto fmt = gt->details_.get_format();
-        bool batch_fmt = fmt.format_code_.is_batch_format();
         auto p2b_map = fmt.format_code_.collect_p2b_mapping();
-        if (batch_fmt) {
-            int batch_size
-                    = static_cast<int>(gt->details_.get_blocking_dims().size()
-                            - fmt.format_code_.ndims());
-            for (int i = 0; i < batch_size; i++) {
-                batch.emplace_back(i);
-            }
-        } else {
-            for (size_t i = 0; i < p2b_map.size() - 2; i++) {
-                batch.insert(batch.end(), p2b_map[i].begin(), p2b_map[i].end());
-            }
+        for (size_t i = 0; i < p2b_map.size() - 2; i++) {
+            batch.insert(batch.end(), p2b_map[i].begin(), p2b_map[i].end());
         }
         std::vector<std::vector<int>> ret;
         ret.emplace_back(batch);
