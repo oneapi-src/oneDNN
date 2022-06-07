@@ -350,7 +350,8 @@ private:
 ///     point values.
 /// @param c_zp_values - C matrix zero point values.
 /// @param skip_accumulation - specifies whether to skip accumulation when
-///    computing post-ops.
+///    computing post-ops. `Beta` value from descriptor affects final
+///    accumulator values taken.
 ///
 struct brgemm_post_ops_data_t {
     brgemm_post_ops_data_t() = default;

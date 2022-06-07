@@ -436,8 +436,9 @@ status_t brgemm_kernel_create(
     }
 }
 
-void brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
+status_t brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
     delete brg_kernel;
+    return status::success;
 }
 
 status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {

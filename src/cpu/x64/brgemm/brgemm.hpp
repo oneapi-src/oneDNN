@@ -115,8 +115,8 @@ status_t DNNL_API brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 /// @param dt_bias Specifies the data type Bias
 ///     Can be u8, s8, s32, bf16 or fp32
 ///
-status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
-        const memory_desc_t *dst_md, int LDD,
+status_t DNNL_API brgemm_desc_set_postops(brgemm_t *brg,
+        const primitive_attr_t *attr, const memory_desc_t *dst_md, int LDD,
         impl::data_type_t dt_bias = impl::data_type::undef);
 
 /// Adds BRGEMM attributes to BRGEMM descriptor
@@ -140,20 +140,28 @@ status_t DNNL_API brgemm_kernel_create(
 ///
 /// @param brg_kernel BRGEMM kernel
 ///
-void DNNL_API brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
+status_t DNNL_API brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 
 /// Execute BRGEMM kernel (brgemm_addr version)
 ///
 /// @note
 ///     Only BRGEMM kernel will be executed even if post-ops are added to BRGEMM
 ///     descriptor
+///
+/// @note
+///     In row major mode matrix B (matrix A for column major) is expected to be
+///     in a VNNI-friendly format, which requires 4 consecutive elements of K
+///     dimension for int8 data type, 2 elements for bfloat16 data type and no
+///     requirements for float data type.
+///
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
 /// @param batch Array of batch elements containing pointers to matrices
 ///     A,B and virtual padding for matrices A
 /// @param ptr_C Pointer to destination matrix C
-/// @param scratch Scratchpad needed for AMX version, can be nullptr for
-///     avx512 version
+/// @param scratch Scratchpad memory needed in several scenarios:
+///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
+///     * In rest scenarios is not used.
 ///
 void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C,
@@ -164,6 +172,10 @@ void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 /// @note
 ///     Only BRGEMM kernel will be executed even if post-ops are added to BRGEMM
 ///     descriptor
+///
+/// @note
+///     See the second note for `brgemm_kernel_execute` API.
+///
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
 /// @param addr_A Pointer to first matrix A in the batch
@@ -171,8 +183,9 @@ void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 /// @param batch Array of batch elements containing offsets to matrices A,B
 ///     and virtual padding for matrix A
 /// @param ptr_C Pointer to destination matrix C
-/// @param scratch Scratchpad needed for AMX version, can be nullptr for
-///     avx512 version
+/// @param scratch Scratchpad memory needed in several scenarios:
+///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
+///     * In rest scenarios is not used.
 ///
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
@@ -183,6 +196,10 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 ///
 /// @note
 ///     BRGEMM kernel and post-operations will be executed
+///
+/// @note
+///     See the second note for `brgemm_kernel_execute` API.
+///
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
 /// @param batch Array of batch elements containing pointers to matrices A,B
@@ -191,17 +208,23 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 /// @param ptr_D Pointer to destination matrix D
 /// @param post_ops_data Specifies tensors and data used in post processing
 ///     phase
-/// @param scratch Scratchpad needed for AMX version, can be nullptr for
-///     avx512 version
+/// @param scratch Scratchpad memory needed in several scenarios:
+///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
+///     * Where: pre-VNNI hardware; When: s8s8 kernel; For: compensation buffer.
+///     * In rest scenarios is not used.
 ///
-void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
+void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
+        int bs, const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
         const brgemm_post_ops_data_t &post_ops_data, void *scratch = nullptr);
 
 /// Execute BRGEMM kernel (brgemm_offs and brgemm_strd version)
 ///
 /// @note
 ///     BRGEMM kernel and post-operations will be executed
+///
+/// @note
+///     See the second note for `brgemm_kernel_execute` API.
+///
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
 /// @param addr_A Pointer to first matrix A in the batch
@@ -212,8 +235,10 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 /// @param ptr_D Pointer to destination matrix D
 /// @param post_ops_data Specifies tensors and data used in post processing
 ///     phase
-/// @param scratch Scratchpad needed for AMX version, can be nullptr for
-///     avx512 version
+/// @param scratch Scratchpad memory needed in several scenarios:
+///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
+///     * Where: pre-VNNI hardware; When: s8s8 kernel; For: compensation buffer.
+///     * In rest scenarios is not used.
 ///
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
@@ -223,8 +248,13 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 /// AMX utilities: Creates a palette based on BRGEMM descriptor
 ///
 /// @note
+///     This call expects brgemm_t object completely set up, thus, used after
+///     `brgemm_desc_set_attr` call for non-empty attributes.
+///
+/// @note
 ///     Caller is expected to subsequently configure AMX tiles by calling
 ///     amx_tile_configure(palette).
+///
 /// @param brg BRGEMM descriptor
 /// @param palette 64 bytes array contains tiles configuration
 ///
