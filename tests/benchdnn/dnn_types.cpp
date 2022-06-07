@@ -527,11 +527,12 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
     return OK;
 }
 
-bool attr_t::is_def() const {
+bool attr_t::is_def(bool skip_fpmath) const {
     return oscale.is_def() && scales.is_def() && zero_points.is_def()
             && post_ops.is_def()
             && scratchpad_mode == dnnl_scratchpad_mode_library
-            && fpmath_mode == dnnl_fpmath_mode_strict;
+            && IMPLICATION(
+                    !skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict);
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {

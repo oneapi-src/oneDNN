@@ -32,6 +32,7 @@
 #include "src/cpu/platform.hpp"
 
 #if DNNL_X64
+#include "src/cpu/x64/amx_tile_configure.hpp"
 #include "src/cpu/x64/cpu_isa_traits.hpp"
 #endif
 

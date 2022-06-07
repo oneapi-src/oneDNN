@@ -29,6 +29,7 @@
 
 #include "binary/binary.hpp"
 #include "bnorm/bnorm.hpp"
+#include "brgemm/brgemm.hpp"
 #include "concat/concat.hpp"
 #include "conv/conv.hpp"
 #include "deconv/deconv.hpp"
@@ -127,6 +128,8 @@ int main(int argc, char **argv) {
         reduction::bench(--argc, ++argv);
     } else if (!strcmp("--zeropad", argv[0])) {
         zeropad::bench(--argc, ++argv);
+    } else if (!strcmp("--brgemm", argv[0])) {
+        brgemm::bench(--argc, ++argv);
     } else {
         fprintf(stderr, "err: unknown driver\n");
     }

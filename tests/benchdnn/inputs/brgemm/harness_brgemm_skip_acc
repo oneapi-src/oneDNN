@@ -1,0 +1,10 @@
+--reset
+
+--brgemm-attr=generate_skip_accumulation:1
+# `beta` affect how values will be taken from acc
+--beta=0,1,2
+# No sense to test feature without brgemm post-ops
+--bia_dt=f32
+
+--dt=f32
+--batch=option_set_f32
