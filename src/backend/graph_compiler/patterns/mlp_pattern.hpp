@@ -446,7 +446,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     bwd_mlp_layer->append_optional(optional_reduce_subgraph,
                             {in_edge(0, activation_bwd, 0)}, "optional_reduce");
 
-                    bwd_mlp_layer->create_input_port(0, activation_bwd, 0);
+                    bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
 
                     // repeat layer for [2, 10) times

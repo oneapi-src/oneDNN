@@ -292,14 +292,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     {in_edge(0, dropout_grad, 0),
                                             in_edge(1, softmax_sum, 0)},
                                     "softmax_sub");
-                    auto softmax_sub_mul = pgraph->append_op(
-                            impl::op_kind::Multiply,
-                            {in_edge(0, softmax_sub, 0)}, "softmax_sub_mul");
-                    softmax_sub_mul->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
                     auto fscore_grad = pgraph->append_alternation(
                             {impl::op_kind::Divide, impl::op_kind::Multiply},
-                            {in_edge(0, softmax_sub_mul, 0)}, "fscore_grad");
+                            {in_edge(0, softmax_sub, 0)}, "fscore_grad");
                     fscore_grad->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
                     auto bmm_q_grad_weight = pgraph->append_op(
@@ -576,14 +571,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     {in_edge(0, dropout_grad, 0),
                                             in_edge(1, softmax_sum, 0)},
                                     "softmax_sub");
-                    auto softmax_sub_mul = pgraph->append_op(
-                            impl::op_kind::Multiply,
-                            {in_edge(0, softmax_sub, 0)}, "softmax_sub_mul");
-                    softmax_sub_mul->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
                     auto fscore_grad = pgraph->append_alternation(
                             {impl::op_kind::Divide, impl::op_kind::Multiply},
-                            {in_edge(0, softmax_sub_mul, 0)}, "fscore_grad");
+                            {in_edge(0, softmax_sub, 0)}, "fscore_grad");
                     auto bmm_q_grad_weight = pgraph->append_op(
                             impl::op_kind::MatMul, {in_edge(0, fscore_grad, 0)},
                             "bmm_q_grad_weight");

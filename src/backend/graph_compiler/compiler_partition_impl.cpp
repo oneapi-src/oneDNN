@@ -61,11 +61,6 @@ impl::status_t compiler_partition_impl_t::infer_shape(
                         return alt->id == lt.id;
                     });
             if (in_pos != inputs.end()) { return **in_pos; }
-            auto out_pos = std::find_if(outputs.begin(), outputs.end(),
-                    [&](impl::logical_tensor_t *alt) -> bool {
-                        return alt->id == lt.id;
-                    });
-            if (out_pos != outputs.end()) { return **out_pos; }
             return lt;
         };
         impl::op_t temp_node = impl::op_t(cur_op->get_kind());
@@ -104,21 +99,16 @@ impl::status_t compiler_partition_impl_t::infer_shape(
                 impl::dims strides = utils::get_dense_strides(shape);
                 cur_val->set_strides(strides);
             }
+            auto out_pos = std::find_if(outputs.begin(), outputs.end(),
+                    [&](impl::logical_tensor_t *alt) -> bool {
+                        return alt->id == ordered_outputs[i]->id;
+                    });
+            if (out_pos != outputs.end()) {
+                **out_pos = cur_val->get_logical_tensor();
+            }
         }
         return impl::status::success;
     });
-    // start setting outputs
-    for (auto &op : output_ops) {
-        for (auto &val : op->get_output_values()) {
-            auto out_pos = std::find_if(outputs.begin(), outputs.end(),
-                    [&](impl::logical_tensor_t *alt) -> bool {
-                        return alt->id == val->get_logical_tensor().id;
-                    });
-            if (out_pos != outputs.end()) {
-                **out_pos = val->get_logical_tensor();
-            }
-        }
-    }
     return impl::status::success;
 }
 
@@ -128,9 +118,9 @@ impl::status_t compiler_partition_impl_t::compile(
         const std::vector<impl::logical_tensor_t> &outputs,
         const impl::engine_t *aengine) const {
     try {
-        // here we call infer_shape to avoid the case when
-        // all input/output logical tensors are set
-        // but intermedia logical tensors have unknown shape
+        // here we call infer_shape since logical tensor info
+        // may be incomplete for the graph corresponding to the
+        // partition
         std::vector<const impl::logical_tensor_t *> input_ref;
         std::vector<impl::logical_tensor_t *> output_ref;
         input_ref.reserve(inputs.size());
@@ -141,7 +131,8 @@ impl::status_t compiler_partition_impl_t::compile(
         for (auto &t : outputs) {
             output_ref.push_back(const_cast<impl::logical_tensor_t *>(&t));
         }
-        this->infer_shape(input_ref, output_ref);
+        auto ret = this->infer_shape(input_ref, output_ref);
+        if (ret != status::success) { return ret; }
 
         std::lock_guard<std::mutex> lck(mtx_);
         impl::status_t res = status::success;

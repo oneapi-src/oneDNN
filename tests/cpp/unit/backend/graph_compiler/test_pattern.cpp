@@ -475,7 +475,7 @@ TEST(GCPatternTests, FP32MHATrainingPattern) {
     ASSERT_EQ(partitions[0]->get_ops().size(), 8);
     ASSERT_EQ(partitions[0]->get_inputs().size(), 6);
     ASSERT_EQ(partitions[0]->get_outputs().size(), 3);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 12);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 11);
     ASSERT_EQ(partitions[1]->get_inputs().size(), 8);
     ASSERT_EQ(partitions[1]->get_outputs().size(), 3);
 }
@@ -500,7 +500,7 @@ TEST(GCPatternTests, BF16MHATrainingPattern) {
     ASSERT_EQ(partitions[0]->get_ops().size(), 8);
     ASSERT_EQ(partitions[0]->get_inputs().size(), 6);
     ASSERT_EQ(partitions[0]->get_outputs().size(), 3);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 12);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 11);
     ASSERT_EQ(partitions[1]->get_inputs().size(), 8);
     ASSERT_EQ(partitions[1]->get_outputs().size(), 3);
 }

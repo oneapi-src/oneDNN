@@ -1536,10 +1536,6 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     softmax_sub = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
 
-    impl::logical_tensor_t softmax_sub_mul;
-    softmax_sub_mul = utils::logical_tensor_init(
-            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
-
     impl::logical_tensor_t fscore_grad;
     fscore_grad = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
@@ -1602,15 +1598,9 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     sub.add_input(softmax_sum);
     sub.add_output(softmax_sub);
 
-    impl::op_t mul_3 {op_idx++, impl::op_kind::Multiply, "mul_3"};
-    mul_3.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
-    mul_3.add_input(softmax_sub);
-    mul_3.add_input(softmax_out);
-    mul_3.add_output(softmax_sub_mul);
-
     impl::op_t div {op_idx++, impl::op_kind::Divide, "div"};
     div.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
-    div.add_input(softmax_sub_mul);
+    div.add_input(softmax_sub);
     div.add_input(fscore_scale);
     div.add_output(fscore_grad);
 
@@ -1634,7 +1624,6 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     agraph->add_op(&mul_2);
     agraph->add_op(&reduce_sum);
     agraph->add_op(&sub);
-    agraph->add_op(&mul_3);
     agraph->add_op(&div);
     agraph->add_op(&grad_q);
     agraph->add_op(&grad_k);
