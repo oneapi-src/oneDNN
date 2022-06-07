@@ -91,14 +91,14 @@ struct profiler_t {
     // Recording data
     void stamp(const char *name) {
         optimization_barrier();
-        _run_data.emplace_back(record_t(name, get_time()));
+        _run_data.emplace_back(record_t<const char *>(name, get_time()));
         assert(_state == RUNNING);
         optimization_barrier();
     }
 
     void stop(const char *name) {
         optimization_barrier();
-        _run_data.emplace_back(record_t(name, get_time()));
+        _run_data.emplace_back(record_t<const char *>(name, get_time()));
         stop();
     }
 
