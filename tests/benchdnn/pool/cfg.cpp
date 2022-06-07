@@ -43,7 +43,7 @@ const dt_conf_t conf_entry_u8 = {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.};
 
 const float16_t flt16_max = dnnl::impl::nstl::numeric_limits<float16_t>::max();
 const dt_conf_t conf_entry_f16
-        = {dnnl_f16, -flt16_max, flt16_max, -32, 32, 4e-3};
+        = {dnnl_f16, -flt16_max, flt16_max, -32, 32, 2e-2};
 
 #define BFLT16_MAX 3.38953138925153547590470800371487866880e+38F
 /* Although integers are expected, eps is needed to cover
