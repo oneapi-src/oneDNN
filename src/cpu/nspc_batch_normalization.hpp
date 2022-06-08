@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,6 +55,9 @@ struct nspc_batch_normalization_fwd_t : public primitive_t {
                     && (attr()->has_default_values()
                             || this->with_relu_post_op(is_training()));
             if (!ok) return status::unimplemented;
+
+            // BN+Add+Relu fusion is not currently implemented
+            if (fuse_norm_add_relu()) return status::unimplemented;
 
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
@@ -131,6 +134,9 @@ struct nspc_batch_normalization_bwd_t : public primitive_t {
                     && memory_desc_matches_tag(*diff_src_md(), format_tag::nhwc)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
+
+            // BN+Add+Relu fusion is not currently implemented
+            if (fuse_norm_add_relu()) return status::unimplemented;
 
             if (fuse_norm_relu()) {
                 init_default_ws(8);

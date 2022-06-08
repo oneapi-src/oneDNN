@@ -2272,6 +2272,9 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
                     || this->with_relu_post_op(is_training()));
     if (!ok) return status::unimplemented;
 
+    // BN+Add+Relu fusion is not currently implemented
+    if (fuse_norm_add_relu()) return status::unimplemented;
+
     const format_tag_t blocked_tag = is_superset(isa, avx512_core)
             ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)
             : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
@@ -2383,6 +2386,9 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
                     is_superset(isa, avx512_core) && mayiuse(avx512_core))
             && check_scale_shift_data_type() && attr()->has_default_values();
     if (!ok) return status::unimplemented;
+
+    // BN+Add+Relu fusion is not currently implemented
+    if (fuse_norm_add_relu()) return status::unimplemented;
 
     const format_tag_t blocked_tag = is_superset(isa, avx512_core)
             ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)

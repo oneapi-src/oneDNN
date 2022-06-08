@@ -707,6 +707,9 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init(
             && (attr()->has_default_values() || this->with_relu_post_op(false));
     if (!ok) return status::unimplemented;
 
+    // BN+Add+Relu fusion is not currently implemented
+    if (fuse_norm_add_relu()) return status::unimplemented;
+
     return status::success;
 }
 

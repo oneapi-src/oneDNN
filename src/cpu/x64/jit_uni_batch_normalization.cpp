@@ -2210,6 +2210,9 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     || this->with_relu_post_op(is_training()));
     if (!ok) return status::unimplemented;
 
+    // BN+Add+Relu fusion is not currently implemented
+    if (fuse_norm_add_relu()) return status::unimplemented;
+
     const memory_desc_wrapper src_d(src_md());
     if (isa == avx512_core) {
         if (!src_d.matches_one_of_tag(
@@ -2319,6 +2322,9 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
             && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
             && check_scale_shift_data_type() && attr()->has_default_values();
     if (!ok) return status::unimplemented;
+
+    // BN+Add+Relu fusion is not currently implemented
+    if (fuse_norm_add_relu()) return status::unimplemented;
 
     const memory_desc_wrapper src_d(src_md());
     const memory_desc_wrapper diff_src_d(diff_src_md());
