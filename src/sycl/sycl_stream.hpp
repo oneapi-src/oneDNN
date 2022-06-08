@@ -21,6 +21,7 @@
 #include "common/primitive.hpp"
 #include "common/primitive_exec_types.hpp"
 #include "common/stream.hpp"
+#include "common/thread_local_storage.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -242,12 +243,21 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return status::success;
     }
 
-    const std::vector<::sycl::event> &get_deps() const { return deps_; }
-    void set_deps(const std::vector<::sycl::event> &deps) { deps_ = deps; }
-    void add_dep(const ::sycl::event &dep) { deps_.push_back(dep); }
+    std::vector<::sycl::event> &get_deps() {
+        auto &deps = const_cast<const sycl_stream_t *>(this)->get_deps();
+        return const_cast<std::vector<::sycl::event> &>(deps);
+    }
+    const std::vector<::sycl::event> &get_deps() const {
+        static std::vector<::sycl::event> empty_deps;
+        return deps_tls_.get(empty_deps);
+    }
+
+    void set_deps(const std::vector<::sycl::event> &deps) { get_deps() = deps; }
+    void add_dep(const ::sycl::event &dep) { get_deps().push_back(dep); }
     ::sycl::event get_output_event() const {
         // Fast path: if only one event, return it.
-        if (deps_.size() == 1) return deps_[0];
+        auto &deps = get_deps();
+        if (deps.size() == 1) return deps[0];
 
         // Otherwise, we run a trivial kernel to gather all deps. The
         // dummy task is needed to not get an error related to empty
@@ -276,10 +286,7 @@ protected:
     }
 
     std::unique_ptr<::sycl::queue> queue_;
-
-    // XXX: This is a temporary solution, ideally events should be a part of
-    // execution context.
-    std::vector<::sycl::event> deps_;
+    mutable utils::thread_local_storage_t<std::vector<::sycl::event>> deps_tls_;
 
 private:
     status_t init();
