@@ -372,6 +372,7 @@ public:
             CASE(HardTanhBackprop);
             CASE(LayerNorm);
             CASE(LayerNormBackprop);
+            CASE(LeakyReLU);
             CASE(Log);
             CASE(LogSoftmax);
             CASE(LogSoftmaxBackprop);

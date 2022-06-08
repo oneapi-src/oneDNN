@@ -128,6 +128,7 @@ const op_kind_t Interpolate = dnnl_graph_op_interpolate;
 const op_kind_t InterpolateBackprop = dnnl_graph_op_interpolate_backprop;
 const op_kind_t LayerNorm = dnnl_graph_op_layer_norm;
 const op_kind_t LayerNormBackprop = dnnl_graph_op_layer_norm_backprop;
+const op_kind_t LeakyReLU = dnnl_graph_op_leaky_relu;
 const op_kind_t Log = dnnl_graph_op_log;
 const op_kind_t LogSoftmax = dnnl_graph_op_log_softmax;
 const op_kind_t LogSoftmaxBackprop = dnnl_graph_op_log_softmax_backprop;

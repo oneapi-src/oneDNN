@@ -893,6 +893,7 @@ public:
         InterpolateBackprop = dnnl_graph_op_interpolate_backprop,
         LayerNorm = dnnl_graph_op_layer_norm,
         LayerNormBackprop = dnnl_graph_op_layer_norm_backprop,
+        LeakyReLU = dnnl_graph_op_leaky_relu,
         Log = dnnl_graph_op_log,
         LogSoftmax = dnnl_graph_op_log_softmax,
         LogSoftmaxBackprop = dnnl_graph_op_log_softmax_backprop,

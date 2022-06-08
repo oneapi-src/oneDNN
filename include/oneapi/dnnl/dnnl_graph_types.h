@@ -221,6 +221,7 @@ typedef enum {
     dnnl_graph_op_interpolate_backprop,
     dnnl_graph_op_layer_norm,
     dnnl_graph_op_layer_norm_backprop,
+    dnnl_graph_op_leaky_relu,
     dnnl_graph_op_log,
     dnnl_graph_op_log_softmax,
     dnnl_graph_op_log_softmax_backprop,
