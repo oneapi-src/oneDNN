@@ -307,7 +307,22 @@ status_t brgemm_blocking(brgemm_t *brg) {
         }
         if (!is_decomposition_defined) try_2x2_decomposition();
 
-        brg->rd_block = (brg->is_bf16_amx || brg->is_bf32) ? 32 : 64;
+        const auto max_rd_block = (brg->is_bf16_amx || brg->is_bf32) ? 32 : 64;
+        const auto rd_block_step = (brg->is_bf16_amx || brg->is_bf32) ? 2 : 4;
+        if (brg->reduce_dim <= max_rd_block) {
+            brg->rd_block = brg->reduce_dim;
+        } else {
+            // TODO: if rd_block calculated is very small then maybe it makes
+            // sense to use 1x2 or 2x1 blocking with supporting rd_block
+            // and rdb_tail
+            brg->rd_block = rd_block_step;
+            for (int i = max_rd_block; i > 0; i -= rd_block_step) {
+                if (brg->reduce_dim % i == 0) {
+                    brg->rd_block = i;
+                    break;
+                }
+            }
+        }
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
