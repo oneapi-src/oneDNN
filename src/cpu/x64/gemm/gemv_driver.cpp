@@ -265,12 +265,22 @@ static inline int thread_checker(
             }
         }
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        if (mayiuse(avx512_core) && is_f32) {
-            auto l2_cache_per_thread = platform::get_per_core_cache_size(2);
-            int n_cores_per_socket
+        if (is_f32) {
+            static const bool is_avx2 = mayiuse(avx2) && !mayiuse(avx512_core);
+            static auto l2_cache_per_thread
+                    = platform::get_per_core_cache_size(2);
+            static int n_cores_per_socket
                     = static_cast<int>(platform::get_num_cores());
             auto l2_cache_socket = l2_cache_per_thread * n_cores_per_socket;
             auto problem_memory_footprint = m * n * sizeof(float);
+
+            if (is_avx2) {
+                // Somehow it seems beneficial to split the job into bigger
+                // pieces. Use L2 per-core cache size as a deal-breaker.
+                int use_n_threads = utils::div_up(
+                        problem_memory_footprint, l2_cache_per_thread);
+                return nstl::min(nthr, use_n_threads);
+            }
             if (l2_cache_socket > problem_memory_footprint) {
                 return nstl::min(nthr, n_cores_per_socket);
             }
