@@ -5495,6 +5495,102 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
     assert(nthr_ <= max_threads);
 }
 
+// start of diff_bias kernel
+void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias_row(int ocb) {
+
+    auto compute_step = [&]() {
+        vmovups(vreg_bias_ddst, ptr[reg_ddst]);
+        vdpbf16ps(vreg_bias_acc, vreg_bias_ddst, vreg_bias_unit);
+    };
+
+    Label ow_loop;
+    int niters = jcp.tr_ow / 2;
+    if (niters > 0) {
+        mov(reg_tmp, jcp.tr_ow / 2);
+        L(ow_loop);
+        compute_step();
+        add(reg_ddst, get_ddst_offset(2));
+        sub(reg_tmp, 1);
+        jnz(ow_loop, T_NEAR);
+    }
+    if (jcp.tr_ow % 2) compute_step();
+
+    if (niters > 0) sub(reg_ddst, get_ddst_offset(2 * niters));
+}
+
+void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias(
+        int nb_oc_blocking) {
+
+    for (int ocb = 0; ocb < nb_oc_blocking; ocb++) {
+        Label bias_loop;
+
+        // pointer to diff_dst
+        mov(reg_ddst, ptr[param + GET_OFF(dst)]);
+        add(reg_ddst, jcp.typesize_in * ocb * jcp.tr_diff_dst_buf_size);
+
+        // number of rows
+        mov(reg_oj, reg_nrows);
+
+        // accumulator initialization
+        vpxord(vreg_bias_acc, vreg_bias_acc, vreg_bias_acc);
+        cmp(reg_initial, 0);
+        jnz(bias_loop, T_NEAR);
+        vmovups(vreg_bias_acc,
+                ptr[reg_bias + sizeof(float) * ocb * jcp.oc_block]);
+
+        // loop by rows
+        L(bias_loop);
+        {
+            compute_diff_bias_row(ocb);
+            add(reg_ddst, get_ddst_offset(0, 1));
+
+            sub(reg_oj, 1);
+            jnz(bias_loop, T_NEAR);
+        }
+
+        // store accumulator
+        vmovups(ptr[reg_bias + sizeof(float) * ocb * jcp.oc_block],
+                vreg_bias_acc);
+    }
+}
+
+void jit_avx512_core_amx_bwd_bias_kernel_t::generate() {
+    preamble();
+
+    Label end_label;
+    // number of rows
+    mov(reg_nrows, ptr[param + GET_OFF(os_index_end)]);
+    sub(reg_nrows, ptr[param + GET_OFF(os_index_begin)]);
+    cmp(reg_nrows, 0);
+    jle(end_label, T_NEAR); // nothing to do
+
+    auto reg_unit_val = reg_tmp.cvt16();
+    mov(reg_unit_val, 0x3f80); // bf16 value of 1.
+    vpbroadcastw(vreg_bias_unit, reg_unit_val);
+
+    mov(reg_bias, ptr[param + GET_OFF(bias)]);
+    mov(reg_initial, ptr[param + GET_OFF(channel)]);
+
+    Label last_oc_block_label;
+    mov(reg_tmp, ptr[param + GET_OFF(last_oc_block)]);
+    cmp(reg_tmp, 0);
+    jne(last_oc_block_label, T_NEAR);
+    { // full nb_oc_blocking
+        compute_diff_bias(jcp.nb_oc_blocking);
+        jmp(end_label, T_NEAR);
+    }
+    L(last_oc_block_label);
+    { // tail of nb_oc_blocking
+        compute_diff_bias(1);
+        jmp(end_label, T_NEAR);
+    }
+
+    L(end_label);
+
+    postamble();
+}
+// end of diff_bias kernel
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl

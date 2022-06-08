@@ -745,6 +745,47 @@ private:
     int ddst_save_offset = 0;
 };
 
+struct jit_avx512_core_amx_bwd_bias_kernel_t : public jit_generator {
+
+    jit_avx512_core_amx_bwd_bias_kernel_t(const jit_conv_conf_t &ajcp)
+        : jit_generator(
+                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp) {}
+
+    ~jit_avx512_core_amx_bwd_bias_kernel_t() {}
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_bwd_bias_kernel_t)
+
+    const jit_conv_conf_t &jcp;
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+
+    reg64_t param = abi_param1;
+    reg64_t reg_ddst = rsi;
+    reg64_t reg_oj = r15;
+    reg64_t reg_tmp = r14;
+    reg64_t reg_bias = r13;
+    reg64_t reg_initial = r12;
+    reg64_t reg_nrows = r11;
+
+    Xbyak::Zmm vreg_bias_acc = Xbyak::Zmm(0);
+    Xbyak::Zmm vreg_bias_unit = Xbyak::Zmm(1);
+    Xbyak::Zmm vreg_bias_ddst = Xbyak::Zmm(2);
+
+    void compute_diff_bias_row(int ocb);
+    void compute_diff_bias(int nb_oc_blocking);
+
+    void generate() override;
+
+    inline dim_t get_ddst_offset(dim_t w_idx, dim_t hd_idx = 0) {
+        int ow_per_oc = 2;
+        dim_t w_off = w_idx / ow_per_oc * ow_per_oc * jcp.oc_block
+                + w_idx % ow_per_oc;
+        return jcp.typesize_in * (w_off + jcp.tr_ow * jcp.oc_block * hd_idx);
+    }
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
