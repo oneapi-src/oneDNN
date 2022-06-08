@@ -511,12 +511,15 @@ private:
     reg32_t regw_tmp = r14d;
     reg64_t imm_addr64 = rbx;
 
-    void transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores);
+    void transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores,
+            bool do_convert = true);
     void generate() override;
 };
 
-void jit_trans_ow_oc_t::transpose(
-        int nrows, int l_pad, int r_pad, bool nontemporal_stores) {
+// do_convert (default is 'true') is a flag that determines when to do the
+// transformation of the input data and when to simply zero out the output data
+void jit_trans_ow_oc_t::transpose(int nrows, int l_pad, int r_pad,
+        bool nontemporal_stores, bool do_convert) {
     assert(nrows >= 0 && nrows <= transpose_size);
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows) return;
@@ -556,16 +559,24 @@ void jit_trans_ow_oc_t::transpose(
         // TODO: adopt for nhwc?
         for (int i = 0; i < nrows / 2; i++) {
             auto zmm_src0 = src_zmm(i);
-            vmovdqu16(
-                    zmm_src0, EVEX_compress_addr(reg_src, 2 * i * src_stride));
-            vpermw(zmm_src0, vidx2, zmm_src0);
+            if (do_convert) {
+                vmovdqu16(zmm_src0,
+                        EVEX_compress_addr(reg_src, 2 * i * src_stride));
+                vpermw(zmm_src0, vidx2, zmm_src0);
+            } else {
+                vpxord(zmm_src0, zmm_src0, zmm_src0);
+            }
             store(zmm_src0, 2 * i);
         }
         if (r_pad > 0) {
             auto zmm_src0 = src_zmm(29);
-            vmovdqu16(zmm_src0 | mask_lo | T_z,
-                    EVEX_compress_addr(reg_src, (nrows - 1) * src_stride));
-            vpermw(zmm_src0, vidx2, zmm_src0);
+            if (do_convert) {
+                vmovdqu16(zmm_src0 | mask_lo | T_z,
+                        EVEX_compress_addr(reg_src, (nrows - 1) * src_stride));
+                vpermw(zmm_src0, vidx2, zmm_src0);
+            } else {
+                vpxord(zmm_src0, zmm_src0, zmm_src0);
+            }
             store(zmm_src0, nrows - 1);
         }
     } else {
@@ -573,36 +584,46 @@ void jit_trans_ow_oc_t::transpose(
             auto src0 = src_ymm(2 * i);
             auto src1 = src_ymm(2 * i + 1);
             auto zmm_src0 = src_zmm(2 * i);
-            load_ymm(2 * i);
-            if (is_layout_nxc && conf_->oc_tail) {
-                load_ymm(2 * i + 1);
-                auto ymm_tmp = Ymm(30);
-                vpunpcklwd(ymm_tmp, src0, src1);
-                vpunpckhwd(src0, src0, src1);
-                vinserti64x4(zmm_src0, zmm_src0, ymm_tmp, 1);
+            if (do_convert) {
+                load_ymm(2 * i);
+                if (is_layout_nxc && conf_->oc_tail) {
+                    load_ymm(2 * i + 1);
+                    auto ymm_tmp = Ymm(30);
+                    vpunpcklwd(ymm_tmp, src0, src1);
+                    vpunpckhwd(src0, src0, src1);
+                    vinserti64x4(zmm_src0, zmm_src0, ymm_tmp, 1);
+                } else {
+                    vpunpcklwd(src1, src0,
+                            EVEX_compress_addr(
+                                    reg_src, (2 * i + 1) * src_stride));
+                    vpunpckhwd(src0, src0,
+                            EVEX_compress_addr(
+                                    reg_src, (2 * i + 1) * src_stride));
+                    vinserti64x4(zmm_src0, zmm_src0, src1, 1);
+                }
+                vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
             } else {
-                vpunpcklwd(src1, src0,
-                        EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
-                vpunpckhwd(src0, src0,
-                        EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
-                vinserti64x4(zmm_src0, zmm_src0, src1, 1);
+                vpxord(zmm_src0, zmm_src0, zmm_src0);
             }
-            vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
             store(zmm_src0, 2 * i);
         }
         if (r_pad > 0) {
             auto src0 = src_ymm(nrows - 1);
             auto src1 = src_ymm(nrows);
             auto zmm_src0 = src_zmm(30);
-            load_ymm(nrows - 1);
+            if (do_convert) {
+                load_ymm(nrows - 1);
 
-            vpxor(src1, src1, src1);
-            vpunpckhwd(src1, src0, src1);
-            vinserti64x4(zmm_src0, zmm_src0, src1, 0);
-            vpxor(src1, src1, src1);
-            vpunpcklwd(src0, src0, src1);
-            vinserti64x4(zmm_src0, zmm_src0, src0, 1);
-            vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
+                vpxor(src1, src1, src1);
+                vpunpckhwd(src1, src0, src1);
+                vinserti64x4(zmm_src0, zmm_src0, src1, 0);
+                vpxor(src1, src1, src1);
+                vpunpcklwd(src0, src0, src1);
+                vinserti64x4(zmm_src0, zmm_src0, src0, 1);
+                vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
+            } else {
+                vpxord(zmm_src0, zmm_src0, zmm_src0);
+            }
             store(zmm_src0, nrows - 1);
         }
     }
@@ -636,6 +657,8 @@ void jit_trans_ow_oc_t::generate() {
     const size_t src_step = src_mult * transpose_size * typesize;
     const size_t tr_src_step = (size_t)oc_block * transpose_size * typesize;
     const int right_pad = ow % 2;
+
+    const auto zero_tr_ow = nstl::max(0, conf_->tr_ow - ow - right_pad);
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
@@ -685,6 +708,33 @@ void jit_trans_ow_oc_t::generate() {
         }
     }
     transpose(tail, 0, right_pad, nontemporal_stores);
+    if (zero_tr_ow) {
+        const auto zero_transposes = utils::div_up(zero_tr_ow, transpose_size);
+        const auto zero_loop_iters = nstl::max(0, zero_transposes - 1);
+        const auto zero_tail = zero_tr_ow - zero_loop_iters * transpose_size;
+        const auto zero_right_pad = zero_tr_ow % 2;
+
+        // shift over tail
+        auto tr_src_tail_step
+                = (size_t)oc_block * (tail + right_pad) * typesize;
+        add(reg_tr_src, tr_src_tail_step);
+        add(reg_tr_src_prf, tr_src_tail_step);
+
+        // zero the tr_ow - ow
+        if (zero_loop_iters) {
+            mov(reg_loop, zero_loop_iters);
+            Label zero_loop;
+            L(zero_loop);
+            {
+                transpose(transpose_size, 0, 0, nontemporal_stores, false);
+                add(reg_tr_src, tr_src_step);
+                add(reg_tr_src_prf, tr_src_step);
+                sub(reg_loop, 1);
+                jnz(zero_loop);
+            }
+        }
+        transpose(zero_tail, 0, zero_right_pad, nontemporal_stores, false);
+    }
 
     postamble();
 }
