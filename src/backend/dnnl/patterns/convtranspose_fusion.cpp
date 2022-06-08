@@ -123,6 +123,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     impl::op_kind::GELU,
                                     impl::op_kind::HardTanh,
                                     impl::op_kind::HardSwish,
+                                    impl::op_kind::LeakyReLU,
                                     impl::op_kind::Log, impl::op_kind::Sigmoid,
                                     impl::op_kind::SoftPlus, impl::op_kind::Pow,
                                     impl::op_kind::ReLU, impl::op_kind::Round,

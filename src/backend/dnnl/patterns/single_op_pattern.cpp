@@ -87,6 +87,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         hardswish_bw_pass, dnnl, HardSwishBackprop, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(hardtanh_pass, dnnl, HardTanh, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(hardtanh_bw_pass, dnnl, HardTanhBackprop, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(leakyrelu_pass, dnnl, LeakyReLU, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(log_pass, dnnl, Log, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(sum_pass, dnnl, Add, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(mul_pass, dnnl, Multiply, 8.f)
