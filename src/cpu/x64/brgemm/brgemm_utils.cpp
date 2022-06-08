@@ -77,8 +77,7 @@ void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
 namespace brgemm_utils {
 
 bool can_dispatch_uker(const brgemm_t *brg) {
-    return brg->is_amx && brg->type == brgemm_addr && brg->brgattr.max_bs >= 1
-            && brg->brgattr.use_uker
+    return brg->is_amx && brg->type == brgemm_addr && brg->brgattr.use_uker
             && !brg->brgattr.generate_skip_accumulation;
 }
 

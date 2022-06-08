@@ -102,6 +102,7 @@ struct DNNL_API brgemm_attr_t {
     // interleave stores or not
     bool use_interleave_stores;
     impl::fpmath_mode_t fpmath_mode = fpmath_mode::strict;
+    bool var_bs {false};
 };
 
 struct brgemm_batch_element_t {
@@ -139,6 +140,8 @@ struct brgemm_t {
     int LDB = 0;
     int LDC = 0;
     int LDD = 0;
+
+    bool is_blocked = false;
 
     float alpha = 0.0f;
     float beta = 0.0f;

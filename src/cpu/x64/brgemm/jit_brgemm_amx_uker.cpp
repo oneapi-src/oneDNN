@@ -116,6 +116,7 @@ private:
     const reg64_t param1 = abi_param1;
 
     const reg64_t reg_addr_batch = r13;
+    const reg64_t reg_aux1_batch = rbp;
     const reg64_t reg_aux_A = r11;
     const reg64_t reg_aux_B = r10;
     const reg64_t reg_stride_lda = r14;
@@ -124,6 +125,8 @@ private:
     const reg64_t reg_D = r12;
 
     const reg64_t reg_buf = r8;
+    const reg64_t reg_BS = rbx;
+    const reg64_t reg_BS_loop = r9;
     const reg64_t reg_bias = rbx;
     const reg64_t reg_scales = rbx;
 
@@ -280,6 +283,7 @@ private:
             bool apply_post_ops);
 
     void set_A_B_matrices(int bs);
+    void set_A_B_matrices();
 
     void bf32_downconvert(int num_rows, int tile_num_col_bytes,
             reg64_t reg_data, int offset, reg64_t reg_data_stride,
@@ -489,6 +493,8 @@ void jit_brgemm_amx_uker_base_t::read_params() {
 
     mov(reg_C, ptr[param1 + GET_OFF(ptr_C)]);
     mov(reg_D, ptr[param1 + GET_OFF(ptr_D)]);
+    mov(reg_BS, ptr[param1 + GET_OFF(BS)]);
+
     mov(reg_addr_batch, ptr[param1 + GET_OFF(batch)]);
 
     mov(reg_buf, ptr[param1 + GET_OFF(ptr_buf)]);
@@ -1092,6 +1098,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
 }
 
 void jit_brgemm_amx_uker_base_t::set_A_B_matrices(int bs) {
+    assert(brg.type == brgemm_addr);
     auto batch_offset = (size_t)bs * sizeof(brgemm_batch_element_t);
     if (brg.layout == brgemm_row_major) {
         mov(reg_aux_A,
@@ -1107,6 +1114,19 @@ void jit_brgemm_amx_uker_base_t::set_A_B_matrices(int bs) {
         mov(reg_aux_B,
                 EVEX_compress_addr(reg_addr_batch,
                         batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
+    }
+}
+
+void jit_brgemm_amx_uker_base_t::set_A_B_matrices() {
+    assert(brg.type == brgemm_addr);
+    assert(brg.brgattr.var_bs);
+
+    if (brg.layout == brgemm_row_major) {
+        mov(reg_aux_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+        mov(reg_aux_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+    } else {
+        mov(reg_aux_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+        mov(reg_aux_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
     }
 }
 
@@ -1419,14 +1439,42 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
         load_accumulators(bd_block2, ld_block2, is_ld_tail);
 
         if (brg.alpha != 0.f) {
-            for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
-                set_A_B_matrices(bs);
-                gemm_microkernel_amx(
-                        bs, bd_block2, ldb_ind, ld_block2, false, is_ld_tail);
+            if (brg.brgattr.var_bs) {
+                Label BS_loop_label, end_BS_loop_label;
 
-                if (brg.rdb_tail != 0) {
+                mov(reg_BS_loop, reg_BS);
+                cmp(reg_BS_loop, 0);
+                jz(end_BS_loop_label, T_NEAR);
+                mov(reg_aux1_batch, reg_addr_batch);
+
+                L_aligned(BS_loop_label, 64);
+                {
+                    set_A_B_matrices();
+                    add(reg_aux1_batch, sizeof(brgemm_batch_element_t));
+                    prefetcht0(ptr[reg_aux1_batch]);
+                    gemm_microkernel_amx(0, bd_block2, ldb_ind, ld_block2,
+                            false, is_ld_tail);
+
+                    if (brg.rdb_tail != 0) {
+                        gemm_microkernel_amx(0, bd_block2, ldb_ind, ld_block2,
+                                true, is_ld_tail);
+                    }
+                    dec(reg_BS_loop);
+                    cmp(reg_BS_loop, 0);
+                    jg(BS_loop_label, T_NEAR);
+                }
+                L(end_BS_loop_label);
+
+            } else {
+                for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
+                    set_A_B_matrices(bs);
                     gemm_microkernel_amx(bs, bd_block2, ldb_ind, ld_block2,
-                            true, is_ld_tail);
+                            false, is_ld_tail);
+
+                    if (brg.rdb_tail != 0) {
+                        gemm_microkernel_amx(bs, bd_block2, ldb_ind, ld_block2,
+                                true, is_ld_tail);
+                    }
                 }
             }
         }
@@ -1559,6 +1607,10 @@ void jit_brgemm_amx_uker_base_t::generate() {
     are_post_ops_applicable_ = one_of(true, brg.with_eltwise, brg.with_binary,
             brg.with_scales, brg.with_bias, brg.with_sum, brg.dt_d != brg.dt_c,
             has_zero_points);
+
+    //! 'maybe_pre_process_data' for 'is_bf32' uses 'bs' value,
+    //! so we can't support var_bs for is_bf32 for this moment
+    assert(IMPLICATION(brg.brgattr.var_bs, !brg.is_bf32));
 
     Label permute_index_table;
     if (brg.is_bf32) {
