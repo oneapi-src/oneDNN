@@ -313,10 +313,6 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    if (!(src.dims().size() == 4
-                && is_format(src, dnnl::memory::format_tag::acbd))) {
-        src = to_format_any(src);
-    }
     auto wei = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
     if (!(wei.dims().size() == 4
@@ -325,7 +321,6 @@ inline std::pair<dnnl::matmul::primitive_desc, bool> create_matmul_pd(
     }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
-    dst = to_format_any(dst);
 
     dnnl::matmul::primitive_desc pd;
     if (op->has_attr(op_attr::with_bias)
