@@ -2938,7 +2938,7 @@ TEST(OpSchema, MaxPoolDefaultAttribute) {
 
     const std::vector<int64_t> *vval {nullptr};
     tmp_op.get_attr<std::vector<int64_t>>(op_attr::dilations, &vval);
-    std::vector<int64_t> vector_value(1, DNNL_GRAPH_MAX_NDIMS);
+    std::vector<int64_t> vector_value(DNNL_GRAPH_MAX_NDIMS, 1);
     EXPECT_EQ(*vval, vector_value);
 }
 
@@ -2956,7 +2956,7 @@ TEST(OpSchema, MaxPoolBackpropDefaultAttribute) {
 
     const std::vector<int64_t> *vval {nullptr};
     tmp_op.get_attr<std::vector<int64_t>>(op_attr::dilations, &vval);
-    std::vector<int64_t> vector_value(1, DNNL_GRAPH_MAX_NDIMS);
+    std::vector<int64_t> vector_value(DNNL_GRAPH_MAX_NDIMS, 1);
     EXPECT_EQ(*vval, vector_value);
 
     tmp_op.get_attr<std::string>(op_attr::auto_pad, &sval);

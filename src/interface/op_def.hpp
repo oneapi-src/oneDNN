@@ -871,7 +871,7 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
                         "the distance in width and height between elements "
                         "in the filter",
                         false, attribute_kind::is,
-                        std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 1))
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
@@ -912,7 +912,7 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
                         "the distance in width and height between elements "
                         "in the filter",
                         false, attribute_kind::is,
-                        std::vector<int64_t>(1, DNNL_GRAPH_MAX_NDIMS))
+                        std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 1))
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
