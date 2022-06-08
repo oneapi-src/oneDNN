@@ -112,7 +112,8 @@
     _(DynamicDequantize) \
     _(Sign) \
     _(Negative) \
-    _(Reciprocal)
+    _(Reciprocal) \
+    _(LeakyReLU)
 
 #endif
 

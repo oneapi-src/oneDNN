@@ -103,6 +103,7 @@ const op_kind_t HardTanh = kHardTanh;
 const op_kind_t HardTanhBackprop = kHardTanhBackprop;
 const op_kind_t LayerNorm = kLayerNorm;
 const op_kind_t LayerNormBackprop = kLayerNormBackprop;
+const op_kind_t LeakyReLU = kLeakyReLU;
 const op_kind_t Log = kLog;
 const op_kind_t LogSoftmax = kLogSoftmax;
 const op_kind_t LogSoftmaxBackprop = kLogSoftmaxBackprop;

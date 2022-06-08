@@ -822,6 +822,7 @@ public:
         InterpolateBackprop = kInterpolateBackprop,
         LayerNorm = kLayerNorm,
         LayerNormBackprop = kLayerNormBackprop,
+        LeakyReLU = kLeakyReLU,
         Log = kLog,
         LogSoftmax = kLogSoftmax,
         LogSoftmaxBackprop = kLogSoftmaxBackprop,
