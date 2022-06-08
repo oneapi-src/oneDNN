@@ -150,6 +150,7 @@ private:
 
     bool are_post_ops_applicable_ = false;
     bool need_to_apply_alpha_beta_ = false;
+    bool may_load_accumulators_ = false;
 
     bool handle_binary_po_offset_ = false;
     bool with_binary_per_oc_bcast_ = false;
@@ -250,7 +251,8 @@ private:
             Xbyak::Opmask ktail_mask);
 
     void read_params();
-    void load_accumulators(int bd_block2, int ld_block, bool is_ld_tail);
+    void load_accumulators(
+            int bd_block2, int ld_block, bool is_ld_tail, int ldb_ind);
 
     void maybe_saturation(Xbyak::Zmm &zmm);
     void apply_alpha_beta_to_vector(
@@ -278,9 +280,8 @@ private:
     void prefetch_output_data(int ldb_ind, int bd_block2, int ld_block2);
     void interleave_store(bool store_all);
 
-    void store_accumulators(int bd_block2, int ld_block, int l_step,
-            bool is_ld_tail, size_t c_offset, size_t d_offset, int ldb_ind,
-            bool apply_post_ops);
+    void store_accumulators(int bd_block2, int ld_block, bool is_ld_tail,
+            int ldb_ind, bool apply_post_ops);
 
     void set_A_B_matrices(int bs);
     void set_A_B_matrices();
@@ -516,13 +517,26 @@ void jit_brgemm_amx_uker_base_t::read_params() {
 }
 
 void jit_brgemm_amx_uker_base_t::load_accumulators(
-        int bd_block2, int ld_block2, bool is_ld_tail) {
+        int bd_block2, int ld_block2, bool is_ld_tail, int ldb_ind) {
+    assert(IMPLICATION(is_ld_tail, ld_block2 == 1));
+    if (may_load_accumulators_) mov(reg_stride_ld_block, LDC_size_);
+
+    int bd_inp_bdb = inp_bd_;
+
     for (int bdb = 0; bdb < bd_block2; bdb++) {
-        if (is_ld_tail)
-            tilezero(Tmm(brg.get_C_tensor(bdb, brg.ld_block2)));
-        else
-            for (int ldb = 0; ldb < ld_block2; ldb++)
-                tilezero(Tmm(brg.get_C_tensor(bdb, ldb)));
+        for (int ldb = 0; ldb < ld_block2; ldb++) {
+            int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
+            if (may_load_accumulators_) {
+                const auto bd_out_bdb = get_out_bd(bd_inp_bdb, 0);
+                const auto c_offset = C_offset(bd_out_bdb, ldb_ind + ldb);
+                tileloadd(Tmm(brg.get_C_tensor(bdb, idx)),
+                        ptr[reg_C + c_offset + reg_stride_ld_block]);
+            } else {
+                tilezero(Tmm(brg.get_C_tensor(bdb, idx)));
+            }
+        }
+        bd_inp_bdb += brg.bd_block;
+        bd_inp_bdb = skipped_bd_mask(bd_inp_bdb);
     }
 }
 
@@ -1025,8 +1039,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(bool store_all) {
 }
 
 void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
-        int ld_block2, int l_step, bool is_ld_tail, size_t c_offset,
-        size_t d_offset, int ldb_ind, bool apply_post_ops) {
+        int ld_block2, bool is_ld_tail, int ldb_ind, bool apply_post_ops) {
 
     const bool need_to_apply_post_ops
             = are_post_ops_applicable_ && apply_post_ops;
@@ -1436,7 +1449,8 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
 
         const auto l_ldb_ind = l_ldb * (is_ld_tail ? brg.ldb_tail : ld_block2);
 
-        load_accumulators(bd_block2, ld_block2, is_ld_tail);
+        load_accumulators(
+                bd_block2, ld_block2, is_ld_tail, ldb_ind + l_ldb_ind);
 
         if (brg.alpha != 0.f) {
             if (brg.brgattr.var_bs) {
@@ -1478,8 +1492,8 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(int bd_block2, int ld_block2,
                 }
             }
         }
-        store_accumulators(bd_block2, ld_block2, l_ldb, is_ld_tail, l_c_offset,
-                l_d_offset, ldb_ind + l_ldb_ind, apply_post_ops);
+        store_accumulators(bd_block2, ld_block2, is_ld_tail,
+                ldb_ind + l_ldb_ind, apply_post_ops);
 
         b_offset_ += (is_ld_tail) ? ldb_B_offset(1, true)
                                   : ldb_B_offset(ld_block2);
@@ -1601,7 +1615,11 @@ void jit_brgemm_amx_uker_base_t::generate() {
     ldb_tail_D_size_ = brg.typesize_D * brg.ldb_tail;
     ldb_tail_zp_size_ = sizeof(int32_t) * brg.ldb_tail;
 
-    need_to_apply_alpha_beta_ = brg.beta != 0.f || brg.alpha != 1.f;
+    // if beta == 1 and C datatype is f32 it is better to perform addition by
+    // reading tiles directly from C instead of by reading/writing by vectors
+    may_load_accumulators_ = (brg.beta == 1.f && brg.dt_c == data_type::f32);
+    need_to_apply_alpha_beta_
+            = (brg.beta != 0.f && !may_load_accumulators_) || brg.alpha != 1.f;
     const bool has_zero_points = !everyone_is(brgemm_broadcast_t::none,
             brg.zp_type_a, brg.zp_type_b, brg.zp_type_c);
     are_post_ops_applicable_ = one_of(true, brg.with_eltwise, brg.with_binary,
