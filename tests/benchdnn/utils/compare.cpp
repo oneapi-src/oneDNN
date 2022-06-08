@@ -117,7 +117,6 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
     const auto dt = got_mem.dt();
 
-    int64_t zeros = 0;
     diff_norm_t diff_norm;
     const bool need_dump = verbose >= 99;
     for (int64_t i = 0; i < nelems; ++i) {
@@ -136,8 +135,6 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         } else {
             diff_norm.update(args.exp, args.got);
         }
-
-        if (fabsf(args.got) == 0) zeros++;
 
         if (need_dump)
             dump_point_values(got_mem.md_, kind_, i, args.exp_f32, args.exp,

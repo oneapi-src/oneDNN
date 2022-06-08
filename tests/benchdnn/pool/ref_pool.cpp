@@ -42,7 +42,6 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
         float avg_value = 0.;
         // Set initial value based on ws data type
         int ws_off = prb->kernel_size() <= UINT8_MAX ? UINT8_MAX : INT_MAX;
-        int num_summands = 0;
 
         for (int64_t kd = 0; kd < KD; ++kd) {
             const int64_t id = od * SD - PD + kd * (DD + 1);
@@ -60,7 +59,6 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
                         ws_off = ker_off_f(prb, kd, kh, kw);
                     }
                     avg_value += s;
-                    num_summands++;
                 }
             }
         }
