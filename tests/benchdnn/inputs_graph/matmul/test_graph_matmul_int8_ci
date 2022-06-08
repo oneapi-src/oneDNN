@@ -26,7 +26,7 @@
 # int8 post relu with scale
 --reset
 --cfg=u8s8u8
---attr-post-ops=relu:0:0:1.2 16x512:512x256:16x256
+--attr-post-ops=relu:0:0:1.2,relu:0.25:0:1.2 16x512:512x256:16x256
 
 # x8s8f32 cases
 --reset

@@ -106,7 +106,7 @@ void check_graph_eltwise_params(res_t *res,
     using alg_t = attr_t::post_ops_t::kind_t;
 
     constexpr float eps = 1.0e-05;
-    if (alg == alg_t::RELU || alg == alg_t::RELU_DST) {
+    if (alg == alg_t::RELU_DST) {
         const float expected_alpha = 0.0;
         if (std::fabs(expected_alpha - alpha) > eps) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -314,6 +314,12 @@ std::map<std::string, float> convert_eltw_entry(
     std::map<std::string, float> attrs;
     // all options could be easily added later
     switch (op_kind) {
+        case graph_op::ReLU: {
+            // provide alpha for LeakyReLU
+            if (entry.eltwise.alpha != 0.f)
+                attrs["alpha"] = entry.eltwise.alpha;
+            return attrs;
+        }
         case graph_op::Elu: attrs["alpha"] = entry.eltwise.alpha; return attrs;
         case graph_op::HardTanh:
             attrs["min"] = entry.eltwise.alpha;
@@ -588,8 +594,7 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(graph_prb_t &p,
             = allow_swish_fuse && po_entry.eltwise.alg == dnnl_eltwise_swish;
     if (requested_post_op_kind == op::kind::LastSymbol && !is_swish)
         return fill_status::UNSUPPORTED_OP;
-    const auto post_op_kind
-            = (is_swish) ? op::kind::Sigmoid : requested_post_op_kind;
+    auto post_op_kind = (is_swish) ? op::kind::Sigmoid : requested_post_op_kind;
 
     const auto &dst_lt = p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"];
     const auto dst_dims = dst_lt.get_dims();
@@ -603,14 +608,23 @@ fill_status_t po_handlers_t::eltwise_po_handler_t::operator()(graph_prb_t &p,
     BENCHDNN_EXTENSION_EMPLACE_TENSOR_DESC(
             p.tensor_descs_, ELT_DST, dst_dt, dst_dims, dst_lt);
 
+    const auto attrs = convert_eltw_entry(post_op_kind, po_entry);
+    if (po_entry.eltwise.alg == dnnl_eltwise_relu
+            && attrs.count("alpha") != 0) {
+        if (attrs.at("alpha") != 0.f) {
+            // here it should be LeakyReLU
+            post_op_kind = op::kind::LeakyReLU;
+        }
+    }
+
     op eltwise(new_op_id, post_op_kind,
             {p.tensor_descs_[p.curr_out_map_ids_.back() + "_DST"]},
             {p.tensor_descs_[ELT_DST]}, "eltwise");
 
-    const auto attrs = convert_eltw_entry(post_op_kind, po_entry);
     for (const auto &kv : attrs) {
         eltwise.set_attr(kv.first, kv.second);
     }
+
     if (po_entry.eltwise.alg == dnnl_eltwise_soft_relu) {
         eltwise.set_attr("beta", static_cast<int64_t>(1));
     } else if (po_entry.eltwise.alg == dnnl_eltwise_logsigmoid) {
@@ -716,7 +730,7 @@ fill_status_t po_handlers_t::sum_po_handler_t::operator()(graph_prb_t &p) {
 
 fill_status_t append_graph_with_eltwise(
         const attr_t::post_ops_t::entry_t &eltw_entry) {
-    const auto eltw_op_kind = convert_alg_kind(eltw_entry.eltwise.alg);
+    auto eltw_op_kind = convert_alg_kind(eltw_entry.eltwise.alg);
     if (eltw_op_kind == dnnl::graph::op::kind::LastSymbol)
         return fill_status::UNSUPPORTED_OP;
 
@@ -729,6 +743,13 @@ fill_status_t append_graph_with_eltwise(
     graph.create_lt(dst_id, graph.get_lt(src_id));
 
     const auto attrs = convert_eltw_entry(eltw_op_kind, eltw_entry);
+    if (eltw_entry.eltwise.alg == dnnl_eltwise_relu
+            && attrs.count("alpha") != 0) {
+        if (attrs.at("alpha") != 0.f) {
+            // here it should be LeakyReLU
+            eltw_op_kind = dnnl::graph::op::kind::LeakyReLU;
+        }
+    }
 
     dnnl::graph::op eltw_op(op_id, eltw_op_kind, graph.stringify_id(op_id));
     for (const auto &kv : attrs)

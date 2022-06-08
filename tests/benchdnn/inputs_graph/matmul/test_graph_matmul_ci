@@ -18,7 +18,7 @@
 
 # post eltwise
 --reset
---attr-post-ops=logistic 384x4096:4096x1024:384x1024
+--attr-post-ops=logistic,relu,relu:0.25 384x4096:4096x1024:384x1024
 
 # post sum+eltwise
 --reset
