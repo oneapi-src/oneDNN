@@ -887,8 +887,6 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
 
     const memory_tracking::grantor_t scratchpad;
 
-    char *buffer_a = nullptr;
-    char *buffer_b = nullptr;
     char *buffer_c = nullptr;
     char *buffer_bias = nullptr;
     char *wsp_tile_base = nullptr;
@@ -925,10 +923,61 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
                 ? scratchpad.template get<char>(key_iprod_bias_bf16_convert_wsp)
                 : nullptr;
 
-        buffer_a = scratchpad.template get<char>(key_brgemm_primitive_buffer_a);
-        buffer_b = jbgp.use_buffer_b
+        buffer_a_
+                = scratchpad.template get<char>(key_brgemm_primitive_buffer_a);
+        buffer_b_ = jbgp.use_buffer_b
                 ? scratchpad.template get<char>(key_brgemm_primitive_buffer_b)
                 : nullptr;
+
+        thread_local_input_buffers_
+                = jbgp.ip_bwd_w_local_buffers_for_input_tensors;
+        int ic_chunks = utils::div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
+        int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+        nb_ic_blocking_ = jbgp.nb_ic_blocking;
+        nb_oc_blocking_ = jbgp.nb_oc_blocking;
+        const size_t os_chunks_per_thr = utils::div_up(os_chunks, jbgp.nthr_mb);
+        const size_t num_os_chunks_per_thread
+                = thread_local_input_buffers_ ? 1 : os_chunks_per_thr;
+
+        if (jbgp.use_buffer_a) {
+            const size_t src_dt = types::data_type_size(jbgp.src_dt);
+            const size_t ic_chunks_per_thr
+                    = utils::div_up(ic_chunks, jbgp.nthr_ic_b);
+            const size_t num_ic_chunks_per_thread
+                    = thread_local_input_buffers_ ? 1 : ic_chunks_per_thr;
+            const size_t block_A_size = src_dt * jbgp.LDA * jbgp.M;
+            const size_t os_chunk_A_buffer
+                    = jbgp.gemm_batch_size * block_A_size;
+            const size_t ic_os_chunk_A_buffer
+                    = jbgp.nb_ic_blocking * os_chunk_A_buffer;
+
+            buffer_a_icb_shift_ = os_chunk_A_buffer;
+            buffer_a_osb_shift_ = block_A_size;
+            buffer_a_osc_shift_ = thread_local_input_buffers_
+                    ? 0
+                    : ic_chunks_per_thr * ic_os_chunk_A_buffer;
+            const size_t buffer_a_thread_shift = num_ic_chunks_per_thread
+                    * num_os_chunks_per_thread * ic_os_chunk_A_buffer;
+
+            buffer_a_ = buffer_a_ + ithr * buffer_a_thread_shift;
+        }
+
+        if (jbgp.use_buffer_b) {
+            const size_t dst_dt = types::data_type_size(jbgp.dst_dt);
+            const size_t block_B_size = dst_dt * jbgp.LDB * jbgp.K;
+            const size_t os_chunk_B_buffer
+                    = jbgp.gemm_batch_size * block_B_size;
+            buffer_b_ocb_shift_ = dst_dt * jbgp.oc_block
+                    * data_type_vnni_granularity(jbgp.dst_dt);
+            buffer_b_osb_shift_ = block_B_size;
+            buffer_b_osc_shift_
+                    = thread_local_input_buffers_ ? 0 : os_chunk_B_buffer;
+
+            const size_t buffer_b_thread_shift
+                    = num_os_chunks_per_thread * os_chunk_B_buffer;
+
+            buffer_b_ = buffer_b_ + ithr * buffer_b_thread_shift;
+        }
 
         wsp_tile_base = is_amx
                 ? ctx.get_scratchpad_grantor().template get<char>(
@@ -945,8 +994,6 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
         ithr_os_c = ithr / nthr_ic_c / nthr_oc_c;
 
         int oc_chunks = utils::div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
-        int ic_chunks = utils::div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
-        int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
 
         /* reduction dimension */
         balance211(os_chunks, nthr_os_c, ithr_os_c, os_c_start, os_c_end);
@@ -962,6 +1009,45 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
             barrier_ctx = scratchpad.template get<simple_barrier::ctx_t>(
                     key_conv_wei_bia_reduction_bctx);
     }
+
+    char *get_buffer_a_ptr(int icb, int osc) const {
+        if (!buffer_a_) return (char *)nullptr;
+
+        const int icb_idx = thread_local_input_buffers_
+                ? icb % nb_ic_blocking_
+                : icb - ic_c_start * nb_ic_blocking_;
+        const int osc_idx = thread_local_input_buffers_ ? 0 : osc - os_c_start;
+
+        return buffer_a_ + osc_idx * buffer_a_osc_shift_
+                + icb_idx * buffer_a_icb_shift_;
+    }
+
+    char *get_buffer_b_ptr(int ocb, int osc) const {
+        if (!buffer_b_) return (char *)nullptr;
+
+        const int ocb_idx = ocb % nb_oc_blocking_;
+        const int osc_idx = thread_local_input_buffers_ ? 0 : osc - os_c_start;
+
+        return buffer_b_ + osc_idx * buffer_b_osc_shift_
+                + ocb_idx * buffer_b_ocb_shift_;
+    }
+
+    size_t get_buffer_a_osb_shift() const { return buffer_a_osb_shift_; }
+    size_t get_buffer_b_osb_shift() const { return buffer_b_osb_shift_; }
+
+private:
+    char *buffer_a_ = nullptr;
+    char *buffer_b_ = nullptr;
+
+    bool thread_local_input_buffers_ = false;
+    int nb_ic_blocking_ = 1;
+    int nb_oc_blocking_ = 1;
+    size_t buffer_a_icb_shift_ = 0;
+    size_t buffer_a_osc_shift_ = 0;
+    size_t buffer_a_osb_shift_ = 0;
+    size_t buffer_b_ocb_shift_ = 0;
+    size_t buffer_b_osc_shift_ = 0;
+    size_t buffer_b_osb_shift_ = 0;
 };
 
 template <cpu_isa_t isa>
@@ -1151,77 +1237,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         }
     };
 
-    const auto get_buffer_a_ptr = [&](int icb, int osb) {
-        if (!jbgp.use_buffer_a || !ti->buffer_a) return (char *)nullptr;
-        if (jbgp.ip_bwd_w_local_buffers_for_input_tensors) {
-            const size_t src_dt = types::data_type_size(jbgp.src_dt);
-
-            const size_t block_buffer_size = src_dt * jbgp.LDA * jbgp.M;
-            const size_t os_chunk_buffer_size
-                    = jbgp.gemm_batch_size * block_buffer_size;
-            const size_t num_elems_per_thread
-                    = os_chunk_buffer_size * jbgp.nb_ic_blocking;
-            return ti->buffer_a + ti->ithr * num_elems_per_thread
-                    + (icb % jbgp.nb_ic_blocking) * os_chunk_buffer_size
-                    + (osb % jbgp.gemm_batch_size) * block_buffer_size;
-        } else {
-            const int size_A = jbgp.LDA * jbgp.M;
-            dim_t os_chunks_per_thr = utils::div_up(os_chunks, jbgp.nthr_mb);
-            int ic_chunks = utils::div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
-            dim_t ic_chunks_per_thr = utils::div_up(ic_chunks, jbgp.nthr_ic_b);
-
-            int osc_l_idx = osb / jbgp.gemm_batch_size - ti->os_c_start;
-            int icb_l_idx = icb - ti->ic_c_start * jbgp.nb_ic_blocking;
-            dim_t a_buf_idx
-                    = osc_l_idx * ic_chunks_per_thr * jbgp.nb_ic_blocking
-                    + icb_l_idx;
-
-            char *a_buffer = ti->buffer_a
-                    + types::data_type_size(jbgp.src_dt)
-                            * ((ti->ithr * os_chunks_per_thr * ic_chunks_per_thr
-                                               * jbgp.nb_ic_blocking
-                                       + a_buf_idx)
-                                    * jbgp.gemm_batch_size * jbgp.os_block
-                                    * jbgp.ic_block);
-            return a_buffer
-                    + types::data_type_size(jbgp.src_dt)
-                    * (osb % jbgp.gemm_batch_size) * size_A;
-        }
-    };
-
-    const auto get_buffer_b_ptr = [&](int ocb, int osb) {
-        if (!jbgp.use_buffer_b || !ti->buffer_b) return (char *)nullptr;
-        if (jbgp.ip_bwd_w_local_buffers_for_input_tensors) {
-            const size_t dst_dt = types::data_type_size(jbgp.dst_dt);
-            const size_t block_buffer_size = dst_dt * jbgp.LDB * jbgp.M;
-            const size_t os_chunk_buffer_size
-                    = jbgp.gemm_batch_size * block_buffer_size;
-            const size_t num_elems_per_thread = os_chunk_buffer_size;
-            const int ocb_idx = ocb % jbgp.nb_oc_blocking;
-            const int osb_idx = osb % jbgp.gemm_batch_size;
-            const size_t ocb_shift = dst_dt * ocb_idx * jbgp.oc_block
-                    * data_type_vnni_granularity(jbgp.dst_dt);
-            return ti->buffer_b + ti->ithr * num_elems_per_thread
-                    + osb_idx * block_buffer_size + ocb_shift;
-        } else {
-            int osc_l_idx = osb / jbgp.gemm_batch_size - ti->os_c_start;
-            int ocb_l_idx = ocb - ti->oc_c_start * jbgp.nb_oc_blocking;
-            int b_buf_idx = osc_l_idx;
-
-            const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
-            dim_t os_chunks_per_thr = utils::div_up(os_chunks, jbgp.nthr_mb);
-            char *b_buffer = ti->buffer_b
-                    + types::data_type_size(jbgp.dst_dt)
-                            * ((ti->ithr * os_chunks_per_thr + b_buf_idx)
-                                            * jbgp.gemm_batch_size
-                                            * jbgp.os_block * jbgp.LDB
-                                    + (ocb_l_idx % jbgp.nb_oc_blocking)
-                                            * jbgp.oc_block);
-            return b_buffer
-                    + types::data_type_size(jbgp.dst_dt)
-                    * (osb % jbgp.gemm_batch_size) * size_B;
-        }
-    };
+    const auto a_buf_osb_shift = ti->get_buffer_a_osb_shift();
+    const auto b_buf_osb_shift = ti->get_buffer_b_osb_shift();
 
     const auto ker = [&](const int osc, const int icb, const int ocb,
                              const int osc_prev, const int icc_prev,
@@ -1235,6 +1252,11 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
         int oc = ocb * jbgp.oc_block;
         int osb = osc * jbgp.nb_os_blocking;
         int n = osb * jbgp.os_block;
+
+        // Base buffer pointers for the current kernel iteration,
+        // x_buf_osb_shift values are used for shifting wrt osb iter variable
+        char *a_buffer = ti->get_buffer_a_ptr(icb, osc);
+        char *b_buffer = ti->get_buffer_b_ptr(ocb, osc);
 
         bool kernel_init = (osc == ti->os_c_start);
 
@@ -1286,8 +1308,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                 auto src_ptr = ti->src
                         + types::data_type_size(jbgp.src_dt)
                                 * src_d.blk_off(n, ic);
-                transform_matrix_a_chunk(get_buffer_a_ptr(icb, osb), src_ptr,
-                        nb_os_b,
+
+                transform_matrix_a_chunk(a_buffer, src_ptr, nb_os_b,
                         is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
                         jbgp.os_block);
             }
@@ -1296,19 +1318,19 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                 auto diff_dst_ptr = diff_dst
                         + types::data_type_size(jbgp.dst_dt)
                                 * diff_dst_d.blk_off(n, oc);
-                transform_matrix_b_chunk(get_buffer_b_ptr(ocb, osb),
-                        diff_dst_ptr, nb_os_b, curr_oc_chunk_sz, jbgp.os_block);
+                transform_matrix_b_chunk(b_buffer, diff_dst_ptr, nb_os_b,
+                        curr_oc_chunk_sz, jbgp.os_block);
             }
 
             for (int os_block = 0; os_block < nb_os_b; os_block++) {
-                auto a_ptr = get_buffer_a_ptr(icb, osb + os_block);
+                auto a_ptr = a_buffer + os_block * a_buf_osb_shift;
                 addr_batch[os_block].ptr.A = a_ptr;
                 auto diff_dst_ptr = diff_dst
                         + types::data_type_size(jbgp.dst_dt)
                                 * diff_dst_d.blk_off(
                                         n + os_block * jbgp.os_block, oc);
                 if (jbgp.use_buffer_b) {
-                    auto b_ptr = get_buffer_b_ptr(ocb, osb + os_block);
+                    auto b_ptr = b_buffer + os_block * b_buf_osb_shift;
                     addr_batch[os_block].ptr.B = b_ptr;
                 } else {
                     addr_batch[os_block].ptr.B = diff_dst_ptr;
@@ -1335,7 +1357,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
 
         if (is_os_tail) {
             int os_block = nb_os_b;
-            auto a_ptr = get_buffer_a_ptr(icb, osb + os_block);
+            auto a_ptr = a_buffer + os_block * a_buf_osb_shift;
 
             if (transform_a) {
                 const memory_desc_wrapper src_d(pd()->src_md());
@@ -1354,7 +1376,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                             * diff_dst_d.blk_off(
                                     n + os_block * jbgp.os_block, oc);
             if (jbgp.use_buffer_b) {
-                auto b_ptr = get_buffer_b_ptr(ocb, osb + os_block);
+                auto b_ptr = b_buffer + os_block * b_buf_osb_shift;
 
                 if (transform_b)
                     transform_matrix_b_chunk(b_ptr, diff_dst_ptr, 1,
