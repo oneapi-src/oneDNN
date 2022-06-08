@@ -115,7 +115,8 @@ TEST(api_op, create_all_ops) {
             op::kind::DynamicDequantize,
             op::kind::Sign,
             op::kind::Negative,
-            op::kind::Reciprocal
+            op::kind::Reciprocal,
+            op::kind::LeakyReLU
     };
     // clang-format on
 
