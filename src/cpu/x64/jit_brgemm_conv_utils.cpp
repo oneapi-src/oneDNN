@@ -25,6 +25,7 @@
 
 #include "cpu/platform.hpp"
 #include "cpu/x64/brgemm/brgemm_utils.hpp"
+#include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
@@ -1600,6 +1601,14 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp = zero<decltype(jcp)>();
     jcp.isa = isa;
+
+    if (is_amx(isa)) {
+        int max_palette = amx::get_max_palette();
+        if (amx::get_max_tiles(max_palette) != 8
+                || amx::get_max_rows(max_palette) != 16)
+            return status::unimplemented;
+    }
+
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -1645,12 +1654,12 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             && jcp.b_pad <= 0 && jcp.l_pad <= 0 && jcp.r_pad <= 0
             && utils::everyone_is(1, jcp.kd, jcp.kh, jcp.kw);
 
-    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
+    jcp.with_bias = bias_md.format_kind != format_kind::undef;
 
-    jcp.src_dt = cd.src_desc.data_type;
-    jcp.dst_dt = cd.dst_desc.data_type;
-    jcp.wei_dt = cd.weights_desc.data_type;
-    jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
+    jcp.src_dt = src_md.data_type;
+    jcp.dst_dt = dst_md.data_type;
+    jcp.wei_dt = weights_md.data_type;
+    jcp.bia_dt = jcp.with_bias ? bias_md.data_type : data_type::undef;
 
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
             && attr.fpmath_mode_ == fpmath_mode::bf16
@@ -1664,8 +1673,9 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (is_depthwise) return status::unimplemented;
 
     // TODO: optimize grouped convolutions with small ic
-    const bool is_grouped_small_ic = with_groups && jcp.ngroups > 1
-            && jcp.ic <= 16
+    const bool is_grouped_small_ic
+            = jcp.prop_kind != prop_kind::backward_weights && with_groups
+            && jcp.ngroups > 1 && jcp.ic <= 16
             && IMPLICATION(is_amx(jcp.isa),
                     jcp.ic < 16
                             && jcp.oc < 16
@@ -1715,11 +1725,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const int binary_ind = p.find(primitive_kind::binary);
     jcp.with_binary = binary_ind != -1;
 
-    if (jcp.with_bias) {
-        if (bias_d.format_kind() == format_kind::any)
-            CHECK(memory_desc_init_by_tag(bias_md, x));
-    }
-
     jcp.src_zero_point
             = get_zp_type(attr, DNNL_ARG_SRC) != brgemm_broadcast_t::none;
     jcp.dst_zero_point
@@ -1752,15 +1757,25 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_default;
     jcp.brgemm_bd_loop_innermost = false;
 
-    // fast check data layout before spending time for blocking selection
-    format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
-    const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
-            || jcp.wei_dt == data_type::s8 || is_amx(jcp.isa));
-    CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
+    if (jcp.prop_kind != prop_kind::backward_weights) {
+        // fast check data layout before spending time for blocking selection
+        format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
+        const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
+                || jcp.wei_dt == data_type::s8 || is_amx(jcp.isa));
+        CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
+    }
+    if (jcp.with_bias) {
+        if (bias_d.format_kind() == format_kind::any)
+            CHECK(memory_desc_init_by_tag(bias_md, x));
+    }
 
     const auto ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
     jcp.is_ic_padded = !jcp.is_1x1 && one_of(jcp.wei_dt, bf16, s8)
             && jcp.ic * jcp.kw_sets > ic_padded_block && is_amx(isa);
+
+    jcp.idp = jcp.id + jcp.f_pad + jcp.back_pad;
+    jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
+    jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
     return status::success;
 }
@@ -1808,10 +1823,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         if (jcp.dilate_d > 0 || jcp.dilate_h > 0 || jcp.dilate_w > 0)
             return status::unimplemented;
     }
-
-    jcp.idp = jcp.id + jcp.f_pad + jcp.back_pad;
-    jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
-    jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
     using namespace data_type;
     // ======================= blocking =================================
@@ -2262,6 +2273,463 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_brgemm_primitive_zp_comp_a, jcp.comp_a_buffer_size,
                 sizeof(int32_t), 0, P4K);
     }
+}
+
+void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
+
+    auto balance = [=](int &nthr_, int &nthr_mb_, int &nthr_g_, int &nthr_oc_b_,
+                           int &nthr_ic_b_) {
+        nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
+
+        if (jcp.nthr < jcp.ngroups) {
+            /* simplification... fortunately it doesn't hurt much */
+            nthr_ = nthr_g_ = jcp.nthr;
+            return;
+        }
+
+        nthr_g_ = jcp.ngroups;
+        const int nthr = jcp.nthr / nthr_g_;
+
+        auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+            /* calculate per thread memory cost (read/write). high level
+            * optimizer tries to minimize memory consumption. few notes:
+            *  (n1) if weights tensor size is less than source and destination
+            *       tensors we apply the ratio of the source and destination
+            *       tensor sizes to weights one as compensation coefficient to
+            *       avoid parallelization across batch size only, otherwise we
+            *       apply additional coefficient to source component based on
+            *       performance measurements
+            *  (n2) use scales based on output vs input channels ratio for
+            *       source and destination components to improve threading
+            *       balance across input and output channels */
+
+            const dim_t src_type_size = 2;
+            const dim_t wei_type_size = 4;
+
+            dim_t src_size = (dim_t)jcp.mb * jcp.ic * jcp.id * jcp.ih
+                    * jcp.tr_iw * src_type_size;
+            dim_t dst_size = (dim_t)jcp.mb * jcp.oc * jcp.od * jcp.oh
+                    * jcp.tr_ow * src_type_size;
+            dim_t wei_size = (dim_t)jcp.oc * jcp.ic * jcp.kd * jcp.kh * jcp.kw
+                    * wei_type_size;
+
+            float wei_compensation_scale
+                    = 0.5f * (dst_size + src_size) / wei_size;
+            float oi_channels_ratio = (float)(jcp.nb_oc / jcp.nb_oc_blocking)
+                    / (jcp.nb_ic / jcp.nb_ic_blocking);
+            auto get_src_coef = [=]() {
+                float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
+                if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
+
+                return src_coef;
+            };
+
+            auto get_dst_coef
+                    = [=]() { return nstl::max(oi_channels_ratio, 1.0f); };
+
+            auto get_wei_coef
+                    = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
+
+            const float src_coef = get_src_coef();
+            const float dst_coef = get_dst_coef();
+            const float wei_coef = get_wei_coef();
+
+            float src_v = src_coef * div_up(jcp.nthr_mb_work, nthr_mb)
+                    * div_up(jcp.ngroups, nthr_g_)
+                    * div_up((jcp.nb_ic / jcp.nb_ic_blocking), nthr_ic_b)
+                    * jcp.mb * (jcp.ic_block * jcp.nb_ic_blocking) * jcp.id
+                    * jcp.ih * jcp.tr_iw / jcp.nthr_mb_work / jcp.stride_d
+                    / jcp.stride_h / jcp.stride_w;
+            float wei_v = wei_coef * div_up(jcp.ngroups, nthr_g_)
+                    * div_up((jcp.nb_oc / jcp.nb_oc_blocking),
+                            (jcp.oc_block * jcp.nb_oc_blocking) * nthr_oc_b)
+                    * div_up((jcp.nb_ic / jcp.nb_ic_blocking), nthr_ic_b)
+                    * jcp.kh * jcp.kw * jcp.kd
+                    * (jcp.ic_block * jcp.nb_ic_blocking)
+                    * (jcp.oc_block * jcp.nb_oc_blocking);
+            float dst_v = dst_coef * div_up(jcp.nthr_mb_work, nthr_mb)
+                    * div_up(jcp.ngroups, nthr_g_)
+                    * div_up((jcp.nb_oc / jcp.nb_oc_blocking),
+                            (jcp.oc_block * jcp.nb_oc_blocking) * nthr_oc_b)
+                    * jcp.mb * (jcp.oc_block * jcp.nb_oc_blocking) * jcp.od
+                    * jcp.oh * jcp.tr_ow / jcp.nthr_mb_work;
+
+            return src_v + dst_v + wei_v;
+        };
+
+        float best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+
+        /* find the best thread distribution with lowest memory cost */
+
+        const int nthr_mb_max = nstl::min(nthr, jcp.nthr_mb_work);
+        for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+            const int nthr_par = nthr / nthr_mb;
+            const int nthr_oc_b_max = nstl::min(nthr_par,
+                    (jcp.nb_oc / jcp.nb_oc_blocking)); // Amount of nb_oc_blocks
+            for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+                int nthr_ic_b = nstl::min(
+                        nthr_par / nthr_oc_b, (jcp.nb_ic / jcp.nb_ic_blocking));
+
+                float mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+                if (mem_cost <= best_mem_cost) {
+                    best_mem_cost = mem_cost;
+                    nthr_mb_ = nthr_mb;
+                    nthr_oc_b_ = nthr_oc_b;
+                    nthr_ic_b_ = nthr_ic_b;
+                }
+            }
+        }
+
+        if (nthr_mb_ > nthr / 2 && nthr_mb_ < nthr)
+            nthr_mb_ = nstl::min(jcp.nthr_mb_work, nthr);
+        nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
+
+        assert(nthr_ <= jcp.nthr);
+    };
+    int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+    balance(nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b);
+    jcp.nthr = nthr;
+    jcp.nthr_mb = nthr_mb;
+    jcp.nthr_g = nthr_g;
+    jcp.nthr_oc_b = nthr_oc_b;
+    jcp.nthr_ic_b = nthr_ic_b;
+
+    // TODO: Optimize memory allocation when threaded on height and depth
+    jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih * jcp.id;
+    jcp.tr_src_buf_count = jcp.global_transpose
+            ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups
+            : jcp.nthr;
+
+    jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
+    jcp.tr_diff_dst_buf_count = jcp.global_transpose
+            ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
+            : jcp.nthr;
+}
+
+status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
+        const convolution_desc_t &cd, memory_desc_t &src_md,
+        memory_desc_t &diff_weights_md, memory_desc_t &diff_bias_md,
+        memory_desc_t &diff_dst_md, primitive_attr_t &attr, int nthreads) {
+
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper diff_weights_d(&diff_weights_md);
+    const memory_desc_wrapper diff_dst_d(&diff_dst_md);
+    const memory_desc_wrapper diff_bias_d(&diff_bias_md);
+
+    if (!mayiuse(avx512_core_bf16_amx_bf16)) return status::unimplemented;
+    jcp.isa = avx512_core_bf16_amx_bf16;
+
+    const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
+    int ndims = src_d.ndims();
+
+    CHECK(init_jcp(jcp, jcp.isa, cd, src_md, diff_weights_md, diff_dst_md,
+            diff_bias_md, attr, nthreads));
+
+    jcp.has_vnni = true; // Needed for transpose routines
+
+    jcp.typesize_in = sizeof(bfloat16_t);
+    jcp.typesize_out = sizeof(float);
+
+    bool ok = true
+            // general condition to simplify dilations
+            && IMPLICATION(jcp.dilate_d != 0, jcp.stride_d == 1)
+            && IMPLICATION(jcp.dilate_h != 0, jcp.stride_h == 1)
+            && IMPLICATION(jcp.dilate_w != 0, jcp.stride_w == 1)
+            // special condition to simplify dilations in compute_oh_loop_common
+            && IMPLICATION(jcp.dilate_h != 0, jcp.ext_kh <= jcp.ih);
+    if (!ok) return status::unimplemented;
+
+    ok = true && one_of(ndims, 3, 4, 5)
+            && everyone_is(
+                    data_type::bf16, src_d.data_type(), diff_dst_d.data_type())
+            && one_of(diff_weights_d.data_type(), data_type::f32,
+                    data_type::bf16);
+    if (!ok) return status::unimplemented;
+
+    jcp.transform_to_vnni = diff_weights_d.data_type() == data_type::bf16;
+
+    /* XXX: no support for padding when dilation_d > 0 */
+    if (!IMPLICATION(jcp.dilate_d > 0, everyone_is(0, jcp.back_pad, jcp.f_pad)))
+        return status::unimplemented;
+
+    const bool is_depthwise = true && with_groups && jcp.ngroups > 1
+            && everyone_is(1, jcp.ic, jcp.oc);
+    if (is_depthwise)
+        return status::unimplemented; // TODO: add support of DW convolution
+
+    const int dat_format_tag = ndims - 3;
+    format_tag_t dat_tag_nspc = utils::pick(dat_format_tag, format_tag::nwc,
+            format_tag::nhwc, format_tag::ndhwc);
+    format_tag_t dat_tag_opt = dat_tag_nspc;
+
+    if (src_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(src_md, dat_tag_opt));
+        jcp.src_tag = dat_tag_opt;
+    } else
+        jcp.src_tag = src_d.matches_one_of_tag(dat_tag_opt);
+    if (!one_of(jcp.src_tag, dat_tag_opt)) return status::unimplemented;
+
+    const bool is_nspc = jcp.src_tag == dat_tag_nspc;
+    if (!is_nspc) return status::unimplemented;
+
+    if (diff_dst_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_dst_md, jcp.src_tag));
+        jcp.dst_tag = jcp.src_tag;
+    } else
+        jcp.dst_tag = diff_dst_d.matches_one_of_tag(jcp.src_tag);
+    if (jcp.dst_tag != jcp.src_tag) return status::unimplemented;
+
+    const int wei_format_tag = 2 * ndims - 6 + with_groups;
+    format_tag_t wei_tag;
+    if (jcp.transform_to_vnni)
+        wei_tag = pick(wei_format_tag, format_tag::OIw16i16o2i,
+                format_tag::gOIw16i16o2i, format_tag::OIhw16i16o2i,
+                format_tag::gOIhw16i16o2i, format_tag::OIdhw16i16o2i,
+                format_tag::gOIdhw16i16o2i);
+    else
+        wei_tag = pick(wei_format_tag, format_tag::OIw16i16o,
+                format_tag::gOIw16i16o, format_tag::OIhw16i16o,
+                format_tag::gOIhw16i16o, format_tag::OIdhw16i16o,
+                format_tag::gOIdhw16i16o);
+    if (diff_weights_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
+        jcp.wei_tag = wei_tag;
+    } else {
+        jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+        if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    }
+    jcp.wei_dt = diff_weights_d.data_type();
+
+    /* kernel applicability check wrt boundaries
+     * the conditions are quite general across the kernels we have,
+     * but ideally the check should belong to a specific kernel... */
+    const int max_pad_h = jcp.ext_kh / 2;
+    const bool boundaries_ok = true && jcp.l_pad < jcp.ext_kw
+            && jcp.r_pad < jcp.ext_kw && jcp.t_pad <= max_pad_h
+            && jcp.b_pad <= max_pad_h && jcp.f_pad < jcp.ext_kd
+            && jcp.back_pad < jcp.ext_kd;
+    if (!boundaries_ok) return status::unimplemented;
+
+    jcp.ic_block = 16;
+    jcp.oc_block = 16;
+
+    jcp.nb_ic = utils::div_up(jcp.ic, jcp.ic_block);
+    jcp.nb_oc = utils::div_up(jcp.oc, jcp.oc_block);
+
+    jcp.ic_tail = jcp.ic % jcp.ic_block;
+    jcp.oc_tail = jcp.oc % jcp.oc_block;
+
+    jcp.nb_oc_blocking = (jcp.nb_oc > 1) ? 2 : 1;
+    jcp.nb_ic_blocking = (jcp.nb_ic > 1) ? 2 : 1;
+
+    const bool is_2d = (ndims == 4);
+    const bool is_3d = (ndims == 5);
+
+    // TODO: Find more shapes (especially 3D with large spatials) for which
+    // local transposition will be beneficial. Furthermore, for TBB threads
+    // more shapes can potentially benefit from spatial blocking
+    int optimal_blk_size = is_3d ? jcp.od : is_2d ? jcp.oh : jcp.ow;
+
+    jcp.global_transpose = dnnl_thr_syncable();
+    jcp.spatial_blk_size = optimal_blk_size;
+
+    const int tr_round = 32; // To load full tile register
+    int tr_pad
+            = rnd_up(nstl::max(jcp.l_pad, jcp.r_pad + 1), tr_round); //!!! why?
+    jcp.tr_iw = rnd_up(div_up(jcp.iw, jcp.stride_w) + tr_pad,
+                        tr_round) //!!! we have tr_iw always 64 or more
+            * jcp.stride_w;
+
+    // TODO: bf16 training is supported only
+    const auto rnd_val = data_type_vnni_granularity(bf16);
+    jcp.tr_src_num_guard_elems = tr_pad; // upper bound
+    jcp.tr_ow = rnd_up(jcp.ow, rnd_val);
+    if (jcp.tr_ow > tr_round) {
+        // we may increase tr_ow to have better bd_block in brgemm kernel
+        int best_bdb = jcp.tr_ow / rnd_val;
+        int best_tr_ow = jcp.tr_ow;
+        for (int tr_ow = jcp.tr_ow; tr_ow <= rnd_up(jcp.tr_ow, tr_round);
+                tr_ow += rnd_val) {
+            for (int i = tr_round; i > 0; i -= rnd_val) {
+                if (tr_ow % i == 0) {
+                    const auto cbdb = tr_ow / i;
+                    if (cbdb < best_bdb) {
+                        best_bdb = cbdb;
+                        best_tr_ow = tr_ow;
+                    }
+                    break;
+                }
+            }
+        }
+        jcp.tr_ow = best_tr_ow;
+    }
+
+    bool args_ok = true && jcp.ic <= src_d.padded_dims()[1]
+            && jcp.oc <= diff_dst_d.padded_dims()[1]
+            && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 1]
+            && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
+    if (!args_ok) return status::unimplemented;
+
+    jcp.harness = ndims == 5 ? harness_3d_reduction : harness_2d_reduction;
+
+    if (!one_of(jcp.harness, harness_2d_reduction, harness_3d_reduction)) {
+        return status::unimplemented;
+    }
+
+    switch (jcp.harness) {
+        case harness_2d_reduction: jcp.nthr_mb_work = jcp.mb * jcp.oh; break;
+        case harness_3d_reduction: jcp.nthr_mb_work = jcp.mb * jcp.od; break;
+        default: assert(!"Invalid harness"); jcp.nthr_mb_work = jcp.mb;
+    }
+
+    jcp.max_batch = jcp.od * jcp.oh;
+    jcp.M = jcp.ic_block * jcp.nb_ic_blocking;
+
+    // assumption that jcp.nb_ic_blocking is always 2
+    jcp.M_tail = jcp.ic_block;
+    jcp.N = jcp.oc_block * jcp.nb_oc_blocking;
+    // assumption that jcp.nb_oc_blocking is always 2
+    jcp.N_tail = jcp.oc_block;
+
+    if (one_of(jcp.harness, harness_2d_reduction, harness_3d_reduction)) {
+        jcp.K = jcp.tr_ow;
+    }
+
+    const int irow_size = jcp.src_dsz * jcp.K * jcp.ic_block
+            * jcp.nb_ic_blocking * jcp.stride_h * jcp.stride_w
+            * 2 /*we have real and transposed input */;
+    const int orow_size = jcp.dst_dsz * jcp.K * jcp.oc_block
+            * jcp.nb_oc_blocking * 2 /*we have real and transposed diff_dst*/;
+    const int oh_block_limit
+            = nstl::max(0.f, 0.8f * brg_blocking_t::L2 - jcp.kh * irow_size)
+            / (irow_size + orow_size);
+    jcp.oh_block = utils::saturate(1, jcp.oh, oh_block_limit);
+
+    const int iframe_size = irow_size * jcp.id;
+    const int oframe_size = orow_size * jcp.od;
+    const int od_block_limit
+            = nstl::max(0.f, 0.8f * brg_blocking_t::L2 - jcp.kd * iframe_size)
+            / (iframe_size + oframe_size);
+    jcp.od_block = utils::saturate(1, jcp.od, od_block_limit);
+    jcp.K_tail = 0;
+
+    balance_bwd_w(jcp);
+
+    jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
+    jcp.use_uker = true;
+    jcp.var_bs = true;
+
+    jcp.use_interleave_stores = true;
+    jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_output1;
+    jcp.amx_tile_load_xx = false;
+
+    if (one_of(jcp.harness, harness_2d_reduction, harness_3d_reduction)) {
+        jcp.LDA = jcp.tr_iw;
+        jcp.LDB = jcp.oc_block;
+        jcp.LDC = jcp.LDD = jcp.oc_block;
+    }
+
+    jcp.gemm_batch_size = jcp.max_batch;
+    // to avoid cache concurrent access from different threads
+    size_t sc_size = sizeof(brgemm_batch_element_t);
+    jcp.adjusted_batch_size
+            = div_up(rnd_up(jcp.gemm_batch_size * sc_size, P4K), sc_size);
+
+    return status::success;
+}
+
+status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
+        const jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
+        memory_desc_t &diff_weights_md, memory_desc_t &diff_dst_md) {
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper diff_weights_d(&diff_weights_md);
+    const memory_desc_wrapper diff_dst_d(&diff_dst_md);
+
+    // XXX: See the comment about tr_iw and guarding elements in
+    // jit_avx512_core_amx_bwd_weights_kernel_t::init_conf()
+    const size_t tr_src_size
+            = (jcp.tr_src_buf_count * jcp.tr_src_buf_size * jcp.nb_ic_blocking)
+            + jcp.tr_src_num_guard_elems;
+    scratchpad.book(key_conv_tr_src, tr_src_size, jcp.src_dsz);
+
+    /* prepare synchronization contexts */
+    if (jcp.global_transpose && jcp.nthr_oc_b > 1) {
+        const int tr_src_bctx_size = jcp.nthr / jcp.nthr_oc_b;
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_tr_src_bctx, tr_src_bctx_size);
+    }
+
+    // The tr_ow <= tr_iw, so we need some guarding at the end of diff_dst
+    // TODO: update this guarding:
+    // (jcp.tr_diff_dst_buf_size + jcp.tr_iw * jcp.oc_block)
+    const auto tr_diff_dst_size = jcp.tr_diff_dst_buf_count
+
+            * (jcp.tr_diff_dst_buf_size + jcp.tr_iw * jcp.oc_block)
+            * jcp.nb_oc_blocking;
+
+    const size_t min_align = 64;
+    scratchpad.book(
+            key_conv_tr_diff_dst, tr_diff_dst_size, jcp.src_dsz, min_align);
+
+    /* prepare synchronization contexts */
+    if (jcp.global_transpose && jcp.nthr_ic_b > 1) {
+        const size_t tr_diff_dst_bctx_size = jcp.nthr / jcp.nthr_ic_b;
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_tr_diff_dst_bctx, tr_diff_dst_bctx_size);
+    }
+
+    if (IMPLICATION(jcp.nthr_mb == 1,
+                (jcp.with_bias && jcp.bia_dt == data_type::bf16)
+                        || jcp.wei_dt == data_type::bf16)) {
+        const size_t wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block
+                * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
+        const size_t bia_size
+                = jcp.with_bias * jcp.ngroups * jcp.nb_oc * jcp.oc_block;
+
+        const int num_wei_buffers
+                = jcp.wei_dt == data_type::bf16 ? jcp.nthr_mb : jcp.nthr_mb - 1;
+        const int num_bia_buffers = jcp.with_bias
+                ? (jcp.bia_dt == data_type::bf16 ? jcp.nthr_mb
+                                                 : jcp.nthr_mb - 1)
+                : 0;
+
+        const size_t wei_bia_reduction_size
+                = wei_size * num_wei_buffers + bia_size * num_bia_buffers;
+
+        scratchpad.book<float>(
+                key_conv_wei_bia_reduction, wei_bia_reduction_size);
+
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_wei_bia_reduction_bctx, 1);
+    }
+
+    if (jcp.with_bias
+            && ((jcp.oc_without_padding % jcp.oc_block != 0)
+                    && jcp.bia_dt == data_type::f32)) {
+        scratchpad.book(key_conv_padded_bias,
+                jcp.ngroups * jcp.nb_oc * jcp.oc_block, jcp.bia_dsz);
+    }
+    scratchpad.book(key_conv_amx_tilecfg, 1, 64); // 1 whole cacheline
+
+    constexpr size_t scratchpad_limit_by_absolute_value = (size_t)32
+            << 30; // 32Gb - TODO: may it's too large?
+    const size_t scratchpad_limit_by_tensor_sizes = (size_t)64 * jcp.nthr
+            * (src_d.size() + diff_weights_d.size() + diff_dst_d.size());
+    const size_t scratchpad_limit
+            = nstl::min(scratchpad_limit_by_absolute_value,
+                    scratchpad_limit_by_tensor_sizes);
+
+    scratchpad.book(key_brgemm_primitive_batch,
+            static_cast<size_t>(jcp.nthr) * jcp.adjusted_batch_size,
+            sizeof(brgemm_batch_element_t), 64, P4K);
+
+    scratchpad.book(
+            key_conv_amx_tile_buffer, jcp.nthr * 2 * P4K, sizeof(char), 0, P4K);
+
+    if (scratchpad.size() > scratchpad_limit)
+        return status::unimplemented;
+    else
+        return status::success;
 }
 
 } // namespace brgemm_convolution_utils

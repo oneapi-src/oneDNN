@@ -896,6 +896,7 @@ struct jit_brgemm_conv_conf_t {
     bool brgemm_bd_loop_innermost;
 
     bool use_uker;
+    bool var_bs {false};
     bool use_interleave_stores;
     brgemm_kernel_prefetching_t hint_prefetching;
     bool is_1x1;
@@ -905,6 +906,21 @@ struct jit_brgemm_conv_conf_t {
     bool req_brg_comp_pad;
     bool req_cal_comp_pad;
     bool is_bf32;
+    bool comp_with_vpads;
+
+    int nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b, nthr_oh;
+    bool transform_to_vnni;
+    bool has_vnni;
+    int ic_tail, oc_tail;
+    size_t tr_src_buf_size, tr_src_buf_count;
+    size_t tr_diff_dst_buf_size, tr_diff_dst_buf_count;
+    int tr_src_num_guard_elems;
+    bool global_transpose; // diff_dst & src tensors are transposed in one go
+    int nthr_mb_work;
+    int tr_iw, tr_ow;
+    int spatial_blk_size; // Height/depth block size inside the driver
+    int typesize_in;
+    int typesize_out;
 };
 
 struct jit_shuffle_conf_t {

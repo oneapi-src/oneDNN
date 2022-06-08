@@ -54,6 +54,15 @@ void set_amx_wsp_per_thread(jit_brgemm_conv_conf_t &jcp);
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp);
 
+status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
+        const convolution_desc_t &cd, memory_desc_t &src_md,
+        memory_desc_t &diff_weights_md, memory_desc_t &diff_bias_md,
+        memory_desc_t &diff_dst_md, primitive_attr_t &attr, int nthreads);
+
+status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
+        const jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
+        memory_desc_t &diff_weights_md, memory_desc_t &diff_dst_md);
+
 } // namespace brgemm_convolution_utils
 
 } // namespace x64
