@@ -102,6 +102,14 @@ struct DNNL_API brgemm_attr_t {
     // interleave stores or not
     bool use_interleave_stores;
     impl::fpmath_mode_t fpmath_mode = fpmath_mode::strict;
+    // Second level leading dimension describing distance between 16-line
+    // blocks in case of blocked layout. Used to calculate address of next
+    // bd block. By default are equal to regular leading dimension parameters
+    // specified on brgemm creation.
+    // Supported by brgemm unrolled kernel for now.
+    int LDA2 {0}, LDB2 {0}, LDC2_M {0}, LDC2_N {0};
+    // If "true" then batchsize is allowed to change on each kernel call
+    // and there is no unrolling by batchsize in kernel
     bool var_bs {false};
 };
 
@@ -141,6 +149,7 @@ struct brgemm_t {
     int LDC = 0;
     int LDD = 0;
 
+    int LDA2 {0}, LDB2 {0}, LDC2_M {0}, LDC2_N {0};
     bool is_blocked = false;
 
     float alpha = 0.0f;

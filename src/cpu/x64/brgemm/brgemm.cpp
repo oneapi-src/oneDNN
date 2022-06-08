@@ -169,8 +169,7 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
             beta, LDA, LDB, LDC, M, N, K, strides);
 
     if (M <= 0 || N <= 0 || K <= 0) return status::invalid_arguments;
-
-    bool ldx_check = (brg->is_row_major()) ? (LDA < K || LDB < N || LDC < N)
+    bool ldx_check = (brg->is_row_major()) ? (LDA < K)
                                            : (LDA < M || LDB < K || LDC < M);
     if (ldx_check) return status::invalid_arguments;
 
@@ -400,6 +399,17 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
 
     if (brgattr.bd_mask_level || brgattr.fpmath_mode != fpmath_mode::strict)
         CHECK(brgemm_blocking(brg));
+
+    brg->LDA2 = (brgattr.LDA2 != 0) ? brgattr.LDA2 : brg->LDA;
+    brg->LDB2 = (brgattr.LDB2 != 0) ? brgattr.LDB2 : brg->LDB;
+    brg->LDC2_M = (brgattr.LDC2_M != 0) ? brgattr.LDC2_M : brg->LDC;
+    brg->LDC2_N = (brgattr.LDC2_N != 0) ? brgattr.LDC2_N : brg->ld_block;
+
+    brg->is_blocked = (brg->LDA2 != brg->LDA || brg->LDB2 != brg->LDB
+            || brg->LDC2_M != brg->LDC || brg->LDC2_N != brg->ld_block);
+
+    if (!IMPLICATION(brg->is_blocked, brg->layout = brgemm_row_major))
+        return status::invalid_arguments;
 
     // virtual padding is not supported for "amx"
     if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)

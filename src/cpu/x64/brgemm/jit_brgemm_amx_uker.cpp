@@ -174,9 +174,9 @@ private:
     std::unordered_map<std::string, size_t> transform_buf_map_A_;
     std::unordered_map<std::string, size_t> transform_buf_map_B_;
 
-    size_t LDA_size_;
-    size_t LDB_size_;
-    size_t LDC_size_;
+    size_t LDA_size_, LDA2_size_;
+    size_t LDB_size_, LDB2_size_;
+    size_t LDC_size_, LDC2_size_M_, LDC2_size_N_;
     size_t LDD_size_;
     size_t ld_block_B_size_;
     size_t ld_block_C_size_;
@@ -321,6 +321,7 @@ private:
 
     size_t B_offset(int ldb) const noexcept;
     size_t C_offset(int bd, int ldb) const noexcept;
+    size_t C_block_offset(int bd, int ldb) const noexcept;
     size_t D_offset(int bd, int ldb) const noexcept;
 
     size_t lda() const noexcept;
@@ -373,16 +374,21 @@ int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int inp_bd) noexcept {
         return skipped_bd_mask_buffer_ptr_[inp_bd];
 }
 
-size_t jit_brgemm_amx_uker_base_t::A_offset(int bd) const noexcept {
-    return bd * LDA_size_;
+size_t jit_brgemm_amx_uker_base_t::A_offset(int bdb) const noexcept {
+    return bdb * LDA2_size_;
 }
 
 size_t jit_brgemm_amx_uker_base_t::B_offset(int ldb) const noexcept {
-    return brg.rd_step * ldb * ld_block_B_size_;
+    return (brg.is_blocked ? 1 : brg.rd_step) * ldb * ld_block_B_size_;
 }
 
 size_t jit_brgemm_amx_uker_base_t::C_offset(int bd, int ldb) const noexcept {
     return bd * LDC_size_ + ldb * ld_block_C_size_;
+}
+
+size_t jit_brgemm_amx_uker_base_t::C_block_offset(int bd, int ldb) const
+        noexcept {
+    return (size_t)bd * LDC2_size_M_ + (size_t)ldb * LDC2_size_N_;
 }
 
 size_t jit_brgemm_amx_uker_base_t::D_offset(int bd, int ldb) const noexcept {
@@ -528,7 +534,7 @@ void jit_brgemm_amx_uker_base_t::load_accumulators(
             int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
             if (may_load_accumulators_) {
                 const auto bd_out_bdb = get_out_bd(bd_inp_bdb, 0);
-                const auto c_offset = C_offset(bd_out_bdb, ldb_ind + ldb);
+                const auto c_offset = C_block_offset(bd_out_bdb, ldb_ind + ldb);
                 tileloadd(Tmm(brg.get_C_tensor(bdb, idx)),
                         ptr[reg_C + c_offset + reg_stride_ld_block]);
             } else {
@@ -1100,7 +1106,7 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(int bd_block2,
                 }
             } else {
                 const auto bd_out_bdb = get_out_bd(bd_inp_bdb, 0);
-                const auto c_offset = C_offset(bd_out_bdb, ldb_ind + ldb);
+                const auto c_offset = C_block_offset(bd_out_bdb, ldb_ind + ldb);
                 tilestored(ptr[reg_C + c_offset + reg_stride_ld_block],
                         Tmm(brg.get_C_tensor(bdb, idx)));
             }
@@ -1604,7 +1610,14 @@ void jit_brgemm_amx_uker_base_t::generate() {
     LDB_size_ = brg.typesize_B * brg.LDB;
     LDC_size_ = brg.typesize_C * brg.LDC;
     LDD_size_ = brg.typesize_D * brg.LDD;
-    ld_block_B_size_ = brg.typesize_B * brg.ld_block;
+
+    LDA2_size_ = brg.typesize_A * brg.LDA2;
+    LDB2_size_ = brg.typesize_B * brg.LDB2;
+    LDC2_size_M_ = brg.typesize_C * brg.LDC2_M;
+    LDC2_size_N_ = brg.typesize_C * brg.LDC2_N;
+
+    ld_block_B_size_ = brg.typesize_B
+            * ((brg.brgattr.LDB2 != 0) ? brg.brgattr.LDB2 : brg.ld_block);
     ld_block_C_size_ = brg.typesize_C * brg.ld_block;
     ld_block_D_size_ = brg.typesize_D * brg.ld_block;
     ld_block_bias_size_ = brg.typesize_bias * brg.ld_block;
@@ -1625,6 +1638,12 @@ void jit_brgemm_amx_uker_base_t::generate() {
     are_post_ops_applicable_ = one_of(true, brg.with_eltwise, brg.with_binary,
             brg.with_scales, brg.with_bias, brg.with_sum, brg.dt_d != brg.dt_c,
             has_zero_points);
+
+    // second level blocking eligible only if we don't use store by vectors for now
+
+    assert(IMPLICATION(are_post_ops_applicable_ || need_to_apply_alpha_beta_
+                    || brg.brgattr.bd_mask_level,
+            !brg.is_blocked && !brg.brgattr.var_bs));
 
     //! 'maybe_pre_process_data' for 'is_bf32' uses 'bs' value,
     //! so we can't support var_bs for is_bf32 for this moment

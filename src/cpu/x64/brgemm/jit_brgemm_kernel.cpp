@@ -2062,7 +2062,11 @@ brgemm_attr_t::brgemm_attr_t()
     , bd_mask(nullptr)
     , bd_mask_level(0)
     , use_uker(false)
-    , use_interleave_stores(false) {}
+    , use_interleave_stores(false)
+    , LDA2(0)
+    , LDB2(0)
+    , LDC2_M(0)
+    , LDC2_N(0) {}
 
 brgemm_kernel_common_t::brgemm_kernel_common_t(const brgemm_t abrd) {
     brgemm_kernel_ = new jit_brgemm_kernel_t(abrd);
