@@ -140,30 +140,7 @@ private:
         const std::vector<const void *> post_ops_binary_rhs_arg_vec;
     };
 
-    struct brgemm_thread_ctx_t {
-        brgemm_thread_ctx_t(brgemm_exec_ctx_t &brgemm_ctx_, int ithr_,
-                brgemm_batch_element_t *__restrict brg_batch_, char *c_buffer_,
-                char *wsp_tile_)
-            : brgemm_ctx(brgemm_ctx_)
-            , ithr(ithr_)
-            , brg_batch(brg_batch_)
-            , c_buffer(c_buffer_)
-            , wsp_tile(wsp_tile_) {}
-
-        brgemm_exec_ctx_t &brgemm_ctx;
-        int ithr;
-        brgemm_batch_element_t *__restrict brg_batch;
-        char *c_buffer;
-        char *wsp_tile;
-        S_t cur_palette;
-        int g, n, ocb;
-        int od, odb, oh, ohb, owb;
-        int icc;
-        int32_t src_zp_vals;
-        int32_t *src_zp_comp_ptr;
-        int32_t *dst_zp_vals;
-        int32_t *s8s8_comp_ptr;
-    };
+    struct brgemm_thread_ctx_t;
 
     static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
         return (m * 2 + static_cast<int>(do_postwork)) * 2

@@ -813,6 +813,32 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     return status::success;
 }
 template <cpu_isa_t isa, bool use_inversion>
+struct brgemm_convolution_fwd_t<isa, use_inversion>::brgemm_thread_ctx_t {
+    brgemm_thread_ctx_t(brgemm_exec_ctx_t &brgemm_ctx_, int ithr_,
+            brgemm_batch_element_t *__restrict brg_batch_, char *c_buffer_,
+            char *wsp_tile_)
+        : brgemm_ctx(brgemm_ctx_)
+        , ithr(ithr_)
+        , brg_batch(brg_batch_)
+        , c_buffer(c_buffer_)
+        , wsp_tile(wsp_tile_) {}
+
+    brgemm_exec_ctx_t &brgemm_ctx;
+    int ithr;
+    brgemm_batch_element_t *__restrict brg_batch;
+    char *c_buffer;
+    char *wsp_tile;
+    S_t cur_palette;
+    int g, n, ocb;
+    int od, odb, oh, ohb, owb;
+    int icc;
+    int32_t src_zp_vals;
+    int32_t *src_zp_comp_ptr;
+    int32_t *dst_zp_vals;
+    int32_t *s8s8_comp_ptr;
+};
+
+template <cpu_isa_t isa, bool use_inversion>
 status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
         const exec_ctx_t &ctx) const {
     const auto _pd = pd();
