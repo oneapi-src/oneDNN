@@ -783,6 +783,18 @@ DNNL_GRAPH_OP_SCHEMA(LayerNormBackprop, 1,
                 .set_shape_inference_function(infer_norm_bprop_output_shape)
                 .set_type_constraint_function(check_ln_data_type))
 
+DNNL_GRAPH_OP_SCHEMA(LeakyReLU, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input", "input tensor", "T")
+                .set_output(0, "output", "output tensor", "T")
+                .set_attr(op_attr::alpha, "coefficient of the leakage", true,
+                        attribute_kind::f)
+                .set_type_constraints(
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(Log, 1,
         op_schema_t()
                 .set_num_inputs(1)

@@ -71,6 +71,7 @@ TEST(APIOp, CreateAllOps) {
             op::kind::InterpolateBackprop,
             op::kind::LayerNorm,
             op::kind::LayerNormBackprop,
+            op::kind::LeakyReLU,
             op::kind::Log,
             op::kind::LogSoftmax,
             op::kind::LogSoftmaxBackprop,
