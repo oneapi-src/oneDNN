@@ -274,6 +274,7 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
             {impl::op_kind::HardSwish, dnnl::algorithm::eltwise_hardswish},
             {impl::op_kind::HardTanh, dnnl::algorithm::eltwise_clip_v2},
             {impl::op_kind::Log, dnnl::algorithm::eltwise_log},
+            {impl::op_kind::LeakyReLU, dnnl::algorithm::eltwise_relu},
             {impl::op_kind::ReLU, dnnl::algorithm::eltwise_relu},
             {impl::op_kind::Round, dnnl::algorithm::eltwise_round},
             {impl::op_kind::Sigmoid, dnnl::algorithm::eltwise_logistic},
@@ -328,10 +329,11 @@ inline bool is_eltwise_kind(op_kind_t kind) {
     const std::set<op_kind_t> eltwise_kinds {impl::op_kind::Abs,
             impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
             impl::op_kind::GELU, impl::op_kind::HardTanh,
-            impl::op_kind::HardSwish, impl::op_kind::Log, impl::op_kind::ReLU,
-            impl::op_kind::Round, impl::op_kind::Sigmoid,
-            impl::op_kind::SoftPlus, impl::op_kind::Sqrt, impl::op_kind::Square,
-            impl::op_kind::Tanh, impl::op_kind::Pow};
+            impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::LeakyReLU, impl::op_kind::ReLU, impl::op_kind::Round,
+            impl::op_kind::Sigmoid, impl::op_kind::SoftPlus,
+            impl::op_kind::Sqrt, impl::op_kind::Square, impl::op_kind::Tanh,
+            impl::op_kind::Pow};
     return eltwise_kinds.find(kind) != eltwise_kinds.end();
 }
 
