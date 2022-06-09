@@ -1739,6 +1739,10 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     auto k_idx = out_code.get(out_k2_pos);
     auto n_idx = out_code.get(out_n_pos);
 
+    // vnni reorder strictly requires the last blocking axis to be the same as
+    // the original last axis.
+    if (inp_code.get(input_ndims - 1) != k_idx) return false;
+
     for (auto i = output_ndims - 2; i >= 0; --i) {
         if (out_code.get(i) == k_idx) {
             if (out_k_pos == -1) {
