@@ -30,7 +30,7 @@
 namespace benchdnnext {
 namespace bnorm {
 
-void check_known_skipped_case_graph(
+static void check_known_skipped_case_graph(
         const ::bnorm::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
@@ -53,90 +53,96 @@ void check_known_skipped_case_graph(
     if (res->state == SKIPPED) return;
 }
 
-fill_status_t bnorm_graph_prb_t::handle_main_op_(const ::bnorm::prb_t *prb) {
-    using op = dnnl::graph::op;
+fill_status_t append_graph_with_block(const ::bnorm::prb_t *prb) {
     using graph_dt = dnnl::graph::logical_tensor::data_type;
+    using graph_lt = dnnl::graph::logical_tensor::layout_type;
+    graph_t &graph = graph_t::get();
 
-    std::string op_name {};
-    op::kind op_kind {op::kind::LastSymbol};
-    std::vector<dnnl::graph::logical_tensor> inputs {};
-    std::vector<dnnl::graph::logical_tensor> outputs {};
+    const auto connect_to_previous_block = graph.has_blocks();
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::BNORM);
+    const auto src_lt_kind
+            = prb->dir == FLAG_FWD ? lt_kind::SRC : lt_kind::DIFF_SRC;
+    const auto dst_lt_kind
+            = prb->dir & FLAG_FWD ? lt_kind::DST : lt_kind::DIFF_DST;
+    const auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, src_lt_kind);
+    const auto sc_id = graph.generate_id_for(op_id, lt_kind::SC);
+    const auto mean_id = graph.generate_id_for(op_id, lt_kind::MEAN);
+    const auto var_id = graph.generate_id_for(op_id, lt_kind::VAR);
+    const auto dst_id = graph.generate_id_for(op_id, dst_lt_kind);
 
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string SCALE {TENSOR_ID + "_SCALE"};
-    const std::string MEAN {TENSOR_ID + "_MEAN"};
-    const std::string VAR {TENSOR_ID + "_VAR"};
+    const auto common_dt = convert_dt(prb->dt);
+    dims_t base_dims = prb->data_dims();
+    dims_t stat_dims = {prb->ic};
 
-    graph_dt bnorm_dt = convert_dt(prb->dt);
-    dims_t dims = prb->data_dims();
-    dims_t s_dims = {prb->ic};
+    graph.create_lt(src_id, common_dt, base_dims, graph_lt::strided);
+    graph.create_lt(dst_id, common_dt, base_dims, graph_lt::strided);
+    graph.create_lt(sc_id, graph_dt::f32, stat_dims, graph_lt::strided);
+    graph.create_lt(mean_id, graph_dt::f32, stat_dims, graph_lt::strided);
+    graph.create_lt(var_id, graph_dt::f32, stat_dims, graph_lt::strided);
 
-    tensor_descs_.emplace(SRC, bnorm_dt, dims, lt::strided);
-    tensor_descs_.emplace(SCALE, graph_dt::f32, s_dims, lt::strided);
-    tensor_descs_.emplace(MEAN, graph_dt::f32, s_dims, lt::strided);
-    tensor_descs_.emplace(VAR, graph_dt::f32, s_dims, lt::strided);
+    std::vector<size_t> src_ids {};
+    std::vector<size_t> dst_ids {};
+    dnnl::graph::op::kind bnorm_kind;
     if (prb->dir & FLAG_FWD) {
-        op_name = "bnorm";
-        const std::string SHIFT {TENSOR_ID + "_SHIFT"};
-        const std::string DST {TENSOR_ID + "_DST"};
-        tensor_descs_.emplace(SHIFT, graph_dt::f32, s_dims, lt::strided);
-        tensor_descs_.emplace(DST, bnorm_dt, dims, lt::strided);
-        inputs = {tensor_descs_[SRC], tensor_descs_[SCALE],
-                tensor_descs_[SHIFT], tensor_descs_[MEAN], tensor_descs_[VAR]};
+        const auto sh_id = graph.generate_id_for(op_id, lt_kind::SH);
+        graph.create_lt(sh_id, graph_dt::f32, stat_dims, graph_lt::strided);
+        src_ids = {src_id, sc_id, sh_id, mean_id, var_id};
         if (prb->dir & FLAG_INF) {
-            op_kind = op::kind::BatchNormInference;
-            outputs = {tensor_descs_[DST]};
+            dst_ids = {dst_id};
+            bnorm_kind = dnnl::graph::op::kind::BatchNormInference;
         } else {
-            op_kind = op::kind::BatchNormForwardTraining;
-            const std::string RUN_MEAN {TENSOR_ID + "_RUN_MEAN"};
-            const std::string RUN_VAR {TENSOR_ID + "_RUN_VAR"};
-            const std::string BATCH_MEAN {TENSOR_ID + "_BATCH_MEAN"};
-            const std::string BATCH_VAR {TENSOR_ID + "_BATCH_VAR"};
-            tensor_descs_.emplace(RUN_MEAN, graph_dt::f32, s_dims, lt::strided);
-            tensor_descs_.emplace(RUN_VAR, graph_dt::f32, s_dims, lt::strided);
-            tensor_descs_.emplace(
-                    BATCH_MEAN, graph_dt::f32, s_dims, lt::strided);
-            tensor_descs_.emplace(
-                    BATCH_VAR, graph_dt::f32, s_dims, lt::strided);
-            outputs = {tensor_descs_[DST], tensor_descs_[RUN_MEAN],
-                    tensor_descs_[RUN_VAR], tensor_descs_[BATCH_MEAN],
-                    tensor_descs_[BATCH_VAR]};
+            const auto rmean_id
+                    = graph.generate_id_for(op_id, lt_kind::RUN_MEAN);
+            const auto bmean_id
+                    = graph.generate_id_for(op_id, lt_kind::BATCH_MEAN);
+            const auto rvar_id = graph.generate_id_for(op_id, lt_kind::RUN_VAR);
+            const auto bvar_id
+                    = graph.generate_id_for(op_id, lt_kind::BATCH_VAR);
+            graph.create_lt(
+                    rmean_id, graph_dt::f32, stat_dims, graph_lt::strided);
+            graph.create_lt(
+                    bmean_id, graph_dt::f32, stat_dims, graph_lt::strided);
+            graph.create_lt(
+                    rvar_id, graph_dt::f32, stat_dims, graph_lt::strided);
+            graph.create_lt(
+                    bvar_id, graph_dt::f32, stat_dims, graph_lt::strided);
+            dst_ids = {dst_id, rmean_id, rvar_id, bmean_id, bvar_id};
+            bnorm_kind = dnnl::graph::op::kind::BatchNormForwardTraining;
         }
     } else {
-        op_name = "bnorm_bwd";
-        op_kind = op::kind::BatchNormTrainingBackprop;
-        const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
-        const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
-        const std::string DIFF_SCALE {TENSOR_ID + "_DIFF_SCALE"};
-        const std::string DIFF_SHIFT {TENSOR_ID + "_DIFF_SHIFT"};
-        tensor_descs_.emplace(DIFF_DST, bnorm_dt, dims, lt::strided);
-        tensor_descs_.emplace(DIFF_SRC, bnorm_dt, dims, lt::strided);
-        tensor_descs_.emplace(DIFF_SCALE, graph_dt::f32, s_dims, lt::strided);
-        tensor_descs_.emplace(DIFF_SHIFT, graph_dt::f32, s_dims, lt::strided);
-        inputs = {tensor_descs_[SRC], tensor_descs_[DIFF_DST],
-                tensor_descs_[SCALE], tensor_descs_[MEAN], tensor_descs_[VAR]};
-        outputs = {tensor_descs_[DIFF_SRC], tensor_descs_[DIFF_SCALE],
-                tensor_descs_[DIFF_SHIFT]};
+        const auto fwd_src_id = graph.generate_id_for(op_id, lt_kind::SRC);
+        const auto d_sc_id = graph.generate_id_for(op_id, lt_kind::DIFF_SC);
+        const auto d_sh_id = graph.generate_id_for(op_id, lt_kind::DIFF_SH);
+        graph.create_lt(fwd_src_id, common_dt, base_dims, graph_lt::strided);
+        graph.create_lt(d_sc_id, graph_dt::f32, stat_dims, graph_lt::strided);
+        graph.create_lt(d_sh_id, graph_dt::f32, stat_dims, graph_lt::strided);
+        src_ids = {fwd_src_id, dst_id, sc_id, mean_id, var_id};
+        dst_ids = {src_id, d_sc_id, d_sh_id};
+        bnorm_kind = dnnl::graph::op::kind::BatchNormTrainingBackprop;
     }
 
-    op bnorm_op(new_op_id, op_kind, inputs, outputs, op_name);
-
+    dnnl::graph::op bnorm_op(op_id, bnorm_kind, graph.stringify_id(op_id));
     bnorm_op.set_attr("epsilon", prb->eps);
     bnorm_op.set_attr("data_format", std::string("NCX"));
 
-    ops_.emplace_back(bnorm_op);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, bnorm_op, src_ids, dst_ids);
+
+    fill_status_t status;
+    // handle post ops
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        if (entry.is_eltwise_kind()) {
+            status = append_graph_with_eltwise(entry);
+            BENCHDNNEXT_VERIFY(status);
+        }
+    }
+
+    graph.close_block();
 
     return fill_status::DONE;
-}
-
-fill_status_t bnorm_graph_prb_t::handle_elt_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.bnorm.eltw_handler(*this, po_entry);
 }
 
 int doit(const ::bnorm::prb_t *prb, res_t *res) {
@@ -147,20 +153,27 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    bnorm_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    // Filter partitions
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const bool is_fwd = prb->dir & FLAG_FWD;
     const bool use_ss = prb->use_ss();
@@ -209,6 +222,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
     if (::bnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, scale_fp, shift_fp)
             != OK) {
+        cleanup();
         return res->state = MISTRUSTED, OK;
     }
     /*  When dnnl_use_scaleshift is used, benchdnn populates data
@@ -273,6 +287,9 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
 
             check_correctness(
                     prb, kinds, args, ref_args, ::bnorm::setup_cmp, res);
+
+            cleanup();
+
             return OK;
         }
     } else {
@@ -349,6 +366,9 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
             if (use_sh && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
             check_correctness(
                     prb, kinds, args, ref_args, ::bnorm::setup_cmp, res);
+
+            cleanup();
+
             return OK;
         }
     }
@@ -356,6 +376,8 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     SAFE(measure_perf(
                  res->timer_map.perf_timer(), cp, tensors_in, tensors_out, res),
             WARN);
+
+    cleanup();
 
     return OK;
 }
