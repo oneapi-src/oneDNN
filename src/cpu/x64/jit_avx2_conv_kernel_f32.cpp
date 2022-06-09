@@ -118,6 +118,9 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
                 compute(ic_tail);
             else {
                 Label ic_blk_tail, ic_blk_done;
+                // ic tail only exist in nxc layout. reg_channel may be overided in fakequantize postops 'reg_d_bias'
+                if (is_src_layout_nxc())
+                    mov(reg_channel, ptr[param1 + GET_OFF(reduce_work)]);
                 cmp(reg_channel, ic_block);
                 jl(ic_blk_tail, T_NEAR);
 
