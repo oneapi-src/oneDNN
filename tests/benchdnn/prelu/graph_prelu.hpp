@@ -24,22 +24,7 @@
 namespace benchdnnext {
 namespace prelu {
 
-struct prelu_graph_prb_t : public graph_prb_t {
-    prelu_graph_prb_t(const ::prelu::prb_t *prb) {
-        const auto stop_work = [](const fill_status_t s) {
-            return s != fill_status::DONE
-                    && s != fill_status::UNHANDLED_CONFIG_OPTIONS;
-        };
-
-        ctor_status = handle_main_op_(prb);
-        if (stop_work(ctor_status)) return;
-
-        ctor_status = fill_status::DONE;
-    };
-
-private:
-    fill_status_t handle_main_op_(const ::prelu::prb_t *prb);
-};
+fill_status_t append_graph_with_block(const ::prelu::prb_t *prb);
 int doit(const ::prelu::prb_t *prb, res_t *res);
 
 } // namespace prelu

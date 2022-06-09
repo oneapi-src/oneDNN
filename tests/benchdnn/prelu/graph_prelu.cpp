@@ -20,66 +20,74 @@
 namespace benchdnnext {
 namespace prelu {
 
-void check_known_skipped_case_graph(
+static void check_known_skipped_case_graph(
         const ::prelu::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
     skip_invalid_and_unimplemented_prb(prb, res);
 }
 
-fill_status_t prelu_graph_prb_t::handle_main_op_(const ::prelu::prb_t *prb) {
-    using logical_tensor = dnnl::graph::logical_tensor;
-    using op = dnnl::graph::op;
+static std::vector<dnnl::graph::logical_tensor::data_type> collect_data_types(
+        const ::prelu::prb_t *prb) {
+    return {convert_dt(prb->sdt[0]), convert_dt(prb->sdt[1])};
+}
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string SLOPE {TENSOR_ID + "_SLOPE"};
+fill_status_t append_graph_with_block(const ::prelu::prb_t *prb) {
+    graph_t &graph = graph_t::get();
 
-    const auto data_dt = convert_dt(prb->sdt[0]);
-    const auto slope_dt = convert_dt(prb->sdt[1]);
+    const auto orig_dts = collect_data_types(prb);
+    const auto connect_to_previous_block = graph.has_blocks();
+
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::PRELU);
+    const auto src_lt_kind
+            = prb->dir == FLAG_FWD ? lt_kind::SRC : lt_kind::DIFF_SRC;
+    const auto wei_lt_kind
+            = prb->dir == FLAG_FWD ? lt_kind::WEI : lt_kind::DIFF_WEI;
+    const auto dst_lt_kind
+            = prb->dir & FLAG_FWD ? lt_kind::DST : lt_kind::DIFF_DST;
+    const auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, src_lt_kind);
+    const auto wei_id = graph.generate_id_for(op_id, wei_lt_kind);
+    const auto dst_id = graph.generate_id_for(op_id, dst_lt_kind);
+
+    const auto data_dt = orig_dts[0];
+    const auto wei_dt = orig_dts[1];
+
     const auto data_dims = prb->vdims[0];
-    const auto slope_dims = prb->vdims[1];
+    const auto wei_dims = prb->vdims[1];
     const auto data_tag = prb->stag[0];
-    const auto slope_tag = prb->stag[1];
+    const auto wei_tag = prb->stag[1];
 
-    tensor_descs_.emplace(SRC, data_dt, data_dims, data_tag);
-    tensor_descs_.emplace(SLOPE, slope_dt, slope_dims, slope_tag);
+    graph.create_lt(src_id, data_dt, data_dims, data_tag);
+    graph.create_lt(wei_id, wei_dt, wei_dims, wei_tag);
+    graph.create_lt(dst_id, data_dt, data_dims, data_tag);
 
-    std::string name;
-    std::vector<logical_tensor> inputs;
-    std::vector<logical_tensor> outputs;
+    std::vector<size_t> src_ids {};
+    std::vector<size_t> dst_ids {};
+    dnnl::graph::op::kind prelu_kind;
     if (prb->dir & FLAG_FWD) {
-        name = "prelu";
-        const std::string DST {TENSOR_ID + "_DST"};
-
-        tensor_descs_.emplace(DST, data_dt, data_dims, data_tag);
-        inputs = {tensor_descs_[SRC], tensor_descs_[SLOPE]};
-        outputs = {tensor_descs_[DST]};
+        src_ids = {src_id, wei_id};
+        dst_ids = {dst_id};
+        prelu_kind = dnnl::graph::op::kind::PReLU;
     } else { // bwd
-        name = "prelu_bwd";
-        const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
-        const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
-        const std::string DIFF_SLOPE {TENSOR_ID + "_DIFF_SLOPE"};
-
-        tensor_descs_.emplace(DIFF_DST, data_dt, data_dims, data_tag);
-        tensor_descs_.emplace(DIFF_SRC, data_dt, data_dims, data_tag);
-        tensor_descs_.emplace(DIFF_SLOPE, slope_dt, slope_dims, slope_tag);
-        inputs = {tensor_descs_[SRC], tensor_descs_[SLOPE],
-                tensor_descs_[DIFF_DST]};
-        outputs = {tensor_descs_[DIFF_SRC], tensor_descs_[DIFF_SLOPE]};
+        const auto fwd_src_id = graph.generate_id_for(op_id, lt_kind::SRC);
+        const auto fwd_wei_id = graph.generate_id_for(op_id, lt_kind::WEI);
+        graph.create_lt(fwd_src_id, data_dt, data_dims, data_tag);
+        graph.create_lt(fwd_wei_id, wei_dt, wei_dims, wei_tag);
+        src_ids = {fwd_src_id, fwd_wei_id, dst_id};
+        dst_ids = {src_id, wei_id};
+        prelu_kind = dnnl::graph::op::kind::PReLUBackprop;
     }
 
-    const auto op_kind = prb->dir & FLAG_FWD
-            ? dnnl::graph::op::kind::PReLU
-            : dnnl::graph::op::kind::PReLUBackprop;
-    op prelu_op(new_op_id, op_kind, inputs, outputs, name);
+    dnnl::graph::op prelu_op(op_id, prelu_kind, graph.stringify_id(op_id));
     prelu_op.set_attr("data_format", std::string("NCX"));
     if (prb->dir & FLAG_FWD) prelu_op.set_attr("per_channel_broadcast", false);
 
-    ops_.emplace_back(prelu_op);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, prelu_op, src_ids, dst_ids);
+
+    graph.close_block();
 
     return fill_status::DONE;
 }
@@ -92,20 +100,27 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    prelu_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    // Filter partitions
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -189,6 +204,8 @@ int doit(const ::prelu::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
+
+    cleanup();
 
     return OK;
 }
