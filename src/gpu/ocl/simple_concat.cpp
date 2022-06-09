@@ -23,17 +23,47 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+/* Returns dimension indices in (our best guess at) nesting order */
+std::vector<int> get_ordered_dim_idxs(const memory_desc_wrapper &mdw) {
+    const auto ndims = mdw.ndims();
+    std::vector<int> idxs(ndims);
+    for (int i = 0; i < ndims; ++i)
+        idxs[i] = i;
+
+    const auto &strides = mdw.blocking_desc().strides;
+    const auto &sizes = mdw.dims();
+    const auto cmp = [&](int a, int b) {
+        // Dimensions of size 1 have the same stride as the next outer
+        // dimension, so only sorting by strides will not necessarily get the
+        // correct order. In the case of ties, the dim with the larger size gets
+        // sorted second. Permutations of dims of size 1 with the same stride
+        // should not effect the correctness of concat.
+        return strides[a] < strides[b]
+                || (strides[a] == strides[b] && sizes[a] < sizes[b]);
+    };
+    std::sort(idxs.begin(), idxs.end(), cmp);
+    return idxs;
+}
+
 /** Returns true if two sets of data have the same order of axis. */
 bool is_same_axis_order(
-        const memory_desc_wrapper &lhs, const memory_desc_wrapper &rhs) {
-    std::vector<std::pair<int, int>> strides(lhs.md_->ndims);
-    for (int d = 0; d < lhs.md_->ndims; ++d) {
-        strides[d].first = lhs.md_->format_desc.blocking.strides[d];
-        strides[d].second = rhs.md_->format_desc.blocking.strides[d];
-    }
-    std::sort(strides.begin(), strides.end());
-    for (int d = 1; d < lhs.md_->ndims; ++d) {
-        if (strides[d].second < strides[d - 1].second) { return false; }
+        const std::vector<int> &idxs, const memory_desc_wrapper &mdw) {
+    const auto ndims = mdw.ndims();
+
+    // Compute the total size of blocks for each dim to help predict strides
+    std::vector<dim_t> blocks(ndims, 1);
+    const auto &blkg = mdw.blocking_desc();
+    for (int i = 0; i < blkg.inner_nblks; ++i)
+        blocks[blkg.inner_idxs[i]] *= blkg.inner_blks[i];
+
+    // Check that the order specified by idxs matches the src tensor
+    dim_t min_stride = 1;
+    const auto &padded_dims = mdw.padded_dims();
+    for (auto idx : idxs) {
+        auto stride = blkg.strides[idx];
+        if (stride < min_stride) return false;
+        auto step = utils::div_up(padded_dims[idx], blocks[idx]);
+        min_stride = stride * step;
     }
     return true;
 }
@@ -80,7 +110,8 @@ static status_t init_conf_common(
         if (!types::blocking_desc_is_equal(*pd->dst_md(), *pd->src_md(i), true))
             return status::unimplemented;
 
-        if (!is_same_axis_order(dst_mdw, src_mdw)) {
+        const auto dst_dim_order = get_ordered_dim_idxs(dst_mdw);
+        if (!is_same_axis_order(dst_dim_order, src_mdw)) {
             return status::unimplemented;
         }
 
