@@ -156,7 +156,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             nullptr,
         }},
         // BWD_D fp
-        {{backward_data, f32, f32, f32}, REG_BWD_D_PK({
+        {{backward_data, f32, f32, f32}, REG_CONV_P({
             CPU_INSTANCE_X64(ip_convolution_bwd_data_t)
             CPU_INSTANCE_AMX(brgemm_convolution_bwd_t<avx512_core_bf16_amx_bf16>)
             CPU_INSTANCE_AVX512(brgemm_convolution_bwd_t<avx512_core>)
@@ -176,7 +176,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE(ref_convolution_bwd_data_t)
             nullptr,
         })},
-        {{backward_data, f32, bf16, bf16}, REG_BWD_D_PK({
+        {{backward_data, f32, bf16, bf16}, REG_CONV_P({
             CPU_INSTANCE_X64(ip_convolution_bwd_data_t)
             CPU_INSTANCE_AMX(brgemm_convolution_bwd_t<avx512_core_bf16_amx_bf16>)
             CPU_INSTANCE_AMX(jit_avx512_core_amx_convolution_bwd_data_t<f32, bf16, bf16>)
@@ -189,7 +189,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE(ref_convolution_bwd_data_t)
             nullptr,
         })},
-        {{backward_data, bf16, bf16, bf16}, REG_BWD_D_PK({
+        {{backward_data, bf16, bf16, bf16}, REG_CONV_P({
             CPU_INSTANCE_X64(ip_convolution_bwd_data_t)
             CPU_INSTANCE_AMX(brgemm_convolution_bwd_t<avx512_core_bf16_amx_bf16>)
             CPU_INSTANCE_AMX(jit_avx512_core_amx_convolution_bwd_data_t<bf16, bf16, bf16>)
