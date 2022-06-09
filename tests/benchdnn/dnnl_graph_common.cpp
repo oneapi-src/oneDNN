@@ -1085,6 +1085,7 @@ std::string entry_kind2str(entry_kind_t ekind) {
         case entry_kind::BNORM: return "BNORM";
         case entry_kind::CONCAT: return "CONCAT";
         case entry_kind::CONV: return "CONV";
+        case entry_kind::DECONV: return "DECONV";
         case entry_kind::ELTWISE: return "ELTWISE";
         case entry_kind::LNORM: return "LNORM";
         case entry_kind::MATMUL: return "MATMUL";
@@ -1113,14 +1114,18 @@ std::string lt_kind2str(lt_kind_t lkind) {
         case lt_kind::BIA: return "BIA";
         case lt_kind::DST: return "DST";
         case lt_kind::MEAN: return "MEAN";
+        case lt_kind::RUN_MEAN: return "RUN_MEAN";
+        case lt_kind::BATCH_MEAN: return "BATCH_MEAN";
         case lt_kind::VAR: return "VAR";
+        case lt_kind::RUN_VAR: return "RUN_VAR";
+        case lt_kind::BATCH_VAR: return "BATCH_VAR";
         case lt_kind::SC: return "SC";
         case lt_kind::SH: return "SH";
         case lt_kind::DIFF_SRC: return "DIFF_SRC";
         case lt_kind::DIFF_WEI: return "DIFF_WEI";
         case lt_kind::DIFF_DST: return "DIFF_DST";
-        case lt_kind::SC_DIFF: return "SC_DIFF";
-        case lt_kind::SH_DIFF: return "SH_DIFF";
+        case lt_kind::DIFF_SC: return "DIFF_SC";
+        case lt_kind::DIFF_SH: return "DIFF_SH";
         case lt_kind::SRC_I: return "SRC_I";
         default:
             const auto raw_lkind = static_cast<size_t>(lkind);

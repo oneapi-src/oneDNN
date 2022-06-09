@@ -576,6 +576,7 @@ enum class entry_kind {
     BNORM,
     CONCAT,
     CONV,
+    DECONV,
     ELTWISE,
     LNORM,
     MATMUL,
@@ -605,14 +606,18 @@ enum class lt_kind {
     BIA,
     DST,
     MEAN,
+    RUN_MEAN,
+    BATCH_MEAN,
     VAR,
+    RUN_VAR,
+    BATCH_VAR,
     SC,
     SH,
     DIFF_SRC,
     DIFF_WEI,
     DIFF_DST,
-    SC_DIFF,
-    SH_DIFF,
+    DIFF_SC,
+    DIFF_SH,
     SRC_I
 };
 typedef lt_kind lt_kind_t;
