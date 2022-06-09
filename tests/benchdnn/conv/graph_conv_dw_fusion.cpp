@@ -22,7 +22,7 @@ namespace conv_dw_fusion {
 
 namespace graph = dnnl::graph;
 
-void check_known_skipped_case_graph(
+static void check_known_skipped_case_graph(
         const ::conv_dw_fusion::prb_t *prb, res_t *res) noexcept {
     skip_invalid_and_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return;
@@ -51,24 +51,25 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     std::unique_ptr<::conv_dw_fusion::prb_t> p0
             = ::conv_dw_fusion::get_first_conv_prb(prb);
     if (!p0) SAFE(FAIL, CRIT);
-    conv::conv_graph_prb_t graph_prb0(p0.get());
 
-    if (graph_prb0.ctor_status != fill_status::DONE
-            && graph_prb0.ctor_status
-                    != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    auto status = benchdnnext::conv::append_graph_with_block(p0.get());
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h0 = graph_prb0.to_graph();
-
-    // Filter partitions
-    const auto partitions0
-            = graph_h0.get_partitions(dnnl::graph::partition::policy::fusion);
-    if (partitions0.empty() || partitions0.size() > 1)
+    auto &graph = graph_t::get();
+    const auto partitions0 = graph.get_partitions();
+    if (partitions0.empty() || partitions0.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par0 = partitions0[0];
     if (!par0.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    // clean the graph_t state before creating new graph
+    cleanup();
 
     const auto ins0 = par0.get_in_ports();
     const auto outs0 = par0.get_out_ports();
@@ -98,24 +99,24 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     std::unique_ptr<::conv_dw_fusion::prb_t> p1
             = ::conv_dw_fusion::get_fused_conv_prb(prb);
     if (!p1) SAFE(FAIL, CRIT);
-    conv::conv_graph_prb_t graph_prb1(p1.get());
 
-    if (graph_prb1.ctor_status != fill_status::DONE
-            && graph_prb1.ctor_status
-                    != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    status = benchdnnext::conv::append_graph_with_block(p1.get());
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h1 = graph_prb1.to_graph();
-
-    // Filter partitions
-    const auto partitions1
-            = graph_h1.get_partitions(dnnl::graph::partition::policy::fusion);
-    if (partitions1.empty() || partitions1.size() > 1)
+    const auto partitions1 = graph.get_partitions();
+    if (partitions1.empty() || partitions1.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par1 = partitions1[0];
     if (!par1.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    // clean the graph_t state before creating new graph
+    cleanup();
 
     const auto ins1 = par1.get_in_ports();
     const auto outs1 = par1.get_out_ports();
@@ -140,22 +141,24 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
     SAFE(::conv::fill_dst(p1.get(), dst_dt1, dst_fp1, res), WARN);
 
     // Original problem with fusion attributes
-    conv::conv_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    status = benchdnnext::conv::append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
-
-    // Filter partitions
-    const auto partitions
-            = graph_h.get_partitions(dnnl::graph::partition::policy::fusion);
-    if (partitions.empty() || partitions.size() > 1)
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -262,6 +265,8 @@ int doit(const ::conv_dw_fusion::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, input_ts, output_ts),
             WARN);
+
+    cleanup();
 
     return OK;
 }
