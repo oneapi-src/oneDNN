@@ -131,7 +131,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok = ok && utils::one_of(d->c_type(), f32, f16)
                         && d->a_type() == d->c_type()
                         && d->b_type() == d->c_type()
-                        && d->acc_type == d->c_type();
+                        && utils::one_of(d->acc_type, d->c_type(), f32);
             }
 
             ok = ok && !has_blocks() && batch_dims() <= 2
@@ -179,6 +179,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                 acc_type = data_type::f32;
             else if (arch_ == compute::gpu_arch_t::xe_hpc
                     && acc_type == data_type::f16)
+                acc_type = data_type::f32;
+            else if (d->acc_type == data_type::f32)
                 acc_type = data_type::f32;
 
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
