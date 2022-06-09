@@ -31,7 +31,7 @@ static std::vector<int64_t> get_stat_dims(
             lnorm_dims.begin(), lnorm_dims.begin() + (lnorm_dims.size() - 1));
 }
 
-void check_known_skipped_case_graph(
+static void check_known_skipped_case_graph(
         const ::lnorm::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
@@ -57,92 +57,86 @@ void check_known_skipped_case_graph(
     }
 }
 
-fill_status_t lnorm_graph_prb_t::handle_main_op_(const ::lnorm::prb_t *prb) {
-    using op = dnnl::graph::op;
+fill_status_t append_graph_with_block(const ::lnorm::prb_t *prb) {
     using graph_dt = dnnl::graph::logical_tensor::data_type;
+    using graph_lt = dnnl::graph::logical_tensor::layout_type;
+    graph_t &graph = graph_t::get();
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
+    const auto connect_to_previous_block = graph.has_blocks();
 
-    // common for forward and backward pass
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string GAMMA {TENSOR_ID + "_GAMMA"};
-    const std::string BETA {TENSOR_ID + "_BETA"};
-    const std::string MEAN {TENSOR_ID + "_MEAN"};
-    const std::string VAR {TENSOR_ID + "_VAR"};
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::LNORM);
+    const auto src_lt_kind
+            = prb->dir == FLAG_FWD ? lt_kind::SRC : lt_kind::DIFF_SRC;
+    const auto dst_lt_kind
+            = prb->dir & FLAG_FWD ? lt_kind::DST : lt_kind::DIFF_DST;
+    const auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, src_lt_kind);
+    const auto dst_id = graph.generate_id_for(op_id, dst_lt_kind);
+    const auto sc_id = graph.generate_id_for(op_id, lt_kind::SC);
+    const auto d_sc_id = graph.generate_id_for(op_id, lt_kind::DIFF_SC);
+    const auto sh_id = graph.generate_id_for(op_id, lt_kind::SH);
+    const auto d_sh_id = graph.generate_id_for(op_id, lt_kind::DIFF_SH);
+    const auto mean_id = graph.generate_id_for(op_id, lt_kind::MEAN);
+    const auto var_id = graph.generate_id_for(op_id, lt_kind::VAR);
 
-    // specific for forward pass
-    const std::string DST {TENSOR_ID + "_DST"};
+    const auto common_dt = convert_dt(prb->dt);
+    dims_t base_dims = prb->dims;
+    dims_t stat_dims = get_stat_dims(prb->dims);
+    dims_t ss_dims = {prb->c};
 
-    // specific for backward pass
-    const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
-    const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
-    const std::string DIFF_GAMMA {TENSOR_ID + "_DIFF_GAMMA"};
-    const std::string DIFF_BETA {TENSOR_ID + "_DIFF_BETA"};
-
-    const dims_t ss_dims {prb->c};
-    const dims_t stat_dims = get_stat_dims(prb->dims);
-    const graph_dt lnorm_dt {convert_dt(prb->dt)};
-
-    //NOTE: beta, gamma, mean and variance supports only f32
-    tensor_descs_.emplace(SRC, lnorm_dt, prb->dims, lt::strided);
-    tensor_descs_.emplace(GAMMA, graph_dt::f32, ss_dims, lt::strided);
-    tensor_descs_.emplace(BETA, graph_dt::f32, ss_dims, lt::strided);
-    tensor_descs_.emplace(MEAN, graph_dt::f32, stat_dims, lt::strided);
-    tensor_descs_.emplace(VAR, graph_dt::f32, stat_dims, lt::strided);
-
-    if (prb->dir & FLAG_FWD) {
-        tensor_descs_.emplace(DST, lnorm_dt, prb->dims, lt::strided);
-    } else {
-        tensor_descs_.emplace(DIFF_DST, lnorm_dt, prb->dims, lt::strided);
-        tensor_descs_.emplace(DIFF_SRC, lnorm_dt, prb->dims, lt::strided);
-        tensor_descs_.emplace(DIFF_GAMMA, graph_dt::f32, ss_dims, lt::strided);
-        tensor_descs_.emplace(DIFF_BETA, graph_dt::f32, ss_dims, lt::strided);
+    graph.create_lt(src_id, common_dt, base_dims, graph_lt::strided);
+    graph.create_lt(dst_id, common_dt, base_dims, graph_lt::strided);
+    if (prb->dir == FWD_D || prb->dir & FLAG_BWD) {
+        graph.create_lt(mean_id, graph_dt::f32, stat_dims, graph_lt::strided);
+        graph.create_lt(var_id, graph_dt::f32, stat_dims, graph_lt::strided);
     }
-
-    std::vector<dnnl::graph::logical_tensor> inputs;
-    std::vector<dnnl::graph::logical_tensor> outputs;
-
-    inputs.push_back(tensor_descs_[SRC]);
-    if (prb->dir & FLAG_FWD) {
-        outputs.push_back(tensor_descs_[DST]);
-
-        if (prb->dir == FWD_D) {
-            outputs.push_back(tensor_descs_[MEAN]);
-            outputs.push_back(tensor_descs_[VAR]);
-        }
-    } else {
-        inputs.push_back(tensor_descs_[DIFF_DST]);
-        inputs.push_back(tensor_descs_[MEAN]);
-        inputs.push_back(tensor_descs_[VAR]);
-
-        outputs.push_back(tensor_descs_[DIFF_SRC]);
-
-        if (prb->use_ss()) {
-            outputs.push_back(tensor_descs_[DIFF_GAMMA]);
-            outputs.push_back(tensor_descs_[DIFF_BETA]);
-        }
-    }
-
     if (prb->use_ss()) {
-        inputs.push_back(tensor_descs_[GAMMA]);
-        inputs.push_back(tensor_descs_[BETA]);
+        graph.create_lt(sc_id, graph_dt::f32, ss_dims, graph_lt::strided);
+        graph.create_lt(sh_id, graph_dt::f32, ss_dims, graph_lt::strided);
+    }
+    if (prb->dir & FLAG_BWD && prb->use_ss()) {
+        graph.create_lt(d_sc_id, graph_dt::f32, ss_dims, graph_lt::strided);
+        graph.create_lt(d_sh_id, graph_dt::f32, ss_dims, graph_lt::strided);
     }
 
-    const auto op_kind = prb->dir & FLAG_FWD
-            ? dnnl::graph::op::kind::LayerNorm
-            : dnnl::graph::op::kind::LayerNormBackprop;
+    std::vector<size_t> src_ids;
+    std::vector<size_t> dst_ids;
+    dnnl::graph::op::kind lnorm_kind;
+    if (prb->dir & FLAG_FWD) {
+        src_ids = {src_id};
+        dst_ids = {dst_id};
+        if (prb->dir == FWD_D) {
+            dst_ids.push_back(mean_id);
+            dst_ids.push_back(var_id);
+        }
+        lnorm_kind = dnnl::graph::op::kind::LayerNorm;
+    } else {
+        const auto fwd_src_id = graph.generate_id_for(op_id, lt_kind::SRC);
+        graph.create_lt(fwd_src_id, common_dt, base_dims, graph_lt::strided);
+        src_ids = {fwd_src_id, dst_id, mean_id, var_id};
+        dst_ids = {src_id};
+        if (prb->use_ss()) {
+            dst_ids.push_back(d_sc_id);
+            dst_ids.push_back(d_sh_id);
+        }
+        lnorm_kind = dnnl::graph::op::kind::LayerNormBackprop;
+    }
+    if (prb->use_ss()) {
+        src_ids.push_back(sc_id);
+        src_ids.push_back(sh_id);
+    }
 
-    op lnorm_op(new_op_id, op_kind, inputs, outputs, "layernorm");
-
+    dnnl::graph::op lnorm_op(op_id, lnorm_kind, graph.stringify_id(op_id));
     lnorm_op.set_attr("begin_norm_axis", int64_t(-1))
             .set_attr("use_affine", prb->use_ss())
             .set_attr("epsilon", float(1.f / 16));
     if (prb->dir & FLAG_FWD) lnorm_op.set_attr("keep_stats", prb->dir == FWD_D);
 
-    ops_.emplace_back(lnorm_op);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, lnorm_op, src_ids, dst_ids);
+
+    graph.close_block();
 
     return fill_status::DONE;
 }
@@ -155,20 +149,27 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    lnorm_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    // Filter partitions
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -231,6 +232,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     if (prb->dir & FLAG_FWD) {
         if (::lnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp)
                 != OK) {
+            cleanup();
             return res->state = MISTRUSTED, OK;
         }
 
@@ -313,6 +315,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
         if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp, sh_fp)
                 != OK) {
+            cleanup();
             return res->state = MISTRUSTED, OK;
         }
 
@@ -407,6 +410,8 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
+
+    cleanup();
 
     return OK;
 }
