@@ -29,7 +29,7 @@
 namespace benchdnnext {
 namespace pool {
 
-void check_known_skipped_case_graph(
+static void check_known_skipped_case_graph(
         const ::pool::prb_t *prb, res_t *res) noexcept {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
@@ -70,57 +70,38 @@ static quant_data_t get_qdata_for(int arg, const ::pool::prb_t *prb) {
     return quant_data_t();
 }
 
-fill_status_t pool_graph_prb_t::handle_main_op_(const ::pool::prb_t *prb) {
-    using op = dnnl::graph::op;
+static quant_data_t get_qdata_for(
+        const attr_t::post_ops_t::entry_t &entry, const ::pool::prb_t *prb) {
+    if (entry.is_binary_kind())
+        return bin_po_entry2quant_data(
+                entry, prb->tag, convert_dt(prb->cfg[DST].dt));
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
-    std::vector<dnnl::graph::logical_tensor> inputs {};
-    std::vector<dnnl::graph::logical_tensor> outputs {};
+    printf("warning: returning default quant_data_t for unsupported post op\n");
+    return quant_data_t();
+}
 
-    auto src_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[SRC].dt));
-    auto dst_dt = benchdnnext::set_main_op_dtype(convert_dt(prb->cfg[DST].dt));
+static std::vector<dnnl::graph::logical_tensor::data_type> collect_data_types(
+        const ::pool::prb_t *prb) {
+    return {convert_dt(prb->cfg[SRC].dt), convert_dt(prb->cfg[DST].dt)};
+}
 
-    dnnl::graph::op::kind op_kind;
-    if (prb->dir & FLAG_FWD) {
-        op_kind = (prb->alg == ::pool::max) ? dnnl::graph::op::kind::MaxPool
-                                            : dnnl::graph::op::kind::AvgPool;
-    } else {
-        op_kind = (prb->alg == ::pool::max)
-                ? dnnl::graph::op::kind::MaxPoolBackprop
-                : dnnl::graph::op::kind::AvgPoolBackprop;
-    }
+fill_status_t append_graph_with_block(const ::pool::prb_t *prb) {
+    graph_t &graph = graph_t::get();
 
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    tensor_descs_.emplace(SRC, src_dt, prb->src_dims(), prb->tag);
-    if (prb->dir & FLAG_FWD) {
-        const std::string DST {TENSOR_ID + "_DST"};
-        tensor_descs_.emplace(DST, dst_dt, prb->dst_dims(), prb->tag);
-        inputs = {tensor_descs_[SRC]};
-        outputs = {tensor_descs_[DST]};
-    } else {
-        const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
-        const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
-        tensor_descs_.emplace(DIFF_DST, dst_dt, prb->dst_dims(), prb->tag);
-        tensor_descs_.emplace(DIFF_SRC, src_dt, prb->src_dims(), prb->tag);
-        outputs = {tensor_descs_[DIFF_SRC]};
-        if (op_kind == op::kind::AvgPoolBackprop) {
-            inputs = {tensor_descs_[DIFF_DST]};
-        } else {
-            if (is_bench_mode(PERF)) {
-                const std::string DST_FWD_I {TENSOR_ID + "_DST_FWD_I"};
-                tensor_descs_.emplace(
-                        DST_FWD_I, dt::s32, prb->dst_dims(), prb->tag);
-                inputs = {tensor_descs_[SRC], tensor_descs_[DIFF_DST],
-                        tensor_descs_[DST_FWD_I]};
-            } else { //workaround for correctness test
-                inputs = {tensor_descs_[SRC], tensor_descs_[DIFF_DST]};
-            }
-        }
-    }
+    const auto orig_dts = collect_data_types(prb);
+    const auto with_dq = is_low_precision(orig_dts);
+    const auto connect_to_previous_block = !with_dq && graph.has_blocks();
 
-    op pool(new_op_id, op_kind, inputs, outputs, "pool");
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::POOL);
+    const auto src_lt_kind
+            = prb->dir == FLAG_FWD ? lt_kind::SRC : lt_kind::DIFF_SRC;
+    const auto dst_lt_kind
+            = prb->dir & FLAG_FWD ? lt_kind::DST : lt_kind::DIFF_DST;
+    const auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, src_lt_kind);
+    const auto dst_id = graph.generate_id_for(op_id, dst_lt_kind);
 
     dims_t dilations = prb->dilations();
     // oneDNN graph dilation = 1 is equivalent of oneDNN
@@ -128,67 +109,97 @@ fill_status_t pool_graph_prb_t::handle_main_op_(const ::pool::prb_t *prb) {
     std::transform(dilations.begin(), dilations.end(), dilations.begin(),
             [](const dim_t d) { return d + 1; });
 
-    pool.set_attr("strides", prb->strides())
+    const auto src_dt = dequantize_dtype(orig_dts[0]);
+    const auto dst_dt = dequantize_dtype(orig_dts[1]);
+
+    graph.create_lt(src_id, src_dt, prb->src_dims(), prb->tag);
+    graph.create_lt(dst_id, dst_dt, prb->dst_dims(), prb->tag);
+
+    std::vector<size_t> src_ids {};
+    std::vector<size_t> dst_ids {};
+    dnnl::graph::op::kind pool_kind;
+    if (prb->dir & FLAG_FWD) {
+        src_ids = {src_id};
+        dst_ids = {dst_id};
+        pool_kind = prb->alg == ::pool::max ? dnnl::graph::op::kind::MaxPool
+                                            : dnnl::graph::op::kind::AvgPool;
+    } else {
+        src_ids = {dst_id};
+        dst_ids = {src_id};
+        pool_kind = prb->alg == ::pool::max
+                ? dnnl::graph::op::kind::MaxPoolBackprop
+                : dnnl::graph::op::kind::AvgPoolBackprop;
+        if (prb->alg == ::pool::max) {
+            const auto fwd_src_id = graph.generate_id_for(op_id, lt_kind::SRC);
+            const auto fwd_dst_indices_id
+                    = graph.generate_id_for(op_id, lt_kind::DST);
+            graph.create_lt(fwd_src_id, src_dt, prb->src_dims(), prb->tag);
+            if (is_bench_mode(PERF)) {
+                graph.create_lt(fwd_dst_indices_id,
+                        dnnl::graph::logical_tensor::data_type::s32,
+                        prb->dst_dims(), prb->tag);
+                src_ids = {fwd_src_id, dst_id, fwd_dst_indices_id};
+            } else {
+                src_ids = {fwd_src_id, dst_id};
+            }
+        }
+    }
+
+    dnnl::graph::op pool_op(op_id, pool_kind, graph.stringify_id(op_id));
+    pool_op.set_attr("strides", prb->strides())
             .set_attr("pads_begin", prb->padding())
             .set_attr("pads_end", prb->padding_r())
             .set_attr("kernel", prb->kernel())
             .set_attr("data_format", std::string("NCX"))
             .set_attr("auto_pad", std::string("None"));
 
-    if (op_kind == op::kind::MaxPool || op_kind == op::kind::MaxPoolBackprop) {
-        pool.set_attr("dilations", dilations);
-    } else { // AvgPool
-        pool.set_attr("exclude_pad", prb->alg == ::pool::avg_np);
-    }
+    if (prb->alg == ::pool::max)
+        pool_op.set_attr("dilations", dilations);
+    else // AvgPool
+        pool_op.set_attr("exclude_pad", prb->alg == ::pool::avg_np);
     if (prb->dir & FLAG_FWD)
-        pool.set_attr("rounding_type", std::string("floor"));
-    if (op_kind == op::kind::AvgPoolBackprop)
-        pool.set_attr("input_shape", prb->src_dims());
+        pool_op.set_attr("rounding_type", std::string("floor"));
+    if (prb->alg != ::pool::max && prb->dir & FLAG_BWD)
+        pool_op.set_attr("input_shape", prb->src_dims());
 
-    ops_.emplace_back(pool);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, pool_op, src_ids, dst_ids);
+
+    fill_status_t status;
+    // if required - apply dequantize to block inputs
+    if (with_dq) {
+        status = insert_dequant_before(src_id, get_qdata_for(SRC, prb));
+        BENCHDNNEXT_VERIFY(status);
+    }
+
+    // handle post ops
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        const auto with_src1_dq = is_dequantize_required_for(entry);
+        size_t po_src1_id;
+        if (entry.is_binary_kind()) {
+            std::tie(status, po_src1_id) = append_graph_with_binary(entry);
+            BENCHDNNEXT_VERIFY(status);
+            if (with_src1_dq) {
+                status = insert_dequant_before(
+                        po_src1_id, get_qdata_for(entry, prb));
+                BENCHDNNEXT_VERIFY(status);
+            }
+        }
+    }
+
+    // if required - add quantize op
+    if (is_low_precision({orig_dts[1]})) {
+        status = insert_quant_after(
+                graph.get_cur_block_out_id(), get_qdata_for(DST, prb));
+        BENCHDNNEXT_VERIFY(status);
+    }
+
+    graph.close_block();
 
     return fill_status::DONE;
 }
 
-fill_status_t pool_graph_prb_t::handle_bin_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.pool.bin_handler(*this, po_entry);
-}
-
-fill_status_t pool_graph_prb_t::handle_low_precision_(
-        const ::pool::prb_t *prb) {
-    const std::string OP_REPR = "main";
-    const auto src_lt_id = tensor_id[OP_REPR].back() + "_SRC";
-    const auto dst_lt_id = curr_out_map_ids_.back() + "_DST";
-
-    fill_status_t status
-            = po_handler.pool.low_precision_handler.insert_dequant_before(
-                    src_lt_id, get_qdata_for(SRC, prb), *this);
-    BENCHDNNEXT_VERIFY(status);
-
-    status = po_handler.pool.low_precision_handler.insert_quant_after(
-            dst_lt_id, get_qdata_for(DST, prb), *this);
-    BENCHDNNEXT_VERIFY(status);
-
-    for (const auto &entry : prb->attr.post_ops.entry) {
-        if (is_dequantize_required_for(entry)) {
-            const auto bin_src1_lt_id = tensor_id["binary"].back() + "_SRC";
-            status = po_handler.pool.low_precision_handler
-                             .insert_dequant_before(bin_src1_lt_id,
-                                     bin_po_entry2quant_data(entry, prb->tag,
-                                             convert_dt(prb->cfg[DST].dt)),
-                                     *this);
-            BENCHDNNEXT_VERIFY(status);
-            break;
-        }
-    }
-
-    return status;
-}
-
-void graph_bwd_check_correctness(const ::pool::prb_t *prb, const args_t &args,
-        const args_t &ref_args, res_t *res) {
+static void graph_bwd_check_correctness(const ::pool::prb_t *prb,
+        const args_t &args, const args_t &ref_args, res_t *res) {
     compare::compare_t cmp;
     cmp.set_data_kind(SRC);
     ::pool::setup_cmp(cmp, prb, SRC, ref_args);
@@ -208,21 +219,27 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    pool_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
     // Filter partitions
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     bool is_fwd = prb->dir & FLAG_FWD;
     bool is_max_pool = prb->alg == ::pool::max;
@@ -249,7 +266,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
-    if (graph_prb.has_post_bin()) {
+    if (!prb->attr.post_ops.entry.empty()) {
         binary_po_fp.emplace_back(make_dnn_mem(ins.back(), dt::f32, tag::abx));
         binary_po_dt.emplace_back(make_dnn_mem(ins.back(), prb->tag));
         const int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1;
@@ -264,7 +281,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     if (is_fwd) {
         tensors_in.emplace_back(ins[0], eng, static_cast<void *>(src_dt));
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(dst_dt));
-        if (graph_prb.has_post_bin()) {
+        if (!prb->attr.post_ops.entry.empty()) {
             tensors_in.emplace_back(dnnl::graph::tensor(
                     ins.back(), eng, static_cast<void *>(binary_po_dt.back())));
         }
@@ -279,6 +296,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
             check_correctness(
                     prb, {DST}, args, ref_args, ::pool::setup_cmp, res);
 
+            cleanup();
             return OK;
         }
     } else {
@@ -317,6 +335,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
             SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
             graph_bwd_check_correctness(prb, args, ref_args, res);
 
+            cleanup();
             return OK;
         }
     }
@@ -324,6 +343,8 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     SAFE(measure_perf(
                  res->timer_map.perf_timer(), cp, tensors_in, tensors_out, res),
             WARN);
+
+    cleanup();
 
     return OK;
 }
