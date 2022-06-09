@@ -1414,6 +1414,7 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop_fma(
     }
 
     if (jcp.ndims == 5) {
+        base_post_ops_data_offset += reg64_size;
         push(reg_src);
 
         mov(reg_ki, ptr[param + GET_OFF(kd_padding)]);
