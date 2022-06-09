@@ -55,6 +55,7 @@ const data_type_t f32 = dnnl_graph_f32;
 const data_type_t s32 = dnnl_graph_s32;
 const data_type_t s8 = dnnl_graph_s8;
 const data_type_t u8 = dnnl_graph_u8;
+const data_type_t boolean = dnnl_graph_boolean;
 } // namespace data_type
 
 using partition_policy_t = dnnl_graph_partition_policy_t;
@@ -132,6 +133,10 @@ const op_kind_t LeakyReLU = dnnl_graph_op_leaky_relu;
 const op_kind_t Log = dnnl_graph_op_log;
 const op_kind_t LogSoftmax = dnnl_graph_op_log_softmax;
 const op_kind_t LogSoftmaxBackprop = dnnl_graph_op_log_softmax_backprop;
+const op_kind_t LogicalAnd = dnnl_graph_op_logical_and;
+const op_kind_t LogicalNot = dnnl_graph_op_logical_not;
+const op_kind_t LogicalOr = dnnl_graph_op_logical_or;
+const op_kind_t LogicalXor = dnnl_graph_op_logical_xor;
 const op_kind_t MatMul = dnnl_graph_op_matmul;
 const op_kind_t Maximum = dnnl_graph_op_maximum;
 const op_kind_t MaxPool = dnnl_graph_op_max_pool;
