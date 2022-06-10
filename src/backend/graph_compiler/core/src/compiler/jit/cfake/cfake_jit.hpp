@@ -37,8 +37,8 @@ class SC_INTERNAL_API cfake_jit_module_t
     std::string src_path_;
     cfake_jit_module_t(void *module, const std::string &src_path,
             const std::string &path, statics_table_t &&globals,
-            bool has_generic_wrapper)
-        : jit_module(std::move(globals))
+            bool has_generic_wrapper, bool managed_thread_pool)
+        : jit_module(std::move(globals), managed_thread_pool)
         , module_(module)
         , path_(path)
         , src_path_(src_path) {}
@@ -69,11 +69,14 @@ public:
 
     statics_table_t codegen_to_cpp(std::ostream &os,
             const const_ir_module_ptr &module, bool generate_wrapper);
+    statics_table_t codegen_to_cpp(std::ostream &os,
+            const const_ir_module_ptr &module, bool generate_wrapper,
+            bool &out_managed_thread_pool);
     std::shared_ptr<jit_module> make_jit_module(
             const_ir_module_ptr module, bool generate_wrapper) override;
     std::shared_ptr<jit_module> make_jit_module(const std::string &inpath,
             const std::string &outpath, statics_table_t &&globals,
-            bool has_generic_wrapper);
+            bool has_generic_wrapper, bool managed_thread_pool);
     static void set_target_machine(target_machine_t &tm);
 };
 

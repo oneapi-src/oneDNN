@@ -49,6 +49,11 @@ public:
         // the statics_table_t for the global data buffer
         static constexpr const char *MODULE_DATA_BUFFERS
                 = "MODULE_DATA_BUFFERS";
+        // float, the estimated number of FP operations in the module (GFLOPS)
+        static constexpr const char *GFLOP = "gflop";
+        // bool, whether to use managed thread pool
+        static constexpr const char *MANAGED_THREAD_POOL
+                = "MANAGED_THREAD_POOL";
     };
 
     context_ptr ctx_;

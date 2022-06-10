@@ -24,6 +24,7 @@
 #include "llvm/llvm_jit.hpp"
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <runtime/config.hpp>
+#include <util/scoped_timer.hpp>
 
 namespace sc {
 
@@ -68,54 +69,106 @@ void jit_engine_t::set_target_machine(jit_kind kind, target_machine_t &tm) {
 
 static std::atomic<size_t> module_id {0};
 
-jit_module::jit_module() : module_id_(module_id++) {}
-jit_module::jit_module(statics_table_t &&globals)
-    : globals_(std::move(globals)), module_id_(module_id++) {}
+jit_module::jit_module(bool managed_thread_pool)
+    : module_id_(module_id++), managed_thread_pool_(managed_thread_pool) {}
+jit_module::jit_module(statics_table_t &&globals, bool managed_thread_pool)
+    : globals_(std::move(globals))
+    , module_id_(module_id++)
+    , managed_thread_pool_(managed_thread_pool) {}
+
+template <bool execution_verbose>
+struct jit_timer_t {
+    jit_timer_t(const general_jit_function_t *) {}
+};
+
+template <>
+struct jit_timer_t<true> {
+    struct callback_t {
+        const general_jit_function_t *ths;
+        void operator()(utils::time_duration dur) const {
+            using namespace std::chrono;
+            double duration = static_cast<double>(
+                                      duration_cast<nanoseconds>(dur).count())
+                    / 1e6;
+            printf("Entry point: %s@%zu. Time elapsed: %lf ms\n",
+                    ths->fname_.c_str(), ths->module_->module_id_, duration);
+        }
+    };
+    utils::scoped_timer<callback_t> timer_;
+    jit_timer_t(const general_jit_function_t *ths)
+        : timer_ {true, callback_t {ths}} {}
+};
+
+using functype = void (*)(runtime::stream_t *, void *, generic_val *);
+
+template <bool thread_pool_init>
+struct thread_pool_caller_t {
+    static void call(functype f, runtime::stream_t *stream, void *module_data,
+            generic_val *args) {
+        f(stream, module_data, args);
+    }
+};
+
+template <bool thread_pool_init, bool execution_verbose>
+class injected_general_jit_function_t : public general_jit_function_t {
+    void call_generic(
+            runtime::stream_t *stream, generic_val *args) const override {
+        injected_general_jit_function_t::call_generic(
+                stream, module_->globals_.data_.data_, args);
+    }
+
+    void call_generic(runtime::stream_t *stream, void *module_data,
+            generic_val *args) const override {
+        jit_timer_t<execution_verbose> timer(this);
+        assert(wrapper_ && "Trying to call 'call_generic' \
+            on a jit funciton with no wrapper.");
+        functype f = reinterpret_cast<functype>(wrapper_);
+        thread_pool_caller_t<thread_pool_init>::call(
+                f, stream, module_data, args);
+    }
+
+public:
+    using general_jit_function_t::general_jit_function_t;
+    friend class general_jit_function_t;
+};
 
 void general_jit_function_t::call_generic(
         runtime::stream_t *stream, generic_val *args) const {
-    assert(wrapper_ && "Trying to call 'call_generic' \
-            on a jit funciton with no wrapper.");
-
-    using functype = void (*)(runtime::stream_t *, void *, generic_val *);
-    functype f = reinterpret_cast<functype>(wrapper_);
-    if (runtime_config_t::get().execution_verbose_) {
-        using namespace std::chrono;
-        auto start = steady_clock::now();
-        f(stream, module_->globals_.data_.data_, args);
-        auto stop = steady_clock::now();
-        double duration
-                = static_cast<double>(
-                          duration_cast<nanoseconds>(stop - start).count())
-                / 1e6;
-        printf("Entry point: %s@%zu. Time elapsed: %lf ms\n", fname_.c_str(),
-                module_->module_id_, duration);
-    } else {
-        f(stream, module_->globals_.data_.data_, args);
-    }
+    general_jit_function_t::call_generic(
+            stream, module_->globals_.data_.data_, args);
 }
 
 void general_jit_function_t::call_generic(
         runtime::stream_t *stream, void *module_data, generic_val *args) const {
     assert(wrapper_ && "Trying to call 'call_generic' \
             on a jit funciton with no wrapper.");
-
-    using functype = void (*)(runtime::stream_t *, void *, generic_val *);
     functype f = reinterpret_cast<functype>(wrapper_);
+    f(stream, module_data, args);
+}
 
-    if (runtime_config_t::get().execution_verbose_) {
-        using namespace std::chrono;
-        auto start = steady_clock::now();
-        f(stream, module_data, args);
-        auto stop = steady_clock::now();
-        double duration
-                = static_cast<double>(
-                          duration_cast<nanoseconds>(stop - start).count())
-                / 1e6;
-        printf("Entry point: %s@%zu. Time elapsed: %lf ms\n", fname_.c_str(),
-                module_->module_id_, duration);
+std::shared_ptr<jit_function_t> general_jit_function_t::make(
+        const std::shared_ptr<jit_module> &module, void *funcptr, void *wrapper,
+        const std::string &name, bool managed_thread_pool) {
+    auto &runtime_cfg = runtime_config_t::get();
+    if (managed_thread_pool) {
+        if (runtime_cfg.execution_verbose_) {
+            return std::shared_ptr<general_jit_function_t>(
+                    new injected_general_jit_function_t<true, true>(
+                            module, funcptr, wrapper, name));
+        } else {
+            return std::shared_ptr<general_jit_function_t>(
+                    new injected_general_jit_function_t<true, false>(
+                            module, funcptr, wrapper, name));
+        }
     } else {
-        f(stream, module_data, args);
+        if (runtime_cfg.execution_verbose_) {
+            return std::shared_ptr<general_jit_function_t>(
+                    new injected_general_jit_function_t<false, true>(
+                            module, funcptr, wrapper, name));
+        } else {
+            return std::shared_ptr<general_jit_function_t>(
+                    new general_jit_function_t(module, funcptr, wrapper, name));
+        }
     }
 }
 

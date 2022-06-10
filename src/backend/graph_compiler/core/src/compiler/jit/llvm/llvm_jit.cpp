@@ -99,7 +99,8 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.llvm_jit", "");
     auto &attr_table = *new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
             ir_module_t::attr_key_t::MODULE_DATA_BUFFERS);
-
+    bool use_managed_tp = new_mod->attr_.get<bool>(
+            ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
     std::string err;
     llvm::raw_string_ostream ss(err);
     if (llvm::verifyModule(*llvmmod, &ss)) {
@@ -138,13 +139,14 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     if (init_func) { init_func(nullptr, attr_table.data_.data_); }
     return std::make_shared<llvm_jit_module>(
             std::unique_ptr<llvm::ExecutionEngine>(engine), std::move(llvm_ctx),
-            std::move(attr_table), std::move(outlisteners));
+            std::move(attr_table), std::move(outlisteners), use_managed_tp);
 }
 
 llvm_jit_module::llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,
         std::unique_ptr<llvm::LLVMContext> llvm_ctx, statics_table_t &&globals,
-        std::shared_ptr<llvm_jit_listeners> &&listeners)
-    : jit_module(std::move(globals))
+        std::shared_ptr<llvm_jit_listeners> &&listeners,
+        bool managed_thread_pool)
+    : jit_module(std::move(globals), managed_thread_pool)
     , listeners_(std::move(listeners))
     , llvm_ctx_(std::move(llvm_ctx))
     , engine_(std::move(engine)) {}
@@ -172,11 +174,11 @@ std::shared_ptr<jit_function_t> llvm_jit_module::get_function(
     void *wrapper = resolve_llvm_symbol(engine_.get(), name + "_0wrapper");
     if (fun || wrapper) {
         if (runtime_config_t::get().execution_verbose_) {
-            return std::make_shared<general_jit_function_t>(
-                    shared_from_this(), fun, wrapper, name);
+            return general_jit_function_t::make(shared_from_this(), fun,
+                    wrapper, name, managed_thread_pool_);
         } else {
-            return std::make_shared<general_jit_function_t>(
-                    shared_from_this(), fun, wrapper);
+            return general_jit_function_t::make(shared_from_this(), fun,
+                    wrapper, std::string(), managed_thread_pool_);
         }
     } else {
         return nullptr;

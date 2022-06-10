@@ -27,6 +27,7 @@ namespace runtime {
 struct amx_buffer_t {
     void *ptr_ = nullptr;
     engine_t *engine_ = nullptr;
+    const char *cur_palette = nullptr;
     ~amx_buffer_t();
     void reset(stream_t *stream);
     void release();
@@ -45,6 +46,7 @@ struct thread_local_buffer_t {
     // if the current thread is a worker thread, use this pool
     memory_pool::filo_memory_pool_t thread_memory_pool_ {
             memory_pool::threadlocal_chunk_size};
+
     ~thread_local_buffer_t();
     using list_type = std::list<thread_local_buffer_t *>;
 

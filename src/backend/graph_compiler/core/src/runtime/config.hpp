@@ -28,6 +28,11 @@ struct thread_pool_table {
     void (*parallel_call)(void (*pfunc)(void *, void *, int64_t, generic_val *),
             void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
             int64_t step, generic_val *args);
+    // submits job in GC-managed thread pool
+    void (*parallel_call_managed)(
+            void (*pfunc)(void *, void *, int64_t, generic_val *),
+            void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
+            int64_t step, generic_val *args);
     // gets the max number of threads in pool
     int (*get_num_threads)();
     // sets the max number of threads in pool

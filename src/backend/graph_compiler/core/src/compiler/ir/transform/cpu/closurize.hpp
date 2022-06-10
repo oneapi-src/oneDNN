@@ -60,7 +60,7 @@ public:
 };
 
 func_t get_parallel_call_func();
-func_t get_parallel_call_with_env_func();
+func_t get_parallel_call_with_env_func(bool managed);
 } // namespace sc
 
 #endif

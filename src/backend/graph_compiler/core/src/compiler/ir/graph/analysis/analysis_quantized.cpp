@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,5 +25,6 @@ void analysis_quantized(sc_graph_t &graph, const context_ptr &ctx) {
             break;
         }
     }
+    graph.attrs_[sc_graph_t::attr_key_t::gflop] = graph.get_gflop();
 }
 } // namespace sc

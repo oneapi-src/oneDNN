@@ -73,7 +73,8 @@ cfake_jit_module_t::~cfake_jit_module_t() {
 
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         const std::string &inpath, const std::string &outpath,
-        statics_table_t &&globals, bool has_generic_wrapper) {
+        statics_table_t &&globals, bool has_generic_wrapper,
+        bool managed_thread_pool) {
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.cfake_jit", "");
     auto &home_path = utils::get_sc_home_path();
     if (home_path.empty()) {
@@ -164,17 +165,26 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         os << "Error when fork: " << utils::get_error_msg(fork_errno);
         throw std::runtime_error(os.str());
     }
-    return std::shared_ptr<cfake_jit_module_t>(
-            new cfake_jit_module_t(compiled_module, inpath, outpath,
-                    std::move(globals), has_generic_wrapper));
+    return std::shared_ptr<cfake_jit_module_t>(new cfake_jit_module_t(
+            compiled_module, inpath, outpath, std::move(globals),
+            has_generic_wrapper, managed_thread_pool));
+}
+
+statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
+        const const_ir_module_ptr &module, bool generate_wrapper,
+        bool &out_managed_thread_pool) {
+    auto gen = create_c_generator(os, context_, generate_wrapper);
+    auto new_mod = gen(module);
+    out_managed_thread_pool = new_mod->attr_.get<bool>(
+            ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
+    return std::move(*new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
+            ir_module_t::attr_key_t::MODULE_DATA_BUFFERS));
 }
 
 statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
         const const_ir_module_ptr &module, bool generate_wrapper) {
-    auto gen = create_c_generator(os, context_, generate_wrapper);
-    auto new_mod = gen(module);
-    return std::move(*new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
-            ir_module_t::attr_key_t::MODULE_DATA_BUFFERS));
+    bool dummy;
+    return codegen_to_cpp(os, module, generate_wrapper, dummy);
 }
 
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
@@ -192,11 +202,13 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     std::string inpath = tmpdir + "/cfake_jit_module-" + unique_name + ".cpp";
 
     std::ofstream of(inpath);
-    auto attr_table = codegen_to_cpp(of, module, generate_wrapper);
+    bool managed_thread_pool;
+    auto attr_table
+            = codegen_to_cpp(of, module, generate_wrapper, managed_thread_pool);
     of.close();
 
-    return make_jit_module(
-            inpath, outpath, std::move(attr_table), generate_wrapper);
+    return make_jit_module(inpath, outpath, std::move(attr_table),
+            generate_wrapper, managed_thread_pool);
 }
 
 void *cfake_jit_module_t::get_address_of_symbol(const std::string &name) {
@@ -222,16 +234,15 @@ cfake_jit_module_t::~cfake_jit_module_t() {
 
 std::shared_ptr<jit_function_t> cfake_jit_module_t::get_function(
         const std::string &name) {
-    std::string fname(name);
-    void *fun = get_address_of_symbol(fname);
-    void *wrapper = get_address_of_symbol(fname + "_0wrapper");
+    void *fun = get_address_of_symbol(name);
+    void *wrapper = get_address_of_symbol(name + "_0wrapper");
     if (fun || wrapper) {
         if (runtime_config_t::get().execution_verbose_) {
-            return std::make_shared<general_jit_function_t>(
-                    shared_from_this(), fun, wrapper, fname);
+            return general_jit_function_t::make(shared_from_this(), fun,
+                    wrapper, name, managed_thread_pool_);
         } else {
-            return std::make_shared<general_jit_function_t>(
-                    shared_from_this(), fun, wrapper);
+            return general_jit_function_t::make(shared_from_this(), fun,
+                    wrapper, std::string(), managed_thread_pool_);
         }
     } else {
         return nullptr;

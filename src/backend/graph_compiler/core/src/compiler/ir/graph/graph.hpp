@@ -331,6 +331,7 @@ class SC_API sc_graph_t {
 public:
     // the attr keys for graph
     struct attr_key_t {
+        static constexpr const char *gflop = "gflop";
         static constexpr const char *quantize = "quantize";
         static constexpr const char *bf16 = "bf16";
         static constexpr const char *fp16 = "fp16";

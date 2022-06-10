@@ -18,7 +18,9 @@ file(GLOB_RECURSE SC_RUNTIME_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.c
     )
-
+if(${SC_PRODUCTION} STREQUAL ON)
+    list(REMOVE_ITEM SC_RUNTIME_SOURCES ${SC_SKIP_SOURCES})
+endif()
 add_library(graphcompiler_runtime STATIC ${SC_RUNTIME_SOURCES})
 target_link_libraries(graphcompiler_runtime PRIVATE ${DNNL_LIBNAME} "${EXTRA_SHARED_LIBS}")
 if(IGC_PATH)

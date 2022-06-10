@@ -22,6 +22,7 @@
 #include <runtime/env_var.hpp>
 #include <runtime/env_vars.hpp>
 #include <runtime/logging.hpp>
+#include <runtime/os.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
 #include <util/os.hpp>

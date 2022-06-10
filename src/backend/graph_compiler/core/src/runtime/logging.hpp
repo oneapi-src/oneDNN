@@ -29,9 +29,12 @@ struct logging_stream_t {
     operator bool() const { return stream_; };
 };
 
-logging_stream_t get_info_logging_stream(const char *module_name = nullptr);
-logging_stream_t get_warning_logging_stream(const char *module_name = nullptr);
-logging_stream_t get_fatal_logging_stream(const char *module_name = nullptr);
+SC_INTERNAL_API logging_stream_t get_info_logging_stream(
+        const char *module_name = nullptr);
+SC_INTERNAL_API logging_stream_t get_warning_logging_stream(
+        const char *module_name = nullptr);
+SC_INTERNAL_API logging_stream_t get_fatal_logging_stream(
+        const char *module_name = nullptr);
 
 enum verbose_level { FATAL = 0, WARNING, INFO };
 

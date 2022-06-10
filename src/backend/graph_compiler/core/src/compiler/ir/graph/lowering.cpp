@@ -623,6 +623,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     if (utils::compiler_configs_t::get().print_pass_result_) {
         SC_MODULE_INFO << ret_mod;
     }
+    ret_mod->attr_[ir_module_t::attr_key_t::GFLOP]
+            = graph.attrs_.get_or_else(sc_graph_t::attr_key_t::gflop, 0.0f);
     return ret_mod;
 }
 } // namespace sc

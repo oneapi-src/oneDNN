@@ -37,7 +37,7 @@ func_t get_parallel_call_func() {
     return f;
 }
 
-func_t get_parallel_call_with_env_func() {
+func_t get_parallel_call_with_env_func(bool managed) {
     static func_t f = builder::_decl_func("sc_parallel_call_cpu_with_env",
             datatypes::void_t,
             {_arg_("func", datatypes::pointer),

@@ -69,13 +69,16 @@ public:
 
     virtual void *get_module_data() const { return nullptr; }
 
-    template <typename Ret, typename... Args>
-    Ret call_default(Args... args) const {
-        return call<Ret>(runtime::get_default_stream(), args...);
+    // util wrapper for call_generic
+    template <typename... Args>
+    void call_default(Args... args) const {
+        generic_val vargs[] = {args...};
+        call_generic(runtime::get_default_stream(), vargs);
     }
 
+    // only for testing use. Use call_default/call_generic instead
     template <typename Ret, typename... Args>
-    Ret call(runtime::stream_t *stream, Args... args) const {
+    Ret call(Args... args) const {
         // functype_old is kept for legacy mode for xbyak. Remove this when
         // xbyak JIT is updated to new JIT function interface
         using functype_old = Ret (*)(Args...);
@@ -84,7 +87,7 @@ public:
         auto modu_ptr = get_module_data();
         if (modu_ptr) {
             return reinterpret_cast<functype>(get_function_pointer())(
-                    stream, modu_ptr, args...);
+                    runtime::get_default_stream(), modu_ptr, args...);
         }
         return reinterpret_cast<functype_old>(get_function_pointer())(args...);
     }
@@ -98,8 +101,10 @@ public:
     statics_table_t globals_;
     // the unique id for a JIT module in a process scope
     size_t module_id_;
-    jit_module();
-    jit_module(statics_table_t &&globals);
+    // whether to use managed thread pool
+    bool managed_thread_pool_;
+    jit_module(bool managed_thread_pool);
+    jit_module(statics_table_t &&globals, bool managed_thread_pool);
     virtual void *get_address_of_symbol(const std::string &name) = 0;
     virtual std::shared_ptr<jit_function_t> get_function(
             const std::string &name)
@@ -112,15 +117,7 @@ public:
 };
 
 class SC_INTERNAL_API general_jit_function_t : public jit_function_t {
-    std::shared_ptr<jit_module> module_;
-    void *funcptr_;
-    void *wrapper_;
-    std::string fname_;
-
-public:
-    void *get_module_data() const override {
-        return module_->globals_.data_.data_;
-    }
+protected:
     general_jit_function_t(
             std::shared_ptr<jit_module> module, void *funcptr, void *wrapper)
         : module_(std::move(module)), funcptr_(funcptr), wrapper_(wrapper) {}
@@ -130,6 +127,20 @@ public:
         , funcptr_(funcptr)
         , wrapper_(wrapper)
         , fname_(name) {}
+
+public:
+    std::shared_ptr<jit_module> module_;
+    void *funcptr_;
+    void *wrapper_;
+    std::string fname_;
+
+    static std::shared_ptr<jit_function_t> make(
+            const std::shared_ptr<jit_module> &module, void *funcptr,
+            void *wrapper, const std::string &name, bool managed_thread_pool);
+    void *get_module_data() const override {
+        return module_->globals_.data_.data_;
+    }
+
     std::shared_ptr<jit_module> get_module() const override { return module_; }
     void *get_function_pointer() const override { return funcptr_; }
     void *get_wrapper_function_pointer() const { return wrapper_; }
@@ -160,7 +171,7 @@ public:
      * @return the executable function for the entry function
      * */
     std::shared_ptr<jit_function_t> get_entry_func(
-            const ir_module_ptr &m, bool generic = false);
+            const ir_module_ptr &m, bool generic = true);
     virtual ~jit_engine_t() = default;
 
     static std::unique_ptr<jit_engine_t> make(const context_ptr &ctx);

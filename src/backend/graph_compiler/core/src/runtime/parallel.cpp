@@ -111,6 +111,6 @@ extern "C" void sc_parallel_call_cpu_with_env_impl(
 
 #endif
 namespace sc {
-thread_pool_table sc_pool_table {&sc_parallel_call_cpu_with_env_impl,
+thread_pool_table sc_pool_table {&sc_parallel_call_cpu_with_env_impl, nullptr,
         &get_num_threads, &set_num_threads, &get_thread_num, &get_in_parallel};
 }

@@ -23,6 +23,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/transform/cpu/closurize.hpp>
 #include <compiler/ir/visitor.hpp>
+#include <runtime/config.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
 
@@ -46,6 +47,9 @@ public:
     // change the global symbol to a local variable
     std::vector<expr> global_symbol_local_def_;
     std::unordered_map<expr_c, expr> global_symbol_replace_map_;
+    bool use_managed_thread_pool_;
+    module_globals_resolver_impl_t(bool use_managed_thread_pool)
+        : use_managed_thread_pool_(use_managed_thread_pool) {}
 
     expr_c visit(call_c v) override {
         func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
@@ -62,8 +66,9 @@ public:
                 ret[1] = current_rtl_ctx;
                 ret[2] = current_base;
                 return copy_attr(*v,
-                        builder::make_call(
-                                get_parallel_call_with_env_func(), ret));
+                        builder::make_call(get_parallel_call_with_env_func(
+                                                   use_managed_thread_pool_),
+                                ret));
             } else if (v->func_->attr_
                     && v->func_->attr_->get_or_else(
                             "is_brgemm_func_with_stream", false)) {
@@ -259,9 +264,13 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
         replace_map[f->name_] = copy_attr(*f, std::move(retf));
         funcp->decl_ = copy_attr(*f, std::move(funcp->decl_));
     }
+    float gflop = m->attr_.get_or_else(ir_module_t::attr_key_t::GFLOP, 0.0f);
+    bool use_managed_thread_pool = false;
+    ret->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+            = use_managed_thread_pool;
     for (unsigned i = 0; i < funcs.size(); i++) {
         if (!funcs[i]->body_.defined()) { continue; }
-        module_globals_resolver_impl_t impl;
+        module_globals_resolver_impl_t impl {use_managed_thread_pool};
         impl.map = &replace_map;
         auto funcp = replace_map[funcs[i]->name_];
         assert(funcp);

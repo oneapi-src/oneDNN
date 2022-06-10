@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string>
 #include <vector>
+#include "env_var.hpp"
 #include "env_vars.hpp"
 #ifdef _WIN32
 #include <windows.h>

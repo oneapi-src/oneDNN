@@ -497,16 +497,18 @@ void amx_buffer_t::release() {
 } // namespace runtime
 } // namespace sc
 
-static thread_local char *cur_palette = nullptr;
 static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
         sc::runtime::stream_t *stream, bool &amx_exclusive) {
     void *tmp_amx_tile_buf = nullptr;
     if (brg_desc->is_amx_) {
-        amx_exclusive = sc::runtime_config_t::get().amx_exclusive_;
-        if (!amx_exclusive || cur_palette != brg_desc->palette_) {
+        auto &config = sc::runtime_config_t::get();
+        auto &tls = sc::runtime::thread_local_buffer_t::tls_buffer_;
+        amx_exclusive = config.amx_exclusive_;
+        if (!amx_exclusive
+                || tls.amx_buffer_.cur_palette != brg_desc->palette_) {
             amx_tile_configure(brg_desc->palette_);
-            cur_palette = brg_desc->palette_;
-            auto &amx_tile_buf = sc::runtime::get_tls(stream).amx_buffer_;
+            tls.amx_buffer_.cur_palette = brg_desc->palette_;
+            auto &amx_tile_buf = tls.amx_buffer_;
             if (!amx_tile_buf.ptr_) { amx_tile_buf.reset(stream); }
             tmp_amx_tile_buf = amx_tile_buf.ptr_;
         }

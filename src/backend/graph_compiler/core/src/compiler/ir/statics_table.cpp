@@ -120,8 +120,10 @@ statics_table_t statics_table_t::load_from_file(const std::string &path) {
             "Expecting initialized_size <= total_size");
     static_data_t buf {total_size, runtime::get_default_stream()->engine_};
 
-    readitems = fread(buf.data_, initialized_size, 1, ofs);
-    COMPILE_ASSERT(readitems == 1, "Bad EOF");
+    if (initialized_size) {
+        readitems = fread(buf.data_, initialized_size, 1, ofs);
+        COMPILE_ASSERT(readitems == 1, "Bad EOF");
+    }
 
     statics_table_t ret {std::move(buf)};
     ret.initialized_size_ = initialized_size;
