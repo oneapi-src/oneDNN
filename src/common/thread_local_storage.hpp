@@ -19,6 +19,7 @@
 
 #include <assert.h>
 #include <thread>
+#include <utility>
 #include <unordered_map>
 
 #include "rw_mutex.hpp"
@@ -34,13 +35,14 @@ struct thread_local_storage_t {
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(thread_local_storage_t);
 
-    void set(T &&value) {
+    template <typename U>
+    T &set(U &&value) {
         utils::lock_write_t lock_w(mutex_);
         const auto tid = std::this_thread::get_id();
         assert(storage_.count(tid) == 0);
-        auto it = storage_.emplace(tid, std::move(value));
+        auto it = storage_.emplace(tid, std::forward<U>(value));
         assert(it.second);
-        MAYBE_UNUSED(it);
+        return it.first->second;
     }
 
     bool is_set() {
@@ -51,6 +53,16 @@ struct thread_local_storage_t {
     T &get() {
         utils::lock_read_t lock_r(mutex_);
         return storage_.at(std::this_thread::get_id());
+    }
+
+    template <typename U>
+    T &get(U &&def_value) {
+        {
+            utils::lock_read_t lock_r(mutex_);
+            auto it = storage_.find(std::this_thread::get_id());
+            if (it != storage_.end()) return it->second;
+        }
+        return set(std::forward<U>(def_value));
     }
 
 private:
