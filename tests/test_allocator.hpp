@@ -17,6 +17,8 @@
 #ifndef TEST_ALLOCATOR_HPP
 #define TEST_ALLOCATOR_HPP
 
+#include <unordered_map>
+
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
@@ -37,6 +39,45 @@ void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
 
 void sycl_free_wrapper(
         void *ptr, const void *device, const void *context, void *event);
+
+// a simple sycl allocator for testing purpose only
+class simple_sycl_allocator {
+public:
+    simple_sycl_allocator() = default;
+    simple_sycl_allocator(const cl::sycl::context *ctx) : ctx_(ctx) {};
+    ~simple_sycl_allocator() {};
+
+    void *malloc(size_t num_bytes, const cl::sycl::device *dev) {
+        return malloc_device(num_bytes, *dev, *ctx_);
+    }
+
+    void release(void *ptr, cl::sycl::event e) { free_list_[e] = ptr; }
+
+    void free_to_driver() {
+        for (typename std::unordered_map<cl::sycl::event,
+                     void *>::const_iterator it
+                = free_list_.begin();
+                it != free_list_.end(); ++it) {
+            cl::sycl::event e = it->first;
+            e.wait();
+            free(it->second, *ctx_);
+        }
+        free_list_.clear();
+    }
+
+private:
+    const cl::sycl::context *ctx_;
+    std::unordered_map<cl::sycl::event, void *> free_list_;
+};
+
+simple_sycl_allocator *get_allocator(const cl::sycl::context *ctx);
+
+void *sycl_allocator_malloc(size_t n, const void *dev, const void *ctx,
+        dnnl::graph::allocator::attribute attr);
+
+void sycl_allocator_free(
+        void *ptr, const void *device, const void *context, void *event);
+
 #endif
 
 } // namespace testing

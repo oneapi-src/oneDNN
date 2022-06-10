@@ -241,6 +241,26 @@ struct kernel_base_t {
         return execute_impl(part, astream, inputs, outputs);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    impl::status_t execute_sycl(const dnnl_partition_impl_t *part,
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs,
+            const std::vector<cl::sycl::event> &sycl_deps,
+            cl::sycl::event *sycl_event) {
+        return sycl_execute_impl(
+                part, astream, inputs, outputs, sycl_deps, sycl_event);
+    }
+
+    virtual impl::status_t sycl_execute_impl(const dnnl_partition_impl_t *part,
+            const impl::stream_t *astream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs,
+            const std::vector<cl::sycl::event> &sycl_deps,
+            cl::sycl::event *sycl_event)
+            = 0;
+#endif
+
     virtual impl::status_t compile_impl(const dnnl_partition_impl_t *part,
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,

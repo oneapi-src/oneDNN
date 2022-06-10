@@ -14,9 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef TEST_ALLOCATOR_HPP
-#define TEST_ALLOCATOR_HPP
-
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #include "test_allocator.hpp"
@@ -80,10 +77,30 @@ void sycl_free_wrapper(
     }
     free(ptr, *static_cast<const cl::sycl::context *>(context));
 }
+
+simple_sycl_allocator *get_allocator(const cl::sycl::context *ctx) {
+    static simple_sycl_allocator aallocator(ctx);
+    return &aallocator;
+}
+
+void *sycl_allocator_malloc(size_t n, const void *dev, const void *ctx,
+        dnnl::graph::allocator::attribute attr) {
+    simple_sycl_allocator *aallocator
+            = get_allocator(static_cast<const cl::sycl::context *>(ctx));
+    return aallocator->malloc(n, static_cast<const cl::sycl::device *>(dev));
+}
+
+void sycl_allocator_free(
+        void *ptr, const void *device, const void *ctx, void *event) {
+    // Device is not used in this example, but it may be useful for some users
+    // application.
+    UNUSED(device);
+    simple_sycl_allocator *aallocator
+            = get_allocator(static_cast<const cl::sycl::context *>(ctx));
+    aallocator->release(ptr, *static_cast<cl::sycl::event *>(event));
+}
 #endif
 
 } // namespace testing
 } // namespace graph
 } // namespace dnnl
-
-#endif

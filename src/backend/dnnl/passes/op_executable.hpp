@@ -25,6 +25,10 @@
 #include <unordered_map>
 
 #include "dnnl.hpp"
+#ifdef DNNL_GRAPH_WITH_SYCL
+#include "dnnl_sycl.hpp"
+#include <CL/sycl.hpp>
+#endif
 
 #include <utils/utils.hpp>
 
@@ -1402,6 +1406,11 @@ struct op_executable_t {
     virtual ~op_executable_t() = default;
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const = 0;
+#ifdef DNNL_GRAPH_WITH_SYCL
+    virtual cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const = 0;
+#endif
 };
 
 struct memory_reparser_t : public op_executable_t {
@@ -1412,6 +1421,30 @@ struct memory_reparser_t : public op_executable_t {
                         == args.find(DNNL_ARG_TO)->second.get_data_handle(),
                 "memory_parser must be inplaced");
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        UNUSED(stream);
+        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
+                "memory_parser must be inplaced");
+
+        // Fast path: if only one event, return it.
+        if (deps.size() == 1) return deps[0];
+
+        // Otherwise, we run a trivial kernel to gather all deps. The
+        // dummy task is needed to not get an error related to empty
+        // kernel.
+        auto q = dnnl::sycl_interop::get_queue(stream);
+        auto e = q.submit([&](::sycl::handler &cgh) {
+            cgh.depends_on(deps);
+            cgh.single_task<class dnnl_graph_dummy_kernel>([]() {});
+        });
+        return e;
+    }
+#endif
 };
 
 template <typename attr_dt, typename target_dt>
@@ -1440,6 +1473,29 @@ struct const_memory_filler_t : public op_executable_t {
                 .execute(stream, const_cast<memory &>(src_mem),
                         const_cast<memory &>(dst_mem));
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        void *data_handle = static_cast<void *>(
+                const_cast<target_dt *>(attr_data_.data()));
+        const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+
+        auto is_cpu = dst_mem.get_engine().get_kind() == engine::kind::cpu;
+        // handle cross-engine case
+        auto src_eng = (is_cpu) ? dst_mem.get_engine()
+                                : engine(dflt_eng_kind, dflt_eng_idx);
+
+        const memory src_mem
+                = make_dnnl_memory(dst_mem.get_desc(), src_eng, data_handle);
+        auto prim = dnnl::reorder(src_mem, dst_mem);
+        return dnnl::sycl_interop::execute(prim, stream,
+                {{DNNL_ARG_FROM, const_cast<memory &>(src_mem)},
+                        {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
+                deps);
+    }
+#endif
 
 private:
     std::vector<target_dt> get_attr_data(
@@ -1486,6 +1542,27 @@ struct conv_fwd_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        auto sycl_deps = deps;
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                auto prim = dnnl::reorder(psrc_mem, dst_mem);
+                auto e = dnnl::sycl_interop::execute(prim, stream,
+                        {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
+                        sycl_deps);
+                sycl_deps = {e};
+            }
+        }
+        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+    }
+#endif
+
 private:
     dnnl::convolution_forward::primitive_desc pd_;
     dnnl::convolution_forward prim_;
@@ -1519,6 +1596,27 @@ struct deconv_fwd_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        auto sycl_deps = deps;
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                auto prim = dnnl::reorder(psrc_mem, dst_mem);
+                auto e = dnnl::sycl_interop::execute(prim, stream,
+                        {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
+                        sycl_deps);
+                sycl_deps = {e};
+            }
+        }
+        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+    }
+#endif
+
 private:
     dnnl::deconvolution_forward::primitive_desc pd_;
     dnnl::deconvolution_forward prim_;
@@ -1540,6 +1638,14 @@ struct deconv_bwd_data_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::deconvolution_backward_data::primitive_desc pd_;
     dnnl::deconvolution_backward_data prim_;
@@ -1559,6 +1665,14 @@ struct deconv_bwd_weights_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::deconvolution_backward_weights::primitive_desc pd_;
@@ -1606,6 +1720,30 @@ struct matmul_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        auto sycl_deps = deps;
+        if (with_sum_) {
+            memory &dst_mem
+                    = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
+            memory &psrc_mem = const_cast<memory &>(
+                    args.find(DNNL_GRAPH_ARG_POST_SRC)->second);
+
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                auto prim = dnnl::reorder(psrc_mem, dst_mem);
+                auto e = dnnl::sycl_interop::execute(prim, stream,
+                        {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
+                        sycl_deps);
+                sycl_deps = {e};
+            }
+        }
+        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+    }
+#endif
+
 private:
     dnnl::matmul::primitive_desc pd_;
     dnnl::matmul prim_;
@@ -1627,6 +1765,14 @@ struct eltwise_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::eltwise_forward::primitive_desc pd_;
     dnnl::eltwise_forward prim_;
@@ -1646,6 +1792,14 @@ struct eltwise_bwd_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::eltwise_backward::primitive_desc pd_;
@@ -1682,6 +1836,30 @@ struct binary_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        auto sycl_deps = deps;
+        if (with_sum_) {
+            memory &dst_mem
+                    = const_cast<memory &>(args.find(DNNL_ARG_DST)->second);
+            memory &psrc_mem = const_cast<memory &>(
+                    args.find(DNNL_GRAPH_ARG_POST_SRC)->second);
+
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                auto prim = dnnl::reorder(psrc_mem, dst_mem);
+                auto e = dnnl::sycl_interop::execute(prim, stream,
+                        {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
+                        sycl_deps);
+                sycl_deps = {e};
+            }
+        }
+        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+    }
+#endif
+
 private:
     dnnl::binary::primitive_desc pd_;
     dnnl::binary prim_;
@@ -1701,6 +1879,14 @@ struct concat_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::concat::primitive_desc pd_;
@@ -1722,6 +1908,14 @@ struct shuffle_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::shuffle_forward::primitive_desc pd_;
     dnnl::shuffle_forward prim_;
@@ -1740,6 +1934,14 @@ struct pool_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::pooling_v2_forward::primitive_desc pd_;
     dnnl::pooling_v2_forward prim_;
@@ -1757,6 +1959,14 @@ struct pool_bwd_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::pooling_v2_backward::primitive_desc pd_;
@@ -1778,6 +1988,14 @@ struct prelu_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::prelu_forward::primitive_desc pd_;
     dnnl::prelu_forward prim_;
@@ -1797,6 +2015,14 @@ struct prelu_bwd_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::prelu_backward::primitive_desc pd_;
@@ -1825,6 +2051,27 @@ struct reorder_executable_t : public op_executable_t {
         }
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        auto sycl_deps = deps;
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                auto prim = dnnl::reorder(psrc_mem, dst_mem);
+                auto e = dnnl::sycl_interop::execute(prim, stream,
+                        {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
+                        sycl_deps);
+                sycl_deps = {e};
+            }
+        }
+        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+    }
+#endif
 
 private:
     dnnl::reorder::primitive_desc pd_;
@@ -2026,6 +2273,107 @@ struct bn_folding_t : public op_executable_t {
                                 shift}});
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        UNUSED(args);
+        auto sycl_deps = deps;
+
+        auto weights = args.find(DNNL_ARG_WEIGHTS)->second;
+        auto bias = with_bias_ ? args.find(DNNL_ARG_BIAS)->second : memory();
+        auto scale = args.find(DNNL_ARG_WEIGHTS_1)->second;
+        auto shift = args.find(DNNL_ARG_WEIGHTS_2)->second;
+        auto mean = args.find(DNNL_ARG_MEAN)->second;
+        auto variance = args.find(DNNL_ARG_VARIANCE)->second;
+        auto scratchpad = args.find(DNNL_ARG_SCRATCHPAD)->second;
+
+        auto updated_weights = args.find(DNNL_ARG_DST_0)->second;
+        auto updated_bias = args.find(DNNL_ARG_DST_1)->second;
+
+        // 0. split scratchpad buffer to specific intermediate memory
+        // sqrt_variance
+        char *buf_start = (char *)scratchpad.get_data_handle();
+        memory sqrt_variance = make_dnnl_memory(variance.get_desc(),
+                scratchpad.get_engine(), (void *)buf_start);
+        buf_start += variance.get_desc().get_size();
+        // zero_bias
+        memory valid_bias = bias;
+        if (bias.get(true) == nullptr || bias.get_data_handle() == nullptr) {
+            valid_bias = make_dnnl_memory(variance.get_desc(),
+                    scratchpad.get_engine(), (void *)buf_start);
+            buf_start += valid_bias.get_desc().get_size();
+        }
+        // epslion
+        memory epsilon_mem = make_dnnl_memory(
+                epsilon_desc_, scratchpad.get_engine(), (void *)buf_start);
+
+        // 1. sqrt_variance = sqrt(variance + epsilon)
+        engine cpu_eng(engine::kind::cpu, 0);
+        memory cpu_mem
+                = make_dnnl_memory(epsilon_desc_, cpu_eng, (void *)&epsilon_);
+        auto prim = dnnl::reorder(cpu_mem, epsilon_mem);
+        auto sycl_deps2 = dnnl::sycl_interop::execute(prim, stream,
+                {{DNNL_ARG_FROM, const_cast<memory &>(cpu_mem)},
+                        {DNNL_ARG_TO, const_cast<memory &>(epsilon_mem)}},
+                sycl_deps);
+
+        auto sycl_deps3 = dnnl::sycl_interop::execute(add_prim_, stream,
+                {{DNNL_ARG_SRC_0, variance}, {DNNL_ARG_SRC_1, epsilon_mem},
+                        {DNNL_ARG_DST, sqrt_variance}},
+                {sycl_deps2});
+
+        // 2. updated_weight = weights * scale / sqrt_variance
+        memory new_scale(
+                new_scale_desc_, scale.get_engine(), scale.get_data_handle());
+        memory new_sqrt_variance(new_variance_desc_, sqrt_variance.get_engine(),
+                sqrt_variance.get_data_handle());
+
+        auto sycl_deps4 = dnnl::sycl_interop::execute(mul_prim_, stream,
+                {{DNNL_ARG_SRC_0, weights}, {DNNL_ARG_SRC_1, new_scale},
+                        {DNNL_ARG_DST, updated_weights},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
+                                new_sqrt_variance}},
+                {sycl_deps3});
+
+        // 3. updated_bias = (bias - mean) * scale / sqrt_variance + shift
+        if (bias.get(true) == nullptr || bias.get_data_handle() == nullptr) {
+            // initialize the bias with zero value
+            std::vector<float> zero(
+                    impl::utils::prod(variance.get_desc().dims()), 0.0f);
+            engine cpu_eng(engine::kind::cpu, 0);
+            memory cpu_mem = make_dnnl_memory(
+                    variance.get_desc(), cpu_eng, zero.data());
+            auto prim = dnnl::reorder(cpu_mem, valid_bias);
+            auto sycl_deps5 = dnnl::sycl_interop::execute(prim, stream,
+                    {{DNNL_ARG_FROM, const_cast<memory &>(cpu_mem)},
+                            {DNNL_ARG_TO, const_cast<memory &>(valid_bias)}},
+                    {sycl_deps4});
+            return dnnl::sycl_interop::execute(sub_prim_, stream,
+                    {{DNNL_ARG_SRC_0, valid_bias}, {DNNL_ARG_SRC_1, mean},
+                            {DNNL_ARG_DST, updated_bias},
+                            {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
+                                    scale},
+                            {DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1,
+                                    sqrt_variance},
+                            {DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1,
+                                    shift}},
+                    {sycl_deps5});
+        }
+
+        return dnnl::sycl_interop::execute(sub_prim_, stream,
+                {{DNNL_ARG_SRC_0, valid_bias}, {DNNL_ARG_SRC_1, mean},
+                        {DNNL_ARG_DST, updated_bias},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
+                                scale},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1,
+                                sqrt_variance},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1,
+                                shift}},
+                {sycl_deps4});
+    }
+#endif
+
 private:
     memory::desc scratchpad_desc_;
 
@@ -2059,6 +2407,14 @@ struct conv_bwd_data_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::convolution_backward_data::primitive_desc pd_;
     dnnl::convolution_backward_data prim_;
@@ -2078,6 +2434,14 @@ struct conv_bwd_weights_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::convolution_backward_weights::primitive_desc pd_;
@@ -2144,6 +2508,63 @@ struct batchnorm_executable_t : public op_executable_t {
                                 {DNNL_ARG_DST, new_running_variance}});
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        if (!is_training_) {
+            return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        }
+
+        std::unordered_map<int, memory> exe_args = args;
+        exe_args.erase(DNNL_ARG_SRC_1);
+        exe_args.erase(DNNL_ARG_SRC_2);
+        exe_args.erase(DNNL_ARG_DST_1);
+        exe_args.erase(DNNL_ARG_DST_2);
+
+        auto e0 = dnnl::sycl_interop::execute(prim_, stream, exe_args, deps);
+
+        // calculate running_mean and running_variance
+        auto batch_mean = args.find(DNNL_ARG_MEAN)->second;
+        auto batch_variance = args.find(DNNL_ARG_VARIANCE)->second;
+        auto old_running_mean = args.find(DNNL_ARG_SRC_1)->second;
+        auto old_running_variance = args.find(DNNL_ARG_SRC_2)->second;
+        auto new_running_mean = args.find(DNNL_ARG_DST_1)->second;
+        auto new_running_variance = args.find(DNNL_ARG_DST_2)->second;
+
+        dnnl::engine p_engine = stream.get_engine();
+        // new_running_mean = momentum * old_running_mean +
+        //                                      (1 - momentum) * batch_mean
+        auto sum_prim_0 = dnnl::sum(
+                {scales_, {old_running_mean.get_desc(), batch_mean.get_desc()},
+                        p_engine});
+        auto e1 = dnnl::sycl_interop::execute(sum_prim_0, stream,
+                {{DNNL_ARG_MULTIPLE_SRC, old_running_mean},
+                        {DNNL_ARG_MULTIPLE_SRC + 1, batch_mean},
+                        {DNNL_ARG_DST, new_running_mean}},
+                {e0});
+        // new_running_variance = momentum * old_running_variance +
+        //                                  (1 - momentum) * batch_variance
+        dnnl::sum({scales_,
+                          {old_running_variance.get_desc(),
+                                  batch_variance.get_desc()},
+                          p_engine})
+                .execute(stream,
+                        {{DNNL_ARG_MULTIPLE_SRC, old_running_variance},
+                                {DNNL_ARG_MULTIPLE_SRC + 1, batch_variance},
+                                {DNNL_ARG_DST, new_running_variance}});
+
+        auto sum_prim_1 = dnnl::sum({scales_,
+                {old_running_variance.get_desc(), batch_variance.get_desc()},
+                p_engine});
+        return dnnl::sycl_interop::execute(sum_prim_0, stream,
+                {{DNNL_ARG_MULTIPLE_SRC, old_running_variance},
+                        {DNNL_ARG_MULTIPLE_SRC + 1, batch_variance},
+                        {DNNL_ARG_DST, new_running_variance}},
+                {e1});
+    }
+#endif
+
 private:
     dnnl::batch_normalization_forward::primitive_desc pd_;
     dnnl::batch_normalization_forward prim_;
@@ -2165,6 +2586,14 @@ struct batchnorm_bwd_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::batch_normalization_backward::primitive_desc pd_;
@@ -2197,6 +2626,27 @@ struct resampling_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        auto sycl_deps = deps;
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                auto prim = dnnl::reorder(psrc_mem, dst_mem);
+                auto e = dnnl::sycl_interop::execute(prim, stream,
+                        {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
+                        sycl_deps);
+                sycl_deps = {e};
+            }
+        }
+        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+    }
+#endif
+
 private:
     dnnl::resampling_forward::primitive_desc pd_;
     dnnl::resampling_forward prim_;
@@ -2218,6 +2668,14 @@ struct resampling_bwd_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::resampling_backward::primitive_desc pd_;
     dnnl::resampling_backward prim_;
@@ -2237,6 +2695,14 @@ struct layernorm_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::layer_normalization_forward::primitive_desc pd_;
@@ -2258,6 +2724,14 @@ struct layernorm_bwd_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::layer_normalization_backward::primitive_desc pd_;
     dnnl::layer_normalization_backward prim_;
@@ -2276,6 +2750,14 @@ struct sum_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::sum::primitive_desc pd_;
@@ -2299,6 +2781,14 @@ struct softmax_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::softmax_v2_forward::primitive_desc pd_;
     dnnl::softmax_v2_forward prim_;
@@ -2320,6 +2810,14 @@ struct softmax_bwd_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::softmax_v2_backward::primitive_desc pd_;
@@ -2343,6 +2841,14 @@ struct logsoftmax_executable_t : public op_executable_t {
         prim_.execute(stream, args);
     }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
+
 private:
     dnnl::softmax_v2_forward::primitive_desc pd_;
     dnnl::softmax_v2_forward prim_;
@@ -2364,6 +2870,14 @@ struct logsoftmax_bwd_executable_t : public op_executable_t {
             const std::unordered_map<int, memory> &args) const override {
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        return dnnl::sycl_interop::execute(prim_, stream, args, deps);
+    }
+#endif
 
 private:
     dnnl::softmax_v2_backward::primitive_desc pd_;
@@ -2397,6 +2911,28 @@ struct reduction_executable_t : public op_executable_t {
 
         prim_.execute(stream, args);
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const override {
+        auto sycl_deps = deps;
+        if (with_sum_) {
+            const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_DST)->second;
+            if (psrc_mem.get_data_handle() != dst_mem.get_data_handle()) {
+                auto prim = dnnl::reorder(psrc_mem, dst_mem);
+                auto e = dnnl::sycl_interop::execute(prim, stream,
+                        {{DNNL_ARG_FROM, const_cast<memory &>(psrc_mem)},
+                                {DNNL_ARG_TO, const_cast<memory &>(dst_mem)}},
+                        sycl_deps);
+                sycl_deps = {e};
+            }
+        }
+
+        return dnnl::sycl_interop::execute(prim_, stream, args, sycl_deps);
+    }
+#endif
 
 private:
     dnnl::reduction::primitive_desc pd_;

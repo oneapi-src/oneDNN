@@ -111,6 +111,29 @@ public:
         return impl::status::success;
     }
 
+    void prepare_args_set(const execution_args_set_t *res,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs,
+            const scratchpad_t &scratchpad) {
+        // update the data of partition in/outputs args
+        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
+            mem_idx.first.set_data_handle(
+                    inputs[mem_idx.second].get_data_handle());
+        }
+        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
+            mem_idx.first.set_data_handle(
+                    outputs[mem_idx.second].get_data_handle());
+        }
+
+        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
+                scratchpad.get_buffer());
+
+        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
+            mem_offkey.first.set_data_handle(
+                    var_grantor.get(mem_offkey.second));
+        }
+    }
+
     impl::status_t execute_impl(const dnnl_partition_impl_t *part,
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
@@ -123,28 +146,13 @@ public:
         execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
-            mem_idx.first.set_data_handle(
-                    inputs[mem_idx.second].get_data_handle());
-        }
-        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
-            mem_idx.first.set_data_handle(
-                    outputs[mem_idx.second].get_data_handle());
-        }
-
         temporary_scratchpad_t scratchpad(
                 memory_planner_.total_internal_temporary_size(), p_engine_,
                 *g_alloc_);
         assertm(scratchpad.size()
                         >= memory_planner_.total_internal_temporary_size(),
                 "no enough scratchpad memory");
-        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
-                scratchpad.get_buffer());
-
-        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
-            mem_offkey.first.set_data_handle(
-                    var_grantor.get(mem_offkey.second));
-        }
+        prepare_args_set(res, inputs, outputs, scratchpad);
 
         for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
             subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
@@ -152,6 +160,44 @@ public:
 
         return impl::status::success;
     }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    impl::status_t sycl_execute_impl(const dnnl_partition_impl_t *part,
+            const impl::stream_t *g_stream,
+            const std::vector<impl::tensor_t> &inputs,
+            const std::vector<impl::tensor_t> &outputs,
+            const std::vector<cl::sycl::event> &sycl_deps,
+            cl::sycl::event *sycl_event) override {
+        UNUSED(part);
+        auto deps = sycl_deps;
+        cl::sycl::event returned_event;
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
+
+        // each thread's own local resource
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
+
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        prepare_args_set(res, inputs, outputs, scratchpad);
+
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            returned_event = subgraph_->execs_[i]->execute_sycl(
+                    p_stream, res->get_exec_args()[i], deps);
+            deps = {returned_event};
+        }
+
+        scratchpad.set_deps(returned_event);
+        if (sycl_event) *sycl_event = returned_event;
+
+        return impl::status::success;
+    }
+#endif
 
     impl::status_t prepare_inplace_pairs_impl() override {
         inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@
 #include "common.hpp"
 
 #include <dnnl.hpp>
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+#include <CL/sycl.hpp>
+#endif
 
 namespace dnnl {
 namespace graph {
@@ -53,19 +57,40 @@ public:
     }
 
     ~temporary_scratchpad_t() override {
+#ifdef DNNL_GRAPH_WITH_SYCL
+        dnnl_allocator_t::free(buffer_, *eng_, alloc_, e_);
+#else
         dnnl_allocator_t::free(buffer_, *eng_, alloc_);
+#endif
         size_ = 0;
+    }
+
+    temporary_scratchpad_t(temporary_scratchpad_t &&other) noexcept
+        : buffer_(nullptr), size_(0) {
+        buffer_ = other.buffer_;
+        size_ = other.size_;
+        eng_ = other.eng_;
+        alloc_ = other.alloc_;
+        other.buffer_ = nullptr;
+        other.size_ = 0;
     }
 
     char *get_buffer() const override { return buffer_; }
 
     size_t size() const override { return size_; }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+    void set_deps(cl::sycl::event event) { e_ = event; }
+#endif
+
 private:
     char *buffer_;
     size_t size_;
     const dnnl::engine *eng_;
     const impl::allocator_t *alloc_;
+#ifdef DNNL_GRAPH_WITH_SYCL
+    cl::sycl::event e_;
+#endif
 };
 
 class registrar_t;

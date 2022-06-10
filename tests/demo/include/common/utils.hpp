@@ -38,6 +38,10 @@
 #include <CL/sycl.hpp>
 #endif
 
+#ifndef UNUSED
+#define UNUSED(x) ((void)(x))
+#endif
+
 #define EXAMPLE_SWITCH_TYPE(type_enum, type_key, ...) \
     switch (type_enum) { \
         case dnnl::graph::logical_tensor::data_type::f32: { \

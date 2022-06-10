@@ -60,6 +60,11 @@ struct dnnl_allocator_t {
 
     static void free(void *p, const dnnl::engine &p_engine,
             const impl::allocator_t *alc);
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+    static void free(void *p, const dnnl::engine &p_engine,
+            const impl::allocator_t *alc, const cl::sycl::event &deps);
+#endif
 };
 
 format_tag get_ncx_format(size_t ndim);

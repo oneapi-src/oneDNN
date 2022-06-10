@@ -86,12 +86,9 @@ public:
             const std::vector<impl::tensor_t> &outputs,
             const std::vector<cl::sycl::event> &sycl_deps,
             cl::sycl::event *sycl_event) override {
-        // todo(xinyu): execute kernel with event
-        UNUSED(sycl_deps);
-        UNUSED(sycl_event);
         // We don't need to resort the inputs and outputs
-        return kernel_->execute((const dnnl_partition_impl_t *)nullptr,
-                g_stream, inputs, outputs);
+        return kernel_->execute_sycl((const dnnl_partition_impl_t *)nullptr,
+                g_stream, inputs, outputs, sycl_deps, sycl_event);
     }
 #endif
 

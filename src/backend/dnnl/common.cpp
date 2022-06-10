@@ -74,22 +74,35 @@ void dnnl_allocator_t::free(
         void *p, const dnnl::engine &p_engine, const impl::allocator_t *alc) {
     if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
-        // todo(xinyu): pass returned_event from kernel
-        cl::sycl::event e;
-        return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
-                dnnl::sycl_interop::get_context(p_engine), e);
+        assert(!"use event based free");
 #else
         return alc->deallocate(p);
 #endif
     } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
-        // todo(xinyu): pass returned_event from kernel
-        cl::sycl::event e;
-        return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
-                dnnl::sycl_interop::get_context(p_engine), e);
+        assert(!"use event based free");
 #endif
     }
 }
+
+#ifdef DNNL_GRAPH_WITH_SYCL
+void dnnl_allocator_t::free(void *p, const dnnl::engine &p_engine,
+        const impl::allocator_t *alc, const cl::sycl::event &deps) {
+    if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
+                dnnl::sycl_interop::get_context(p_engine), deps);
+#else
+        return alc->deallocate(p);
+#endif
+    } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
+                dnnl::sycl_interop::get_context(p_engine), deps);
+#endif
+    }
+}
+#endif
 
 format_tag get_ncx_format(size_t ndim) {
     switch (ndim) {

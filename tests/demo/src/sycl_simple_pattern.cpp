@@ -57,6 +57,7 @@
 //[Headers and namespace]
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
+#include "test_allocator.hpp"
 using namespace dnnl::graph;
 using namespace cl::sycl;
 //[Headers and namespace]
@@ -242,13 +243,13 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     /// Create a #dnnl::graph::allocator with two user-defined #dnnl_graph_sycl_allocate_f and #dnnl_graph_sycl_deallocate_f call-back functions.
     /// @snippet sycl_simple_pattern.cpp Create allocator
     //[Create allocator]
-    allocator alloc = sycl_interop::make_allocator(dnnl::graph::testing::sycl_malloc_wrapper, dnnl::graph::testing::sycl_free_wrapper);
+    allocator alloc = sycl_interop::make_allocator(dnnl::graph::testing::sycl_allocator_malloc, dnnl::graph::testing::sycl_allocator_free);
     //[Create allocator]
 
     /// Define SYCL queue (code outside of oneDNN graph)
     /// @snippet sycl_simple_pattern.cpp Define sycl queue
     //[Define sycl queue]
-    sycl::queue q = (engine_kind == engine::kind::gpu) ? sycl::queue(gpu_selector {}, sycl::property::queue::in_order {}) : sycl::queue(cpu_selector {}, sycl::property::queue::in_order {});
+    sycl::queue q = (engine_kind == engine::kind::gpu) ? sycl::queue(gpu_selector {}) : sycl::queue(cpu_selector {});
     //[Define sycl queue]
 
     /// Create a #dnnl::graph::engine based on SYCL device and context. Also, set a
@@ -256,7 +257,10 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     ///
     /// @snippet sycl_simple_pattern.cpp Create engine
     //[Create engine]
-    engine eng = sycl_interop::make_engine(q.get_device(), q.get_context(), alloc);
+    // get simple sycl allocator
+    const cl::sycl::context &ctx = q.get_context();
+    dnnl::graph::testing::simple_sycl_allocator *aallocator = dnnl::graph::testing::get_allocator(&ctx);
+    engine eng = sycl_interop::make_engine(q.get_device(), ctx, alloc);
     //[Create engine]
     
     /// Create a stream on the engine associated with a sycl queue.
@@ -275,56 +279,76 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     // used to record the logical tensors that are previously enabled with ANY layout
     std::unordered_map<size_t, logical_tensor> id_to_queried_logical_tensors;
 
-    for (size_t i = 0; i < partitions.size(); ++i) {
-        if (partitions[i].is_supported()) {
-            std::cout << "\nPartition[" << partitions[i].get_id() << "] is being processed.\n";
-            std::vector<logical_tensor> inputs = partitions[i].get_in_ports();
-            std::vector<logical_tensor> outputs = partitions[i].get_out_ports();
+    std::cout << "\nPartition[" << partitions[0].get_id() << "] is being processed.\n";
+    std::vector<logical_tensor> inputs0 = partitions[0].get_in_ports();
+    std::vector<logical_tensor> outputs0 = partitions[0].get_out_ports();
 
-            /// replace input logical tensor with the queried one
-            replace_with_queried_logical_tensors(inputs, id_to_queried_logical_tensors);
+    /// replace input logical tensor with the queried one
+    replace_with_queried_logical_tensors(inputs0, id_to_queried_logical_tensors);
 
-            /// update output logical tensors with ANY layout
-            update_tensors_with_any_layout(outputs, id_to_set_any_layout);
+    /// update output logical tensors with ANY layout
+    update_tensors_with_any_layout(outputs0, id_to_set_any_layout);
 
-            std::cout << "Compiling--------------------------------------";
-            /// compile to generate compiled partition
-            /// @snippet sycl_simple_pattern.cpp Compile partition
-            //[Compile partition]
-            c_partitions[i] = partitions[i].compile(inputs, outputs, eng);
-            //[Compile partition]
-            std::cout << "Success!\n";
+    std::cout << "Compiling--------------------------------------";
+    /// compile to generate compiled partition
+    /// @snippet sycl_simple_pattern.cpp Compile partition
+    //[Compile partition]
+    c_partitions[0] = partitions[0].compile(inputs0, outputs0, eng);
+    //[Compile partition]
+    std::cout << "Success!\n";
 
-            record_queried_logical_tensors(partitions[i].get_out_ports(), c_partitions[i],
-                id_to_queried_logical_tensors);
+    record_queried_logical_tensors(partitions[0].get_out_ports(), c_partitions[0],
+        id_to_queried_logical_tensors);
 
-            std::cout << "Creating tensors and allocating memory buffer--";
-            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(inputs, c_partitions[i], eng, 1);
-            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(outputs, c_partitions[i], eng, 0);
-            std::cout << "Success!\n";
+    std::cout << "Creating tensors and allocating memory buffer--";
+    std::vector<tensor> input_ts0 = tm.construct_and_initialize_tensors(inputs0, c_partitions[0], eng, 1);
+    std::vector<tensor> output_ts0 = tm.construct_and_initialize_tensors(outputs0, c_partitions[0], eng, 0);
+    std::cout << "Success!\n";
 
-            std::cout << "Executing compiled partition-------------------";
-            /// execute the compiled partition
-            /// @snippet sycl_simple_pattern.cpp Execute compiled partition
-            //[Execute compiled partition]
-            sycl_interop::execute(c_partitions[i], strm, input_ts, output_ts);
-            //[Execute compiled partition]
-            std::cout << "Success!\n";
-        } else {
-            std::vector<size_t> unsupported_op_ids = partitions[i].get_ops();
-            assertm(unsupported_op_ids.size() == 1, "Unsupported partition only "
-                "contains single op.");
-            if (op_id_kind_map[unsupported_op_ids[0]] == op::kind::Wildcard) {
-                std::cout << "\nWarning (actually an error): partition " << partitions[i].get_id() <<
-                        " contains only a Wildcard op which cannot be computed.\n";
-            } else {
-                /// Users need to write implementation code by themselves.
-                continue;
-            }
-        }
-    }
+    std::cout << "Executing compiled partition-------------------";
+    /// execute the compiled partition
+    /// @snippet sycl_simple_pattern.cpp Execute compiled partition
+    //[Execute compiled partition]
+    auto returned_event0 = sycl_interop::execute(c_partitions[0], strm, input_ts0, output_ts0, {});
+    //[Execute compiled partition]
+    std::cout << "Success!\n";
+
+    std::cout << "\nPartition[" << partitions[1].get_id() << "] is being processed.\n";
+    std::vector<logical_tensor> inputs1 = partitions[1].get_in_ports();
+    std::vector<logical_tensor> outputs1 = partitions[1].get_out_ports();
+
+    /// replace input logical tensor with the queried one
+    replace_with_queried_logical_tensors(inputs1, id_to_queried_logical_tensors);
+
+    /// update output logical tensors with ANY layout
+    update_tensors_with_any_layout(outputs1, id_to_set_any_layout);
+
+    std::cout << "Compiling--------------------------------------";
+    /// compile to generate compiled partition
+    /// @snippet sycl_simple_pattern.cpp Compile partition
+    //[Compile partition]
+    c_partitions[1] = partitions[1].compile(inputs1, outputs1, eng);
+    //[Compile partition]
+    std::cout << "Success!\n";
+
+    record_queried_logical_tensors(partitions[1].get_out_ports(), c_partitions[0],
+        id_to_queried_logical_tensors);
+
+    std::cout << "Creating tensors and allocating memory buffer--";
+    std::vector<tensor> input_ts1 = tm.construct_and_initialize_tensors(inputs1, c_partitions[1], eng, 1);
+    std::vector<tensor> output_ts1 = tm.construct_and_initialize_tensors(outputs1, c_partitions[1], eng, 0);
+    std::cout << "Success!\n";
+
+    std::cout << "Executing compiled partition-------------------";
+    /// execute the compiled partition
+    /// @snippet sycl_simple_pattern.cpp Execute compiled partition
+    //[Execute compiled partition]
+    auto returned_event1 = sycl_interop::execute(c_partitions[1], strm, input_ts1, output_ts1, {returned_event0});
+    //[Execute compiled partition]
+    std::cout << "Success!\n";
+
     // wait for all compiled partition's execution finished
-    strm.wait();
+    returned_event1.wait();
 
     std::cout << "Check correctness------------------------------";
     /// Check correctness of the output results.
@@ -340,6 +364,8 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     compare_data(expected_output.data(), actual_output_ptr, num_elem);
     //[Check results]
     std::cout << "Success!\n";
+    // do actual memory free
+    aallocator->free_to_driver();
 
     std::cout << "============Run Example Successfully===========\n";
 
