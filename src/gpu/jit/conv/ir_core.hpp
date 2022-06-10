@@ -429,6 +429,7 @@ public:
 
     bool is_byte() const { return kind() == type_kind_t::byte; }
     bool is_dword() const { return kind() == type_kind_t::dword; }
+    bool is_qword() const { return kind() == type_kind_t::qword; }
     bool is_oword() const { return kind() == type_kind_t::oword; }
     bool is_hword() const { return kind() == type_kind_t::hword; }
 

@@ -79,6 +79,9 @@ bool send_t::is_supported() const {
     // No hword stores before XeHPC.
     if (is_store() && type.is_hword() && !is_xe_hpc_plus()) return false;
 
+    // Enable qword for scalar f64
+    if (type.is_qword() && (!is_xe_hpc_plus() || slots != 1 || type.elems() != 1)) return false;
+
     // XXX: Half-GRF stores result in correctness issues on XeHPC.
     if (is_store() && is_block() && is_xe_hpc_plus()
             && type.size() % grf_size() != 0)
@@ -98,7 +101,7 @@ bool send_t::is_supported() const {
     if (is_atomic() && !is_xe_hpc_plus() && is_a64() && slots > 8) return false;
 
     // XXX: Tested only byte scattered messages.
-    if (is_scattered() && !is_atomic() && !type.is_byte()) return false;
+    if (is_scattered() && !is_atomic() && !type.is_byte() && !type.is_qword()) return false;
 
     if (is_scattered() && !is_atomic() && !utils::one_of(type.elems(), 1, 2, 4))
         return false;
@@ -111,7 +114,7 @@ std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
     std::vector<func_t> filtered;
     for (int slots : {1, 2, 4, 8, 16}) {
         for (int elems : {1, 2, 4, 8, 16}) {
-            for (auto &type : {type_t::byte(), type_t::dword(), type_t::oword(),
+            for (auto &type : {type_t::byte(), type_t::dword(), type_t::qword(), type_t::oword(),
                          type_t::hword()}) {
                 // Require data type size exact match for atomic messages.
                 if (op == send_op_t::atomic_fadd
