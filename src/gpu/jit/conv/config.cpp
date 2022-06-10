@@ -901,7 +901,7 @@ bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
     if (hw() <= ngen::HW::XeHPG) return true;
     if (bh->max_iter_dim("mb") == 1) return true;
     int sp = (kd * kh * kw == 1 && is_fwd) ? (d * h * w) : w;
-    int block = 32;
+    int block = 16;
     double mb_ratio = (double)mb / utils::rnd_up(mb, block);
     double sp_ratio = (double)sp / utils::rnd_up(sp, block);
     return sp_ratio >= mb_ratio;
