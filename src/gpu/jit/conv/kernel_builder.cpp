@@ -1979,10 +1979,6 @@ public:
         return ret;
     }
 
-    const std::vector<std::pair<stmt_t, std::set<size_t>>> &if_stmts() const {
-        return if_stmts_;
-    }
-
     const std::vector<stmt_t> &inner_let_stmts() const {
         return inner_let_stmts_;
     }
@@ -2001,7 +1997,6 @@ public:
         bool is_stmt_group = (obj_type_id == stmt_group_t::_type_id());
         bool is_let = (obj_type_id == let_t::_type_id());
         bool is_stmt_seq = (obj_type_id == stmt_seq_t::_type_id());
-        bool is_if = (obj_type_id == if_t::_type_id());
 
         // Loop may contain:
         // - Another loop
@@ -2010,16 +2005,12 @@ public:
         // - Barrier
         if (loop_level_ > 0) {
             bool ok = false;
-            if (is_for || is_let || is_stmt_group || is_stmt_seq || is_if) {
+            if (is_for || is_let || is_stmt_group || is_stmt_seq) {
                 ok = true;
             } else if (obj_type_id == func_call_t::_type_id()) {
                 auto &call = obj.template as<func_call_t>();
                 ok = call.func.is_equal(funcs::barrier_func());
             }
-            if (is_if && !obj.template as<if_t>().else_body.is_empty())
-                ir_error_not_expected() << "else stmt currently not supported "
-                                           "with loop unrolling.\n"
-                                        << stmt_t(obj);
 
             if (!ok) {
                 ir_error_not_expected()
@@ -2036,7 +2027,6 @@ public:
                         stmt_label_t::g2s_store(), stmt_label_t::g2r_load(),
                         stmt_label_t::s2r_load(), stmt_label_t::prefetch(),
                         stmt_label_t::mul())) {
-                stmt_list.push_back(label);
                 // Leaf labels, do not visit them.
                 return;
             }
@@ -2046,24 +2036,9 @@ public:
             }
         }
 
-        size_t if_size = 0;
-        size_t stmt_size = 0;
-        if (is_if) {
-            if_size = if_stmts_.size() + 1;
-            stmt_size = stmt_list.size();
-            if_stmts_.push_back(std::pair<stmt_t, std::set<size_t>>(
-                    obj, std::set<size_t>()));
-            if_idx_++;
-        }
         if (is_for && in_compute_loop_) loop_level_++;
         found_loop_ = false;
         ir_visitor_t::_visit(obj);
-        if (is_if) {
-            if_idx_--;
-            for (size_t i = stmt_size; i < stmt_list.size(); i++) {
-                if_stmts_[if_size - 1].second.emplace(stmt_list[i].get_hash());
-            }
-        }
         if (in_compute_loop_ && is_let) {
             if (found_loop_)
                 ir_error_not_expected()
@@ -2083,12 +2058,9 @@ private:
     bool found_loop_ = false;
     bool in_compute_loop_ = false;
     int loop_level_ = 0;
-    int if_idx_ = -1;
 
-    std::vector<stmt_label_t> stmt_list;
     std::vector<stmt_t> stmt_groups_;
     std::vector<stmt_t> inner_let_stmts_;
-    std::vector<std::pair<stmt_t, std::set<size_t>>> if_stmts_;
 };
 
 // Provides access to different parts of the inner compute iteration.
@@ -2107,7 +2079,6 @@ public:
         mul_ = v.find_stmt_groups(stmt_label_t::mul());
         c_zero_out_ = v.find_stmt_group(stmt_label_t::c_zero_out());
         inner_let_stmts_ = v.inner_let_stmts();
-        if_stmts_ = v.if_stmts();
 
         ir_assert(g2r_load_.size() == mul_.size());
         ir_assert(s2r_load_.size() == mul_.size());
@@ -2165,9 +2136,6 @@ public:
     const stmt_t &c_zero_out() const { return c_zero_out_; }
     const std::vector<stmt_t> &inner_let_stmts() const {
         return inner_let_stmts_;
-    }
-    const std::vector<std::pair<stmt_t, std::set<size_t>>> &if_stmts() const {
-        return if_stmts_;
     }
 
     bool is_preload_let(const stmt_t &s) const {
@@ -2296,7 +2264,6 @@ private:
     stmt_t c_zero_out_;
 
     std::vector<stmt_t> inner_let_stmts_;
-    std::vector<std::pair<stmt_t, std::set<size_t>>> if_stmts_;
 
     // Due to loop unrolling the inner let statements may depend on different
     // indices of the outer loops. There are two contexts:
@@ -3191,85 +3158,6 @@ stmt_t inject_simple_slm_buffering(ngen::HW hw, const stmt_t &s,
     trace_pass("inject_simple_slm_buffering", ret);
     return ret;
 }
-class if_unroll_injector_t : public ir_visitor_t {
-public:
-    if_unroll_injector_t(
-            const std::vector<std::pair<stmt_t, std::set<size_t>>> &if_stmts)
-        : if_stmt_(stmt_t())
-        , stmt_(stmt_t())
-        , idx_(-1)
-        , prev_matches_(0)
-        , if_stmts_(if_stmts) {}
-
-    void _visit(const stmt_group_t &obj) override {
-        stmt_label_t label = obj.as<stmt_group_t>().label;
-        int tmp_idx = -1;
-        int matches = 0;
-        stmt_t if_stmt = stmt_t();
-        stmt_t body = stmt_t();
-        if (label == stmt_label_t::g2s_store()) {
-            body = body.append(funcs::barrier());
-            body = body.append(obj);
-            body = body.append(funcs::barrier());
-        } else {
-            body = body.append(obj);
-        }
-        bool pop_stack = true;
-        for (int i = 0; i < (int)if_stmts_.size(); i++) {
-            if (if_stmts_[i].second.count(label.get_hash()) > 0) {
-                tmp_idx = i;
-                matches++;
-            } else {
-                continue;
-            }
-            if (tmp_idx != idx_) {
-                auto tmp_if = if_t::make(
-                        if_stmts_[tmp_idx].first.as<if_t>().cond, stmt_t());
-                bool insert_if = true;
-                for (auto &s : if_stack)
-                    if (tmp_if.as<if_t>().cond.is_equal(s.as<if_t>().cond))
-                        insert_if = false;
-                if (matches > 0) {
-                    if (insert_if) {
-                        for (int i = matches; i < prev_matches_ + 1; i++)
-                            if_stack.pop_back();
-                        if (if_stack.size() > 0) {
-                            auto &top_if = if_stack.back();
-                            if_stmt = top_if;
-                            auto &ifs = if_stmt.as<if_t>();
-                            ifs.body = ifs.body.append(tmp_if);
-
-                        } else {
-                            stmt_ = stmt_.append(tmp_if);
-                        }
-                        pop_stack = false;
-                        if_stack.push_back(tmp_if);
-                    }
-                }
-            }
-        }
-        if (pop_stack)
-            for (int i = matches; i < prev_matches_; i++)
-                if_stack.pop_back();
-        if (tmp_idx > -1) {
-            auto &ifs = if_stack.back().as<if_t>();
-            ifs.body = ifs.body.append(body);
-        }
-        idx_ = tmp_idx;
-        prev_matches_ = matches;
-        if (matches == 0) stmt_ = stmt_.append(body);
-    }
-
-    stmt_t stmt() { return stmt_; }
-
-private:
-    stmt_t if_stmt_;
-    stmt_t stmt_;
-    int idx_;
-    int prev_matches_;
-    std::vector<stmt_t> if_stack;
-    const std::vector<std::pair<stmt_t, std::set<size_t>>> &if_stmts_;
-};
 
 class unrolling_injector_t {
 public:
@@ -3437,7 +3325,6 @@ private:
         auto mul = step_.mul();
         auto lets = step_.inner_let_stmts();
         auto &outer_loop_info = loop_nest_.outer_loop_info();
-        auto if_stmts = step_.if_stmts();
 
         loop_nest_.for_each_loop_var([&](const expr_t &v) {
             expr_t mul_var_value;
@@ -3511,11 +3398,21 @@ private:
         }
 
         stmt_t iter_stmt;
+        if (it.slm_bufs() == 3 && it.do_mul()) {
+            iter_stmt = iter_stmt.append(funcs::barrier_wait());
+        }
 
         if (it.do_g2s_load()) iter_stmt = iter_stmt.append(g2s_load);
 
+        if (it.slm_bufs() == 3 && it.iter == it.gmem_bufs()) {
+            iter_stmt = iter_stmt.append(funcs::slm_fence());
+            iter_stmt = iter_stmt.append(funcs::signal());
+        }
+
         if (it.do_g2s_store() && it.slm_bufs() == 1) {
+            iter_stmt = iter_stmt.append(funcs::barrier());
             iter_stmt = iter_stmt.append(g2s_store);
+            iter_stmt = iter_stmt.append(funcs::barrier());
         }
 
         if (it.do_prefetch()) iter_stmt = iter_stmt.append(prefetch);
@@ -3526,14 +3423,16 @@ private:
                 iter_stmt = iter_stmt.append(s2r_load[i]);
                 iter_stmt = iter_stmt.append(mul[i]);
             }
+            if (it.slm_bufs() == 3 && !it.is_last_mul()) {
+                iter_stmt = iter_stmt.append(funcs::signal());
+            }
         }
         if (it.do_g2s_store() && it.slm_bufs() >= 2) {
             iter_stmt = iter_stmt.append(g2s_store);
+            if (it.slm_bufs() == 2) {
+                iter_stmt = iter_stmt.append(funcs::barrier());
+            }
         }
-
-        if_unroll_injector_t if_unroll(if_stmts);
-        if_unroll.visit(iter_stmt);
-        iter_stmt = if_unroll.stmt();
 
         if (cfg_.assign_sbids)
             iter_stmt = sbid_assigner_t(sbid_mgr).assign(iter_stmt);
