@@ -2919,6 +2919,204 @@ stmt_t inject_prefetch_pipeline(
     return ret;
 }
 
+// Helper class to handle synchronization between threads for cooperative SLM
+// load and stores for double and triple buffering. Name conventions:
+// - Lx step - load from global memory to GRF (to be stored in SLM buffer x)
+// - Mx step - load from SLM buffer x to GRF and multiplication
+// - Sx step - store from GRF to SLM buffer x
+// - Rx event - SLM buffer x is available for reading
+// - Wx event - SLM buffer x is available for writing
+// Scheme for single buffering:
+//     L0
+//     barrier
+//     S0
+//     barrier
+//     M0
+// Schemes for double and triple buffering are below.
+class slm_sync_manager_t {
+public:
+    slm_sync_manager_t(const conv_config_t &cfg, bool with_unroll)
+        : slm_bufs_(cfg.slm_bufs)
+        , gmem_bufs_(cfg.gmem_bufs)
+        , with_unroll_(with_unroll) {
+        switch (slm_bufs_) {
+            case 2: ver_ = version_t::x2; break;
+            case 3: ver_ = version_t::x3_v3; break;
+            default: ver_ = version_t::undef;
+        }
+    }
+
+    stmt_t before_loop_prepend(const stmt_t &_s) const {
+        if (with_unroll_) return _s;
+        auto s = _s;
+        if (is_x3_v1() || is_x3_v2() || is_x3_v3()) {
+            // Emit initial signal, to match wait-signal pairs in the loop.
+            s = funcs::signal().append(s);
+        }
+        return s;
+    }
+
+    stmt_t after_loop(const stmt_t &_s) const {
+        auto s = _s;
+        if (slm_bufs_ == 3) {
+            s = s.append(funcs::barrier_wait());
+            // Wait with V3 guarantees that all SLM writes are synced, other
+            // versions need additional synchronization.
+            if (!is_x3_v3()) s = s.append(funcs::barrier());
+        }
+        return s;
+    }
+
+    stmt_t before_L(const stmt_t &_s, bool do_mul) const {
+        bool emit = false;
+        if (!with_unroll_) emit = true;
+        if (with_unroll_ && do_mul) emit = true;
+
+        auto s = _s;
+        if (is_x3_v2() && emit) { s = s.append(funcs::barrier_wait()); }
+
+        return s;
+    }
+
+    stmt_t before_L_prepend(const stmt_t &_s, bool do_mul) const {
+        return before_L(stmt_t(), do_mul).append(_s);
+    }
+
+    stmt_t after_L(const stmt_t &_s, bool do_mul) const {
+        bool emit = false;
+        if (!with_unroll_) emit = true;
+        if (with_unroll_ && do_mul) emit = true;
+
+        auto s = _s;
+        if (is_x3_v1() && emit) s = s.append(funcs::barrier_wait());
+        return s;
+    }
+
+    stmt_t after_L_prepend(const stmt_t &_s, bool do_mul) const {
+        return after_L(stmt_t(), do_mul).append(_s);
+    }
+
+    stmt_t before_S(const stmt_t &_s, bool do_mul, bool is_last_mul = false,
+            int iter = -1) const {
+        bool emit = false;
+        if (!with_unroll_) emit = true;
+        if (with_unroll_ && iter != -1
+                && iter >= (slm_bufs_ - 1) + (gmem_bufs_ - 1) - 1)
+            emit = true;
+
+        auto s = _s;
+        if (is_x3_v3() && emit) {
+            s = s.append(funcs::barrier_wait());
+        } else if ((is_x3_v1() || is_x3_v2()) && emit) {
+            // In general we have to use SLM fence before signal to flush all
+            // previous SLM stores. However any SLM load behaves as implicit
+            // SLM fence for all previous SLM stores. This means we don't need
+            // explicit SLM fence when we perform SLM load/multiplication
+            // before signal.
+            if (!do_mul) s = s.append(funcs::slm_fence());
+            if (!is_last_mul) s = s.append(funcs::signal());
+        }
+        return s;
+    }
+
+    stmt_t after_S(
+            const stmt_t &_s, bool is_last_mul = false, int iter = -1) const {
+        auto s = _s;
+        if (is_x2()) {
+            s = s.append(funcs::barrier());
+        } else if (is_x3_v3()) {
+            bool emit = false;
+            if (!with_unroll_) emit = true;
+            if (with_unroll_ && !is_last_mul && iter != -1
+                    && iter >= (slm_bufs_ - 1) + (gmem_bufs_ - 1) - 2)
+                emit = true;
+            if (emit) {
+                s = s.append(funcs::slm_fence());
+                s = s.append(funcs::signal());
+            }
+        }
+        return s;
+    }
+
+    bool is_x2() const { return ver_ == version_t::x2; }
+    bool is_x3_v1() const { return ver_ == version_t::x3_v1; }
+    bool is_x3_v2() const { return ver_ == version_t::x3_v2; }
+    bool is_x3_v3() const { return ver_ == version_t::x3_v3; }
+
+private:
+    enum class version_t {
+        undef,
+        // Double buffering scheme:
+        //     L0
+        //     M1
+        //     S0
+        //     barrier
+        //     L1
+        //     M0
+        //     S1
+        //     barrier
+        x2,
+        // Triple buffering scheme V1 (wait before M)
+        //     L0
+        //     wait R1/W0
+        //     M1
+        //     signal R2/W1
+        //     S0
+        //     L1
+        //     wait R2/W1
+        //     M2
+        //     signal R0/W2
+        //     S1
+        //     L2
+        //     wait R0/W2
+        //     M0
+        //     signal R1/W0
+        //     S2
+        x3_v1,
+        // Triple buffering scheme V2 (wait before L)
+        //     wait R1/W0
+        //     L0
+        //     M1
+        //     signal R2/W1
+        //     S0
+        //     wait R2/W1
+        //     L1
+        //     M2
+        //     signal R0/W2
+        //     S1
+        //     wait R0/W2
+        //     L2
+        //     M0
+        //     signal R1/W0
+        //     S2
+        x3_v2,
+        // Triple buffering scheme V3 (signal after store)
+        // There are no SLM loads between S and signal so explicit fence is
+        // required.
+        //     L0
+        //     M1
+        //     wait R2/W0
+        //     S0
+        //     fence and signal R0/W1
+        //     L1
+        //     M2
+        //     wait R0/W1
+        //     S1
+        //     fence and signal R1/W2
+        //     L2
+        //     M0
+        //     wait R1/W2
+        //     S2
+        //     fence and signal R2/W0
+        x3_v3
+    };
+
+    int slm_bufs_;
+    int gmem_bufs_;
+    bool with_unroll_;
+    version_t ver_;
+};
+
 class simple_slm_buffering_injector_t {
 public:
     simple_slm_buffering_injector_t(ngen::HW hw, const stmt_t &root,
@@ -2930,7 +3128,8 @@ public:
         , root_(root)
         , alloc_mgr_(root_)
         , step_(root)
-        , loop_nest_(root, ir_ctx) {}
+        , loop_nest_(root, ir_ctx)
+        , slm_sync_mgr_(cfg, /*with_unroll=*/false) {}
 
     stmt_t inject() {
         ir_assert(cfg_.gmem_bufs == 1) << "GRF buffering is not supported.";
@@ -2983,10 +3182,12 @@ public:
 
         loop = slm_idx_init.append(loop);
 
+        auto &g2s_load_orig = step_.g2s_load();
         auto &g2s_store_orig = step_.g2s_store();
         auto &s2r_load = step_.s2r_load();
         auto &mul = step_.mul();
 
+        auto g2s_load = g2s_load_orig;
         auto g2s_store = g2s_store_orig;
 
         ir_assert(s2r_load.size() == mul.size());
@@ -3020,17 +3221,23 @@ public:
 
         if (cfg_.slm_bufs == 2) {
             s2r_mul_body = if_t::make(cond, s2r_mul_body);
-            g2s_store = g2s_store.append(funcs::barrier());
         } else {
             // In general we have to use SLM fence before signal to flush all
             // previous SLM stores. However any SLM load behaves as implicit
             // SLM fence for all previous SLM stores. This means we don't need
             // explicit SLM fence when we perform SLM load/multiplication
             // before signal.
-            auto fence_signal = funcs::slm_fence().append(funcs::signal());
-            s2r_mul_body = s2r_mul_body.append(funcs::signal());
-            s2r_mul_body = if_t::make(cond, s2r_mul_body, fence_signal);
-            s2r_mul_body = funcs::barrier_wait().append(s2r_mul_body);
+            auto with_mul = slm_sync_mgr_.before_S(s2r_mul_body, true);
+            auto without_mul = slm_sync_mgr_.before_S(stmt_t(), false);
+            s2r_mul_body = if_t::make(cond, with_mul, without_mul);
+        }
+
+        g2s_store = slm_sync_mgr_.after_S(g2s_store);
+        g2s_load = slm_sync_mgr_.before_L_prepend(g2s_load, true);
+        g2s_load = slm_sync_mgr_.after_L(g2s_load, true);
+
+        if (!g2s_load.is_same(g2s_load_orig)) {
+            loop = substitute(loop, g2s_load_orig, g2s_load, 1);
         }
 
         alloc_updater_t alloc_updater;
@@ -3058,18 +3265,16 @@ public:
         loop = substitute(
                 loop, g2s_store_orig, s2r_mul_body.append(g2s_store), 1);
 
-        if (cfg_.slm_bufs == 3) {
-            // Emit initial signal, to match wait-signal pairs in the loop.
-            loop = funcs::signal().append(loop);
-        }
+        loop = slm_sync_mgr_.before_loop_prepend(loop);
 
         // Complete the remaining iterations.
         int rem_iters = cfg_.slm_bufs - 1;
         int mul_start = std::max(0, rem_iters - loop_nest_.size());
         multi_loop_iterator_t multi(loop_nest_.loops());
         multi.advance(loop_nest_.size() - rem_iters + mul_start);
+
+        loop = slm_sync_mgr_.after_loop(loop);
         for (int i = 0; i < rem_iters; i++) {
-            if (cfg_.slm_bufs == 3) loop = loop.append(funcs::barrier_wait());
             if (i >= mul_start) {
                 auto tmp_mul_tail = s2r_mul_tail;
                 loop_nest_.for_each_loop_var([&](const expr_t &v) {
@@ -3079,12 +3284,8 @@ public:
                 // SLM load/multiplication works as implicit SLM fence.
                 loop = loop.append(tmp_mul_tail);
                 multi.advance();
-            } else {
-                loop = loop.append(funcs::slm_fence());
             }
             loop = loop.append(slm_idx_update);
-            if (cfg_.slm_bufs == 3 && i + 1 < rem_iters)
-                loop = loop.append(funcs::signal());
         }
 
         if (cfg_.assign_sbids) loop = sbid_assigner_t(hw_).assign(loop);
@@ -3147,6 +3348,7 @@ public:
     alloc_manager_t alloc_mgr_;
     compute_step_t step_;
     compute_loop_nest_t loop_nest_;
+    slm_sync_manager_t slm_sync_mgr_;
 };
 
 // Injects SLM buffering without unrolling based on the config.
@@ -3169,7 +3371,8 @@ public:
         , root_(root)
         , alloc_mgr_(root_)
         , step_(root)
-        , loop_nest_(root, ir_ctx) {
+        , loop_nest_(root, ir_ctx)
+        , slm_sync_mgr_(cfg, /*with_unroll=*/true) {
         int inner_iters = loop_nest_.inner_loops_size();
         params_ = compute_params_t(cfg_.slm_bufs, cfg_.gmem_bufs, ab_slm_size,
                 cfg_.prefetch_bufs, inner_iters);
@@ -3398,16 +3601,10 @@ private:
         }
 
         stmt_t iter_stmt;
-        if (it.slm_bufs() == 3 && it.do_mul()) {
-            iter_stmt = iter_stmt.append(funcs::barrier_wait());
-        }
 
+        iter_stmt = slm_sync_mgr_.before_L(iter_stmt, it.do_mul());
         if (it.do_g2s_load()) iter_stmt = iter_stmt.append(g2s_load);
-
-        if (it.slm_bufs() == 3 && it.iter == it.gmem_bufs()) {
-            iter_stmt = iter_stmt.append(funcs::slm_fence());
-            iter_stmt = iter_stmt.append(funcs::signal());
-        }
+        iter_stmt = slm_sync_mgr_.after_L(iter_stmt, it.do_mul());
 
         if (it.do_g2s_store() && it.slm_bufs() == 1) {
             iter_stmt = iter_stmt.append(funcs::barrier());
@@ -3423,16 +3620,15 @@ private:
                 iter_stmt = iter_stmt.append(s2r_load[i]);
                 iter_stmt = iter_stmt.append(mul[i]);
             }
-            if (it.slm_bufs() == 3 && !it.is_last_mul()) {
-                iter_stmt = iter_stmt.append(funcs::signal());
-            }
         }
+        iter_stmt = slm_sync_mgr_.before_S(
+                iter_stmt, it.do_mul(), it.is_last_mul(), it.iter);
+
         if (it.do_g2s_store() && it.slm_bufs() >= 2) {
             iter_stmt = iter_stmt.append(g2s_store);
-            if (it.slm_bufs() == 2) {
-                iter_stmt = iter_stmt.append(funcs::barrier());
-            }
         }
+
+        iter_stmt = slm_sync_mgr_.after_S(iter_stmt, it.is_last_mul(), it.iter);
 
         if (cfg_.assign_sbids)
             iter_stmt = sbid_assigner_t(sbid_mgr).assign(iter_stmt);
@@ -3593,6 +3789,7 @@ private:
     compute_step_t step_;
     compute_loop_nest_t loop_nest_;
     compute_params_t params_;
+    slm_sync_manager_t slm_sync_mgr_;
 
     std::vector<buffer_info_t> g2s_reg_bufs_; // For SLM buffering.
     bool fuse_zero_out_with_fma_ = false;
