@@ -128,10 +128,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                         && utils::one_of(d->c_type(), bf16, f32)
                         && utils::one_of(d->acc_type, bf16, f32);
             } else {
-                ok = ok && utils::one_of(d->c_type(), f32, f16)
-                        && d->a_type() == d->c_type()
-                        && d->b_type() == d->c_type()
-                        && utils::one_of(d->acc_type, d->c_type(), f32);
+                ok = ok && utils::one_of(d->a_type(), f32, f16)
+                        && d->b_type() == d->a_type()
+                        && utils::one_of(d->acc_type, d->a_type(), f32);
             }
 
             ok = ok && !has_blocks() && batch_dims() <= 2
