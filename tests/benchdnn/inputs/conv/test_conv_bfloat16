@@ -55,6 +55,7 @@
 
 # Test BF32
 --reset
+--dir=FWD_D,BWD_D
 --skip-impl=ref,x64:gemm
 --cfg=f32 --attr-fpmath=bf16
 --batch=shapes_resnet_50
