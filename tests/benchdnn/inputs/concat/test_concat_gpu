@@ -71,3 +71,14 @@
 --sdt=f16 --ddt=f16 --stag=aBx16b:aBx16b --dtag=aBx16b 1x32x6x6:1x32x6x6
 --reset
 --stag=abx:abx 256x1x8x8x3x3:256x1x8x8x3x3
+
+# Only the first of these should dispatch to simple concat
+--reset
+--allow-enum-tags-only=0
+--stag=abcd:acbd:acbd --dtag=abcd --axis=1
+4x1x1x4:4x1x1x4:4x1x1x4_n"simple_concat_ok"
+4x2x1x4:4x2x1x4:4x2x1x4
+4x1x2x4:4x1x2x4:4x1x2x4
+
+--stag=abcde:abcde --dtag=abdce --axis=3 32x6x26x1x9:32x6x26x1x9
+--stag=abc:acb:acb --dtag=abc --axis=1 4x1x4:4x1x4:4x1x4
