@@ -46,7 +46,7 @@ pass::pass_base_ptr get_pass(compiler_impl::compiler_backend_t &backend_ptr,
 TEST(GCPatternTests, INT8MHAPattern) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    add_MHA_subgraph(&agraph, true, true);
+    add_MHA_subgraph(&agraph, false, true);
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -63,6 +63,30 @@ TEST(GCPatternTests, INT8MHAPattern) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
     ASSERT_EQ(p.num_ops(), 20);
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, INT8MHAPattern2) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    add_MHA_subgraph(&agraph, false, true, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "int8_mha_pattern");
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 19);
     ASSERT_EQ(partition_inputs.size(), 5);
     ASSERT_EQ(partition_outputs.size(), 1);
 }
@@ -89,6 +113,30 @@ TEST(GCPatternTests, FP32MHAPattern) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
     ASSERT_EQ(p.num_ops(), 14);
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
+TEST(GCPatternTests, FP32MHAPattern2) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    add_MHA_subgraph(&agraph, false, false, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_mha_pattern");
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 13);
     ASSERT_EQ(partition_inputs.size(), 5);
     ASSERT_EQ(partition_outputs.size(), 1);
 }
@@ -144,11 +192,35 @@ TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
     ASSERT_EQ(partition_outputs.size(), 1);
 }
 
+TEST(GCPatternTests, INT8BF16MHAPattern) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    add_MHA_subgraph(&agraph, true, true, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "int8_bf16_mha_pattern");
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 25);
+    ASSERT_EQ(partition_inputs.size(), 5);
+    ASSERT_EQ(partition_outputs.size(), 1);
+}
+
 // test bf16 MHA pattern
 TEST(GCPatternTests, BF16MHAPattern) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    add_MHA_subgraph(&agraph, false, true, true);
+    add_MHA_subgraph(&agraph, true, false);
     agraph.build_graph();
 
     auto &compiler_backend_ptr

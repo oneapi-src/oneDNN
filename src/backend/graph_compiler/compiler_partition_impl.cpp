@@ -118,6 +118,7 @@ impl::status_t compiler_partition_impl_t::compile(
         const std::vector<impl::logical_tensor_t> &outputs,
         const impl::engine_t *aengine) const {
     try {
+        impl::status_t res = status::success;
         // here we call infer_shape since logical tensor info
         // may be incomplete for the graph corresponding to the
         // partition
@@ -131,11 +132,10 @@ impl::status_t compiler_partition_impl_t::compile(
         for (auto &t : outputs) {
             output_ref.push_back(const_cast<impl::logical_tensor_t *>(&t));
         }
-        auto ret = this->infer_shape(input_ref, output_ref);
-        if (ret != status::success) { return ret; }
+        res = this->infer_shape(input_ref, output_ref);
+        if (res != status::success) { return res; }
 
         std::lock_guard<std::mutex> lck(mtx_);
-        impl::status_t res = status::success;
         std::unordered_map<size_t, sc::sc_op_ptr> inputs_map, outputs_map;
         compiler_graph_impl_t sub_graph;
         size_t id = 0;

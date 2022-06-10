@@ -92,7 +92,7 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
     sc::any_map_t backend_attrs;
     std::unordered_map<impl::op_attr_t, impl::utils::attribute_value_t> attrs
             = aop->get_attributes();
-    auto input_dim = aop->get_input_value(0)->get_logical_tensor().ndims;
+    auto input_dim = producer_lt[0]->details_.get_plain_dims().size();
     if (aop->get_kind() == op_kind::Quantize
             || aop->get_kind() == op_kind::Dequantize) {
         if (attrs.find(impl::op_attr::qtype) != attrs.end()) {
