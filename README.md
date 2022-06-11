@@ -81,11 +81,16 @@ on Windows* with
 * Microsoft Visual C++ 16.0 (Visual Studio 2019)
 * Microsoft Visual C++ 15.0 (Visual Studio 2017)
 
-GPU engine was validated on Ubuntu* 18.04 with
+GPU engine was validated on Ubuntu* 20.04 with
 
-* [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases)
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
-  Beta
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
+* [Intel Software for General Purpose GPU capabilities](https://dgpu-docs.intel.com/index.html)
+latest stable version available at the time of release
+
+on Windows* with
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
+* [Intel Graphics - Windows 10 DCH Drivers](https://downloadcenter.intel.com/download/29808/Intel-Graphics-Windows-10-DCH-Drivers)
+latest stable version available at the time of release
 
 ### Typical Build Steps
 
