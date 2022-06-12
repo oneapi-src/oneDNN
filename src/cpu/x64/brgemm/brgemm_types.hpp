@@ -180,11 +180,13 @@ struct brgemm_t {
     int typesize_C = 0;
     int typesize_D = 0;
     int typesize_bias = 0;
+    impl::cpu::x64::cpu_isa_t isa = isa_any;
 
-    bool is_int8 = false, is_int8_amx = false;
-    bool is_bf16 = false, is_bf16_amx = false, is_bf16_emu = false;
+    bool is_zmm = false;
+    bool is_tmm = false;
+    bool is_int8 = false, is_int8_tmm = false;
+    bool is_bf16 = false, is_bf16_tmm = false, is_bf16_emu = false;
     bool is_f32 = false;
-    bool is_amx = false;
     bool is_bf32 = false;
 
     dim_t stride_a = 0; // Offset in bytes
@@ -242,7 +244,7 @@ struct brgemm_t {
 
     int get_wsp_buffer_size() const noexcept {
         int sz = 0;
-        if (is_amx) {
+        if (is_tmm) {
             constexpr int tilesize = 1024;
             sz = get_num_C_tiles() * tilesize; // postops buffer
             if (is_bf32) {
@@ -292,6 +294,7 @@ struct brgemm_kernel_params_t {
     int32_t zp_a_val = 1;
 };
 
+template <cpu_isa_t isa, typename Vmm>
 struct jit_brgemm_kernel_t;
 struct jit_brgemm_amx_uker_base_t;
 struct jit_brdgmm_kernel_base_t;
@@ -303,6 +306,7 @@ struct brgemm_kernel_t {
     virtual void operator()(brgemm_kernel_params_t *) const = 0;
 };
 
+template <cpu_isa_t isa, typename Vmm>
 struct brgemm_kernel_common_t : public brgemm_kernel_t {
     brgemm_kernel_common_t(const brgemm_t abrd);
     ~brgemm_kernel_common_t();
@@ -311,7 +315,7 @@ struct brgemm_kernel_common_t : public brgemm_kernel_t {
     void operator()(brgemm_kernel_params_t *) const;
 
 private:
-    jit_brgemm_kernel_t *brgemm_kernel_ = nullptr;
+    jit_brgemm_kernel_t<isa, Vmm> *brgemm_kernel_ = nullptr;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_kernel_common_t);
 };

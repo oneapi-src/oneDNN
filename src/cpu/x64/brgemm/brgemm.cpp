@@ -392,7 +392,7 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
 
     // virtual padding is not supported for "amx"
     if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
-            && (brg->is_amx))
+            && (brg->is_tmm))
         return status::unimplemented;
 
     return status::success;
@@ -400,19 +400,40 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
 
 status_t brgemm_kernel_create(
         brgemm_kernel_t **brg_kernel, const brgemm_t &brg) {
+    if (!brg_kernel) return status::invalid_arguments;
+    *brg_kernel = nullptr;
+
     if (brg.is_dgmm) {
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brdgmm_kernel_t(brg)));
-        return (*brg_kernel)->create_kernel();
     } else if (can_dispatch_uker(&brg)) {
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));
-        return (*brg_kernel)->create_kernel();
     } else {
-        CHECK(safe_ptr_assign<brgemm_kernel_t>(
-                *brg_kernel, new brgemm_kernel_common_t(brg)));
-        return (*brg_kernel)->create_kernel();
+        if (brg.is_tmm) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                    new brgemm_kernel_common_t<avx512_core_amx, Xbyak::Tmm>(
+                            brg)));
+        } else if (brg.is_zmm) {
+            // isa specific instantiations are required because
+            // post-ops require template isa param.
+            if (brg.isa == avx512_core_bf16) {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx512_core_bf16,
+                                Xbyak::Zmm>(brg)));
+            } else if (brg.isa == avx512_core_vnni) {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx512_core_vnni,
+                                Xbyak::Zmm>(brg)));
+            } else {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx512_core, Xbyak::Zmm>(
+                                brg)));
+            }
+        }
     }
+    if (!(*brg_kernel)) return status::unimplemented;
+    return (*brg_kernel)->create_kernel();
 }
 
 status_t brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
@@ -423,7 +444,7 @@ status_t brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
 status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
     constexpr int max_palette_size_in_bytes = 64;
 
-    if (!brg.is_amx) return status::unimplemented;
+    if (!brg.is_tmm) return status::unimplemented;
 
     //TODO: Add support of tail processing by reduction dimension
     int rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;

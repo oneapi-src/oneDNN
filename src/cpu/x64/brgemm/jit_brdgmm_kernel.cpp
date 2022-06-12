@@ -430,7 +430,7 @@ void jit_brdgmm_kernel_base_t::brdgmm_microkernel(int m_blocks, int n_blocks,
             vmovups(vmma, addr);
         } else if (brg.is_bf16) {
             vpmovzxwd(vmma, addr);
-            if (brg.is_bf16_amx) vpslld(vmma, vmma, 16);
+            if (brg.is_bf16_tmm) vpslld(vmma, vmma, 16);
         } else if (brg.is_int8) {
             if (is_fast_vnni_int8()) {
                 assert(!mask_flag);
@@ -455,7 +455,7 @@ void jit_brdgmm_kernel_base_t::brdgmm_microkernel(int m_blocks, int n_blocks,
             }
         } else if (brg.is_bf16) {
             vpmovzxwd(vmmb, addr);
-            if (brg.is_bf16_amx) vpslld(vmmb, vmmb, 16);
+            if (brg.is_bf16_tmm) vpslld(vmmb, vmmb, 16);
         }
     };
 
@@ -471,7 +471,7 @@ void jit_brdgmm_kernel_base_t::brdgmm_microkernel(int m_blocks, int n_blocks,
                 vfmadd231ps(vmm_acc, vmma, vmmb);
             }
         } else if (brg.is_bf16) {
-            if (brg.is_bf16_amx)
+            if (brg.is_bf16_tmm)
                 // dont use vdpbf16ps on cpus supporting amx due to poor perf.
                 vfmadd231ps(vmm_acc, vmma, vmmb);
             else

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -193,8 +193,8 @@ private:
                 p.alpha, p.beta, p.lda, p.ldb, p.ldc, p.M, p.N, p.K);
         if (res != dnnl_success) return res;
 
-        if (desc.is_amx) res = brgemm_init_tiles(desc, palette);
-        if (!desc.is_amx) brgemm_desc_set_attr(&desc, p.attrs);
+        if (desc.is_tmm) res = brgemm_init_tiles(desc, palette);
+        if (!desc.is_tmm) brgemm_desc_set_attr(&desc, p.attrs);
 
         if (res != dnnl_success) return res;
 
@@ -206,12 +206,12 @@ private:
         batch_element.ptr.B = B;
         batch_element.vvpad.top = 0;
         batch_element.vvpad.bottom = 0;
-        if (desc.is_amx) amx_tile_configure(palette);
+        if (desc.is_tmm) amx_tile_configure(palette);
         brgemm_kernel_execute(_t_ptr, p.bs, &batch_element, C,
-                desc.is_amx ? tile_buffer : nullptr);
+                desc.is_tmm ? tile_buffer : nullptr);
 
         brgemm_kernel_destroy(_t_ptr);
-        if (desc.is_amx) amx_tile_release();
+        if (desc.is_tmm) amx_tile_release();
 
         return res;
     }

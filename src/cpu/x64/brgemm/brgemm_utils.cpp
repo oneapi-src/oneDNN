@@ -77,7 +77,7 @@ void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
 namespace brgemm_utils {
 
 bool can_dispatch_uker(const brgemm_t *brg) {
-    return brg->is_amx && brg->type == brgemm_addr && brg->brgattr.use_uker
+    return brg->is_tmm && brg->type == brgemm_addr && brg->brgattr.use_uker
             && !brg->brgattr.generate_skip_accumulation;
 }
 
@@ -87,14 +87,14 @@ void maybe_try_bf32(brgemm_t *brg) {
             && utils::one_of(brg->isa_user, isa_any, avx512_core_bf16_amx_bf16)
             && mayiuse(avx512_core_bf16_amx_bf16);
     if (try_bf32) {
-        const bool is_amx = brg->is_amx;
-        brg->is_amx = true;
+        const bool is_tmm = brg->is_tmm;
+        brg->is_tmm = true;
         if (can_dispatch_uker(brg) /*Requires is_amx to be true*/) {
             brg->is_bf32 = true;
         } else {
             brg->is_bf32 = false;
             //  Restore
-            brg->is_amx = is_amx;
+            brg->is_tmm = is_tmm;
         }
     }
 }
@@ -125,12 +125,21 @@ void set_isa_impl(brgemm_t *brg) {
     }
 }
 
+void set_brg_vmm(brgemm_t *brg) {
+    brg->is_tmm = brg->is_int8_tmm || brg->is_bf16_tmm || brg->is_bf32;
+    brg->is_zmm = !brg->is_tmm && mayiuse(avx512_core)
+            && is_superset(brg->isa_impl, avx512_core);
+}
+
 status_t brgemm_blocking(brgemm_t *brg) {
 
     set_isa_impl(brg);
     if (brg->isa_impl == isa_any) return status::unimplemented;
+    set_brg_vmm(brg);
+    if (!(brg->is_tmm || brg->is_zmm))
+        return status::unimplemented;
 
-    if (!brg->is_amx) {
+    if (!brg->is_tmm) {
         brg->ld_block = 16;
         brg->ldb = brg->load_dim / brg->ld_block;
         brg->ldb_tail = brg->load_dim % brg->ld_block;
@@ -337,8 +346,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
         }
         if (!is_decomposition_defined) try_2x2_decomposition();
 
-        const auto max_rd_block = (brg->is_bf16_amx || brg->is_bf32) ? 32 : 64;
-        const auto rd_block_step = (brg->is_bf16_amx || brg->is_bf32) ? 2 : 4;
+        const auto max_rd_block = (brg->is_bf16_tmm || brg->is_bf32) ? 32 : 64;
+        const auto rd_block_step = (brg->is_bf16_tmm || brg->is_bf32) ? 2 : 4;
         // TODO: if rd_block calculated is very small then maybe it makes
         // sense to use 1x2 or 2x1 blocking with supporting rd_block
         // and rdb_tail
@@ -356,7 +365,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
         // dimension)
         if (!IMPLICATION(brg->rdb > 0 && brg->rdb_tail, brg->is_bf32))
             return status::unimplemented;
-        if (!IMPLICATION((brg->rdb_tail % ((brg->is_bf16_amx) ? 2 : 4)) != 0,
+        if (!IMPLICATION((brg->rdb_tail % ((brg->is_bf16_tmm) ? 2 : 4)) != 0,
                     brg->is_bf32))
             return status::unimplemented;
     }
@@ -427,17 +436,16 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
 
     brg->isa_user = isa;
     set_isa_impl(brg);
-    brg->is_int8_amx
+    brg->is_int8_tmm
             = brg->is_int8 && brg->isa_impl == avx512_core_bf16_amx_int8;
-    brg->is_bf16_amx
+    brg->is_bf16_tmm
             = brg->is_bf16 && brg->isa_impl == avx512_core_bf16_amx_bf16;
     brg->is_bf32 = is_bf32
             && utils::one_of(brg->isa_user, isa_any, avx512_core_bf16_amx_bf16)
             && mayiuse(avx512_core_bf16_amx_bf16);
-    brg->is_amx = brg->is_int8_amx || brg->is_bf16_amx || brg->is_bf32;
-
+    set_brg_vmm(brg); // TODO: Investigate if it is really needed here.
     brg->req_s8s8_compensation
-            = brg->is_int8 && !brg->is_int8_amx && brg->dt_a == data_type::s8;
+            = brg->is_int8 && !brg->is_int8_tmm && brg->dt_a == data_type::s8;
 
     brg->LDA = (brg->is_row_major()) ? static_cast<int>(LDA)
                                      : static_cast<int>(LDB);
@@ -481,7 +489,7 @@ void init_brdgemm_conf(brgemm_t *brg, brgemm_batch_kind_t type,
     brg->typesize_C = types::data_type_size(brg->dt_c);
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
-    brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    brg->is_bf16_tmm = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
     brg->is_dgmm = true;
 
     brg->LDA = static_cast<int>(LDA);
