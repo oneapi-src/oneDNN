@@ -5513,7 +5513,7 @@ private:
         expr_t vector2expr(const std::vector<expr_t> &expr,
                 object_eq_map_t<expr_t, expr_t> &vars) const {
             constexpr size_t mask = 0x8000;
-            auto hash = [](const binary_op_t &b) -> size_t {
+            auto hash = [&](const binary_op_t &b) -> size_t {
                 return size_t(b.op_kind) | ((b.b.is<int_imm_t>()) ? mask : 0UL);
             };
             auto fetch_var = [this, &vars](expr_t e) {
@@ -5607,8 +5607,14 @@ private:
         const int ic = utils::rnd_up_pow2((!is_mad) ? cfg_.ic : cfg_.g);
         const int m_blk = cfg_.simd_size();
 
-        type_t s_type = b_view.type();
-        type_t d_type = (s_type.is_signed()) ? type_t::s32() : type_t::u32();
+        const type_t s_type = a_view.type();
+        const type_t i_type = type_t::s32(); // x32 type that is always signed
+        auto has_sign = [&]() {
+            if (is_runtime) return s_type.is_signed();
+            ir_assert(is_scalar);
+            return cfg_.zp_cfg.common_src_zero_point < 0;
+        };
+        const type_t d_type = (has_sign()) ? type_t::s32() : type_t::u32();
         ir_assert((is_mad) ? s_type.is_x16() : s_type.is_x8());
 
         const int a_stride
@@ -5674,7 +5680,6 @@ private:
             // TODO: for now, only b-blocking (per G) of the MAD loop is ready;
             //       please implement n-blocking (per OC) as well!
             ir_assert(a_view.tlayout().size() % a_stride == 0);
-            ir_assert(s_type == a_view.type());
             ir_assert(cfg_.ic == 1);
             ir_assert(masks.is_simd());
 
@@ -5717,7 +5722,7 @@ private:
                             layout_t(s_type, 0, "4b" + ic_s), src_zp, src_zp));
         }
         auto _dp4a = dpas_t::make(
-                /*is_dpasw=*/false, m_blk, 1, 1, d_type, d_type, d_type);
+                /*is_dpasw=*/false, m_blk, 1, 1, i_type, i_type, d_type);
         auto &dp4a = _dp4a.as<dpas_t>();
         std::vector<stmt_t> parts;
 
@@ -5733,7 +5738,7 @@ private:
             for (int i_n = 0; i_n < desc_n; i_n++) {
                 const int off_n = i_m / m_blk * desc_n + i_n;
                 auto dst = c_buf_ + off_n * m_blk * d_type.size();
-                type_t vd(d_type.kind(), m_blk);
+                type_t vd(i_type.kind(), m_blk);
                 auto a = load_t::make(vd, dst, 0);
                 auto b = load_t::make(vd, acc[i_acc], 0);
                 auto mask = masks.gen_mask(off_n);
