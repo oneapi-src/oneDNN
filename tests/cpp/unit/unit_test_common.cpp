@@ -22,16 +22,15 @@
 #include "unit_test_common.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-cl::sycl::device &get_device() {
-    static cl::sycl::device dev
-            = get_test_engine_kind() == impl::engine_kind::cpu
-            ? cl::sycl::device {cl::sycl::cpu_selector {}}
-            : cl::sycl::device {cl::sycl::gpu_selector {}};
+::sycl::device &get_device() {
+    static ::sycl::device dev = get_test_engine_kind() == impl::engine_kind::cpu
+            ? ::sycl::device {::sycl::cpu_selector {}}
+            : ::sycl::device {::sycl::gpu_selector {}};
     return dev;
 }
 
-cl::sycl::context &get_context() {
-    static cl::sycl::context ctx {get_device()};
+::sycl::context &get_context() {
+    static ::sycl::context ctx {get_device()};
     return ctx;
 }
 #endif // DNNL_GRAPH_WITH_SYCL
@@ -70,8 +69,8 @@ impl::engine_t &get_engine() {
 impl::stream_t &get_stream() {
     if (get_test_engine_kind() == impl::engine_kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
-        static cl::sycl::queue q {get_context(), get_device(),
-                cl::sycl::property::queue::in_order {}};
+        static ::sycl::queue q {get_context(), get_device(),
+                ::sycl::property::queue::in_order {}};
         static impl::stream_t strm {&get_engine(), q};
 #elif DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
         static impl::stream_t strm {
@@ -82,8 +81,8 @@ impl::stream_t &get_stream() {
         return strm;
     } else {
 #ifdef DNNL_GRAPH_GPU_SYCL
-        static cl::sycl::queue q {get_context(), get_device(),
-                cl::sycl::property::queue::in_order {}};
+        static ::sycl::queue q {get_context(), get_device(),
+                ::sycl::property::queue::in_order {}};
         static impl::stream_t strm {&get_engine(), q};
 #else
         assert(!"GPU only support DPCPP runtime now");

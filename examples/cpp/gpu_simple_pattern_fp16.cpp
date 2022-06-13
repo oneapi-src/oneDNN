@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
                 // memory allocation
                 data_buffers.push_back({});
                 data_buffers.back().reset(
-                        cl::sycl::malloc_shared(mem_size, q.get_device(), q.get_context()), sycl_deletor {q.get_context()});
+                        ::sycl::malloc_shared(mem_size, q.get_device(), q.get_context()), sycl_deletor {q.get_context()});
                 inputs_ts.push_back(tensor {in, eng, data_buffers.back().get()});
             }
 
@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
                 // memory allocation
                 data_buffers.push_back({});
                 data_buffers.back().reset(
-                        cl::sycl::malloc_device(
+                        ::sycl::malloc_device(
                                 mem_size, q.get_device(), q.get_context()), sycl_deletor {q.get_context()});
                 outputs_ts.push_back(tensor {out, eng, data_buffers.back().get()});
                 global_outputs_ts_map[out.get_id()] = outputs_ts.back();

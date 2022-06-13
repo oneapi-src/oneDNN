@@ -174,11 +174,11 @@ public:
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
-            const std::vector<cl::sycl::event> &sycl_deps,
-            cl::sycl::event *sycl_event) override {
+            const std::vector<::sycl::event> &sycl_deps,
+            ::sycl::event *sycl_event) override {
         UNUSED(part);
         auto deps = sycl_deps;
-        cl::sycl::event returned_event;
+        ::sycl::event returned_event;
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         thread_local_cache_t<execution_args_set_t> res_cache;
@@ -321,11 +321,11 @@ public:
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
-            const std::vector<cl::sycl::event> &sycl_deps,
-            cl::sycl::event *sycl_event) override {
+            const std::vector<::sycl::event> &sycl_deps,
+            ::sycl::event *sycl_event) override {
         UNUSED(part);
         auto deps = sycl_deps;
-        cl::sycl::event returned_event;
+        ::sycl::event returned_event;
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         thread_local_cache_t<execution_args_set_t> res_cache;

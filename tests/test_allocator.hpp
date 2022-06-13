@@ -44,21 +44,21 @@ void sycl_free_wrapper(
 class simple_sycl_allocator {
 public:
     simple_sycl_allocator() = default;
-    simple_sycl_allocator(const cl::sycl::context *ctx) : ctx_(ctx) {};
+    simple_sycl_allocator(const ::sycl::context *ctx) : ctx_(ctx) {};
     ~simple_sycl_allocator() {};
 
-    void *malloc(size_t num_bytes, const cl::sycl::device *dev) {
+    void *malloc(size_t num_bytes, const ::sycl::device *dev) {
         return malloc_device(num_bytes, *dev, *ctx_);
     }
 
-    void release(void *ptr, cl::sycl::event e) { free_list_[e] = ptr; }
+    void release(void *ptr, ::sycl::event e) { free_list_[e] = ptr; }
 
     void free_to_driver() {
-        for (typename std::unordered_map<cl::sycl::event,
-                     void *>::const_iterator it
+        for (typename std::unordered_map<::sycl::event, void *>::const_iterator
+                        it
                 = free_list_.begin();
                 it != free_list_.end(); ++it) {
-            cl::sycl::event e = it->first;
+            ::sycl::event e = it->first;
             e.wait();
             free(it->second, *ctx_);
         }
@@ -66,11 +66,11 @@ public:
     }
 
 private:
-    const cl::sycl::context *ctx_;
-    std::unordered_map<cl::sycl::event, void *> free_list_;
+    const ::sycl::context *ctx_;
+    std::unordered_map<::sycl::event, void *> free_list_;
 };
 
-simple_sycl_allocator *get_allocator(const cl::sycl::context *ctx);
+simple_sycl_allocator *get_allocator(const ::sycl::context *ctx);
 
 void *sycl_allocator_malloc(size_t n, const void *dev, const void *ctx,
         dnnl::graph::allocator::attribute attr);

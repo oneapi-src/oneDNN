@@ -63,7 +63,7 @@ struct dnnl_allocator_t {
 
 #ifdef DNNL_GRAPH_WITH_SYCL
     static void free(void *p, const dnnl::engine &p_engine,
-            const impl::allocator_t *alc, const cl::sycl::event &deps);
+            const impl::allocator_t *alc, const ::sycl::event &deps);
 #endif
 };
 

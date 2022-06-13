@@ -40,11 +40,11 @@ struct cpu_deletor {
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 struct sycl_deletor {
-    cl::sycl::context ctx_;
+    ::sycl::context ctx_;
     sycl_deletor() = delete;
-    sycl_deletor(const cl::sycl::context &ctx) : ctx_(ctx) {}
+    sycl_deletor(const ::sycl::context &ctx) : ctx_(ctx) {}
     void operator()(void *ptr) {
-        if (ptr) cl::sycl::free(ptr, ctx_);
+        if (ptr) ::sycl::free(ptr, ctx_);
     }
 };
 #endif
@@ -66,14 +66,14 @@ private:
     std::unordered_set<size_t> inplace_tensor_ids_;
 #ifdef DNNL_GRAPH_WITH_SYCL
     /// q is for deallocation of USM memory buffer
-    cl::sycl::queue q_;
+    ::sycl::queue q_;
 #endif
 
 public:
     tensor_map() = default;
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    tensor_map(const cl::sycl::queue &q) : q_(q) {}
+    tensor_map(const ::sycl::queue &q) : q_(q) {}
 #endif
 
     /// destructor - free all of allocated memory buffer
@@ -135,7 +135,7 @@ public:
                 if (eng.get_kind() == dnnl::graph::engine::kind::cpu) {
                     // cpu
 #ifdef DNNL_GRAPH_CPU_SYCL
-                    mem_ptr = cl::sycl::malloc_shared(new_lt.get_mem_size(),
+                    mem_ptr = ::sycl::malloc_shared(new_lt.get_mem_size(),
                             q_.get_device(), q_.get_context());
                     buffer_map_[new_lt.get_id()].reset(
                             mem_ptr, sycl_deletor {q_.get_context()});
@@ -156,7 +156,7 @@ public:
                 } else {
                     // gpu
 #ifdef DNNL_GRAPH_GPU_SYCL
-                    mem_ptr = cl::sycl::malloc_shared(new_lt.get_mem_size(),
+                    mem_ptr = ::sycl::malloc_shared(new_lt.get_mem_size(),
                             q_.get_device(), q_.get_context());
                     buffer_map_[new_lt.get_id()].reset(
                             mem_ptr, sycl_deletor {q_.get_context()});
@@ -206,7 +206,7 @@ public:
             if (eng.get_kind() == dnnl::graph::engine::kind::cpu) {
                 // cpu
 #ifdef DNNL_GRAPH_CPU_SYCL
-                buffer.reset(cl::sycl::malloc_shared(queried_lt.get_mem_size(),
+                buffer.reset(::sycl::malloc_shared(queried_lt.get_mem_size(),
                                      q_.get_device(), q_.get_context()),
                         sycl_deletor {q_.get_context()});
 #else
@@ -215,7 +215,7 @@ public:
             } else {
                 // gpu
 #ifdef DNNL_GRAPH_GPU_SYCL
-                buffer.reset(cl::sycl::malloc_shared(queried_lt.get_mem_size(),
+                buffer.reset(::sycl::malloc_shared(queried_lt.get_mem_size(),
                                      q_.get_device(), q_.get_context()),
                         sycl_deletor {q_.get_context()});
 #endif

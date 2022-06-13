@@ -329,8 +329,8 @@ public:
     virtual impl::status_t execute_sycl(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
-            const std::vector<cl::sycl::event> &sycl_deps,
-            cl::sycl::event *sycl_event)
+            const std::vector<::sycl::event> &sycl_deps,
+            ::sycl::event *sycl_event)
             = 0;
 #endif
 

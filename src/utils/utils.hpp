@@ -196,18 +196,18 @@ public:
             allocator_attr_t attr) {
         size_t alignment
                 = attr.alignment == 0 ? DEFAULT_ALIGNMENT : attr.alignment;
-        return cl::sycl::aligned_alloc_shared(alignment, size,
-                *static_cast<const cl::sycl::device *>(dev),
-                *static_cast<const cl::sycl::context *>(ctx));
+        return ::sycl::aligned_alloc_shared(alignment, size,
+                *static_cast<const ::sycl::device *>(dev),
+                *static_cast<const ::sycl::context *>(ctx));
     }
 
     static void free(void *ptr, const void *dev, const void *ctx, void *event) {
         UNUSED(dev);
         if (event) {
-            auto sycl_deps_ptr = static_cast<cl::sycl::event *>(event);
+            auto sycl_deps_ptr = static_cast<::sycl::event *>(event);
             sycl_deps_ptr->wait();
         }
-        cl::sycl::free(ptr, *static_cast<const cl::sycl::context *>(ctx));
+        ::sycl::free(ptr, *static_cast<const ::sycl::context *>(ctx));
     }
 };
 #endif

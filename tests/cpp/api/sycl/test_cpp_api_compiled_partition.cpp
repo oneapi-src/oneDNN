@@ -93,7 +93,7 @@ TEST(ApiExecute, ConvReLU) {
     for (const auto &in : inputs) {
         size_t mem_size = in.get_mem_size();
         data_buffers.push_back({});
-        data_buffers.back().reset(cl::sycl::malloc_shared(mem_size,
+        data_buffers.back().reset(::sycl::malloc_shared(mem_size,
                                           q.get_device(), q.get_context()),
                 sycl_deletor {q.get_context()});
         inputs_ts.push_back(tensor {in, eng, data_buffers.back().get()});
@@ -102,7 +102,7 @@ TEST(ApiExecute, ConvReLU) {
     for (const auto &out : outputs) {
         size_t mem_size = out.get_mem_size();
         data_buffers.push_back({});
-        data_buffers.back().reset(cl::sycl::malloc_device(mem_size,
+        data_buffers.back().reset(::sycl::malloc_device(mem_size,
                                           q.get_device(), q.get_context()),
                 sycl_deletor {q.get_context()});
         outputs_ts.push_back(tensor {out, eng, data_buffers.back().get()});
@@ -175,7 +175,7 @@ TEST(SyclApiExecute, ConvReLU) {
     for (const auto &in : inputs) {
         size_t mem_size = in.get_mem_size();
         data_buffers.push_back({});
-        data_buffers.back().reset(cl::sycl::malloc_shared(mem_size,
+        data_buffers.back().reset(::sycl::malloc_shared(mem_size,
                                           q.get_device(), q.get_context()),
                 sycl_deletor {q.get_context()});
         inputs_ts.push_back(tensor {in, eng, data_buffers.back().get()});
@@ -184,7 +184,7 @@ TEST(SyclApiExecute, ConvReLU) {
     for (const auto &out : outputs) {
         size_t mem_size = out.get_mem_size();
         data_buffers.push_back({});
-        data_buffers.back().reset(cl::sycl::malloc_device(mem_size,
+        data_buffers.back().reset(::sycl::malloc_device(mem_size,
                                           q.get_device(), q.get_context()),
                 sycl_deletor {q.get_context()});
         outputs_ts.push_back(tensor {out, eng, data_buffers.back().get()});

@@ -186,8 +186,8 @@ public:
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    void *allocate(size_t n, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, attribute_t attr) const {
+    void *allocate(size_t n, const ::sycl::device &dev,
+            const ::sycl::context &ctx, attribute_t attr) const {
 #ifndef NDEBUG
         monitor_t::lock_write();
         void *buffer = sycl_malloc_(n, static_cast<const void *>(&dev),
@@ -219,8 +219,8 @@ public:
 
 #ifdef DNNL_GRAPH_WITH_SYCL
     template <typename T>
-    T *allocate(size_t num_elem, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, attribute_t attr = {}) {
+    T *allocate(size_t num_elem, const ::sycl::device &dev,
+            const ::sycl::context &ctx, attribute_t attr = {}) {
 #ifndef NDEBUG
         monitor_t::lock_write();
         T *buffer = static_cast<T *>(sycl_malloc_(num_elem * sizeof(T),
@@ -252,8 +252,8 @@ public:
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    void deallocate(void *buffer, const cl::sycl::device &dev,
-            const cl::sycl::context &ctx, cl::sycl::event deps) const {
+    void deallocate(void *buffer, const ::sycl::device &dev,
+            const ::sycl::context &ctx, ::sycl::event deps) const {
         if (buffer) {
 #ifndef NDEBUG
             monitor_t::lock_write();

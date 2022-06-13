@@ -34,8 +34,8 @@
 namespace impl = dnnl::graph::impl;
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-cl::sycl::device &get_device();
-cl::sycl::context &get_context();
+::sycl::device &get_device();
+::sycl::context &get_context();
 #endif // DNNL_GRAPH_WITH_SYCL
 
 impl::engine_t &get_engine();
@@ -62,9 +62,9 @@ public:
 #ifdef DNNL_GRAPH_CPU_SYCL
             dev_ = get_device();
             ctx_ = get_context();
-            return reinterpret_cast<T *>(cl::sycl::aligned_alloc(usm_alignment,
+            return reinterpret_cast<T *>(::sycl::aligned_alloc(usm_alignment,
                     num_elements * sizeof(T), dev_, ctx_,
-                    cl::sycl::usm::alloc::shared));
+                    ::sycl::usm::alloc::shared));
 #else
             return reinterpret_cast<T *>(malloc(num_elements * sizeof(T)));
 #endif
@@ -72,9 +72,9 @@ public:
 #ifdef DNNL_GRAPH_GPU_SYCL
             dev_ = get_device();
             ctx_ = get_context();
-            return reinterpret_cast<T *>(cl::sycl::aligned_alloc(usm_alignment,
+            return reinterpret_cast<T *>(::sycl::aligned_alloc(usm_alignment,
                     num_elements * sizeof(T), dev_, ctx_,
-                    cl::sycl::usm::alloc::shared));
+                    ::sycl::usm::alloc::shared));
 #else
             return nullptr;
 #endif
@@ -88,13 +88,13 @@ public:
 
         if (get_test_engine_kind() == impl::engine_kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
-            cl::sycl::free(ptr, ctx_);
+            ::sycl::free(ptr, ctx_);
 #else
             free(ptr);
 #endif
         } else if (get_test_engine_kind() == impl::engine_kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
-            cl::sycl::free(ptr, ctx_);
+            ::sycl::free(ptr, ctx_);
 #endif
         } else {
         }
@@ -107,11 +107,11 @@ public:
 
 private:
 #ifdef DNNL_GRAPH_WITH_SYCL
-    // The underlying implementation of cl::sycl::device and cl::sycl::context
+    // The underlying implementation of ::sycl::device and ::sycl::context
     // are shared ptr. So we can hold a copy of them to avoid be destroyed
     // before we use them.
-    cl::sycl::device dev_;
-    cl::sycl::context ctx_;
+    ::sycl::device dev_;
+    ::sycl::context ctx_;
 #endif
 };
 

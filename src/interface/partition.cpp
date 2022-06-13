@@ -362,11 +362,11 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_compiled_partition_execute(
     if (deps != nullptr) {
         const auto &sycl_deps = *(const std::vector<::sycl::event> *)deps;
         return compiled_partition->execute_sycl(stream, ins, outs, sycl_deps,
-                static_cast<cl::sycl::event *>(sycl_event));
+                static_cast<::sycl::event *>(sycl_event));
     }
 
     return compiled_partition->execute_sycl(
-            stream, ins, outs, {}, static_cast<cl::sycl::event *>(sycl_event));
+            stream, ins, outs, {}, static_cast<::sycl::event *>(sycl_event));
 #else
     UNUSED(compiled_partition);
     UNUSED(stream);
@@ -658,8 +658,8 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
 status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
-        const std::vector<cl::sycl::event> &sycl_deps,
-        cl::sycl::event *sycl_event) const {
+        const std::vector<::sycl::event> &sycl_deps,
+        ::sycl::event *sycl_event) const {
     if (!astream || !astream->get_engine()->match(pimpl_->get_engine()))
         return status::invalid_arguments;
 

@@ -87,7 +87,7 @@ void dnnl_allocator_t::free(
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 void dnnl_allocator_t::free(void *p, const dnnl::engine &p_engine,
-        const impl::allocator_t *alc, const cl::sycl::event &deps) {
+        const impl::allocator_t *alc, const ::sycl::event &deps) {
     if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
         return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
@@ -163,7 +163,7 @@ dnnl::stream make_dnnl_stream(
     if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
         return dnnl::sycl_interop::make_stream(
-                p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
+                p_engine, const_cast<::sycl::queue &>(g_stream.get_queue()));
 #elif DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
         dnnl::graph::threadpool_interop::threadpool_iface *tp = nullptr;
         g_stream.get_threadpool(&tp);
@@ -176,7 +176,7 @@ dnnl::stream make_dnnl_stream(
     } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
         return dnnl::sycl_interop::make_stream(
-                p_engine, const_cast<cl::sycl::queue &>(g_stream.get_queue()));
+                p_engine, const_cast<::sycl::queue &>(g_stream.get_queue()));
 #else
         return dnnl::stream(p_engine);
 #endif

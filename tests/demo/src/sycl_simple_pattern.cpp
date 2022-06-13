@@ -258,7 +258,7 @@ void sycl_simple_pattern_tutorial(engine::kind engine_kind) {
     /// @snippet sycl_simple_pattern.cpp Create engine
     //[Create engine]
     // get simple sycl allocator
-    const cl::sycl::context &ctx = q.get_context();
+    const ::sycl::context &ctx = q.get_context();
     dnnl::graph::testing::simple_sycl_allocator *aallocator = dnnl::graph::testing::get_allocator(&ctx);
     engine eng = sycl_interop::make_engine(q.get_device(), ctx, alloc);
     //[Create engine]

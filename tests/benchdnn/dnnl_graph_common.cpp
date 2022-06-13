@@ -1011,8 +1011,8 @@ const dnnl::graph::engine &get_graph_engine() {
             dnnl::graph::testing::sycl_malloc_wrapper,
             dnnl::graph::testing::sycl_free_wrapper)};
     static dnnl::engine test_eng {::get_test_engine()};
-    static cl::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
-    static cl::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
+    static ::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
+    static ::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
     static dnnl::graph::engine eng {
             dnnl::graph::sycl_interop::make_engine(dev, ctx, sycl_allocator)};
     return eng;
@@ -1020,10 +1020,10 @@ const dnnl::graph::engine &get_graph_engine() {
 
 dnnl::graph::stream &get_graph_stream() {
     static dnnl::engine test_eng {::get_test_engine()};
-    static cl::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
-    static cl::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
+    static ::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
+    static ::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
 
-    static cl::sycl::queue q {ctx, dev, cl::sycl::property::queue::in_order {}};
+    static ::sycl::queue q {ctx, dev, ::sycl::property::queue::in_order {}};
 
     static dnnl::graph::stream strm {
             dnnl::graph::sycl_interop::make_stream(get_graph_engine(), q)};

@@ -46,7 +46,7 @@ public:
 
 #ifdef DNNL_GRAPH_WITH_SYCL
     dnnl_graph_engine(dnnl::graph::impl::engine_kind_t kind,
-            const cl::sycl::device &dev, const cl::sycl::context &ctx,
+            const ::sycl::device &dev, const ::sycl::context &ctx,
             const dnnl::graph::impl::allocator_t *alloc = nullptr)
         : kind_(kind), dev_(dev), ctx_(ctx) {
         if (alloc) {
@@ -70,9 +70,9 @@ public:
     };
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    const cl::sycl::device &sycl_device() const { return dev_; }
+    const ::sycl::device &sycl_device() const { return dev_; }
 
-    const cl::sycl::context &sycl_context() const { return ctx_; }
+    const ::sycl::context &sycl_context() const { return ctx_; }
 #endif
 
     bool match(const dnnl::graph::impl::engine_t &eng) const {
@@ -95,8 +95,8 @@ private:
     size_t index_ {};
     std::shared_ptr<dnnl::graph::impl::allocator_t> allocator_ {nullptr};
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::device dev_;
-    cl::sycl::context ctx_;
+    ::sycl::device dev_;
+    ::sycl::context ctx_;
 #endif
 };
 

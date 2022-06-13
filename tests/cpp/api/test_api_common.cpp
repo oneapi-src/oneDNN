@@ -26,8 +26,8 @@ void api_test_dnnl_graph_engine_create(
         dnnl_graph_engine_t *engine, dnnl_graph_engine_kind_t engine_kind) {
     if (engine_kind == dnnl_graph_cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
-        static cl::sycl::device dev {cl::sycl::cpu_selector {}};
-        static cl::sycl::context ctx {dev};
+        static ::sycl::device dev {::sycl::cpu_selector {}};
+        static ::sycl::context ctx {dev};
         if (!allocator_handle) {
             ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
                               &allocator_handle.allocator,
@@ -49,8 +49,8 @@ void api_test_dnnl_graph_engine_create(
         *engine = engine_handle.engine;
     } else {
 #ifdef DNNL_GRAPH_GPU_SYCL
-        static cl::sycl::device dev {cl::sycl::gpu_selector {}};
-        static cl::sycl::context ctx {dev};
+        static ::sycl::device dev {::sycl::gpu_selector {}};
+        static ::sycl::context ctx {dev};
         if (!allocator_handle) {
             ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
                               &allocator_handle.allocator,
@@ -76,8 +76,8 @@ dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
         dnnl::graph::engine::kind engine_kind) {
     if (engine_kind == dnnl::graph::engine::kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
-        static cl::sycl::device dev {cl::sycl::cpu_selector {}};
-        static cl::sycl::context ctx {dev};
+        static ::sycl::device dev {::sycl::cpu_selector {}};
+        static ::sycl::context ctx {dev};
         static dnnl::graph::allocator alloc
                 = dnnl::graph::sycl_interop::make_allocator(
                         dnnl::graph::testing::sycl_malloc_wrapper,
@@ -91,8 +91,8 @@ dnnl::graph::engine &cpp_api_test_dnnl_graph_engine_create(
     }
 
 #ifdef DNNL_GRAPH_GPU_SYCL
-    static cl::sycl::device dev {cl::sycl::gpu_selector {}};
-    static cl::sycl::context ctx {dev};
+    static ::sycl::device dev {::sycl::gpu_selector {}};
+    static ::sycl::context ctx {dev};
     static dnnl::graph::allocator alloc
             = dnnl::graph::sycl_interop::make_allocator(
                     dnnl::graph::testing::sycl_malloc_wrapper,

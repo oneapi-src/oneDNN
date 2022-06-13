@@ -36,7 +36,7 @@ public:
 #ifdef DNNL_GRAPH_WITH_SYCL
     // Create an stream from SYCL queue.
     dnnl_graph_stream(const dnnl::graph::impl::engine_t *engine,
-            const cl::sycl::queue &queue)
+            const ::sycl::queue &queue)
         : engine_ {engine}, queue_ {queue} {}
 #endif // DNNL_GRAPH_WITH_SYCL
 
@@ -64,7 +64,7 @@ public:
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    const cl::sycl::queue &get_queue() const noexcept { return queue_; }
+    const ::sycl::queue &get_queue() const noexcept { return queue_; }
 #endif
 
     dnnl::graph::impl::status_t wait() {
@@ -77,7 +77,7 @@ public:
 private:
     const dnnl::graph::impl::engine_t *engine_;
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::queue queue_;
+    ::sycl::queue queue_;
 #endif
 #if DNNL_GRAPH_CPU_RUNTIME == DNNL_GRAPH_RUNTIME_THREADPOOL
     dnnl::graph::threadpool_interop::threadpool_iface *threadpool_ = nullptr;

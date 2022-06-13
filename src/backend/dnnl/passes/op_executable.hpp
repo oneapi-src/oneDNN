@@ -1407,9 +1407,9 @@ struct op_executable_t {
     virtual void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const = 0;
 #ifdef DNNL_GRAPH_WITH_SYCL
-    virtual cl::sycl::event execute_sycl(const stream &stream,
+    virtual ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const = 0;
+            const std::vector<::sycl::event> &deps = {}) const = 0;
 #endif
 };
 
@@ -1423,9 +1423,9 @@ struct memory_reparser_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         UNUSED(stream);
         assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
                         == args.find(DNNL_ARG_TO)->second.get_data_handle(),
@@ -1475,9 +1475,9 @@ struct const_memory_filler_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         void *data_handle = static_cast<void *>(
                 const_cast<target_dt *>(attr_data_.data()));
         const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
@@ -1543,9 +1543,9 @@ struct conv_fwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         auto sycl_deps = deps;
         if (with_sum_) {
             const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
@@ -1597,9 +1597,9 @@ struct deconv_fwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         auto sycl_deps = deps;
         if (with_sum_) {
             const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
@@ -1639,9 +1639,9 @@ struct deconv_bwd_data_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -1667,9 +1667,9 @@ struct deconv_bwd_weights_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -1721,9 +1721,9 @@ struct matmul_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         auto sycl_deps = deps;
         if (with_sum_) {
             memory &dst_mem
@@ -1766,9 +1766,9 @@ struct eltwise_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -1794,9 +1794,9 @@ struct eltwise_bwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -1837,9 +1837,9 @@ struct binary_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         auto sycl_deps = deps;
         if (with_sum_) {
             memory &dst_mem
@@ -1881,9 +1881,9 @@ struct concat_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -1909,9 +1909,9 @@ struct shuffle_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -1935,9 +1935,9 @@ struct pool_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -1961,9 +1961,9 @@ struct pool_bwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -1989,9 +1989,9 @@ struct prelu_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2017,9 +2017,9 @@ struct prelu_bwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2053,9 +2053,9 @@ struct reorder_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         auto sycl_deps = deps;
         if (with_sum_) {
             const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
@@ -2274,9 +2274,9 @@ struct bn_folding_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         UNUSED(args);
         auto sycl_deps = deps;
 
@@ -2408,9 +2408,9 @@ struct conv_bwd_data_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2436,9 +2436,9 @@ struct conv_bwd_weights_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2509,9 +2509,9 @@ struct batchnorm_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         if (!is_training_) {
             return dnnl::sycl_interop::execute(prim_, stream, args, deps);
         }
@@ -2588,9 +2588,9 @@ struct batchnorm_bwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2627,9 +2627,9 @@ struct resampling_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         auto sycl_deps = deps;
         if (with_sum_) {
             const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;
@@ -2669,9 +2669,9 @@ struct resampling_bwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2697,9 +2697,9 @@ struct layernorm_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2725,9 +2725,9 @@ struct layernorm_bwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2752,9 +2752,9 @@ struct sum_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2782,9 +2782,9 @@ struct softmax_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2812,9 +2812,9 @@ struct softmax_bwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2842,9 +2842,9 @@ struct logsoftmax_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2872,9 +2872,9 @@ struct logsoftmax_bwd_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         return dnnl::sycl_interop::execute(prim_, stream, args, deps);
     }
 #endif
@@ -2913,9 +2913,9 @@ struct reduction_executable_t : public op_executable_t {
     }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event execute_sycl(const stream &stream,
+    ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps = {}) const override {
         auto sycl_deps = deps;
         if (with_sum_) {
             const memory &psrc_mem = args.find(DNNL_GRAPH_ARG_POST_SRC)->second;

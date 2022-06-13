@@ -151,11 +151,11 @@ public:
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
-            const std::vector<cl::sycl::event> &sycl_deps,
-            cl::sycl::event *sycl_event) override {
+            const std::vector<::sycl::event> &sycl_deps,
+            ::sycl::event *sycl_event) override {
         UNUSED(part);
         auto deps = sycl_deps;
-        cl::sycl::event returned_event;
+        ::sycl::event returned_event;
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // each thread's own local resource
@@ -306,11 +306,11 @@ public:
             const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
-            const std::vector<cl::sycl::event> &sycl_deps,
-            cl::sycl::event *sycl_event) override {
+            const std::vector<::sycl::event> &sycl_deps,
+            ::sycl::event *sycl_event) override {
         UNUSED(part);
         auto deps = sycl_deps;
-        cl::sycl::event returned_event;
+        ::sycl::event returned_event;
         dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
         // each thread's own local resource

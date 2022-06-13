@@ -60,8 +60,8 @@ void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
         // temporary memory
     }
 
-    return malloc_device(n, *static_cast<const cl::sycl::device *>(dev),
-            *static_cast<const cl::sycl::context *>(ctx));
+    return malloc_device(n, *static_cast<const ::sycl::device *>(dev),
+            *static_cast<const ::sycl::context *>(ctx));
 }
 
 void sycl_free_wrapper(
@@ -72,13 +72,13 @@ void sycl_free_wrapper(
     // immediate synchronization here is for test purpose for performance, users
     // may need to store the ptr and event and handle them separately
     if (event) {
-        auto sycl_deps_ptr = static_cast<cl::sycl::event *>(event);
+        auto sycl_deps_ptr = static_cast<::sycl::event *>(event);
         sycl_deps_ptr->wait();
     }
-    free(ptr, *static_cast<const cl::sycl::context *>(context));
+    free(ptr, *static_cast<const ::sycl::context *>(context));
 }
 
-simple_sycl_allocator *get_allocator(const cl::sycl::context *ctx) {
+simple_sycl_allocator *get_allocator(const ::sycl::context *ctx) {
     static simple_sycl_allocator aallocator(ctx);
     return &aallocator;
 }
@@ -86,8 +86,8 @@ simple_sycl_allocator *get_allocator(const cl::sycl::context *ctx) {
 void *sycl_allocator_malloc(size_t n, const void *dev, const void *ctx,
         dnnl::graph::allocator::attribute attr) {
     simple_sycl_allocator *aallocator
-            = get_allocator(static_cast<const cl::sycl::context *>(ctx));
-    return aallocator->malloc(n, static_cast<const cl::sycl::device *>(dev));
+            = get_allocator(static_cast<const ::sycl::context *>(ctx));
+    return aallocator->malloc(n, static_cast<const ::sycl::device *>(dev));
 }
 
 void sycl_allocator_free(
@@ -96,8 +96,8 @@ void sycl_allocator_free(
     // application.
     UNUSED(device);
     simple_sycl_allocator *aallocator
-            = get_allocator(static_cast<const cl::sycl::context *>(ctx));
-    aallocator->release(ptr, *static_cast<cl::sycl::event *>(event));
+            = get_allocator(static_cast<const ::sycl::context *>(ctx));
+    aallocator->release(ptr, *static_cast<::sycl::event *>(event));
 }
 #endif
 

@@ -80,7 +80,7 @@ public:
     size_t size() const override { return size_; }
 
 #ifdef DNNL_GRAPH_WITH_SYCL
-    void set_deps(cl::sycl::event event) { e_ = event; }
+    void set_deps(::sycl::event event) { e_ = event; }
 #endif
 
 private:
@@ -89,7 +89,7 @@ private:
     const dnnl::engine *eng_;
     const impl::allocator_t *alloc_;
 #ifdef DNNL_GRAPH_WITH_SYCL
-    cl::sycl::event e_;
+    ::sycl::event e_;
 #endif
 };
 

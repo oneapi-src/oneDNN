@@ -53,7 +53,7 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_stream_create(
     if (utils::any_null(stream, engine, queue)) {
         return status::invalid_arguments;
     }
-    auto &sycl_queue = *static_cast<const cl::sycl::queue *>(queue);
+    auto &sycl_queue = *static_cast<const ::sycl::queue *>(queue);
 
     bool is_gpu_engine = engine->kind() == engine_kind::gpu;
     bool is_gpu_queue = sycl_queue.get_device().is_gpu();

@@ -338,9 +338,9 @@ static void compare_data(T *dst, T *ref, size_t size, float rtol = 1e-5f,
 #ifdef DNNL_GRAPH_WITH_SYCL
 template <typename dtype>
 void fill_buffer(
-        cl::sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
+        ::sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
     dtype *usm_buffer_casted = static_cast<dtype *>(usm_buffer);
-    q.parallel_for(cl::sycl::range<1>(length), [=](cl::sycl::id<1> i) {
+    q.parallel_for(::sycl::range<1>(length), [=](::sycl::id<1> i) {
          int idx = (int)i[0];
          usm_buffer_casted[idx] = value;
      }).wait();

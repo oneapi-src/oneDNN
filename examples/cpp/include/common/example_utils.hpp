@@ -68,10 +68,10 @@ struct cpu_deletor {
 #ifdef DNNL_GRAPH_WITH_SYCL
 struct sycl_deletor {
     sycl_deletor() = delete;
-    cl::sycl::context ctx_;
-    sycl_deletor(const cl::sycl::context &ctx) : ctx_(ctx) {}
+    ::sycl::context ctx_;
+    sycl_deletor(const ::sycl::context &ctx) : ctx_(ctx) {}
     void operator()(void *ptr) {
-        if (ptr) cl::sycl::free(ptr, ctx_);
+        if (ptr) ::sycl::free(ptr, ctx_);
     }
 };
 #endif
@@ -121,9 +121,9 @@ void fill_buffer(void *src, size_t total_size, int val) {
 #ifdef DNNL_GRAPH_WITH_SYCL
 template <typename dtype>
 void fill_buffer(
-        cl::sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
+        ::sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
     dtype *usm_buffer_casted = static_cast<dtype *>(usm_buffer);
-    q.parallel_for(cl::sycl::range<1>(length), [=](cl::sycl::id<1> i) {
+    q.parallel_for(::sycl::range<1>(length), [=](::sycl::id<1> i) {
          int idx = (int)i[0];
          usm_buffer_casted[idx] = value;
      }).wait();
@@ -131,8 +131,8 @@ void fill_buffer(
 
 void *sycl_malloc_wrapper(size_t n, const void *dev, const void *ctx,
         dnnl::graph::allocator::attribute attr) {
-    return malloc_device(n, *static_cast<const cl::sycl::device *>(dev),
-            *static_cast<const cl::sycl::context *>(ctx));
+    return malloc_device(n, *static_cast<const ::sycl::device *>(dev),
+            *static_cast<const ::sycl::context *>(ctx));
 }
 
 void sycl_free_wrapper(
@@ -143,10 +143,10 @@ void sycl_free_wrapper(
     // immediate synchronization here is for test purpose for performance, users
     // may need to store the ptr and event and handle them separately
     if (event) {
-        auto sycl_deps_ptr = static_cast<cl::sycl::event *>(event);
+        auto sycl_deps_ptr = static_cast<::sycl::event *>(event);
         sycl_deps_ptr->wait();
     }
-    free(ptr, *static_cast<const cl::sycl::context *>(context));
+    free(ptr, *static_cast<const ::sycl::context *>(context));
 }
 #endif
 

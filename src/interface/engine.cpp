@@ -61,8 +61,8 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create(
 #ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(engine, dev, ctx)) { return status::invalid_arguments; }
 
-    auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
-    auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
+    auto &sycl_dev = *static_cast<const ::sycl::device *>(dev);
+    auto &sycl_ctx = *static_cast<const ::sycl::context *>(ctx);
 
     engine_kind_t kind;
     if (sycl_dev.is_gpu()) {
@@ -98,8 +98,8 @@ status_t DNNL_GRAPH_API dnnl_graph_sycl_interop_engine_create_with_allocator(
 #ifdef DNNL_GRAPH_WITH_SYCL
     if (utils::any_null(engine, dev, ctx)) { return status::invalid_arguments; }
 
-    auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
-    auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
+    auto &sycl_dev = *static_cast<const ::sycl::device *>(dev);
+    auto &sycl_ctx = *static_cast<const ::sycl::context *>(ctx);
 
     engine_kind_t kind;
     if (sycl_dev.is_gpu()) {

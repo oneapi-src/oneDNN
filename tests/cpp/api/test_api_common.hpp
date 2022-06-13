@@ -139,10 +139,10 @@ static allocator_handle_t allocator_handle;
 
 struct sycl_deletor {
     sycl_deletor() = delete;
-    cl::sycl::context ctx_;
-    sycl_deletor(const cl::sycl::context &ctx) : ctx_(ctx) {}
+    ::sycl::context ctx_;
+    sycl_deletor(const ::sycl::context &ctx) : ctx_(ctx) {}
     void operator()(void *ptr) {
-        if (ptr) cl::sycl::free(ptr, ctx_);
+        if (ptr) ::sycl::free(ptr, ctx_);
     }
 };
 #endif // DNNL_GRAPH_WITH_SYCL

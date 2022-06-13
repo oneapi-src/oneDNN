@@ -84,8 +84,8 @@ public:
     impl::status_t execute_sycl(const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs,
-            const std::vector<cl::sycl::event> &sycl_deps,
-            cl::sycl::event *sycl_event) override {
+            const std::vector<::sycl::event> &sycl_deps,
+            ::sycl::event *sycl_event) override {
         // We don't need to resort the inputs and outputs
         return kernel_->execute_sycl((const dnnl_partition_impl_t *)nullptr,
                 g_stream, inputs, outputs, sycl_deps, sycl_event);
