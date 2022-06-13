@@ -143,6 +143,7 @@ def main():
                 input_data.append(line)
         else:
             print("WARN: no input was provided to the script")
+            args_parser.print_help()
     else:
         try:
             input_data = open(args.input, 'r').readlines()
