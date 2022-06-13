@@ -19,6 +19,7 @@
 
 #include "interface/c_types_map.hpp"
 #include "interface/engine.hpp"
+
 #include "utils/utils.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL

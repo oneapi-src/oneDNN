@@ -20,9 +20,9 @@
 #include <set>
 #include <vector>
 
-#include "op_schema.hpp"
-#include "shape_infer.hpp"
-#include "type_constraint.hpp"
+#include "interface/op_schema.hpp"
+#include "interface/shape_infer.hpp"
+#include "interface/type_constraint.hpp"
 
 namespace dnnl {
 namespace graph {

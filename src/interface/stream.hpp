@@ -17,7 +17,7 @@
 #ifndef INTERFACE_STREAM_HPP
 #define INTERFACE_STREAM_HPP
 
-#include "c_types_map.hpp"
+#include "interface/c_types_map.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>

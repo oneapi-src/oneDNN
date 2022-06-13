@@ -24,10 +24,11 @@
 
 #include "interface/backend.hpp"
 #include "interface/shape_infer.hpp"
+
 #include "utils/utils.hpp"
 
-#include "common.hpp"
-#include "dnnl_backend.hpp"
+#include "backend/dnnl/common.hpp"
+#include "backend/dnnl/dnnl_backend.hpp"
 
 #ifndef DNNL_GRAPH_CPU_SYCL
 const size_t DNNL_CPU_MEMALIGNMENT = 4096;

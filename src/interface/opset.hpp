@@ -18,8 +18,9 @@
 #define INTERFACE_OPSET_HPP
 
 #include <functional>
-#include "op_def.hpp"
-#include "op_schema.hpp"
+
+#include "interface/op_def.hpp"
+#include "interface/op_schema.hpp"
 
 namespace dnnl {
 namespace graph {

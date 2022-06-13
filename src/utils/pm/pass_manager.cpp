@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "pass_manager.hpp"
+#include "utils/pm/pass_manager.hpp"
 
 namespace dnnl {
 namespace graph {

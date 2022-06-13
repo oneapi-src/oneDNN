@@ -18,11 +18,10 @@
 
 #include "utils/compatible.hpp"
 
-#include "dnnl_backend.hpp"
-#include "dnnl_opset.hpp"
-#include "kernels/kernels.hpp"
-
-#include "patterns/fusions.hpp"
+#include "backend/dnnl/dnnl_backend.hpp"
+#include "backend/dnnl/dnnl_opset.hpp"
+#include "backend/dnnl/kernels/kernels.hpp"
+#include "backend/dnnl/patterns/fusions.hpp"
 
 namespace dnnl {
 namespace graph {

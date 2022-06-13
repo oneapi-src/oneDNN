@@ -22,9 +22,9 @@
 
 #include "interface/allocator.hpp"
 
-#include "common.hpp"
+#include "backend/dnnl/common.hpp"
 
-#include <dnnl.hpp>
+#include "dnnl.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
 #include <CL/sycl.hpp>

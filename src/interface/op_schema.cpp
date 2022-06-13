@@ -19,6 +19,7 @@
 
 #include "interface/op_schema.hpp"
 #include "interface/opset.hpp"
+
 #include "utils/utils.hpp"
 
 namespace dnnl {

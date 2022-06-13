@@ -30,13 +30,12 @@
 #include "utils/compatible.hpp"
 #include "utils/pm/pass_manager.hpp"
 
+#include "backend/dnnl/common.hpp"
 #include "backend/dnnl/internal_ops.hpp"
-
-#include "common.hpp"
-#include "utils.hpp"
+#include "backend/dnnl/utils.hpp"
 
 #ifdef DNNL_GRAPH_LAYOUT_DEBUG
-#include <oneapi/dnnl/dnnl_debug.h>
+#include "oneapi/dnnl/dnnl_debug.h"
 #endif
 
 namespace dnnl {

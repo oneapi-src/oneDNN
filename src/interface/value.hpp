@@ -24,8 +24,9 @@
 #include <utility>
 #include <vector>
 
-#include "c_types_map.hpp"
-#include "logical_tensor.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/logical_tensor.hpp"
+
 #include "utils/compatible.hpp"
 #include "utils/debug.hpp"
 #include "utils/json.hpp"

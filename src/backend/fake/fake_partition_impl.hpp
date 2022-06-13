@@ -28,7 +28,7 @@
 #include "interface/backend.hpp"
 #include "interface/partition.hpp"
 
-#include "fake_backend.hpp"
+#include "backend/fake/fake_backend.hpp"
 
 namespace dnnl {
 namespace graph {

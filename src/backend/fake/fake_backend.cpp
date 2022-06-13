@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@
 
 #include "utils/compatible.hpp"
 
-#include "fake_backend.hpp"
-#include "single_op_pass.hpp"
-#include "transformation_pass.hpp"
+#include "backend/fake/fake_backend.hpp"
+#include "backend/fake/single_op_pass.hpp"
+#include "backend/fake/transformation_pass.hpp"
 
 namespace dnnl {
 namespace graph {

@@ -22,12 +22,11 @@
 #include <utility>
 #include <vector>
 
-#include "utils/pm/pass_base.hpp"
-
-#include "pattern_utils.hpp"
-
 #include "utils/pm/nested_matcher.hpp"
+#include "utils/pm/pass_base.hpp"
 #include "utils/pm/pbuilder.hpp"
+
+#include "backend/dnnl/patterns/pattern_utils.hpp"
 
 namespace dnnl {
 namespace graph {

@@ -27,9 +27,9 @@
 
 #include "utils/rw_mutex.hpp"
 
-#include "common.hpp"
+#include "backend/dnnl/common.hpp"
 
-#include <dnnl.hpp>
+#include "dnnl.hpp"
 
 namespace dnnl {
 namespace graph {

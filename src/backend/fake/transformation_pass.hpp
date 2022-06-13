@@ -26,7 +26,7 @@
 #include "utils/pm/pass_base.hpp"
 #include "utils/pm/pbuilder.hpp"
 
-#include "pattern_utils.hpp"
+#include "backend/fake/pattern_utils.hpp"
 
 namespace dnnl {
 namespace graph {

@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "utils/utils.hpp"
+#include "interface/backend.hpp"
 
-#include "backend.hpp"
+#include "utils/utils.hpp"
 
 namespace dnnl {
 namespace graph {

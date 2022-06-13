@@ -34,7 +34,6 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/internal_attrs.hpp"
-
 #include "backend/dnnl/passes/fusion_info.hpp"
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/passes/utils.hpp"

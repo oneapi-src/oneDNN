@@ -22,7 +22,7 @@
 
 #include "interface/c_types_map.hpp"
 
-#include "utils.hpp"
+#include "backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
 namespace graph {

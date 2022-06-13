@@ -25,14 +25,13 @@
 #include <vector>
 #include <unordered_set>
 
-#include "utils/compatible.hpp"
-
 #include "interface/graph.hpp"
 #include "interface/partition.hpp"
 
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
+#include "utils/compatible.hpp"
 #include "utils/pm/nested_matcher.hpp"
 #include "utils/pm/pbuilder.hpp"
 

@@ -25,8 +25,7 @@
 #endif
 
 #include "utils/compatible.hpp"
-
-#include "rw_mutex.hpp"
+#include "utils/rw_mutex.hpp"
 
 namespace dnnl {
 namespace graph {

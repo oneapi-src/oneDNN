@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "interface/op.hpp"
+
 #include "utils/pm/pbuilder.hpp"
 
 using namespace dnnl::graph::impl::utils::pm;

@@ -16,9 +16,9 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
-#include "c_types_map.hpp"
-#include "op.hpp"
-#include "op_schema.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/op.hpp"
+#include "interface/op_schema.hpp"
 
 using namespace dnnl::graph::impl;
 

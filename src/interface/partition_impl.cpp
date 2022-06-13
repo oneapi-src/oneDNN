@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "partition_impl.hpp"
-#include "backend.hpp"
-#include "graph.hpp"
-#include "op_schema.hpp"
+#include "interface/partition_impl.hpp"
+#include "interface/backend.hpp"
+#include "interface/graph.hpp"
+#include "interface/op_schema.hpp"
 
 namespace dnnl {
 namespace graph {

@@ -25,7 +25,6 @@
 
 #include "backend/dnnl/common.hpp"
 #include "backend/dnnl/internal_attrs.hpp"
-
 #include "backend/dnnl/passes/insert_ops.hpp"
 #include "backend/dnnl/passes/utils.hpp"
 

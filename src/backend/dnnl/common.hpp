@@ -28,6 +28,7 @@
 #include "interface/allocator.hpp"
 #include "interface/logical_tensor.hpp"
 #include "interface/value.hpp"
+
 #include "utils/compatible.hpp"
 
 #include "dnnl.hpp"

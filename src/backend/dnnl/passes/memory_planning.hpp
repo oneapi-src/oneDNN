@@ -27,13 +27,13 @@
 
 #include "interface/value.hpp"
 
-#include "dnnl.hpp"
-
 #include "utils/utils.hpp"
 
 #include "backend/dnnl/passes/lower_down.hpp"
 #include "backend/dnnl/scratchpad.hpp"
 #include "backend/dnnl/utils.hpp"
+
+#include "dnnl.hpp"
 
 namespace dnnl {
 namespace graph {

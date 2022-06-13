@@ -23,10 +23,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "backend.hpp"
-#include "c_types_map.hpp"
-#include "graph.hpp"
-#include "partition.hpp"
+#include "interface/backend.hpp"
+#include "interface/c_types_map.hpp"
+#include "interface/graph.hpp"
+#include "interface/partition.hpp"
 
 using namespace dnnl::graph::impl;
 

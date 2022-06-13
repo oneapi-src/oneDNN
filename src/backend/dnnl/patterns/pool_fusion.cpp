@@ -17,6 +17,7 @@
 #include "backend/dnnl/patterns/fusions.hpp"
 
 #include "utils/pm/pbuilder.hpp"
+
 namespace dnnl {
 namespace graph {
 namespace impl {

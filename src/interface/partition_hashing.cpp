@@ -16,9 +16,9 @@
 
 #include <memory>
 
-#include "partition.hpp"
-#include "partition_hashing.hpp"
-#include "thread.hpp"
+#include "interface/partition.hpp"
+#include "interface/partition_hashing.hpp"
+#include "interface/thread.hpp"
 
 namespace dnnl {
 namespace graph {
