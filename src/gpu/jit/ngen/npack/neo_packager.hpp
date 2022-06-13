@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -209,7 +209,14 @@ inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, int &
 {
     const SProgramBinaryHeader *pheader = nullptr;
 
-    findDeviceBinary(binary, nullptr, &pheader, nullptr);
+    try {
+        findDeviceBinary(binary, nullptr, &pheader, nullptr);
+    } catch (...) {
+        outHW = HW::Unknown;
+        outStepping = 0;
+        return;
+    }
+
     outHW = decodeGfxCoreFamily(pheader->Device);
     outStepping = pheader->SteppingId;
 
