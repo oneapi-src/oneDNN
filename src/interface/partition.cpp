@@ -272,6 +272,14 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
     return status::success;
 }
 
+status_t DNNL_GRAPH_API dnnl_graph_partition_get_kind(
+        const partition_t *partition, partition_kind_t *kind) {
+    if (utils::any_null(partition, kind)) { return status::invalid_arguments; }
+
+    *kind = partition->get_pimpl()->get_kind();
+    return status::success;
+}
+
 ///
 /// dnnl_graph_compiled_partition_t
 ///

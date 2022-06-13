@@ -1354,6 +1354,75 @@ public:
         debug = dnnl_graph_partition_policy_debug,
     };
 
+    /// Kinds of partition
+    enum class kind {
+        /// The partition's kind is not defined.
+        undef = dnnl_graph_partition_kind_undef,
+        /// The partition contains a Convolution and its post-ops.
+        convolution_post_ops = dnnl_graph_partition_kind_convolution_post_ops,
+        /// The partition contains a ConvTranspose and its post-ops.
+        convtranspose_post_ops
+        = dnnl_graph_partition_kind_convtranspose_post_ops,
+        /// The partition contains an Interpolate and its post-ops.
+        interpolate_post_ops = dnnl_graph_partition_kind_interpolate_post_ops,
+        /// The partition contains a MatMul and its post-ops.
+        matmul_post_ops = dnnl_graph_partition_kind_matmul_post_ops,
+        /// The partition contains a Reduction and its post-ops.
+        reduction_post_ops = dnnl_graph_partition_kind_reduction_post_ops,
+        /// The partition contains an Unary op and its post-ops.
+        unary_post_ops = dnnl_graph_partition_kind_unary_post_ops,
+        /// The partition contains a Binary op and its post-ops.
+        binary_post_ops = dnnl_graph_partition_kind_binary_post_ops,
+        /// The partition contains a Pooling op (AvgPool or MaxPool) and its
+        /// post-ops.
+        pooling_post_ops = dnnl_graph_partition_kind_pooling_post_ops,
+        /// The partition contains a BatchNorm op and its post-ops.
+        batch_norm_post_ops = dnnl_graph_partition_kind_batch_norm_post_ops,
+        /// Other partitions based on post-ops but not specified by above kinds.
+        misc_post_ops = dnnl_graph_partition_kind_misc_post_ops,
+        /// The partition contains a quantized version of Convolution and its
+        /// post-ops.
+        quantized_convolution_post_ops
+        = dnnl_graph_partition_kind_quantized_convolution_post_ops,
+        /// The partition contains a quantized version of ConvTranspose and its
+        /// post-ops.
+        quantized_convtranspose_post_ops
+        = dnnl_graph_partition_kind_quantized_convtranspose_post_ops,
+        /// The partition contains a quantized version of MatMul and its
+        /// post-ops.
+        quantized_matmul_post_ops
+        = dnnl_graph_partition_kind_quantized_matmul_post_ops,
+        /// The partition contains a quantized version of Unary op and its
+        /// post-ops.
+        quantized_unary_post_ops
+        = dnnl_graph_partition_kind_quantized_unary_post_ops,
+        /// The partition contains a quantized version of Pooling op and its
+        /// post-ops.
+        quantized_pooling_post_ops
+        = dnnl_graph_partition_kind_quantized_pooling_post_ops,
+        /// Other partitions based quantization and post-ops but not specified
+        /// by above kinds.
+        misc_quantized_post_ops
+        = dnnl_graph_partition_kind_misc_quantized_post_ops,
+        /// The partition contains a Convolution backward op and its post-ops.
+        convolution_backprop_post_ops
+        = dnnl_graph_partition_kind_convolution_backprop_post_ops,
+        /// The partition contains a variant of Multi-head Attention.
+        mha = dnnl_graph_partition_kind_mha,
+        /// The partition contains a variant of Multi-layer Perceptron.
+        mlp = dnnl_graph_partition_kind_mlp,
+        /// The partition contains a variant of quantized MHA.
+        quantized_mha = dnnl_graph_partition_kind_quantized_mha,
+        /// The partition contains a variant of quantized MLP.
+        quantized_mlp = dnnl_graph_partition_kind_quantized_mlp,
+        /// The partition contains a variant of residual convolutional block.
+        residual_conv_blocks = dnnl_graph_partition_kind_residual_conv_blocks,
+        /// The partition contains a variant of quantized version of residual
+        /// convolutional block.
+        quantized_residual_conv_blocks
+        = dnnl_graph_partition_kind_quantized_residual_conv_blocks,
+    };
+
     partition() = default;
 
     /// Constructs a partition object
@@ -1490,6 +1559,17 @@ public:
                 "cannot get the engine kind from the partition");
 
         return static_cast<engine::kind>(akind);
+    }
+
+    /// Returns the kind of the partition
+    ///
+    /// @returns The partition kind
+    kind get_kind() const {
+        dnnl_graph_partition_kind_t pkind = dnnl_graph_partition_kind_undef;
+        error::check_succeed(dnnl_graph_partition_get_kind(get(), &pkind),
+                "cannot get the kind of the partition");
+
+        return static_cast<kind>(pkind);
     }
 
 private:

@@ -108,6 +108,33 @@ typedef enum {
     dnnl_graph_partition_policy_debug = 2,
 } dnnl_graph_partition_policy_t;
 
+typedef enum {
+    dnnl_graph_partition_kind_undef = 0,
+    dnnl_graph_partition_kind_convolution_post_ops = 1,
+    dnnl_graph_partition_kind_convtranspose_post_ops = 2,
+    dnnl_graph_partition_kind_interpolate_post_ops = 3,
+    dnnl_graph_partition_kind_matmul_post_ops = 4,
+    dnnl_graph_partition_kind_reduction_post_ops = 5,
+    dnnl_graph_partition_kind_unary_post_ops = 6,
+    dnnl_graph_partition_kind_binary_post_ops = 7,
+    dnnl_graph_partition_kind_pooling_post_ops = 8,
+    dnnl_graph_partition_kind_batch_norm_post_ops = 9,
+    dnnl_graph_partition_kind_misc_post_ops = 10,
+    dnnl_graph_partition_kind_quantized_convolution_post_ops = 11,
+    dnnl_graph_partition_kind_quantized_convtranspose_post_ops = 12,
+    dnnl_graph_partition_kind_quantized_matmul_post_ops = 13,
+    dnnl_graph_partition_kind_quantized_unary_post_ops = 14,
+    dnnl_graph_partition_kind_quantized_pooling_post_ops = 15,
+    dnnl_graph_partition_kind_misc_quantized_post_ops = 16,
+    dnnl_graph_partition_kind_convolution_backprop_post_ops = 17,
+    dnnl_graph_partition_kind_mha = 18,
+    dnnl_graph_partition_kind_mlp = 19,
+    dnnl_graph_partition_kind_quantized_mha = 20,
+    dnnl_graph_partition_kind_quantized_mlp = 21,
+    dnnl_graph_partition_kind_residual_conv_blocks = 22,
+    dnnl_graph_partition_kind_quantized_residual_conv_blocks = 23,
+} dnnl_graph_partition_kind_t;
+
 /// @} dnnl_graph_api_partition
 
 /// @addtogroup dnnl_graph_api_utils

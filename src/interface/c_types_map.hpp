@@ -65,6 +65,52 @@ const partition_policy_t fusion = dnnl_graph_partition_policy_fusion;
 const partition_policy_t debug = dnnl_graph_partition_policy_debug;
 } // namespace partition_policy
 
+using partition_kind_t = dnnl_graph_partition_kind_t;
+namespace partition_kind {
+const partition_kind_t undef = dnnl_graph_partition_kind_undef;
+const partition_kind_t convolution_post_ops
+        = dnnl_graph_partition_kind_convolution_post_ops;
+const partition_kind_t convtranspose_post_ops
+        = dnnl_graph_partition_kind_convtranspose_post_ops;
+const partition_kind_t interpolate_post_ops
+        = dnnl_graph_partition_kind_interpolate_post_ops;
+const partition_kind_t matmul_post_ops
+        = dnnl_graph_partition_kind_matmul_post_ops;
+const partition_kind_t reduction_post_ops
+        = dnnl_graph_partition_kind_reduction_post_ops;
+const partition_kind_t unary_post_ops
+        = dnnl_graph_partition_kind_unary_post_ops;
+const partition_kind_t binary_post_ops
+        = dnnl_graph_partition_kind_binary_post_ops;
+const partition_kind_t pooling_post_ops
+        = dnnl_graph_partition_kind_pooling_post_ops;
+const partition_kind_t batch_norm_post_ops
+        = dnnl_graph_partition_kind_batch_norm_post_ops;
+const partition_kind_t misc_post_ops = dnnl_graph_partition_kind_misc_post_ops;
+const partition_kind_t quantized_convolution_post_ops
+        = dnnl_graph_partition_kind_quantized_convolution_post_ops;
+const partition_kind_t quantized_convtranspose_post_ops
+        = dnnl_graph_partition_kind_quantized_convtranspose_post_ops;
+const partition_kind_t quantized_matmul_post_ops
+        = dnnl_graph_partition_kind_quantized_matmul_post_ops;
+const partition_kind_t quantized_unary_post_ops
+        = dnnl_graph_partition_kind_quantized_unary_post_ops;
+const partition_kind_t quantized_pooling_post_ops
+        = dnnl_graph_partition_kind_quantized_pooling_post_ops;
+const partition_kind_t misc_quantized_post_ops
+        = dnnl_graph_partition_kind_misc_quantized_post_ops;
+const partition_kind_t convolution_backprop_post_ops
+        = dnnl_graph_partition_kind_convolution_backprop_post_ops;
+const partition_kind_t mha = dnnl_graph_partition_kind_mha;
+const partition_kind_t mlp = dnnl_graph_partition_kind_mlp;
+const partition_kind_t quantized_mha = dnnl_graph_partition_kind_quantized_mha;
+const partition_kind_t quantized_mlp = dnnl_graph_partition_kind_quantized_mlp;
+const partition_kind_t residual_conv_blocks
+        = dnnl_graph_partition_kind_residual_conv_blocks;
+const partition_kind_t quantized_residual_conv_blocks
+        = dnnl_graph_partition_kind_quantized_residual_conv_blocks;
+} // namespace partition_kind
+
 using engine_kind_t = dnnl_graph_engine_kind_t;
 namespace engine_kind {
 const engine_kind_t any_engine = dnnl_graph_any_engine;

@@ -59,28 +59,35 @@ class backend;
 
 class partition_impl_t : public std::enable_shared_from_this<partition_impl_t> {
 public:
-    partition_impl_t(impl::engine_kind_t engine_kind,
-            impl::fpmath_mode_t fpmath_mode = impl::fpmath_mode::strict)
-        : engine_kind_(engine_kind), fpmath_mode_(fpmath_mode) {}
+    explicit partition_impl_t(engine_kind_t engine_kind,
+            fpmath_mode_t fpmath_mode, partition_kind_t pkind)
+        : engine_kind_(engine_kind), fpmath_mode_(fpmath_mode), pkind_(pkind) {}
+
+    explicit partition_impl_t(engine_kind_t engine_kind,
+            fpmath_mode_t fpmath_mode = fpmath_mode::strict)
+        : engine_kind_(engine_kind)
+        , fpmath_mode_(fpmath_mode)
+        , pkind_(partition_kind::undef) {}
 
     virtual ~partition_impl_t() = default;
 
     /// The getter for engine_kind_, which is used in C API
-    impl::engine_kind_t get_engine_kind() const { return engine_kind_; }
+    engine_kind_t get_engine_kind() const { return engine_kind_; }
 
     /// The getter for fpmath_mode_
-    impl::fpmath_mode_t get_fpmath_mode() const { return fpmath_mode_; }
+    fpmath_mode_t get_fpmath_mode() const { return fpmath_mode_; }
+
+    /// The getter for partition kind
+    partition_kind_t get_kind() const { return pkind_; }
 
     /// The getter for ops_, which is used in C API
     const std::vector<std::shared_ptr<op_t>> &get_ops() const { return ops_; }
 
     /// The getters for inputs_, which is used in C API
-    const std::vector<impl::logical_tensor_t> &get_inputs() const {
-        return inputs_;
-    }
+    const std::vector<logical_tensor_t> &get_inputs() const { return inputs_; }
 
     /// The getters for outputs_, which is used in C API
-    const std::vector<impl::logical_tensor_t> &get_outputs() const {
+    const std::vector<logical_tensor_t> &get_outputs() const {
         return outputs_;
     }
 
@@ -89,10 +96,10 @@ public:
     /// Deep copy a partition, and return the copied partition's smart pointer
     /// Derived class must clone the members in base class when implementing
     /// this method.
-    virtual std::shared_ptr<impl::partition_impl_t> clone() const = 0;
+    virtual std::shared_ptr<partition_impl_t> clone() const = 0;
 
     /// Return the assigned backend of this partition
-    virtual const impl::backend *get_assigned_backend() const = 0;
+    virtual const backend *get_assigned_backend() const = 0;
 
     /// Infer the outputs shape according to the inputs shape and the ops
     /// in this partition.
@@ -104,9 +111,8 @@ public:
     ///     The order of the given in/outputs logical tensor may be not same
     ///     with the in/outputs_. Backend should do the reorder inside this
     ///     function's implementation.
-    virtual impl::status_t infer_shape(
-            std::vector<const impl::logical_tensor_t *> &inputs,
-            std::vector<impl::logical_tensor_t *> &outputs) const = 0;
+    virtual status_t infer_shape(std::vector<const logical_tensor_t *> &inputs,
+            std::vector<logical_tensor_t *> &outputs) const = 0;
 
     /// Compile the partition with specific inputs and outputs logical
     /// tensors and engine. A partitioncan be compiled multiple times
@@ -150,11 +156,10 @@ public:
     ///     implementation dependent whether the compilation succeed.
     ///     If it succeed, the compiled partition should be able to handle any
     ///     value for input tensor with any rank at the execution time.
-    virtual impl::status_t compile(
-            impl::compiled_partition_t *compiled_partition,
-            const std::vector<impl::logical_tensor_t> &inputs,
-            const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::engine_t *aengine) const = 0;
+    virtual status_t compile(compiled_partition_t *compiled_partition,
+            const std::vector<logical_tensor_t> &inputs,
+            const std::vector<logical_tensor_t> &outputs,
+            const engine_t *aengine) const = 0;
 
     // dump a partition to string
     virtual std::string to_string() const = 0;
@@ -167,10 +172,13 @@ public:
 
 protected:
     // Engine kind
-    impl::engine_kind_t engine_kind_;
+    engine_kind_t engine_kind_;
 
     // floating-point math mode
-    impl::fpmath_mode_t fpmath_mode_;
+    fpmath_mode_t fpmath_mode_;
+
+    // Partition kind
+    partition_kind_t pkind_;
 
     //////////////////////////////////////////////////////
     /// Q: What do the ops_/inputs_/outputs_ represent for?
@@ -212,10 +220,10 @@ protected:
     std::vector<std::shared_ptr<impl::op_t>> ops_;
 
     /// All the input logical tensors of a partition
-    std::vector<impl::logical_tensor_t> inputs_ {};
+    std::vector<logical_tensor_t> inputs_ {};
 
     /// All the output logical tensors of a partition
-    std::vector<impl::logical_tensor_t> outputs_ {};
+    std::vector<logical_tensor_t> outputs_ {};
 
     /// Partition_impl id
     size_t id_ = std::numeric_limits<size_t>::max();

@@ -171,6 +171,7 @@ public:
     }
 
     bool get_enable() const { return enable_; }
+
     /*!
     * \brief Register additional attributes.
     * \param attr_name The name of the attribute.

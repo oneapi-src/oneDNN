@@ -450,6 +450,16 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_partition_is_supported(
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_partition_get_engine_kind(
         const_dnnl_graph_partition_t partition, dnnl_graph_engine_kind_t *kind);
 
+/// Returns the kind of the partition
+///
+/// @param partition The target partition.
+/// @param kind The output partition kind.
+/// @returns #dnnl_graph_success on success and a status describing the
+///     error otherwise.
+dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_partition_get_kind(
+        const_dnnl_graph_partition_t partition,
+        dnnl_graph_partition_kind_t *kind);
+
 /// @} dnnl_graph_api_partition
 
 /// @addtogroup dnnl_graph_api_compiled_partition
