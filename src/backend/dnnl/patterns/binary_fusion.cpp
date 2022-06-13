@@ -43,6 +43,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(binary_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reciprocal_multiply_fusion)
         .set_priority(8.2f)
+        .set_kind(impl::partition_kind::binary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto reciprocal = pgraph->append_op(
@@ -62,6 +63,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reciprocal_multiply_fusion)
 //      Gt, Ge, Le, Lt, Eq, Ne
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, binary_post_ops_fusion)
         .set_priority(8.3f)
+        .set_kind(impl::partition_kind::binary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto binary_op = pgraph->append_alternation(

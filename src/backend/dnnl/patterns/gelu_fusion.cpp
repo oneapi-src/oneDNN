@@ -39,6 +39,7 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(gelu_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, gelu_fusion)
+        .set_kind(impl::partition_kind::misc_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto pow = pgraph->append_op(impl::op_kind::Pow, "pow");

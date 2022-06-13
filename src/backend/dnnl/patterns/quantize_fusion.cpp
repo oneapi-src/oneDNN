@@ -52,6 +52,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(quantize_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_quantize_fusion)
         .set_priority(8.1f)
+        .set_kind(impl::partition_kind::misc_quantized_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *typecast

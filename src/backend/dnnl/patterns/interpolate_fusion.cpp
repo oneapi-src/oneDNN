@@ -50,6 +50,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(interpolate_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_post_ops_fusion)
         .set_priority(8.4f)
+        .set_kind(impl::partition_kind::interpolate_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *interpolate

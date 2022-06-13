@@ -73,6 +73,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(concat_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_concat_fusion)
         .set_priority(8.2f)
+        .set_kind(impl::partition_kind::misc_quantized_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     in_edges_t input_edges;

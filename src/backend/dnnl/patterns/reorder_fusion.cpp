@@ -41,6 +41,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(reorder_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reorder_sum_fusion)
         .set_priority(10.1f)
+        .set_kind(impl::partition_kind::misc_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
                     pm::pb_op_t *reorder = pgraph->append_op(
@@ -64,6 +65,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reorder_sum_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_fusion)
         .set_priority(10.1f)
+        .set_kind(impl::partition_kind::misc_quantized_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
                     pm::pb_op_t *dequant = pgraph->append_op(
@@ -84,6 +86,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_sum_fusion)
         .set_priority(10.2f)
+        .set_kind(impl::partition_kind::misc_quantized_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
                     pm::pb_op_t *dequant = pgraph->append_op(

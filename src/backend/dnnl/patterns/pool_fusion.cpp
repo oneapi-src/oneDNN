@@ -40,6 +40,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(pool_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_binary_fusion)
         .set_priority(9.9f)
+        .set_kind(impl::partition_kind::pooling_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *ppool = pgraph->append_alternation(
@@ -63,6 +64,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_binary_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_pool_binary_fusion)
         .set_priority(10.0f)
+        .set_kind(impl::partition_kind::quantized_pooling_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto pdequant_data = pgraph->append_op(

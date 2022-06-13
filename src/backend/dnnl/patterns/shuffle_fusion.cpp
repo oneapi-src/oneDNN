@@ -41,6 +41,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(shuffle_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, shuffle_fusion)
         .set_priority(8.2f)
+        .set_kind(impl::partition_kind::misc_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph> &pgraph) -> void {
                     pm::pb_op_t *reshape0

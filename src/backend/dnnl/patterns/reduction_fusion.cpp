@@ -51,6 +51,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(reduction_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
         .set_priority(8.4f)
+        .set_kind(impl::partition_kind::reduction_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *reduction = pgraph->append_alternation(

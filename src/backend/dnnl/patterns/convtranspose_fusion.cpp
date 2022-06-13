@@ -58,6 +58,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(convtranspose_fusion)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
         dnnl, int8_convtranspose_post_ops_fusion)
         .set_priority(10.5f)
+        .set_kind(impl::partition_kind::quantized_convtranspose_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data = pgraph->append_op(
@@ -172,6 +173,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, convtranspose_post_ops_fusion)
         .set_priority(10.4f)
+        .set_kind(impl::partition_kind::convtranspose_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     // convtranspose

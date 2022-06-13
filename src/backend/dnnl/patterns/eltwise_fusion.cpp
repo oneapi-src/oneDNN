@@ -44,6 +44,7 @@ DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(eltwise_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
         .set_priority(8.2f)
+        .set_kind(impl::partition_kind::unary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *peltwise = pgraph->append_alternation(
@@ -87,6 +88,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::unary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto chained_relu = std::make_shared<pb_graph_t>();
@@ -108,6 +110,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_fusion)
         .set_priority(9.9f)
+        .set_kind(impl::partition_kind::quantized_unary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequant_data
@@ -126,6 +129,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_fusion)
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_add_fusion)
         .set_priority(10.0f)
+        .set_kind(impl::partition_kind::quantized_unary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequant_data
