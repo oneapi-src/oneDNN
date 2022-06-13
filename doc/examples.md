@@ -11,6 +11,7 @@
 | conv+bias+relu                       | GPU      | FP16      | @ref gpu_simple_pattern_fp16_cpp                      |
 | Single operator partition            | CPU      | FP32      | @ref cpu_single_op_partition_f32_cpp                  |
 | Simple CNN Training                  | CPU      | FP32      | @ref cpu_cnn_training_f32_cpp                         |
+| Compile unknown output shape         | CPU      | FP32      | @ref cpu_compile_unknown_output_shape_cpp             |
 
 ## C API examples
 
