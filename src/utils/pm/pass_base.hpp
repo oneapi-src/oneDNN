@@ -172,6 +172,13 @@ public:
 
     bool get_enable() const { return enable_; }
 
+    pass_base &set_kind(partition_kind_t pkind) {
+        pkind_ = pkind;
+        return *this;
+    }
+
+    partition_kind_t get_kind() const { return pkind_; }
+
     /*!
     * \brief Register additional attributes.
     * \param attr_name The name of the attribute.
@@ -220,6 +227,7 @@ private:
     std::string name_ {};
     float priority_ {5.0f};
     bool enable_ {true};
+    partition_kind_t pkind_ {partition_kind::undef};
 };
 
 } // namespace pass
