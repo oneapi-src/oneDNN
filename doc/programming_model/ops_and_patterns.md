@@ -97,656 +97,254 @@ FP32/FP16/BF16/S8/U8 data type.  For complete OP definition, please refer to
 
 ## Fusion Patterns
 
-### oneDNN Primitive Backend
-
-The alpha release depends on the oneDNN primitive post-ops feature to support fusion.
-It supports a subset of the pattern capability as listed below.
-
-#### 1. Floating Point Patterns
-
-- [Abs / Clamp / Elu / Exp / GELU / HardTanh / HardSwish / Log / Sigmoid /
-  Sigmoid + Multiply / SoftPlus / Pow / ReLU / Round / Sqrt / Square / Tanh] +
-  [Add / Divide / Maximum / Minimum / Multiply / Subtract]
-- [Add / Divide / Maximum / Minimum / Multiply / Subtract] + [Abs / Clamp / Elu /
-  Exp / GELU / HardTanh / HardSwish / Log / Sigmoid+Multiply / Sigmoid /
-  SoftPlus / Pow / ReLU / Round / Sqrt / Square / Tanh / Add / Multiply /
-  Maximum / Minimum / Divide / Subtract]
-- [AvgPool / MaxPool] + [Add / Multiply / Maximum / Minimum / Divide / Subtract]
-- BatchNormInference + ReLU
-- Convolution + [BiasAdd]\* + [BatchNormInference]\* + [Abs / Clamp / Elu / Exp /
-  GELU / HardTanh / HardSwish / Log / Sigmoid+Multiply / Sigmoid / SoftPlus /
-  Pow / ReLU / Round / Sqrt / Square / Tanh / Add / Multiply / Maximum / Minimum
-  / Divide / Subtract]<sup>*[0,3]</sup>
-- Convolution + ReLU + Convolution + ReLU + Convolution + Add + ReLU
-- Convolution (with bias) + ReLU + Convolution (with bias) + ReLU
-- Convolution (with bias) + ReLU + Convolution (with bias) + Add + ReLU
-- Convolution + [BiasAdd]\* + ReLU + Convolution + [BiasAdd]\* + ReLU +
-  Convolution + [BiasAdd]\* + Add + ReLU
-- Convolution + [BiasAdd]\* + ReLU + Convolution + [BiasAdd]\*+ ReLU +
-  Convolution + [BiasAdd]\* + Convolution + [BiasAdd]\* + Add + ReLU
-- ConvolutionBackpropFilters + BiasAddBackprop
-- ConvTranspose + [BiasAdd]\* + [Abs / Clamp / Elu / Exp / GELU / HardTanh /
-  HardSwish / Log / Sigmoid+Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round /
-  Sqrt / Square / Tanh / Add / Multiply / Maximum / Minimum / Divide / Subtract]<sup>\*[0,3]</sup>
-- Interpolate + [Abs / Clamp / Elu / Exp / GELU / HardTanh / HardSwish / Log /
-  Sigmoid + Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round / Sqrt / Square /
-  Tanh / Add / Multiply / Maximum / Minimum / Divide / Subtract]
-- MatMul + [BiasAdd]\* + [Abs / Clamp / Elu / Exp / GELU / HardTanh / HardSwish /
-  Log / Sigmoid+Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round / Sqrt /
-  Square / Tanh / Add / Multiply / Maximum / Minimum / Divide / Subtract]<sup>\*[0,3]</sup>
-- Reciprocal + Multiply
-- [ReduceL1 / ReduceL2 / ReduceMax / ReduceMean / ReduceMin / ReduceProd /
-  ReduceSum] + [Abs / Clamp / Elu / Exp / GELU / HardTanh / HardSwish / Log /
-  Sigmoid + Multiply / Sigmoid / SoftPlus / Pow / ReLU / Round / Sqrt / Square /
-  Tanh / Add / Multiply / Maximum / Minimum / Divide / Subtract]
-- ReLUBackprop + BatchNormTrainingBackprop
-- Reorder + Add
-
--
-
-```text
-                      |
-                    StaticReshape
-            |         |
-    StaticReshape   StaticTranspose
-            |         |
-    StaticTranspose StaticTranspose
-              \      /
-               MatMul
-                 \    /
-                 Divide
-                    \   /       |
-                     Add     StaticReshape
-                      |         |
-                   Softmax   StaticTranspose
-                       \       /
-                         MatMul
-                           |
-                    StaticTranspose
-                           |
-
-  ```
-
--
-
-```text
-   \   /
-    Pow
-      \  /
-    Multiply
-        \__   __/
-           Add
-            \    /
-           Multiply
-              |
-            Tanh
-              \   /
-               Add
-                 \      /
-                 Multiply
-                     \      /
-                     Multiply
-                        |
-  ```
-
--
-
-```text
-   \   /
-   Divide
-     |
-    Erf
-     \   /
-      Add
-        \    /
-       Multiply
-            \      /
-            Multiply
-                |
-
-  ```
-
-#### 2. Quantized Patterns
-
-- Dequantize + [AvgPool/MaxPool] + Quantize
-- Dequantize + ReLU + Quantize
-- Dequantize + Reorder + Quantize
-- TypeCast + Quantize
-
--
-
-```text
-            |
-        Dequantize
-            |               |
-      AvgPool/MaxPool   Dequantize
-             \____     ____/
-                   Add
-                    |
-                 Quantize
-                    |
-  ```
-
--
-
-```text
-    |              |
-  Dequantize   Dequantize
-     \            /
-      Convolution (with bias)
-           |
-          ReLU
-           |
-        Quantize
-           |           |
-      Dequantize    Dequantize
-            \         /
-            Convolution (with bias)
-                |
-               ReLU
-                |
-             Quantize
-                |
-
-  ```
-
--
-
-```text
-    |             |
-  Dequantize   Dequantize
-     \           /
-      Convolution (with bias or BiasAdd)
-           |
-          ReLU
-           |
-        Quantize
-           |           |
-      Dequantize    Dequantize
-            \         /
-            Convolution (with bias or BiasAdd)
-                |
-               ReLU
-                |
-             Quantize
-                |            |
-            Dequantize    Dequantize
-                 \         /                            |
-                 Convolution (with bias or BiasAdd)   Dequantize
-                                                 \    /
-                                                   Add
-                                                    |
-                                                  ReLU
-                                                    |
-                                                 Quantize
-                                                    |
-  ```
-
--
-
-```text
-     ______________________________________________________
-    |                                                      |
-    |             |                                        |           |
-  Dequantize   Dequantize                              Dequantize   Dequantize
-     \           /                                          \         /
-      Convolution                                            Convolution
-  (with bias or BiasAdd)                               (with bias or BiasAdd)
-           |                                                     |
-          ReLU                                               Quantize
-           |                                                     |
-        Quantize                                            Dequantize
-           |                                                     |
-      Dequantize    Dequantize                                   |
-            \         /                                         /
-            Convolution (with bias or BiasAdd)                 /
-                |                                             /
-               ReLU                                          /
-                |                                           /
-             Quantize                                      /
-                |                                         /
-            Dequantize    Dequantize                     /
-                 \         /                            /
-                 Convolution (with bias or BiasAdd)    /
-                                                 \    /
-                                                   Add
-                                                    |
-                                                   ReLU
-                                                    |
-                                                 Quantize
-                                                    |
-
-  ```
-
--
-
-```text
-    |              |
-  Dequantize   Dequantize
-     \___      ___/
-         MatMul
-            \    /
-            Divide
-               \   /
-               [Add]*
-                 |
-  ```
-
--
-
-```text
-        |
-    Dequantize
-        |        |
-      ReLU   Dequantize
-       \___   ___/
-           Add
-            |
-        Quantize
-            |
-
-  ```
-
--
-
-```text
-                                        |
-                                    [Quantize]*
-               |                        |
-          Dequantize                Dequantize
-               \                      /
-            Convolution/ConvTranspose/MatMul
-                            |
-                        [BiasAdd]*
-                            |
-  [Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
-   Pow/ReLU/Round/Sqrt/Square/Tanh/[Dequantize+Add]*[0,1] ]*[0,3]
-                            |
-                        [Quantize]*
-                            |
-  ```
-
--
-
-```text
-    |              |
-  Dequantize   Dequantize
-    |              |
-  TypeCast     TypeCast
-     \___      ___/
-         MatMul
-            \      /
-            [Divide]*
-                \     /
-                 [Add]*
-                   |
-
-  ```
-
--
-
-```text
-    |              |
-  Dequantize   Dequantize
-    |              |
-  TypeCast     TypeCast
-     \___      ___/
-         MatMul
-           |
-         [GeLU]*
-           |
-        TypeCast
-           |
-        Quantize
-           |
-  ```
-
--
-
-```text
-    |              |
-  Dequantize   Dequantize
-    |              |
-  TypeCast     TypeCast  Dequantize
-     \___      ___/          |
-         MatMul           TypeCast
-            \_____        ___/
-                   [Add]*
-                     |
-
-  ```
-
--
-
-```text
-      |
-  Dequantize
-      |           |
-    Reorder   Dequantize
-       \__   __/
-          Add
-           |
-        Quantize
-           |
-  ```
-
--
-
-```text
-                      |
-                    StaticReshape
-            |         |
-    StaticReshape   StaticTranspose
-            |         |
-    StaticTranspose StaticTranspose
-            |         |
-        Quantize    Quantize
-            |         |
-        Dequantize  Dequantize
-              \      /
-               MatMul
-                 \    /
-                 Divide
-                    \   /       |
-                     Add     StaticReshape
-                      |         |
-                   Softmax   StaticTranspose
-                      |         |
-                   Quantize  Quantize
-                      |         |
-                  Dequantize  Dequantize
-                       \       /
-                         MatMul
-                           |
-                    StaticTranspose
-                           |
-
-  ```
-
--
-
-```text
-                      |
-                    StaticReshape
-            |         |
-    StaticReshape   StaticTranspose
-            |         |
-    StaticTranspose StaticTranspose
-            |         |
-        TypeCast    TypeCast
-            |         |
-        Quantize    Quantize
-            |         |
-        Dequantize  Dequantize
-            |         |
-        TypeCast    TypeCast
-              \      /
-               MatMul
-                 \    /
-                 Divide
-                    \   /       |
-                     Add     StaticReshape
-                      |         |
-                   Softmax   StaticTranspose
-                      |         |
-                   TypeCast  TypeCast
-                      |         |
-                   Quantize  Quantize
-                      |         |
-                  Dequantize Dequantize
-                      |         |
-                   TypeCast  TypeCast
-                       \       /
-                         MatMul
-                           |
-                    StaticTranspose
-                           |
-  ```
-
-### Graph Compiler Backend
-
-The alpha release depends on graph compiler to support additional fusion
-patterns.
-
-#### 1. Compiler Backend Floating Point Patterns
-
-Compiler backend supports floating point patterns for MHA inference and training
-as well as MLP inference and training (2-6 layers).
-
--
-
-```text
-                      |
-                    StaticReshape
-            |         |
-    StaticReshape   StaticTranspose
-            |         |
-    StaticTranspose StaticTranspose
-              \      /
-               MatMul
-                 \     /
-         Multiply/Divide
-                    \    /      |
-                     Add     StaticReshape
-                      |         |
-                   Softmax   StaticTranspose
-                       \       /
-                         MatMul
-                           |
-                    StaticTranspose
-                           |
-                    [StaticReshape]*
-                           |
-
-  ```
-
--
-
-```text
-              \      /
-               MatMul
-                 \     /
-         Multiply/Divide
-                    \    /
-                     Add
-                      |
-                   Softmax
-                       \       /
-                         MatMul
-                           |
-                    StaticTranspose
-                           |
-                        Reorder
-                           |
-  ```
-
--
-
-```text
-              \      /
-               MatMul
-                 \     /
-         Multiply/Divide
-                    \    /
-                     Add
-                      |
-                   Softmax
-                ______|______
-               /             \     /
-                             Multiply
-                           _____|______
-                          /            \      /
-                                        MatMul
-                                           |
-                                    StaticTranspose
-                                           |
-                                     StaticReshape
-                                           |
-
-  ```
-
--
-
-```text
-                        |
-                  StaticReshape
-                        |
-                 StaticTranspose
-           \     /           \    /
-            MatMul           MatMul
-              |                  \     /
-                                Multiply
-                                /    \     /
-                               /     Multiply
-                              |         |
-                               \     ReduceSum
-                                \      /
-                                Subtract
-                                  \       /
-                                   Multiply
-                                       \         /
-                                     Multiply/Divide
-                          ________________|______
-                          \                      \     /
-                           \     /                MatMul
-                            MatMul                  |
-                              |
-  ```
-
-- [MatMul + ReLU/Sigmoid/GELU]<sup>[2,6]</sup>
-
-- [MLP Backprop Unit]<sup>[2,6]</sup>
-
-  in which MLP Backprop Unit is
-
-  ```text
-                                 \                   /
-            |          ReLUBackprop/SigmoidBackprop/GELUBackprop          |
-  [StaticTranspose]* ______________________|______________________  [StaticTranspose]*
-             \      /                      |                      \      /
-              MatMul                  [ReduceSum]*                 MatMul
-                |                          |                         |
-  ```
-
-#### 2. Compiler Backend Quantized Patterns
-
-Compiler backend supports quantized patterns for MHA inference and MLP
-inference (2-6 layers).
-
--
-
-```text
-                      |
-                    Dequantize
-            |         |
-      Dequantize    StaticReshape
-            |         |
-    StaticReshape   StaticTranspose
-            |         |
-    StaticTranspose StaticTranspose
-              \      /
-               MatMul
-                 \     /
-         Multiply/Divide
-                    \    /
-                     Add
-                      |         |
-                   Softmax   Dequantize
-                      |         |
-                  Quantize   StaticReshape
-                      |         |
-                Dequantize   StaticTranspose
-                       \       /
-                         MatMul
-                           |
-                    StaticTranspose
-                           |
-                    [StaticReshape]*
-                           |
-                        Quantize
-                           |
-
-  ```
-
--
-
-```text
-             |        |
-      Dequantize    Dequantize
-              \      /
-               MatMul
-                 \     /
-         Multiply/Divide
-                    \    /
-                     Add
-                      |
-                   Softmax
-                      |
-                   Quantize
-                      |         |
-                  Dequantize  Dequantize
-                       \       /
-                         MatMul
-                           |
-                    StaticTranspose
-                           |
-                        Reorder
-                           |
-                        Quantize
-                           |
-
-  ```
-
--
-
-```text
-             |        |
-      Dequantize    Dequantize
-             |        |
-        TypeCast    TypeCast
-              \      /
-               MatMul
-                 \     /
-         Multiply/Divide
-                    \    /
-                     Add
-                      |
-                   Softmax
-                      |
-                   TypeCast
-                      |
-                   Quantize
-                      |         |
-                  Dequantize  Dequantize
-                      |         |
-                  TypeCast    TypeCast
-                       \       /
-                         MatMul
-                           |
-                    StaticTranspose
-                           |
-                        Reorder
-                           |
-                        TypeCast
-                           |
-                        Quantize
-                           |
-  ```
-
-- [Quantized MLP Unit]<sup>[2,6]</sup>
-
-  in which Quantized MLP Unit is:
-
-  ```text
-
-                    |       |
-            Dequantize    Dequantize
-                     \     /
-                      MatMul
-                        |
-                ReLU/Sigmoid/GELU
-                        |
-                     Quantize
-                        |
-
-  ```
+### 1. Describing fusion pattern
+
+Fusion pattern describes a graph partition which oneDNN Graph takes as input
+and generates optimized code. The pattern is described using oneDNN Graph
+OP names with the following convention.
+
+`"+"` describes a chain of two OPs. The preceeding OP produces an output tensor,
+which is consumed by the following OP as its first operand.
+
+`"[]"` describes a component of the overall pattern description. For example,
+it could include a subgraph or all the OP choices within the bracket.
+
+`"|"` describes choices of multiple operations, say A+[B|C] means the graph partition
+contains A followed by B or C.
+
+`","` describes a graph composed of multiple subgraphs, each subgraph marks its output
+tensor explicitly, which is consumed by other subgraphs.
+
+`Superscript` denotes the numbers of repetition pattern. For example, A+[B|C]<sup>3</sup>
+means the graph partition contains A followed by 3 OPs, each of them is either
+B or C. The superscript could be a range of number meaning allowing a range of
+repetition. If the range is between 0 and 1, we use superscript `"?"`.
+
+`Subscript` denotes the input and output tensors which need to explicitly mark the
+producer and consumer relation within one graph partition. For example,
+A<sub>>t1</sub>+B+C<sub><t1</sub> refers
+to the pattern started with A followed by B and C, and C takes an implicit input
+tensor from B and an extra tensor t1 output from A. `">"` refers to the output tensor,
+and `"<"` for input tensor.  Input and output tensor between neighbor ops are not
+explicitly marked, for example, B consumes t1 implicitly in the example above.
+
+Subscript `"out"` marks the output tensor of a certain OP to be the output of
+a graph partition. For example, in A<sub>>t1</sub>+B<sub>>out</sub>+C<sub><t1,>out</sub>
+B’s output and C’s output are marked as output tensors.
+
+Subscript `"in"` marks the input tensor of a certain OP to be the input of a graph
+partition. For example, in A<sub><in1</sub>+B<sub><in1</sub> A’s input and B's
+second input are graph partition input, and they share the same input tensor in1.
+Most input tensors of a graph partition are not explicitly marked.
+For example, the input tensors of the first OP are implicitly regarded as graph
+partition inputs. Besides, for input tensors of other OPs, if they are not produced
+by any proceeding OPs, they are regarded as implicit graph partition inputs.
+In the example A<sub>>t1</sub>+B+C<sub><t1</sub>, A’s inputs are regarded as implicit
+graph partition inputs, and if B is a binary operation, the second input tensor
+is an implicit graph partition input.
+
+### 2. Post-ops fusion pattern
+
+The following categories will be used in describing post-ops fusion pattern.
+
+Unary = [Abs | Clamp | Elu | Exp | GELU | HardTanh | HardSwish | LeakyReLU |
+Log | Sigmoid | SoftPlus | Pow | ReLU | Round | Sqrt | Square | Tanh]
+
+Binary = [Add | Divide | Maximum | Minimum | Multiply | Subtract]
+
+Reduction = [ReduceL1 | ReduceL2 | ReduceMax | ReduceMean | ReduceMin |
+ReduceProd | ReduceSum]
+
+#### 2.1 Inference
+
+##### 2.1.1 Floating Point Patterns
+
+- Convolution Post-ops
+  - Pattern: Convolution + BiasAdd<sup>?</sup> +
+    BatchNormInference<sup>?</sup> + [Unary | Binary]<sup>0-3</sup><sub>>out</sub>
+  - Description: this pattern is widely used in Convolution Neural Networks,
+    i.e. ResNet, ResNext, SSD, etc.
+- ConvTranspose Post-ops
+  - Pattern: ConvTranspose + BiasAdd<sup>?</sup> +
+    [Unary | Binary]<sup>?</sup><sub>>out</sub>
+  - Description: this pattern is widely used in Generative
+    Adversarial Networks.
+- Interpolate Post-ops
+  - Pattern: Interpolate + [Unary | Binary]<sup>?</sup><sub>>out</sub>
+  - Description: this pattern is widely used for image processing.
+- MatMul Post-ops
+  - Pattern: MatMul + BiasAdd<sup>?</sup> + [Unary | Binary]<sup>0-3</sup><sub>>out</sub>
+  - Description: this pattern is widely used in language models and
+    recommendation models, i.e. BERT, DLRM, etc.
+- Reduction Post-ops
+  - Pattern: Reduction + [Unary | Binary]<sup>?</sup><sub>>out</sub>
+  - Description: this pattern is widely used for data processing, i.e.
+    loss reduction.
+- Unary Post-ops
+  - Pattern: Unary + Binary<sup>?</sup><sub>>out</sub>
+  - Description: this pattern is widely used in Convolution Neural Networks.
+- Binary Post-ops
+  - Pattern: Binary + [Unary | Binary]<sup>?</sup><sub>>out</sub>
+  - Description: this pattern is widely used in Generative Adversarial Networks,
+    i.e. ParallelWaveGAN.
+- Pooling Post-ops
+  - Pattern: [AvgPool | MaxPool] + Binary<sup>?</sup><sub>>out</sub>
+  - Description: this pattern is widely used in Convolution Neurual Networks.
+- Batch Normalization Post-ops
+  - Pattern: BatchNormInference + ReLU<sub>>out</sub>
+  - Description: this pattern is widely used in Convolution Neurual Networks,
+    i.e. DenseNet.
+- Misc Post-ops
+  - Pattern: Reciprocal + Multiply<sub>>out</sub>
+  - Pattern: Reorder + Add<sub>>out</sub>
+
+##### 2.1.2 Quantized Patterns
+
+- Quantized Convolution Post-ops
+  - Pattern: Quantize<sup>?</sup> + Dequantize<sub>>t1</sub>,
+    Dequantize<sub>>t2</sub><sup>?</sup>, Dequantize +
+    Convolution<sub><t1</sub> +
+    BiasAdd<sup>?</sup> + [Unary<sup>0-3</sup> | Add<sub><t2</sub><sup>?</sup>] +
+    Quantize<sup>?</sup><sub>>out</sub>
+- Quantized ConvTranspose Post-ops
+  - Pattern: Quantize<sup>?</sup> + Dequantize<sub>>t1</sub>,
+    Dequantize<sub>>t2</sub><sup>?</sup>, Dequantize +
+    ConvTranspose<sub><t1</sub> +
+    BiasAdd<sup>?</sup> + [Unary<sup>0-3</sup> | Add<sub><t2</sub><sup>?</sup>] +
+    Quantize<sup>?</sup><sub>>out</sub>
+- Quantized MatMul Post-ops
+  - Pattern: Quantize<sup>?</sup> + Dequantize<sub>>t1</sub>,
+    Dequantize<sub>>t2</sub><sup>?</sup>, Dequantize + MatMul<sub><t1</sub> +
+    BiasAdd<sup>?</sup> + [Unary<sup>0-3</sup> | Add<sub><t2</sub><sup>?</sup>] +
+    Quantize<sup>?</sup><sub>>out</sub>
+- Quantized Unary Post-ops
+  - Pattern: Dequantize + ReLU + Quantize<sub>>out</sub>
+- Quantized Pooling Post-ops
+  - Pattern: Dequantize + [AvgPool | MaxPool] + Quantize<sub>>out</sub>
+  - Pattern: Dequantize<sub>>t1</sub>, Dequantize + [AvgPool | MaxPool] +
+    Add<sub><t1</sub> + Quantize<sub>>out</sub>
+- Misc Quantized Post-ops
+  - Pattern: Dequantize + Reorder + Quantize<sub>>out</sub>
+  - Pattern: Dequantize<sub>>t1</sub>, Dequantize + Reorder +
+    Add<sub><t1</sub> + Quantize<sub>>out</sub>
+
+#### 2.2 Training
+
+- ConvolutionBackpropFilters Post-ops
+  - Pattern: ConvolutionBackpropFilters + BiasAddBackprop<sub>>out</sub>
+- Misc Post-ops
+  - Pattern: ReLUBackprop + BatchNormTrainingBackprop<sub>>out</sub>
+
+All the post-ops fusion patterns are supported by default.
+
+### 3. Aggressive fusion pattern
+
+The following category will be used to describe aggressive fusion pattern.
+
+- Activation = [ReLU | Sigmoid | GELU]
+
+- ActivationBackprop = [ReLUBackprop | SigmoidBackprop | GELUBackprop]
+
+#### 3.1 Inference
+
+##### 3.1.1 Floating Point Patterns
+
+- MHA (Multi-head Attention)
+  - Pattern: MatMul + [Multiply | Divide] + Add + Softmax + MatMul +
+    StaticTranspose + Reorder<sub>>out</sub>
+
+    <img src="../images/oneDNN_graph_MHA_fp32_patterns.png" width = "30%"
+    height = "30%" alt="MHA Floating Point Patterns"/>
+
+  - Description: the pattern is used in various BERT models. The `Reorder`
+    op in the pattern could change the physical layout of the input tensor.
+    It could be translated from `torch.contiguous`.
+- MLP (Multi-layer Perceptron)
+  - Pattern: MatMul + Activation<sub>>t1</sub>, [MatMul<sub><t1</sub> +
+    Activation<sub>>t1</sub>]<sup>0-4</sup>, MatMul<sub><t1</sub> +
+    Activation<sub>>out</sub>
+  - Description: this pattern is composed of multiple layers of MatMul +
+    post-ops. It is used in recommendation model, e.g. DLRM.
+
+##### 3.1.2 Quantized Patterns
+
+- Quantized MHA
+  - Pattern: Dequantize<sub>\>t1</sub>, Dequantize<sub>\>t2</sub>,
+    Dequantize + MatMul<sub>\<t1</sub> + [Multiply | Divide] + Add + Softmax +
+    Quantize + Dequantize + MatMul<sub>\<t2</sub> + StaticTranspose + Reorder +
+    Quantize<sub>>out</sub>
+
+    <img src="../images/oneDNN_graph_MHA_quantized_patterns.png" width = "45%"
+    height = "45%" alt="MHA Quantized Patterns"/>
+
+  - Descriptions: this pattern is used in quantized BERT models. The `Reorder`
+    op could change the physical layout of the input tensor.
+    It could be translated from `torch.contiguous`.
+
+- Quantized MLP
+  - Pattern:
+
+    Dequantize<sub>>t1</sub>, Dequantize + MatMul<sub><t1</sub> +
+    Activation + Quantize<sub>>t2</sub>,
+
+    [Dequantize<sub>>t3</sub>,
+    Dequantize<sub><t2</sub> + MatMul<sub><t3</sub> + Activation +
+    Quantize<sub>>t2</sub>]<sup>0-4</sup>,
+
+    Dequantize<sub>>t4</sub>,
+    Dequantize<sub><t2</sub> + MatMul<sub><t4</sub> + Activation +
+    Quantize<sub>>out</sub>
+  - Description: this pattern is used in quantized recommendation models,
+    e.g. int8 DLRM.
+
+#### 3.2 Training
+
+- MHA
+  - Forward Pattern: MatMul + [Multiply | Divide] + Add + Softmax
+    <sub>>out1</sub> + Multiply<sub>>out2</sub> + MatMul + StaticTranspose +
+    StaticReshape<sub>>out3</sub>
+  - Backward Pattern: StaticReshape + StaticTranspose<sub>>t1</sub> + MatMul +
+    Multiply<sub>>t2</sub> + Subtract<sub><t3</sub> + Multiply +
+    [Multiply | Divide]<sub>>t4</sub> + MatMul<sub>>out1</sub>,
+    Multiply<sub><t2</sub> + ReduceSum<sub>>t3</sub>,
+    MatMul<sub><t1,>out2</sub>, MatMul<sub><t4,>out3</sub>
+
+    ![MHA Training Patterns](../images/oneDNN_graph_MHA_training_patterns.png)
+
+  - Description: this pattern is used in BERT training cases. The pattern is
+    similar to MHA inference, except for an extra Multiply op after Softmax.
+
+- MLP
+  - Forward Pattern:
+    MatMul<sub>>out1</sub> + Activation<sub>>t1,>out2</sub>,
+    [MatMul<sub><t1,>out3</sub> + Activation<sub>>t1,>out4</sub>]<sup>0-4</sup>,
+    MatMul<sub><t1,>out5</sub> + Activation<sub>>out6</sub>
+  - Backward Pattern:
+
+    StaticTranspose<sup>?</sup><sub>>t0</sub>,
+    ActivationBackprop<sub>>t2</sub> + MatMul<sub><t0,>t1</sub>,
+    ReduceSum<sup>?</sup><sub><t2,>out1</sub>,
+    StaticTranspose<sup>?</sup> + MatMul<sub><t2,>out2</sub>,
+
+    [StaticTranspose<sup>?</sup><sub>>t3</sub>,
+    ActivationBackprop<sub>>t4,<t1</sub> + MatMul<sub><t3,>t1</sub>,
+    ReduceSum<sup>?</sup><sub><t4,>out3</sub>,
+    StaticTranspose<sup>?</sup> + MatMul<sub><t4,>out4</sub>]<sup>0-4</sup>,
+
+    StaticTranspose<sup>?</sup><sub>>t5</sub>,
+    ActivationBackprop<sub>>t6,<t1</sub> + MatMul<sub><t5,>out5</sub>,
+    ReduceSum<sup>?</sup><sub><t6,>out6</sub>,
+    StaticTranspose<sup>?</sup> + MatMul<sub><t6,>out7</sub>
+
+    ![MLP Training Patterns](../images/oneDNN_graph_MLP_training_patterns.png)
+
+    MLP Training Patterns: MLP Forward Pattern (left); MLP Backward Pattern
+    (right). Solid orange lines denote the connection between successive
+    repetition layers. Inputs/outputs denoted with black solid lines are
+    required in each layer of repetition. Inputs denoted with blue solid lines
+    are required only in the first repetition layer, and outputs in blue
+    exist only in the last repetition layer.
+
+  - Description: this pattern is used in recommendation models, e.g. DLRM.
+
+Aggressive patterns are supported by [oneDNN Graph Compiler](https://github.com/oneapi-src/oneDNN/tree/dev-graph/doc#onednn-graph-compiler).
