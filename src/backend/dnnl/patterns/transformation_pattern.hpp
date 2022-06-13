@@ -80,7 +80,7 @@ public:
 
                 // Only fuse not rewrite. Will remove the fuse once dnnl
                 // backend support subgraph mode
-                pu.fuse(agraph, fusion_ops, fused_op);
+                pu.fuse(agraph, fusion_ops, fused_op, get_kind());
             }
         }
     }

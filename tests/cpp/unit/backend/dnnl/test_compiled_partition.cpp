@@ -45,7 +45,8 @@ TEST(CompiledPartition, Relu) {
     g.build_graph();
 
     auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
-            eng.kind());
+            eng.kind(), impl::fpmath_mode::strict,
+            impl::partition_kind::unary_post_ops);
     pimpl->add_op(std::make_shared<impl::op_t>(relu_op));
     pimpl->init(&relu_op);
 
@@ -120,7 +121,7 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
     g.build_graph();
 
     auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
-            eng.kind());
+            eng.kind(), impl::fpmath_mode::strict, impl::partition_kind::undef);
     pimpl->add_op(std::make_shared<impl::op_t>(relu_op));
     pimpl->init(&relu_op);
 
@@ -230,7 +231,7 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
     n.add_output(lt_out);
 
     auto pimpl = std::make_shared<impl::dnnl_impl::dnnl_partition_impl_t>(
-            eng.kind());
+            eng.kind(), impl::fpmath_mode::strict, impl::partition_kind::undef);
     pimpl->add_op(std::make_shared<impl::op_t>(n));
     pimpl->init(&n);
 

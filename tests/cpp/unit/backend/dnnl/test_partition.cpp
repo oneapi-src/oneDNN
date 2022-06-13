@@ -26,12 +26,16 @@
 using namespace dnnl::graph::impl;
 
 TEST(Partition, CreateSimple) {
-    dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
+    dnnl_impl::dnnl_partition_impl_t p(
+            engine_kind::cpu, fpmath_mode::strict, partition_kind::undef);
     ASSERT_EQ(p.get_ops().size(), 0);
+    ASSERT_EQ(p.get_fpmath_mode(), fpmath_mode::strict);
+    ASSERT_EQ(p.get_kind(), partition_kind::undef);
 }
 
 TEST(Partition, AddOps) {
-    dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
+    dnnl_impl::dnnl_partition_impl_t p(
+            engine_kind::cpu, fpmath_mode::strict, partition_kind::undef);
     size_t id = 100;
     std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
     p.add_op(n);
@@ -48,7 +52,8 @@ TEST(Partition, AddOps) {
 }
 
 TEST(Partition, GetOps) {
-    dnnl_impl::dnnl_partition_impl_t p(engine_kind::cpu);
+    dnnl_impl::dnnl_partition_impl_t p(
+            engine_kind::cpu, fpmath_mode::strict, partition_kind::undef);
     size_t id = 100;
     std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
     p.add_op(n);
@@ -60,7 +65,8 @@ TEST(Partition, GetOps) {
 TEST(Partition, Init) {
     // (todo)xinyu: improve engine test
     engine_t eng {};
-    dnnl_impl::dnnl_partition_impl_t p(eng.kind());
+    dnnl_impl::dnnl_partition_impl_t p(
+            eng.kind(), fpmath_mode::strict, partition_kind::undef);
     op_t n(op_kind::Convolution);
     n.set_attr<int64_t>(op_attr::groups, 0);
     p.init(&n);
@@ -73,7 +79,8 @@ TEST(Partition, Init) {
 
 TEST(Partition, Clone) {
     engine_t eng {};
-    dnnl_impl::dnnl_partition_impl_t p(eng.kind());
+    dnnl_impl::dnnl_partition_impl_t p(eng.kind(), fpmath_mode::strict,
+            partition_kind::convolution_post_ops);
     auto n = std::make_shared<op_t>(op_kind::Convolution);
     n->set_attr<int64_t>(op_attr::groups, 1);
     p.init(n.get()); // fused op for dispatch
@@ -105,19 +112,18 @@ TEST(Op, AssignedPartition) {
     ASSERT_EQ(conv.get_partition(), nullptr);
 
     auto part = std::make_shared<dnnl_impl::dnnl_partition_impl_t>(
-            engine_kind::cpu);
+            engine_kind::cpu, fpmath_mode::strict,
+            partition_kind::convolution_post_ops);
     conv.set_partition(part.get());
     ASSERT_EQ(conv.get_partition(), part.get());
 }
 
 TEST(Partition, SetFpmathMode) {
     engine_t eng {};
-    dnnl_impl::dnnl_partition_impl_t p(eng.kind());
-    ASSERT_EQ(p.get_fpmath_mode(), impl::fpmath_mode::strict);
-
-    for (auto m : {impl::fpmath_mode::strict, impl::fpmath_mode::bf16,
-                 impl::fpmath_mode::f16, impl::fpmath_mode::any}) {
-        dnnl_impl::dnnl_partition_impl_t p(eng.kind(), m);
+    for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
+                 fpmath_mode::any}) {
+        dnnl_impl::dnnl_partition_impl_t p(
+                eng.kind(), m, partition_kind::undef);
         ASSERT_EQ(p.get_fpmath_mode(), m);
     }
 }

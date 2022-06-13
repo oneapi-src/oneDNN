@@ -102,8 +102,9 @@ impl::status_t run_graph(impl::graph_t &agraph,
     // compile and execute each op in topo order
     return impl::topo_order_visit(copied.get_output_ops(), [&](impl::op_t *op) {
         // construct a single op partition without running pass
-        auto part = std::make_shared<dnnl_impl::dnnl_partition_impl_t>(
-                eng.kind());
+        auto part
+                = std::make_shared<dnnl_impl::dnnl_partition_impl_t>(eng.kind(),
+                        impl::fpmath_mode::strict, impl::partition_kind::undef);
         part->add_op(op->shared_from_this());
         part->init(op);
         impl::partition_t p;

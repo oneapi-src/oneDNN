@@ -52,8 +52,8 @@ public:
             std::vector<std::vector<op_t *>> &fusion_ops);
 
     inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
-            std::vector<std::vector<op_t *>> &fusion_ops,
-            op_t &op_with_backend);
+            std::vector<std::vector<op_t *>> &fusion_ops, op_t &op_with_backend,
+            dnnl::graph::impl::partition_kind_t pkind);
 
     pattern_utils_t() = default;
     pattern_utils_t(const pattern_utils_t &) = delete;
@@ -78,7 +78,8 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
 
 //do fuse with v2 pattern language
 inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
-        std::vector<std::vector<op_t *>> &fusion_ops, op_t &fused_op) {
+        std::vector<std::vector<op_t *>> &fusion_ops, op_t &fused_op,
+        dnnl::graph::impl::partition_kind_t pkind) {
     std::vector<op_t *> fusion_ops_set;
     std::unordered_set<op_t *> visit;
 
@@ -143,7 +144,7 @@ inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
         std::shared_ptr<dnnl_partition_impl_t> pimpl
                 = std::make_shared<dnnl_partition_impl_t>(
                         backend_graph.get_engine_kind(),
-                        backend_graph.get_fpmath_mode());
+                        backend_graph.get_fpmath_mode(), pkind);
 
         // use the fused op to initialize the partition_impl, and merge the
         // informations to it.
