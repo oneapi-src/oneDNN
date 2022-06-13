@@ -28,6 +28,8 @@
 #include <unordered_set>
 
 #include "interface/graph.hpp"
+
+#include "utils/debug.hpp"
 #include "utils/json.hpp"
 #include "utils/pm/pbuilder.hpp"
 
@@ -133,18 +135,24 @@ public:
         writer->write_keyvalue("pass_backend", backend_);
         writer->write_keyvalue("priority", priority_);
         writer->write_keyvalue("enable", enable_);
+        writer->write_keyvalue("kind", utils::partition_kind2str(pkind_));
         writer->end_object();
     }
+
     // load pass basic information from json
     virtual void load(utils::json::json_reader_t *reader) {
         utils::json::read_helper_t helper;
         std::string type;
+        std::string kind;
         helper.declare_field("pass_name", &name_);
         helper.declare_field("pass_type", &type);
         helper.declare_field("pass_backend", &backend_);
         helper.declare_field("priority", &priority_);
         helper.declare_field("enable", &enable_);
+        helper.declare_field("kind", &kind);
         helper.read_fields(reader);
+
+        pkind_ = utils::str2partition_kind(kind);
     }
 
     virtual ~pass_base() = default;

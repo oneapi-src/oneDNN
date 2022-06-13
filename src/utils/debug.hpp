@@ -14,13 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-// clang-format off
-
 #ifndef UTILS_DEBUG_HPP
 #define UTILS_DEBUG_HPP
 
-/// @file
-/// Debug capabilities
+#include <string>
 
 #include "interface/c_types_map.hpp"
 
@@ -34,6 +31,9 @@ const char *engine_kind2str(engine_kind_t v);
 const char *fpmath_mode2str(fpmath_mode_t v);
 const char *layout_type2str(layout_type_t v);
 const char *property_type2str(property_type_t v);
+
+std::string partition_kind2str(partition_kind_t v);
+partition_kind_t str2partition_kind(const std::string &str);
 
 } // namespace utils
 } // namespace impl

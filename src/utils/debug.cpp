@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-// clang-format off
-
 #include <cassert>
 
 #include "utils/debug.hpp"
@@ -70,6 +68,76 @@ const char *property_type2str(property_type_t v) {
     if (v == property_type::constant) return "constant";
     assert(!"unknown property_type");
     return "unknown property_type";
+}
+
+std::string partition_kind2str(partition_kind_t v) {
+    using namespace partition_kind;
+#define CASE(x) \
+    case (x): return #x
+
+    switch (v) {
+        CASE(undef);
+        CASE(convolution_post_ops);
+        CASE(convtranspose_post_ops);
+        CASE(interpolate_post_ops);
+        CASE(matmul_post_ops);
+        CASE(reduction_post_ops);
+        CASE(unary_post_ops);
+        CASE(binary_post_ops);
+        CASE(pooling_post_ops);
+        CASE(batch_norm_post_ops);
+        CASE(misc_post_ops);
+        CASE(quantized_convolution_post_ops);
+        CASE(quantized_convtranspose_post_ops);
+        CASE(quantized_matmul_post_ops);
+        CASE(quantized_unary_post_ops);
+        CASE(quantized_pooling_post_ops);
+        CASE(misc_quantized_post_ops);
+        CASE(convolution_backprop_post_ops);
+        CASE(mha);
+        CASE(mlp);
+        CASE(quantized_mha);
+        CASE(quantized_mlp);
+        CASE(residual_conv_blocks);
+        CASE(quantized_residual_conv_blocks);
+        default: return "unknown_kind";
+    }
+#undef CASE
+}
+
+partition_kind_t str2partition_kind(const std::string &str) {
+    using namespace partition_kind;
+#define IF_HANDLE(x) \
+    if (str == #x) return x
+
+    IF_HANDLE(undef);
+    IF_HANDLE(convolution_post_ops);
+    IF_HANDLE(convtranspose_post_ops);
+    IF_HANDLE(interpolate_post_ops);
+    IF_HANDLE(matmul_post_ops);
+    IF_HANDLE(reduction_post_ops);
+    IF_HANDLE(unary_post_ops);
+    IF_HANDLE(binary_post_ops);
+    IF_HANDLE(pooling_post_ops);
+    IF_HANDLE(batch_norm_post_ops);
+    IF_HANDLE(misc_post_ops);
+    IF_HANDLE(quantized_convolution_post_ops);
+    IF_HANDLE(quantized_convtranspose_post_ops);
+    IF_HANDLE(quantized_matmul_post_ops);
+    IF_HANDLE(quantized_unary_post_ops);
+    IF_HANDLE(quantized_pooling_post_ops);
+    IF_HANDLE(misc_quantized_post_ops);
+    IF_HANDLE(convolution_backprop_post_ops);
+    IF_HANDLE(mha);
+    IF_HANDLE(mlp);
+    IF_HANDLE(quantized_mha);
+    IF_HANDLE(quantized_mlp);
+    IF_HANDLE(residual_conv_blocks);
+    IF_HANDLE(quantized_residual_conv_blocks);
+
+    return undef;
+
+#undef IF_HANDLE
 }
 
 } // namespace utils
