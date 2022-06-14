@@ -289,7 +289,7 @@ as in the following example.
 
 ~~~cpp
     auto augru_desc = dnnl::augru_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_desc,
+        aprop, direction, src_layer_desc, src_iter_desc, attention_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
 ~~~
@@ -319,7 +319,7 @@ or #dnnl::lbr_augru_backward::desc::desc() as in the following example.
 
 ~~~cpp
     auto lbr_augru_desc = dnnl::lbr_augru_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_desc,
+        aprop, direction, src_layer_desc, src_iter_desc, attention_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
 ~~~
