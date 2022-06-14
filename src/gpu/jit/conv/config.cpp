@@ -243,7 +243,6 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
                    "strided dimensions.";
     }
 
-    set_allow_grf_reorder();
     CHECK(init_zero_points_config(conv_pd));
 
     const int max_unroll = (zp_cfg.do_src_compensation) ? 3 : 9;
@@ -258,9 +257,6 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     reuse_headers = getenv_bool("reuse_headers", reuse_headers);
     use_preload = getenv_bool("use_preload", use_preload);
 #endif
-
-    CHECK(fixup_inference_consistency());
-    if (!try_reduce_grf_usage()) return status::unimplemented;
 
     return status::success;
 }
@@ -357,8 +353,6 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
                    "strided dimensions.";
     }
 
-    set_allow_grf_reorder();
-
     // Do not perform full unrolling when there are too many inner
     // iterations.
     int kernel_limit = is_f32_conv() ? 4 : 9;
@@ -369,9 +363,6 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     // post-increment updates which result in unrolling all reduction loops
     // and exceeding the instruction cache.
     if (!is_stride1() && !bwd_d_optimize_strided_iw) do_pipeline_unroll = false;
-
-    CHECK(fixup_inference_consistency());
-    if (!try_reduce_grf_usage()) return status::unimplemented;
 
     return status::success;
 }
@@ -456,8 +447,6 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
                                   "strided dimensions.";
     }
 
-    set_allow_grf_reorder();
-
     mb_unroll = mb_thr_blk / mb_blk;
     ow_unroll = (ow_blk > 1 && is_dp_fma()) ? ow_thr_blk / ow_blk : 1;
     if (ow_unroll > 8) ow_unroll = 1;
@@ -476,9 +465,6 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
         tensor_config.require_zero_out("wei");
         if (with_bias) tensor_config.require_zero_out("bia");
     }
-
-    CHECK(fixup_inference_consistency());
-    if (!try_reduce_grf_usage()) return status::unimplemented;
 
     return status::success;
 }
