@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ################################################################################
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -119,12 +119,14 @@ def generate_verbose(path_to_benchdnn, driver, batch):
 
 def generate_batch(verbose, driver):
     verbose = verbose.splitlines()
+    aggregate_opts = ['engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'alg_kind', 'shapes']
     s, data = verbose_converter.convert(verbose_level=0,
                                         parser='oneDNN',
                                         input=verbose,
                                         action='generate',
                                         generator='benchdnn',
-                                        split_output=True)
+                                        split_output=True,
+                                        agg_keys=aggregate_opts)
     if s != status.get('SUCCESS'):
         return [s, f"verbose_converter.convert() returned {s}"], ""
 
