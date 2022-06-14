@@ -740,8 +740,9 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
             set_default_format(wei_md, tag);
             user_wei_tag = "xba";
         }
-        // Allow internal reorder from oihw to more optimal weights layout.
+        // Allow internal reorder from OIHW/OHWI to more optimal weights layout.
         if (matches_tag(wei_md, "abx")) user_wei_tag = "abx";
+        if (matches_tag(wei_md, "axb")) user_wei_tag = "axb";
     }
 
     if (wei_prepend_groups) {
