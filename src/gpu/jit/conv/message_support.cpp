@@ -80,7 +80,9 @@ bool send_t::is_supported() const {
     if (is_store() && type.is_hword() && !is_xe_hpc_plus()) return false;
 
     // Enable qword for scalar f64
-    if (type.is_qword() && (!is_xe_hpc_plus() || slots != 1 || type.elems() != 1)) return false;
+    if (type.is_qword()
+            && (!is_xe_hpc_plus() || slots != 1 || type.elems() != 1))
+        return false;
 
     // XXX: Half-GRF stores result in correctness issues on XeHPC.
     if (is_store() && is_block() && is_xe_hpc_plus()
@@ -101,7 +103,8 @@ bool send_t::is_supported() const {
     if (is_atomic() && !is_xe_hpc_plus() && is_a64() && slots > 8) return false;
 
     // XXX: Tested only byte scattered messages.
-    if (is_scattered() && !is_atomic() && !type.is_byte() && !type.is_qword()) return false;
+    if (is_scattered() && !is_atomic() && !type.is_byte() && !type.is_qword())
+        return false;
 
     if (is_scattered() && !is_atomic() && !utils::one_of(type.elems(), 1, 2, 4))
         return false;
@@ -114,8 +117,8 @@ std::vector<func_t> send_t::get_all(ngen::HW hw, send_op_t op,
     std::vector<func_t> filtered;
     for (int slots : {1, 2, 4, 8, 16}) {
         for (int elems : {1, 2, 4, 8, 16}) {
-            for (auto &type : {type_t::byte(), type_t::dword(), type_t::qword(), type_t::oword(),
-                         type_t::hword()}) {
+            for (auto &type : {type_t::byte(), type_t::dword(), type_t::qword(),
+                         type_t::oword(), type_t::hword()}) {
                 // Require data type size exact match for atomic messages.
                 if (op == send_op_t::atomic_fadd
                         && type.size() != mem_type.size())
@@ -185,8 +188,7 @@ public:
 
     int remaining_elems() const { return remaining_size_ / type_size_; }
 
-    bool is_dense_and_aligned(
-            int off, int size, int alignment) const {
+    bool is_dense_and_aligned(int off, int size, int alignment) const {
         if (off + size > remaining_size_) return false;
         if (size == 0) return true;
         int beg = cur_off_ + off;
@@ -203,8 +205,7 @@ public:
             // Overflow is fine, expect it to be handled by proper masking.
             if (off >= remaining_size_) return true;
             if ((slot_size * slots) % type_size_ != 0) return false;
-            if (!is_dense_and_aligned(off, slot_size, alignment))
-                return false;
+            if (!is_dense_and_aligned(off, slot_size, alignment)) return false;
         }
         return true;
     }

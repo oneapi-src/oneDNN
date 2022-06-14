@@ -1122,9 +1122,7 @@ public:
 
 private:
     float_imm_t(double value, const type_t &type = type_t::undef())
-        : expr_impl_t(type.is_undef() ? type_t::f32() : type)
-        , value(value) {}
-
+        : expr_impl_t(type.is_undef() ? type_t::f32() : type), value(value) {}
 };
 
 // Integer immediate value.
@@ -1213,7 +1211,6 @@ private:
         , true_expr(true_expr)
         , false_expr(false_expr) {}
 };
-
 
 // Updates `base_expr` and `off` so that after return:
 // - base_expr contains a variable of a pointer type

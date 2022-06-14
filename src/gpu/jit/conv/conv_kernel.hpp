@@ -140,9 +140,7 @@ ngen::Immediate to_ngen(
         ir_assert(utils::one_of(type, type_t::undef(), type_t::f32()))
                 << "Conversion is not supported.";
         auto &imm = expr.as<float_imm_t>();
-        if (imm.type.is_f32()){
-            return ngen::Immediate((float)imm.value);
-        }
+        if (imm.type.is_f32()) { return ngen::Immediate((float)imm.value); }
         return ngen::Immediate(imm.value);
     }
     ir_error_not_expected() << "Can't convert expression: " << expr;

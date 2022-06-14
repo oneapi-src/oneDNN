@@ -240,9 +240,11 @@ public:
             ngen::HW hw, const type_t &a, const type_t &b, const type_t &c);
 
     static const int max_exec_size = 32;
-    static const int get_max_exec_size_bytes(ngen::HW hw) {return hw >= ngen::HW::XeHPC ? 128 : 64 ;}
-    static int get_simd_size(ngen::HW hw,
-            const type_t &a, const type_t &b, const type_t &c) {
+    static const int get_max_exec_size_bytes(ngen::HW hw) {
+        return hw >= ngen::HW::XeHPC ? 128 : 64;
+    }
+    static int get_simd_size(
+            ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
         int max_exec_size_bytes = get_max_exec_size_bytes(hw);
         int max_size = max_exec_size;
         if (max_exec_size_bytes / a.size() < max_size)
@@ -264,8 +266,9 @@ public:
     int src2_stride;
 
 private:
-    mad_t(ngen::HW hw, const type_t &dst_type, int exec_size, const type_t &src1_type,
-            int src1_stride, const type_t &src2_type, int src2_stride)
+    mad_t(ngen::HW hw, const type_t &dst_type, int exec_size,
+            const type_t &src1_type, int src1_stride, const type_t &src2_type,
+            int src2_stride)
         : dst_type(dst_type)
         , src1_type(src1_type)
         , src2_type(src2_type)
