@@ -30,6 +30,14 @@ namespace {
     SAFE_V(CRIT); \
     return F32_ENTRY
 
+#define CFG_INTERNAL(name, alias) \
+    struct conf_##name##_t : dt_conf_t { \
+        using dt_conf_t::dt_conf_t; \
+        const entry_t &operator[](rnn_data_kind_t kind) const override; \
+    } conf_##name(STRINGIFY(alias)); \
+    const dt_conf_t::entry_t &conf_##name##_t::operator[]( \
+            rnn_data_kind_t kind) const
+
 std::set<const dt_conf_t *> cfg_list;
 #define CFG(name) \
     struct conf_##name##_t : dt_conf_t { \
@@ -95,6 +103,14 @@ CFG(bf16) {
     CASE(DST_LAYER, BF16_ENTRY_BF16);
     CASE(AUGRU_ATTENTION, BF16_ENTRY_BF16);
     DEFAULT(BF16_ENTRY_F32);
+}
+
+// bf32
+dt_conf_t::entry_t BF32_ENTRY {dnnl_f32, -f32_max_exact, f32_max_exact,
+        MIN_BF16, MAX_BF16, MEAN_BF16, STDDEV_BF16, EPS_BF16};
+CFG_INTERNAL(bf32, f32) {
+    CASE(BIAS, F32_ENTRY);
+    DEFAULT(BF32_ENTRY);
 }
 
 // f16
@@ -270,7 +286,9 @@ CFG(f32s8f32f32) {
 
 } // namespace
 
-const dt_conf_t &dt_conf_t::create(const std::string &str) {
+const dt_conf_t &dt_conf_t::create(const std::string &str, const attr_t &attr) {
+    if (attr.fpmath_mode == dnnl_fpmath_mode_bf16 && str == "f32")
+        return conf_bf32;
     for (const auto cfg : cfg_list)
         if (cfg->str() == str) return *cfg;
     SAFE_V(CRIT);
