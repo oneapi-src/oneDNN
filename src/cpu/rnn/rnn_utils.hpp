@@ -778,8 +778,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.parts_bias[0] = rnn.n_bias;
     rnn.parts_bias[1] = 0;
 
-    /* Decide wich gemm implementation to use: packed/nonpacked jit/cblas
-     * and if to mergre gemm across iterations */
+    /* Decide which gemm implementation to use: packed/nonpacked jit/cblas
+     * and if to merge gemm across iterations */
     const bool is_f32 = rnn.dt_conf == all_f32,
                is_bf16 = rnn.dt_conf == all_bf16;
     const bool is_gru = utils::one_of(rd.cell_kind, alg_kind::vanilla_gru,

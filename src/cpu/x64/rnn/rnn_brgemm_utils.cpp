@@ -1179,7 +1179,7 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
     }
 
     // Creating temporary matmul configuration descriptor to use copy_B jit
-    // kernels from brgemm matmul copy routines for reodering scratch gates in
+    // kernels from brgemm matmul copy routines for reordering scratch gates in
     // diff_wei rnn brgemm implementation.
     // TODO: provide unification of jit-based copy routines with implementation
     // independent interface
