@@ -275,7 +275,7 @@ void rnn_brgemm_base_t::init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
 
     using namespace memory_tracking::names;
 
-    if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
+    if (rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx()) {
         size_t n_elements = rnn.m_block * rnn.n_block;
         scratchpad.book(key_brgemm_primitive_buffer, rnn.nthr * n_elements,
                 gemm_acc_type_size, gemm_acc_align);
@@ -298,8 +298,8 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.N = rnn.dhc;
     rnn.K1 = rnn.slc;
     rnn.K2 = rnn.sic;
-    const auto is_int8 = rnn.is_int8();
-    const auto is_bf16 = rnn.is_bf16();
+    const auto is_int8 = rnn.is_cell_dt_int8();
+    const auto is_bf16 = rnn.is_cell_dt_bf16();
 
     const dim_t padding = (is_int8 ? 4 : (is_bf16 ? 2 : 1));
     rnn.K1padded = utils::rnd_up(rnn.K1, padding);
@@ -308,7 +308,8 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.brgemm_isa = brgemm_calc_isa(rnn.K1, rnn.K2, is_int8, is_bf16);
 
     rnn.nthr = dnnl_get_max_threads();
-    const bool is_amx_isa_selected = rnn.is_int8_amx() || rnn.is_bf16_amx();
+    const bool is_amx_isa_selected
+            = rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx();
     const bool can_use_block64
             = is_amx_isa_selected && rnn.N % 64 == 0 && !rnn.is_lstm_projection;
     rnn.n_block = can_use_block64 ? 64 : 32;
@@ -327,23 +328,23 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
 
     std::tie(rnn.k1_block, rnn.k2_block) = brgemm_calc_k_block(rnn.K1, rnn.K2,
             rnn.M, rnn.n_block, cell_kind, src_layer_type_size, As, Bs, Cs,
-            l2_cache_size, rnn.brgemm_isa, rnn.is_int8(), rnn.is_bf16());
+            l2_cache_size, rnn.brgemm_isa, is_int8, is_bf16);
     rnn.KB1_blocks = rnn.K1 / rnn.k1_block;
     rnn.k1_tail = rnn.K1 % rnn.k1_block;
     rnn.KB2_blocks = rnn.K2 / rnn.k2_block;
     rnn.k2_tail = rnn.K2 % rnn.k2_block;
     rnn.m_block = brgemm_calc_m_block(cell_kind, prop_kind::forward, rnn.nthr,
-            rnn.M, rnn.N_blocks, rnn.is_f32(), rnn.is_int8_amx(),
-            rnn.is_bf16_amx(), work_by_N, As, Bs, Cs, l2_cache_size);
+            rnn.M, rnn.N_blocks, rnn.is_cell_dt_f32(), rnn.is_cell_int8_amx(),
+            rnn.is_cell_bf16_amx(), work_by_N, As, Bs, Cs, l2_cache_size);
 
     rnn.M_blocks = rnn.M / rnn.m_block;
 
     rnn.brgemm_isa = adjust_isa_by_m_block(
-            rnn.brgemm_isa, rnn.m_block, rnn.is_int8_amx());
+            rnn.brgemm_isa, rnn.m_block, rnn.is_cell_int8_amx());
     // Unfused post-gemm for lstm cell allows to parallelize across gates loop
     // and reduces brgemm problem size for the single iteration of parallel loop
     rnn.unfused_post_gemm = cell_kind == alg_kind::vanilla_lstm
-            ? IMPLICATION(rnn.M_blocks > 1, rnn.is_bf16_amx())
+            ? IMPLICATION(rnn.M_blocks > 1, rnn.is_cell_bf16_amx())
             : false;
 
     rnn.LDA1[0] = rnn.src_layer_ld_;
@@ -393,8 +394,8 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
 
         rnn.Kproj = rnn.dhc;
         rnn.Kprojpadded = utils::rnd_up(rnn.Kproj, padding);
-        if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
-            const dim_t max_row_width = rnn.is_int8_amx() ? 64 : 32;
+        if (rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx()) {
+            const dim_t max_row_width = rnn.is_cell_int8_amx() ? 64 : 32;
             rnn.kproj_block = nstl::min(rnn.Kproj, (dim_t)max_row_width);
 
             rnn.KBproj_blocks = rnn.Kproj / rnn.kproj_block;
@@ -403,11 +404,12 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
             if ((rnn.kproj_tail % padding) || (rnn.kproj_block % padding)) {
                 rnn.kproj_block = rnn.Kproj;
                 rnn.kproj_tail = 0;
-                rnn.brgemm_isa = rnn.is_int8() ? x64::avx512_core_vnni
-                                               : x64::avx512_core_bf16;
+                rnn.brgemm_isa = rnn.is_cell_dt_int8() ? x64::avx512_core_vnni
+                                                       : x64::avx512_core_bf16;
             } else {
-                rnn.brgemm_isa = rnn.is_int8() ? x64::avx512_core_bf16_amx_int8
-                                               : x64::avx512_core_bf16_amx_bf16;
+                rnn.brgemm_isa = rnn.is_cell_dt_int8()
+                        ? x64::avx512_core_bf16_amx_int8
+                        : x64::avx512_core_bf16_amx_bf16;
             }
         } else {
             rnn.kproj_block = rnn.Kproj;
@@ -441,7 +443,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     }
 
     if (!rnn.is_orig_gru) {
-        rnn.loop_order = rnn.is_int8_amx() || rnn.is_bf16_amx()
+        rnn.loop_order = rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx()
                 ? brgemm_rnn_execute_loop_order_t::mblk_nblk
                 : brgemm_rnn_execute_loop_order_t::nblk_mblk;
     }
@@ -603,7 +605,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
                         rnn.kproj_block, rnn.LDAproj, rnn.LDBproj,
                         rnn.LDCproj[i], 1.0, rnn.KBproj_blocks);
             }
-            if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
+            if (rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx()) {
                 if (rnn.kproj_tail)
                     init_brgemm(&desc_proj_K_tail_b1_[i], rnn.brgemm_isa,
                             kernel_proj_K_tail_b1_[i], rnn.m_block, brgemm_np,
@@ -617,7 +619,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
             }
         }
     }
-    if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
+    if (rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx()) {
         CHECK(brgemm_rnn_init_tiles(desc_layer_b0_, pallete_buff_layer_));
         CHECK(brgemm_rnn_init_tiles(desc_iter_b0_, pallete_buff_iter_));
 
@@ -668,7 +670,8 @@ void rnn_brgemm_t<prop_kind::backward>::init_scratchpad(
     using namespace memory_tracking::names;
 
     // init scratchpad for internal reorders:
-    const auto data_size = rnn.is_bf16() ? sizeof(bfloat16_t) : sizeof(float);
+    const auto data_size
+            = rnn.is_bf16_conf() ? sizeof(bfloat16_t) : sizeof(float);
     const auto &d_wei = rnn.diff_wei_brgemm;
     const auto scratch_gates_blocked_per_thr = d_wei.Kpadded * d_wei.n_block;
     const auto scratch_gates_blocked_size
@@ -694,7 +697,8 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
         dim_t src_layer_type_size, dim_t scratch_type_size) {
     using namespace cpu::rnn_utils;
 
-    if (rnn.is_int8()) return status::unimplemented;
+    if (rnn.is_int8_conf() || rnn.is_cell_dt_int8())
+        return status::unimplemented;
 
     auto &diff_src_conf = rnn.diff_src_brgemm;
 
@@ -726,7 +730,7 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     const dim_t Cs = scratch_type_size * (rnn.n_gates + 1)
             * (diff_src_conf.M * diff_src_conf.n_block);
 
-    const auto is_bf16 = rnn.is_bf16();
+    const auto is_bf16 = rnn.is_cell_dt_bf16();
 
     const dim_t padding = is_bf16 ? 2 : 1;
     diff_src_conf.Kpadded = utils::rnd_up(diff_src_conf.K, padding);
@@ -742,15 +746,16 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     std::tie(diff_src_conf.k_block, std::ignore) = brgemm_calc_k_block(
             diff_src_conf.K, diff_src_conf.K, diff_src_conf.M,
             diff_src_conf.n_block, cell_kind, src_layer_type_size, As, Bs, Cs,
-            l2_cache_size, diff_src_conf.isa, false, rnn.is_bf16());
+            l2_cache_size, diff_src_conf.isa, false, rnn.is_cell_dt_bf16());
 
     diff_src_conf.K_blocks = diff_src_conf.K / diff_src_conf.k_block;
     diff_src_conf.K_blocks *= rnn.n_gates;
     diff_src_conf.k_tail = diff_src_conf.K % diff_src_conf.k_block;
 
     diff_src_conf.m_block = brgemm_calc_m_block(cell_kind, prop_kind::backward,
-            rnn.nthr, diff_src_conf.M, diff_src_conf.N_blocks, rnn.is_f32(),
-            false, is_bf16_amx, work_by_N, As, Bs, Cs, l2_cache_size);
+            rnn.nthr, diff_src_conf.M, diff_src_conf.N_blocks,
+            rnn.is_cell_dt_f32(), false, is_bf16_amx, work_by_N, As, Bs, Cs,
+            l2_cache_size);
 
     diff_src_conf.M_blocks = diff_src_conf.M / diff_src_conf.m_block;
     diff_src_conf.LDA = rnn.scratch_gates_ld;
@@ -782,7 +787,7 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
     diff_wei_conf.isa
             = brgemm_calc_isa(diff_wei_conf.K, diff_wei_conf.K, false, is_bf16);
 
-    const bool is_wei_bf16_amx = rnn.is_bf16()
+    const bool is_wei_bf16_amx = rnn.is_cell_dt_bf16()
             && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16;
     const bool diff_wei_can_use_nblock64 = is_wei_bf16_amx
             && diff_wei_conf.N % 64 == 0 && !rnn.is_lstm_peephole;
@@ -802,7 +807,7 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
             = brgemm_calc_k_block(diff_wei_conf.K, diff_wei_conf.K,
                     diff_wei_conf.M, diff_wei_conf.n_block, cell_kind,
                     src_layer_type_size, As_wei, Bs_wei, Cs_wei, l2_cache_size,
-                    diff_wei_conf.isa, false, rnn.is_bf16());
+                    diff_wei_conf.isa, false, rnn.is_cell_dt_bf16());
 
     diff_wei_conf.K_blocks = diff_wei_conf.K / diff_wei_conf.k_block;
     diff_wei_conf.k_tail = diff_wei_conf.K % diff_wei_conf.k_block;
@@ -814,10 +819,11 @@ status_t rnn_brgemm_t<prop_kind::backward>::configure_brgemm(
         const float work_by_N_wei = static_cast<float>(diff_wei_conf.N_blocks)
                 / static_cast<float>(rnn.nthr);
 
-        diff_wei_conf.m_block = brgemm_calc_m_block(cell_kind,
-                prop_kind::backward, rnn.nthr, diff_wei_conf.M,
-                diff_wei_conf.N_blocks, rnn.is_f32(), false, is_wei_bf16_amx,
-                work_by_N_wei, As_wei, Bs_wei, Cs_wei, l2_cache_size);
+        diff_wei_conf.m_block
+                = brgemm_calc_m_block(cell_kind, prop_kind::backward, rnn.nthr,
+                        diff_wei_conf.M, diff_wei_conf.N_blocks,
+                        rnn.is_cell_dt_f32(), false, is_wei_bf16_amx,
+                        work_by_N_wei, As_wei, Bs_wei, Cs_wei, l2_cache_size);
         diff_wei_conf.M_blocks = diff_wei_conf.M / diff_wei_conf.m_block;
     }
 
@@ -1032,7 +1038,7 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
         }
     }
 
-    const bool is_bf16_amx = rnn.is_bf16()
+    const bool is_bf16_amx = rnn.is_cell_dt_bf16()
             && diff_src_conf.isa == x64::avx512_core_bf16_amx_bf16;
 
     if (is_bf16_amx) {
@@ -1142,7 +1148,7 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
                 diff_wei_conf.LDC_layer, 1.0, 1);
     }
 
-    const bool is_bf16_amx_wei = rnn.is_bf16()
+    const bool is_bf16_amx_wei = rnn.is_cell_dt_bf16()
             && diff_wei_conf.isa == x64::avx512_core_bf16_amx_bf16;
 
     if (is_bf16_amx_wei) {
@@ -1186,7 +1192,7 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
     tmp_matmul_conf_for_reorder.N_tail = diff_wei_conf.n_tail;
     tmp_matmul_conf_for_reorder.LDB = diff_wei_conf.LDB;
     tmp_matmul_conf_for_reorder.src_dt = tmp_matmul_conf_for_reorder.wei_dt
-            = rnn.is_bf16() ? data_type::bf16 : data_type::f32;
+            = rnn.is_cell_dt_bf16() ? data_type::bf16 : data_type::f32;
     tmp_matmul_conf_for_reorder.a_dt_sz = tmp_matmul_conf_for_reorder.tr_a_dt_sz
             = types::data_type_size(tmp_matmul_conf_for_reorder.src_dt);
     tmp_matmul_conf_for_reorder.b_dt_sz = tmp_matmul_conf_for_reorder.tr_b_dt_sz

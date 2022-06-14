@@ -98,7 +98,7 @@ brgemm_diff_src_layer_iter_t<weights_t, scratch_t,
 template <typename weights_t, typename scratch_t, typename gemm_acc_t>
 void brgemm_diff_src_layer_iter_t<weights_t, scratch_t, gemm_acc_t>::execute()
         const {
-    if (rnn_.is_bf16()
+    if (rnn_.is_cell_dt_bf16()
             && rnn_.diff_src_brgemm.isa == x64::avx512_core_bf16_amx_bf16) {
         parallel(max_nthr_, [this](const int ithr, const int nthr) {
             this->kernel_amx(ithr, nthr);
@@ -433,8 +433,7 @@ brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
         x64::brgemm_batch_element_t *addr_batch_global)
     : rnn_brgemm_(rnn_brgemm)
     , rnn_(rnn)
-    , is_amx_(rnn_.is_bf16()
-              && rnn_.diff_wei_brgemm.isa == x64::avx512_core_bf16_amx_bf16)
+    , is_amx_(rnn_.is_cell_bf16_amx())
     , A_iter_(src_iter)
     , A_iter_transposed_scratch_(A_iter_transposed_scratch)
     , A_layer_(src_layer)

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ jit_diff_weights_peephole_t::jit_diff_weights_peephole_t(
         const rnn_utils::rnn_conf_t &rnn, const dim_t dhc_block_size)
     : jit_generator(jit_name())
     , c_states_dt_(rnn.src_iter_c_dt)
-    , scratch_dt_(rnn.is_bf16() ? data_type::bf16 : data_type::f32)
+    , scratch_dt_(rnn.is_bf16_conf() ? data_type::bf16 : data_type::f32)
     , dst_dt_(data_type::f32)
     , compute_block_size_(dhc_block_size)
     , tail_size_(dhc_block_size % simd_w_)

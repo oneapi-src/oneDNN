@@ -274,31 +274,31 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
             format_tag_t tag = format_tag::undef;
 
             if (weights_type == weights_type_t::projection) {
-                tag = rnn.is_int8() ? format_tag::ldOI32o4i
-                                    : format_tag::ldOi32o;
+                tag = rnn.is_int8_conf() ? format_tag::ldOI32o4i
+                                         : format_tag::ldOi32o;
             } else if (rnn.is_fwd) {
-                tag = rnn.is_int8()
+                tag = rnn.is_int8_conf()
                         ? (rnn.n_block == 64 ? format_tag::ldgOI64o4i
                                              : format_tag::ldgOI32o4i)
-                        : rnn.is_bf16()
+                        : rnn.is_bf16_conf()
                                 ? (rnn.n_block == 64 ? format_tag::ldgOI64o2i
                                                      : format_tag::ldgOI32o2i)
                                 : format_tag::ldgOi32o;
             } else {
-                tag = rnn.is_bf16() ? format_tag::ldgIO32i2o
-                                    : format_tag::ldgIo32i;
+                tag = rnn.is_bf16_conf() ? format_tag::ldgIO32i2o
+                                         : format_tag::ldgIo32i;
             }
 
             if (tag != format_tag::undef) {
                 CHECK(memory_desc_init_by_tag(weights_md, tag));
-                if (rnn.is_unsigned_int8()) {
+                if (rnn.is_unsigned_int8_conf()) {
                     weights_md.extra.flags
                             = 0 | memory_extra_flags::rnn_u8s8_compensation;
                     weights_md.extra.compensation_mask
                             = (weights_type == weights_type_t::projection)
                             ? 13 // 1101
                             : 27; // 11011
-                } else if (rnn.is_signed_int8()) {
+                } else if (rnn.is_signed_int8_conf()) {
                     weights_md.extra.flags
                             = 0 | memory_extra_flags::rnn_s8s8_compensation;
                     weights_md.extra.compensation_mask = 0;

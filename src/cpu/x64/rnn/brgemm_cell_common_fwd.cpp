@@ -129,7 +129,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
 
-    const bool is_amx = rnn_.is_int8_amx() || rnn_.is_bf16_amx();
+    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
     gemm_acc_t *const amx_buffer = is_amx
             ? amx_scratchpad_ + rnn_.m_block * rnn_.n_block * ithr
             : nullptr;
@@ -283,7 +283,7 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t,
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
 
-    const bool is_amx = rnn_.is_int8_amx() || rnn_.is_bf16_amx();
+    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
     gemm_acc_t *const amx_buffer = is_amx
             ? amx_scratchpad_ + rnn_.m_block * rnn_.n_block * ithr
             : nullptr;
@@ -430,13 +430,14 @@ brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::brgemm_dst_proj_t(
         const postgemm_fused_t &fused_postgemm)
     : rnn_brgemm_(rnn_brgemm)
     , rnn_(rnn)
-    , proj_desc_idx_(
-              rnn_.is_f32() ? rnn_.dst_brgemm_desc(cell_position, true) : 0)
+    , proj_desc_idx_(rnn_.is_cell_dt_f32()
+                      ? rnn_.dst_brgemm_desc(cell_position, true)
+                      : 0)
     , A_(proj_ht)
     , B_(w_projection)
     , C_(output)
-    , LDC_(rnn_.is_f32() ? rnn_.dst_layer_ld(cell_position, true)
-                         : rnn_.scratch_gates_ld)
+    , LDC_(rnn_.is_cell_dt_f32() ? rnn_.dst_layer_ld(cell_position, true)
+                                 : rnn_.scratch_gates_ld)
     , max_nthr_(rnn_.nthr)
     , work_amount_proj_(rnn_.Nproj_blocks * rnn_.M_blocks)
     , B_n_offset_(rnn_.Kprojpadded * rnn_.n_block)
@@ -466,7 +467,7 @@ void brgemm_dst_proj_t<src_t, weights_t, gemm_acc_t>::kernel(
 
     int start = 0, end = 0;
     balance211(work_amount_proj_, nthr, ithr, start, end);
-    const bool is_amx = rnn_.is_int8_amx() || rnn_.is_bf16_amx();
+    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
     const int max_K_Block = nstl::max(rnn_.KB1_blocks + 1,
             nstl::max(rnn_.KBproj_blocks + 1, rnn_.KB2_blocks + 1));
     auto *const amx_buffer = is_amx
@@ -668,7 +669,7 @@ void brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     int start = 0, end = 0;
     balance211(work_amount_, nthr, ithr, start, end);
 
-    const bool is_amx = rnn_.is_int8_amx() || rnn_.is_bf16_amx();
+    const bool is_amx = rnn_.is_cell_int8_amx() || rnn_.is_cell_bf16_amx();
     gemm_acc_t *const amx_buffer = is_amx
             ? amx_scratchpad_ + rnn_.m_block * rnn_.n_block * ithr
             : nullptr;

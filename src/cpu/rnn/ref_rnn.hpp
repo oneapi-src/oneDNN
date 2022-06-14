@@ -164,7 +164,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->arg_md(DNNL_ARG_BIAS));
             if (!ok) return status::unimplemented;
 
-            if (rnn_.is_bf16()) {
+            if (rnn_.is_bf16_conf()) {
                 if (!utils::one_of(
                             rnn_.bias_dt, data_type::bf16, data_type::f32)
                         || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
@@ -178,7 +178,7 @@ struct _ref_rnn_common_t : public primitive_t {
                 return status::unimplemented;
 
             /* check that no data shift have been passed to s8s8 lstm */
-            if (!IMPLICATION(rnn_.is_signed_int8(),
+            if (!IMPLICATION(rnn_.is_signed_int8_conf(),
                         this->attr()->rnn_data_qparams_.shift_ == 0.f))
                 return status::unimplemented;
 
@@ -287,7 +287,7 @@ struct _ref_rnn_common_t : public primitive_t {
             ok = ok
                     && IMPLICATION(one_of(this->desc()->prop_kind,
                                            forward_training, backward),
-                            (rnn_.is_bf16() || rnn_.is_f32()));
+                            (rnn_.is_bf16_conf() || rnn_.is_f32_conf()));
 
             if (!ok) return status::unimplemented;
 
@@ -297,10 +297,10 @@ struct _ref_rnn_common_t : public primitive_t {
             // TODO: Improve GRU / AUGRU coverage in BRGEMM-based implementation
             ok = IMPLICATION(rnn_.is_orig_gru,
                     this->desc()->prop_kind == forward_inference
-                            && !rnn_.is_f32());
+                            && !rnn_.is_cell_dt_f32());
             if (!ok) return status::unimplemented;
 
-            if (rnn_.is_f32()
+            if (rnn_.is_cell_dt_f32()
                     && utils::one_of(this->desc()->prop_kind, backward,
                             forward_training))
                 return status::unimplemented;
@@ -310,7 +310,7 @@ struct _ref_rnn_common_t : public primitive_t {
                         this->desc()->prop_kind == forward_inference)))
                 return status::unimplemented;
 
-            if (rnn_.is_bf16()) {
+            if (rnn_.is_bf16_conf()) {
                 if (!mayiuse(avx512_core_bf16)
                         || !utils::one_of(
                                 rnn_.bias_dt, data_type::bf16, data_type::f32)
@@ -324,15 +324,16 @@ struct _ref_rnn_common_t : public primitive_t {
                     || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt)
                 return status::unimplemented;
 
-            if (rnn_.is_signed_int8() && !mayiuse(avx512_core_bf16_amx_int8))
+            if (rnn_.is_signed_int8_conf()
+                    && !mayiuse(avx512_core_bf16_amx_int8))
                 return status::unimplemented;
-            if (rnn_.is_int8() && !mayiuse(avx512_core_vnni))
+            if (rnn_.is_int8_conf() && !mayiuse(avx512_core_vnni))
                 return status::unimplemented;
-            if (rnn_.is_f32() && !mayiuse(avx512_core))
+            if (rnn_.is_f32_conf() && !mayiuse(avx512_core))
                 return status::unimplemented;
 
             /* check that no shift have been passed to s8s8 amx lstm */
-            if (!IMPLICATION(rnn_.is_signed_int8(),
+            if (!IMPLICATION(rnn_.is_signed_int8_conf(),
                         this->attr()->rnn_data_qparams_.shift_ == 0))
                 return status::unimplemented;
 
@@ -359,7 +360,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     sizeof(scratch_t)));
 
             // Only AMX LSTM supports s8s8 now
-            if (rnn_.is_signed_int8() && !rnn_.is_int8_amx())
+            if (rnn_.is_signed_int8_conf() && !rnn_.is_cell_int8_amx())
                 return status::unimplemented;
 
             // Set weights descriptors to desired format
@@ -393,7 +394,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     return status::unimplemented;
                 }
             }
-            if (rnn_.is_unsigned_int8()) {
+            if (rnn_.is_unsigned_int8_conf()) {
                 const memory_desc_wrapper &weights_layer_d(
                         this->weights_layer_md_);
                 const memory_desc_wrapper &weights_iter_d(

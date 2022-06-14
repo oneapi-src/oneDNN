@@ -265,6 +265,7 @@ struct diff_wei_brgemm_conf_t {
 struct rnn_conf_t {
     execution_direction_t exec_dir;
     data_type_conf_t dt_conf;
+    data_type_t cell_dt = data_type::undef; // The data type used by cell
     data_type_t bias_dt = data_type::undef;
     data_type_t src_iter_c_dt = data_type::undef;
     data_type_t dst_iter_c_dt = data_type::undef;
@@ -361,28 +362,47 @@ struct rnn_conf_t {
          use_iter_packed_gemm = false, use_projection_packed_gemm = false;
     int n_iter_scratch_gates = 0;
 
-    inline bool is_int8() const {
-        return is_signed_int8() || is_unsigned_int8();
+    inline bool is_int8_conf() const {
+        return is_signed_int8_conf() || is_unsigned_int8_conf();
     }
-    inline bool is_signed_int8() const {
+    inline bool is_signed_int8_conf() const {
         return utils::one_of(
                 dt_conf, s8s8s8f32, f32s8f32f32, s8s8s8s8, f32s8f32s8);
     }
-    inline bool is_unsigned_int8() const {
+    inline bool is_unsigned_int8_conf() const {
         return utils::one_of(
                 dt_conf, u8u8u8f32, f32u8f32f32, u8u8u8u8, f32u8f32u8);
     }
-    inline bool is_int8_amx() const {
+
+    inline bool is_cell_dt_int8() const {
+        return is_cell_dt_signed_int8() || is_cell_dt_unsigned_int8();
+    }
+    inline bool is_cell_dt_signed_int8() const {
+        return cell_dt == data_type::s8;
+    }
+    inline bool is_cell_dt_unsigned_int8() const {
+        return cell_dt == data_type::u8;
+    }
+
+    inline bool is_cell_int8_amx() const {
 #if DNNL_X64
-        return brgemm_isa == x64::avx512_core_bf16_amx_int8 && is_int8();
+        return brgemm_isa == x64::avx512_core_bf16_amx_int8
+                && is_cell_dt_int8();
 #else
         return false;
 #endif
     }
-    inline bool is_bf16() const { return dt_conf == all_bf16; }
-    inline bool is_bf16_amx() const {
+
+    inline bool is_bf16_conf() const { return dt_conf == all_bf16; }
+
+    inline bool is_f32_conf() const { return dt_conf == all_f32; }
+
+    inline bool is_cell_dt_f32() const { return cell_dt == data_type::f32; }
+    inline bool is_cell_dt_bf16() const { return cell_dt == data_type::bf16; }
+    inline bool is_cell_bf16_amx() const {
 #if DNNL_X64
-        return brgemm_isa == x64::avx512_core_bf16_amx_bf16 && is_bf16();
+        return brgemm_isa == x64::avx512_core_bf16_amx_bf16
+                && is_cell_dt_bf16();
 #else
         return false;
 #endif
@@ -602,6 +622,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.dst_iter_c_dt = dst_iter_c_d.is_zero() ? data_type::f32
                                                : dst_iter_c_d.data_type();
 
+    rnn.cell_dt = data_traits<typename T::src_layer_t>::data_type;
     switch (rd.direction) {
         case dnnl_unidirectional_left2right: rnn.exec_dir = l2r; break;
         case dnnl_unidirectional_right2left: rnn.exec_dir = r2l; break;
@@ -779,7 +800,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                       || ((rd.prop_kind == prop_kind::backward)
                               && dst_layer_is_trivial_stride))
                     && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd)
-                            || rnn.is_int8())
+                            || rnn.is_int8_conf())
             : false;
     rnn.merge_gemm_iter = (!rnn.is_brgemm)
             ? dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru)
@@ -792,28 +813,28 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 #endif
 
     /* Decide to copy bias */
-    rnn.copy_bias = rnn.is_int8();
+    rnn.copy_bias = rnn.is_int8_conf();
 
     rnn.use_layer_packed_gemm = !rnn.is_brgemm
             ? utils::one_of(weights_layer_d.format_kind(), format_kind::any,
                       format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
-                            || rnn.is_int8() || is_bf16)
+                            || rnn.is_int8_conf() || is_bf16)
             : false;
     rnn.use_iter_packed_gemm = !rnn.is_brgemm
             ? utils::one_of(weights_iter_d.format_kind(), format_kind::any,
                       format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.mb >= 16)
-                            || rnn.is_int8() || is_bf16)
+                            || rnn.is_int8_conf() || is_bf16)
             : false;
     rnn.use_projection_packed_gemm = !rnn.is_brgemm
             ? utils::one_of(weights_projection_d.format_kind(),
                       format_kind::any, format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
-                            || rnn.is_int8() || is_bf16)
+                            || rnn.is_int8_conf() || is_bf16)
             : false;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
@@ -886,7 +907,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         // NOTE: pack is updated only for f32. We force pack for int8
         do_pack = (rnn.dt_conf == all_f32) ? pack : true;
         comp_offset = weights_pack_size;
-        const bool need_compensation = rnn.is_int8();
+        const bool need_compensation = rnn.is_int8_conf();
         weights_pack_size += (need_compensation ? rnn.n_layer * rnn.n_dir : 0)
                 * weights_oc * sizeof(float);
 

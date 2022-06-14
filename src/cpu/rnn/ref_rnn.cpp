@@ -607,7 +607,7 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     const float data_shift = pd->attr()->rnn_data_qparams_.shift_;
     const float data_scale = pd->attr()->rnn_data_qparams_.scale_;
 
-    const bool quantize = rnn.is_int8()
+    const bool quantize = rnn.is_int8_conf()
             && IMPLICATION(pd->with_src_iter(),
                     pd->src_md(1)->data_type == data_type::f32);
     const auto maybe_q = [&](input_data_t f) {
@@ -747,7 +747,7 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     const float scale = (pd->attr()->rnn_data_qparams_.scale_);
 
     const bool dequantize
-            = pd->dst_md(0)->data_type == data_type::f32 && rnn.is_int8();
+            = pd->dst_md(0)->data_type == data_type::f32 && rnn.is_int8_conf();
     const bool dequantize_at_copy = dequantize && rnn.exec_dir != bi_sum;
 
     // minor optimization helper for a compiler
@@ -917,7 +917,7 @@ void copy_res_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     const float data_scale = pd->attr()->rnn_data_qparams_.scale_;
 
     const bool dequantize = pd->with_dst_iter()
-            && pd->dst_md(1)->data_type == data_type::f32 && rnn.is_int8();
+            && pd->dst_md(1)->data_type == data_type::f32 && rnn.is_int8_conf();
     const auto copy_vec = [&](dst_iter_dt *dd, const src_data_t *ss) {
         if (dequantize) {
             PRAGMA_OMP_SIMD()
@@ -1108,7 +1108,7 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
 rnn_bias_finalize_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::bias_finalize)) {
-    if (rnn.is_unsigned_int8()) {
+    if (rnn.is_unsigned_int8_conf()) {
         const float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
         const float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
         const float *const weights_scales
@@ -1235,7 +1235,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     gemm_acc_t *amx_scratchpad = nullptr;
 #if DNNL_X64
     x64::brgemm_batch_element_t *addr_batch_global = nullptr;
-    if (rnn.is_brgemm && (rnn.is_int8_amx() || rnn.is_bf16_amx())) {
+    if (rnn.is_brgemm && (rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx())) {
         amx_scratchpad = scratchpad.template get<gemm_acc_t>(
                 key_brgemm_primitive_buffer);
     }

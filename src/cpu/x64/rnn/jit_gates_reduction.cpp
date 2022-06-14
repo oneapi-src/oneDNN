@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ jit_gates_reduction_t::jit_gates_reduction_t(
                           : rnn_.diff_wei_brgemm.n_block)
     , n_simd_w_blks_(n_block_ / simd_w_)
     , n_tail_(n_block_ % simd_w_)
-    , bf16_ones_(rnn_.is_bf16() ? reserve_vmm() : 0)
+    , bf16_ones_(rnn_.is_bf16_conf() ? reserve_vmm() : 0)
     , acc_regs_(reserve_acc_regs()) {}
 
 void jit_gates_reduction_t::generate() {
@@ -84,7 +84,7 @@ void jit_gates_reduction_t::init() {
                 ptr[reg_dst_ + (n_simd_w_blks_ * off_step)]);
     }
 
-    if (rnn_.is_bf16()) {
+    if (rnn_.is_bf16_conf()) {
         xor_(reg_tmp_, reg_tmp_);
         mov(reg_tmp_.cvt16(), bfloat16_t(1.0f).raw_bits_);
         const Xbyak::Xmm xmm_tmp(bf16_ones_.getIdx());
@@ -98,7 +98,7 @@ void jit_gates_reduction_t::compute_step(
 
     const auto dst = tail ? (acc | tail_mask_) : acc;
 
-    if (rnn_.is_bf16())
+    if (rnn_.is_bf16_conf())
         vdpbf16ps(dst, bf16_ones_, addr);
     else
         uni_vaddps(dst, acc, addr);
@@ -124,11 +124,11 @@ void jit_gates_reduction_t::compute(dim_t unrolling) {
 
 void jit_gates_reduction_t::compute_loop() {
     const dim_t k_block = 32;
-    const dim_t k_pack = rnn_.is_bf16() ? 2 : 1;
+    const dim_t k_pack = rnn_.is_bf16_conf() ? 2 : 1;
     const dim_t k = rnn_.diff_wei_brgemm.Kpadded;
     const auto res = std::div(k, k_block);
     const int n_block_off = rnn_.diff_wei_brgemm.n_block
-            * (rnn_.is_bf16() ? sizeof(bfloat16_t) : sizeof(float));
+            * (rnn_.is_bf16_conf() ? sizeof(bfloat16_t) : sizeof(float));
     const auto &num_k_blks = res.quot;
     const auto &k_tail = res.rem;
 
