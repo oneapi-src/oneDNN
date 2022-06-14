@@ -351,6 +351,12 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     kernel_grid_dim[1] = g_grid_dim * id * ih * iw_grid_dim;
     kernel_grid_dim[2] = mb_grid_dim;
 
+    if (use_a_2d_send && mb < 16 && sw != 1) {
+        ir_assert(bh->iter_blk("iw") == 1)
+                << "Can't use 2D block messages for non-trivial "
+                   "strided dimensions.";
+    }
+
     set_allow_grf_reorder();
     CHECK(init_zero_points_config(conv_pd));
 
@@ -902,6 +908,7 @@ const std::unordered_map<std::string, int> &conv_config_t::dim_blocks() const {
 bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
     if (hw() <= ngen::HW::XeHPG) return true;
     if (bh->max_iter_dim("mb") == 1) return true;
+    if (use_2d_send_nhwc && is_bwd_d && sw != 1) return false;
     int sp = (kd * kh * kw == 1 && is_fwd) ? (d * h * w) : w;
     int block = 16;
     double mb_ratio = (double)mb / utils::rnd_up(mb, block);
@@ -926,6 +933,7 @@ void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
     // Can't use 2D block messages for non-trivial strided dimensions.
     if ((is_fwd || is_bwd_w) && mb < 16 && sw != 1 && (kw != 1 || pw != 0))
         return;
+    if (is_bwd_d && sw != 1 && mb < 16) return;
 
     auto is_a_plain_ok = [&]() {
         auto &md = (is_fwd || is_bwd_w) ? *conv_pd->invariant_src_md()
