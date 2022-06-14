@@ -354,10 +354,10 @@ std::string md2desc_str(const memory_desc_t *md) {
 std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
     ss << oscale.mask_;
     const float val = oscale.scales_[0];
-    if (is_runtime_value(val))
+    // Can't use scientific flags since it breaks parsing on converter and
+    // benchdnn side.
+    if (oscale.mask_ == 0 || is_runtime_value(val))
         ss << ":" << get_val_str(val);
-    else if (oscale.mask_ == 0)
-        ss << ":" << std::scientific << val;
     return ss;
 }
 
