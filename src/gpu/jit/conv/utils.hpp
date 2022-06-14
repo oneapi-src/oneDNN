@@ -29,6 +29,9 @@
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
 
+// Uncomment this when jit::ir debugging is required:
+//#define GEN_CONV_DEBUG
+
 #ifdef GEN_CONV_DEBUG
 #include "common/profiler.hpp"
 #endif
