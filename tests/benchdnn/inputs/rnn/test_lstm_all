@@ -5,3 +5,5 @@
 --batch=test_lstm_int8
 
 --batch=test_lstm_bfloat16
+
+--batch=test_lstm_bf32_bfloat16

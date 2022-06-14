@@ -16,6 +16,16 @@
 --batch=shapes_small
 --batch=shapes_lstmp_small
 
+--trivial-strides=true,false
+--prop=FWD_I
+--with-peephole=false,true
+--with-projection=false,true
+--cfg=f32
+--attr-fpmath=bf16
+--batch=shapes_small
+--batch=shapes_lstmp_small
+--attr-fpmath=
+
 # int8
 --trivial-strides=true
 --prop=FWD_I
