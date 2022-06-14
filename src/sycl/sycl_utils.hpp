@@ -97,10 +97,18 @@ inline backend_t get_sycl_backend(const ::sycl::device &dev) {
 bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs);
 device_id_t sycl_device_id(const ::sycl::device &dev);
 
+status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
+        const ::sycl::context &ctx);
+
 inline bool is_intel_device(const ::sycl::device &dev) {
     const int intel_vendor_id = 0x8086;
     auto vendor_id = dev.get_info<::sycl::info::device::vendor_id>();
     return vendor_id == intel_vendor_id;
+}
+
+inline bool is_intel_platform(const ::sycl::platform &plat) {
+    std::string plat_name = plat.get_info<::sycl::info::platform::name>();
+    return plat_name.find("Intel") != std::string::npos;
 }
 
 } // namespace sycl

@@ -109,6 +109,34 @@ device_id_t sycl_device_id(const ::sycl::device &dev) {
     return device_id;
 }
 
+status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
+        const ::sycl::context &ctx) {
+    // Check device and context consistency.
+    auto devs = ctx.get_devices();
+    bool found = false;
+    for (size_t i = 0; i < devs.size(); i++) {
+        if (are_equal(devs[i], dev)) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) return status::invalid_arguments;
+
+    // Check engine kind and device consistency.
+    if (eng_kind == engine_kind::cpu && !dev.is_cpu())
+        return status::invalid_arguments;
+    if (eng_kind == engine_kind::gpu && !dev.is_gpu())
+        return status::invalid_arguments;
+
+#ifndef DNNL_SYCL_CUDA
+    // Check that platform is an Intel platform.
+    if (!is_intel_platform(dev.get_platform()))
+        return status::invalid_arguments;
+#endif
+
+    return status::success;
+}
+
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl

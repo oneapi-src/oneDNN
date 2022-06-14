@@ -124,40 +124,12 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
         } \
     } while (0)
 
-// Check for two conditions:
+// Check for three conditions:
 // 1. Device and context are compatible, i.e. the device belongs to
 //    the context devices.
 // 2. Device type matches the passed engine kind
-inline status_t check_device(
-        engine_kind_t eng_kind, cl_device_id dev, cl_context ctx) {
-    assert(dev && ctx);
-
-    size_t dev_bytes;
-    OCL_CHECK(
-            clGetContextInfo(ctx, CL_CONTEXT_DEVICES, 0, nullptr, &dev_bytes));
-
-    std::vector<cl_device_id> ctx_devices(dev_bytes / sizeof(cl_device_id));
-    OCL_CHECK(clGetContextInfo(
-            ctx, CL_CONTEXT_DEVICES, dev_bytes, &ctx_devices[0], nullptr));
-
-    for (size_t i = 0; i < ctx_devices.size(); ++i) {
-        if (ctx_devices[i] == dev) {
-            cl_device_type dev_type;
-            OCL_CHECK(clGetDeviceInfo(
-                    dev, CL_DEVICE_TYPE, sizeof(dev_type), &dev_type, NULL));
-            if ((eng_kind == engine_kind::cpu)
-                    && (dev_type & CL_DEVICE_TYPE_CPU) == 0) {
-                return status::invalid_arguments;
-            }
-            if ((eng_kind == engine_kind::gpu)
-                    && (dev_type & CL_DEVICE_TYPE_GPU) == 0) {
-                return status::invalid_arguments;
-            }
-            return status::success;
-        }
-    }
-    return status::invalid_arguments;
-}
+// 3. Device/context platfrom is an Intel platform
+status_t check_device(engine_kind_t eng_kind, cl_device_id dev, cl_context ctx);
 
 status_t get_ocl_devices(
         std::vector<cl_device_id> *devices, cl_device_type device_type);

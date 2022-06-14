@@ -71,6 +71,9 @@ inline std::vector<::sycl::device> get_sycl_devices(
     auto platforms = ::sycl::platform::get_platforms();
 
     for (const auto &p : platforms) {
+#ifndef DNNL_SYCL_CUDA
+        if (!is_intel_platform(p)) continue;
+#endif
         auto p_devices = p.get_devices(dev_type);
         devices.insert(devices.end(), p_devices.begin(), p_devices.end());
     }

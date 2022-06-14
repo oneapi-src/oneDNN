@@ -48,6 +48,82 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+template <typename T, typename F>
+static std::string get_ocl_name(T obj, F get_func, cl_uint name_query) {
+    size_t name_size;
+    cl_int err = get_func(obj, name_query, 0, nullptr, &name_size);
+    // Ignore error.
+    if (err != CL_SUCCESS) return {};
+
+    // Include null terminator explicitly - to safely overwrite it in
+    // clGetKernelInfo
+    std::string name(name_size, 0);
+    err = get_func(obj, name_query, name_size, &name[0], nullptr);
+    // Ignore error.
+    if (err != CL_SUCCESS) return {};
+
+    // Remove the null terminator as std::string already includes it
+    name.resize(name_size - 1);
+    return name;
+}
+
+static std::string get_kernel_name(cl_kernel kernel) {
+    return get_ocl_name(kernel, clGetKernelInfo, CL_KERNEL_FUNCTION_NAME);
+}
+
+static std::string get_platform_name(cl_platform_id platform) {
+    return get_ocl_name(platform, clGetPlatformInfo, CL_PLATFORM_NAME);
+}
+
+static bool is_intel_platform(cl_platform_id platform) {
+    auto name = get_platform_name(platform);
+    return name.find("Intel") != std::string::npos;
+}
+
+status_t check_device(
+        engine_kind_t eng_kind, cl_device_id dev, cl_context ctx) {
+    assert(dev && ctx);
+
+    // Check device and context consistency.
+    size_t dev_bytes;
+    OCL_CHECK(
+            clGetContextInfo(ctx, CL_CONTEXT_DEVICES, 0, nullptr, &dev_bytes));
+
+    std::vector<cl_device_id> ctx_devices(dev_bytes / sizeof(cl_device_id));
+    OCL_CHECK(clGetContextInfo(
+            ctx, CL_CONTEXT_DEVICES, dev_bytes, &ctx_devices[0], nullptr));
+
+    bool found = false;
+    for (size_t i = 0; i < ctx_devices.size(); ++i) {
+        if (ctx_devices[i] == dev) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) return status::invalid_arguments;
+
+    // Check engine kind and device consistency.
+    cl_device_type dev_type;
+    OCL_CHECK(clGetDeviceInfo(
+            dev, CL_DEVICE_TYPE, sizeof(dev_type), &dev_type, nullptr));
+    if ((eng_kind == engine_kind::cpu)
+            && (dev_type & CL_DEVICE_TYPE_CPU) == 0) {
+        return status::invalid_arguments;
+    }
+    if ((eng_kind == engine_kind::gpu)
+            && (dev_type & CL_DEVICE_TYPE_GPU) == 0) {
+        return status::invalid_arguments;
+    }
+
+    // Check that the platform is an Intel platform.
+    cl_platform_id platform;
+    OCL_CHECK(clGetDeviceInfo(
+            dev, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr));
+    if (!is_intel_platform(platform)) return status::invalid_arguments;
+
+    return status::success;
+}
+
 status_t get_ocl_devices(
         std::vector<cl_device_id> *devices, cl_device_type device_type) {
     cl_uint num_platforms = 0;
@@ -62,6 +138,8 @@ status_t get_ocl_devices(
     OCL_CHECK(clGetPlatformIDs(num_platforms, &platforms[0], nullptr));
 
     for (size_t i = 0; i < platforms.size(); ++i) {
+        if (!is_intel_platform(platforms[i])) continue;
+
         cl_uint num_devices = 0;
         cl_int err = clGetDeviceIDs(
                 platforms[i], device_type, 0, nullptr, &num_devices);
@@ -198,27 +276,6 @@ status_t get_ocl_program_binary(cl_kernel kernel, cl_device_id device,
     OCL_CHECK(err);
 
     return get_ocl_program_binary(program, device, binary);
-}
-
-static std::string get_kernel_name(cl_kernel kernel) {
-    size_t name_size;
-    cl_int err = clGetKernelInfo(
-            kernel, CL_KERNEL_FUNCTION_NAME, 0, nullptr, &name_size);
-    // Ignore error.
-    if (err != CL_SUCCESS) return {};
-
-    // Include null terminator explicitly - to safely overwrite it in
-    // clGetKernelInfo
-    std::string name(name_size, 0);
-    err = clGetKernelInfo(
-            kernel, CL_KERNEL_FUNCTION_NAME, name_size, &name[0], nullptr);
-    // Ignore error.
-    if (err != CL_SUCCESS) return {};
-
-    // Remove the null terminator as std::string already includes it
-    name.resize(name_size - 1);
-
-    return name;
 }
 
 #if DNNL_ENABLE_JIT_DUMP

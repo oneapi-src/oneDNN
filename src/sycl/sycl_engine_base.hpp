@@ -58,6 +58,7 @@ public:
                     backend_t::level0, backend_t::nvidia))
             return status::invalid_arguments;
 
+        CHECK(check_device(kind(), device_, context_));
         CHECK(gpu::compute::compute_engine_t::init());
 
         return status::success;
