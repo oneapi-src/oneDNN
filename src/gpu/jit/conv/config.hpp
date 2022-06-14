@@ -317,6 +317,10 @@ public:
             ir_error_not_expected();
         }
 
+        set_allow_grf_reorder();
+        CHECK(fixup_inference_consistency());
+        if (!try_reduce_grf_usage()) return status::unimplemented;
+
         estimated_peak_grf_usage = estimate_register_count(*this);
 
         CHECK(attr->set_default_formats(output_md));
