@@ -82,6 +82,8 @@ create_default_graph_flow() {
             "graph_simplify", graph_simplify, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("global_reschedule",
             global_reschedule, {}, pass_type::post_tune, true));
+    post_tune_passes.push_back(create_graph_pass("partial_reduce_replace",
+            partial_reduce_replace, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("const_folding",
             graph_constant_input_folding, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass(

@@ -25,6 +25,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
+#include <runtime/config.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
@@ -224,20 +225,25 @@ void reduce_op_t::prepare_fusion_data(fdata_map &fdmap) {
 
 static slice_range_list infer_output_slice_range(bool is_reduce_compute,
         uint64_t vec_step, const slice_range_list &known_ranges_list,
-        const std::vector<int> &real_rd_axis, bool keep_dims) {
+        const std::vector<int> &real_rd_axis, bool keep_dims,
+        sc_dim num_threads) {
     slice_range_list reduce_ranges_list;
     for (auto &known_ranges : known_ranges_list) {
         slice_range reduce_range;
+        if (num_threads > 1) {
+            reduce_range.emplace_back(std::pair<expr, expr> {0, 1});
+        }
         // additional process is needed.
         for (size_t i = 0; i < known_ranges.size(); i++) {
             if (real_rd_axis.end()
                     != std::find(real_rd_axis.begin(), real_rd_axis.end(), i)) {
+                if (keep_dims) {
+                    reduce_range.emplace_back(std::pair<expr, expr> {0, 1});
+                }
                 // last-axis reduce
                 if (is_reduce_compute && i == known_ranges.size() - 1) {
                     reduce_range.emplace_back(
                             std::pair<expr, expr> {0, vec_step});
-                } else if (keep_dims) {
-                    reduce_range.emplace_back(std::pair<expr, expr> {0, 1});
                 }
             } else {
                 reduce_range.emplace_back(known_ranges.at(i));
@@ -278,7 +284,7 @@ void reduce_op_t::infer_slice_ranges(
     update_reduce_op_fsmap(
             this, get_inputs()[0], fsmap, stat_map, real_rd_axis);
     fsmap.get(get_outputs()[0]) = infer_output_slice_range(
-            false, 0, known_ranges_list, real_rd_axis, keep_dims_);
+            false, 0, known_ranges_list, real_rd_axis, keep_dims_, 1);
 }
 
 void reduce_op_t::pre_slice_ranges(
@@ -572,6 +578,7 @@ size_t reduce_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
 // reduce_compute+reduce_collect when reduction axis is not outside of the
 // parallel axis and is not last axis reduction(for performance)
 bool reduce_op_t::can_split_op() const {
+    if (runtime_config_t::get().get_num_threads() == 1) { return true; }
     auto ax = get_rd_axis();
     int last_dim = get_inputs()[0]->details_.get_blocking_dims().size() - 1;
     for (auto i : ax) {
@@ -580,7 +587,8 @@ bool reduce_op_t::can_split_op() const {
     return true;
 }
 
-void reduce_op_t::split_op(const context_ptr &ctx, sc_graph_t &graph) {
+void reduce_op_t::split_op(
+        const context_ptr &ctx, sc_graph_t &graph, int num_threads) {
     auto rd_ax = get_rd_axis();
 
     int last_dim = get_inputs()[0]->details_.get_blocking_dims().size() - 1;
@@ -601,11 +609,13 @@ void reduce_op_t::split_op(const context_ptr &ctx, sc_graph_t &graph) {
         auto vec_step
                 = vectorize_step(ctx, first_out->details_.dtype_.type_code_);
         auto new_dims = first_out->details_.get_blocking_dims();
-        if (keep_dims_) {
-            new_dims.back() = vec_step;
-        } else {
-            new_dims.push_back(vec_step);
-        }
+        if (num_threads > 1) { new_dims.insert(new_dims.begin(), num_threads); }
+        new_dims.push_back(vec_step);
+        first_out->details_.set_blocking_dims(new_dims);
+    } else {
+        // if partial reduce, the output has a leading dimension of thread id
+        auto new_dims = first_out->details_.get_blocking_dims();
+        if (num_threads > 1) new_dims.insert(new_dims.begin(), num_threads);
         first_out->details_.set_blocking_dims(new_dims);
     }
     uint64_t reduce_mean_num = 1;
@@ -616,8 +626,24 @@ void reduce_op_t::split_op(const context_ptr &ctx, sc_graph_t &graph) {
     }
     auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
             rd_name_, rd_ax, rd_op_, keep_dims_, need_mean_, reduce_mean_num);
-    auto second = graph.make<reduce_collect_op_t>(first_out, second_out,
-            rd_name_, rd_ax, rd_op_, keep_dims_, need_mean_, reduce_mean_num);
+
+    sc_op_ptr second;
+    if (num_threads > 1) {
+        std::vector<int> rx_ax {0};
+        if (last_axis) {
+            rx_ax.push_back(first_out->details_.get_blocking_dims().size() - 1);
+        }
+        // add a standalone reduce op after partial reduce
+        second = graph.make("reduce", {first_out}, {second_out},
+                {{"rd_name", rd_name_}, {"rd_axis", std::move(rx_ax)},
+                        {"rd_op", static_cast<int>(rd_op_)},
+                        {"keep_dims", false}, {"need_mean", false}});
+    } else {
+        second = graph.make<reduce_collect_op_t>(first_out, second_out,
+                rd_name_, rd_ax, rd_op_, keep_dims_, need_mean_,
+                reduce_mean_num);
+    }
+
     get_outputs()[0]->replace_with(second_out);
     remove();
 }
@@ -657,6 +683,12 @@ const std::vector<int> &reduce_impl_op_t::get_rd_axis() const {
     return real_rd_axis_;
 }
 
+sc_op_ptr reduce_compute_op_t::copy(const std::vector<graph_tensor_ptr> &ins,
+        const std::vector<graph_tensor_ptr> &outs, sc_graph_t &mgr) {
+    return mgr.make<reduce_compute_op_t>(ins.at(0), outs.at(0), rd_name_,
+            real_rd_axis_, rd_op_, keep_dims_, need_mean_, reduce_mean_num_);
+}
+
 reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
         const graph_tensor_ptr &old_out, const std::string &rd_name,
         const std::vector<int> &rd_axis, reduce_operator rd_op, bool keep_dims,
@@ -666,6 +698,30 @@ reduce_compute_op_t::reduce_compute_op_t(const graph_tensor_ptr &in,
     op_name_ = "reduce_compute";
     COMPILE_ASSERT(!(rd_op == reduce_operator::mul && need_mean),
             "Cannot compute mean on reduce_mul");
+
+    size_t in_dims = in->details_.get_blocking_dims().size();
+    size_t expected_dims = in_dims;
+    if (is_partial_reduce()) {
+        expected_dims++;
+        attrs_[op_attr_key::break_post_fuse] = true;
+    }
+    // if no keep dims
+    if (!keep_dims_) { expected_dims -= real_rd_axis_.size(); }
+    // if last axis reduction
+    if (real_rd_axis_.back() == static_cast<int>(in_dims) - 1) {
+        expected_dims += 1;
+    }
+    COMPILE_ASSERT(
+            expected_dims == old_out->details_.get_blocking_dims().size(),
+            "Bad output dims for reduce_compute op:"
+                    << expected_dims << " v.s. "
+                    << old_out->details_.get_blocking_dims().size());
+}
+
+bool reduce_compute_op_t::is_partial_reduce() const {
+    // single thread can do first axis reduction without partial reduce
+    return real_rd_axis_.front() == 0
+            && runtime_config_t::get().get_num_threads() != 1;
 }
 
 void reduce_compute_op_t::infer_slice_ranges(
@@ -674,11 +730,15 @@ void reduce_compute_op_t::infer_slice_ranges(
     // set the other unknown slice range by achieved known_ranges_list
     slice_range_list &known_ranges_list = known_ranges_map[0];
 
-    auto real_rd_axis = get_rd_axis();
+    auto &real_rd_axis = get_rd_axis();
+    sc_dim num_threads = 1;
+    if (is_partial_reduce()) {
+        num_threads = get_outputs()[0]->details_.get_blocking_dims()[0];
+    }
     // if is last axis reduce, the last dim is the vec step
     auto vec_step = get_outputs()[0]->details_.get_blocking_dims().back();
-    fsmap.get(get_outputs()[0]) = infer_output_slice_range(
-            true, vec_step, known_ranges_list, real_rd_axis, keep_dims_);
+    fsmap.get(get_outputs()[0]) = infer_output_slice_range(true, vec_step,
+            known_ranges_list, real_rd_axis, keep_dims_, num_threads);
 }
 
 void reduce_compute_op_t::compute_block(context_ptr ctx,
@@ -693,6 +753,7 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
     vx_info_.axis = inputs[0]->get_shape().size() - 1;
     vx_info_.lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
+    bool is_partial = is_partial_reduce();
     int64_t reduce_num = reduce_mean_num_;
     auto ths = this;
     auto func = [&](const std::vector<expr> &in,
@@ -705,14 +766,24 @@ void reduce_compute_op_t::compute_block(context_ptr ctx,
             for (auto ax : real_rd_axis) {
                 indexing_nd->idx_.at(ax) = 0;
             }
+            if (is_partial) {
+                indexing_nd->idx_.insert(indexing_nd->idx_.begin(),
+                        builtin::get_thread_id_func()());
+            }
+            if (last_axis_reduce) { indexing_nd->idx_.emplace_back(0); }
         } else {
             std::vector<expr> new_idx;
+            if (is_partial) {
+                // for partial reduce, the first axis should be thread id
+                new_idx.emplace_back(builtin::get_thread_id_func()());
+            }
             for (auto itr = indexing_nd->idx_.begin();
                     itr != indexing_nd->idx_.end(); ++itr) {
                 bool remove = false;
+                auto axis_id = itr - indexing_nd->idx_.begin();
                 for (auto ax : real_rd_axis) {
                     // if the axis is reduced and is not last axis, remove
-                    if (itr - indexing_nd->idx_.begin() == ax) {
+                    if (axis_id == ax) {
                         if (ax == static_cast<int>(last_axis)) {
                             // if is last axis reduction, set index to 0
                             *itr = 0;
@@ -785,17 +856,11 @@ void reduce_collect_op_t::infer_slice_ranges(
     auto &real_rd_axis = get_rd_axis();
     update_reduce_op_fsmap(this, input, fsmap, stat_map, real_rd_axis);
     if (!is_place_holder_op()) {
-        if (!keep_dims_) {
-            // if is not placeholder op, and don't keep dims, we will add an
-            // additional axis at the end, when in reduce_compute. need to drop
-            // the last axis
-            for (auto &range : known_ranges_list) {
-                range.pop_back();
-            }
-        } else {
-            for (auto &range : known_ranges_list) {
-                range.back().second = 1;
-            }
+        // if is not placeholder op, and don't keep dims, we will add an
+        // additional axis at the end, when in reduce_compute. need to drop
+        // the last axis
+        for (auto &range : known_ranges_list) {
+            range.pop_back();
         }
     }
     fsmap.get(get_outputs()[0]) = known_ranges_list;
@@ -828,9 +893,8 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
             out[0]->dtype_.lanes_ = 1;
             auto lanes = vec_lanes;
             in_nd->dtype_.lanes_ = lanes;
-            // if keep dims, set reduction axis to 0, else remove the axis from
-            // indexing node
-            if (!ths->keep_dims_) { in_nd->idx_.emplace_back(0); }
+            //  add the axis to indexing node
+            in_nd->idx_.emplace_back(0);
             expr result;
             expr operand;
             switch (ths->rd_op_) {

@@ -37,6 +37,8 @@ void fuse_ops(sc_graph_t &g, const context_ptr &ctx = get_default_context());
 SC_INTERNAL_API void graph_inline(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void partial_reduce_replace(
+        sc_graph_t &graph, const context_ptr &ctx);
 /**
  * Optimize the constant_optimizable_t ops.
  * */

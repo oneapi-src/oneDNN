@@ -125,20 +125,34 @@ static bool detect_loop_conflict(fusion_manager *fmgr) {
  * */
 static std::vector<int> move_reduce_axis_to_inner(
         const std::vector<int> &in_axis, sc_graph_t &graph, const tensor &tsr) {
+    auto run_threads = runtime_config_t::get().get_num_threads();
     std::vector<int> out_axis(in_axis.begin(), in_axis.end());
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
     bool can_move = true;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         if (auto reduce_node = node->dyn_cast<reduce_op_t>()) {
+            // if using single core and the reduce op is the only op in this
+            // partition, don't reorder the loops
+            // we move the reduce axis for parallelism with a cost of losing
+            // cache locality. For single core configuration, we don't do this
+            // moving
+            if (run_threads == 1 && graph.ops_.size() == 3) {
+                // 3 ops for input, reduce and output
+                can_move = false;
+                return;
+            }
             auto reduce_axis = reduce_node->get_rd_axis();
             std::sort(reduce_axis.begin(), reduce_axis.end());
+            COMPILE_ASSERT(
+                    reduce_axis.back() < static_cast<int>(in_axis.size()),
+                    "Reduce op needs its outer loop to be dedicated generated "
+                    "for it");
             auto shape = reduce_node->get_inputs()[0]
                                  ->details_.get_blocking_dims();
             int parallel_num = 1;
             for (int i = 0; i < *reduce_axis.begin(); i++) {
                 parallel_num *= shape[i];
             }
-            auto run_threads = runtime_config_t::get().get_num_threads();
             /* Due to loop order not only affect outer-loop parallelism,
              * but also inner-loop fusion, which will affect local buffer size(
              * sensitive to cache line size). Further, more performance data
@@ -274,11 +288,11 @@ static void schedule_outer_anchor_loops(
                 if (main_loop.defined() && cur_for->equals(main_loop, cmper)) {
                     continue;
                 }
+                cur_for->kind_ = for_type::PARALLEL;
                 // if outmost anchor step is larger than 1
                 if (cur_for->step_.isa<constant>()
                         && get_expr_as_int(cur_for->step_) > 1)
                     continue;
-                cur_for->kind_ = for_type::PARALLEL;
                 auto body = cur_for->body_;
                 assert(!body.defined() || body.isa<for_loop>()
                         || body.isa<stmts>());

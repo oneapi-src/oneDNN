@@ -21,6 +21,7 @@
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/reduce.hpp>
 #include <unordered_set>
 
 namespace sc {
@@ -256,6 +257,78 @@ static std::vector<graph_tensor_ptr> copy_partition_to_fmgr(sc_graph_t &g,
     return additional_args;
 }
 
+// reduce op sometimes cannot be compatible with broadcast_binary ops in same
+// fusion partition
+static void check_reduce_broadcast_binary_fusion(
+        sc_graph_t &g, std::vector<sc_op_ptr> &out_failed_ops) {
+    for (auto &op : g.ops_) {
+        if (auto rdop = op->dyn_cast<reduce_op_t>()) {
+            auto rdax = rdop->get_rd_axis();
+            // only consider reduction axis 0
+            if (std::find(rdax.begin(), rdax.end(), 0) == rdax.end()) {
+                continue;
+            }
+            std::vector<bool> visited(g.ops_.size());
+            std::function<bool(sc_op *)> pre_visit;
+            // if the reduce op depends on bcast
+            pre_visit = [&](sc_op *op) -> bool {
+                auto bcast = op->dyn_cast<op_traits::may_broadcast_t>();
+                if (bcast) {
+                    if (bcast->get_broadcast_input() != -1) {
+                        // if reduce op's input is from bcast op, we cannot fuse
+                        // it
+                        SC_MODULE_INFO << "Reduce op depends on broadcast op, "
+                                          "break it. "
+                                       << op->op_name_;
+                        return true;
+                    }
+                }
+                visited[op->logical_op_id_] = true;
+                for (auto &inp : op->get_inputs()) {
+                    auto in_op = inp->producer_owner_;
+                    if (!visited[in_op->logical_op_id_]) {
+                        if (pre_visit(in_op)) { return true; }
+                    }
+                }
+                return false;
+            };
+            if (pre_visit(op.get())) {
+                out_failed_ops.emplace_back(op);
+                return;
+            }
+            std::fill(visited.begin(), visited.end(), false);
+            std::function<bool(sc_op *, int)> post_visit;
+            post_visit = [&](sc_op *op, int from_input) -> bool {
+                auto bcast = op->dyn_cast<op_traits::may_broadcast_t>();
+                if (bcast) {
+                    if (bcast->get_broadcast_input() == from_input) {
+                        // if reduce op's output is connected to bcast op's
+                        // broadcast input, we cannot fuse it
+                        SC_MODULE_INFO << "Reduce op is broadcast input, break "
+                                          "it. input id = "
+                                       << from_input;
+                        return true;
+                    }
+                }
+                if (visited[op->logical_op_id_]) { return false; }
+                visited[op->logical_op_id_] = true;
+                for (auto &out : op->get_outputs()) {
+                    for (auto &use : out->uses_) {
+                        if (post_visit(use.second.get(), use.first)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+            if (post_visit(op.get(), 0)) {
+                out_failed_ops.emplace_back(op);
+                return;
+            }
+        }
+    }
+}
+
 // checks if a partition can be fused with base op. returns the fused op if
 // success. Otherwise, returns null and returns the fusible_op_t that causes the
 // problem in out_failed_ops
@@ -348,6 +421,10 @@ static sc_op_ptr check_partition_with_base_op(sc_graph_t &g,
                         lastop->producer_owner_->shared_from_this());
             }
         }
+    }
+    if (!out_failed_ops.empty()) { return nullptr; }
+    if (!op) {
+        check_reduce_broadcast_binary_fusion(fmgr->get_graph(), out_failed_ops);
     }
     if (!out_failed_ops.empty()) { return nullptr; }
     auto fused_op_ptr = std::make_shared<fused_op_t>(op_name,

@@ -425,23 +425,26 @@ public:
                 auto step = ctx_->get_max_vector_lanes(
                         tsr->elem_dtype_.type_code_);
                 auto remainder = len % step;
-                auto itr = builder::make_var(datatypes::index, "itr");
-                auto assign = builder::make_assign_unattached(
-                        e[span_t({itr}, step)],
-                        make_expr<constant_node>(UINT64_C(0),
-                                sc_data_type_t {
-                                        tsr->elem_dtype_.type_code_, step}));
-                stmt body = builder::make_stmts_unattached({assign});
-                body = builder::make_for_loop_unattached(itr, UINT64_C(0),
-                        static_cast<uint64_t>(len), static_cast<uint64_t>(step),
-                        body, true, for_type::NORMAL);
-                seq.emplace_back(body);
+                if (len >= step) {
+                    expr itr = builder::make_var(datatypes::index, "itr");
+                    stmt assign = builder::make_assign_unattached(
+                            e[span_t({itr}, step)],
+                            make_expr<constant_node>(UINT64_C(0),
+                                    sc_data_type_t {tsr->elem_dtype_.type_code_,
+                                            step}));
+                    stmt body = builder::make_stmts_unattached({assign});
+                    body = builder::make_for_loop_unattached(itr, UINT64_C(0),
+                            static_cast<uint64_t>(len),
+                            static_cast<uint64_t>(step), body, true,
+                            for_type::NORMAL);
+                    seq.emplace_back(body);
+                }
                 if (remainder != 0) {
-                    itr = builder::make_var(datatypes::index, "itr_rem");
-                    assign = builder::make_assign_unattached(e[{itr}],
+                    expr itr = builder::make_var(datatypes::index, "itr_rem");
+                    stmt assign = builder::make_assign_unattached(e[{itr}],
                             make_expr<constant_node>(
                                     UINT64_C(0), tsr->elem_dtype_));
-                    body = builder::make_stmts_unattached({assign});
+                    stmt body = builder::make_stmts_unattached({assign});
                     body = builder::make_for_loop_unattached(itr,
                             static_cast<uint64_t>(len - remainder),
                             static_cast<uint64_t>(len),

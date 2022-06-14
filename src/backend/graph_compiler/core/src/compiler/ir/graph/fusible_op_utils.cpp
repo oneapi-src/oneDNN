@@ -88,7 +88,8 @@ ir_module_ptr fusible_op_get_func(fusible_op_t *op, outer_loop_generator_t &gen,
                 std::make_shared<graph_tensor>(nullptr, out->details_));
     }
     auto copyable = op->dyn_cast<op_traits::copyable_t>();
-    COMPILE_ASSERT(copyable, "The fusible op should be copyable");
+    COMPILE_ASSERT(
+            copyable, "The fusible op should be copyable: " << op->op_name_);
     auto copied = copyable->copy(ins, outs, fmgr.get_graph());
     COMPILE_ASSERT(copied->get_outputs().size() == 1,
             "Currently only support 1 output only");

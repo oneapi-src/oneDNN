@@ -63,7 +63,7 @@ public:
     // reduce_collect
     bool can_split_op() const;
     // split into reduce_compute + reduce_collect
-    void split_op(const context_ptr &ctx, sc_graph_t &graph);
+    void split_op(const context_ptr &ctx, sc_graph_t &graph, int num_threads);
 
 private:
     // the axis which need reduction
@@ -141,10 +141,11 @@ protected:
  * computation after the reduce_op in an outer-loop anchor.
  *
  * If there is parallelism in the reduction axis, reduce_compute_op will do
- * partial reduction on the thread-local tensor. reduce_collect_op will collect
+ * partial reduction on the thread-shared tensor. Another reduce_op will collect
  * the result and do final reduction.
  * */
-class reduce_compute_op_t : public reduce_impl_op_t {
+class reduce_compute_op_t : public reduce_impl_op_t,
+                            public op_traits::copyable_t {
 public:
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
@@ -154,6 +155,11 @@ public:
             const graph_tensor_ptr &old_out, const std::string &rd_name,
             const std::vector<int> &rd_axis, reduce_operator rd_op,
             bool keep_dims, bool need_mean, uint64_t reduce_mean_num);
+    bool is_partial_reduce() const;
+    // NOLINT because false alarm on copy()
+    sc_op_ptr copy(const std::vector<graph_tensor_ptr> &ins, // NOLINT
+            const std::vector<graph_tensor_ptr> &outs,
+            sc_graph_t &mgr) override;
 };
 
 class reduce_collect_op_t : public reduce_impl_op_t {

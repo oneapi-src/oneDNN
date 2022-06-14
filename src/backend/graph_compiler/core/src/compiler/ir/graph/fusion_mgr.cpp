@@ -36,6 +36,7 @@
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
+#include <runtime/config.hpp>
 #include <util/any_map.hpp>
 
 SC_MODULE(graph.fusion);
@@ -586,6 +587,10 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
                                 = tensor_node::get_zero_tensor_initializer();
                         fdmap.get(owner_op->get_inputs()[0]).set_buffer(tsr);
                     }
+                } else if (auto comp_op
+                        = owner_op->dyn_cast<reduce_compute_op_t>()) {
+                    tsr.checked_as<tensor>()->init_value_
+                            = tensor_node::get_zero_tensor_initializer();
                 }
             }
             // update tensors' last_access
@@ -1521,11 +1526,15 @@ fusion_manager::get_output_tsr_slices_list(
 }
 
 void fusion_manager::transform_graph(const context_ptr &ctx, bool has_main_op) {
-    if (!has_main_op) { return; }
+    // we allow the transform of reduce -> (reduce_compute+collect) if the outer
+    // loop will not be default
+    if (!has_main_op && runtime_config_t::get().get_num_threads() != 1) {
+        return;
+    }
     auto old_ops = graph_.ops_;
     for (auto &op : old_ops) {
         if (auto rd = op->dyn_cast<reduce_op_t>()) {
-            if (rd->can_split_op()) { rd->split_op(ctx, graph_); }
+            if (rd->can_split_op()) { rd->split_op(ctx, graph_, 1); }
         }
     }
 }
