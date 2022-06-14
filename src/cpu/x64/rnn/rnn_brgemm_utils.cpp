@@ -281,6 +281,33 @@ void rnn_brgemm_base_t::init_scratchpad(const cpu::rnn_utils::rnn_conf_t &rnn,
                 gemm_acc_type_size, gemm_acc_align);
     }
 
+    if (rnn.is_bf32()) {
+
+        const dims_t wei_layer_dims
+                = {rnn.n_layer, rnn.n_dir, rnn.n_gates, rnn.slc, rnn.dlc};
+        const dims_t wei_iter_dims
+                = {rnn.n_layer, rnn.n_dir, rnn.n_gates, rnn.sic, rnn.dic};
+
+        memory_desc_t wei_layer_desc;
+        const auto tag = rnn.n_block == 64 ? format_tag::ldgOI64o2i
+                                           : format_tag::ldgOI32o2i;
+        dnnl_memory_desc_init_by_tag(
+                &wei_layer_desc, 5, wei_layer_dims, data_type::bf16, tag);
+
+        memory_desc_t wei_iter_desc;
+        dnnl_memory_desc_init_by_tag(
+                &wei_iter_desc, 5, wei_iter_dims, data_type::bf16, tag);
+
+        scratchpad.book(key_rnn_bf32_wei_layer_trans,
+                memory_desc_wrapper(wei_layer_desc).size(), 64);
+
+        scratchpad.book(key_rnn_bf32_wei_iter_trans,
+                memory_desc_wrapper(wei_iter_desc).size(), 64);
+
+        scratchpad.book(key_rnn_bf32_attention_trans,
+                rnn.n_iter * rnn.mb * sizeof(bfloat16_t), 64);
+    }
+
     const int max_K_Block
             = nstl::max(rnn.KB1_blocks + 1,
                       nstl::max(rnn.KBproj_blocks + 1, rnn.KB2_blocks + 1))
@@ -306,6 +333,12 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.K2padded = utils::rnd_up(rnn.K2, padding);
 
     rnn.brgemm_isa = brgemm_calc_isa(rnn.K1, rnn.K2, is_int8, is_bf16);
+    const bool is_bf32 = is_bf16 && rnn.brgemm_isa == avx512_core_bf16_amx_bf16
+            && rnn.dt_conf == all_f32
+            // bf16 lstm_projection is not supported, so neither is bf32.
+            && !rnn.is_lstm_projection;
+    if (!IMPLICATION(rnn.is_cell_dt_bf16(), rnn.is_bf16_conf() || is_bf32))
+        return status::unimplemented;
 
     rnn.nthr = dnnl_get_max_threads();
     const bool is_amx_isa_selected

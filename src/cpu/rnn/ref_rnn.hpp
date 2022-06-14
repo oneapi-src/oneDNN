@@ -23,6 +23,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
+#include "common/reorder.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
@@ -156,9 +157,9 @@ struct _ref_rnn_common_t : public primitive_t {
 
             rnn_ = zero<decltype(rnn_)>();
             rnn_.is_brgemm = false;
-            ok = init_conf<class_name>(rnn_, *this->desc(), this->src_md(0),
-                    this->src_md(1), this->src_md(2), this->weights_md(0),
-                    this->weights_md(1),
+            ok = init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
+                    this->src_md(0), this->src_md(1), this->src_md(2),
+                    this->weights_md(0), this->weights_md(1),
                     this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
                     this->dst_md(1), this->dst_md(2),
                     this->arg_md(DNNL_ARG_BIAS));
@@ -267,9 +268,13 @@ struct _ref_rnn_common_t : public primitive_t {
                                     forward_inference))
                     && IMPLICATION(aprop == backward,
                             one_of(this->desc()->prop_kind, backward))
-                    && src_layer_dt == src_type
-                    && everyone_is(
-                            weights_type, weights_iter_dt, weights_layer_dt)
+                    // cell_type (or src_type) and primitive data type should
+                    // match, except for the bf32 case.
+                    && IMPLICATION(
+                            this->attr()->fpmath_mode_ == fpmath_mode::strict,
+                            src_layer_dt == src_type
+                                    && everyone_is(weights_type,
+                                            weights_iter_dt, weights_layer_dt))
                     && this->set_default_params() == status::success
                     && this->with_bias();
 
@@ -277,9 +282,9 @@ struct _ref_rnn_common_t : public primitive_t {
 
             rnn_ = zero<decltype(rnn_)>();
             rnn_.is_brgemm = true;
-            ok = init_conf<class_name>(rnn_, *this->desc(), this->src_md(0),
-                    this->src_md(1), this->src_md(2), this->weights_md(0),
-                    this->weights_md(1),
+            ok = init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
+                    this->src_md(0), this->src_md(1), this->src_md(2),
+                    this->weights_md(0), this->weights_md(1),
                     this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
                     this->dst_md(1), this->dst_md(2),
                     this->arg_md(DNNL_ARG_BIAS));
@@ -417,6 +422,31 @@ struct _ref_rnn_common_t : public primitive_t {
             }
             CHECK(this->check_layout_consistency(true /*is_brgemm*/));
 
+            if (rnn_.is_bf32()) {
+                const memory_desc_wrapper weights_layer_d(
+                        this->weights_layer_md_);
+                memory_desc_t weights_layer_md;
+                const memory_desc_wrapper weights_iter_d(
+                        this->weights_iter_md_);
+                memory_desc_t weights_iter_md;
+
+                const auto bf16_tag = rnn_.n_block == 64
+                        ? format_tag::ldgOI64o2i
+                        : format_tag::ldgOI32o2i;
+                dnnl_memory_desc_init_by_tag(&weights_layer_md,
+                        weights_layer_d.ndims(), weights_layer_d.dims(),
+                        data_type::bf16, bf16_tag);
+                CHECK(reorder_primitive_desc_create(bf32_wei_layer_reorder_pd_,
+                        engine, weights_layer_d.md_, &weights_layer_md,
+                        nullptr));
+
+                dnnl_memory_desc_init_by_tag(&weights_iter_md,
+                        weights_iter_d.ndims(), weights_iter_d.dims(),
+                        data_type::bf16, bf16_tag);
+                CHECK(reorder_primitive_desc_create(bf32_wei_iter_reorder_pd_,
+                        engine, weights_iter_d.md_, &weights_iter_md, nullptr));
+            }
+
             return status::success;
 #else
             return status::unimplemented;
@@ -445,7 +475,10 @@ struct _ref_rnn_common_t : public primitive_t {
         }
 
         rnn_utils::rnn_conf_t rnn_;
-
+#if DNNL_X64
+        std::shared_ptr<primitive_desc_t> bf32_wei_layer_reorder_pd_;
+        std::shared_ptr<primitive_desc_t> bf32_wei_iter_reorder_pd_;
+#endif
     private:
         void init_scratchpad(size_t scratchpad_sz) {
             using namespace memory_tracking::names;
@@ -491,6 +524,12 @@ struct _ref_rnn_common_t : public primitive_t {
             if (rnn_.is_brgemm) {
                 ref_rnn_brgemm_t::init_scratchpad(rnn_, scratchpad,
                         sizeof(gemm_acc_t), alignof(gemm_acc_t));
+                if (rnn_.is_bf32()) {
+                    scratchpad.book(key_nested_multiple + 0,
+                            bf32_wei_layer_reorder_pd_->scratchpad_registry());
+                    scratchpad.book(key_nested_multiple + 1,
+                            bf32_wei_iter_reorder_pd_->scratchpad_registry());
+                }
             }
 #endif
         }
@@ -568,8 +607,17 @@ struct _ref_rnn_common_t : public primitive_t {
                 scratch_cell_offset_, scratchpad_size, workspace_size);
 #if DNNL_X64
         const auto rnn = pd()->rnn_;
-        if (rnn.is_brgemm)
+        if (rnn.is_brgemm) {
+            if (rnn.is_bf32()) {
+
+                pd()->bf32_wei_layer_reorder_pd_->create_primitive(
+                        bf32_wei_layer_reorder_, engine);
+
+                pd()->bf32_wei_iter_reorder_pd_->create_primitive(
+                        bf32_wei_iter_reorder_, engine);
+            }
             return rnn_brgemm_.init_kernels(rnn, src_type, weights_type);
+        }
 #endif
         return status::success;
     }
@@ -584,6 +632,8 @@ struct _ref_rnn_common_t : public primitive_t {
 private:
 #if DNNL_X64
     ref_rnn_brgemm_t rnn_brgemm_;
+    std::shared_ptr<primitive_t> bf32_wei_layer_reorder_;
+    std::shared_ptr<primitive_t> bf32_wei_iter_reorder_;
 #endif
     void execute_(const exec_ctx_t &ctx) const;
 
@@ -603,9 +653,10 @@ private:
 
     float (*activation_func)(float s, float alpha, float cliping);
 
+    template <typename input_t>
     void copy_init_layer(const rnn_utils::rnn_conf_t &rnn,
             src_layer_t *ws_states_layer_, gemm_acc_t *ws_diff_states_layer_,
-            const src_layer_t *xt_, const gemm_acc_t *diff_dst_layer) const;
+            const input_t *xt_, const gemm_acc_t *diff_dst_layer) const;
 
     template <typename input_t>
     void copy_init_iter(const rnn_utils::rnn_conf_t &rnn,

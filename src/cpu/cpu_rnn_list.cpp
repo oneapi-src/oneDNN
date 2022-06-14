@@ -30,8 +30,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     // clang-format off
     static std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map =  REG_RNN_P({
         {{forward}, {
-            CPU_INSTANCE(ref_rnn_fwd_f32_t)
             CPU_INSTANCE(ref_rnn_fwd_bf16_t)
+            CPU_INSTANCE(ref_rnn_fwd_f32_t)
             CPU_INSTANCE(ref_rnn_fwd_s8s8_t)
             CPU_INSTANCE(ref_rnn_fwd_u8s8_t)
             nullptr,

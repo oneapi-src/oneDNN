@@ -30,6 +30,7 @@
  */
 
 #include "common/dnnl_thread.hpp"
+#include "common/stream.hpp"
 
 #include "cpu/simple_q10n.hpp"
 
@@ -474,10 +475,11 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
 //********* GRID computations strategy: utility functions **********//
 
-template <typename src_data_t>
+// for bf32 src_data_t(bf16) and input_data_t(f32) types can be different.
+template <typename src_data_t, typename input_data_t>
 void copy_init_layer_fwd_template(const rnn_conf_t &rnn,
         src_data_t *__restrict ws_states_layer_,
-        const src_data_t *__restrict xt_, const memory_desc_wrapper &xt_d) {
+        const input_data_t *__restrict xt_, const memory_desc_wrapper &xt_d) {
 
     const AOC<src_data_t, 4> ws_states_layer(ws_states_layer_, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.ws_states_layer_ld);
@@ -488,14 +490,24 @@ void copy_init_layer_fwd_template(const rnn_conf_t &rnn,
         src_data_t *ws_r2l_ptr
                 = &(ws_states_layer(rnn.n_dir - 1, rnn.n_iter - it, b, 0));
         if (rnn.exec_dir != r2l) {
-            PRAGMA_OMP_SIMD()
-            for (int c = 0; c < rnn.slc; c++)
-                ws_l2r_ptr[c] = xxt[c];
+            if (rnn.is_bf32()) {
+                cvt_float_to_bfloat16(
+                        (bfloat16_t *)ws_l2r_ptr, (const float *)xxt, rnn.slc);
+            } else {
+                PRAGMA_OMP_SIMD()
+                for (int c = 0; c < rnn.slc; c++)
+                    ws_l2r_ptr[c] = xxt[c];
+            }
         }
         if (rnn.exec_dir != l2r) {
-            PRAGMA_OMP_SIMD()
-            for (int c = 0; c < rnn.slc; c++)
-                ws_r2l_ptr[c] = xxt[c];
+            if (rnn.is_bf32()) {
+                cvt_float_to_bfloat16(
+                        (bfloat16_t *)ws_r2l_ptr, (const float *)xxt, rnn.slc);
+            } else {
+                PRAGMA_OMP_SIMD()
+                for (int c = 0; c < rnn.slc; c++)
+                    ws_r2l_ptr[c] = xxt[c];
+            }
         }
     });
 }
@@ -561,9 +573,11 @@ void copy_init_layer_bwd_template(const rnn_conf_t &rnn,
 
 #define RNN_DECL_COPY_INIT_LAYER_FWD(cname) \
     template <> \
+    template <typename input_data_t> \
     void cname::copy_init_layer(const rnn_conf_t &rnn, \
             src_layer_t *ws_states_layer_, gemm_acc_t *ws_diff_states_layer_, \
-            const src_layer_t *xt_, const gemm_acc_t *diff_dst_layer_) const { \
+            const input_data_t *xt_, const gemm_acc_t *diff_dst_layer_) \
+            const { \
         copy_init_layer_fwd_template(rnn, ws_states_layer_, xt_, \
                 memory_desc_wrapper(pd()->src_md(0))); \
     }
@@ -575,9 +589,11 @@ RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_s8s8_t)
 
 #define RNN_DECL_COPY_INIT_LAYER_BWD(cname) \
     template <> \
+    template <typename input_data_t> \
     void cname::copy_init_layer(const rnn_conf_t &rnn, \
             src_layer_t *ws_states_layer_, gemm_acc_t *ws_diff_states_layer_, \
-            const src_layer_t *xt_, const gemm_acc_t *diff_dst_layer_) const { \
+            const input_data_t *xt_, const gemm_acc_t *diff_dst_layer_) \
+            const { \
         copy_init_layer_bwd_template(rnn, ws_diff_states_layer_, \
                 diff_dst_layer_, memory_desc_wrapper(pd()->diff_dst_md(0))); \
     }
@@ -1291,10 +1307,70 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
      * dimension */
     (this->*bias_preparation_func)(rnn, ptr_bias, bias, ws_bias);
 
-    (this->*weights_iter_assign_func)(rnn, pd()->weights_md(1),
+    const memory_desc_t *weights_layer_md = pd()->weights_md(0);
+    const memory_desc_t *weights_iter_md = pd()->weights_md(1);
+
+    const auto tag = rnn.n_block == 64 ? format_tag::ldgOI64o2i
+                                       : format_tag::ldgOI32o2i;
+    memory_desc_t wei_layer_desc;
+    dnnl_memory_desc_init_by_tag(&wei_layer_desc, weights_layer_md->ndims,
+            weights_layer_md->dims, data_type::bf16, tag);
+
+    memory_desc_t wei_iter_desc;
+    dnnl_memory_desc_init_by_tag(&wei_iter_desc, weights_iter_md->ndims,
+            weights_iter_md->dims, data_type::bf16, tag);
+
+    if (rnn.is_bf32()) {
+        if (rnn.is_augru) {
+            const auto bf32_augru_attention
+                    = scratchpad.template get<src_layer_t>(
+                            key_rnn_bf32_attention_trans);
+            cvt_float_to_bfloat16((bfloat16_t *)bf32_augru_attention,
+                    (float *)augru_attention, rnn.n_iter * rnn.mb);
+            augru_attention = bf32_augru_attention;
+        }
+        engine_t *engine = ctx.stream()->engine();
+        auto wei_layer_mem
+                = scratchpad.get_memory_storage(key_rnn_bf32_wei_layer_trans);
+        auto wei_iter_mem
+                = scratchpad.get_memory_storage(key_rnn_bf32_wei_iter_trans);
+        {
+            memory_t reorder_dst(
+                    engine, &wei_layer_desc, std::move(wei_layer_mem));
+            exec_args_t reorder_args;
+            reorder_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_WEIGHTS_LAYER);
+            reorder_args[DNNL_ARG_DST] = {&reorder_dst, false};
+            exec_ctx_t reorder_ctx(ctx, std::move(reorder_args));
+            nested_scratchpad_t ns(
+                    ctx, key_nested_multiple + 0, bf32_wei_layer_reorder_);
+            reorder_ctx.set_scratchpad_grantor(ns.grantor());
+            bf32_wei_layer_reorder_->execute(reorder_ctx);
+            w_layer = scratchpad.template get<weights_t>(
+                    key_rnn_bf32_wei_layer_trans);
+            weights_layer_md = &wei_layer_desc;
+        }
+
+        {
+            memory_t reorder_dst(
+                    engine, &wei_iter_desc, std::move(wei_iter_mem));
+            exec_args_t reorder_args;
+            reorder_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_WEIGHTS_ITER);
+            reorder_args[DNNL_ARG_DST] = {&reorder_dst, false};
+            exec_ctx_t reorder_ctx(ctx, std::move(reorder_args));
+            nested_scratchpad_t ns(
+                    ctx, key_nested_multiple + 1, bf32_wei_iter_reorder_);
+            reorder_ctx.set_scratchpad_grantor(ns.grantor());
+            bf32_wei_iter_reorder_->execute(reorder_ctx);
+            w_iter = scratchpad.template get<weights_t>(
+                    key_rnn_bf32_wei_iter_trans);
+            weights_iter_md = &wei_iter_desc;
+        }
+    }
+
+    (this->*weights_iter_assign_func)(rnn, weights_iter_md,
             rnn.n_parts_weights_iter, rnn.parts_weights_iter, ptr_wei_iter,
             w_iter);
-    (this->*weights_layer_assign_func)(rnn, pd()->weights_md(0),
+    (this->*weights_layer_assign_func)(rnn, weights_layer_md,
             rnn.n_parts_weights_layer, rnn.parts_weights_layer, ptr_wei_layer,
             w_layer);
 
@@ -1308,9 +1384,14 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     (this->*bias_finalization_func)(rnn, ws_bias, w_iter_comp, w_layer_comp);
 
     // we first need to copy the initial states and input into ws
-    if (!(rnn.skip_src_layer_copy() && rnn.is_fwd))
-        copy_init_layer(rnn, ws_states_layer, ws_diff_states_layer, src_layer,
-                diff_dst_layer);
+    if (!(rnn.skip_src_layer_copy() && rnn.is_fwd)) {
+        if (pd()->src_md(0)->data_type == data_type::f32)
+            copy_init_layer(rnn, ws_states_layer, ws_diff_states_layer,
+                    (const float *)src_layer, diff_dst_layer);
+        else
+            copy_init_layer(rnn, ws_states_layer, ws_diff_states_layer,
+                    src_layer, diff_dst_layer);
+    }
 
     if (!(rnn.skip_src_iter_copy() && rnn.is_fwd)) {
         if (pd()->src_md(1)->data_type == data_type::f32)

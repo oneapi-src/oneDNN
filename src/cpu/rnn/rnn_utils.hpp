@@ -407,27 +407,26 @@ struct rnn_conf_t {
         return false;
 #endif
     }
-    inline bool is_f32() const { return dt_conf == all_f32; }
+    inline bool is_bf32() const { return is_cell_bf16_amx() && is_f32_conf(); }
 
     inline bool skip_src_layer_copy() const {
-        // Note: this currently always returns true
-        return (exec_dir == l2r)
+        return (exec_dir == l2r) && !is_bf32()
                 && utils::one_of(dt_conf, s8s8s8f32, f32s8f32f32, s8s8s8s8,
                         f32s8f32s8, u8u8u8u8, u8u8u8f32, f32u8f32u8,
                         f32u8f32f32, all_f32, all_bf16);
     }
     inline bool skip_src_iter_copy() const {
-        return (exec_dir == l2r) && (src_iter_ld_ > 0)
+        return (exec_dir == l2r) && (src_iter_ld_ > 0) && !is_bf32()
                 && utils::one_of(dt_conf, s8s8s8s8, s8s8s8f32, u8u8u8u8,
                         u8u8u8f32, all_f32, all_bf16);
     }
     inline bool skip_dst_layer_copy() const {
-        return (exec_dir == l2r)
+        return (exec_dir == l2r) && !is_bf32()
                 && utils::one_of(dt_conf, s8s8s8s8, f32s8f32s8, u8u8u8u8,
                         f32u8f32u8, all_f32, all_bf16);
     }
     inline bool skip_dst_iter_copy() const {
-        return (exec_dir == l2r) && (dst_iter_ld_ > 0)
+        return (exec_dir == l2r) && (dst_iter_ld_ > 0) && !is_bf32()
                 && utils::one_of(dt_conf, s8s8s8s8, s8s8s8f32, u8u8u8u8,
                         u8u8u8f32, all_f32, all_bf16);
     }
@@ -595,7 +594,7 @@ int get_good_ld(int dim, int sizeof_dt);
 
 template <typename T>
 bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
-        const memory_desc_wrapper &src_layer_d,
+        const primitive_attr_t &attr, const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &src_iter_c_d,
         const memory_desc_wrapper &weights_layer_d,
