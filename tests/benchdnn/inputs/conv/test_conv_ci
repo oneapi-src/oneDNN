@@ -87,3 +87,11 @@
 --attr-post-ops=,sum:0.5,relu,sum:0.25:1+relu:0:0:0.75
 --attr-zero-points=
 --batch=shapes_basic
+# BF32
+--reset
+--dir=FWD_D
+--cfg=f32
+--stag=any
+--dtag=any
+--attr-fpmath=bf16
+--batch=shapes_basic

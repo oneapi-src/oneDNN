@@ -53,3 +53,8 @@
 --cfg=bf16bf16bf16 --dir=BWD_W
 --batch=shapes_src-transpose_padding
 
+# Test BF32
+--reset
+--skip-impl=ref,x64:gemm
+--cfg=f32 --attr-fpmath=bf16
+--batch=shapes_resnet_50
