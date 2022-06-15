@@ -138,18 +138,33 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
             = node->get_outputs();
     if (node_outputs.empty()) return true;
 
+    // the worst situation for matching node output is that pattern node
+    // output and graph op output cannot be matched, in this case,
+    // only optional can survive.
+    bool support_optional = true;
+    for (const auto &node_output : node_outputs) {
+        for (const auto &con : node_output.second) {
+            pb_node *out_node = con->first;
+            bool is_optional = check_is_optional(out_node);
+            if (!is_optional) {
+                support_optional = false;
+                break;
+            }
+        }
+        if (!support_optional) break;
+    }
+
     std::unordered_map<op_t *, pb_op *> copied_op_map = matched_op_map;
 
     //match output for node and op
     for (auto &node_output : node_outputs) {
-        size_t node_output_offset = node_output.first;
-        if (op->num_outputs() < node_output_offset + 1) return false;
+        size_t node_oport = node_output.first;
+        if (op->num_outputs() < node_oport + 1) return support_optional;
+
         std::shared_ptr<value_t> op_out_value
-                = op->get_output_value(node_output_offset);
-        std::unordered_set<size_t> matched_node_offsets;
-        std::unordered_map<op_t *, pb_op *> op_map_for_current_node_output
-                = copied_op_map;
-        // match the consumers one by one
+                = op->get_output_value(node_oport);
+        std::unordered_set<size_t> node_oport_matched_cons;
+        // match the op consumers one by one
         for (size_t j = 0; j < op_out_value->get_consumers().size(); j++) {
             auto op_consumer = op_out_value->get_consumers()[j];
             op_t *out_op = &(op_consumer.get_op());
@@ -159,20 +174,19 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
                 auto node_consumer = node_output.second[k];
                 pb_node *out_node = node_consumer->first;
                 // check if the out_node has been matched by previous out_ops
-                if (matched_node_offsets.count(k)) continue;
+                if (node_oport_matched_cons.count(k)) continue;
                 binding_t out_bind(BIND_IN, out_op,
                         int64_t(op_consumer.get_offset()), out_node,
                         node_consumer->second);
-                if (!match_graph_helper(
-                            out_bind, ctx, op_map_for_current_node_output)) {
+                if (!match_graph_helper(out_bind, ctx, copied_op_map)) {
                     continue;
                 } else {
                     consumer_matched = true;
-                    matched_node_offsets.insert(k);
+                    node_oport_matched_cons.insert(k);
                     break;
                 }
             }
-            // find coupled node_output
+
             if (!consumer_matched) {
                 // TODO(Yixin): temporary fix sigmoid + multiply = swish
                 // After successfully matching sigmoid, multiply is also
@@ -182,40 +196,28 @@ bool match_node_outputs(op_t *op, pb_node *node, match_context_t *ctx,
                 if (node_output.second.size() == 1
                         && node_output.second[0]->first->get_node_kind()
                                 != pb_node_kind::PB_NODE_KIND_OP
-                        && op_map_for_current_node_output.count(out_op))
+                        && copied_op_map.count(out_op))
                     continue;
-                // check if allow external output
+                //if it's the allow_external_output case, then it's fine
                 if (node->get_node_kind() == pb_node_kind::PB_NODE_KIND_OP) {
+                    // check external_output
                     pb_op *p_op = dynamic_cast<pb_op *>(node);
-                    std::unordered_set<oport_t> external_outputs
+                    const std::unordered_set<oport_t> &external_outputs
                             = p_op->get_allowed_external_outputs();
                     if (!external_outputs.empty()
-                            && external_outputs.find(node_output_offset)
+                            && external_outputs.find(node_oport)
                                     != external_outputs.end()) {
                         continue;
-                    } else {
-                        // the current node_output_offset match failed, clear
-                        // the matched_node_offsets, clear current node output's
-                        // matched_op_map;
-                        matched_node_offsets.clear();
-                        op_map_for_current_node_output = copied_op_map;
-                        break;
                     }
                 }
+                return support_optional;
             }
         }
-
-        // check if there are unmatched node outputs
-        for (size_t k = 0; k < node_output.second.size(); k++) {
-            if (!matched_node_offsets.count(k)) {
-                // in this case, only optional can survive
-                pb_node *out_node = node_output.second[k]->first;
-                bool is_optional = check_is_optional(out_node);
-                if (!is_optional) return false;
-            }
-        }
-        copied_op_map = op_map_for_current_node_output;
+        // check if not all consumers of node output are matched
+        if (node_oport_matched_cons.size() != node_output.second.size())
+            return support_optional;
     }
+
     matched_op_map = copied_op_map;
     return true;
 }

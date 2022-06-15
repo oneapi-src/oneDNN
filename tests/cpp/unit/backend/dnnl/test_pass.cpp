@@ -12468,6 +12468,145 @@ TEST(PassSystem, FuseBinarySwish) {
     }
 }
 
+TEST(PassSystem, FuseConvPostOps) {
+    /*        dequant
+                  |
+                conv
+                  |
+                relu
+                 /  |
+              quant |
+               /    |
+            dequant | 
+              |     |
+            conv    |
+              |     |
+            relu    |
+              |     |
+            quant   |
+              |     |
+           dequant  |
+              |     |
+            conv    |
+              |     |
+           sigmoid  |
+                \   /
+                 mul
+    */
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant1"};
+    dequant1.set_attr("scales", scales);
+    dequant1.set_attr("zps", zps);
+    op_t dequant_wei1 {12, Dequantize, "dequant_wei1"};
+    dequant_wei1.set_attr("scales", scales);
+    dequant_wei1.set_attr("zps", zps);
+    op_t conv1 {1, Convolution, "conv1"};
+    set_conv_common_attr(conv1);
+    op_t relu1 {2, ReLU, "relu1"};
+    op_t quant1 {3, Quantize, "quant1"};
+    quant1.set_attr("scales", scales);
+    quant1.set_attr("zps", zps);
+    op_t dequant2 {4, Dequantize, "dequant2"};
+    dequant2.set_attr("scales", scales);
+    dequant2.set_attr("zps", zps);
+    op_t dequant_wei2 {13, Dequantize, "dequant_wei2"};
+    dequant_wei2.set_attr("scales", scales);
+    dequant_wei2.set_attr("zps", zps);
+    op_t conv2 {5, Convolution, "conv2"};
+    set_conv_common_attr(conv2);
+    op_t relu2 {6, ReLU, "relu2"};
+    op_t quant2 {7, Quantize, "quant2"};
+    quant2.set_attr("scales", scales);
+    quant2.set_attr("zps", zps);
+    op_t dequant3 {8, Dequantize, "dequant3"};
+    dequant3.set_attr("scales", scales);
+    dequant3.set_attr("zps", zps);
+    op_t dequant_wei3 {14, Dequantize, "dequant_wei3"};
+    dequant_wei3.set_attr("scales", scales);
+    dequant_wei3.set_attr("zps", zps);
+    op_t conv3 {9, Convolution, "conv3"};
+    set_conv_common_attr(conv3);
+    op_t sigmoid {10, Sigmoid, "sigmoid"};
+    op_t multiply {11, Multiply, "mul"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(14);
+    logical_tensor_t int8_lt1 = logical_tensor_init(14, data_type::u8);
+    logical_tensor_t int8_lt2 = logical_tensor_init(15, data_type::u8);
+    logical_tensor_t int8_lt3 = logical_tensor_init(16, data_type::u8);
+    logical_tensor_t int8_lt4 = logical_tensor_init(17, data_type::u8);
+    logical_tensor_t int8_lt5 = logical_tensor_init(18, data_type::u8);
+    logical_tensor_t int8_lt6 = logical_tensor_init(19, data_type::u8);
+
+    dequant1.add_input(int8_lt1);
+    dequant1.add_output(lt_vec[1]);
+    dequant_wei1.add_input(int8_lt4);
+    dequant_wei1.add_output(lt_vec[2]);
+    conv1.add_input(lt_vec[1]);
+    conv1.add_input(lt_vec[2]);
+    conv1.add_output(lt_vec[3]);
+    relu1.add_input(lt_vec[3]);
+    relu1.add_output(lt_vec[4]);
+    quant1.add_input(lt_vec[4]);
+    quant1.add_output(int8_lt2);
+
+    dequant2.add_input(int8_lt2);
+    dequant2.add_output(lt_vec[5]);
+    dequant_wei2.add_input(int8_lt5);
+    dequant_wei2.add_output(lt_vec[6]);
+    conv2.add_input(lt_vec[5]);
+    conv2.add_input(lt_vec[6]);
+    conv2.add_output(lt_vec[7]);
+    relu2.add_input(lt_vec[7]);
+    relu2.add_output(lt_vec[8]);
+    quant2.add_input(lt_vec[8]);
+    quant2.add_output(int8_lt3);
+
+    dequant3.add_input(int8_lt3);
+    dequant3.add_output(lt_vec[9]);
+    dequant_wei3.add_input(int8_lt6);
+    dequant_wei3.add_output(lt_vec[10]);
+    conv3.add_input(lt_vec[9]);
+    conv3.add_input(lt_vec[10]);
+    conv3.add_output(lt_vec[11]);
+    sigmoid.add_input(lt_vec[11]);
+    sigmoid.add_output(lt_vec[12]);
+    multiply.add_input(lt_vec[12]);
+    multiply.add_input(lt_vec[4]);
+    multiply.add_output(lt_vec[13]);
+
+    graph_t agraph;
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant_wei1), status::success);
+    ASSERT_EQ(agraph.add_op(&conv1), status::success);
+    ASSERT_EQ(agraph.add_op(&relu1), status::success);
+    ASSERT_EQ(agraph.add_op(&quant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant_wei2), status::success);
+    ASSERT_EQ(agraph.add_op(&conv2), status::success);
+    ASSERT_EQ(agraph.add_op(&relu2), status::success);
+    ASSERT_EQ(agraph.add_op(&quant2), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant_wei3), status::success);
+    ASSERT_EQ(agraph.add_op(&conv3), status::success);
+    ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
+    ASSERT_EQ(agraph.add_op(&multiply), status::success);
+    agraph.build_graph();
+
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+    ASSERT_EQ(agraph.get_num_partitions(), 4);
+
+    const auto fused_op = get_fused_op(agraph.get_partitions()[3]);
+    ASSERT_EQ(fused_op->get_kind(), Quantize);
+    ASSERT_EQ(agraph.get_partitions()[3]->get_inputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[3]->get_inputs()[0].id, 4);
+
+    ASSERT_EQ(agraph.get_partitions()[3]->get_outputs().size(), 1);
+    ASSERT_EQ(agraph.get_partitions()[3]->get_outputs()[0].id, 15);
+}
+
 // TODO(zitian): add test case for Sigmoid+Multiply in a elegant way
 // TODO(zitian): set addbias optional in test case
 TEST(Pass, ConvtransposePostops) {
