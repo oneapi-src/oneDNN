@@ -195,6 +195,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_type);
 
         if (quantized) {
