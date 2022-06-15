@@ -605,6 +605,12 @@ void reduce_op_t::split_op(
     auto second_out = get_outputs()[0]->copy();
     second_out->producer_owner_ = nullptr;
 
+    bool is_bf16 = get_inputs()[0]->details_.dtype_ == datatypes::bf16;
+    if (is_bf16) {
+        first_out->details_.dtype_ = datatypes::f32;
+        second_out->details_.dtype_ = datatypes::f32;
+    }
+
     if (last_axis) {
         auto vec_step
                 = vectorize_step(ctx, first_out->details_.dtype_.type_code_);
@@ -642,6 +648,14 @@ void reduce_op_t::split_op(
         second = graph.make<reduce_collect_op_t>(first_out, second_out,
                 rd_name_, rd_ax, rd_op_, keep_dims_, need_mean_,
                 reduce_mean_num);
+    }
+    if (is_bf16) {
+        auto out_tsr = second_out->copy();
+        out_tsr->details_.dtype_ = datatypes::bf16;
+        out_tsr->producer_owner_ = nullptr;
+        second = graph.make(
+                "cast", {second_out}, {out_tsr}, {{"dtype", datatypes::bf16}});
+        second_out = out_tsr;
     }
 
     get_outputs()[0]->replace_with(second_out);

@@ -43,8 +43,10 @@ int get_casting_priority(sc_data_type_t dty) {
 }
 
 static bool try_cast_to_fp32(expr_c &v1) {
-    if (v1->dtype_ == datatypes::bf16 || v1->dtype_ == datatypes::f16) {
-        v1 = builder::make_cast(datatypes::f32, v1);
+    if (v1->dtype_.type_code_ == sc_data_etype::BF16
+            || v1->dtype_.type_code_ == sc_data_etype::F16) {
+        v1 = builder::make_cast(
+                sc_data_type_t(sc_data_etype::F32, v1->dtype_.lanes_), v1);
         return true;
     }
     return false;
@@ -64,9 +66,9 @@ static void do_promote(expr_c &v1, expr_c &v2) {
         return;
     }
 
-    if (v1->dtype_ == datatypes::f32) {
+    if (v1->dtype_.type_code_ == sc_data_etype::F32) {
         if (try_cast_to_fp32(v2)) return;
-    } else if (v2->dtype_ == datatypes::f32) {
+    } else if (v2->dtype_.type_code_ == sc_data_etype::F32) {
         if (try_cast_to_fp32(v1)) return;
     }
     COMPILE_ASSERT(false,
