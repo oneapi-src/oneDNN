@@ -293,6 +293,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_conv_or_deconv);
