@@ -88,10 +88,10 @@ def convert_dir(entry):
         return f"--dir={dir}"
 
 
-def convert_alg(entry):
-    alg = entry['alg_kind']
-    pk = entry['prim_kind']
-    if alg:
+def convert_aux(entry):
+    alg = entry['aux'].get('alg')
+    if alg != None:
+        pk = entry['prim_kind']
         if pk == 'convolution':
             str = ''
             alg = alg_remove_primitive(alg)
@@ -101,16 +101,15 @@ def convert_alg(entry):
                 str = f"--alg={alg}"
             return str
         if pk == 'eltwise':
-            alg, alpha, beta = alg.split(' ')
-            alpha = alpha.split(':')[1]
-            beta = beta.split(':')[1]
+            alpha = entry['aux']['alpha']
+            beta = entry['aux']['beta']
             alg += f" --alpha={alpha} --beta={beta}"
             return f"--alg={alg}"
         elif pk == 'concat':
-            axis = alg[len('axis:'):]
+            axis = entry['aux']['axis']
             return f"--axis={axis}"
         elif pk in ['batch_normalization', 'layer_normalization']:
-            flags = alg[len('flags:'):]
+            flags = entry['aux']['flags']
             return f"--flags={flags}"
         elif pk == 'lrn':
             str = ''
@@ -121,38 +120,44 @@ def convert_alg(entry):
                 str = f"--alg={alg}"
             return str
         elif pk == 'reduction':
-            alg, p, eps = alg.split(' ')
-            p = p.split(':')[1]
-            eps = eps.split(':')[1]
+            p = entry['aux']['p']
+            eps = entry['aux']['eps']
             alg += f" --p={p} --eps={eps}"
             return f"--alg={alg}"
         elif pk == 'rnn':
             str = ''
-            alg, dir, act = alg.split(' ')
             algs = {
                 'vanilla_rnn': 'VANILLA_RNN',
                 'vanilla_lstm': 'VANILLA_LSTM'
             }
             alg = algs.get(alg)
             if alg != None:
-                str = f"--alg={alg}"
+                str += f"--alg={alg}"
+            ir_dir = entry['aux']['direction']
+            dirs = {
+                'unidirectional_left2right': 'left2right',
+                'unidirectional_right2left': 'right2left',
+                'bidirectional_sum': 'sum',
+                'bidirectional_concat': 'concat'
+            }
+            dir = dirs.get(ir_dir)
+            str += f" --direction={dir}"
+            activation = entry['aux']['activation']
+            str += f" --activation={activation}"
             return str
         elif pk == 'shuffle':
-            axis, group = alg.split(' ')
-            axis = axis[len('axis:'):]
-            group = group[len('group:'):]
+            axis = entry['aux']['axis']
+            group = entry['aux']['group']
             return f"--axis={axis} --group={group}"
         elif pk == 'softmax':
-            alg, axis = alg.split(' ')
-            axis = axis[len('axis:'):]
+            axis = entry['aux']['axis']
             return f"--alg={alg} --axis={axis}"
         elif pk == 'pooling':
             return f"--alg={alg}"
         else:
             alg = alg_remove_primitive(alg)
-            return f"--alg={alg}"
-    else:
-        return ''
+            if alg != '': return f"--alg={alg}"
+    return ''
 
 
 def convert_bias_mask(mds):
@@ -617,7 +622,7 @@ class InputGenerator:
             case += ' ' + convert_engine(entry['engine'])
             # XXX: direction depends on mds (FWD_B is forward + defined bias md)
             case += ' ' + convert_dir(entry)
-            case += ' ' + convert_alg(entry)
+            case += ' ' + convert_aux(entry)
             if entry['prim_kind'] == 'matmul':
                 case += ' ' + convert_bias_mask(entry['mds'])
             # XXX: data types configuration is not unified across drivers

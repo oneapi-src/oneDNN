@@ -29,15 +29,20 @@ class BreakdownGenerator:
 
         def key2str(key, value):
             def mds2str(mds):
-                res = ''
                 md_fields = ['arg', 'data_type', 'padding', 'format_kind', 'tag']
                 ffs=':'
                 mdfs=' '
                 return mdfs.join([ffs.join([arg[field] for field in md_fields])
                                   for arg in mds])
 
+            def aux2str(aux):
+                auxfs = ' '
+                return auxfs.join([f'{k}:{v}' for k,v in aux.items()])
+
             if (key == 'mds'):
                 return mds2str(value)
+            elif (key == 'aux'):
+                return aux2str(value)
             else:
                 return str(value)
 

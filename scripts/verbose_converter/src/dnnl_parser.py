@@ -26,7 +26,7 @@ class LogParser:
         # primitive(str),
         # implementation(str),
         # prop_kind(str),
-        # alg_kind(str),
+        # aux({field(str) : value(str)}),
         # mds({ arg(str) : { data_type(str), format_kind(str), tag(str), flags(str) }})
         # shapes(str)
         # extensions(str)
@@ -84,11 +84,13 @@ class LogParser:
                     })
                 return mds
 
-            def convert_alg(alg):
-                found_alg = alg.find('alg')
-                if found_alg != -1:
-                    alg = alg[len('alg') + 1:]
-                return alg
+            def convert_aux(log_aux):
+                aux = {}
+                if log_aux == '': return aux
+                for log_aux_l in log_aux.split(' '):
+                    field, value = log_aux_l.split(':')
+                    aux[field] = value
+                return aux
 
             def convert_prim_kind(prim_kind):
                 if prim_kind == 'pooling_v2':
@@ -238,7 +240,7 @@ class LogParser:
             convert = {
                 'prim_kind': convert_prim_kind,
                 'mds': convert_mds,
-                'alg_kind': convert_alg,
+                'aux': convert_aux,
                 'exts': convert_exts
             }
 
@@ -249,14 +251,14 @@ class LogParser:
                 'prop_kind': 'prop_kind',
                 'mds': 'memory_descriptors',
                 'exts': 'attributes',
-                'alg_kind': 'auxiliary',
+                'aux': 'auxiliary',
                 'shapes': 'problem_desc',
                 'time': 'exec_time',
                 'timestamp': 'timestamp'
             }
 
             ir_req = [ 'engine', 'prim_kind', 'impl', 'prop_kind', 'mds',
-                    'exts', 'alg_kind', 'shapes']
+                    'exts', 'aux', 'shapes']
 
             entry = {}
 

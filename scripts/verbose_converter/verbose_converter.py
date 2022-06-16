@@ -76,7 +76,7 @@ def main():
     generator_opts = ["benchdnn", "breakdown"]
     parser_opts = ["oneDNN"]
     verbose_opts = ["0", "1"]
-    aggregate_opts = ['engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'alg_kind', 'shapes']
+    aggregate_opts = ['engine', 'prim_kind', 'impl', 'prop_kind', 'mds', 'exts', 'aux', 'shapes']
     args_parser = argparse.ArgumentParser(description='oneDNN log converter',
                                           formatter_class=RawTextHelpFormatter)
     args_parser.add_argument('-i',
