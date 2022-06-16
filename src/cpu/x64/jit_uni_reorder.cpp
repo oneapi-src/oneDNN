@@ -1899,7 +1899,8 @@ static void prb_block_for_cache(tr::prb_t &prb) {
 
         /* Because of cache-unfriendly nature of unit-output stride node, let
          * us move unit-input stride node on or near front! */
-        prb_node_move(prb, unit_input_stride_idx, move_location);
+        if (unit_input_stride_idx != move_location)
+            prb_node_move(prb, unit_input_stride_idx, move_location);
     }
 
     /* Potentially, split the node with os=1 in two and pull in the node with
