@@ -2053,7 +2053,10 @@ public:
 
 private:
     let_t(const expr_t &var, const expr_t &value, const stmt_t &body)
-        : var(var), value(value), body(body) {}
+        : var(var), value(value), body(body) {
+        if (!value.is_empty() && !is_const(value))
+            ir_assert(var.type() == value.type());
+    }
 };
 
 // Statement label, specific to GEMM/convolution.
