@@ -302,8 +302,44 @@ struct brg_arg_ptr_eq_to_t {
     }
 };
 
+static constexpr int PALETTE_SIZE = 64;
+struct palette_ptr_t {
+    char *ptr_;
+
+    palette_ptr_t(const char *copied) {
+        ptr_ = (char *)aligned_alloc(64, PALETTE_SIZE);
+        memcpy(ptr_, copied, PALETTE_SIZE);
+    }
+
+    palette_ptr_t(palette_ptr_t &&other) noexcept {
+        ptr_ = other.ptr_;
+        other.ptr_ = nullptr;
+    }
+
+    ~palette_ptr_t() {
+        if (ptr_) { aligned_free(ptr_); }
+    }
+
+    struct hasher_t {
+        size_t operator()(const palette_ptr_t &p) const {
+            size_t ret = 0;
+            for (int i = 0; i < int(PALETTE_SIZE / sizeof(ret)); i++) {
+                uint64_t val = ((uint64_t *)(p.ptr_))[i];
+                hash_combine(ret, val);
+            }
+            return ret;
+        }
+    };
+
+    struct cmper_t {
+        bool operator()(const palette_ptr_t &p, const palette_ptr_t &p2) const {
+            return !memcmp(p.ptr_, p2.ptr_, PALETTE_SIZE);
+        }
+    };
+};
+
 struct brgemm_kernel_info {
-    alignas(64) char palette_[64];
+    const char *palette_;
     brgemm_kernel_t *brg_kernel_;
     bool is_amx_;
     ~brgemm_kernel_info() {
@@ -415,10 +451,15 @@ struct brg_desc_safe_t {
         }
 
         found_kernel->is_amx_ = false;
-        status = brgemm_init_tiles(desc, found_kernel->palette_);
+        char palette_buffer[PALETTE_SIZE];
+        status = brgemm_init_tiles(desc, palette_buffer);
         if (status == dnnl::impl::status::success) {
+            auto itr_pair = palettes_.insert(palette_ptr_t(palette_buffer));
+            found_kernel->palette_ = itr_pair.first->ptr_;
             amx_tile_configure(found_kernel->palette_);
             found_kernel->is_amx_ = true;
+        } else {
+            found_kernel->palette_ = nullptr;
         }
 
         // set brgemm post ops.
@@ -460,6 +501,9 @@ struct brg_desc_safe_t {
     std::unordered_map<const brg_arg_t *, brgemm_kernel_info,
             brg_arg_ptr_hash_t, brg_arg_ptr_eq_to_t>
             brg_desc_vec_;
+    std::unordered_set<palette_ptr_t, palette_ptr_t::hasher_t,
+            palette_ptr_t::cmper_t>
+            palettes_;
 
     using thread_local_cache = std::unordered_map<const brg_arg_t *,
             brgemm_kernel_info *, brg_arg_ptr_hash_t, brg_arg_ptr_eq_to_t>;
@@ -501,17 +545,16 @@ static void *get_amx_tile_buf(brgemm_kernel_info *brg_desc,
         sc::runtime::stream_t *stream, bool &amx_exclusive) {
     void *tmp_amx_tile_buf = nullptr;
     if (brg_desc->is_amx_) {
-        auto &config = sc::runtime_config_t::get();
         auto &tls = sc::runtime::thread_local_buffer_t::tls_buffer_;
-        amx_exclusive = config.amx_exclusive_;
+        amx_exclusive = false;
         if (!amx_exclusive
                 || tls.amx_buffer_.cur_palette != brg_desc->palette_) {
             amx_tile_configure(brg_desc->palette_);
             tls.amx_buffer_.cur_palette = brg_desc->palette_;
-            auto &amx_tile_buf = tls.amx_buffer_;
-            if (!amx_tile_buf.ptr_) { amx_tile_buf.reset(stream); }
-            tmp_amx_tile_buf = amx_tile_buf.ptr_;
         }
+        auto &amx_tile_buf = tls.amx_buffer_;
+        if (!amx_tile_buf.ptr_) { amx_tile_buf.reset(stream); }
+        tmp_amx_tile_buf = amx_tile_buf.ptr_;
     }
     return tmp_amx_tile_buf;
 }

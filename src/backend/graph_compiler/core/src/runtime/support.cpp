@@ -100,8 +100,6 @@ runtime_config_t::runtime_config_t() {
     execution_verbose_
             = (utils::getenv_int(env_names[SC_EXECUTION_VERBOSE], 0) == 1);
 
-    amx_exclusive_ = static_cast<bool>(
-            utils::getenv_int(env_names[SC_AMX_EXCLUSIVE], 0));
     constexpr int default_verbose = 0;
     int tmp_get_verbose_level
             = utils::getenv_int(env_names[SC_VERBOSE], default_verbose);
