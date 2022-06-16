@@ -357,7 +357,8 @@ bool parse_main_help(
 }
 
 // prb_dims_t type
-void parse_prb_vdims(prb_vdims_t &prb_vdims, const std::string &str) {
+void parse_prb_vdims(
+        prb_vdims_t &prb_vdims, const std::string &str, size_t min_inputs) {
     size_t start_pos = 0;
     // `n` is an indicator for a name supplied with dims_t object.
     std::string vdims_str = get_substr(str, start_pos, 'n');
@@ -365,7 +366,7 @@ void parse_prb_vdims(prb_vdims_t &prb_vdims, const std::string &str) {
             prb_vdims.vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
 
     // Expect at least two inputs provided
-    SAFE_V(prb_vdims.vdims.size() > 1 ? OK : FAIL);
+    SAFE_V(prb_vdims.vdims.size() >= min_inputs ? OK : FAIL);
 
     prb_vdims.ndims = static_cast<int>(prb_vdims.vdims[0].size());
     // If second and consecutive inputs are provided with less dimensions

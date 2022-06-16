@@ -91,7 +91,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_prb_vdims(s.prb_vdims, argv[0]);
+            parse_prb_vdims(s.prb_vdims, argv[0], 1);
 
             check_correctness(s);
         }

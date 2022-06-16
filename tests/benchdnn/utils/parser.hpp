@@ -236,7 +236,12 @@ bool parse_help(const char *str, const std::string &option_name = "help");
 bool parse_main_help(const char *str, const std::string &option_name = "help");
 
 // prb_dims_t type
-void parse_prb_vdims(prb_vdims_t &prb_vdims, const std::string &str);
+// `prb_vdims_t` type is supposed to run on 2+ tensors. However, in rare cases
+// like concat, the library allows a single input. To run a single input, it's
+// now a user's responsibility to define a minimum number of inputs for the
+// driver with `min_inputs` parameter.
+void parse_prb_vdims(
+        prb_vdims_t &prb_vdims, const std::string &str, size_t min_inputs = 2);
 void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str);
 
 // service functions
