@@ -464,6 +464,9 @@ public:
                         dst_data_type, bia_data_type))
             return false;
         if (is_bf16 && hw() <= ngen::HW::XeLP) return false;
+        if (is_f64_conv()
+                && utils::one_of(hw(), ngen::HW::XeLP, ngen::HW::XeHPG))
+            return false;
         if (is_fwd) return true;
         if (is_bwd_d) return true;
         if (is_bwd_w) {
