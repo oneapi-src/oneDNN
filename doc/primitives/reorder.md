@@ -125,7 +125,6 @@ floating point data type.
    - Only tensors of 6 or fewer dimensions are supported.
    - Runtime dimensions are not supported.
    - Runtime output scales are not supported.
-   - Zero points are not supported.
 
 ## Performance Tips
 
