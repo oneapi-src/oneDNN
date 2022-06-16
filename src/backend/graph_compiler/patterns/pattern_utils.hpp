@@ -41,7 +41,8 @@ public:
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
             std::vector<std::vector<op_t *>> &fusion_ops);
     inline void set_partitions(dnnl::graph::impl::graph_t &backend_graph,
-            std::vector<std::vector<op_t *>> &fusion_ops);
+            std::vector<std::vector<op_t *>> &fusion_ops,
+            dnnl::graph::impl::partition_kind_t pkind);
 
     pattern_utils_t() = default;
     pattern_utils_t(const pattern_utils_t &) = delete;
@@ -65,7 +66,8 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
 
 inline void pattern_utils_t::set_partitions(
         dnnl::graph::impl::graph_t &backend_graph,
-        std::vector<std::vector<op_t *>> &fusion_ops) {
+        std::vector<std::vector<op_t *>> &fusion_ops,
+        dnnl::graph::impl::partition_kind_t pkind) {
     std::vector<op_t *> fusion_ops_set;
     std::unordered_set<op_t *> visit;
 
@@ -73,7 +75,8 @@ inline void pattern_utils_t::set_partitions(
         fusion_ops_set.clear();
         visit.clear();
         auto pimpl = std::make_shared<compiler_partition_impl_t>(
-                backend_graph.get_engine_kind());
+                backend_graph.get_engine_kind(),
+                backend_graph.get_fpmath_mode(), pkind);
 
         for (size_t i = 0; i < pairs.size(); ++i) {
             visit.insert(pairs[i]);

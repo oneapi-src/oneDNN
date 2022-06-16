@@ -41,8 +41,13 @@ class compiler_partition_impl_t : public partition_impl_t {
     friend class compiler_backend_t;
 
 public:
-    compiler_partition_impl_t(impl::engine_kind_t engine_kind)
-        : impl::partition_impl_t(engine_kind), is_init_(true) {}
+    compiler_partition_impl_t(impl::engine_kind_t engine_kind,
+            impl::fpmath_mode_t fpmath_mode, impl::partition_kind_t pkind)
+        : impl::partition_impl_t(engine_kind, fpmath_mode, pkind)
+        , is_init_(true) {
+        assertm(fpmath_mode == fpmath_mode::strict,
+                "Compiler backend only allows fpmath mode: strict.");
+    }
 
     virtual ~compiler_partition_impl_t() = default;
 

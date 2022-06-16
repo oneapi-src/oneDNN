@@ -64,6 +64,7 @@ repetition unit:
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mlp_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
@@ -98,6 +99,7 @@ repetition unit of 3-6 layers
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern_2layers)
         .set_priority(6.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(f32)
@@ -107,6 +109,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern_3layers)
         .set_priority(6.1f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(f32)
@@ -117,6 +120,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern_4layers)
         .set_priority(6.2f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(f32)
@@ -128,6 +132,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern_5layers)
         .set_priority(6.3f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(f32)
@@ -140,6 +145,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern_6layers)
         .set_priority(6.4f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(f32)
@@ -166,6 +172,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_backward_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bwd_mlp_layer
@@ -246,6 +253,7 @@ repetition unit:
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
         .set_priority(6.0f)
+        .set_kind(impl::partition_kind::quantized_mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
@@ -290,6 +298,7 @@ repetition unit:
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mlp_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
@@ -324,6 +333,7 @@ repetition unit of 3-6 layers
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern_2layers)
         .set_priority(6.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(bf16)
@@ -333,6 +343,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern_3layers)
         .set_priority(6.1f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(bf16)
@@ -343,6 +354,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern_4layers)
         .set_priority(6.2f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(bf16)
@@ -354,6 +366,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern_5layers)
         .set_priority(6.3f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(bf16)
@@ -366,6 +379,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern_6layers)
         .set_priority(6.4f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     DEFINE_MLP_LAYER_START(bf16)
@@ -392,6 +406,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_backward_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bwd_mlp_layer

@@ -261,7 +261,8 @@ impl::status_t compiler_partition_impl_t::compile(
 
 std::shared_ptr<impl::partition_impl_t>
 compiler_partition_impl_t::clone() const {
-    auto ret = std::make_shared<compiler_partition_impl_t>(get_engine_kind());
+    auto ret = std::make_shared<compiler_partition_impl_t>(
+            get_engine_kind(), get_fpmath_mode(), get_kind());
     ret->ops_ = impl::graph_t::deep_copy(ops_);
     ret->inputs_ = inputs_;
     ret->outputs_ = outputs_;

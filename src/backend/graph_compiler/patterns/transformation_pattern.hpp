@@ -69,7 +69,7 @@ public:
                             get_pass_name().c_str());
                     fflush(stdout);
                 }
-                pu.set_partitions(agraph, matched_pairs_list);
+                pu.set_partitions(agraph, matched_pairs_list, get_kind());
             }
         }
     }

@@ -75,6 +75,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto query_reshape = pgraph->append_op(
@@ -153,6 +154,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(
@@ -203,6 +205,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_forward_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(
@@ -266,6 +269,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_backward_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto in_reshape = pgraph->append_op(
@@ -349,6 +353,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto query_reshape = pgraph->append_op(
@@ -427,6 +432,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_pattern_alternative)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(
@@ -477,6 +483,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_forward_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(
@@ -538,6 +545,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_backward_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto in_reshape = pgraph->append_op(
@@ -627,6 +635,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::quantized_mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_query = pgraph->append_op(
@@ -742,6 +751,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::quantized_mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_query = pgraph->append_op(
@@ -857,6 +867,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_mha_pattern_alternative)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::quantized_mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_query = pgraph->append_op(
@@ -940,6 +951,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_mha_pattern_alternative)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::quantized_mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_query = pgraph->append_op(
