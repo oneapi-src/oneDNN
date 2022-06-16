@@ -608,7 +608,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 builder::make_assign_unattached(is_init_var, true));
         sc::func_t init_func = builder::make_func(
                 "__init_const_globals", params, init_body, datatypes::void_t);
-        init_func->attr()["private"] = true;
+        init_func->attr()[function_attrs::private_] = true;
         ret_mod->add_func({init_func});
         stmt const_init = builder::make_if_else_unattached(
                 builder::make_logic_not(is_init_var),

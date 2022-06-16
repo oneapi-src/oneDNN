@@ -42,6 +42,7 @@
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <compiler/ir/transform/simplify.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
+#include <compiler/ir/transform/tensor_init.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/transform/value_numbering.hpp>
 #include <compiler/ir/util_module_passes.hpp>
@@ -68,6 +69,7 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<func_inliner_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>());
     ret.emplace_back(module_function_pass_t::make<loop_merger_t>());
+    ret.emplace_back(module_function_pass_t::make<tensor_init_t>(ctx));
     ret.emplace_back(
             module_function_pass_t::make<parallel_workload_dispatcher_t>());
     ret.emplace_back(utils::make_unique<constant_folder_t>());

@@ -137,7 +137,8 @@ public:
         auto itr = name_to_func_.find(v->name_);
         if (itr != name_to_func_.end()) { return itr->second; }
         auto FT = create_func_type(v);
-        bool is_private = v->attr_ && v->attr_->get_or_else("private", false);
+        bool is_private = v->attr_
+                && v->attr_->get_or_else(function_attrs::private_, false);
         Function *F = Function::Create(FT,
                 is_private ? Function::InternalLinkage
                            : Function::ExternalLinkage,
@@ -147,11 +148,12 @@ public:
                     ->setName(get_node_name(v->params_[i]) + "_arg");
         }
         name_to_func_.insert(std::make_pair(v->name_, F));
-        if (v->attr_ && v->attr_->get_or_else("pure", false)) {
+        if (v->attr_ && v->attr_->get_or_else(function_attrs::pure, false)) {
             F->addFnAttr(llvm::Attribute::AttrKind::ReadNone);
             F->addFnAttr(llvm::Attribute::AttrKind::Speculatable);
         }
-        if (v->attr_ && v->attr_->get_or_else("noalias", false)) {
+        if (v->attr_
+                && v->attr_->get_or_else(function_attrs::no_alias, false)) {
             F->setReturnDoesNotAlias();
         }
         F->addFnAttr(llvm::Attribute::AttrKind::NoUnwind);

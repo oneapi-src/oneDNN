@@ -23,7 +23,7 @@
 namespace sc {
 
 static func_t set_noalias_function(func_t f) {
-    f->attr()["noalias"] = true;
+    f->attr()[function_attrs::no_alias] = true;
     return f;
 }
 

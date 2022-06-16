@@ -30,6 +30,22 @@
 
 namespace sc {
 
+namespace function_attrs {
+// bool, if the function in invisible externally of the module. defualt = false
+constexpr const char *private_ = "private";
+// bool, if the function in a pure function (observes and produces no
+// side-effects). defualt = false
+constexpr const char *pure = "pure";
+// bool, if the function's return address has no alias (like malloc). defualt =
+// false
+constexpr const char *no_alias = "noalias";
+// bool, if the function cannot use parallel-for. defualt = false
+constexpr const char *no_parallel = "no_parallel";
+// bool, if the function cannot be traced. defualt = false
+constexpr const char *skip_trace = "skip_trace";
+
+} // namespace function_attrs
+
 /**
  * The function IR node
  * @param name the function name

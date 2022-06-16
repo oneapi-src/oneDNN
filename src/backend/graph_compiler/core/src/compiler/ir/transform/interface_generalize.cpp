@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,9 @@ const_ir_module_ptr interface_generalizer_t::operator()(
     for (unsigned i = 0; i < len; i++) {
         auto f = funcs[i];
         if (f->body_.defined()
-                && (!f->attr_ || !f->attr_->has_key("private"))) {
+                && (!f->attr_
+                        || !f->attr_->get_or_else(
+                                function_attrs::private_, false))) {
             std::string wrapper_name = f->name_ + "_0wrapper";
             assert(!ret->get_func(wrapper_name));
             _function_(datatypes::void_t, wrapper_func,

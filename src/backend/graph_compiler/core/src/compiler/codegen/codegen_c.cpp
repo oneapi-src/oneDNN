@@ -791,7 +791,8 @@ static void prepare_include(std::ostream *source) {
 }
 
 void write_cpp_prototype(std::ostream *source_, const func_c &f) {
-    codegen_c_vis vis(source_, true, f->attr_ && f->attr_->has_key("private"));
+    codegen_c_vis vis(source_, true,
+            f->attr_ && f->attr_->get_or_else(function_attrs::private_, false));
     vis.dispatch(f);
     *source_ << '\n';
 }
@@ -897,7 +898,9 @@ const_ir_module_ptr c_generator_pass_t::operator()(const_ir_module_ptr mod) {
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.c_generator_pass.codegen", "");
     for (auto &f : mod->get_contents()) {
         do_generate_c(f, source_, mod->get_module_vars(), gen_wrapper_,
-                f->attr_ && f->attr_->has_key("private"));
+                f->attr_
+                        && f->attr_->get_or_else(
+                                function_attrs::private_, false));
     }
     return mod;
 }

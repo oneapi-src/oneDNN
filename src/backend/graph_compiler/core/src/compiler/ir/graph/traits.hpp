@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 #include "graph.hpp"
+#include <compiler/ir/transform/parallel_workload_attr.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 namespace sc {
 
@@ -101,9 +102,10 @@ struct constant_optimizable_t : public virtual op_base_trait_t {
 // slice.
 struct workload_computable_t : public virtual op_base_trait_t {
     using shape_dtype_pair = std::pair<sc_dims, sc_data_type_t>;
-    static const size_t read_weight = 1UL;
-    static const size_t write_weight = 1UL;
-    static constexpr const char *workload_number = "workload_number";
+    static const size_t read_weight = parallel_workload::read_weight;
+    static const size_t write_weight = parallel_workload::write_weight;
+    static constexpr const char *workload_number
+            = parallel_workload::attr_workload_number;
     // compute workload with given input and output tensor pointers, according
     // to read/write times and operator numbers.
     virtual size_t compute_workload(const std::vector<shape_dtype_pair> &ins,

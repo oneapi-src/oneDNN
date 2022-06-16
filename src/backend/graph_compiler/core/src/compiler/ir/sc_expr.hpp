@@ -334,8 +334,9 @@ public:
 /**
  * Stores an arbitrary single-lane integer or floating-point value.
  *
- * By convention, usage of this union assumes the following mapping
- * between C++-type and sc_data_etype:
+ * If the length of valid data is less than 32bit (e.g. f32), The unused bits in
+ * the union should be filled with 0. By convention, usage of this union assumes
+ * the following mapping between C++-type and sc_data_etype:
  *
  *   datatypes::f16     --> float (WIP)
  *   datatypes::bf16    --> float (WIP)
@@ -350,14 +351,20 @@ public:
 union union_val {
     uint64_t u64;
     int64_t s64;
-    float f32;
+    struct {
+        float f32;
+        int32_t unused;
+    };
     union_val() = default;
     union_val(uint64_t val_u64) { u64 = val_u64; }
 #if defined(_MSC_VER) || defined(__APPLE__)
     union_val(unsigned long val_u64) { u64 = val_u64; } // NOLINT
 #endif
     union_val(int64_t val_s64) { s64 = val_s64; }
-    union_val(float val_f32) { f32 = val_f32; }
+    union_val(float val_f32) {
+        f32 = val_f32;
+        unused = 0;
+    }
 };
 
 class expr_base;
@@ -1157,9 +1164,10 @@ enum class address_space {
  * large, the tensor will be allocated on heap via memory pool
  * @note The dtype_ of tensor node should be a pointer, which can be mapped to
  * `T*` in C++. The type of the elements is stored in the field elem_dtype_
- * @note if the tensor's \p init_value_ has an special init value from
- * \p get_zero_tensor_initializer , it means that the tensor should be
- * initialzied with 0
+ * @note if the tensor's \p init_value_ has special init values. They are either
+ * from \p get_zero_tensor_initializer , (it means that the tensor should be
+ * initialzied with 0_ or from \p make_tensor_initializer (it means that the
+ * tensor will be filled with a single value repeatedly)
  * */
 class tensor_node : public expr_base,
                     public visitable_t<tensor_node, expr_base> {
@@ -1189,6 +1197,8 @@ public:
      * */
     void to_string_full(ostream &os);
     static const std::shared_ptr<static_data_t> &get_zero_tensor_initializer();
+    static std::shared_ptr<static_data_t> make_tensor_initializer(
+            union_val val);
 };
 SC_DEFINE_EXPR_NODE_PTR(tensor)
 

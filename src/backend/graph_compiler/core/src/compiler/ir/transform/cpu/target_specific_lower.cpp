@@ -357,7 +357,7 @@ public:
                 f = lower_func(ret.checked_as<intrin_call>());
                 // private function, so that hopefully it can be removed
                 // after inlined
-                f->attr()["private"] = true;
+                f->attr()[function_attrs::private_] = true;
                 mod_->add_func({f});
             }
             auto r = copy_attr(*ret, builder::make_call(f, new_args));
@@ -413,57 +413,6 @@ public:
         return v;
     }
 
-    void insert_tensor_zero_init(std::vector<stmt_c> &seq, const expr &e) {
-        auto tsr = e.as<tensor>();
-        if (tsr.defined()
-                && tsr->init_value_
-                        == tensor_node::get_zero_tensor_initializer()) {
-            assert(tsr->dims_.size() == 1);
-            auto dim = tsr->dims_[0];
-            if (dim.isa<constant>()) {
-                auto len = get_const_as_int(dim.static_as<constant>());
-                auto step = ctx_->get_max_vector_lanes(
-                        tsr->elem_dtype_.type_code_);
-                auto remainder = len % step;
-                if (len >= step) {
-                    expr itr = builder::make_var(datatypes::index, "itr");
-                    stmt assign = builder::make_assign_unattached(
-                            e[span_t({itr}, step)],
-                            make_expr<constant_node>(UINT64_C(0),
-                                    sc_data_type_t {tsr->elem_dtype_.type_code_,
-                                            step}));
-                    stmt body = builder::make_stmts_unattached({assign});
-                    body = builder::make_for_loop_unattached(itr, UINT64_C(0),
-                            static_cast<uint64_t>(len),
-                            static_cast<uint64_t>(step), body, true,
-                            for_type::NORMAL);
-                    seq.emplace_back(body);
-                }
-                if (remainder != 0) {
-                    expr itr = builder::make_var(datatypes::index, "itr_rem");
-                    stmt assign = builder::make_assign_unattached(e[{itr}],
-                            make_expr<constant_node>(
-                                    UINT64_C(0), tsr->elem_dtype_));
-                    stmt body = builder::make_stmts_unattached({assign});
-                    body = builder::make_for_loop_unattached(itr,
-                            static_cast<uint64_t>(len - remainder),
-                            static_cast<uint64_t>(len),
-                            static_cast<uint64_t>(1), body, true,
-                            for_type::NORMAL);
-                    seq.emplace_back(body);
-                }
-            } else {
-                expr_c thecall = builder::make_call(builtin::get_mem_set_func(),
-                        {tsr, 0,
-                                utils::get_sizeof_type(tsr->elem_dtype_)
-                                        * tsr->dims_[0]});
-                thecall = auto_caster_t()(thecall);
-                thecall = constant_folder_t()(thecall);
-                seq.emplace_back(builder::make_evaluate_unattached(thecall));
-            }
-        }
-    }
-
     std::vector<stmt_c> insert_seq_before_;
     stmt_c visit(stmts_c v) override {
         bool changed = false;
@@ -484,10 +433,6 @@ public:
                 def_sz = cur_defs.size();
             }
             seqs.emplace_back(new_st);
-            // if the tensor needs to be zero-initialized, insert memzero call
-            if (new_st.isa<define>()) {
-                insert_tensor_zero_init(seqs, new_st.static_as<define>()->var_);
-            }
         }
         need_defs_.pop_back();
         changed |= seqs.size() != v->seq_.size();
@@ -496,13 +441,6 @@ public:
             return std::move(newv);
         }
         return v;
-    }
-
-    func_c dispatch(func_c f) override {
-        for (auto &p : f->params_) {
-            insert_tensor_zero_init(insert_seq_before_, p);
-        }
-        return ir_visitor_t::dispatch(f);
     }
 
     target_specific_lower_cpu_impl_t(context_ptr ctx, const ir_module_ptr &m)

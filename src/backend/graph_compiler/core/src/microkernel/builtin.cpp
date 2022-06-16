@@ -436,7 +436,7 @@ std::vector<expr> create_initialed_postops_data() {
 }
 
 static func_t set_pure_function(func_t f) {
-    f->attr()["pure"] = true;
+    f->attr()[function_attrs::pure] = true;
     return f;
 }
 

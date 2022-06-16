@@ -70,8 +70,8 @@ class closurize_cpu_impl_t : public closurize_impl_t {
         assert(!modu_->get_func(ret->name_));
         assert(!modu_->get_func(closure->name_));
 
-        closure->attr()["private"] = true;
-        ret->attr()["private"] = true;
+        closure->attr()[function_attrs::private_] = true;
+        ret->attr()[function_attrs::private_] = true;
         ret->decl_->attr() = ret->attr();
         closure->decl_->attr() = closure->attr();
         std::vector<expr> fargs;

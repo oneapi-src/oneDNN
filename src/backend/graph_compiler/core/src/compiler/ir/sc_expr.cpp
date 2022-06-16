@@ -650,6 +650,9 @@ void tensor_node::to_string_full(ostream &os) {
     }
     if (init_value_ == tensor_node::get_zero_tensor_initializer()) {
         os << "{zero_init}";
+    } else if (init_value_ && init_value_->size_ == sizeof(union_val)) {
+        union_val val = *reinterpret_cast<union_val *>(init_value_->data_);
+        os << "{value:" << val.u64 << '}';
     }
 }
 
@@ -658,6 +661,14 @@ tensor_node::get_zero_tensor_initializer() {
     static std::shared_ptr<static_data_t> ret
             = std::make_shared<static_data_t>(nullptr, 0);
     return ret;
+}
+
+std::shared_ptr<static_data_t> tensor_node::make_tensor_initializer(
+        union_val val) {
+    union_val theval;
+    theval.u64 = 0;
+    theval = val;
+    return std::make_shared<static_data_t>(&theval, sizeof(val));
 }
 
 expr tensor_node::remake() const {
