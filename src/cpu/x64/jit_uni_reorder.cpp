@@ -1915,18 +1915,34 @@ static void prb_block_for_cache(tr::prb_t &prb) {
             prb_node_split(prb, 0, num_elems_thr);
             prb_node_move(prb, 1, 2);
 
+            // Update node information
+            prb_node_dependency(prb);
+
             // heuristics - looping over the unrolled dims should maximize reuse
             // of the already cached data; observation is choosing the smallest
             // dim from the remaining (from 2 up to ndims) gives good results
+            constexpr int new_position = 2;
             const auto dim_beg_it = std::begin(prb.nodes);
-            const auto dim_two_it = dim_beg_it + 2;
+            const auto dim_two_it = dim_beg_it + new_position;
             const auto dim_last_it = dim_beg_it + prb.ndims;
             const auto min_n_node_it = std::min_element(dim_two_it, dim_last_it,
                     [](const tr::node_t &lhs, const tr::node_t &rhs) {
                         return lhs.n < rhs.n;
                     });
             const auto min_idx = std::distance(dim_beg_it, min_n_node_it);
-            if (min_idx > 2) prb_node_move(prb, min_idx, 2);
+            // check if min_idx node is parent of node with tail processing which
+            // is currently unsupported (i.e. tail processing can only be handled
+            // at the inner-most dimension)
+            bool inner_block_has_tail = false;
+            for (int idx = min_idx - 1; idx >= new_position; idx--) {
+                if (prb.nodes[idx].parent_node_id == min_idx) {
+                    inner_block_has_tail = true;
+                    break;
+                }
+            }
+
+            if (min_idx > new_position && (!inner_block_has_tail))
+                prb_node_move(prb, min_idx, new_position);
         }
     }
 }
