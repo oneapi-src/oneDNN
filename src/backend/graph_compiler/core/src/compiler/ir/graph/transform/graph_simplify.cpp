@@ -21,6 +21,7 @@
 #include "../pass/pass.hpp"
 #include "../visitor.hpp"
 #include "transform.hpp"
+#include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <unordered_map>
 
@@ -45,6 +46,13 @@ struct compare_sc_op_t {
                 && v0->compare_contents(v1.get());
     }
 };
+
+static void insert_tensor_view_op(sc_graph_t &graph, graph_tensor_ptr in,
+        size_t in_index, const sc_op_ptr &cur_op) {
+    auto ret = graph.make("tensor_view", {std::move(in)}, {},
+            {{"shape", in->details_.get_plain_dims()}});
+    cur_op->replace_input(in_index, ret->get_outputs()[0]);
+}
 
 void drop_same_op_on_output(sc_graph_t &graph, const graph_tensor_ptr &output) {
     std::unordered_map<sc_op_ptr, std::vector<int>, hash_sc_op_t,
@@ -152,7 +160,94 @@ void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
     graph.reset_op_ids();
 }
 
+// eliminate redundant binary op
+void redundant_binary_op_elimination(
+        sc_graph_t &graph, const context_ptr &ctx) {
+    auto vis = op_visitor_t::bfs();
+    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+        // x + 0 or 0 + x or x * 1 or 1 * x
+        if (node->isa<add_op_t>() || node->isa<mul_op_t>()) {
+            for (size_t i = 0; i < node->get_inputs().size(); i++) {
+                if (node->get_inputs()[i]
+                                ->producer_owner_->isa<constant_op_t>()) {
+                    auto in_const_op = node->get_inputs()[i]
+                                               ->producer_owner_
+                                               ->dyn_cast<constant_op_t>();
+                    float v = reinterpret_cast<float *>(
+                            in_const_op->get_constant_values()->data_)[0];
+                    if (((v == 0.f && node->isa<add_op_t>())
+                                || (v == 1.f && node->isa<mul_op_t>()))
+                            && in_const_op->get_constant_plain_dims().size()
+                                    == 1
+                            && in_const_op->get_constant_plain_dims()[0] == 1) {
+                        size_t use_size = node->get_outputs()[0]->uses_.size();
+                        for (size_t j = 0; j < use_size; j++) {
+                            sc_op_ptr next_node = node->get_outputs()[0]
+                                                          ->uses_[j]
+                                                          .second.get_shared();
+                            int idx = node->get_outputs()[0]->uses_[j].first;
+                            if (next_node->isa<output_op>()
+                                    && node->get_inputs()[1 - i]
+                                               ->producer_owner_
+                                               ->isa<input_op>()) {
+                                insert_tensor_view_op(graph,
+                                        node->get_inputs()[1 - i], idx,
+                                        next_node);
+                            } else {
+                                next_node->replace_input(
+                                        idx, node->get_inputs()[1 - i]);
+                            }
+                        }
+                        node->remove();
+                        if (in_const_op->get_outputs()[0]->uses_.empty()) {
+                            in_const_op->remove();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        // x - 0 or x / 1
+        else if (node->isa<sub_op_t>() || node->isa<div_op_t>()) {
+            if (node->get_inputs()[1]->producer_owner_->isa<constant_op_t>()) {
+                auto in_const_op
+                        = node->get_inputs()[1]
+                                  ->producer_owner_->dyn_cast<constant_op_t>();
+                float v = reinterpret_cast<float *>(
+                        in_const_op->get_constant_values()->data_)[0];
+                if (((v == 0.f && node->isa<sub_op_t>())
+                            || (v == 1.f && node->isa<div_op_t>()))
+                        && in_const_op->get_constant_plain_dims().size() == 1
+                        && in_const_op->get_constant_plain_dims()[0] == 1) {
+                    size_t use_size = node->get_outputs()[0]->uses_.size();
+                    for (size_t j = 0; j < use_size; j++) {
+                        sc_op_ptr next_node = node->get_outputs()[0]
+                                                      ->uses_[j]
+                                                      .second.get_shared();
+                        int idx = node->get_outputs()[0]->uses_[j].first;
+                        if (next_node->isa<output_op>()
+                                && node->get_inputs()[0]
+                                           ->producer_owner_->isa<input_op>()) {
+                            insert_tensor_view_op(graph, node->get_inputs()[0],
+                                    idx, next_node);
+                        } else {
+                            next_node->replace_input(
+                                    idx, node->get_inputs()[0]);
+                        }
+                    }
+                    node->remove();
+                    if (in_const_op->get_outputs()[0]->uses_.empty()) {
+                        in_const_op->remove();
+                    }
+                }
+            }
+        }
+    });
+    graph.reset_op_ids();
+}
+
 void graph_simplify(sc_graph_t &graph, const context_ptr &ctx) {
+    redundant_binary_op_elimination(graph, ctx);
     excess_tensor_view_elimination(graph, ctx);
     horizontal_same_op_elimination(graph, ctx);
 }

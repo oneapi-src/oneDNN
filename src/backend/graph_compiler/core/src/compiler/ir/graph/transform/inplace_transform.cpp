@@ -20,21 +20,26 @@
 #include <ops/fusible/memory_movement.hpp>
 namespace sc {
 void tensor_view_to_copy(sc_graph_t &graph) {
-    int count = 0;
-    size_t idx = -1;
+    std::vector<size_t> idxes = {};
     for (size_t i = 0; i < graph.ops_.size(); i++) {
         auto &op = graph.ops_[i];
-        if (!(op->isa<input_op>() || op->isa<output_op>())) {
-            count++;
-            idx = i;
-            if (count > 1) { return; }
+        if (op->isa<tensor_view_op_t>()) {
+            // input_op - tensor_view - output_op
+            if (op->get_inputs()[0]->producer_owner_->isa<input_op>()
+                    && op->get_outputs()[0]->uses_.size() == 1
+                    && op->get_outputs()[0]
+                               ->uses_[0]
+                               .second->isa<output_op>()) {
+                idxes.push_back(i);
+            }
         }
     }
-    assert(count == 1);
-    if (auto node = graph.ops_[idx]->dyn_cast<tensor_view_op_t>()) {
-        auto copy_node = graph.make("reshape", node->get_inputs(), {},
-                {{"shape", node->get_shapes()}});
-        node->replace_uses_with_and_remove(copy_node);
+    for (auto &idx : idxes) {
+        if (auto node = graph.ops_[idx]->dyn_cast<tensor_view_op_t>()) {
+            auto copy_node = graph.make("reshape", node->get_inputs(), {},
+                    {{"shape", node->get_shapes()}});
+            node->replace_uses_with_and_remove(copy_node);
+        }
     }
     graph.reset_op_ids();
 }

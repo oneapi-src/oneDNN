@@ -636,8 +636,14 @@ ir_module_ptr fused_op_t::try_get_func(const context_ptr &ctx, bool just_check,
                 }
             }
             if (found) {
-                inp_idx = i;
-                break;
+                if (get_dims_product(
+                            ins->get_outputs()[0]->details_.get_blocking_dims())
+                        > get_dims_product(
+                                graph.get_input_ops()[inp_idx]
+                                        ->get_outputs()[0]
+                                        ->details_.get_blocking_dims())) {
+                    inp_idx = i;
+                }
             }
         }
         // reset input_idx
