@@ -89,6 +89,8 @@ public:
         return pimpl_->get_fpmath_mode();
     }
 
+    impl::partition_kind_t get_kind() const { return pimpl_->get_kind(); }
+
     const std::vector<std::shared_ptr<impl::op_t>> &get_ops() const {
         return pimpl_->get_ops();
     }

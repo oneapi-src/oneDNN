@@ -73,6 +73,9 @@ TEST(APIPartition, PartitionTest) {
     // check partition engine kind
     ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
 
+    // check partition kind
+    ASSERT_EQ(partitions[0].get_kind(), partition::kind::convolution_post_ops);
+
     //get_ops
     std::vector<size_t> ops = partitions[0].get_ops();
     ASSERT_EQ(ops.size(), 2);

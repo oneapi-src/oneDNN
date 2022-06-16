@@ -229,7 +229,7 @@ std::string init_info_partition(const impl::engine_t *engine,
     const auto &partition = compiled_partition->src_partition();
 
     ss << std::string(engine_kind2str(engine->kind())) << "," << partition.id()
-       << ",";
+       << "," << partition_kind2str(partition.get_kind()) << ",";
 
     const std::vector<std::shared_ptr<graph::impl::op_t>> &operators
             = partition.get_ops();
