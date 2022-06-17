@@ -34,7 +34,6 @@ status_t conv_config_t::init_common_blocking() {
     bh->set_hw_config(hw_cfg);
     bh->set_fma_kind(fma_kind);
     bh->set_abc_types(a_data_type, b_data_type, acc_data_type);
-    bh->set_use_2d_send(use_a_2d_send, use_b_2d_send);
 
     bh->set_dim("mb", mb);
     bh->set_dim("g", g);
@@ -191,10 +190,11 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
 
     bh->reorder({"ic", "kw"});
 
-    if (use_a_2d_send && use_b_2d_send) {
+    if (use_2d_send_nhwc) {
         int src_type_size = (int)types::data_type_size(src_data_type);
         // Use 64-byte reduction step to avoid partial cache line loads.
         bh->set_base_iter_block("ic", 64 / src_type_size);
+        bh->set_reduce_m_block_hint(false);
     }
 
     bh->compute();
@@ -237,7 +237,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     kernel_grid_dim[1] = g_grid_dim * osp_grid_dim;
     kernel_grid_dim[2] = mb_grid_dim;
 
-    if (use_a_2d_send && sw != 1 && (kw != 1 || pw != 0)) {
+    if (use_2d_send_nhwc && sw != 1 && (kw != 1 || pw != 0)) {
         ir_assert(osp_thr_blk == 1)
                 << "Can't use 2D block messages for non-trivial "
                    "strided dimensions.";
@@ -287,10 +287,11 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
         bh->set_base_iter_block("mb", 8);
     }
 
-    if (use_a_2d_send && use_b_2d_send) {
+    if (use_2d_send_nhwc) {
         int dst_type_size = (int)types::data_type_size(dst_data_type);
         bh->set_base_iter_block("oc", 64 / dst_type_size);
         if (!is_stride1()) bh->allow_split({"mb"});
+        bh->set_reduce_m_block_hint(false);
     }
 
     bh->compute();
@@ -347,7 +348,7 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
     kernel_grid_dim[1] = g_grid_dim * id * ih * iw_grid_dim;
     kernel_grid_dim[2] = mb_grid_dim;
 
-    if (use_a_2d_send && mb < 16 && sw != 1) {
+    if (use_2d_send_nhwc && mb < 16 && sw != 1) {
         ir_assert(bh->iter_blk("iw") == 1)
                 << "Can't use 2D block messages for non-trivial "
                    "strided dimensions.";
@@ -404,6 +405,8 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
 
     bh->reorder({"mb", "ow", "oh"});
 
+    if (use_2d_send_nhwc) bh->set_reduce_m_block_hint(false);
+
     bh->compute();
 
     g_tg_blk = bh->tg_blk("g");
@@ -444,7 +447,7 @@ status_t conv_config_t::init_bwd_w(convolution_pd_t *conv_pd) {
             * oh_grid_dim * ow_grid_dim;
     kernel_grid_dim[2] = g_grid_dim * mb_grid_dim;
 
-    if (use_a_2d_send && sw != 1 && (kw != 1 || pw != 0)) {
+    if (use_2d_send_nhwc && sw != 1 && (kw != 1 || pw != 0)) {
         ir_assert(ow_blk == 1) << "Can't use 2D block messages for non-trivial "
                                   "strided dimensions.";
     }
@@ -676,8 +679,12 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     auto &dst_md = *conv_pd->invariant_dst_md();
     auto &bia_md = *conv_pd->invariant_bia_md();
 
-    // If src/dst is nhwc then set the other one with any to nhwc too.
-    if (matches_tag(src_md, "axb") || matches_tag(dst_md, "axb")) {
+    // If src/dst is nhwc then set the other one with any to nhwc too (except
+    // 1st convolution).
+    bool is_small_ic_non_dw = is_small_ic() && !is_dw;
+    bool propagate_nhwc = (matches_tag(src_md, "axb") && !is_small_ic_non_dw)
+            || matches_tag(dst_md, "axb");
+    if (propagate_nhwc) {
         set_default_format(src_md, "axb");
         set_default_format(dst_md, "axb");
     }
@@ -689,8 +696,8 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     // the external reorder but it has a number of restrictions.
     bool allow_wei_reorder = is_ge_xe_hpc() && is_dp_fma();
     bool allow_dst_reorder = false;
-    if (matches_tag(src_md, "axb") && (is_fwd || is_bwd_w) && is_small_ic()
-            && !is_dw) {
+    if (matches_tag(src_md, "axb") && (is_fwd || is_bwd_w)
+            && is_small_ic_non_dw) {
         allow_src_reorder = true;
     }
 
@@ -712,7 +719,7 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
         bool wei_hwio = false;
         bool user_wei_hwio = false;
         if (hw() >= ngen::HW::XeHPC) {
-            if (use_a_2d_send && use_b_2d_send) {
+            if (use_2d_send_nhwc) {
                 wei_hwio = true;
                 user_wei_hwio = true;
             } else if (is_small_ic() && (is_fwd || is_bwd_w)) {
@@ -862,7 +869,8 @@ status_t conv_config_t::fixup_inference_consistency() {
         // dimension). Do not use dpasw if X is uneven.
         if (tg_grid_dim[0] % 2 != 0) fma_kind = fma_kind_t::dpas;
         // dpasw can't be generated in case of direct load from GMEM and reorder.
-        if (is_bwd_w && allow_grf_reorder && (!use_a_slm || !use_b_slm))
+        if (is_bwd_w && (allow_a_grf_reorder || allow_b_grf_reorder)
+                && (!use_a_slm || !use_b_slm))
             fma_kind = fma_kind_t::dpas;
     }
 
@@ -874,6 +882,46 @@ status_t conv_config_t::fixup_inference_consistency() {
         return status::runtime_error;
     }
     return status::success;
+}
+
+void conv_config_t::set_allow_grf_reorder() {
+    bool is_mad = !is_dp_fma();
+    if (is_mad && is_s32_accumulator()) {
+        allow_a_grf_reorder = true;
+        allow_b_grf_reorder = true;
+        return;
+    }
+
+    if (is_mad && b_data_type == data_type::bf16) {
+        allow_b_grf_reorder = true;
+        return;
+    }
+
+    bool is_a_grf_blocked
+            = (a_layout().innermost_block_layout().size() % grf_size() == 0);
+    if ((is_fwd || is_bwd_d) && !can_use_a_2d_send && !is_a_grf_blocked) {
+        const char *dim_name = (is_fwd ? "ic" : "oc");
+        int dim = (is_fwd ? ic : oc);
+        int blk = bh->iter_blk(dim_name);
+        if (blk * a_data_type_size % grf_size() != 0
+                || dim != padded_dim(dim_name)) {
+            allow_a_grf_reorder = true;
+        }
+    }
+
+    if (is_fwd && is_dp_fma() && is_small_ic() && !is_dw) {
+        allow_a_grf_reorder = true;
+    }
+
+    if (is_bwd_w && is_dp_fma()) {
+        if (!can_use_a_2d_send) allow_a_grf_reorder = true;
+        if (!can_use_b_2d_send) allow_b_grf_reorder = true;
+    }
+}
+
+void conv_config_t::set_init_can_use_2d_send() {
+    can_use_a_2d_send = can_use_2d_send(compute_layout("a"), true);
+    can_use_b_2d_send = can_use_2d_send(compute_layout("b"), false);
 }
 
 int conv_config_t::grid_dim(const std::string &name) const {
@@ -892,6 +940,82 @@ const std::unordered_map<std::string, int> &conv_config_t::dim_blocks() const {
     return bh->iter_dims();
 }
 
+bool conv_config_t::can_use_2d_send(const layout_t &l, bool is_a) const {
+    bool is_b = !is_a;
+    //if (!is_dp_fma()) return;
+    if (hw() < ngen::HW::XeHPC) return false;
+
+    const char *sp_name = nullptr;
+    if (bh) {
+        for (auto *name : {"ow", "iw", "osp"}) {
+            if (bh->has_dim(name)) {
+                sp_name = name;
+                break;
+            }
+        }
+        ir_assert(sp_name);
+    }
+
+    // Can't use 2D block messages for non-trivial strided dimensions.
+    if (is_a && (is_fwd || is_bwd_w) && sw != 1 && (kw != 1 || pw != 0)) {
+        if (bh) {
+            if (bh->thr_blk(sp_name) > 1) return false;
+        } else if (mb < 16) {
+            return false;
+        }
+    }
+    if (is_a && is_bwd_d && sw != 1) {
+        if (bh && bh->thr_blk(sp_name) > 1) {
+            return false;
+        } else if (mb < 16) {
+            return false;
+        }
+    }
+
+    // Can't use 2D block messages for compound blocks.
+    if (is_a && bh) {
+        bool has_mb_block = (bh->thr_blk("mb") > 1);
+        bool has_sp_block = (bh->thr_blk(sp_name) > 1);
+        if (has_mb_block && has_sp_block) return false;
+    }
+
+    auto is_plain_ok = [&]() {
+        if (is_a || is_bwd_w) return matches_tag(l, "axb");
+        if (is_b && l.is_empty()) return true;
+        if (is_b && is_fwd) return matches_tag(l, "xba");
+        if (is_b && is_bwd_d) return matches_tag(l, "xab");
+        return false;
+    };
+
+    if (!is_plain_ok()) return false;
+
+    // Check 2D block message limitations.
+    // Layouts for A:
+    //   FWD:   NHWC (src)
+    //   BWD_D: NHWC (dst)
+    //   BWD_W: NHWC (src)
+    // Layouts for B:
+    //   FWD:   HWIO (wei)
+    //   BWD_D: HWOI (wei)
+    //   BWD_W: NHWC (dst)
+    int a_width = (is_fwd || is_bwd_w) ? ic : oc;
+    int b_width = (is_fwd || is_bwd_w) ? oc : ic;
+    int a_max_height = std::max((is_fwd || is_bwd_w) ? iw : ow, mb);
+    int b_max_height = is_fwd ? ic : (is_bwd_d ? oc : std::max(ow, mb));
+    int a_max_pitch
+            = (is_fwd || is_bwd_w) ? (ic * id * ih * iw) : (oc * od * oh * ow);
+    int b_max_pitch = (is_fwd || is_bwd_d) ? b_width : (oc * od * oh * ow);
+    int data_type_size = (is_a ? a_data_type_size : b_data_type_size);
+    int width = (is_a ? a_width : b_width);
+    int max_height = (is_a ? a_max_height : b_max_height);
+    int max_pitch = (is_a ? a_max_pitch : b_max_pitch);
+    if (!block_2d_width_ok(width, data_type_size)) return false;
+    if (!block_2d_height_ok(max_height)) return false;
+    if (!block_2d_pitch_ok(hw_cfg, width, data_type_size)) return false;
+    if (!block_2d_pitch_ok(hw_cfg, max_pitch, data_type_size)) return false;
+    return true;
+}
+
 bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
     if (hw() <= ngen::HW::XeHPG) return true;
     if (bh->max_iter_dim("mb") == 1) return true;
@@ -903,71 +1027,20 @@ bool conv_config_t::should_use_spatial_blocking(int d, int h, int w) const {
     return sp_ratio >= mb_ratio;
 }
 
-void conv_config_t::init_use_2d_send(const convolution_pd_t *conv_pd) {
-    use_a_2d_send = false;
-    use_b_2d_send = false;
-#ifdef GEN_CONV_DEBUG
-    int env_value = getenv_int("use_2d_send", -1);
-    if (env_value != -1) {
-        use_a_2d_send = (bool)env_value;
-        use_b_2d_send = (bool)env_value;
-        return;
-    }
-#endif
-    if (!is_dp_fma()) return;
-    if (hw() < ngen::HW::XeHPC) return;
+void conv_config_t::init_use_2d_send_nhwc(const convolution_pd_t *conv_pd) {
+    layout_t a_layout;
+    layout_t b_layout;
+    auto &a_md = (is_fwd || is_bwd_w) ? *conv_pd->invariant_src_md()
+                                      : *conv_pd->invariant_dst_md();
+    auto &b_md = (is_fwd || is_bwd_d) ? *conv_pd->invariant_wei_md()
+                                      : *conv_pd->invariant_dst_md();
+    if (a_md.format_kind != format_kind::any) a_layout = layout_t(a_md);
+    if (b_md.format_kind != format_kind::any) b_layout = layout_t(b_md);
 
-    // Can't use 2D block messages for non-trivial strided dimensions.
-    if ((is_fwd || is_bwd_w) && mb < 16 && sw != 1 && (kw != 1 || pw != 0))
-        return;
-    if (is_bwd_d && sw != 1 && mb < 16) return;
+    bool a_ok = can_use_2d_send(a_layout, true);
+    bool b_ok = can_use_2d_send(b_layout, false);
 
-    auto is_a_plain_ok = [&]() {
-        auto &md = (is_fwd || is_bwd_w) ? *conv_pd->invariant_src_md()
-                                        : *conv_pd->invariant_dst_md();
-        return matches_tag(md, "axb");
-    };
-
-    auto is_b_plain_ok = [&]() {
-        if (is_bwd_w) return matches_tag(*conv_pd->invariant_dst_md(), "axb");
-        auto &wei_md = *conv_pd->invariant_wei_md();
-        if (wei_md.format_kind != format_kind::any) {
-            bool wei_hwio = matches_tag(wei_md, "xba");
-            bool wei_oihw = matches_tag(wei_md, "abx");
-            return wei_hwio || wei_oihw;
-        }
-        // Weights will be returned as hwio for "any" query.
-        return is_a_plain_ok();
-    };
-
-    // Check 2D block message limitations for A.
-    // FWD:   NHWC (src)
-    // BWD_D: NHWC (dst)
-    // BWD_W: NHWC (src)
-    bool a_ok = is_a_plain_ok();
-    int a_width = (is_fwd || is_bwd_w) ? ic : oc;
-    int a_max_height = std::max((is_fwd || is_bwd_w) ? iw : ow, mb);
-    int a_max_pitch
-            = (is_fwd || is_bwd_w) ? (ic * id * ih * iw) : (oc * od * oh * ow);
-    if (!block_2d_width_ok(a_width, a_data_type_size)) a_ok = false;
-    if (!block_2d_height_ok(a_max_height)) a_ok = false;
-    if (!block_2d_pitch_ok(hw_cfg, a_width, a_data_type_size)) a_ok = false;
-    if (!block_2d_pitch_ok(hw_cfg, a_max_pitch, a_data_type_size)) a_ok = false;
-    if (a_ok) use_a_2d_send = true;
-
-    // Check 2D block message limitations for B.
-    // FWD:   HWIO (wei)
-    // BWD_D: HWOI (wei)
-    // BWD_W: NHWC (dst)
-    bool b_ok = is_b_plain_ok();
-    int b_width = (is_fwd || is_bwd_w) ? oc : ic;
-    int b_max_height = is_fwd ? ic : (is_bwd_d ? oc : std::max(ow, mb));
-    int b_max_pitch = (is_fwd || is_bwd_d) ? b_width : (oc * od * oh * ow);
-    if (!block_2d_width_ok(b_width, b_data_type_size)) b_ok = false;
-    if (!block_2d_height_ok(b_max_height)) b_ok = false;
-    if (!block_2d_pitch_ok(hw_cfg, b_width, b_data_type_size)) b_ok = false;
-    if (!block_2d_pitch_ok(hw_cfg, b_max_pitch, b_data_type_size)) b_ok = false;
-    if (b_ok) use_b_2d_send = true;
+    use_2d_send_nhwc = a_ok && b_ok;
 }
 
 void conv_config_t::init_fuse_spatial() {
@@ -1000,7 +1073,7 @@ void conv_config_t::init_hoist_masks_from_compute_loop() {
         return;
     }
 #endif
-    if (use_a_2d_send && use_b_2d_send) {
+    if (use_2d_send_nhwc) {
         hoist_masks_from_compute_loop = true;
         return;
     }
@@ -1021,7 +1094,6 @@ void conv_config_t::init_bwd_d_optimize_strided(int iw_thr_blk) {
 
     bwd_d_optimize_strided = true;
 
-    if (!use_a_2d_send && is_compute_nhwc("dst")) return;
     if (iw_thr_blk > 1) return;
     if (iw % sw != 0) return;
     bwd_d_optimize_strided_iw = true;
@@ -1111,7 +1183,7 @@ std::string conv_config_t::str() const {
     oss << "  Assign SBIDs:               " << to_string(assign_sbids) << std::endl;
     oss << "  Reduce GRF usage:           " << to_string(reduce_grf_usage) << std::endl;
     oss << "  Reuse headers:              " << to_string(reuse_headers) << std::endl;
-    oss << "  Allow GRF reorder:          " << to_string(allow_grf_reorder) << std::endl;
+    oss << "  Allow GRF reorder:          " << "A: " << to_string(allow_a_grf_reorder) << ", B: " << to_string(allow_b_grf_reorder) << std::endl;
     oss << "  Sub-tiles:                  " << "A: " << a_sub_tiles << ", B: " << b_sub_tiles << std::endl;
     oss << "  Estimated GRF usage:        " << estimated_peak_grf_usage << std::endl;
     // clang-format on
@@ -1331,7 +1403,8 @@ private:
             int load_elems
                     = (use_slm ? per_thr_elems : ab_sub_tile_elems(is_a));
             auto layout = get_gmem_layout(is_a);
-            bool use_2d_send = (is_a ? cfg_.use_a_2d_send : cfg_.use_b_2d_send);
+            bool use_2d_send
+                    = (is_a ? cfg_.can_use_a_2d_send : cfg_.can_use_b_2d_send);
             access_grf_usage_helper_t load(layout, load_elems, reg_bytes_,
                     /*is_slm=*/false, use_2d_send);
             if (is_a && !use_slm && cfg_.fma_kind == fma_kind_t::dpasw)
@@ -1344,8 +1417,8 @@ private:
             } else {
                 int sub_tiles = (is_a ? cfg_.a_sub_tiles : cfg_.b_sub_tiles);
                 int mult = (use_slm ? 1 : sub_tiles);
-                bool use_2d_send
-                        = (is_a ? cfg_.use_a_2d_send : cfg_.use_b_2d_send);
+                bool use_2d_send = (is_a ? cfg_.can_use_a_2d_send
+                                         : cfg_.can_use_b_2d_send);
                 regs += mult * load.header_regs();
                 if (cfg_.use_prefetch) {
                     access_grf_usage_helper_t prefetch(layout, per_thr_elems,
@@ -1406,7 +1479,7 @@ private:
     // Extra registers for GRF <-> GRF reorders.
     // Estimates upper bound for A/B reorders to temporary buffers.
     int estimate_reorder_usage(int a_payload_regs, int b_payload_regs) const {
-        if (!cfg_.allow_grf_reorder) return 0;
+        if (!cfg_.allow_a_grf_reorder && !cfg_.allow_b_grf_reorder) return 0;
 
         int regs = 0;
         if (cfg_.is_bwd_w) {
@@ -1416,13 +1489,10 @@ private:
             regs += bwd_w_reorder_regs;
         }
 
-        bool do_b_reorder = false;
-        if (cfg_.is_bwd_w) do_b_reorder = true;
-        if (cfg_.is_s32_accumulator() && cfg_.fma_kind == fma_kind_t::mad)
-            do_b_reorder = true;
-
         for (bool is_a : {true, false}) {
-            if (!is_a && !do_b_reorder) continue;
+            bool allow_grf_reorder = (is_a ? cfg_.allow_a_grf_reorder
+                                           : cfg_.allow_b_grf_reorder);
+            if (!allow_grf_reorder) continue;
             int reorder_regs = 0;
             if (ab_use_slm(is_a)) {
                 int &payload_regs = (is_a ? a_payload_regs : b_payload_regs);

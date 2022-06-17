@@ -408,6 +408,7 @@ public:
     void set_max_tg_dim(const std::string &name, int value) {
         dim(name).set_max_dim(tile_level_t::tg, value);
     }
+
     void set_pref_tg_block(const std::string &name, bool value = true) {
         dim(name).set_pref_tg_block(value);
     }
@@ -418,6 +419,11 @@ public:
             if (d.pref_tg_block()) return true;
         }
         return false;
+    }
+
+    void set_reduce_m_block_hint(bool value = true) {
+        reduce_m_block_hint_ = value;
+        reduce_m_block_hint_set_ = true;
     }
 
     void allow_fuse(std::initializer_list<std::string> names) {
@@ -467,6 +473,10 @@ public:
     }
 
     void compute();
+
+    bool has_dim(const std::string &name) const {
+        return dims_.count(name) != 0;
+    }
 
     int iter_dim(const std::string &name) const { return dim(name).iter_dim(); }
     int thr_dim(const std::string &name) const { return dim(name).thr_dim(); }
@@ -684,6 +694,9 @@ private:
     // BMNK dimensions.
     static const int bmnk_length = 4;
     dim_info_t bmnk_dims_[bmnk_length];
+
+    bool reduce_m_block_hint_;
+    bool reduce_m_block_hint_set_ = false;
 };
 
 } // namespace jit

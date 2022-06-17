@@ -4837,13 +4837,14 @@ private:
 class fma_helper_t {
 public:
     fma_helper_t(int simd_size, fma_kind_t fma_kind, const type_t &a_type,
-            const type_t &b_type, bool allow_grf_reorder,
-            bool is_src1_broadcast)
+            const type_t &b_type, bool allow_a_grf_reorder,
+            bool allow_b_grf_reorder, bool is_src1_broadcast)
         : simd_size_(simd_size)
         , fma_kind_(fma_kind)
         , a_type_(a_type)
         , b_type_(b_type)
-        , allow_grf_reorder_(allow_grf_reorder)
+        , allow_a_grf_reorder_(allow_a_grf_reorder)
+        , allow_b_grf_reorder_(allow_b_grf_reorder)
         , is_src1_broadcast_(is_src1_broadcast) {}
 
     fma_kind_t fma_kind() const { return fma_kind_; }
@@ -4851,8 +4852,11 @@ public:
     layout_t convert_to_fma_friendly_layout(const layout_t &layout,
             abc_kind_t abc_kind, bool is_slm, const bmnk_mapper_t &bmnk_mapper,
             bool *changed = nullptr) const {
+        bool allow_grf_reorder
+                = (abc_kind == abc_kind_t::a ? allow_a_grf_reorder_
+                                             : allow_b_grf_reorder_);
         if (changed) *changed = false;
-        if (!allow_grf_reorder_) return layout;
+        if (!allow_grf_reorder) return layout;
 
         // GRF reorder is only supported with dpas/dpasw.
         if (fma_kind_ == fma_kind_t::mad) {
@@ -4959,7 +4963,8 @@ private:
     fma_kind_t fma_kind_;
     type_t a_type_;
     type_t b_type_;
-    bool allow_grf_reorder_;
+    bool allow_a_grf_reorder_;
+    bool allow_b_grf_reorder_;
     bool is_src1_broadcast_;
 };
 
@@ -6012,7 +6017,8 @@ public:
         , b_reduce_ctx_(cfg)
         , g2s_ctx_(ir_ctx)
         , fma_helper_(cfg.simd_size(), cfg.fma_kind, cfg.a_data_type,
-                  cfg.b_data_type, cfg.allow_grf_reorder, !cfg.is_dw)
+                  cfg.b_data_type, cfg.allow_a_grf_reorder,
+                  cfg.allow_b_grf_reorder, !cfg.is_dw)
         , kernel_info_(kernel_info) {}
 
     int ab_slm_size() const { return ab_slm_size_; }
@@ -6379,7 +6385,7 @@ private:
         auto &read_layout = x_read.reg_layout();
         auto &write_layout = x_write.reg_layout();
         if (read_layout != write_layout) {
-            if (cfg_.allow_grf_reorder) {
+            if (is_a ? cfg_.allow_a_grf_reorder : cfg_.allow_b_grf_reorder) {
                 // Temporary GRF buffer.
                 expr_t tmp_buf
                         = g2s_ctx.create_buf("g2s_tmp", /*force_reuse=*/true);
