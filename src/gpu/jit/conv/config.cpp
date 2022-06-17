@@ -548,9 +548,14 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
 
     bool is_src_byte
             = utils::one_of(src_data_type, data_type::s8, data_type::u8);
-    int src_type_size = (int)types::data_type_size(src_data_type);
+    auto src_compute_type = is_bwd_d ? c_data_type : a_data_type;
+    auto dst_compute_type
+            = is_fwd ? c_data_type : (is_bwd_d ? a_data_type : b_data_type);
+    auto wei_compute_type = is_bwd_w ? c_data_type : b_data_type;
+
+    int src_type_size = (int)types::data_type_size(src_compute_type);
     bool is_dst_byte
-            = utils::one_of(dst_data_type, data_type::s8, data_type::u8);
+            = utils::one_of(dst_compute_type, data_type::s8, data_type::u8);
     bool is_mad = (fma_kind == fma_kind_t::mad);
     int vec_size = hw_cfg.vec_size();
 
@@ -622,7 +627,7 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
     int wei_i_blk = 1;
     int wei_i_blk_outer = 1;
     bool is_wei_byte
-            = utils::one_of(wei_data_type, data_type::s8, data_type::u8);
+            = utils::one_of(wei_compute_type, data_type::s8, data_type::u8);
     auto init_mad_wei_oi_blocks = [&](bool block_by_o, int &o, int &i) {
         if (block_by_o) {
             o = vec_size;
@@ -638,7 +643,7 @@ void conv_config_t::init_data_tags(bool allow_src_reorder,
         init_mad_wei_oi_blocks(true, wei_o_blk, wei_i_blk);
     } else {
         // Set dpas blocks.
-        int packed_dword_elems = 4 / types::data_type_size(wei_data_type);
+        int packed_dword_elems = 4 / types::data_type_size(wei_compute_type);
         wei_o_blk = vec_size;
         wei_i_blk = packed_dword_elems;
         if (!is_small_ic()) {
