@@ -291,7 +291,7 @@ public:
         CHECK(init_acc_data_type());
         CHECK(init_fma_kind_and_simd_size());
 
-        init_use_2d_send(conv_pd);
+        init_use_2d_send_nhwc(conv_pd);
         CHECK(init_data_layouts(conv_pd));
 
         if (!data_types_ok()) return status::unimplemented;
@@ -317,6 +317,7 @@ public:
             ir_error_not_expected();
         }
 
+        set_init_can_use_2d_send();
         set_allow_grf_reorder();
         CHECK(fixup_inference_consistency());
         if (!try_reduce_grf_usage()) return status::unimplemented;
@@ -357,7 +358,8 @@ public:
         assign_sbids = is_dp_fma();
         do_pipeline_unroll = hw() > ngen::HW::XeLP;
         reduce_grf_usage = true;
-        allow_grf_reorder = !matches_user_types();
+        allow_a_grf_reorder = !matches_user_types();
+        allow_b_grf_reorder = !matches_user_types();
         do_atomic_update = false;
         reuse_headers = hw() <= ngen::HW::XeLP;
         a_sub_tiles = 1;
@@ -372,7 +374,10 @@ public:
         do_pipeline_unroll
                 = getenv_bool("do_pipeline_unroll", do_pipeline_unroll);
         reduce_grf_usage = getenv_bool("reduce_grf_usage", reduce_grf_usage);
-        allow_grf_reorder = getenv_bool("allow_grf_reorder", allow_grf_reorder);
+        allow_a_grf_reorder
+                = getenv_bool("allow_a_grf_reorder", allow_a_grf_reorder);
+        allow_b_grf_reorder
+                = getenv_bool("allow_b_grf_reorder", allow_b_grf_reorder);
         reuse_headers = getenv_bool("reuse_headers", reuse_headers);
         a_sub_tiles = getenv_int("a_sub_tiles", a_sub_tiles);
         b_sub_tiles = getenv_int("b_sub_tiles", b_sub_tiles);
@@ -552,9 +557,26 @@ public:
         return wei_layout;
     }
 
+    const layout_t &compute_layout(const std::string &ab_tag) const {
+        const char *tag = nullptr;
+        if (ab_tag == "a") {
+            if (is_fwd || is_bwd_w)
+                tag = "src";
+            else if (is_bwd_d)
+                tag = "dst";
+        } else if (ab_tag == "b") {
+            if (is_fwd || is_bwd_d)
+                tag = "wei";
+            else if (is_bwd_w)
+                tag = "dst";
+        }
+        return tensor_config.compute_layout(tag);
+    }
+
     std::string str() const;
 
     static bool matches_tag(const layout_t &layout, const std::string &tag) {
+        if (layout.is_empty()) return false;
         auto tag_layout = make_layout(layout.type(), layout.dims(), tag);
         if (!layout.is_strictly_equal(tag_layout)) return false;
         return true;
@@ -656,7 +678,8 @@ public:
     int prefetch_bufs; // Number of prefetch buffers for A and B.
     bool do_pipeline_unroll; // Whether to fully unroll inner loops for pipelining.
     bool reduce_grf_usage; // Whether to try to reduce GRF usage based on heuristics.
-    bool allow_grf_reorder; // Whether to allow GRF reorders to FMA-friendly layouts.
+    bool allow_a_grf_reorder; // Whether to allow GRF reorders to FMA-friendly layouts for A.
+    bool allow_b_grf_reorder; // Whether to allow GRF reorders to FMA-friendly layouts for B.
     bool do_atomic_update; // Whether to use atomics during C update.
     bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
     bool bwd_d_optimize_strided; // Apply special optimization for strided BWD_D convolution.
@@ -665,8 +688,9 @@ public:
     bool fuse_spatial; // Apply blocking to fused spatial (otherwise only `w` is blocked).
     bool hoist_masks_from_compute_loop; // Whether to move send mask initialization out of compute loop.
     bool allow_slm_tg_slicing; // Whether to allow thread group split for SLM load/store.
-    bool use_a_2d_send; // Whether to use 2D block messages for A.
-    bool use_b_2d_send; // Whether to use 2D block messages for B.
+    bool use_2d_send_nhwc; // Whether to use the optimal NHWC setup relying on 2D block messages.
+    bool can_use_a_2d_send; // Whether 2D block messages can be used for A.
+    bool can_use_b_2d_send; // Whether 2D block messages can be used for B
 
     static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
 
@@ -921,8 +945,9 @@ private:
         return status::success;
     }
 
+    bool can_use_2d_send(const layout_t &l, bool is_a) const;
     bool should_use_spatial_blocking(int d, int h, int w) const;
-    void init_use_2d_send(const convolution_pd_t *conv_pd);
+    void init_use_2d_send_nhwc(const convolution_pd_t *conv_pd);
     void init_fuse_spatial();
     void init_hoist_masks_from_compute_loop();
     void init_bwd_d_optimize_strided(int iw_thr_blk);
@@ -1142,38 +1167,8 @@ private:
     bool is_dst_input() const { return is_bwd_d || is_bwd_w; }
     bool is_dst_output() const { return is_fwd; }
 
-    void set_allow_grf_reorder() {
-        bool is_a_grf_blocked
-                = (a_layout().innermost_block_layout().size() % grf_size()
-                        == 0);
-        if (is_fwd) {
-            if (is_f64_conv()) {
-                allow_grf_reorder = false;
-            } else if (!is_dp_fma()
-                    && !utils::everyone_is(
-                            a_data_type, b_data_type, data_type::f32)) {
-                allow_grf_reorder = true;
-            } else if (is_small_ic() && is_dp_fma()) {
-                allow_grf_reorder = true;
-            } else if (!is_a_grf_blocked
-                    && (ic_blk * a_data_type_size % grf_size() != 0
-                            || ic != bh->padded_size("ic"))) {
-                allow_grf_reorder = true;
-            }
-        } else if (is_bwd_d) {
-            if (!is_dp_fma()
-                    && !utils::everyone_is(
-                            a_data_type, b_data_type, data_type::f32)) {
-                allow_grf_reorder = true;
-            } else if (!is_a_grf_blocked
-                    && (oc_blk * a_data_type_size % grf_size() != 0
-                            || oc != bh->padded_size("oc"))) {
-                allow_grf_reorder = true;
-            }
-        } else if (is_bwd_w) {
-            if (is_dw || is_dp_fma()) allow_grf_reorder = true;
-        }
-    }
+    void set_allow_grf_reorder();
+    void set_init_can_use_2d_send();
 
     static std::string prepend_groups_to_tag(const std::string &tag) {
         auto ret = tag;
