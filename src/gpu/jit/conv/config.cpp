@@ -696,13 +696,19 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     // the external reorder but it has a number of restrictions.
     bool allow_wei_reorder = is_ge_xe_hpc() && is_dp_fma();
     bool allow_dst_reorder = false;
-    if (matches_tag(src_md, "axb") && (is_fwd || is_bwd_w)
-            && is_small_ic_non_dw) {
+    bool src_abx = matches_tag(src_md, "abx");
+    bool src_axb = matches_tag(src_md, "axb");
+    if ((src_abx || src_axb) && (is_fwd || is_bwd_w) && is_small_ic_non_dw) {
         allow_src_reorder = true;
     }
 
     init_data_tags(allow_src_reorder, allow_dst_reorder, allow_wei_reorder,
             src_tag, wei_tag, dst_tag, user_wei_tag);
+
+    if (allow_src_reorder) {
+        if (src_abx) user_src_tag = "abx";
+        if (src_axb) user_src_tag = "axb";
+    }
 
     if (user_src_tag.empty()) user_src_tag = src_tag;
     if (user_wei_tag.empty()) user_wei_tag = wei_tag;
