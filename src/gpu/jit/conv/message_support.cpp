@@ -81,7 +81,7 @@ bool send_t::is_supported() const {
 
     // Enable qword for scalar f64
     if (type.is_qword()
-            && (!is_xe_hpc_plus() || slots != 1 || type.elems() != 1))
+            && (!is_xe_hp_plus() || slots != 1 || type.elems() != 1))
         return false;
 
     // XXX: Half-GRF stores result in correctness issues on XeHPC.

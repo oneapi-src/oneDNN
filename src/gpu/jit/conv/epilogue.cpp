@@ -31,9 +31,12 @@ class zero_pad_builder_t {
 public:
     zero_pad_builder_t() = default;
 
-    zero_pad_builder_t(const constraint_set_t &cset,
+    zero_pad_builder_t(const hw_config_t &hw_cfg, const constraint_set_t &cset,
             const view_t &full_mem_view, const view_t &mem_view)
-        : cset_(&cset), full_mem_view_(full_mem_view), mem_view_(mem_view) {}
+        : hw_cfg_(hw_cfg)
+        , cset_(&cset)
+        , full_mem_view_(full_mem_view)
+        , mem_view_(mem_view) {}
 
     bool is_empty() const { return mem_view_.is_empty(); }
 
@@ -51,7 +54,8 @@ public:
     stmt_t build_stmt(const layout_t &reg_layout, const expr_t &reg_buf) const {
         ir_assert(mem_view_.nvdims() == reg_layout.ndims())
                 << "Incompatible view/layout.";
-        int max_step = 16; // Handle 16 elements at most in one step.
+        int max_step = std::min(
+                16, 2 * hw_cfg_.grf_size() / reg_layout.type().size());
         auto base_tile = reg_layout.split_into_max_tile(
                 max_step, /*is_dense_tile=*/true);
         stmt_t stmt;
@@ -89,6 +93,7 @@ private:
         }
     }
 
+    hw_config_t hw_cfg_;
     const constraint_set_t *cset_;
 
     view_t full_mem_view_;
@@ -479,7 +484,8 @@ public:
         }
 
         int inner_dim_idx = -1;
-        auto base_inner_tile = find_1d_tile(args, inner_dim_idx);
+        auto base_inner_tile = find_1d_tile(
+                lhs_tensor.reg_layout().type(), args, inner_dim_idx);
         auto inner_layout = lhs_tensor.reg_layout().map(base_inner_tile);
         ir_assert(inner_dim_idx != -1);
 
@@ -514,7 +520,8 @@ public:
 private:
     // Returns a 1D tile corresponding to an instruction to partially apply the
     // post-op.
-    tensor_t find_1d_tile(const object_map_t<expr_t, post_op_tensor_t *> &args,
+    tensor_t find_1d_tile(const type_t &lhs_type,
+            const object_map_t<expr_t, post_op_tensor_t *> &args,
             int &inner_dim_idx) const {
         auto &lhs_tensor = *args.at(post_op_.lhs());
 
@@ -527,7 +534,7 @@ private:
         inner_dim_idx = b0.dim_idx;
 
         int inner_block = b0.block;
-        int max_step = (hw_ >= ngen::HW::XeHPC ? 32 : 16);
+        int max_step = 2 * ngen::GRF::bytes(hw_) / lhs_type.size();
         inner_block = std::max(8, math::gcd(inner_block, max_step));
 
         for (auto &kv : args) {
@@ -812,8 +819,8 @@ private:
             }
         }
         if (create_zero_pad_builder) {
-            zero_pad_builder_ = zero_pad_builder_t(
-                    cset_, post_op_ctx_.cp_view(), c_mem_tile_view);
+            zero_pad_builder_ = zero_pad_builder_t(cfg_.hw_cfg, cset_,
+                    post_op_ctx_.cp_view(), c_mem_tile_view);
         }
 
         // S_y -> GMEM.

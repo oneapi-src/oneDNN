@@ -1700,6 +1700,10 @@ public:
                 emit_load_or_store(host, mod, ngen::scattered_dword(elems),
                         address_base, header, data);
                 break;
+            case type_kind_t::qword:
+                emit_load_or_store(host, mod, ngen::scattered_qword(elems),
+                        address_base, header, data);
+                break;
             case type_kind_t::oword:
                 emit_load_or_store(host, mod, ngen::block_oword(elems),
                         address_base, header, data);
