@@ -287,6 +287,8 @@ public:
 private:
     int grf_size() const { return ngen::GRF::bytes(hw); }
 
+    bool is_xe_hp_plus() const { return hw >= ngen::HW::XeHP; }
+
     bool is_xe_hpc_plus() const { return hw >= ngen::HW::XeHPC; }
 
     send_t(ngen::HW hw, send_op_t op, send_address_t address,
