@@ -2450,6 +2450,19 @@ private:
 		}
 		opAVX_X_X_XM(x1, x2, op, type, code0);
 	}
+	// TODO: Investigate if we can get rid of opVnni and use below instead.
+	int opShouldPreferEvex(PreferredEncoding encoding) {
+		if (encoding == DefaultEncoding) {
+			encoding = EvexEncoding;
+		}
+		if (encoding == EvexEncoding) {
+#ifdef XBYAK_DISABLE_AVX512
+			XBYAK_THROW(ERR_EVEX_IS_INVALID)
+#endif
+			return T_MUST_EVEX;
+		}
+		return 0;
+	}
 	void opInOut(const Reg& a, const Reg& d, uint8_t code)
 	{
 		if (a.getIdx() == Operand::AL && d.getIdx() == Operand::DX && d.getBit() == 16) {
