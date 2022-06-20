@@ -78,7 +78,7 @@ def generate_verbose(path_to_benchdnn, driver, batch):
     for l in v_str:
         if l.find("run: ") != -1:
             # detect prop kind in benchdnn log
-            dir = '--dir='
+            dir = '--prop=' if driver == 'rnn' else '--dir='
             dir_start = l.find(dir)
             if dir_start != -1:
                 dir_end = l.find(' ', dir_start)
