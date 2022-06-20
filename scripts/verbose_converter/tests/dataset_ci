@@ -28,7 +28,7 @@ pool,test_pool_ci
 prelu,test_prelu_ci
 reduction,test_reduction_ci
 resampling,test_resampling_ci
-#FIXME: RNN is not supported due to multiple differencies with other primitives
+#FIXME: RNN is not supported due to multiple differences with other primitives
 #rnn,test_lstm_ci
 #rnn,test_gru_ci
 #rnn,test_rnn_ci

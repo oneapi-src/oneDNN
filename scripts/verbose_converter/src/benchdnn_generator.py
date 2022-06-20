@@ -200,9 +200,38 @@ def convert_dts(mds, prim_kind):
         if common_dt and mds_strip[0]['data_type'] in ['f32', 'f16']:
             cfg += mds_strip[0]['data_type']
         else:
+            args = ['src', 'wei', 'dst']
             for md in mds_strip:
-                if md['arg'] in ['src', 'wei', 'dst']:
+                if md['arg'] in args:
                     cfg += md['data_type']
+        return cfg
+
+    def convert_dts_cfg_rnn(mds):
+        cfg = "--cfg="
+        args = ['src_iter', 'src_iter_c', 'src_layer', 'dst_iter', 'dst_layer', 'bias']
+        mds_strip = [md for md in mds if md['arg'] in args]
+        # ws is not part of cfg
+        mds_strip = [md for md in mds_strip if 'ws' not in md['arg']]
+        # bias is not part of cfg
+        mds_strip = [md for md in mds_strip if 'bia' not in md['arg']]
+        common_dt = everyone_is([md['data_type'] for md in mds_strip])
+        if common_dt and mds_strip[0]['data_type'] in ['f32', 'f16']:
+            cfg += mds_strip[0]['data_type']
+        elif common_dt and mds_strip[0]['data_type'] == 'bf16':
+            cfg += mds_strip[0]['data_type']
+            # bias is part of cfg for bf16
+            bias_md = [md for md in mds if md['arg'] == 'bias'][0]
+            bias_dt = bias_md['data_type']
+            if bias_dt != mds_strip[0]['data_type']:
+                cfg += bias_dt
+        else:
+            for arg in args:
+                for md in mds_strip:
+                    if md['arg'] == arg:
+                        # src iter is skipped if it is f32
+                        if arg == 'src_iter_c' and md['data_type'] == 'f16':
+                            continue
+                        cfg += md['data_type']
         return cfg
 
     def convert_dts_cfg_with_bias(mds):
@@ -272,7 +301,7 @@ def convert_dts(mds, prim_kind):
         'reduction': convert_dts_all,
         'reorder': convert_dts_all,
         'resampling': convert_dts_all,
-        'rnn': convert_dts_cfg,
+        'rnn': convert_dts_cfg_rnn,
         'shuffle': convert_dts_common,
         'softmax': convert_dts_all,
         'sum': convert_dts_multiple_src
