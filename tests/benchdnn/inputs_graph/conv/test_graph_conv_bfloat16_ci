@@ -19,7 +19,7 @@ g4oc16ic16_od5id5kd3pd1_n"3d_conv:grouped"
 # post relu
 --reset
 --cfg=bf16bf16bf16
---attr-post-ops=relu mb50ic64ih56oc64oh56kh1ph0
+--attr-post-ops=relu,mish mb50ic64ih56oc64oh56kh1ph0
 
 # post bias+sum, bias+add, bias+logistic, bias+sqrt, bias+tanh, bias+sum+elu, bias+sum+relu, bias+sum+relu6
 --reset

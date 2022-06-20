@@ -19,7 +19,7 @@
 --reset
 --cfg=u8s8u8
 --stag=abcd
---attr-post-ops=relu:0:0:1.2,relu:0.25:0:1.2
+--attr-post-ops=relu:0:0:1.2,relu:0.25:0:1.2,mish
 g32mb1ic2048ih14iw14oc2048oh14ow14kh3kw3sh1sw1ph1pw1dh0dw0
 
 # int8 + several binary post-ops

@@ -19,7 +19,7 @@ g4oc16ic16_ow5iw5kw3pw1_n"1d_conv:grouped"
 
 # post eltwise
 --reset
---attr-post-ops=logistic mb50ic64ih56oc64oh56kh1ph0
+--attr-post-ops=logistic,relu,mish mb50ic64ih56oc64oh56kh1ph0
 
 # post sum+eltwise
 --reset

@@ -176,6 +176,7 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_eltwise_log: return graph_op::Log;
             case dnnl_eltwise_logistic: return graph_op::Sigmoid;
             case dnnl_eltwise_logsigmoid: return graph_op::SoftPlus;
+            case dnnl_eltwise_mish: return graph_op::Mish;
             case dnnl_eltwise_pow: return graph_op::Pow;
             case dnnl_eltwise_relu: return graph_op::ReLU;
             case dnnl_eltwise_soft_relu: return graph_op::SoftPlus;
@@ -205,7 +206,6 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_eltwise_gelu_tanh:
             case dnnl_eltwise_linear:
             case dnnl_eltwise_logistic_use_dst_for_bwd:
-            case dnnl_eltwise_mish:
             case dnnl_eltwise_relu_use_dst_for_bwd:
             case dnnl_eltwise_sqrt_use_dst_for_bwd:
             case dnnl_eltwise_swish:
