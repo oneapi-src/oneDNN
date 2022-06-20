@@ -89,8 +89,8 @@ def convert_dir(entry):
 
 
 def convert_aux(entry):
-    alg = entry['aux'].get('alg')
-    if alg != None:
+    if entry.get('aux') != None:
+        alg = entry['aux']['alg'] if entry['aux'].get('alg') != None else ''
         pk = entry['prim_kind']
         if pk == 'convolution':
             str = ''
@@ -128,7 +128,11 @@ def convert_aux(entry):
             str = ''
             algs = {
                 'vanilla_rnn': 'VANILLA_RNN',
-                'vanilla_lstm': 'VANILLA_LSTM'
+                'vanilla_lstm': 'VANILLA_LSTM',
+                'vanilla_gru': 'VANILLA_GRU',
+                'vanilla_augru': 'VANILLA_AUGRU',
+                'lbr_gru': 'LBR_GRU',
+                'lbr_augru': 'LBR_AUGRU'
             }
             alg = algs.get(alg)
             if alg != None:
@@ -141,9 +145,17 @@ def convert_aux(entry):
                 'bidirectional_concat': 'concat'
             }
             dir = dirs.get(ir_dir)
-            str += f" --direction={dir}"
-            activation = entry['aux']['activation']
-            str += f" --activation={activation}"
+            if dir is not None:
+                str += f" --direction={dir}"
+            ir_act = entry['aux']['activation']
+            acts = {
+                'eltwise_relu': 'RELU',
+                'eltwise_logistic': 'LOGISTIC',
+                'eltwise_tanh': 'TANH'
+            }
+            act = acts.get(ir_act)
+            if act is not None:
+                str += f" --activation={act}"
             return str
         elif pk == 'shuffle':
             axis = entry['aux']['axis']
@@ -324,7 +336,16 @@ def convert_tags(mds, prim_kind):
         return f' --stag={data_tag}:{weights_tag}'
 
     def convert_tags_rnn(mds):
-        return ''
+        tags = ''
+        for md in mds:
+            md_arg = md['arg']
+            md_tag = md['tag']
+            if md_arg == 'wei_proj' and md_tag != 'undef':
+                tags += ' --with-projection=true'
+            if md_arg == 'wei_peephole' and md_tag != 'undef':
+                tags += ' --with-peephole=true'
+
+        return tags
 
     def convert_tags_lnorm(mds):
         tag = convert_tags_common(mds)
