@@ -126,6 +126,7 @@ bool dnnl_backend::register_kernels() {
     DNNL_REGISTER_KERNEL(impl::op_kind::HardTanh, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::LeakyReLU, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Log, float_eltwise_fwd)
+    DNNL_REGISTER_KERNEL(impl::op_kind::Mish, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Pow, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::ReLU, float_eltwise_fwd)
     DNNL_REGISTER_KERNEL(impl::op_kind::Round, float_eltwise_fwd)

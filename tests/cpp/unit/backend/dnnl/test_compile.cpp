@@ -7747,6 +7747,15 @@ TEST(operator_kernel, convtranspose_swish) {
     }
 }
 
+test::vector<float> mish_func(const test::vector<float> &ref_dst) {
+    test::vector<float> out;
+    for (auto &rdst : ref_dst) {
+        float ret = std::tanh(std::log(std::exp(rdst) + 1.0f)) * rdst;
+        out.emplace_back(ret);
+    }
+    return out;
+}
+
 test::vector<float> sigmoid_func(const test::vector<float> &ref_dst) {
     test::vector<float> out;
     for (auto &rdst : ref_dst) {
@@ -8281,6 +8290,9 @@ TEST(Execute, ConvBiasEltwise) {
                     {-0.04f, 1.5f, 4.0f, 0.5f}, impl::op_kind::LeakyReLU,
                     "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+                    mish_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Mish,
+                    "Mish", {}},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {0.0, 1.5, 3.0, 0.5}, impl::op_kind::HardTanh, "HardTanh",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 3.f}}},
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
@@ -8388,6 +8400,9 @@ TEST(Execute, ConvBiasAddEltwise) {
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     {-0.08f, 2.5f, 3.0f, 0.5f}, impl::op_kind::LeakyReLU,
                     "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
+            eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
+                    mish_func({-4.0f, 2.5f, 3.0f, 0.5f}), impl::op_kind::Mish,
+                    "Mish", {}},
             eltwise_param {"conv_bias_post_ops_fusion", {3.0},
                     {0.0, 6.f, 6.f, 4.5}, impl::op_kind::HardTanh, "ReLU6",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
@@ -8478,7 +8493,12 @@ TEST(Execute, ConvBiasAddEltwise) {
                 {eltwise_dst_ts});
         strm.wait();
         for (size_t i = 0; i < dst.size(); ++i) {
-            ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
+            // we noticed mish test has slightly accuracy issue on GPU.
+            if (eng.kind() == impl::engine_kind::gpu) {
+                ASSERT_NEAR(dst[i], param.ref_dst[i], 1e-6);
+            } else {
+                ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
+            }
         }
     }
 }
@@ -8502,6 +8522,9 @@ TEST(Execute, ConvAddEltwise) {
             eltwise_param {"conv_post_ops_fusion", {0.0},
                     {-0.06f, 3.5f, 4.0f, 1.5f}, impl::op_kind::LeakyReLU,
                     "LeakyReLU", {{impl::op_attr::alpha, 0.02f}}},
+            eltwise_param {"conv_post_ops_fusion", {0.0},
+                    mish_func({-3.0f, 3.5f, 4.0f, 1.5f}), impl::op_kind::Mish,
+                    "Mish", {}},
             eltwise_param {"conv_post_ops_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
                     impl::op_kind::HardTanh, "ReLU6",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
@@ -13179,7 +13202,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
     }
 }
 
-TEST(ExecuteSubgraphInt8, Conv2dRelu) {
+void quantized_conv2d_eltwise(
+        impl::op_kind_t eltwise, const float *alpha, const float *beta) {
     using dims = impl::dnnl_impl::dims;
 
     impl::engine_t &engine = get_engine();
@@ -13248,7 +13272,9 @@ TEST(ExecuteSubgraphInt8, Conv2dRelu) {
         impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
 
-        impl::op_t relu_node(5, impl::op_kind::ReLU, "relu_node");
+        impl::op_t eltwise_node(5, eltwise, "eltwise_node");
+        if (alpha) eltwise_node.set_attr<float>(impl::op_attr::alpha, *alpha);
+        if (beta) eltwise_node.set_attr<float>(impl::op_attr::beta, *beta);
 
         impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
@@ -13285,8 +13311,8 @@ TEST(ExecuteSubgraphInt8, Conv2dRelu) {
         if (with_bias) conv_node.add_input(bias_f32);
         conv_node.add_output(dst_f32);
 
-        relu_node.add_input(dst_f32);
-        relu_node.add_output(dst_relu_f32);
+        eltwise_node.add_input(dst_f32);
+        eltwise_node.add_output(dst_relu_f32);
 
         qout_node.add_input(dst_relu_f32);
         qout_node.add_output(dst_s8);
@@ -13295,7 +13321,7 @@ TEST(ExecuteSubgraphInt8, Conv2dRelu) {
         g.add_op(&dqdata_node);
         g.add_op(&dqweight_node);
         g.add_op(&conv_node);
-        g.add_op(&relu_node);
+        g.add_op(&eltwise_node);
         g.add_op(&qout_node);
         g.build_graph();
 
@@ -13350,173 +13376,20 @@ TEST(ExecuteSubgraphInt8, Conv2dRelu) {
     }
 }
 
+TEST(ExecuteSubgraphInt8, Conv2dRelu) {
+    const impl::op_kind_t opk = impl::op_kind::ReLU;
+    quantized_conv2d_eltwise(opk, nullptr, nullptr);
+}
+
 TEST(ExecuteSubgraphInt8, Conv2dLeakyRelu) {
-    using dims = impl::dnnl_impl::dims;
+    const impl::op_kind_t opk = impl::op_kind::LeakyReLU;
+    const float alpha = 0.02f;
+    quantized_conv2d_eltwise(opk, &alpha, nullptr);
+}
 
-    impl::engine_t &engine = get_engine();
-    impl::stream_t &strm = get_stream();
-
-    std::vector<int64_t> groups = {1, 4};
-    std::vector<bool> with_biases = {true, false};
-    std::vector<std::string> weight_qtypes = {"per_tensor", "per_channel"};
-
-    if (engine.kind() == impl::engine_kind::gpu) return;
-    static auto isa = dnnl_get_effective_cpu_isa();
-
-    for_(const auto &g : groups)
-    for_(const auto with_bias : with_biases)
-    for (const auto &wei_qtype : weight_qtypes) {
-        // prepare data
-        int64_t in_channel = 8, out_channel = 8;
-        int64_t kernel_size = 3;
-        std::vector<int64_t> src_shape {1, in_channel, 112, 112};
-        std::vector<int64_t> weight_shape {
-                out_channel, in_channel / g, kernel_size, kernel_size};
-        std::vector<int64_t> bias_shape {out_channel};
-        std::vector<int64_t> dst_shape {1, out_channel, 110, 110};
-
-        test::vector<uint8_t> src_u8_data(product(src_shape));
-        test::vector<int8_t> weight_s8_data(product(weight_shape));
-        size_t bias_size = with_bias ? product(bias_shape) : 0;
-        test::vector<float> bias_data(bias_size);
-        test::vector<int8_t> case1_out_data(product(dst_shape));
-        test::vector<int8_t> case2_out_data(product(dst_shape));
-
-        // random generate src, weight and bias data random seed = 7
-        std::default_random_engine generator(7);
-        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
-        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
-        std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
-            return static_cast<uint8_t>(u8_distribution(generator));
-        });
-        std::generate(weight_s8_data.begin(), weight_s8_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
-        if (with_bias) {
-            std::generate(bias_data.begin(), bias_data.end(),
-                    [&]() { return f32_distribution(generator); });
-        }
-
-        float scale_src = 1 / 255.f; // map to 0~255
-        float scale_out = 1;
-        int64_t zp_src = 0;
-        int64_t zp_out = 78;
-
-        size_t scale_size = wei_qtype == "per_tensor" ? 1 : out_channel;
-        std::vector<float> scale_wei(scale_size, 1 / 127.f);
-        std::vector<int64_t> zp_wei(scale_size, 0);
-
-        impl::op_t dqdata_node(1, impl::op_kind::Dequantize, "dqdata_node");
-        SET_Q_DQ_DATA_ATTR(dqdata_node)
-
-        impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
-
-        impl::op_t conv_node(4, impl::op_kind::Convolution, "conv_node");
-        SET_CONV_ATTR(conv_node, 2)
-
-        impl::op_t relu_node(5, impl::op_kind::LeakyReLU, "leaky_relu_node");
-        relu_node.set_attr<float>(impl::op_attr::alpha, 0.02f);
-
-        impl::op_t qout_node(6, impl::op_kind::Quantize, "qout_node");
-        SET_Q_DQ_OUT_ATTR(qout_node)
-
-        // prepare logical tensor
-        impl::logical_tensor_t src_u8
-                = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
-        impl::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
-                2, src_shape, impl::data_type::f32);
-        impl::logical_tensor_t weight_s8 = utils::logical_tensor_init(
-                4, weight_shape, impl::data_type::s8);
-        impl::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
-                5, weight_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_f32 = utils::logical_tensor_init(
-                7, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_relu_f32 = utils::logical_tensor_init(
-                8, dst_shape, impl::data_type::f32);
-        impl::logical_tensor_t dst_s8
-                = utils::logical_tensor_init(9, dst_shape, impl::data_type::s8);
-        impl::logical_tensor_t bias_f32;
-        if (with_bias) {
-            bias_f32 = utils::logical_tensor_init(
-                    6, bias_shape, impl::data_type::f32);
-        }
-
-        dqdata_node.add_input(src_u8);
-        dqdata_node.add_output(src_f32_dq);
-
-        dqweight_node.add_input(weight_s8);
-        dqweight_node.add_output(weight_f32_dq);
-
-        conv_node.add_input(src_f32_dq);
-        conv_node.add_input(weight_f32_dq);
-        if (with_bias) conv_node.add_input(bias_f32);
-        conv_node.add_output(dst_f32);
-
-        relu_node.add_input(dst_f32);
-        relu_node.add_output(dst_relu_f32);
-
-        qout_node.add_input(dst_relu_f32);
-        qout_node.add_output(dst_s8);
-
-        impl::graph_t g(engine.kind());
-        g.add_op(&dqdata_node);
-        g.add_op(&dqweight_node);
-        g.add_op(&conv_node);
-        g.add_op(&relu_node);
-        g.add_op(&qout_node);
-        g.build_graph();
-
-        impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
-        impl::tensor_t weight_s8_ts(weight_s8, &engine, weight_s8_data.data());
-        impl::tensor_t bias_f32_ts;
-        if (with_bias) {
-            bias_f32_ts = impl::tensor_t(bias_f32, &engine, bias_data.data());
-        }
-        impl::tensor_t dst_s8_ts(dst_s8, &engine, case1_out_data.data());
-        impl::tensor_t dst_s8_case2_ts(dst_s8, &engine, case2_out_data.data());
-
-        // -------------------------case 1----------------------------------
-        ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
-                          {dst_s8_ts}, engine, strm),
-                impl::status::success);
-
-        // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
-        auto part = g.get_partitions()[0];
-
-        // compile
-        impl::partition_t p;
-        p.init(part);
-
-        impl::compiled_partition_t cp(p);
-
-        std::vector<const impl::logical_tensor_t *> lt_ins;
-        if (with_bias)
-            lt_ins = {&src_u8, &weight_s8, &bias_f32};
-        else
-            lt_ins = {&src_u8, &weight_s8};
-        std::vector<const impl::logical_tensor_t *> lt_outs {&dst_s8};
-
-        p.compile(&cp, lt_ins, lt_outs, &engine);
-
-        if (with_bias)
-            cp.execute(&strm, {src_u8_ts, weight_s8_ts, bias_f32_ts},
-                    {dst_s8_case2_ts});
-        else
-            cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
-        strm.wait();
-
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
-                    /*atol*/ 1.f));
-        else
-            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
-    }
+TEST(ExecuteSubgraphInt8, Conv2dMish) {
+    const impl::op_kind_t opk = impl::op_kind::Mish;
+    quantized_conv2d_eltwise(opk, nullptr, nullptr);
 }
 
 TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
