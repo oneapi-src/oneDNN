@@ -806,7 +806,7 @@ KERNEL_ATTR
 __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
-        float eps) {
+        float eps, __global DATA_T *src_add) {
 
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
@@ -820,6 +820,9 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
     const uint d_off = sp * IC + ic_block_offset;
 
     src += d_off;
+#if FUSE_BN_ADD_RELU
+    src_add += d_off;
+#endif
     dst += d_off;
 #if FUSE_BN_RELU && IS_TRAINING
     ws += d_off;
@@ -890,6 +893,10 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
                     = fma(s_vect - v_mean[sg], sqrt_variance[sg], sv[sg]);
 
 #if FUSE_BN_RELU
+#if FUSE_BN_ADD_RELU
+            VECT_FLOAT_T s_add_vect = LOAD_VECT_DATA(&src_add[sg_idx]);
+            d_vect += s_add_vect;
+#endif
             VECT_INT_T ws_vect = isgreater(d_vect, (VECT_FLOAT_T)0.0f);
             d_vect = select((VECT_FLOAT_T)0.0f, d_vect, ws_vect);
 #if IS_TRAINING
@@ -910,6 +917,10 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
             float d_tail = fma(s_tail - v_mean_tail[sg], sqrt_variance_tail[sg],
                     sv_tail[sg]);
 #if FUSE_BN_RELU
+#if FUSE_BN_ADD_RELU
+            float s_add_tail = LOAD_DATA_1x16(&src_add[sg_idx]);
+            d_tail += s_add_tail;
+#endif
             int ws_tail = isgreater(d_tail, 0.0f);
             d_tail = select(0.0f, d_tail, ws_tail);
 #if IS_TRAINING
@@ -923,6 +934,9 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         }
 #endif
         src += IC;
+#if FUSE_BN_ADD_RELU
+        src_add += IC;
+#endif
         dst += IC;
 #if FUSE_BN_RELU && IS_TRAINING
         ws += IC;
@@ -932,33 +946,13 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
 
 #else // NHWC_OPTIMIZED
 
-KERNEL_ATTR
-__kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst,
-        __global float *scaleshift, __global float *shift, __global char *ws,
-        float eps) {
-
-    const int n = GWS_GET_MB();
-    const int c = GWS_GET_IC();
-    const int sp = GWS_GET_SP() * VECT_SIZE;
-
+inline float8 read_src_block(__global DATA_T *src, int c, int sp) {
+    float8 blockS0 = 0.0f;
     const int simd_id = get_sub_group_local_id();
 #if HAS_IC_TAIL
     const bool is_last_ic_block = c + 16 > IC;
     const bool is_last_sp_block = sp >= SP - VECT_SIZE;
 #endif
-
-#if USE_NHWC
-    const uint d_off = sp * IC + c;
-#else
-    const uint d_off = (c & 15) + sp * 16 + (c & ~15) * SP + n * SP * IC;
-#endif
-
-    src += d_off;
-    dst += d_off;
-
-    float8 blockS0 = 0.0f, blockD0;
-
 #if HAS_SP_TAIL
     if (sp == SP_TAIL) {
         for (int k = 0; k < SP - SP_TAIL; ++k)
@@ -994,6 +988,41 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         blockS0 = LOAD_DATA_8x16(&src[0]);
 #endif // USE_NHWC
     }
+    return blockS0;
+}
+
+KERNEL_ATTR
+__kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
+        __global float *variance, __global DATA_T *dst,
+        __global float *scaleshift, __global float *shift, __global char *ws,
+        float eps, __global DATA_T *src_add) {
+
+    const int n = GWS_GET_MB();
+    const int c = GWS_GET_IC();
+    const int sp = GWS_GET_SP() * VECT_SIZE;
+
+    const int simd_id = get_sub_group_local_id();
+#if HAS_IC_TAIL
+    const bool is_last_ic_block = c + 16 > IC;
+    const bool is_last_sp_block = sp >= SP - VECT_SIZE;
+#endif
+
+#if USE_NHWC
+    const uint d_off = sp * IC + c;
+#else
+    const uint d_off = (c & 15) + sp * 16 + (c & ~15) * SP + n * SP * IC;
+#endif
+
+    src += d_off;
+    dst += d_off;
+
+    float8 blockS0 = read_src_block(src, c, sp);
+#if FUSE_BN_ADD_RELU
+    src_add += d_off;
+    float8 block_S0_Add = read_src_block(src_add, c, sp);
+#endif
+
+    float8 blockD0;
 
 #if USE_SCALESHIFT == 1
     float sm = MAYBE_LAST_IC_LOAD_FLOAT_1x16(scaleshift, c);
@@ -1028,6 +1057,9 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
     blockD0 = fma(blockS0 - (float8)v_mean, (float8)sqrt_variance, (float8)sv);
 
 #if FUSE_BN_RELU
+#if FUSE_BN_ADD_RELU
+    blockD0 += block_S0_Add;
+#endif
     int8 blockWS0 = isgreater(blockD0, (float8)0.0f);
     blockD0 = select((float8)0.0f, blockD0, blockWS0);
 #if IS_TRAINING
@@ -1490,7 +1522,7 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
         __global DATA_T *diff_src, __global float *diff_scaleshift,
-        __global float *diff_shift, float eps) {
+        __global float *diff_shift, float eps, __global DATA_T *diff_src_add) {
 
     const int c = GWS_GET_IC();
     const int ic_block_offset = (c / 16) * IC_BLOCK;
@@ -1566,6 +1598,9 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
     diff_dst += offset;
     ws += offset;
     diff_src += offset;
+#if FUSE_BN_ADD_RELU
+    diff_src_add += offset;
+#endif
 
     for (int sp = 0; sp < STAT_SP_BLOCK; sp++) {
         if (sp_block_idx * STAT_SP_BLOCK + sp >= SP) break;
@@ -1578,6 +1613,9 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
             VECT_CHAR_T ws_vect = LOAD_VECT_CHAR(&ws[sg_idx]);
             dd_vect = select(
                     (VECT_FLOAT_T)0.0f, dd_vect, CONVERT_VECT_INT_T(ws_vect));
+#if FUSE_BN_ADD_RELU
+            STORE_VECT_DATA(&diff_src_add[sg_idx], dd_vect);
+#endif
 #endif
 
 #if CALCULATE_DIFF_STATS == 1
@@ -1597,6 +1635,9 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 #if FUSE_BN_RELU
             char ws_tail = LOAD_CHAR_1x16(&ws[sg_idx]);
             dd_tail = select(0.0f, dd_tail, convert_int(ws_tail));
+#if FUSE_BN_ADD_RELU
+            STORE_DATA_1x16(&diff_src_add[sg_idx], dd_tail);
+#endif
 #endif
 #if CALCULATE_DIFF_STATS == 1
             dd_tail -= (diff_beta_tail[sg]
@@ -1613,6 +1654,9 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         diff_dst += IC;
         diff_src += IC;
 #if FUSE_BN_RELU
+#if FUSE_BN_ADD_RELU
+        diff_src_add += IC;
+#endif
         ws += IC;
 #endif
     }
@@ -1620,12 +1664,44 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 
 #else // NHWC_OPTIMIZED
 
+inline void write_8x16_block(__global DATA_T *ptr, int c, float8 val) {
+#if USE_NHWC
+#if HAS_IC_TAIL
+    const int simd_id = get_sub_group_local_id();
+    const bool is_last_ic_block = c + 16 > IC;
+    if (is_last_ic_block) {
+        if (simd_id < 8) {
+            for (int k = 0; k < 8; ++k)
+                ptr[k * IC_BLOCK_STRIDE + simd_id] = CONVERT_DATA_T(val[k]);
+        }
+    } else
+#endif // HAS_IC_TAIL
+        for (int k = 0; k < 8; ++k)
+            STORE_DATA_1x16(&ptr[k * IC_BLOCK_STRIDE], val[k]);
+#else
+    STORE_DATA_8x16(&ptr[0], val);
+#endif // #if USE_NHWC
+}
+inline void write_1x16_block(__global DATA_T *ptr, int c, float val) {
+#if HAS_IC_TAIL
+    const int simd_id = get_sub_group_local_id();
+    const bool is_last_ic_block = c + 16 > IC;
+    if (!is_last_ic_block) {
+        STORE_DATA_1x16(&ptr[0], val);
+    } else {
+        if (simd_id < 8) { ptr[simd_id] = CONVERT_DATA_T(val); }
+    }
+#else
+    STORE_DATA_1x16(&ptr[0], val);
+#endif
+}
+
 KERNEL_ATTR
 __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
         __global DATA_T *diff_src, __global float *diff_scaleshift,
-        __global float *diff_shift, float eps) {
+        __global float *diff_shift, float eps, __global DATA_T *diff_src_add) {
 
     const int c = GWS_GET_IC();
     const int simd_id = get_sub_group_local_id();
@@ -1671,6 +1747,9 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
     diff_dst += offset;
     ws += offset;
     diff_src += offset;
+#if FUSE_BN_ADD_RELU
+    diff_src_add += offset;
+#endif
 
 #if HAS_SP_TAIL
     int sp;
@@ -1733,6 +1812,9 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 #if FUSE_BN_RELU == 1
         const float8 C_ZERO = 0.0;
         dd_data = select(C_ZERO, dd_data, convert_int8(ws_data));
+#if FUSE_BN_ADD_RELU
+        write_8x16_block(diff_src_add, c, dd_data);
+#endif
 #endif // #if FUSE_BN_RELU == 1
 
 #if CALCULATE_DIFF_STATS == 1
@@ -1742,23 +1824,12 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 #endif // #if CALCULATE_DIFF_STATS == 1
 
         dd_data *= gamma * sqrt_variance;
+        write_8x16_block(diff_src, c, dd_data);
 
-#if USE_NHWC
-#if HAS_IC_TAIL
-        if (is_last_ic_block) {
-            if (simd_id < 8) {
-                for (int k = 0; k < 8; ++k)
-                    diff_src[k * IC_BLOCK_STRIDE + simd_id]
-                            = CONVERT_DATA_T(dd_data[k]);
-            }
-        } else
-#endif // HAS_IC_TAIL
-            for (int k = 0; k < 8; ++k)
-                STORE_DATA_1x16(&diff_src[k * IC_BLOCK_STRIDE], dd_data[k]);
-#else
-        STORE_DATA_8x16(&diff_src[0], dd_data);
-#endif // #if USE_NHWC
         diff_src += C_PARALLEL_FACTOR * IC_BLOCK_STRIDE;
+#if FUSE_BN_ADD_RELU
+        diff_src_add += C_PARALLEL_FACTOR * IC_BLOCK_STRIDE;
+#endif
     }
 
 #if HAS_SP_TAIL
@@ -1798,6 +1869,9 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 
 #if FUSE_BN_RELU == 1
             if (ws_data == 0) dd_data = 0;
+#if FUSE_BN_ADD_RELU
+            write_1x16_block(diff_src_add, c, dd_data);
+#endif
 #endif // #if FUSE_BN_RELU == 1
 
 #if CALCULATE_DIFF_STATS == 1
@@ -1808,19 +1882,12 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
 #endif // #if CALCULATE_DIFF_STATS == 1
 
             dd_data *= gamma * sqrt_variance;
+            write_1x16_block(diff_src, c, dd_data);
 
-#if HAS_IC_TAIL
-            if (!is_last_ic_block) {
-                STORE_DATA_1x16(&diff_src[0], dd_data);
-            } else {
-                if (simd_id < 8) {
-                    diff_src[simd_id] = CONVERT_DATA_T(dd_data);
-                }
-            }
-#else
-            STORE_DATA_1x16(&diff_src[0], dd_data);
-#endif
             diff_src += IC_BLOCK_STRIDE;
+#if FUSE_BN_ADD_RELU
+            diff_src_add += IC_BLOCK_STRIDE;
+#endif
         }
     }
 #endif // #if HAS_SP_TAIL
