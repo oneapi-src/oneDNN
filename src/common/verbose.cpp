@@ -361,6 +361,20 @@ std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
     return ss;
 }
 
+std::string arg2str(int arg) {
+    if (arg & DNNL_ARG_MULTIPLE_SRC) return "msrc";
+
+    std::string s;
+    switch (arg) {
+        case DNNL_ARG_SRC: // DNNL_ARG_SRC_0
+        case DNNL_ARG_SRC_1: s = "src"; break;
+        case DNNL_ARG_DST: s = "dst"; break;
+        case DNNL_ARG_WEIGHTS: s = "wei"; break;
+        default: assert(!"unsupported arg"); s = "";
+    }
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     // scratchpad and fpmath mode are not a part of
     // has_default_values(). Check them first.
@@ -388,8 +402,9 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             const auto &val = map_entry.second;
             if (val.has_default_values()) continue;
 
-            int idx = as.get_index_val(map_entry.first);
-            ss << delim << "src" << idx << ":" << val;
+            int arg = map_entry.first;
+            int idx = as.get_index_val(arg);
+            ss << delim << arg2str(arg) << idx << ":" << val;
             delim = attr_delim;
         }
         ss << " ";
@@ -406,10 +421,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             const int *zpp = nullptr;
             zp.get(arg, nullptr, &mask, &zpp);
 
-            ss << delim
-               << (arg == DNNL_ARG_SRC ? "src"
-                                       : arg == DNNL_ARG_DST ? "dst" : "wei")
-               << ":" << mask;
+            ss << delim << arg2str(arg) << ":" << mask;
             if (mask == 0 || is_runtime_value(*zpp))
                 ss << ":" << get_val_str(*zpp);
             delim = attr_delim;

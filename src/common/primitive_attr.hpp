@@ -238,6 +238,7 @@ struct arg_scales_t : public c_compatible {
     }
 
     int get_index_val(int arg) const {
+        if (arg & DNNL_ARG_MULTIPLE_SRC) return arg - DNNL_ARG_MULTIPLE_SRC;
         switch (arg) {
             case DNNL_ARG_SRC_0: return 0;
             case DNNL_ARG_SRC_1: return 1;
@@ -250,9 +251,12 @@ struct arg_scales_t : public c_compatible {
 
 private:
     bool check_arg(int arg) const {
+        // binary
         for (const auto &sa : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}) {
             if (arg == sa) return true;
         }
+        // concat
+        if (arg & DNNL_ARG_MULTIPLE_SRC) return true;
         return false;
     }
 };
