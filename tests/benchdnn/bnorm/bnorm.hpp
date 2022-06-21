@@ -48,6 +48,7 @@ const flags_t USE_SCALESHIFT = dnnl_use_scaleshift;
 const flags_t USE_SCALE = dnnl_use_scale;
 const flags_t USE_SHIFT = dnnl_use_shift;
 const flags_t FUSE_NORM_RELU = dnnl_fuse_norm_relu;
+const flags_t FUSE_NORM_ADD_RELU = dnnl_fuse_norm_add_relu;
 flags_t str2flags(const char *str);
 std::string flags2str(flags_t flags);
 
@@ -117,12 +118,17 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     bool need_ws() const {
-        return (flags & FUSE_NORM_RELU) && !(dir & FLAG_INF);
+        return (flags & (FUSE_NORM_RELU | FUSE_NORM_ADD_RELU))
+                && !(dir & FLAG_INF);
     }
 
     bool use_ss() const { return flags & USE_SCALESHIFT; }
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
+    bool fuse_relu() const {
+        return flags & (FUSE_NORM_RELU | FUSE_NORM_ADD_RELU);
+    }
+    bool fuse_add_relu() const { return flags & FUSE_NORM_ADD_RELU; }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

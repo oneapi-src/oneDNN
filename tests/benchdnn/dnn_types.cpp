@@ -105,6 +105,7 @@ const char *prop2str(dnnl_prop_kind_t prop) {
 const char *data_kind2str(data_kind_t kind) {
     switch (kind) {
         case SRC: return "SRC";
+        case SRC_ADD: return "SRC_ADD";
         case WEI: return "WEI";
         case BIA: return "BIA";
         case DST: return "DST";

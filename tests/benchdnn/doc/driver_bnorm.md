@@ -13,13 +13,14 @@ where *bnorm-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--flags=[|G|S|C|H|R]` -- batch normalization flags, default `none`; where
+ - `--flags=[|G|S|C|H|R|A]` -- batch normalization flags, default `none`; where
             multiple simultaneous flags are supported.
             `G` is dnnl_use_global_stats;
             `S` is dnnl_use_scaleshift;
             `C` is dnnl_use_scale;
             `H` is dnnl_use_shift;
             `R` is dnnl_fuse_norm_relu;
+            `A` is dnnl_fuse_norm_add_relu;
             Refer to [batch normalization primitive](https://oneapi-src.github.io/oneDNN/dev_guide_batch_normalization.html)
             for details.
  - `--attr-post-ops=STRING` -- post operation primitive attribute. No post

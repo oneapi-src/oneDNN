@@ -79,6 +79,7 @@ enum data_kind_t {
     DST,
     ACC,
     // bnorm, lnorm
+    SRC_ADD,
     MEAN,
     VAR,
     SS,

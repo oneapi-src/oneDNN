@@ -22,6 +22,7 @@ namespace bnorm {
 
 void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &src_add = args.find(DNNL_ARG_SRC_1);
     const dnn_mem_t &mean = args.find(DNNL_ARG_MEAN);
     const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
     const dnn_mem_t &ss
@@ -43,7 +44,8 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
-    const bool fuse_relu = prb->flags & FUSE_NORM_RELU;
+    const bool fuse_relu = prb->fuse_relu();
+    const bool fuse_add_relu = prb->fuse_add_relu();
     const bool need_ws = prb->need_ws();
     const auto &attr = prb->attr;
 
@@ -62,6 +64,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
             auto off = data_off(prb, mb, c, d, h, w);
             float x_hat = (src.get_elem(off) - smean) * rcp_denom;
             float res = gamma * x_hat + beta;
+            if (fuse_add_relu) res += src_add.get_elem(off);
             if (fuse_relu && res < 0) res = 0;
             if (need_ws) ws_ptr[off] = !!res;
             maybe_post_ops(attr, res);
@@ -79,11 +82,13 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
             = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     const dnn_mem_t &ws = args.find(DNNL_ARG_WORKSPACE);
     const dnn_mem_t &d_src = args.find(DNNL_ARG_DIFF_SRC);
+    const dnn_mem_t &d_src_add = args.find(DNNL_ARG_DIFF_SRC_1);
     const dnn_mem_t &d_ss = args.find(
             prb->use_sc() ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
     const dnn_mem_t &d_sh = args.find(DNNL_ARG_DIFF_SHIFT);
 
     float *d_src_ptr = (float *)d_src;
+    float *d_src_add_ptr = (float *)d_src_add;
     float *d_ss_ptr = (float *)d_ss;
     float *d_sh_ptr = (float *)d_sh;
 
@@ -96,7 +101,8 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
-    const bool fuse_relu = prb->flags & FUSE_NORM_RELU;
+    const bool fuse_relu = prb->fuse_relu();
+    const bool fuse_add_relu = prb->fuse_add_relu();
 
     const float MB_SP = MB * D * H * W;
 
@@ -133,6 +139,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
             auto off = data_off(prb, mb, c, d, h, w);
             float dd = d_dst.get_elem(off);
             if (fuse_relu && ws.get_elem(off) == 0) dd = 0;
+            if (fuse_add_relu) d_src_add_ptr[off] = dd;
             float ds = dd;
 
             if (!glob_stats)

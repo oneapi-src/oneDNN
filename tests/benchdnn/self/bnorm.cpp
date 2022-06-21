@@ -38,6 +38,13 @@ static int check_flags() {
             flags2str(USE_SCALESHIFT | FUSE_NORM_RELU), "SR");
     SELF_CHECK_CASE_CPP_STR_EQ(
             flags2str(GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU), "GSR");
+    SELF_CHECK_CASE_CPP_STR_EQ(flags2str(FUSE_NORM_RELU), "A");
+    SELF_CHECK_CASE_CPP_STR_EQ(
+            flags2str(GLOB_STATS | FUSE_NORM_ADD_RELU), "GA");
+    SELF_CHECK_CASE_CPP_STR_EQ(
+            flags2str(USE_SCALESHIFT | FUSE_NORM_ADD_RELU), "SA");
+    SELF_CHECK_CASE_CPP_STR_EQ(
+            flags2str(GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_ADD_RELU), "GSA");
 
     SELF_CHECK_EQ(str2flags(""), NONE);
     SELF_CHECK_EQ(str2flags("G"), GLOB_STATS);
@@ -48,8 +55,13 @@ static int check_flags() {
     SELF_CHECK_EQ(str2flags("R"), FUSE_NORM_RELU);
     SELF_CHECK_EQ(str2flags("GS"), GLOB_STATS | USE_SCALESHIFT);
     SELF_CHECK_EQ(str2flags("GR"), GLOB_STATS | FUSE_NORM_RELU);
+    SELF_CHECK_EQ(str2flags("SR"), USE_SCALESHIFT | FUSE_NORM_RELU);
+    SELF_CHECK_EQ(str2flags("RSG"), GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU);
+    SELF_CHECK_EQ(str2flags("A"), FUSE_NORM_ADD_RELU);
+    SELF_CHECK_EQ(str2flags("GA"), GLOB_STATS | FUSE_NORM_ADD_RELU);
+    SELF_CHECK_EQ(str2flags("SA"), USE_SCALESHIFT | FUSE_NORM_ADD_RELU);
     SELF_CHECK_EQ(
-            str2flags("RSG"), GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU);
+            str2flags("ASG"), GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_ADD_RELU);
     return OK;
 }
 
