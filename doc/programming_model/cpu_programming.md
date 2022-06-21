@@ -280,6 +280,56 @@ to implement this optimization on their side. The weight's opaque layout can be
 only queried out from compiled partition, which requires the tensor shapes must
 be known at the compilation time.
 
+## Floating-point Math Mode
+
+Floating-point math mode is used to specify whether implicit down conversion
+from f32 to those compatible floating data types (bf16/tf32/f16) is allowed. By
+specifying floating-point math mode, users may see the performance improvement (
+depending on library backend capability) without explicitly modifying the
+original f32 models. oneDNN Graph supports setting floating-point math mode
+through `graph` constructor or by using the environment variable
+`DNNL_DEFAULT_FPMATH_MODE` (require no code changes).
+
+~~~cpp
+// define input and output logical tensor
+logical_tensor conv_src {0, data_type::f32, {1, 3, 256, 256}, layout_type::strided}; // 1
+logical_tensor conv_wei {1, data_type::f32, {32, 3, 3, 3}, layout_type::strided};    // 2
+logical_tensor conv_dst {2, data_type::f32, {1, 32, 252, 252}, layout_type::strided};// 3
+logical_tensor relu_dst {3, data_type::f32, {1, 32, 252, 252}, layout_type::strided};// 4
+
+// step 1: create the op
+op conv {0, kind::Convolution, {conv_src, conv_wei}, {conv_dst}, "convolution"};     // 5
+// set many attributes
+conv.set_attr("pads_begin", {0,0});                                                  // 6
+conv.set_attr("pads_end", {0,0});                                                    // 7
+
+op relu {1, kind::ReLU, {conv_dst}, {relu_dst}, "relu"}                              // 8
+
+engine::kind engine_kind = engine::kind::cpu;                                        // 9
+
+// step 2: create graph and add ops to graph
+graph g(engine_kind, graph::fpmath_mode::tf32);                                      // 10 <---- specify fpmath mode via explicit API
+
+g.add_op(conv);                                                                      // 11
+g.add_op(relu);                                                                      // 12
+
+// step 3: get partitions
+// all returned partition from the graph will share the same fpmath mode
+std::vector<partition> parts = g.get_partitions();                                   // 13
+
+// step 3: compile the partition
+engine eng {engine_kind, 0};                                                         // 14
+compiled_partition cpart = parts[0].compile({conv_src, conv_wei}, {relu_dst}, eng);  // 15
+
+// step 4: execute the compiled partition
+tensor src {conv_src, eng, buf0};                                                    // 16
+tensor wei {conv_wei, eng, buf1};                                                    // 17
+tensor dst {relu_dst, eng, buf2};                                                    // 18
+// the implicit down conversion from f32 to tf32 may happen and then the
+// underlying kernel will compute on tf32 data type instead of f32.
+cp.execute(stream, {src, wei}, {dst});                                               // 19
+~~~
+
 ## Additional Ease-of-Use Features
 
 - Users are not required to set the tensors' format
