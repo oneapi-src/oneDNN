@@ -338,8 +338,12 @@ pm::pb_op_t *identical_bottleneck_resblock(
  */
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(conv_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion)
+// Conv: Currently DNNL backend doesn't support conv + depthwise conv
+// post-op fusion on GPU, while CPU supports. Check engine_kind == cpu
+// before matching
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
         .set_priority(10.2f)
+        .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::convolution_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {

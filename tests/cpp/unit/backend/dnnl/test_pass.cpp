@@ -38,6 +38,8 @@ using namespace dnnl::graph::tests::unit::utils;
 
 using op_ptr = std::shared_ptr<dnnl::graph::impl::op_t>;
 
+#define for_ for
+
 namespace {
 dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     auto &backend_ptr
@@ -1431,11 +1433,13 @@ TEST(Pass, FuseConvBiasaddSumRelu6) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 7);
 }
 
-TEST(Pass, FuseConvDepthwise) {
+TEST(PassSystem, FuseConvDepthwise) {
     /*   conv
           |
          conv (depthwise)
     */
+    const std::vector<engine_kind_t> engine_kinds
+            = {engine_kind::cpu, engine_kind::gpu};
     const std::vector<std::string> dw_types {"k3s1p1", "k3s2p1"};
     // N, IC, IH, IW
     const std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
@@ -1458,6 +1462,7 @@ TEST(Pass, FuseConvDepthwise) {
         return new_shape;
     };
 
+    for_(const auto &engine_kind : engine_kinds)
     for (const auto &dw_type : dw_types) {
         op_t conv {0, Convolution, "conv"};
         set_conv_dw_base_op_attr(conv);
@@ -1485,17 +1490,26 @@ TEST(Pass, FuseConvDepthwise) {
         depthwise.add_input(dw_wei);
         depthwise.add_output(dw_dst);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&conv), status::success);
         ASSERT_EQ(agraph.add_op(&depthwise), status::success);
         agraph.build_graph();
 
-        pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion");
-        apass->run(agraph);
-        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+        pm.run_passes(agraph, "no_config");
 
-        ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-                dnnl_impl::op_kind::dnnl_conv_depthwise);
+        if (engine_kind == engine_kind::cpu) {
+            ASSERT_EQ(agraph.get_num_partitions(), 1);
+            ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+                    dnnl_impl::op_kind::dnnl_conv_depthwise);
+        } else {
+            ASSERT_EQ(agraph.get_num_partitions(), 2);
+            ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+                    dnnl_impl::op_kind::conv_post_ops_fusion);
+            ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(),
+                    dnnl_impl::op_kind::conv_post_ops_fusion);
+        }
     }
 }
 
@@ -13367,8 +13381,6 @@ TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 0);
 }
-
-#define for_ for
 
 TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
     std::vector<std::pair<op_kind_t, std::string>> op_infos {

@@ -1202,7 +1202,7 @@ TEST(SubgraphPass, FusePostOpsForConvDepthwise) {
     g.add_op(&depthwise);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
