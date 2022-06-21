@@ -8079,7 +8079,6 @@ TEST(Execute, HardSwishBackward) {
             impl::op_kind::HardSwishBackprop, "hardswish_bw");
 }
 
-
 TEST(Execute, Relu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
     test::vector<float> ref_dst {0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0};
@@ -14946,7 +14945,9 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -15099,7 +15100,9 @@ TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
 
             // -------------------------case 2----------------------------------
             impl::pass::pass_base_ptr apass
-                    = get_pass("int8_matmul_post_ops_fusion");
+                    = get_pass(engine.kind() == impl::engine_kind::gpu
+                                    ? "int8_matmul_post_ops_fusion_gpu"
+                                    : "int8_matmul_post_ops_fusion_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1);
             auto part = g.get_partitions()[0];
@@ -15265,7 +15268,9 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
 
             // -------------------------case 2----------------------------------
             impl::pass::pass_base_ptr apass
-                    = get_pass("int8_matmul_post_ops_fusion");
+                    = get_pass(engine.kind() == impl::engine_kind::gpu
+                                    ? "int8_matmul_post_ops_fusion_gpu"
+                                    : "int8_matmul_post_ops_fusion_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1);
             auto part = g.get_partitions()[0];
@@ -15411,7 +15416,10 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
             run_graph(g, {src_u8_ts, weight_s8_ts}, {dst_s8_ts}, engine, strm),
             impl::status::success);
     // -------------------------case 2----------------------------------
-    impl::pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_matmul_post_ops_fusion_gpu"
+                            : "int8_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -16150,7 +16158,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -16333,7 +16343,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasBinary) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -16557,7 +16569,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -16733,7 +16747,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2dX8s8f32) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -16871,7 +16887,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -17000,7 +17018,9 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -17145,7 +17165,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -17850,7 +17872,10 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_pool_binary_fusion_gpu"
+                                : "int8_pool_binary_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -17983,7 +18008,10 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_pool_binary_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_pool_binary_fusion_gpu"
+                                : "int8_pool_binary_fusion");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -18014,17 +18042,15 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
 
 TEST(ExecuteSubgraphInt8, PoolAdd) {
     using dims = impl::dnnl_impl::dims;
-    using config_t = std::tuple<impl::op_kind_t, std::string, bool>;
+    using config_t = std::tuple<impl::op_kind_t, bool>;
 
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    const std::vector<config_t> confs {
-            config_t {impl::op_kind::AvgPool, "int8_pool_binary_fusion", true},
-            config_t {impl::op_kind::AvgPool, "int8_pool_binary_fusion", false},
-            config_t {impl::op_kind::MaxPool, "int8_pool_binary_fusion", true},
-            config_t {
-                    impl::op_kind::MaxPool, "int8_pool_binary_fusion", false}};
+    const std::vector<config_t> confs {config_t {impl::op_kind::AvgPool, true},
+            config_t {impl::op_kind::AvgPool, false},
+            config_t {impl::op_kind::MaxPool, true},
+            config_t {impl::op_kind::MaxPool, false}};
     const std::vector<std::string> qtypes {"symmetric", "asymmetric"};
     const std::vector<bool> swap_add_ins {true, false};
 
@@ -18035,9 +18061,8 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
             continue;
 
         impl::op_kind_t base_op = impl::op_kind::Wildcard;
-        std::string fuse_name;
         bool per_channel_broadcast = false;
-        std::tie(base_op, fuse_name, per_channel_broadcast) = conf;
+        std::tie(base_op, per_channel_broadcast) = conf;
 
         const std::string data_format {"NCX"};
         const int64_t channels = 2;
@@ -18163,7 +18188,10 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass(fuse_name);
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_pool_binary_fusion_gpu"
+                                : "int8_pool_binary_fusion");
         apass->run(g);
 
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -18557,9 +18585,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
             if (qtype == "per_channel" || wei_qtype == "symmetric"
                     || engine.kind() == impl::engine_kind::gpu)
                 return 0;
-            else {
+            else
                 return 78;
-            }
         };
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -18689,7 +18716,9 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -18875,7 +18904,9 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
                 impl::status::success);
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -19058,7 +19089,9 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -19225,7 +19258,9 @@ TEST(ExecuteSubgraphInt8, Matmul2dx3dWithTranspose) {
         g.build_graph();
 
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -19431,7 +19466,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumGetInplacePair) {
         g.build_graph();
 
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_matmul_post_ops_fusion");
+                = get_pass("int8_matmul_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 2);
         auto part2 = g.get_partitions()[0]; // int8_mamtul_bias_sum
@@ -19827,7 +19862,8 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
             run_graph(g, {src_u8_ts, weight_u8_ts}, {dst_f32_ts}, engine, strm),
             impl::status::success);
     // -------------------------case 2----------------------------------
-    impl::pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -23493,7 +23529,10 @@ TEST(Execute, Int8ReorderAdd) {
 
     ASSERT_EQ(agraph.build_graph(), impl::status::success);
 
-    impl::pass::pass_base_ptr apass = get_pass("int8_reorder_sum_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass(engine.kind() == impl::engine_kind::cpu
+                            ? "int8_reorder_sum_fusion_cpu"
+                            : "int8_reorder_sum_fusion_gpu");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);
@@ -24007,7 +24046,10 @@ TEST(ExecuteSubgraphInt8, ReluAdd) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_relu_add_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_relu_add_fusion_gpu"
+                                : "int8_relu_add_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];

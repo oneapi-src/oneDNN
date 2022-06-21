@@ -73,7 +73,8 @@ ConvTranspose: Currently DNNL Backend doesn't support below
 features on GPU:
 1. ConvTranspose with per_channel output scale
 2. ConvTranspose with per_tensor output scale != 1
-2. ConvTranspose with zero points
+3. ConvTranspose with zero points
+4. Post-sum/binary with zero points
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -177,7 +178,8 @@ ConvTranspose: Currently DNNL Backend doesn't support below
 features on GPU:
 1. ConvTranspose with per_channel output scale
 2. ConvTranspose with per_tensor output scale != 1
-2. ConvTranspose with zero points
+3. ConvTranspose with zero points
+4. Post-sum/binary with zero points
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -231,6 +233,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pm::pb_op_t *pdequant_binary
                             = pint8_binary_graph->append_op(
                                     impl::op_kind::Dequantize, "dequant");
+                    pdequant_binary->append_decision_function(
+                            check_zps_values<0>);
                     pm::pb_op_t *pbinary
                             = pint8_binary_graph->append_alternation(
                                     get_binary_ops(),

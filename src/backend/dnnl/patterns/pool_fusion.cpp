@@ -16,6 +16,7 @@
 
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "backend/dnnl/patterns/utils.hpp"
 
 #include "utils/pm/pbuilder.hpp"
 
@@ -71,8 +72,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion)
+/*
+Currently DNNL Backend doesn't support Post-sum/binary with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_cpu)
         .set_priority(10.0f)
+        .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::quantized_pooling_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -87,6 +93,48 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion)
                             = std::make_shared<pb_graph_t>("padd_subgraph");
                     auto pdequant_other = padd_subgraph->append_op(
                             impl::op_kind::Dequantize, "pdequnt_other");
+                    auto padd = padd_subgraph->append_op(impl::op_kind::Add,
+                            {in_edge(1, pdequant_other, 0)}, "padd");
+                    padd_subgraph->create_input_port(0, padd, 0);
+                    padd_subgraph->create_input_port(1, pdequant_other, 0);
+                    padd_subgraph->create_output_port(0, padd, 0);
+                    auto pbinary = pgraph->append_optional(
+                            padd_subgraph, {in_edge(0, ppool, 0)}, "pbinary");
+
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            {in_edge(0, pbinary, 0)}, "pquantize");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(op_kind::int8_pool_binary);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+Currently DNNL Backend doesn't support Post-sum/binary with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_gpu)
+        .set_priority(10.0f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_kind(impl::partition_kind::quantized_pooling_post_ops)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto pdequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "pdequnt_data");
+
+                    auto ppool = pgraph->append_alternation(
+                            {impl::op_kind::AvgPool, impl::op_kind::MaxPool},
+                            {in_edge(0, pdequant_data, 0)}, "ppool");
+
+                    auto padd_subgraph
+                            = std::make_shared<pb_graph_t>("padd_subgraph");
+                    auto pdequant_other = padd_subgraph->append_op(
+                            impl::op_kind::Dequantize, "pdequnt_other");
+                    pdequant_other->append_decision_function(
+                            check_zps_values<0>);
                     auto padd = padd_subgraph->append_op(impl::op_kind::Add,
                             {in_edge(1, pdequant_other, 0)}, "padd");
                     padd_subgraph->create_input_port(0, padd, 0);

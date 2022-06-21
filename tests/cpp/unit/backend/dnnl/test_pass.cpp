@@ -7053,7 +7053,7 @@ TEST(Pass, FuseToInt8Matmul) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7211,7 +7211,8 @@ TEST(Pass, FuseToInt8MatMulBinary) {
 
             agraph.build_graph();
 
-            pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+            pass::pass_base_ptr apass
+                    = get_pass("int8_matmul_post_ops_fusion_cpu");
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1);
             ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7307,7 +7308,7 @@ TEST(Pass, FailToFuseToInt8MatMulDivOrSubtract) {
 
         agraph.build_graph();
 
-        pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+        pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1);
         ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 3);
@@ -7458,7 +7459,7 @@ TEST(Pass, FuseToInt8MatmulBias) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7598,7 +7599,7 @@ TEST(Pass, FuseToInt8MatmulRelu) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7746,7 +7747,7 @@ TEST(Pass, FuseToInt8MatmulBiasRelu) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7800,7 +7801,7 @@ TEST(Pass, FuseToX8s8f32Matmul) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -7856,7 +7857,7 @@ TEST(Pass, FuseToX8s8f32MatmulBias) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -8157,7 +8158,7 @@ TEST(Pass, FuseToInt8Avgpool) {
             dnnl_impl::op_kind::int8_pool_binary);
 }
 
-TEST(Pass, FuseToInt8PoolAdd) {
+TEST(PassSystem, FuseToInt8PoolAdd) {
     /*    
              | (u8/s8)
           dequant
@@ -8172,39 +8173,34 @@ TEST(Pass, FuseToInt8PoolAdd) {
            quant
              | (u8/s8)
     */
-    using config_t = std::tuple<op_kind_t, op_kind_t, std::string>;
-    const auto confs = std::vector<config_t> {
-            config_t {AvgPool, dnnl_impl::op_kind::int8_pool_binary,
-                    "int8_pool_binary_fusion"},
-            config_t {MaxPool, dnnl_impl::op_kind::int8_pool_binary,
-                    "int8_pool_binary_fusion"}};
+    std::vector<op_kind_t> pool_kinds = {AvgPool, MaxPool};
+    std::vector<engine_kind_t> engine_kinds
+            = {engine_kind::cpu, engine_kind::gpu};
 
-    for (const auto &conf : confs) {
-        op_kind_t base_op;
-        op_kind_t fused_op;
-        std::string failing_fuse;
-        std::string passing_fuse;
-        std::tie(base_op, fused_op, passing_fuse) = conf;
-
+    for_(const auto &engine_kind : engine_kinds)
+    for (const auto &pool_kind : pool_kinds) {
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant {0, Dequantize, "dequant"};
         dequant.set_attr(op_attr::scales, scales);
         dequant.set_attr(op_attr::zps, zps);
+
+        std::vector<int64_t> zps2 = {1};
+        std::vector<float> scales2 = {3.3f};
         op_t dequant2 {1, Dequantize, "dequant"};
-        dequant2.set_attr(op_attr::scales, scales);
-        dequant2.set_attr(op_attr::zps, zps);
+        dequant2.set_attr(op_attr::scales, scales2);
+        dequant2.set_attr(op_attr::zps, zps2);
 
         std::vector<int64_t> strides = {2, 2};
         std::vector<int64_t> pads_begin = {0, 0};
         std::vector<int64_t> pads_end = {0, 0};
         std::vector<int64_t> kernel = {2, 2};
-        op_t pool {2, base_op, "pool"};
+        op_t pool {2, pool_kind, "pool"};
         pool.set_attr(op_attr::strides, strides);
         pool.set_attr(op_attr::pads_begin, pads_begin);
         pool.set_attr(op_attr::pads_end, pads_end);
         pool.set_attr(op_attr::kernel, kernel);
-        if (base_op == AvgPool)
+        if (pool_kind == AvgPool)
             pool.set_attr<bool>(op_attr::exclude_pad, false);
 
         op_t add {3, Add, "add"};
@@ -8244,7 +8240,7 @@ TEST(Pass, FuseToInt8PoolAdd) {
         quant.add_input(fp32_add_out);
         quant.add_output(int8_out);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&dequant), status::success);
         ASSERT_EQ(agraph.add_op(&dequant2), status::success);
         ASSERT_EQ(agraph.add_op(&pool), status::success);
@@ -8252,11 +8248,20 @@ TEST(Pass, FuseToInt8PoolAdd) {
         ASSERT_EQ(agraph.add_op(&quant), status::success);
         agraph.build_graph();
 
-        pass::pass_base_ptr apass = get_pass(passing_fuse);
-        apass->run(agraph);
-        ASSERT_EQ(agraph.get_num_partitions(), 1);
-        ASSERT_EQ(
-                get_fused_op(agraph.get_partitions()[0])->get_kind(), fused_op);
+        auto &backend_ptr
+                = dnnl::graph::impl::dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = dnnl::graph::impl::pass::pass_manager_t(
+                backend_ptr.get_pass_registry());
+
+        pm.run_passes(agraph, "no_config");
+
+        if (engine_kind == engine_kind::cpu) {
+            ASSERT_EQ(agraph.get_num_partitions(), 1);
+            ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+                    dnnl_impl::op_kind::int8_pool_binary);
+        } else {
+            ASSERT_EQ(agraph.get_num_partitions(), 4);
+        }
     }
 }
 
@@ -8390,7 +8395,7 @@ TEST(Pass, FuseToInt8ReluAdd) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_relu_add_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_relu_add_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -8477,7 +8482,7 @@ TEST(Pass, FuseToInt8MatmulAdd) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -8567,7 +8572,7 @@ TEST(Pass, FuseToInt8MatmulBiasAdd) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -8810,7 +8815,7 @@ TEST(Pass, FuseToX8s8f32MatmulBiasAdd) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
 
@@ -8889,7 +8894,7 @@ TEST(Pass, FuseToX8x8f32MatmulAdd) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -8968,7 +8973,7 @@ TEST(Pass, FuseToX8x8f32MatmulBiasAdd) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -12058,7 +12063,7 @@ TEST(Pass, FuseInt8ReorderAdd) {
 
     ASSERT_EQ(agraph.build_graph(), status::success);
 
-    pass::pass_base_ptr apass = get_pass("int8_reorder_sum_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_reorder_sum_fusion_cpu");
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1);

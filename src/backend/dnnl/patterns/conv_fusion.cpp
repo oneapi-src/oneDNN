@@ -386,6 +386,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Conv with dst zero points
+2. Post-sum/binary with zero points
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -488,6 +489,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Conv with dst zero points
+2. Post-sum/binary with zero points
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -536,6 +538,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pm::pb_op_t *pdequant_binary
                             = pint8_binary_graph->append_op(
                                     impl::op_kind::Dequantize, "dequant");
+                    pdequant_binary->append_decision_function(
+                            check_zps_values<0>);
                     pm::pb_op_t *pbinary
                             = pint8_binary_graph->append_alternation(
                                     get_binary_ops(),
