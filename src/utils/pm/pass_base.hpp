@@ -187,6 +187,13 @@ public:
 
     partition_kind_t get_kind() const { return pkind_; }
 
+    pass_base &set_engine_kind(engine_kind_t kind) {
+        engine_kind_ = kind;
+        return *this;
+    }
+
+    engine_kind_t get_engine_kind() const { return engine_kind_; }
+
     /*!
     * \brief Register additional attributes.
     * \param attr_name The name of the attribute.
@@ -236,6 +243,7 @@ private:
     float priority_ {5.0f};
     bool enable_ {true};
     partition_kind_t pkind_ {partition_kind::undef};
+    engine_kind_t engine_kind_ {engine_kind::any_engine};
 };
 
 } // namespace pass
