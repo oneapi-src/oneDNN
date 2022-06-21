@@ -248,21 +248,15 @@ struct gen_gemm_t : public gpu_gemm_t {
             bool b_any = b_mdw.format_any();
             bool c_any = c_mdw.format_any();
 
-            if (!a_any
-                    && a_mdw.matches_one_of_tag(ab, ba, abc, acb, abcd, abdc)
-                            == format_tag::undef)
+            if (!a_any && !is_gemm_compatible_plain_format(&a_desc))
                 return false;
-            if (!b_any
-                    && b_mdw.matches_one_of_tag(ab, ba, abc, acb, abcd, abdc)
-                            == format_tag::undef)
+            if (!b_any && !is_gemm_compatible_plain_format(&b_desc))
                 return false;
-            if (!c_any
-                    && c_mdw.matches_one_of_tag(ab, abc, abcd)
-                            == format_tag::undef)
+            if (!c_any && !is_gemm_compatible_plain_format(&c_desc, true))
                 return false;
 
-            bool is_a_trans = a_mdw.matches_one_of_tag(ba, acb);
-            bool is_b_trans = b_mdw.matches_one_of_tag(ba, acb);
+            bool is_a_trans = (desc()->transa() == dnnl_trans);
+            bool is_b_trans = (desc()->transb() == dnnl_trans);
 
             auto lda = is_a_trans ? m : k;
             auto ldb = is_b_trans ? k : n;
