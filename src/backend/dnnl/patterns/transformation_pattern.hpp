@@ -85,20 +85,20 @@ public:
     }
 };
 
-#define DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS( \
-        backend_name, pass_class_name) \
+#define DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN( \
+        backend_name, pattern_name) \
     registry.register_pass( \
-            #backend_name, #pass_class_name, &transformation_pass_t::create)
+            #backend_name, #pattern_name, &transformation_pass_t::create)
 
-#define DNNL_BACKEND_REGISTER_PASSES_DECLARE(passes_class_) \
-    void register_##passes_class_(impl::pass::pass_registry_t &registry);
+#define DNNL_BACKEND_REGISTER_PATTERN_DECLARE(pattern_class_) \
+    void register_##pattern_class_(impl::pass::pass_registry_t &registry);
 
-#define DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(passes_class_) \
-    void register_##passes_class_(impl::pass::pass_registry_t &registry) {
-#define DNNL_BACKEND_REGISTER_PASSES_DEF_END }
+#define DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(pattern_class_) \
+    void register_##pattern_class_(impl::pass::pass_registry_t &registry) {
+#define DNNL_BACKEND_REGISTER_PATTERN_DEF_END }
 
-#define DNNL_BACKEND_REGISTER_PASSES_CALL(passes_class_, pass_registry_) \
-    pattern::register_##passes_class_(pass_registry_);
+#define DNNL_BACKEND_REGISTER_PATTERN_CALL(pattern_class_, pattern_registry_) \
+    pattern::register_##pattern_class_(pattern_registry_);
 
 #define MAX_REPETITION 4
 } // namespace pattern

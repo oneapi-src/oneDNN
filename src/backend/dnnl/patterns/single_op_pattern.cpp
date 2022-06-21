@@ -27,11 +27,11 @@ using pb_graph_t = impl::utils::pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
 using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(single_op_pass)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(single_op_pass)
 
 // pname: pattern name, bname: backend name
 #define DNNL_BACKEND_SINGLE_OP_TRANSFORM(pname, bname, op, p) \
-    DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(bname, pname) \
+    DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(bname, pname) \
             .set_priority(p) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
@@ -139,7 +139,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
         return true; \
     })
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_pass)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -155,7 +155,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_pass)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_bwd_pass)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, interpolate_bwd_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -191,7 +191,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, interpolate_bwd_pass)
         return true; \
     })
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, typecast_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -209,7 +209,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_pass)
 
 // pname: pattern name, bname: backend name
 #define DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(pname, bname, op, p) \
-    DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(bname, pname) \
+    DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(bname, pname) \
             .set_priority(p) \
             .set_attr<FCreateV2Pattern>("FCreateV2Pattern", \
                     [](const std::shared_ptr<pb_graph_t> &pgraph) -> void { \
@@ -250,7 +250,7 @@ DNNL_BACKEND_SINGLE_REDUCE_OP_TRANSFORM(reduce_pass, dnnl, ReduceSum, 8.f)
         return true; \
     })
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_pass)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -266,7 +266,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_pass)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_bw_pass)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_bw_pass)
         .set_priority(8.f)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -282,7 +282,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_bw_pass)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl

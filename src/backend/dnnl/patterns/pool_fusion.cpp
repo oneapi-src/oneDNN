@@ -37,9 +37,9 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  *          2. If found, verify if this transformation is safe / correct
  *          3. replace the pattern with a fused op, update the graph
  */
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(pool_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(pool_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_post_ops_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
         .set_priority(9.9f)
         .set_kind(impl::partition_kind::pooling_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -70,7 +70,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, pool_post_ops_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_pool_binary_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion)
         .set_priority(10.0f)
         .set_kind(impl::partition_kind::quantized_pooling_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -105,7 +105,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_pool_binary_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl

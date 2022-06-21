@@ -334,9 +334,9 @@ pm::pb_op_t *identical_bottleneck_resblock(
  *          2. If found, verify if this transformation is safe / correct
  *          3. replace the pattern with a fused op, update the graph
  */
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(conv_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(conv_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_depthwise_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion)
         .set_priority(10.2f)
         .set_kind(impl::partition_kind::convolution_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -376,7 +376,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_depthwise_fusion)
             [quant_out]*  
                 |      
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_post_ops_fusion)
         .set_priority(10.5f)
         .set_kind(impl::partition_kind::quantized_convolution_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -509,7 +509,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
             quant_out
                 |
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion)
         .set_priority(10.5f)
         .set_kind(impl::partition_kind::quantized_convolution_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -590,7 +590,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_bias_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_simple_resblock_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_simple_resblock_fusion)
         .set_priority(5.f) // low priority to avoid current functionality
         .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -628,7 +628,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_simple_resblock_fusion)
                 });
 
 // Two conv fusion for f32 resnet
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, conv_bias_relu_conv_bias_relu_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(impl::partition_kind::residual_conv_blocks)
@@ -645,7 +645,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, conv_bias_relu_conv_bias_add_relu_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(impl::partition_kind::residual_conv_blocks)
@@ -662,7 +662,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, identical_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(impl::partition_kind::residual_conv_blocks)
@@ -682,7 +682,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, convolutional_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(impl::partition_kind::residual_conv_blocks)
@@ -704,7 +704,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 // Two conv fusion for int8 resnet
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_conv_bias_relu_conv_bias_relu_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -722,7 +722,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_identical_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -743,7 +743,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl,
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl,
         int8_convolutional_bottleneck_resblock_fusion)
         .set_priority(5.f) // increase the priority if needed
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -764,7 +764,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl,
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_1_4_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_resnet50_stage_1_4_fusion)
         .set_priority(22.f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -793,7 +794,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_1_4_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_2_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_2_fusion)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -825,7 +826,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_2_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_3_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet50_stage_3_fusion)
         .set_priority(22.2f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -856,7 +857,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet50_stage_3_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_1_4_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_resnet34_stage_1_4_fusion)
         .set_priority(22.f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -874,7 +876,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_1_4_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_2_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_2_fusion)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -894,7 +896,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_2_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_3_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_resnet34_stage_3_fusion)
         .set_priority(22.2f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -914,7 +916,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnet34_stage_3_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_1_4_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, f32_resnet50_stage_1_4_fusion)
         .set_priority(22.f) // high priority to support itex
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -942,7 +945,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_1_4_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_2_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_2_fusion)
         .set_priority(22.1f) // high priority to support itex
         .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -973,7 +976,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_2_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_3_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_resnet50_stage_3_fusion)
         .set_priority(22.2f) // high priority to support itex
         .set_kind(impl::partition_kind::residual_conv_blocks)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -1003,7 +1006,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_resnet50_stage_3_fusion)
                 });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_1_fusion)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -1026,7 +1029,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_2_fusion)
         .set_priority(22.2f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -1050,7 +1053,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_3_fusion)
         .set_priority(22.3f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -1072,7 +1075,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, itex_int8_resnet50_stage_4_fusion)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -1103,7 +1106,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
           Maximum/Minimum/Divide/Subtract]*[0,3] 
                 |       
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_post_ops_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
         .set_priority(9.7f)
         .set_kind(impl::partition_kind::convolution_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -1188,7 +1191,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_post_ops_fusion)
           Maximum/Minimum/Divide/Subtract]*[0,3] 
                 |      
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
         .set_priority(9.8f)
         .set_kind(impl::partition_kind::convolution_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -1328,7 +1331,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, conv_bwd_weights_bwd_bias_fusion)
         .set_enable(false)
         .set_kind(impl::partition_kind::convolution_backprop_post_ops)
@@ -1354,7 +1357,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 // and followed by 2 identical bottleneck blocks. The convolution's bias can be
 // connected to conv op directly as an optional input, or it also can be
 // performed by using a separated biasadd op
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_resnext101_stage_1_4_fusion)
         .set_enable(true)
         .set_priority(22.f) // high priority to support lz models
@@ -1391,7 +1394,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
 // by 3 identical bottleneck blocks. The convolution's bias can be connected to
 // conv op directly as an optional input, or it also can be performed by using a
 // separated biasadd op
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_stage_2_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_resnext101_stage_2_fusion)
         .set_enable(true)
         .set_priority(22.1f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -1428,7 +1432,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_stage_2_fusion)
 // by 22 identical bottleneck blocks. The convolution's bias can be connected to
 // conv op directly as an optional input, or it also can be performed by using a
 // separated biasadd op
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_stage_3_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_resnext101_stage_3_fusion)
         .set_enable(true)
         .set_priority(22.2f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -1463,7 +1468,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_stage_3_fusion)
 // ResNeXt101 backbone is the composition of 4 stages, which has 102 conv inside
 // it. The convolution's bias can be connected to conv op directly as an
 // optional input, or it also can be performed by using a separated biasadd op
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_backbone_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_resnext101_backbone_fusion)
         .set_enable(true)
         .set_priority(23.f) // high priority to support lz models
         .set_kind(impl::partition_kind::quantized_residual_conv_blocks)
@@ -1531,7 +1537,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_resnext101_backbone_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl

@@ -48,9 +48,9 @@ bool check_inputs_all_bf16(op_t *op) {
 }
 } // namespace
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(quantize_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(quantize_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_quantize_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, typecast_quantize_fusion)
         .set_priority(8.1f)
         .set_kind(impl::partition_kind::misc_quantized_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -71,7 +71,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, typecast_quantize_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl

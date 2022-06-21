@@ -37,9 +37,9 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  *          3. replace the pattern with a fused op, update the graph
  */
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(shuffle_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(shuffle_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, shuffle_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, shuffle_fusion)
         .set_priority(8.2f)
         .set_kind(impl::partition_kind::misc_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -60,7 +60,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, shuffle_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl

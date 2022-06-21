@@ -48,22 +48,22 @@ bool dnnl_backend::register_op_schemas() {
 }
 
 bool dnnl_backend::register_passes() {
-    DNNL_BACKEND_REGISTER_PASSES_CALL(binary_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(bn_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(concat_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(conv_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(convtranspose_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(gelu_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(matmul_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(single_op_pass, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(pool_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(eltwise_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(quantize_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(interpolate_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(sum_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(reorder_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(shuffle_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PASSES_CALL(reduction_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(binary_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(bn_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(concat_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(convtranspose_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(gelu_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(matmul_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(single_op_pass, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(pool_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(eltwise_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(quantize_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(interpolate_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(sum_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(reorder_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(shuffle_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(reduction_fusion, pass_registry_);
     pass_registry_.sort_passes();
 
     return true;

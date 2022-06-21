@@ -38,9 +38,9 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  *          2. If found, verify if this transformation is safe / correct
  *          3. replace the pattern with a fused op, update the graph
  */
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(matmul_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(matmul_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_post_ops_chain_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, matmul_post_ops_chain_fusion)
         .set_priority(8.8f)
         .set_kind(impl::partition_kind::matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -113,7 +113,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, matmul_post_ops_chain_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, matmul_bias_post_ops_chain_fusion)
         .set_priority(8.9f)
         .set_kind(impl::partition_kind::matmul_post_ops)
@@ -253,7 +253,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 // fusions with div
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, x8x8f32_matmul_div_fusion)
         .set_priority(10.4f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -279,7 +279,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, x8x8f32_matmul_div_add_fusion)
         .set_priority(10.5f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -325,7 +326,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8f32_matmul_div_add_fusion)
             [quant_out]*  
                 |      
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_post_ops_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_matmul_post_ops_fusion)
         .set_priority(9.9f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -440,7 +441,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_post_ops_fusion)
                 });
 
 // int8-bf16 mix precision fusions
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_matmul_fusion)
         .set_priority(9.9f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -484,7 +485,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_matmul_bias_fusion)
         .set_priority(10.5f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -554,7 +555,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_gelu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_matmul_gelu_fusion)
         .set_priority(9.9f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -602,7 +603,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_gelu_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_matmul_bias_gelu_fusion)
         .set_priority(10.5f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -674,7 +675,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_matmul_bias_gelu_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, x8x8bf16_matmul_fusion)
         .set_priority(9.8f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -709,7 +710,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_div_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, x8x8bf16_matmul_div_fusion)
         .set_priority(10.4f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -747,7 +748,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_div_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_div_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, x8x8bf16_matmul_div_add_fusion)
         .set_priority(10.5f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -787,7 +789,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_matmul_div_add_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, x8s8bf16_matmul_bias_fusion)
         .set_priority(10.4f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -835,7 +837,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_fusion)
                Add 
                 |      
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, x8s8bf16_matmul_bias_add_fusion)
         .set_priority(10.5f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -889,7 +892,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8s8bf16_matmul_bias_add_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, x8x8bf16_matmul_bias_add_bf16_fusion)
         .set_priority(10.49f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
@@ -964,7 +967,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_MHA_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::quantized_mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -1054,7 +1057,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_MHA_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
         .set_priority(20.0f)
         .set_kind(impl::partition_kind::mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -1156,7 +1159,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, f32_MHA_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_bf16_MHA_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bf16_MHA_fusion)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::quantized_mha)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -1278,7 +1281,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_bf16_MHA_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_div_matmul_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, x8x8bf16_div_matmul_fusion)
         .set_priority(10.5f)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -1316,7 +1319,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, x8x8bf16_div_matmul_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl

@@ -40,9 +40,9 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  *          3. replace the pattern with a fused op, update the graph
  */
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(eltwise_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(eltwise_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, eltwise_binary_fusion)
         .set_priority(8.2f)
         .set_kind(impl::partition_kind::unary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -85,7 +85,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, chained_relu_fusion)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::unary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -107,7 +107,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, chained_relu_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_relu_fusion)
         .set_priority(9.9f)
         .set_kind(impl::partition_kind::quantized_unary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -126,7 +126,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_add_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_relu_add_fusion)
         .set_priority(10.0f)
         .set_kind(impl::partition_kind::quantized_unary_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -151,7 +151,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_relu_add_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl

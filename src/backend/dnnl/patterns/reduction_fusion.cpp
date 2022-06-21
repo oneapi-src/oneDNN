@@ -47,9 +47,9 @@ bool check_attributes(op_t *graph_op) {
  *          2. If found, verify if this transformation is safe / correct
  *          3. replace the pattern with a fused op, update the graph
  */
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(reduction_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(reduction_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reduction_post_ops_fusion)
         .set_priority(8.4f)
         .set_kind(impl::partition_kind::reduction_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -99,7 +99,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl

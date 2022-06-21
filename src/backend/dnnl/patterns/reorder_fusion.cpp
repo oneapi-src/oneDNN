@@ -37,9 +37,9 @@ using FCreateV2Pattern = impl::pass::FCreateV2Pattern;
  *          3. replace the pattern with a fused op, update the graph
  */
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_BEGIN(reorder_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(reorder_fusion)
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reorder_sum_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, reorder_sum_fusion)
         .set_priority(10.1f)
         .set_kind(impl::partition_kind::misc_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -63,7 +63,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reorder_sum_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_fusion)
         .set_priority(10.1f)
         .set_kind(impl::partition_kind::misc_quantized_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -84,7 +84,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_sum_fusion)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_reorder_sum_fusion)
         .set_priority(10.2f)
         .set_kind(impl::partition_kind::misc_quantized_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
@@ -117,7 +117,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_reorder_sum_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_PASSES_DEF_END
+DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
 } // namespace dnnl_impl
