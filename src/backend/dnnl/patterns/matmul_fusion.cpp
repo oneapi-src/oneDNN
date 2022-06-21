@@ -15,6 +15,8 @@
 *******************************************************************************/
 
 #include "backend/dnnl/patterns/fusions.hpp"
+#include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "backend/dnnl/patterns/utils.hpp"
 
 #include "utils/pm/pbuilder.hpp"
 

@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "backend/dnnl/patterns/fusions.hpp"
+#include "backend/dnnl/patterns/transformation_pattern.hpp"
 
 namespace dnnl {
 namespace graph {

@@ -16,6 +16,7 @@
 
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
+#include "backend/dnnl/patterns/transformation_pattern.hpp"
 
 #include "utils/pm/pbuilder.hpp"
 

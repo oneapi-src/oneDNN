@@ -16,7 +16,7 @@
 #ifndef BACKEND_DNNL_PATTERNS_FUSIONS_HPP
 #define BACKEND_DNNL_PATTERNS_FUSIONS_HPP
 
-#include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "utils/pm/pass_manager.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -24,46 +24,8 @@ namespace impl {
 namespace dnnl_impl {
 namespace pattern {
 
-template <size_t N>
-bool check_input_num(op_t *op) {
-    return op->num_inputs() == N;
-}
-
-template <impl::data_type_t DTYPE>
-bool check_input_dtype(op_t *op) {
-    for (size_t i = 0; i < op->num_inputs(); ++i) {
-        const logical_tensor_t &iport
-                = op->get_input_value(i)->get_logical_tensor();
-        if (iport.data_type != DTYPE) return false;
-    }
-
-    return true;
-}
-
-template <impl::data_type_t DTYPE>
-bool check_output_dtype(op_t *op) {
-    for (size_t i = 0; i < op->num_outputs(); ++i) {
-        const logical_tensor_t &oport
-                = op->get_output_value(i)->get_logical_tensor();
-        if (oport.data_type != DTYPE) return false;
-    }
-
-    return true;
-}
-
-template <size_t N>
-bool check_producer_input_num(op_t *op) {
-    op_t *producer = op->get_input_op(0);
-    return producer->num_inputs() == N;
-}
-
-template <impl::op_kind_t KIND>
-bool check_successor_op_kind(op_t *op) {
-    auto out_value = op->get_output_value(0);
-    if (out_value->get_consumers().empty()) return false;
-    auto &successor = out_value->get_consumers()[0].get_op();
-    return successor.get_kind() == KIND;
-}
+#define DNNL_BACKEND_REGISTER_PATTERN_DECLARE(pattern_class_) \
+    void register_##pattern_class_(impl::pass::pass_registry_t &registry);
 
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(conv_fusion)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(matmul_fusion)
@@ -81,6 +43,8 @@ DNNL_BACKEND_REGISTER_PATTERN_DECLARE(shuffle_fusion)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(single_op_pass)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(sum_fusion)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(concat_fusion)
+
+#undef DNNL_BACKEND_REGISTER_PATTERN_DECLARE
 
 } // namespace pattern
 } // namespace dnnl_impl

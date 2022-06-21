@@ -48,6 +48,9 @@ bool dnnl_backend::register_op_schemas() {
 }
 
 bool dnnl_backend::register_passes() {
+#define DNNL_BACKEND_REGISTER_PATTERN_CALL(pattern_class_, pattern_registry_) \
+    pattern::register_##pattern_class_(pattern_registry_);
+
     DNNL_BACKEND_REGISTER_PATTERN_CALL(binary_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(bn_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(concat_fusion, pass_registry_);
@@ -65,6 +68,8 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PATTERN_CALL(shuffle_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(reduction_fusion, pass_registry_);
     pass_registry_.sort_passes();
+
+#undef DNNL_BACKEND_REGISTER_PATTERN_CALL
 
     return true;
 }
