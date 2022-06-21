@@ -141,6 +141,7 @@ class value_numbering_mutator_t : public ssa_visitor_t {
     std::vector<scope_t> scopes_;
     ssa_value_set var_set_;
     ssa_simplify_t simplifier_;
+    bool should_update_scopes_ = false;
     using ssa_visitor_t::dispatch;
     using ssa_visitor_t::visit;
 
@@ -148,8 +149,9 @@ class value_numbering_mutator_t : public ssa_visitor_t {
             = sc_make_temp_data_addresser(&vn_result_t::parent_info_);
 
     stmt_c dispatch(stmt_c f) override {
-        if (f->node_type_ != sc_stmt_type::stmts
-                && scopes_.back().cur_seq_to_insert_ == nullptr) {
+        if (should_update_scopes_) {
+            should_update_scopes_ = false;
+            assert(scopes_.back().cur_seq_to_insert_ == nullptr);
             scopes_.back().cur_seq_to_insert_ = get_current_scope();
         }
         auto ret = ssa_visitor_t::dispatch(f);
@@ -180,6 +182,7 @@ class value_numbering_mutator_t : public ssa_visitor_t {
 
     stmt_c visit(stmts_c v) override {
         scopes_.emplace_back(scope_t {v.get(), nullptr});
+        should_update_scopes_ = true;
         auto ret = ssa_visitor_t::visit(v);
         // make sure we make a new stmts node, so that remove_const is safe
         if (ret.ptr_same(v)) { ret = ret->remake(); }
@@ -257,11 +260,7 @@ class value_numbering_mutator_t : public ssa_visitor_t {
                             });
                     assert(scope_itr != scopes_.end());
                     auto &scope = *scope_itr;
-                    if (get_current_scope() != scope.cur_seq_to_insert_) {
-                        // if need to move to an ancestor scope, simply
-                        // append to its tail
-                        scope.cur_seq_to_insert_->emplace_back(old_def);
-                    } else {
+                    {
                         // else, need to insert the old var def before it is
                         // used. Find the second level parent
                         // for example, for IR like
@@ -285,13 +284,19 @@ class value_numbering_mutator_t : public ssa_visitor_t {
                         auto insert_before
                                 = get_vn_result(second_level->cur_node_)
                                           .new_object_;
-                        auto insertion_point
-                                = std::find_if(the_seq.begin(), the_seq.end(),
-                                        [insert_before](const stmt_c &v) {
-                                            return v.get() == insert_before;
-                                        });
-                        assert(insertion_point != the_seq.end());
-                        the_seq.insert(insertion_point, old_def);
+                        if (!insert_before) {
+                            // if old def has not been attached to ancestor stmt
+                            // seq
+                            the_seq.emplace_back(old_def);
+                        } else {
+                            auto insertion_point = std::find_if(the_seq.begin(),
+                                    the_seq.end(),
+                                    [insert_before](const stmt_c &v) {
+                                        return v.get() == insert_before;
+                                    });
+                            assert(insertion_point != the_seq.end());
+                            the_seq.insert(insertion_point, old_def);
+                        }
                     }
                     // insert to alive vars of shared_parent
                     scope.alive_vars_.insert(old_def);
