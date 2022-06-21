@@ -246,9 +246,13 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     const auto &d = desc();
     auto arch = dev_info_->gpu_arch();
 
-    memory_desc_wrapper a_mdw(&desc_.b_desc);
-    memory_desc_wrapper b_mdw(&desc_.a_desc);
-    memory_desc_wrapper c_mdw(&desc_.c_desc);
+    auto &a_desc = desc_.b_desc;
+    auto &b_desc = desc_.a_desc;
+    auto &c_desc = desc_.c_desc;
+
+    memory_desc_wrapper a_mdw(&a_desc);
+    memory_desc_wrapper b_mdw(&b_desc);
+    memory_desc_wrapper c_mdw(&c_desc);
 
     bool a_any = a_mdw.format_any();
     bool b_any = b_mdw.format_any();
@@ -323,62 +327,60 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
 
     if (a_any) {
         if (b_zp_) {
-            CHECK(memory_desc_init_by_tag(desc_.b_desc, unpacked_tag));
+            CHECK(memory_desc_init_by_tag(a_desc, unpacked_tag));
         } else {
-            CHECK(memory_desc_init_by_tag(desc_.b_desc, a_packed_tag));
-            auto ld = desc_.b_desc.padded_dims[batch ? 1 : 0];
+            CHECK(memory_desc_init_by_tag(a_desc, a_packed_tag));
+            auto ld = a_desc.padded_dims[batch ? 1 : 0];
             ld = nice_ld(ld, int(sz));
-            auto &ostride
-                    = desc_.b_desc.format_desc.blocking.strides[batch ? 2 : 1];
+            auto &ostride = a_desc.format_desc.blocking.strides[batch ? 2 : 1];
             if (batch) {
-                auto &bstride = desc_.b_desc.format_desc.blocking.strides[0];
+                auto &bstride = a_desc.format_desc.blocking.strides[0];
                 bstride = (bstride / ostride) * unroll_m_ * ld;
             }
             ostride = unroll_m_ * ld;
             packed_a_ = true;
         }
-    } else if (a_mdw.matches_one_of_tag(a_packed_tag, ab, ba, abc, acb)
-            == undef)
+    } else if (!a_mdw.matches_tag(a_packed_tag)
+            && !is_md_gemm_compatible_plain_format(&a_desc))
         return false;
 
     if (b_any) {
         if (a_zp_) {
-            CHECK(memory_desc_init_by_tag(desc_.a_desc, unpacked_tag));
+            CHECK(memory_desc_init_by_tag(b_desc, unpacked_tag));
         } else {
-            CHECK(memory_desc_init_by_tag(desc_.a_desc, b_packed_tag));
+            CHECK(memory_desc_init_by_tag(b_desc, b_packed_tag));
             if (unroll_n_ > 16) { // Bug in zero-padding when unroll_n_ == 16
-                auto ld = desc_.a_desc.padded_dims[batch ? 2 : 1];
+                auto ld = b_desc.padded_dims[batch ? 2 : 1];
                 ld = nice_ld(ld, int(sz));
-                auto &ostride = desc_.a_desc.format_desc.blocking
-                                        .strides[batch ? 1 : 0];
+                auto &ostride
+                        = b_desc.format_desc.blocking.strides[batch ? 1 : 0];
                 if (batch) {
-                    auto &bstride
-                            = desc_.a_desc.format_desc.blocking.strides[0];
+                    auto &bstride = b_desc.format_desc.blocking.strides[0];
                     bstride = (bstride / ostride) * unroll_n_ * ld;
                 }
                 ostride = unroll_n_ * ld;
             }
             packed_b_ = true;
         }
-    } else if (b_mdw.matches_one_of_tag(b_packed_tag, ab, ba, abc, acb)
-            == undef)
+    } else if (!b_mdw.matches_tag(b_packed_tag)
+            && !is_md_gemm_compatible_plain_format(&b_desc))
         return false;
 
     if (c_any) {
-        CHECK(memory_desc_init_by_tag(desc_.c_desc, c_packed_tag));
+        CHECK(memory_desc_init_by_tag(c_desc, c_packed_tag));
         if (unroll_n_ > 16) { // Bug in zero-padding when unroll_n_ == 16
-            auto ld = desc_.c_desc.padded_dims[batch ? 2 : 1];
+            auto ld = c_desc.padded_dims[batch ? 2 : 1];
             ld = nice_ld(ld, int(sz));
-            auto &ostride
-                    = desc_.c_desc.format_desc.blocking.strides[batch ? 1 : 0];
+            auto &ostride = c_desc.format_desc.blocking.strides[batch ? 1 : 0];
             if (batch) {
-                auto &bstride = desc_.c_desc.format_desc.blocking.strides[0];
+                auto &bstride = c_desc.format_desc.blocking.strides[0];
                 bstride = (bstride / ostride) * unroll_n_ * ld;
             }
             ostride = unroll_n_ * ld;
         }
         packed_c_ = true;
-    } else if (c_mdw.matches_one_of_tag(c_packed_tag, ab, abc) == undef)
+    } else if (!c_mdw.matches_tag(c_packed_tag)
+            && !is_md_gemm_compatible_plain_format(&c_desc, true))
         return false;
 
     packed_a_ = packed_a_ || a_mdw.matches_tag(a_packed_tag);

@@ -142,6 +142,19 @@ static inline status_t create_gemm_pd(
     return status::success;
 }
 
+static inline bool is_md_gemm_compatible_plain_format(
+        const memory_desc_t *md, bool is_dst = false) {
+
+    if (md->format_kind != format_kind::blocked) return false;
+
+    auto &blk_desc = md->format_desc.blocking;
+
+    if (blk_desc.inner_nblks != 0) return false;
+
+    return (blk_desc.strides[md->ndims - 1] == 1)
+            || (!is_dst && blk_desc.strides[md->ndims - 2] == 1);
+}
+
 } // namespace impl
 } // namespace dnnl
 
