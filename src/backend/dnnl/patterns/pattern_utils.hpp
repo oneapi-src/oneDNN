@@ -16,22 +16,16 @@
 #ifndef BACKEND_DNNL_PATTERNS_PATTERN_UTILS_HPP
 #define BACKEND_DNNL_PATTERNS_PATTERN_UTILS_HPP
 
-#include <deque>
-#include <iostream>
 #include <memory>
-#include <set>
-#include <string>
-#include <utility>
 #include <vector>
-#include <unordered_set>
 
 #include "interface/graph.hpp"
+#include "interface/op.hpp"
 #include "interface/partition.hpp"
 
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
-#include "utils/compatible.hpp"
 #include "utils/pm/nested_matcher.hpp"
 #include "utils/pm/pbuilder.hpp"
 
