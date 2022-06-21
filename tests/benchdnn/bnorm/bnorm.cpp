@@ -35,10 +35,12 @@
 namespace bnorm {
 
 static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
+        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss,
+        dnn_mem_t &sh) {
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
+    const bool fill_src_add = prb->fuse_add_relu();
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
         mean.set_elem(c, 4 * ((c % 5) - 2));
@@ -59,18 +61,23 @@ static int prepare_fwd_with_stats(const prb_t *prb, dnn_mem_t &src,
             [&](int64_t c, int64_t mb, int64_t d, int64_t h, int64_t w) {
                 int64_t l_base = mb * prb->id * prb->ih * prb->iw + c * 239 * 2;
                 float *s = (float *)src + data_off(prb, mb, c, 0, 0, 0);
+                float *s_add = (float *)src_add + data_off(prb, mb, c, 0, 0, 0);
 
                 const int64_t sp = d * prb->ih * prb->iw + h * prb->iw + w;
                 const int64_t l = l_base + sp;
                 const int64_t value = (l % 65) - 32;
                 s[sp] = round_to_nearest_representable(prb->dt, value);
+                if (fill_src_add)
+                    s_add[sp] = round_to_nearest_representable(
+                            prb->dt, (l % 17) - 8);
             });
 
     return OK;
 }
 
 static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
+        dnn_mem_t &src_add, dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss,
+        dnn_mem_t &sh) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
      *
@@ -120,6 +127,7 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
+    const bool fill_src_add = prb->fuse_add_relu();
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
         const float m = ((float *)mean)[c]
@@ -130,6 +138,7 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
             int64_t l_base = mb * prb->id * prb->ih * prb->iw
                     + c * 239 * 2; // l[0] must be even
             float *s = (float *)src + data_off(prb, mb, c, 0, 0, 0);
+            float *s_add = (float *)src_add + data_off(prb, mb, c, 0, 0, 0);
 
             for_(int64_t d = 0; d < prb->id; ++d)
             for_(int64_t h = 0; h < prb->ih; ++h)
@@ -152,6 +161,12 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
                     s[sp] = m;
                 }
                 v += (s[sp] - m) * (s[sp] - m);
+                if (fill_src_add) {
+                    const int l_base = mb + c + d + h + w;
+                    s_add[sp] = round_to_nearest_representable(prb->dt,
+                            1. / (2 << l_base % 5)
+                                    * ((s[sp] - m) < 0 ? -1 : 1));
+                }
             }
         }
 
@@ -171,12 +186,12 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
     return OK;
 }
 
-int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &src_add,
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh) {
     if (prb->flags & GLOB_STATS)
-        return prepare_fwd_with_stats(prb, src, mean, var, ss, sh);
+        return prepare_fwd_with_stats(prb, src, src_add, mean, var, ss, sh);
     else
-        return prepare_fwd_no_stats(prb, src, mean, var, ss, sh);
+        return prepare_fwd_no_stats(prb, src, src_add, mean, var, ss, sh);
 }
 
 int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
@@ -334,7 +349,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
     const int f32_mant_digits = 24;
     const float trh_coeff = (1 << (f32_mant_digits - digits_dt(prb->dt)));
-    float trh = trh_coeff * ((kind == SRC || kind == DST) ? 5e-7 : 0);
+    float trh = trh_coeff
+            * ((kind == SRC || kind == DST || kind == SRC_ADD) ? 5e-7 : 0);
     if ((kind == SS || kind == SC || kind == SH) && prb->dir & FLAG_BWD)
         trh = trh_coeff * 5e-6;
 
@@ -422,6 +438,7 @@ int doit(const prb_t *prb, res_t *res) {
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
+    const bool fuse_add_relu = prb->fuse_add_relu();
 
     const auto &data_md = query_md(const_fpd, DNNL_ARG_SRC);
     const auto &mean_md = query_md(const_fpd, DNNL_ARG_MEAN);
@@ -438,6 +455,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t src_fp(data_md, fp, tag, ref_engine);
     dnn_mem_t src_dt(data_md, test_engine);
+    dnn_mem_t src_add_fp(data_md, fp, tag, ref_engine);
+    dnn_mem_t src_add_dt(data_md, test_engine);
     // stash for bwd: src_hat[i] = (src[i] - mean) / sqrt(var + prb->eps)
     dnn_mem_t src_hat_fp(data_md, fp, tag, ref_engine);
 
@@ -472,11 +491,13 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
-    if (prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp) != OK) {
+    if (prepare_fwd(prb, src_fp, src_add_fp, mean_fp, var_fp, ss_fp, sh_fp)
+            != OK) {
         return res->state = MISTRUSTED, OK;
     }
 
     SAFE(src_dt.reorder(src_fp), WARN);
+    SAFE(src_add_dt.reorder(src_add_fp), WARN);
     if (prb->flags & GLOB_STATS) {
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
@@ -487,6 +508,7 @@ int doit(const prb_t *prb, res_t *res) {
     args_t args, ref_args;
 
     args.set(DNNL_ARG_SRC, src_dt);
+    args.set(DNNL_ARG_SRC_1, src_add_dt);
     args.set(DNNL_ARG_MEAN, mean_dt);
     args.set(DNNL_ARG_VARIANCE, var_dt);
     args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_dt);
@@ -502,6 +524,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (is_bench_mode(CORR)) {
         if (prb->dir & FLAG_FWD) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_SRC_1, src_add_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
             ref_args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_fp);
@@ -540,10 +563,12 @@ int doit(const prb_t *prb, res_t *res) {
         d_dst_dt = dnn_mem_t(d_data_md, test_engine);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
+        dnn_mem_t d_src_add_fp(d_data_md, fp, tag, ref_engine);
         if (!prb->inplace) {
             placeholder_d_src_dt = dnn_mem_t(d_data_md, test_engine);
         }
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
+        dnn_mem_t d_src_add_dt = dnn_mem_t(d_data_md, test_engine);
 
         scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);
 
@@ -551,6 +576,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         args.clear();
         args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_SRC_1, src_add_dt);
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
@@ -562,11 +588,13 @@ int doit(const prb_t *prb, res_t *res) {
                 d_ss_dt);
         args.set(DNNL_ARG_DIFF_SHIFT, d_sh_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        if (fuse_add_relu) args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
+            ref_args.set(DNNL_ARG_SRC_1, src_add_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
             ref_args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, ss_fp);
@@ -576,6 +604,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
+            ref_args.set(DNNL_ARG_DIFF_SRC_1, d_src_add_fp);
             ref_args.set(
                     use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
                     d_ss_fp);
@@ -585,6 +614,7 @@ int doit(const prb_t *prb, res_t *res) {
             if ((use_ss || use_sc) && (prb->dir & FLAG_WEI))
                 kinds.push_back(use_sc ? SC : SS);
             if (use_sh && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
+            if (fuse_add_relu) kinds.push_back(SRC_ADD);
 
             check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
         }

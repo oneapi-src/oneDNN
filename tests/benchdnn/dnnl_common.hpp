@@ -661,6 +661,7 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         switch (kind) {
             case DST: arg = DNNL_ARG_DST; break;
             case SRC: arg = DNNL_ARG_DIFF_SRC; break;
+            case SRC_ADD: arg = DNNL_ARG_DIFF_SRC_1; break;
             case WEI: arg = DNNL_ARG_DIFF_WEIGHTS; break;
             case BIA: arg = DNNL_ARG_DIFF_BIAS; break;
             case MEAN: arg = DNNL_ARG_MEAN; break;

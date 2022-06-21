@@ -43,6 +43,7 @@ flags_t str2flags(const char *str) {
         if (*str == 'C') flags |= USE_SCALE;
         if (*str == 'H') flags |= USE_SHIFT;
         if (*str == 'R') flags |= FUSE_NORM_RELU;
+        if (*str == 'A') flags |= FUSE_NORM_ADD_RELU;
         str++;
     }
     return flags;
@@ -55,6 +56,7 @@ std::string flags2str(flags_t flags) {
     if (flags & USE_SCALE) str += "C";
     if (flags & USE_SHIFT) str += "H";
     if (flags & FUSE_NORM_RELU) str += "R";
+    if (flags & FUSE_NORM_ADD_RELU) str += "A";
     return str;
 }
 
