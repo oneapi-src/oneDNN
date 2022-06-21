@@ -46,10 +46,6 @@ public:
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
             std::vector<std::vector<op_t *>> &fusion_ops);
 
-    inline void rewrite(dnnl::graph::impl::graph_t &backend_graph,
-            op_t *origin_pattern, op_t *optimized_pattern,
-            std::vector<std::vector<op_t *>> &fusion_ops);
-
     inline void fuse(dnnl::graph::impl::graph_t &backend_graph,
             std::vector<std::vector<op_t *>> &fusion_ops, op_t &op_with_backend,
             dnnl::graph::impl::partition_kind_t pkind);
