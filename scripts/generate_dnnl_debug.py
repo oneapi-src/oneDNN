@@ -111,7 +111,7 @@ const char *dt2str(dnnl_data_type_t dt);
 /* format */
 const char *fmt_tag2str(dnnl_format_tag_t tag);
 
-/* endinge kind */
+/* engine kind */
 const char *engine_kind2str(dnnl_engine_kind_t kind);
 
 /* scratchpad mode */
