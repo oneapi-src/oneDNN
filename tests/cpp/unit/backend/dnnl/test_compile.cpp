@@ -11682,7 +11682,9 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_convtranspose_post_ops_fusion_gpu"
+                                : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -11900,7 +11902,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass("int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 1);
@@ -12101,7 +12103,7 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass("int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 1);
@@ -12260,7 +12262,9 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_convtranspose_post_ops_fusion_gpu"
+                                : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 1);
@@ -12497,7 +12501,9 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_convtranspose_post_ops_fusion_gpu"
+                                : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 1);
@@ -12726,7 +12732,9 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dMultiply) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_convtranspose_post_ops_fusion_gpu"
+                                : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 1);
@@ -12917,7 +12925,9 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
 
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_convtranspose_post_ops_fusion_gpu"
+                                : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 1);
@@ -13156,7 +13166,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
         graph.build_graph();
 
         impl::pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass("int8_convtranspose_post_ops_fusion_cpu");
         apass->run(graph);
         ASSERT_EQ(graph.get_num_partitions(), 2);
         auto part2 = graph.get_partitions()[0]; // int8_convtranspose

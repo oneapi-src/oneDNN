@@ -12872,7 +12872,7 @@ TEST(Pass, FuseToInt8ConvTransposeAdd) {
         agraph.build_graph();
 
         pass::pass_base_ptr apass
-                = get_pass("int8_convtranspose_post_ops_fusion");
+                = get_pass("int8_convtranspose_post_ops_fusion_cpu");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1);
         ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -12911,9 +12911,12 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
              | (u8/s8)
     */
     std::vector<bool> with_biases {false, true};
+    std::vector<engine_kind_t> engine_kinds
+            = {engine_kind::cpu, engine_kind::gpu};
 
+    for_(const auto &engine_kind : engine_kinds)
     for (auto with_bias : with_biases) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
@@ -12985,24 +12988,32 @@ TEST(PassSystem, FuseToInt8ConvTransposeAdd) {
         auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
-        ASSERT_EQ(agraph.get_num_partitions(), 1);
-        ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
-                dnnl_impl::op_kind::quantized_convtranspose_fusion);
+        if (engine_kind == engine_kind::cpu) {
+            ASSERT_EQ(agraph.get_num_partitions(), 1);
+            ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+                    dnnl_impl::op_kind::quantized_convtranspose_fusion);
 
-        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
-                with_bias ? 4 : 3);
-        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
-        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
-        if (with_bias) {
-            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 4);
-            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 6);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(),
+                    with_bias ? 4 : 3);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2);
+            if (with_bias) {
+                ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 4);
+                ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 6);
+            } else {
+                ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 5);
+            }
+
+            ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
+            ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id,
+                    with_bias ? 9 : 8);
         } else {
-            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 5);
+            ASSERT_EQ(agraph.get_num_partitions(), 2);
+            ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
+                    dnnl_impl::op_kind::quantized_convtranspose_fusion);
+            ASSERT_EQ(get_fused_op(agraph.get_partitions()[1])->get_kind(),
+                    impl::op_kind::Quantize);
         }
-
-        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1);
-        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id,
-                with_bias ? 9 : 8);
     }
 }
 
@@ -13091,7 +13102,7 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
             agraph.build_graph();
 
             pass::pass_base_ptr apass
-                    = get_pass("int8_convtranspose_post_ops_fusion");
+                    = get_pass("int8_convtranspose_post_ops_fusion_cpu");
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1);
             ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -13300,7 +13311,7 @@ TEST(Pass, FuseToInt8ConvtransposeBinary) {
             agraph.build_graph();
 
             pass::pass_base_ptr apass
-                    = get_pass("int8_convtranspose_post_ops_fusion");
+                    = get_pass("int8_convtranspose_post_ops_fusion_cpu");
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1);
             ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
