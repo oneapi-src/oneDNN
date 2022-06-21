@@ -33,6 +33,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
+namespace pattern {
 
 class pattern_utils_t {
 public:
@@ -151,6 +152,7 @@ inline void pattern_utils_t::fuse(dnnl::graph::impl::graph_t &backend_graph,
     }
 }
 
+} // namespace pattern
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

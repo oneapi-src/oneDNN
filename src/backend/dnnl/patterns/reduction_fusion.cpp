@@ -23,7 +23,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
-namespace pass {
+namespace pattern {
 
 namespace pm = impl::utils::pm;
 using in_edges_t = pm::in_edges_t;
@@ -101,7 +101,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, reduction_post_ops_fusion)
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
-} // namespace pass
+} // namespace pattern
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

@@ -22,7 +22,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
-namespace pass {
+namespace pattern {
 
 template <size_t N>
 bool check_input_num(op_t *op) {
@@ -82,7 +82,7 @@ DNNL_BACKEND_REGISTER_PASSES_DECLARE(single_op_pass)
 DNNL_BACKEND_REGISTER_PASSES_DECLARE(sum_fusion)
 DNNL_BACKEND_REGISTER_PASSES_DECLARE(concat_fusion)
 
-} // namespace pass
+} // namespace pattern
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

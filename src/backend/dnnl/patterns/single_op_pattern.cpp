@@ -21,7 +21,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
-namespace pass {
+namespace pattern {
 
 using pb_graph_t = impl::utils::pm::pb_graph_t;
 using FCreateV2FusedOp = impl::pass::FCreateV2FusedOp;
@@ -284,7 +284,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, softplus_bw_pass)
 
 DNNL_BACKEND_REGISTER_PASSES_DEF_END
 
-} // namespace pass
+} // namespace pattern
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

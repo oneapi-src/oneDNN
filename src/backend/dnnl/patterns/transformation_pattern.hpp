@@ -32,7 +32,7 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 namespace dnnl_impl {
-namespace pass {
+namespace pattern {
 
 /*!
  * \brief transformation_pass_t generates an optimized graph
@@ -98,10 +98,10 @@ public:
 #define DNNL_BACKEND_REGISTER_PASSES_DEF_END }
 
 #define DNNL_BACKEND_REGISTER_PASSES_CALL(passes_class_, pass_registry_) \
-    pass::register_##passes_class_(pass_registry_);
+    pattern::register_##passes_class_(pass_registry_);
 
 #define MAX_REPETITION 4
-} // namespace pass
+} // namespace pattern
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
