@@ -308,6 +308,12 @@ status_t conv_config_t::init_bwd_d(convolution_pd_t *conv_pd) {
                 bh->set_tg_dim("iw", tg_dim);
                 int mb_iter_dim = bh->iter_dim("mb");
                 int new_mb_tg_dim = bh->tg_dim("mb") * iw_tg_dim0 / tg_dim;
+                // TODO: non-uniform thread group is unsupported
+                while (new_mb_tg_dim > 1
+                        && utils::rnd_up(mb, mb_iter_dim * new_mb_tg_dim) - mb
+                                >= mb_iter_dim) {
+                    new_mb_tg_dim /= 2;
+                }
                 if (mb_iter_dim * new_mb_tg_dim <= mb) {
                     bh->set_tg_dim("mb", new_mb_tg_dim);
                 }
