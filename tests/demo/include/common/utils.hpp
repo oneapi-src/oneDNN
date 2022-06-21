@@ -128,8 +128,6 @@ dnnl::graph::op::kind opstr2kind(std::string kind) {
             {"GELUBackprop", dnnl::graph::op::kind::GELUBackprop},
             {"HardSwish", dnnl::graph::op::kind::HardSwish},
             {"HardSwishBackprop", dnnl::graph::op::kind::HardSwishBackprop},
-            {"HardTanh", dnnl::graph::op::kind::HardTanh},
-            {"HardTanhBackprop", dnnl::graph::op::kind::HardTanhBackprop},
             {"LayerNorm", dnnl::graph::op::kind::LayerNorm},
             {"LayerNormBackprop", dnnl::graph::op::kind::LayerNormBackprop},
             {"Log", dnnl::graph::op::kind::Log},

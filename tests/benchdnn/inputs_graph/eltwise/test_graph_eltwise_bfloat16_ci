@@ -7,7 +7,7 @@
 --alg=abs,exp,gelu_erf,hardswish,log,relu,soft_relu,sqrt,square,tanh,logistic,logsigmoid
 64x512x28x28
 
-# main op - hardtanh, alpha andbeta
+# main op - clamp, alpha andbeta
 --reset
 --inplace=true,false
 --dir=FWD_D

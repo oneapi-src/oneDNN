@@ -368,8 +368,6 @@ public:
             CASE(GELUBackprop);
             CASE(HardSwish);
             CASE(HardSwishBackprop);
-            CASE(HardTanh);
-            CASE(HardTanhBackprop);
             CASE(LayerNorm);
             CASE(LayerNormBackprop);
             CASE(LeakyReLU);

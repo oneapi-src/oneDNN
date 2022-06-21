@@ -59,6 +59,8 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         bn_fw_train_pass, dnnl, BatchNormForwardTraining, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         bn_bw_pass, dnnl, BatchNormTrainingBackprop, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(clamp_pass, dnnl, Clamp, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(clamp_bw_pass, dnnl, ClampBackprop, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(concat_pass, dnnl, Concat, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(conv_pass, dnnl, Convolution, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
@@ -85,8 +87,6 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(exp_pass, dnnl, Exp, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(hardswish_pass, dnnl, HardSwish, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         hardswish_bw_pass, dnnl, HardSwishBackprop, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(hardtanh_pass, dnnl, HardTanh, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(hardtanh_bw_pass, dnnl, HardTanhBackprop, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(leakyrelu_pass, dnnl, LeakyReLU, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(log_pass, dnnl, Log, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(sum_pass, dnnl, Add, 8.f)

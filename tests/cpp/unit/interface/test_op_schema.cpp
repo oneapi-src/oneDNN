@@ -1182,7 +1182,7 @@ TEST(OpSchema, ClampBackprop) {
     const op_kind_t op_kind_ = op_kind::ClampBackprop;
     const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 2;
+    const size_t expected_attr_size = 3;
     const std::map<op_attr_t, bool> attrs_data
             = {{op_attr::min, true}, {op_attr::max, true}};
 
@@ -1506,42 +1506,6 @@ TEST(OpSchema, InferGeluBackpropOutputShape) {
     const op_kind_t op_kind_ = op_kind::GELUBackprop;
 
     verify_two_ins_identity_shape_infer(op_kind_);
-}
-
-TEST(OpSchema, HardTanh) {
-    const op_kind_t op_kind_ = op_kind::HardTanh;
-    const size_t expected_in_size = 1;
-    const size_t expected_out_size = 1;
-    const size_t expected_attr_size = 2;
-    const std::map<op_attr_t, bool> attrs_data
-            = {{op_attr::min, true}, {op_attr::max, true}};
-
-    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
-}
-
-TEST(OpSchema, InferHardTanhOutputShape) {
-    const op_kind_t op_kind_ = op_kind::HardTanh;
-
-    verify_single_in_identity_shape_infer(op_kind_);
-}
-
-TEST(OpSchema, HardTanhBackprop) {
-    const op_kind_t op_kind_ = op_kind::HardTanhBackprop;
-    const size_t expected_in_size = 2;
-    const size_t expected_out_size = 1;
-    const std::map<op_attr_t, bool> attrs_data = {{op_attr::min, true},
-            {op_attr::max, true}, {op_attr::use_dst, false}};
-    const size_t expected_attr_size = attrs_data.size();
-
-    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
-            expected_attr_size, attrs_data);
-}
-
-TEST(OpSchema, InferHardTanhBackpropOutputShape) {
-    const op_kind_t op_kind_ = op_kind::HardTanhBackprop;
-
-    verify_single_in_identity_shape_infer(op_kind_);
 }
 
 TEST(OpSchema, HardSwish) {

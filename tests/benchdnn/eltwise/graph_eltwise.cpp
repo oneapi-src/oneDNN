@@ -105,14 +105,14 @@ fill_status_t append_graph_with_block(const ::eltwise::prb_t *prb) {
         case dnnl::graph::op::kind::TanhBackprop:
             eltw_op.set_attr("use_dst", prb->use_dst());
             break;
-        case dnnl::graph::op::kind::HardTanh:
+        case dnnl::graph::op::kind::Clamp:
             eltw_op.set_attr("min", prb->alpha);
             eltw_op.set_attr("max", prb->beta);
             break;
-        case dnnl::graph::op::kind::HardTanhBackprop:
+        case dnnl::graph::op::kind::ClampBackprop:
             eltw_op.set_attr("min", prb->alpha);
             eltw_op.set_attr("max", prb->beta);
-            // Since backend uses clp_v2 for HardTanhBackprop
+            // Since backend uses clp_v2 for ClampBackprop
             eltw_op.set_attr("use_dst", prb->use_dst());
             break;
         case dnnl::graph::op::kind::SoftPlus:

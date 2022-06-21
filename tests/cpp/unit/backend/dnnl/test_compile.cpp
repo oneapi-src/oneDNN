@@ -3686,9 +3686,9 @@ TEST(Execute, MatmulBiasGeluFusion) {
 
 TEST(Execute, MatmulBiasRelu6Fusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
-    impl::op_t hardtanh_op(1, impl::op_kind::HardTanh, "hardtanh_op");
-    hardtanh_op.set_attr<float>(impl::op_attr::min, 0.0);
-    hardtanh_op.set_attr<float>(impl::op_attr::max, 6.0);
+    impl::op_t clamp_op(1, impl::op_kind::Clamp, "clamp_op");
+    clamp_op.set_attr<float>(impl::op_attr::min, 0.0);
+    clamp_op.set_attr<float>(impl::op_attr::max, 6.0);
 
     impl::engine_t &engine = get_engine();
 
@@ -3707,19 +3707,19 @@ TEST(Execute, MatmulBiasRelu6Fusion) {
             = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst
             = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t hardtanh_dst
+    impl::logical_tensor_t clamp_dst
             = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
 
     matmul_op.add_input(src);
     matmul_op.add_input(weight);
     matmul_op.add_input(bias);
     matmul_op.add_output(dst);
-    hardtanh_op.add_input(dst);
-    hardtanh_op.add_output(hardtanh_dst);
+    clamp_op.add_input(dst);
+    clamp_op.add_output(clamp_dst);
 
     impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
-    ASSERT_EQ(g.add_op(&hardtanh_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&clamp_op), impl::status::success);
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
@@ -3735,14 +3735,14 @@ TEST(Execute, MatmulBiasRelu6Fusion) {
     impl::compiled_partition_t cp(p);
 
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
-    std::vector<const impl::logical_tensor_t *> outputs {&hardtanh_dst};
+    std::vector<const impl::logical_tensor_t *> outputs {&clamp_dst};
 
     p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, &engine, src_data.data());
     impl::tensor_t weight_ts(weight, &engine, weight_data.data());
     impl::tensor_t bias_ts(bias, &engine, bias_data.data());
-    impl::tensor_t dst_ts(hardtanh_dst, &engine, dst_data.data());
+    impl::tensor_t dst_ts(clamp_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -3752,11 +3752,11 @@ TEST(Execute, MatmulBiasRelu6Fusion) {
     }
 }
 
-TEST(Execute, MatmulBiasHardtanhFusion) {
+TEST(Execute, MatmulBiasClampFusion) {
     impl::op_t matmul_op(0, impl::op_kind::MatMul, "matmul_op");
-    impl::op_t hardtanh_op(1, impl::op_kind::HardTanh, "hardtanh_op");
-    hardtanh_op.set_attr<float>(impl::op_attr::min, -3.0);
-    hardtanh_op.set_attr<float>(impl::op_attr::max, 3.0);
+    impl::op_t clamp_op(1, impl::op_kind::Clamp, "clamp_op");
+    clamp_op.set_attr<float>(impl::op_attr::min, -3.0);
+    clamp_op.set_attr<float>(impl::op_attr::max, 3.0);
 
     impl::engine_t &engine = get_engine();
 
@@ -3775,19 +3775,19 @@ TEST(Execute, MatmulBiasHardtanhFusion) {
             = utils::logical_tensor_init(2, {1, 1}, impl::data_type::f32);
     impl::logical_tensor_t dst
             = utils::logical_tensor_init(3, {1, 1}, impl::data_type::f32);
-    impl::logical_tensor_t hardtanh_dst
+    impl::logical_tensor_t clamp_dst
             = utils::logical_tensor_init(5, {1, 1}, impl::data_type::f32);
 
     matmul_op.add_input(src);
     matmul_op.add_input(weight);
     matmul_op.add_input(bias);
     matmul_op.add_output(dst);
-    hardtanh_op.add_input(dst);
-    hardtanh_op.add_output(hardtanh_dst);
+    clamp_op.add_input(dst);
+    clamp_op.add_output(clamp_dst);
 
     impl::graph_t g(engine.kind());
     ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
-    ASSERT_EQ(g.add_op(&hardtanh_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&clamp_op), impl::status::success);
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
@@ -3803,14 +3803,14 @@ TEST(Execute, MatmulBiasHardtanhFusion) {
     impl::compiled_partition_t cp(p);
 
     std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
-    std::vector<const impl::logical_tensor_t *> outputs {&hardtanh_dst};
+    std::vector<const impl::logical_tensor_t *> outputs {&clamp_dst};
 
     p.compile(&cp, inputs, outputs, &engine);
 
     impl::tensor_t src_ts(src, &engine, src_data.data());
     impl::tensor_t weight_ts(weight, &engine, weight_data.data());
     impl::tensor_t bias_ts(bias, &engine, bias_data.data());
-    impl::tensor_t dst_ts(hardtanh_dst, &engine, dst_data.data());
+    impl::tensor_t dst_ts(clamp_dst, &engine, dst_data.data());
 
     impl::stream_t &strm = get_stream();
     cp.execute(&strm, {src_ts, weight_ts, bias_ts}, {dst_ts});
@@ -7867,7 +7867,7 @@ void test_eltwise_bwd_common(
         const std::map<dnnl::graph::impl::op_attr_t, attr_data_t> &attrs_data
         = {}) {
     static const std::set<dnnl_graph_op_kind_t> with_support_for_use_dst {
-            impl::op_kind::EluBackprop, impl::op_kind::HardTanhBackprop,
+            impl::op_kind::EluBackprop, impl::op_kind::ClampBackprop,
             impl::op_kind::ReLUBackprop, impl::op_kind::SigmoidBackprop,
             impl::op_kind::SqrtBackprop, impl::op_kind::TanhBackprop};
     const test::vector<float> &fwd_data = fwd_data_pair.first;
@@ -7947,6 +7947,38 @@ TEST(Execute, Round) {
     dnnl::graph::impl::dims dims {1, 2, 3};
 
     test_eltwise_common(src, ref_dst, dims, impl::op_kind::Round, "round");
+}
+
+TEST(Execute, Clamp) {
+    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
+    test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
+
+    impl::dims dims {1, 2, 3};
+    const std::map<impl::op_attr_t, float> attrs_data {
+            {impl::op_attr::min, -1.f}, {impl::op_attr::max, 2.f}};
+
+    test_eltwise_common(
+            src, ref_dst, dims, impl::op_kind::Clamp, "clamp", attrs_data);
+}
+
+TEST(Execute, ClampBackward) {
+    test::vector<float> src {
+            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
+    test::vector<float> dst {
+            0, -1, 0.0723652, -0.0364869, 2, -1, 0.188521, -0.729739, 2};
+    test::vector<float> diff_dst {
+            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
+    test::vector<float> ref_diff_src {
+            3, -0, 0.0194608, -0.0559478, 0, 0, 0.754086, -0.218955, 0};
+
+    impl::dims dims {1, 3, 3};
+    const std::map<impl::op_attr_t, float> attrs_data {
+            {impl::op_attr::min, -1.f}, {impl::op_attr::max, 2.f}};
+
+    test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
+            impl::op_kind::ClampBackprop, "clamp_bw", attrs_data);
+    test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
+            impl::op_kind::ClampBackprop, "clamp_bw", attrs_data);
 }
 
 TEST(Execute, Elu) {
@@ -8053,37 +8085,6 @@ TEST(Execute, HardSwishBackward) {
             impl::op_kind::HardSwishBackprop, "hardswish_bw");
 }
 
-TEST(Execute, Hardtanh) {
-    test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 3.5};
-    test::vector<float> ref_dst {-1.0, -1.0, -1.0, -0.5, 0.0, 2.0};
-
-    impl::dims dims {1, 2, 3};
-    const std::map<impl::op_attr_t, float> attrs_data {
-            {impl::op_attr::min, -1.f}, {impl::op_attr::max, 2.f}};
-
-    test_eltwise_common(src, ref_dst, dims, impl::op_kind::HardTanh, "hardtanh",
-            attrs_data);
-}
-
-TEST(Execute, HardtanhBackward) {
-    test::vector<float> src {
-            0, -1, 0.0723652, -0.0364869, 40, -50, 0.188521, -0.729739, 88.371};
-    test::vector<float> dst {
-            0, -1, 0.0723652, -0.0364869, 2, -1, 0.188521, -0.729739, 2};
-    test::vector<float> diff_dst {
-            3, -7, 0.0194608, -0.0559478, 70, 0, 0.754086, -0.218955, 88.5838};
-    test::vector<float> ref_diff_src {
-            3, -0, 0.0194608, -0.0559478, 0, 0, 0.754086, -0.218955, 0};
-
-    impl::dims dims {1, 3, 3};
-    const std::map<impl::op_attr_t, float> attrs_data {
-            {impl::op_attr::min, -1.f}, {impl::op_attr::max, 2.f}};
-
-    test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::HardTanhBackprop, "hardtanh_bw", attrs_data);
-    test_eltwise_bwd_common({dst, false}, diff_dst, ref_diff_src, dims,
-            impl::op_kind::HardTanhBackprop, "hardtanh_bw", attrs_data);
-}
 
 TEST(Execute, Relu) {
     test::vector<float> src {-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0};
@@ -8293,7 +8294,7 @@ TEST(Execute, ConvBiasEltwise) {
                     mish_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Mish,
                     "Mish", {}},
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
-                    {0.0, 1.5, 3.0, 0.5}, impl::op_kind::HardTanh, "HardTanh",
+                    {0.0, 1.5, 3.0, 0.5}, impl::op_kind::Clamp, "Clamp",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 3.f}}},
             eltwise_param {"conv_bias_post_ops_fusion", {-1.0},
                     sigmoid_func({-2.0, 1.5, 4.0, 0.5}), impl::op_kind::Sigmoid,
@@ -8404,7 +8405,7 @@ TEST(Execute, ConvBiasAddEltwise) {
                     mish_func({-4.0f, 2.5f, 3.0f, 0.5f}), impl::op_kind::Mish,
                     "Mish", {}},
             eltwise_param {"conv_bias_post_ops_fusion", {3.0},
-                    {0.0, 6.f, 6.f, 4.5}, impl::op_kind::HardTanh, "ReLU6",
+                    {0.0, 6.f, 6.f, 4.5}, impl::op_kind::Clamp, "ReLU6",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
     };
 
@@ -8526,7 +8527,7 @@ TEST(Execute, ConvAddEltwise) {
                     mish_func({-3.0f, 3.5f, 4.0f, 1.5f}), impl::op_kind::Mish,
                     "Mish", {}},
             eltwise_param {"conv_post_ops_fusion", {0.0}, {0.0, 3.5, 4.f, 1.5},
-                    impl::op_kind::HardTanh, "ReLU6",
+                    impl::op_kind::Clamp, "ReLU6",
                     {{impl::op_attr::min, 0.f}, {impl::op_attr::max, 6.f}}},
     };
 
@@ -11735,9 +11736,9 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
 
     const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {impl::op_kind::Abs,
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
-            impl::op_kind::HardTanh, impl::op_kind::HardSwish,
-            impl::op_kind::Log, impl::op_kind::ReLU, impl::op_kind::Round,
-            impl::op_kind::Sigmoid, impl::op_kind::Tanh};
+            impl::op_kind::Clamp, impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
+            impl::op_kind::Tanh};
 
     std::vector<size_t> nds = {1, 2, 3};
     std::vector<int64_t> groups = {1, 4};
@@ -11836,7 +11837,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dEltwise) {
 
         if (eltwise_kind == impl::op_kind::Elu) {
             eltwise_node.set_attr<float>(impl::op_attr::alpha, 1.f);
-        } else if (eltwise_kind == impl::op_kind::HardTanh) {
+        } else if (eltwise_kind == impl::op_kind::Clamp) {
             eltwise_node.set_attr<float>(impl::op_attr::min, -1.f);
             eltwise_node.set_attr<float>(impl::op_attr::max, 2.f);
         }
@@ -11952,10 +11953,10 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
     SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
 
     const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {impl::op_kind::Abs,
-            impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
-            impl::op_kind::HardTanh, impl::op_kind::HardSwish,
-            impl::op_kind::Log, impl::op_kind::ReLU, impl::op_kind::Round,
-            impl::op_kind::Sigmoid, impl::op_kind::Tanh};
+            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
+            impl::op_kind::GELU, impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
+            impl::op_kind::Tanh};
 
     std::vector<size_t> nds = {1, 2, 3};
     std::vector<int64_t> groups = {1, 4};
@@ -12043,7 +12044,7 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
 
         if (eltwise_kind == impl::op_kind::Elu) {
             eltwise_node.set_attr<float>(impl::op_attr::alpha, 1.f);
-        } else if (eltwise_kind == impl::op_kind::HardTanh) {
+        } else if (eltwise_kind == impl::op_kind::Clamp) {
             eltwise_node.set_attr<float>(impl::op_attr::min, -1.f);
             eltwise_node.set_attr<float>(impl::op_attr::max, 2.f);
         }
@@ -15687,8 +15688,7 @@ TEST(Execute, InterpolatePostOps) {
 
     const std::vector<impl::op_kind_t> supported_post_ops = {impl::op_kind::Abs,
             impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardTanh,
-            impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::GELU, impl::op_kind::HardSwish, impl::op_kind::Log,
             impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
             impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add,
@@ -15720,9 +15720,6 @@ TEST(Execute, InterpolatePostOps) {
         if (post_op_kind == impl::op_kind::Elu) {
             post_node.set_attr<float>(impl::op_attr::alpha, 1.0f);
         } else if (post_op_kind == impl::op_kind::Clamp) {
-            post_node.set_attr<float>(impl::op_attr::min, 1.0f);
-            post_node.set_attr<float>(impl::op_attr::max, 3.0f);
-        } else if (post_op_kind == impl::op_kind::HardTanh) {
             post_node.set_attr<float>(impl::op_attr::min, 1.0f);
             post_node.set_attr<float>(impl::op_attr::max, 3.0f);
         }
@@ -17382,8 +17379,7 @@ public:
         impl::op_t eltwise_op(0, params.eltwise_kind, "elt");
         if (params.eltwise_kind == impl::op_kind::Elu) {
             eltwise_op.set_attr<float>(impl::op_attr::alpha, 1.f);
-        } else if (params.eltwise_kind == impl::op_kind::HardTanh
-                || params.eltwise_kind == impl::op_kind::Clamp) {
+        } else if (params.eltwise_kind == impl::op_kind::Clamp) {
             eltwise_op.set_attr<float>(impl::op_attr::min, -1.f);
             eltwise_op.set_attr<float>(impl::op_attr::max, 2.f);
         }
@@ -25155,9 +25151,6 @@ TEST(ExecuteSubgraphFp32, Binary3Postops) {
             } else if (pop_t == impl::op_kind::Clamp) {
                 post_ops.back().set_attr<float>(impl::op_attr::min, 1.0f);
                 post_ops.back().set_attr<float>(impl::op_attr::max, 3.0f);
-            } else if (pop_t == impl::op_kind::HardTanh) {
-                post_ops.back().set_attr<float>(impl::op_attr::min, 1.0f);
-                post_ops.back().set_attr<float>(impl::op_attr::max, 3.0f);
             }
 
             post_ops.back().add_input(lt_vec[lt_idx]);
@@ -25473,9 +25466,6 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
             if (activation_t == impl::op_kind::Elu) {
                 activation.set_attr<float>(impl::op_attr::alpha, 1.0f);
             } else if (activation_t == impl::op_kind::Clamp) {
-                activation.set_attr<float>(impl::op_attr::min, 1.0f);
-                activation.set_attr<float>(impl::op_attr::max, 3.0f);
-            } else if (activation_t == impl::op_kind::HardTanh) {
                 activation.set_attr<float>(impl::op_attr::min, 1.0f);
                 activation.set_attr<float>(impl::op_attr::max, 3.0f);
             }

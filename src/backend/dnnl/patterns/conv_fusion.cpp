@@ -369,7 +369,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_depthwise_fusion)
                 |                       for Add/Multiply/Maximum/
                 |                        Minimum/Divide/Subtract
                 |                             /
-        [ Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
+        [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/Maximum/Minimum/
           Divide/Subtract]*[0,3]
                 |
@@ -442,7 +442,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, int8_conv_post_ops_fusion)
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh,
                                     impl::op_kind::HardSwish,
                                     impl::op_kind::LeakyReLU,
                                     impl::op_kind::Log, impl::op_kind::Mish,
@@ -1099,7 +1098,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(
               \   /
               conv
                 |
-        [ Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
+        [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3] 
                 |       
@@ -1142,7 +1141,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_post_ops_fusion)
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh,
                                     impl::op_kind::HardSwish,
                                     impl::op_kind::LeakyReLU,
                                     impl::op_kind::Log, impl::op_kind::Mish,
@@ -1185,7 +1183,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_post_ops_fusion)
                 |
               bias
                 |
-        [ Abs/Clamp/Elu/Exp/GELU/HardTanh/HardSwish/Log/Sigmoid/SoftPlus/
+        [ Abs/Clamp/Elu/Exp/GELU/HardSwish/Log/Sigmoid/SoftPlus/
           Pow/ReLU/Round/Sqrt/Square/Tanh/Add/Multiply/
           Maximum/Minimum/Divide/Subtract]*[0,3] 
                 |      
@@ -1231,7 +1229,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh,
                                     impl::op_kind::HardSwish,
                                     impl::op_kind::LeakyReLU,
                                     impl::op_kind::Log, impl::op_kind::Mish,
@@ -1295,7 +1292,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, conv_bias_post_ops_fusion)
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh,
                                     impl::op_kind::HardSwish,
                                     impl::op_kind::LeakyReLU,
                                     impl::op_kind::Log, impl::op_kind::Mish,

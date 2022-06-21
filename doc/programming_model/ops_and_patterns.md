@@ -39,8 +39,6 @@ FP32/FP16/BF16/S8/U8 data type.  For complete OP definition, please refer to
 - Exp
 - GELU
 - GELUBackprop
-- HardTanh
-- HardTanhBackprop
 - HardSwish
 - HardSwishBackprop
 - Index
@@ -147,7 +145,7 @@ is an implicit graph partition input.
 
 The following categories will be used in describing post-ops fusion pattern.
 
-Unary = [Abs | Clamp | Elu | Exp | GELU | HardTanh | HardSwish | LeakyReLU |
+Unary = [Abs | Clamp | Elu | Exp | GELU | HardSwish | LeakyReLU |
 Log | Sigmoid | SoftPlus | Pow | ReLU | Round | Sqrt | Square | Tanh]
 
 Binary = [Add | Divide | Maximum | Minimum | Multiply | Subtract]

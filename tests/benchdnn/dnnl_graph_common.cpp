@@ -168,7 +168,7 @@ dnnl::graph::op::kind convert_alg_kind(
     if (is_fwd) {
         switch (kind) {
             case dnnl_eltwise_abs: return graph_op::Abs;
-            case dnnl_eltwise_clip_v2: return graph_op::HardTanh;
+            case dnnl_eltwise_clip_v2: return graph_op::Clamp;
             case dnnl_eltwise_elu: return graph_op::Elu;
             case dnnl_eltwise_exp: return graph_op::Exp;
             case dnnl_eltwise_gelu_erf: return graph_op::GELU;
@@ -218,7 +218,7 @@ dnnl::graph::op::kind convert_alg_kind(
         switch (kind) {
             case dnnl_eltwise_clip_v2:
             case dnnl_eltwise_clip_v2_use_dst_for_bwd:
-                return graph_op::HardTanhBackprop;
+                return graph_op::ClampBackprop;
             case dnnl_eltwise_elu:
             case dnnl_eltwise_elu_use_dst_for_bwd: return graph_op::EluBackprop;
             case dnnl_eltwise_gelu_erf: return graph_op::GELUBackprop;
@@ -321,7 +321,7 @@ std::map<std::string, float> convert_eltw_entry(
             return attrs;
         }
         case graph_op::Elu: attrs["alpha"] = entry.eltwise.alpha; return attrs;
-        case graph_op::HardTanh:
+        case graph_op::Clamp:
             attrs["min"] = entry.eltwise.alpha;
             attrs["max"] = entry.eltwise.beta;
             return attrs;

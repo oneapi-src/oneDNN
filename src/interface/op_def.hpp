@@ -292,15 +292,21 @@ DNNL_GRAPH_OP_SCHEMA(ClampBackprop, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "output_delta",
-                        "gradients tensor w.r.t. the output", "T")
-                .set_input(1, "input_forward", "input of forward", "T")
+                .set_input(0, "data",
+                        "if use_dst is true, data is result of forward. Else, "
+                        "data is src of forward.",
+                        "T")
+                .set_input(1, "output_delta",
+                        "gradient tensor w.r.t. the output", "T")
                 .set_output(0, "input_delta",
-                        "the gradient tensor w.r.t. the input of Clamp.", "T")
+                        "gradient tensor w.r.t. the input of Clamp.", "T")
                 .set_attr(op_attr::min, "lower bound of values in the output",
                         true, attribute_kind::f)
                 .set_attr(op_attr::max, "upper bound of values in the output",
                         true, attribute_kind::f)
+                .set_attr(op_attr::use_dst,
+                        "if true, use dst to calculate gradient; else use src",
+                        false, attribute_kind::b, true)
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
@@ -553,42 +559,6 @@ DNNL_GRAPH_OP_SCHEMA(GELUBackprop, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
-DNNL_GRAPH_OP_SCHEMA(HardTanh, 1,
-        op_schema_t()
-                .set_num_inputs(1)
-                .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T")
-                .set_output(0, "output", "output tensor", "T")
-                .set_attr(op_attr::min, "lower bound of values in the output",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::max, "upper bound of values in the output",
-                        true, attribute_kind::f)
-                .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_identity_output_shape))
-
-DNNL_GRAPH_OP_SCHEMA(HardTanhBackprop, 1,
-        op_schema_t()
-                .set_num_inputs(2)
-                .set_num_outputs(1)
-                .set_input(0, "data",
-                        "if use_dst is true, data is result of forward. Else, "
-                        "data is src of forward.",
-                        "T")
-                .set_input(1, "output_delta",
-                        "gradient tensor w.r.t. the output", "T")
-                .set_output(0, "input_delta",
-                        "gradient tensor w.r.t. the input of HardTanh", "T")
-                .set_attr(op_attr::min, "lower bound of values in the output",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::max, "upper bound of values in the output",
-                        true, attribute_kind::f)
-                .set_attr(op_attr::use_dst,
-                        "if true, use dst to calculate gradient; else use src",
-                        false, attribute_kind::b, true)
-                .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_shape_inference_function(infer_identity_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(HardSwish, 1,
         op_schema_t()

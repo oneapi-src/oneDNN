@@ -886,8 +886,6 @@ public:
         GELUBackprop = dnnl_graph_op_gelu_backprop,
         HardSwish = dnnl_graph_op_hard_swish,
         HardSwishBackprop = dnnl_graph_op_hard_swish_backprop,
-        HardTanh = dnnl_graph_op_hard_tanh,
-        HardTanhBackprop = dnnl_graph_op_hard_tanh_backprop,
         Index = dnnl_graph_op_index,
         Interpolate = dnnl_graph_op_interpolate,
         InterpolateBackprop = dnnl_graph_op_interpolate_backprop,

@@ -401,7 +401,7 @@ TEST(PatternMatcherV2, CommutativeInput) {
 // Convolution + BiasAdd + Elu
 // Convolution + BiasAdd + Sigmoid
 // Convolution + BiasAdd + ReLU
-// Convolution + BiasAdd + HardTanh
+// Convolution + BiasAdd + Clamp
 // Convolution + BiasAdd + Square
 // Convolution + BiasAdd + Tanh
 // Convolution + BiasAdd + Sqrt
@@ -412,7 +412,7 @@ TEST(PatternMatcherV2, ConvBiasActivationFusion) {
     auto pbias
             = graphp->append_op(BiasAdd, {in_edge(IN0, pconv, OUT0)}, "pbias");
     auto pact = graphp->append_alternation(
-            {Elu, Sigmoid, ReLU, HardTanh, Square, Tanh, Sqrt},
+            {Elu, Sigmoid, ReLU, Clamp, Square, Tanh, Sqrt},
             {in_edge(IN0, pbias, OUT0)}, "pactivation");
     UNUSED(pact);
 
@@ -534,13 +534,13 @@ TEST(PatternMatcherV2, MatmulBiasSumFusion) {
 // MatMul + Elu
 // MatMul + GELU
 // MatMul + Sigmoid
-// MatMul + HardTanh
+// MatMul + Clamp
 //
 TEST(PatternMatcherV2, MatmulActivationFusion) {
     auto graphp = std::make_shared<pb_graph_t>("pgraph");
     auto pmat = graphp->append_op(MatMul, "pmatmul");
     auto pact = graphp->append_alternation(
-            {ReLU, Elu, GELU, Sigmoid, HardTanh}, {in_edge(IN0, pmat, OUT0)});
+            {ReLU, Elu, GELU, Sigmoid, Clamp}, {in_edge(IN0, pmat, OUT0)});
     UNUSED(pact);
 
     graph_t agraph;
@@ -617,7 +617,7 @@ TEST(PatternMatcherV2, ConvSwishFusion) {
 }
 
 TEST(PatternMatcherV2, ConvSumEltwiseFusion) {
-    // conv + sum + (Relu / Elu / HardTanh / Square / Tanh / Abs / Sqrt)
+    // conv + sum + (Relu / Elu / Clamp / Square / Tanh / Abs / Sqrt)
     std::shared_ptr<pb_graph_t> pattern_graph
             = std::make_shared<pb_graph_t>("pgraph");
     auto pconv = pattern_graph->append_op(Convolution, "pconv");
@@ -627,7 +627,7 @@ TEST(PatternMatcherV2, ConvSumEltwiseFusion) {
     std::shared_ptr<pb_graph_t> optional_act
             = std::make_shared<pb_graph_t>("poptionalbody");
     auto pact = optional_act->append_alternation(
-            {Elu, ReLU, Square, Tanh, Abs, Sqrt, HardTanh}, "pactivation");
+            {Elu, ReLU, Square, Tanh, Abs, Sqrt, Clamp}, "pactivation");
     optional_act->create_input_port(IN0, pact, IN0);
     optional_act->create_output_port(OUT0, pact, OUT0);
     pattern_graph->append_optional(

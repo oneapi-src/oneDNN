@@ -260,7 +260,6 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
             {impl::op_kind::Exp, dnnl::algorithm::eltwise_exp},
             {impl::op_kind::GELU, dnnl::algorithm::eltwise_gelu_erf},
             {impl::op_kind::HardSwish, dnnl::algorithm::eltwise_hardswish},
-            {impl::op_kind::HardTanh, dnnl::algorithm::eltwise_clip_v2},
             {impl::op_kind::LeakyReLU, dnnl::algorithm::eltwise_relu},
             {impl::op_kind::Log, dnnl::algorithm::eltwise_log},
             {impl::op_kind::Mish, dnnl::algorithm::eltwise_mish},
@@ -278,13 +277,13 @@ inline dnnl::algorithm get_eltwise_bwd_alg(op_kind_t kind, bool use_dst) {
     using algo = dnnl::algorithm;
     switch (kind) {
         case impl::op_kind::AbsBackprop: return algo::eltwise_abs;
+        case impl::op_kind::ClampBackprop:
+            if (use_dst) return algo::eltwise_clip_v2_use_dst_for_bwd;
+            return algo::eltwise_clip_v2;
         case impl::op_kind::EluBackprop:
             if (use_dst) return algo::eltwise_elu_use_dst_for_bwd;
             return algo::eltwise_elu;
         case impl::op_kind::GELUBackprop: return algo::eltwise_gelu_erf;
-        case impl::op_kind::HardTanhBackprop:
-            if (use_dst) return algo::eltwise_clip_v2_use_dst_for_bwd;
-            return algo::eltwise_clip_v2;
         case impl::op_kind::HardSwishBackprop: return algo::eltwise_hardswish;
         case impl::op_kind::MishBackprop: return algo::eltwise_mish;
         case impl::op_kind::ReLUBackprop:
@@ -319,10 +318,9 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_reduction_alg_map() {
 inline bool is_eltwise_kind(op_kind_t kind) {
     const std::set<op_kind_t> eltwise_kinds {impl::op_kind::Abs,
             impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardTanh,
-            impl::op_kind::HardSwish, impl::op_kind::LeakyReLU,
-            impl::op_kind::Log, impl::op_kind::Mish, impl::op_kind::ReLU,
-            impl::op_kind::Round, impl::op_kind::Sigmoid,
+            impl::op_kind::GELU, impl::op_kind::HardSwish,
+            impl::op_kind::LeakyReLU, impl::op_kind::Log, impl::op_kind::Mish,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
             impl::op_kind::SoftPlus, impl::op_kind::Sqrt, impl::op_kind::Square,
             impl::op_kind::Tanh, impl::op_kind::Pow};
     return eltwise_kinds.find(kind) != eltwise_kinds.end();
@@ -330,8 +328,8 @@ inline bool is_eltwise_kind(op_kind_t kind) {
 
 inline bool is_eltwise_bwd_kind(op_kind_t kind) {
     const std::set<op_kind_t> eltwise_bwd_kinds {impl::op_kind::AbsBackprop,
-            impl::op_kind::EluBackprop, impl::op_kind::GELUBackprop,
-            impl::op_kind::HardTanhBackprop, impl::op_kind::HardSwishBackprop,
+            impl::op_kind::ClampBackprop, impl::op_kind::EluBackprop,
+            impl::op_kind::GELUBackprop, impl::op_kind::HardSwishBackprop,
             impl::op_kind::MishBackprop, impl::op_kind::ReLUBackprop,
             impl::op_kind::SigmoidBackprop, impl::op_kind::SqrtBackprop,
             impl::op_kind::TanhBackprop};

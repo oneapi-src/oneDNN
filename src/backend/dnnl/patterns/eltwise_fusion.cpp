@@ -51,7 +51,6 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PASS(dnnl, eltwise_binary_fusion)
                             {impl::op_kind::Abs, impl::op_kind::Clamp,
                                     impl::op_kind::Elu, impl::op_kind::Exp,
                                     impl::op_kind::GELU,
-                                    impl::op_kind::HardTanh,
                                     impl::op_kind::HardSwish,
                                     impl::op_kind::LeakyReLU,
                                     impl::op_kind::Log, impl::op_kind::Sigmoid,

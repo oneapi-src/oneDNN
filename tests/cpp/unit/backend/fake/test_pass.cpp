@@ -42,9 +42,9 @@ TEST(Pass, FakeSingleOpReplacement) {
                     Sigmoid, SigmoidBackprop, SqrtBackprop, TanhBackprop,
                     StaticReshape, StaticTranspose,
                     /* no dnnl primitive support = */ BiasAdd, BiasAddBackprop,
-                    Clamp, ClampBackprop, Erf, HardTanhBackprop, PowBackprop,
-                    ReduceSum, SoftPlus, SoftPlusBackprop, Wildcard, End, Index,
-                    PowBackpropExponent, Sign, Negative, Reciprocal};
+                    Clamp, ClampBackprop, Erf, PowBackprop, ReduceSum, SoftPlus,
+                    SoftPlusBackprop, Wildcard, End, Index, PowBackpropExponent,
+                    Sign, Negative, Reciprocal};
     for (auto akind : single_op_set_unsupported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);

@@ -241,8 +241,6 @@ typedef enum {
     dnnl_graph_op_gelu_backprop,
     dnnl_graph_op_hard_swish,
     dnnl_graph_op_hard_swish_backprop,
-    dnnl_graph_op_hard_tanh,
-    dnnl_graph_op_hard_tanh_backprop,
     dnnl_graph_op_index,
     dnnl_graph_op_interpolate,
     dnnl_graph_op_interpolate_backprop,

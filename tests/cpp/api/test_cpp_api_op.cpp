@@ -64,8 +64,6 @@ TEST(APIOp, CreateAllOps) {
             op::kind::GELUBackprop,
             op::kind::HardSwish,
             op::kind::HardSwishBackprop,
-            op::kind::HardTanh,
-            op::kind::HardTanhBackprop,
             op::kind::Index,
             op::kind::Interpolate,
             op::kind::InterpolateBackprop,

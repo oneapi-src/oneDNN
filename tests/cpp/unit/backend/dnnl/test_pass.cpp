@@ -691,9 +691,9 @@ TEST(Pass, FuseConvBiasaddRelu6) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
-    op_t hardtanh {2, HardTanh, "hardtanh"};
-    hardtanh.set_attr(op_attr::min, 0.f);
-    hardtanh.set_attr(op_attr::max, 6.f);
+    op_t clamp {2, Clamp, "clamp"};
+    clamp.set_attr(op_attr::min, 0.f);
+    clamp.set_attr(op_attr::max, 6.f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     conv.add_input(lt_vec[0]);
@@ -702,12 +702,12 @@ TEST(Pass, FuseConvBiasaddRelu6) {
     bias.add_input(lt_vec[2]);
     bias.add_input(lt_vec[3]);
     bias.add_output(lt_vec[4]);
-    hardtanh.add_input(lt_vec[4]);
-    hardtanh.add_output(lt_vec[5]);
+    clamp.add_input(lt_vec[4]);
+    clamp.add_output(lt_vec[5]);
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
-    ASSERT_EQ(agraph.add_op(&hardtanh), status::success);
+    ASSERT_EQ(agraph.add_op(&clamp), status::success);
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 3);
 
@@ -946,20 +946,20 @@ TEST(Pass, FuseConvSwishSigmoid) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(Pass, FuseConvBiasHardtanh) {
+TEST(Pass, FuseConvBiasClamp) {
     /*   conv
           |
          bias
           |
-       hardtanh
+         clamp
     */
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
-    op_t hardtanh {2, HardTanh, "hardtanh"};
-    hardtanh.set_attr(op_attr::min, 0.f);
-    hardtanh.set_attr(op_attr::max, 100.f);
+    op_t clamp {2, Clamp, "clamp"};
+    clamp.set_attr(op_attr::min, 0.f);
+    clamp.set_attr(op_attr::max, 100.f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     conv.add_input(lt_vec[0]);
@@ -968,12 +968,12 @@ TEST(Pass, FuseConvBiasHardtanh) {
     bias.add_input(lt_vec[2]);
     bias.add_input(lt_vec[3]);
     bias.add_output(lt_vec[4]);
-    hardtanh.add_input(lt_vec[4]);
-    hardtanh.add_output(lt_vec[5]);
+    clamp.add_input(lt_vec[4]);
+    clamp.add_output(lt_vec[5]);
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
-    ASSERT_EQ(agraph.add_op(&hardtanh), status::success);
+    ASSERT_EQ(agraph.add_op(&clamp), status::success);
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 3);
 
@@ -1391,9 +1391,9 @@ TEST(Pass, FuseConvBiasaddSumRelu6) {
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
     op_t add {2, Add, "add"};
-    op_t hardtanh {3, HardTanh, "hardtanh"};
-    hardtanh.set_attr(op_attr::min, 0.f);
-    hardtanh.set_attr(op_attr::max, 6.f);
+    op_t clamp {3, Clamp, "clamp"};
+    clamp.set_attr(op_attr::min, 0.f);
+    clamp.set_attr(op_attr::max, 6.f);
 
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(8);
     conv.add_input(lt_vec[0]);
@@ -1405,13 +1405,13 @@ TEST(Pass, FuseConvBiasaddSumRelu6) {
     add.add_input(lt_vec[4]);
     add.add_input(lt_vec[5]);
     add.add_output(lt_vec[6]);
-    hardtanh.add_input(lt_vec[6]);
-    hardtanh.add_output(lt_vec[7]);
+    clamp.add_input(lt_vec[6]);
+    clamp.add_output(lt_vec[7]);
 
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&bias), status::success);
     ASSERT_EQ(agraph.add_op(&add), status::success);
-    ASSERT_EQ(agraph.add_op(&hardtanh), status::success);
+    ASSERT_EQ(agraph.add_op(&clamp), status::success);
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 4);
 
@@ -2192,7 +2192,7 @@ TEST(Pass, FuseConvSumRelu6) {
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
-    op_t relu6 {2, HardTanh, "relu6"};
+    op_t relu6 {2, Clamp, "relu6"};
     relu6.set_attr(op_attr::min, 0.f);
     relu6.set_attr(op_attr::max, 6.f);
 
@@ -2830,8 +2830,7 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
             impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
     const std::vector<impl::op_kind_t> supported_ops {impl::op_kind::Abs,
             impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardTanh,
-            impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::GELU, impl::op_kind::HardSwish, impl::op_kind::Log,
             impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
             impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Multiply,
@@ -2895,9 +2894,6 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
                     } else if (opkind == impl::op_kind::Clamp) {
                         eltwise.set_attr<float>(op_attr::min, 1.0f);
                         eltwise.set_attr<float>(op_attr::max, 3.0f);
-                    } else if (opkind == impl::op_kind::HardTanh) {
-                        eltwise.set_attr<float>(op_attr::min, 1.0f);
-                        eltwise.set_attr<float>(op_attr::max, 3.0f);
                     }
                     if (i == 0) {
                         eltwise.add_input(conv_out);
@@ -2940,8 +2936,7 @@ TEST(Pass, FuseConvPostOpsChain) {
             impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
     const std::vector<impl::op_kind_t> supported_ops {impl::op_kind::Abs,
             impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardTanh,
-            impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::GELU, impl::op_kind::HardSwish, impl::op_kind::Log,
             impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
             impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Multiply,
@@ -3000,9 +2995,6 @@ TEST(Pass, FuseConvPostOpsChain) {
                     if (opkind == impl::op_kind::Elu) {
                         eltwise.set_attr<float>(op_attr::alpha, 1.0f);
                     } else if (opkind == impl::op_kind::Clamp) {
-                        eltwise.set_attr<float>(op_attr::min, 1.0f);
-                        eltwise.set_attr<float>(op_attr::max, 3.0f);
-                    } else if (opkind == impl::op_kind::HardTanh) {
                         eltwise.set_attr<float>(op_attr::min, 1.0f);
                         eltwise.set_attr<float>(op_attr::max, 3.0f);
                     }
@@ -3447,25 +3439,25 @@ TEST(Pass, FuseMatmulSigmoid) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3);
 }
 
-TEST(Pass, FuseMatmulHardtanh) {
+TEST(Pass, FuseMatmulClamp) {
     /*  matmul
           |
-        hardtanh
+        clamp
     */
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
-    op_t hardtanh {1, HardTanh, "hardtanh"};
-    hardtanh.set_attr(op_attr::min, -1.f);
-    hardtanh.set_attr(op_attr::max, 1.f);
+    op_t clamp {1, Clamp, "clamp"};
+    clamp.set_attr(op_attr::min, -1.f);
+    clamp.set_attr(op_attr::max, 1.f);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     matmul.add_input(lt_vec[0]);
     matmul.add_input(lt_vec[1]);
     matmul.add_output(lt_vec[2]);
-    hardtanh.add_input(lt_vec[2]);
-    hardtanh.add_output(lt_vec[3]);
+    clamp.add_input(lt_vec[2]);
+    clamp.add_output(lt_vec[3]);
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
-    ASSERT_EQ(agraph.add_op(&hardtanh), status::success);
+    ASSERT_EQ(agraph.add_op(&clamp), status::success);
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 2);
 
@@ -4111,28 +4103,28 @@ TEST(Pass, FuseMatmulBiasaddRelu) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5);
 }
 
-TEST(Pass, FuseMatmulBiasaddHardtanh) {
+TEST(Pass, FuseMatmulBiasaddClamp) {
     /*  matmul
            |
          bias
            |
-        hardtanh
+        clamp
     */
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
-    op_t hardtanh {1, HardTanh, "hardtanh"};
-    hardtanh.set_attr(op_attr::min, 0.1f);
-    hardtanh.set_attr(op_attr::max, 0.2f);
+    op_t clamp {1, Clamp, "clamp"};
+    clamp.set_attr(op_attr::min, 0.1f);
+    clamp.set_attr(op_attr::max, 0.2f);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
     matmul.add_input(lt_vec[0]);
     matmul.add_input(lt_vec[1]);
     matmul.add_input(lt_vec[2]);
     matmul.add_output(lt_vec[3]);
-    hardtanh.add_input(lt_vec[3]);
-    hardtanh.add_output(lt_vec[4]);
+    clamp.add_input(lt_vec[3]);
+    clamp.add_output(lt_vec[4]);
 
     ASSERT_EQ(agraph.add_op(&matmul), status::success);
-    ASSERT_EQ(agraph.add_op(&hardtanh), status::success);
+    ASSERT_EQ(agraph.add_op(&clamp), status::success);
     agraph.build_graph();
     ASSERT_EQ(agraph.num_ops(), 2);
 
@@ -4391,7 +4383,7 @@ TEST(Pass, FuseMatmulBiasaddRelu6) {
     */
     graph_t agraph;
     op_t matmul {0, MatMul, "matmul"};
-    op_t relu6 {1, HardTanh, "hardtanh"};
+    op_t relu6 {1, Clamp, "clamp"};
     relu6.set_attr(op_attr::min, 0.f);
     relu6.set_attr(op_attr::max, 6.f);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -4609,14 +4601,14 @@ TEST(Pass, DnnlSingleOpReplacement) {
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_op_set_supported = {BatchNormInference, Add,
             ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop,
-            BatchNormTrainingBackprop, ConvolutionBackpropData,
-            ConvolutionBackpropFilters, MaxPoolBackprop, Elu, Exp, HardTanh,
-            HardSwish, Log, LogSoftmax, SoftMax, Multiply, Maximum, Minimum,
-            Mish, MishBackprop, Pow, Sqrt, Square, Tanh, EluBackprop,
-            GELUBackprop, HardTanhBackprop, LogSoftmaxBackprop, ReLUBackprop,
-            SigmoidBackprop, SqrtBackprop, TanhBackprop, LayerNorm,
-            LayerNormBackprop, BatchNormForwardTraining, SoftMaxBackprop,
-            DynamicQuantize, DynamicDequantize};
+            BatchNormTrainingBackprop, Clamp, ConvolutionBackpropData,
+            ConvolutionBackpropFilters, MaxPoolBackprop, Elu, Exp, HardSwish,
+            Log, LogSoftmax, SoftMax, Multiply, Maximum, Minimum, Mish,
+            MishBackprop, Pow, Sqrt, Square, Tanh, ClampBackprop, EluBackprop,
+            GELUBackprop, LogSoftmaxBackprop, ReLUBackprop, SigmoidBackprop,
+            SqrtBackprop, TanhBackprop, LayerNorm, LayerNormBackprop,
+            BatchNormForwardTraining, SoftMaxBackprop, DynamicQuantize,
+            DynamicDequantize};
     for (auto akind : single_op_set_supported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);
@@ -13012,8 +13004,8 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
            quant
              | (u8/s8)
     */
-    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {Abs, Elu, Exp,
-            GELU, HardTanh, Log, ReLU, Round, Sigmoid, Sqrt, Square, Tanh};
+    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {Abs, Clamp, Elu,
+            Exp, GELU, Log, ReLU, Round, Sigmoid, Sqrt, Square, Tanh};
     std::vector<bool> with_biases {false, true};
 
     for (auto &eltwise_kind : eltwise_kinds) {
@@ -13032,7 +13024,7 @@ TEST(Pass, FuseToInt8ConvtransposeEltwise) {
             op_t eltwise {3, eltwise_kind, "relu"};
             if (eltwise_kind == impl::op_kind::Elu) {
                 eltwise.set_attr<float>(op_attr::alpha, 1.f);
-            } else if (eltwise_kind == impl::op_kind::HardTanh) {
+            } else if (eltwise_kind == impl::op_kind::Clamp) {
                 eltwise.set_attr<float>(op_attr::min, -1.f);
                 eltwise.set_attr<float>(op_attr::max, 2.f);
             }
@@ -13118,8 +13110,8 @@ TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
            quant
              | (u8/s8)
     */
-    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {Abs, Elu, Exp,
-            GELU, HardTanh, Log, ReLU, Round, Sigmoid, Sqrt, Square, Tanh};
+    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {Abs, Clamp, Elu,
+            Exp, GELU, Log, ReLU, Round, Sigmoid, Sqrt, Square, Tanh};
     std::vector<bool> with_biases {false, true};
 
     for (auto &eltwise_kind : eltwise_kinds) {
@@ -13138,7 +13130,7 @@ TEST(PassSystem, FuseToInt8ConvtransposeEltwise) {
             op_t eltwise {3, eltwise_kind, "relu"};
             if (eltwise_kind == impl::op_kind::Elu) {
                 eltwise.set_attr<float>(op_attr::alpha, 1.f);
-            } else if (eltwise_kind == impl::op_kind::HardTanh) {
+            } else if (eltwise_kind == impl::op_kind::Clamp) {
                 eltwise.set_attr<float>(op_attr::min, -1.f);
                 eltwise.set_attr<float>(op_attr::max, 2.f);
             }
@@ -13518,9 +13510,6 @@ TEST(Pass, BinaryPostops) {
         } else if (pop == Clamp) {
             post_op.set_attr<float>(op_attr::min, 1.0f);
             post_op.set_attr<float>(op_attr::max, 3.0f);
-        } else if (pop == HardTanh) {
-            post_op.set_attr<float>(op_attr::min, 1.0f);
-            post_op.set_attr<float>(op_attr::max, 3.0f);
         }
 
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -13618,9 +13607,6 @@ TEST(Pass, Binary3Postops) {
             if (pop == Elu) {
                 post_ops.back().set_attr<float>(op_attr::alpha, 1.0f);
             } else if (pop == Clamp) {
-                post_ops.back().set_attr<float>(op_attr::min, 1.0f);
-                post_ops.back().set_attr<float>(op_attr::max, 3.0f);
-            } else if (pop == HardTanh) {
                 post_ops.back().set_attr<float>(op_attr::min, 1.0f);
                 post_ops.back().set_attr<float>(op_attr::max, 3.0f);
             }
@@ -13757,9 +13743,6 @@ TEST(Pass, ConvtransposePostops) {
                     } else if (Activation == Clamp) {
                         activation.set_attr<float>(op_attr::min, 1.0f);
                         activation.set_attr<float>(op_attr::max, 3.0f);
-                    } else if (Activation == HardTanh) {
-                        activation.set_attr<float>(op_attr::min, 1.0f);
-                        activation.set_attr<float>(op_attr::max, 3.0f);
                     }
 
                     std::vector<logical_tensor_t> lt_vec
@@ -13891,9 +13874,6 @@ TEST(Pass, Convtranspose3Postops) {
                 if (activation_t == Elu) {
                     activation.set_attr<float>(op_attr::alpha, 1.0f);
                 } else if (activation_t == Clamp) {
-                    activation.set_attr<float>(op_attr::min, 1.0f);
-                    activation.set_attr<float>(op_attr::max, 3.0f);
-                } else if (activation_t == HardTanh) {
                     activation.set_attr<float>(op_attr::min, 1.0f);
                     activation.set_attr<float>(op_attr::max, 3.0f);
                 }
