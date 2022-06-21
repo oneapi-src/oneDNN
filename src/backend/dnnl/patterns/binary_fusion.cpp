@@ -16,6 +16,7 @@
 
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "backend/dnnl/patterns/utils.hpp"
 
 #include "utils/pm/pbuilder.hpp"
 
@@ -68,37 +69,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, binary_post_ops_fusion)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto binary_op = pgraph->append_alternation(
-                            {impl::op_kind::Add, impl::op_kind::Divide,
-                                    impl::op_kind::Maximum,
-                                    impl::op_kind::Minimum,
-                                    impl::op_kind::Multiply,
-                                    impl::op_kind::Subtract},
-                            "binary_op");
+                            get_binary_ops(), "binary_op");
 
                     auto post_subgraph
                             = std::make_shared<pb_graph_t>("post_subgraph");
                     auto alternative_post_op
                             = post_subgraph->append_alternation(
-                                    {impl::op_kind::Abs, impl::op_kind::Add,
-                                            impl::op_kind::Clamp,
-                                            impl::op_kind::Divide,
-                                            impl::op_kind::Elu,
-                                            impl::op_kind::Exp,
-                                            impl::op_kind::GELU,
-                                            impl::op_kind::HardSwish,
-                                            impl::op_kind::Log,
-                                            impl::op_kind::Maximum,
-                                            impl::op_kind::Minimum,
-                                            impl::op_kind::Multiply,
-                                            impl::op_kind::Pow,
-                                            impl::op_kind::ReLU,
-                                            impl::op_kind::Round,
-                                            impl::op_kind::Sigmoid,
-                                            impl::op_kind::SoftPlus,
-                                            impl::op_kind::Sqrt,
-                                            impl::op_kind::Square,
-                                            impl::op_kind::Subtract,
-                                            impl::op_kind::Tanh},
+                                    get_unary_binary_ops(),
                                     "alternative_post_op");
                     post_subgraph->create_input_port(0, alternative_post_op, 0);
                     post_subgraph->create_output_port(

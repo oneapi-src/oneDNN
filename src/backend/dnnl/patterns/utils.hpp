@@ -70,6 +70,42 @@ bool check_successor_op_kind(op_t *op) {
     return successor.get_kind() == KIND;
 }
 
+inline const std::vector<impl::op_kind_t> &get_unary_ops() {
+    const static std::vector<impl::op_kind_t> unary = {impl::op_kind::Abs,
+            impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
+            impl::op_kind::GELU, impl::op_kind::HardSwish,
+            impl::op_kind::LeakyReLU, impl::op_kind::Log, impl::op_kind::Mish,
+            impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh};
+
+    return unary;
+}
+
+inline const std::vector<impl::op_kind_t> &get_binary_ops() {
+    const static std::vector<impl::op_kind_t> binary
+            = {impl::op_kind::Add, impl::op_kind::Multiply,
+                    impl::op_kind::Maximum, impl::op_kind::Minimum,
+                    impl::op_kind::Divide, impl::op_kind::Subtract};
+
+    return binary;
+}
+
+inline const std::vector<impl::op_kind_t> &get_unary_binary_ops() {
+    const static std::vector<impl::op_kind_t> unary_binary = {
+            impl::op_kind::Abs, impl::op_kind::Clamp, impl::op_kind::Elu,
+            impl::op_kind::Exp, impl::op_kind::GELU, impl::op_kind::HardSwish,
+            impl::op_kind::LeakyReLU, impl::op_kind::Log, impl::op_kind::Mish,
+            impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
+            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
+            impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Add,
+            impl::op_kind::Multiply, impl::op_kind::Maximum,
+            impl::op_kind::Minimum, impl::op_kind::Divide,
+            impl::op_kind::Subtract};
+
+    return unary_binary;
+}
+
 } // namespace pattern
 } // namespace dnnl_impl
 } // namespace impl

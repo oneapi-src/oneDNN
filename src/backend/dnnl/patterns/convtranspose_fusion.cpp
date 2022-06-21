@@ -105,12 +105,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                     impl::op_kind::Dequantize, "dequant");
                     pm::pb_op_t *pbinary
                             = pint8_binary_graph->append_alternation(
-                                    {impl::op_kind::Add,
-                                            impl::op_kind::Multiply,
-                                            impl::op_kind::Maximum,
-                                            impl::op_kind::Minimum,
-                                            impl::op_kind::Divide,
-                                            impl::op_kind::Subtract},
+                                    get_binary_ops(),
                                     in_edges_t {in_edge(1, pdequant_binary, 0)},
                                     "pbinary");
                     pint8_binary_graph->create_input_port(0, pbinary, 0);
@@ -121,22 +116,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     auto postop_graph
                             = std::make_shared<pb_graph_t>("postop_graph");
                     pm::pb_op_t *pop = postop_graph->append_alternation(
-                            {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::Exp,
-                                    impl::op_kind::GELU,
-                                    impl::op_kind::HardSwish,
-                                    impl::op_kind::LeakyReLU,
-                                    impl::op_kind::Log, impl::op_kind::Sigmoid,
-                                    impl::op_kind::SoftPlus, impl::op_kind::Pow,
-                                    impl::op_kind::ReLU, impl::op_kind::Round,
-                                    impl::op_kind::Sqrt, impl::op_kind::Square,
-                                    impl::op_kind::Tanh, impl::op_kind::Add,
-                                    impl::op_kind::Multiply,
-                                    impl::op_kind::Maximum,
-                                    impl::op_kind::Minimum,
-                                    impl::op_kind::Divide,
-                                    impl::op_kind::Subtract},
-                            "postop");
+                            get_unary_binary_ops(), "postop");
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);
@@ -197,21 +177,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 
                     auto post_ops = std::make_shared<pb_graph_t>("post_ops");
                     auto alternation = post_ops->append_alternation(
-                            {impl::op_kind::Abs, impl::op_kind::Add,
-                                    impl::op_kind::Clamp, impl::op_kind::Divide,
-                                    impl::op_kind::Elu, impl::op_kind::Exp,
-                                    impl::op_kind::GELU,
-                                    impl::op_kind::HardSwish,
-                                    impl::op_kind::Log, impl::op_kind::Maximum,
-                                    impl::op_kind::Minimum,
-                                    impl::op_kind::Multiply, impl::op_kind::Pow,
-                                    impl::op_kind::ReLU, impl::op_kind::Round,
-                                    impl::op_kind::Sigmoid,
-                                    impl::op_kind::SoftPlus,
-                                    impl::op_kind::Sqrt, impl::op_kind::Square,
-                                    impl::op_kind::Subtract,
-                                    impl::op_kind::Tanh},
-                            "alternation");
+                            get_unary_binary_ops(), "alternation");
                     post_ops->create_input_port(0, alternation, 0);
                     post_ops->create_output_port(0, alternation, 0);
 

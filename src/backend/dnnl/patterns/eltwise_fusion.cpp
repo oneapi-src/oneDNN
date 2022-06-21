@@ -16,6 +16,7 @@
 
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "backend/dnnl/patterns/utils.hpp"
 
 #include "utils/pm/pbuilder.hpp"
 
@@ -49,26 +50,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, eltwise_binary_fusion)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *peltwise = pgraph->append_alternation(
-                            {impl::op_kind::Abs, impl::op_kind::Clamp,
-                                    impl::op_kind::Elu, impl::op_kind::Exp,
-                                    impl::op_kind::GELU,
-                                    impl::op_kind::HardSwish,
-                                    impl::op_kind::LeakyReLU,
-                                    impl::op_kind::Log, impl::op_kind::Sigmoid,
-                                    impl::op_kind::SoftPlus, impl::op_kind::Pow,
-                                    impl::op_kind::ReLU, impl::op_kind::Round,
-                                    impl::op_kind::Sqrt, impl::op_kind::Square,
-                                    impl::op_kind::Tanh},
-                            "peltwise");
+                            get_unary_ops(), "peltwise");
                     auto pbinary_graph
                             = std::make_shared<pb_graph_t>("pbinary_graph");
                     pm::pb_op_t *pbinary_op = pbinary_graph->append_alternation(
-                            {impl::op_kind::Add, impl::op_kind::Multiply,
-                                    impl::op_kind::Maximum,
-                                    impl::op_kind::Minimum,
-                                    impl::op_kind::Divide,
-                                    impl::op_kind::Subtract},
-                            "pbinary_op");
+                            get_binary_ops(), "pbinary_op");
                     pbinary_graph->create_input_port(0, pbinary_op, 0);
                     pbinary_graph->create_input_port(1, pbinary_op, 1);
                     pbinary_graph->create_output_port(0, pbinary_op, 0);
