@@ -84,6 +84,7 @@ used.
 `ARG` supported values are:
   - `src` or `src0` corresponds to `DNNL_ARG_SRC`
   - `src1` corresponds to `DNNL_ARG_SRC_1`
+  - `msrci` corresponds to `DNNL_ARG_MULTIPLE_SRC + i`
 
 `POLICY` supported values are:
   - `none`
