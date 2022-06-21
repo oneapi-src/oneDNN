@@ -1781,7 +1781,9 @@ inline void construct_int8_convolutional_bottleneck_resblock(
     std::vector<int64_t> src_shape {1, ic, 12, 12};
 
     float scale_src = 1 / 255.f, scale_out = 1;
-    int64_t zp_src = 0, zp_out = 78;
+    int64_t zp_src = 0,
+            zp_out
+            = agraph->get_engine_kind() == impl::engine_kind::gpu ? 0 : 78;
     std::vector<float> scale_wei(oc, 1 / 127.f);
 
     auto src = utils::logical_tensor_init(

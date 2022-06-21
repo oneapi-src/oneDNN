@@ -8602,7 +8602,7 @@ TEST(Execute, ConvAddEltwise) {
         cp.execute(&strm, {src_ts, weight_ts, post_src_ts}, {eltwise_dst_ts});
         strm.wait();
         for (size_t i = 0; i < dst.size(); ++i) {
-            ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
+            ASSERT_NEAR(dst[i], param.ref_dst[i], 0.0001f);
         }
     }
 }
@@ -11362,10 +11362,8 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (((isa < dnnl_cpu_isa_avx512_core_vnni
-                     && engine.kind() == impl::engine_kind::cpu)
-                    || engine.kind() == impl::engine_kind::gpu)
-                && src_qtype == "asymmetric")
+        if (engine.kind() == impl::engine_kind::gpu
+                && (src_qtype == "asymmetric" || nd == 1))
             continue;
 
         // prepare data
@@ -11489,7 +11487,10 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -13345,7 +13346,10 @@ void quantized_conv2d_eltwise(
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -13582,7 +13586,10 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -13798,7 +13805,10 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -13859,10 +13869,8 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
     for_(const auto with_bias : with_biases)
     for_(const auto &src_qtype : src_qtypes)
     for (const auto &wei_qtype : weight_qtypes) {
-        if (((isa < dnnl_cpu_isa_avx512_core_vnni
-                     && engine.kind() == impl::engine_kind::cpu)
-                    || engine.kind() == impl::engine_kind::gpu)
-                && src_qtype == "asymmetric")
+        if (engine.kind() == impl::engine_kind::gpu
+                && (src_qtype == "asymmetric" || nd == 1))
             continue;
 
         // prepare fp32 data
@@ -13970,7 +13978,10 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -14135,7 +14146,10 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -14336,7 +14350,10 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -14544,7 +14561,10 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -14755,7 +14775,10 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -17317,7 +17340,10 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         g.add_op(&qout_node2);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
 
         apass->run(g);
 
@@ -18420,7 +18446,10 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
                 impl::status::success);
 
         // -------------------------case 2----------------------------------
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_post_ops_fusion_gpu"
+                                : "int8_conv_post_ops_fusion_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -21974,6 +22003,9 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
+        float scale_out = 1 / 255.f; // map to 0~255
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 110;
+
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
         dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
@@ -22004,9 +22036,9 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
 
         impl::op_t qout_op(6, impl::op_kind::Quantize, "qdout_op");
         qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
+                impl::op_attr::scales, {scale_out});
         qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         // prepare logical tensor
@@ -22064,7 +22096,10 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_bias_fusion_gpu"
+                                : "int8_conv_bias_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -22131,6 +22166,9 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
+        float scale_out = 1 / 255.f; // map to 0~255
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 110;
+
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
         dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
@@ -22173,9 +22211,9 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
 
         impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
         qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
+                impl::op_attr::scales, {scale_out});
         qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         // prepare logical tensor
@@ -22251,7 +22289,10 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_bias_fusion_gpu"
+                                : "int8_conv_bias_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -22319,6 +22360,9 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
+        float scale_out = 1 / 255.f; // map to 0~255
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 110;
+
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
         dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
@@ -22351,9 +22395,9 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
 
         impl::op_t qout_op(7, impl::op_kind::Quantize, "qdout_op");
         qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
+                impl::op_attr::scales, {scale_out});
         qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         // prepare logical tensor
@@ -22417,7 +22461,10 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_bias_fusion_gpu"
+                                : "int8_conv_bias_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -22484,6 +22531,9 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
         std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
 
+        float scale_out = 1 / 255.f; // map to 0~255
+        int64_t zp_out = engine.kind() == impl::engine_kind::gpu ? 0 : 110;
+
         impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
         dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
@@ -22528,9 +22578,9 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
 
         impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
         qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
-        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+        qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
-                impl::op_attr::scales, {scale_src});
+                impl::op_attr::scales, {scale_out});
         qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
 
         // prepare logical tensor
@@ -22612,7 +22662,10 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         ASSERT_EQ(g.add_op(&qout_op), impl::status::success);
         g.build_graph();
 
-        impl::pass::pass_base_ptr apass = get_pass("int8_conv_bias_fusion");
+        impl::pass::pass_base_ptr apass
+                = get_pass(engine.kind() == impl::engine_kind::gpu
+                                ? "int8_conv_bias_fusion_gpu"
+                                : "int8_conv_bias_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -24762,7 +24815,10 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
 
     impl::pass::pass_base_ptr apass1
             = get_pass("int8_identical_bottleneck_resblock_fusion");
-    impl::pass::pass_base_ptr apass2 = get_pass("int8_conv_post_ops_fusion");
+    impl::pass::pass_base_ptr apass2
+            = get_pass(eng.kind() == impl::engine_kind::gpu
+                            ? "int8_conv_post_ops_fusion_gpu"
+                            : "int8_conv_post_ops_fusion_cpu");
     apass1->run(g);
     apass2->run(g);
     ASSERT_EQ(g.get_num_partitions(), 2);

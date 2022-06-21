@@ -29,6 +29,13 @@ namespace impl {
 namespace dnnl_impl {
 namespace pattern {
 
+template <int64_t N>
+bool check_zps_values(op_t *op) {
+    auto zps = op->get_attr<std::vector<int64_t>>(op_attr::zps);
+    return std::all_of(
+            zps.begin(), zps.end(), [](int64_t i) { return i == N; });
+}
+
 template <size_t N>
 bool check_input_num(op_t *op) {
     return op->num_inputs() == N;

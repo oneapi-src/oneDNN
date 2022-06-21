@@ -382,8 +382,16 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_depthwise_fusion_cpu)
             [quant_out]*  
                 |      
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_post_ops_fusion)
+/*
+Conv: Currently DNNL Backend doesn't support below
+features on GPU:
+1. Conv with dst zero points
+While CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_conv_post_ops_fusion_cpu)
         .set_priority(10.5f)
+        .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::quantized_convolution_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -477,6 +485,109 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_post_ops_fusion)
                 });
 
 /*
+Conv: Currently DNNL Backend doesn't support below
+features on GPU:
+1. Conv with dst zero points
+While CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_conv_post_ops_fusion_gpu)
+        .set_priority(10.5f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_kind(impl::partition_kind::quantized_convolution_post_ops)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant_data");
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op_t *pquant = popt_graph->append_op(
+                            impl::op_kind::Quantize, "pquant");
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op_t *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+
+                    pm::pb_op_t *pconv
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)},
+                                    "conv");
+
+                    // Optional bias_add
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op_t *pbias = popt_graph->append_op(
+                            impl::op_kind::BiasAdd, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, pconv, 0)}, "popt_bias");
+
+                    auto pint8_binary_graph = std::make_shared<pb_graph_t>(
+                            "pint8_binary_graph");
+                    pm::pb_op_t *pdequant_binary
+                            = pint8_binary_graph->append_op(
+                                    impl::op_kind::Dequantize, "dequant");
+                    pm::pb_op_t *pbinary
+                            = pint8_binary_graph->append_alternation(
+                                    get_binary_ops(),
+                                    in_edges_t {in_edge(1, pdequant_binary, 0)},
+                                    "pbinary");
+                    pint8_binary_graph->create_input_port(0, pbinary, 0);
+                    pint8_binary_graph->create_input_port(
+                            1, pdequant_binary, 0);
+                    pint8_binary_graph->create_output_port(0, pbinary, 0);
+
+                    // other post ops
+                    auto postop_graph
+                            = std::make_shared<pb_graph_t>("postops_graph");
+                    pm::pb_op_t *pop = postop_graph->append_alternation(
+                            get_unary_binary_ops(), "postop");
+                    postop_graph->create_input_port(0, pop, 0);
+                    postop_graph->create_input_port(1, pop, 1);
+                    postop_graph->create_output_port(0, pop, 0);
+
+                    auto prep_graph
+                            = std::make_shared<pb_graph_t>("prep_graph");
+                    auto palt = prep_graph->append_alternation(
+                            {pint8_binary_graph, postop_graph}, "palternation");
+                    prep_graph->create_input_port(0, palt, 0);
+                    prep_graph->create_input_port(1, palt, 1);
+                    prep_graph->create_output_port(0, palt, 0);
+
+                    auto prep = pgraph->append_repetition(prep_graph, {0, 0}, 0,
+                            MAX_REPETITION,
+                            in_edges_t {in_edge(0, popt_bias, 0)},
+                            "prepetition");
+
+                    // Optional quant_out
+                    auto popt_qout_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_out");
+                    pm::pb_op_t *pquant_out = popt_graph->append_op(
+                            impl::op_kind::Quantize, "pquant_out");
+                    pquant_out->append_decision_function(check_zps_values<0>);
+                    popt_qout_graph->create_input_port(0, pquant_out, 0);
+                    popt_qout_graph->create_output_port(0, pquant_out, 0);
+                    pgraph->append_optional(popt_qout_graph,
+                            in_edges_t {in_edge(0, prep, 0)}, "popt_quant_out");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_conv_post_ops_fusion);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
                     [quant_weight]*
         |                  |
    dequant_data     dequant_weight
@@ -494,8 +605,13 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_post_ops_fusion)
             quant_out
                 |
 */
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion)
+/*
+Conv: Currently DNNL Backend doesn't support Conv with 
+dst zero points on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_cpu)
         .set_priority(10.5f)
+        .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::quantized_convolution_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -566,6 +682,94 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion)
                             check_input_dtype<impl::data_type::bf16>);
                     pgraph->append_op(impl::op_kind::Quantize,
                             in_edges_t {in_edge(0, typecast_gelu, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_conv_post_ops_fusion);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+Conv: Currently DNNL Backend doesn't support Conv with 
+dst zero points on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
+        .set_priority(10.5f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_kind(impl::partition_kind::quantized_convolution_post_ops)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+
+                    // Optional quant_weight
+                    auto popt_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op_t *pquant = popt_graph->append_op(
+                            impl::op_kind::Quantize, "pquant");
+                    popt_graph->create_input_port(0, pquant, 0);
+                    popt_graph->create_output_port(0, pquant, 0);
+                    auto popt = pgraph->append_optional(popt_graph, "popt");
+
+                    pm::pb_op_t *dequant_weight = pgraph->append_op(
+                            impl::op_kind::Dequantize,
+                            in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+
+                    pm::pb_op_t *typecast_data
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_data, 0)});
+                    typecast_data->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op_t *typecast_weight
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_weight, 0)});
+                    typecast_weight->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+                    pm::pb_op_t *convolution
+                            = pgraph->append_op(impl::op_kind::Convolution,
+                                    in_edges_t {in_edge(0, typecast_data, 0),
+                                            in_edge(1, typecast_weight, 0)});
+
+                    // Optional bias_add
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op_t *typecast_bias = popt_bias_graph->append_op(
+                            impl::op_kind::TypeCast, "tc_bias");
+                    typecast_bias->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
+                            impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, convolution, 0)},
+                            "popt_bias");
+
+                    // optional GELU
+                    auto popt_gelu_graph
+                            = std::make_shared<pb_graph_t>("poptional_gelu");
+                    pm::pb_op_t *gelu
+                            = popt_gelu_graph->append_op(impl::op_kind::GELU);
+                    popt_gelu_graph->create_input_port(0, gelu, 0);
+                    popt_gelu_graph->create_output_port(0, gelu, 0);
+                    auto popt_gelu = pgraph->append_optional(popt_gelu_graph,
+                            in_edges_t {in_edge(0, popt_bias, 0)}, "popt_gelu");
+
+                    pm::pb_op_t *typecast_gelu
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, popt_gelu, 0)});
+                    typecast_gelu->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    pm::pb_op_t *quant_out
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    in_edges_t {in_edge(0, typecast_gelu, 0)});
+                    quant_out->append_decision_function(check_zps_values<0>);
                 })
         .set_attr<FCreateV2FusedOp>(
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {

@@ -144,7 +144,7 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -482,7 +482,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     g.add_op(&qout_node);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion");
+    impl::pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
 
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
