@@ -17,8 +17,26 @@
 #include "resampling/graph_resampling.hpp"
 #include "binary/binary.hpp"
 
+#include <ctime>
+#include <random>
+#include <tuple>
+
 namespace benchdnnext {
 namespace resampling {
+
+static void check_known_skipped_case_graph(
+        const ::resampling::prb_t *prb, res_t *res) noexcept {
+    // TODO: to align with original benchdnn, we should consider moving
+    // skip_unimplemented_prb call after compilation step
+    skip_invalid_and_unimplemented_prb(prb, res);
+    if (res->state == SKIPPED) return;
+
+    //Skip if source and destination datatypes are different.
+    if (prb->sdt != prb->ddt) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
+}
 
 static std::vector<int64_t> get_spatial_dims(const std::vector<int64_t> &dims) {
     std::vector<int64_t> new_dims = dims;
@@ -46,98 +64,76 @@ static std::vector<float> get_scales(const std::vector<int64_t> &src_dims,
     return scales_dims;
 }
 
-fill_status_t resampling_graph_prb_t::handle_main_op_(
-        const ::resampling::prb_t *prb) {
-    using op = dnnl::graph::op;
+fill_status_t append_graph_with_block(
+        const ::resampling::prb_t *prb, int rand_testmode) {
+    graph_t &graph = graph_t::get();
 
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
+    const auto connect_to_previous_block = graph.has_blocks();
 
-    // common for forward and backward pass
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string SIZES {TENSOR_ID + "_SIZES"};
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::RESAMPLING);
+    const auto dst_lt_kind
+            = prb->dir & FLAG_FWD ? lt_kind::DST : lt_kind::DIFF_DST;
+    const auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, lt_kind::SRC);
+    const auto dst_id = graph.generate_id_for(op_id, dst_lt_kind);
 
-    // specific for forward pass
-    const std::string DST {TENSOR_ID + "_DST"};
+    const auto src_dt = convert_dt(prb->sdt);
+    const auto dst_dt = convert_dt(prb->ddt);
 
-    // specific for backward pass
-    const std::string DIFF_DST {TENSOR_ID + "_DIFF_DST"};
-    const std::string DIFF_SRC {TENSOR_ID + "_DIFF_SRC"};
+    graph.create_lt(src_id, src_dt, prb->src_dims(), prb->tag);
+    graph.create_lt(dst_id, dst_dt, prb->dst_dims(), prb->tag);
 
-    tensor_descs_.emplace(SRC, convert_dt(prb->sdt), prb->src_dims(), prb->tag);
-    if (rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
-        tensor_descs_.emplace(SIZES, dt::s32, {1}, prb->tag);
-    }
-
+    std::vector<size_t> src_ids {src_id};
+    std::vector<size_t> dst_ids {};
+    dnnl::graph::op::kind resampling_kind;
     if (prb->dir & FLAG_FWD) {
-        tensor_descs_.emplace(
-                DST, convert_dt(prb->ddt), prb->dst_dims(), prb->tag);
+        dst_ids.push_back(dst_id);
+        resampling_kind = dnnl::graph::op::kind::Interpolate;
     } else {
-        tensor_descs_.emplace(
-                DIFF_DST, convert_dt(prb->ddt), prb->dst_dims(), prb->tag);
-        tensor_descs_.emplace(
-                DIFF_SRC, convert_dt(prb->sdt), prb->src_dims(), prb->tag);
-    }
-
-    std::vector<dnnl::graph::logical_tensor> inputs;
-    std::vector<dnnl::graph::logical_tensor> outputs;
-
-    inputs.push_back(tensor_descs_[SRC]);
-    if (prb->dir & FLAG_FWD) {
-        outputs.push_back(tensor_descs_[DST]);
-    } else {
-        inputs.push_back(tensor_descs_[DIFF_DST]);
-        outputs.push_back(tensor_descs_[DIFF_SRC]);
+        const auto d_src_id = graph.generate_id_for(op_id, lt_kind::DIFF_SRC);
+        graph.create_lt(d_src_id, src_dt, prb->src_dims(), prb->tag);
+        src_ids.push_back(dst_id);
+        dst_ids.push_back(d_src_id);
+        resampling_kind = dnnl::graph::op::kind::InterpolateBackprop;
     }
     if (rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
-        inputs.emplace_back(tensor_descs_[SIZES]);
+        const auto size_id = graph.generate_id_for(op_id, lt_kind::SRC1);
+        graph.create_lt(size_id, dnnl::graph::logical_tensor::data_type::s32,
+                {1}, tag::x);
+        src_ids.push_back(size_id);
     }
 
-    const auto op_kind = prb->dir & FLAG_FWD
-            ? dnnl::graph::op::kind::Interpolate
-            : dnnl::graph::op::kind::InterpolateBackprop;
-    op resampling(new_op_id, op_kind, inputs, outputs, "interpolate");
-
-    resampling.set_attr("data_format", std::string("NCX"))
+    dnnl::graph::op resampling_op(
+            op_id, resampling_kind, graph.stringify_id(op_id));
+    resampling_op.set_attr("data_format", std::string("NCX"))
             .set_attr("mode", std::string(alg2str(prb->alg)))
             .set_attr("sizes", get_sizes(prb->dst_dims()));
     if (rand_testmode == test_mode_t::SCALES_ATTR)
-        resampling.set_attr(
+        resampling_op.set_attr(
                 "scales", get_scales(prb->src_dims(), prb->dst_dims()));
 
-    ops_.emplace_back(resampling);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, resampling_op, src_ids, dst_ids);
+
+    // handle post ops
+    fill_status_t status;
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        if (entry.is_binary_kind()) {
+            std::tie(status, std::ignore) = append_graph_with_binary(entry);
+            BENCHDNNEXT_VERIFY(status);
+        } else if (entry.is_eltwise_kind()) {
+            status = append_graph_with_eltwise(entry);
+            BENCHDNNEXT_VERIFY(status);
+        } else if (entry.is_sum_kind()) {
+            std::tie(status, std::ignore) = append_graph_with_sum(entry);
+            BENCHDNNEXT_VERIFY(status);
+        }
+    }
+
+    graph.close_block();
 
     return fill_status::DONE;
-}
-
-fill_status_t resampling_graph_prb_t::handle_elt_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.resampling.eltw_handler(*this, po_entry);
-}
-
-fill_status_t resampling_graph_prb_t::handle_bin_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.resampling.bin_handler(*this, po_entry);
-}
-
-fill_status_t resampling_graph_prb_t::handle_sum_() {
-    return po_handler.resampling.sum_handler(*this);
-}
-
-void check_known_skipped_case_graph(
-        const ::resampling::prb_t *prb, res_t *res) noexcept {
-    // TODO: to align with original benchdnn, we should consider moving
-    // skip_unimplemented_prb call after compilation step
-    skip_invalid_and_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return;
-
-    //Skip if source and destination datatypes are different.
-    if (prb->sdt != prb->ddt) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
-        return;
-    }
 }
 
 int doit(const ::resampling::prb_t *prb, res_t *res) {
@@ -148,20 +144,32 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    resampling_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    // TODO: test mode should be fixed
+    srand(std::time(NULL));
+    const int rand_testmode = (rand() % 2);
+
+    const auto status = append_graph_with_block(prb, rand_testmode);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    // Filter partitions
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
+
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
 
@@ -191,9 +199,7 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     // between the expected value and the gotten value with this algorithm.
     const bool only_positive_values = prb->alg == ::resampling::linear;
 
-    size_t idx_ins = graph_prb.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR
-            ? 1
-            : 0;
+    size_t idx_ins = rand_testmode == test_mode_t::SIZES_INPUT_TENSOR ? 1 : 0;
     const auto post_bin_indices
             = get_post_bin_indices(prb->attr.post_ops.entry);
 
@@ -221,7 +227,7 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         dnnl::graph::tensor sizes_tensor;
         std::vector<int64_t> sizes_v = get_sizes(prb->dst_dims());
         idx_ins = 0;
-        if (graph_prb.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
+        if (rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
             sizes_tensor = dnnl::graph::tensor(
                     ins[++idx_ins], eng, static_cast<void *>(sizes_v.data()));
             tensors_in.emplace_back(sizes_tensor);
@@ -273,7 +279,7 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         std::vector<dnnl::graph::tensor> tensors_in {src_tensor};
         dnnl::graph::tensor sizes_tensor;
         std::vector<int64_t> sizes_v = get_sizes(prb->dst_dims());
-        if (graph_prb.rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
+        if (rand_testmode == test_mode_t::SIZES_INPUT_TENSOR) {
             sizes_tensor = dnnl::graph::tensor(
                     ins[2], eng, static_cast<void *>(sizes_v.data()));
             tensors_in.emplace_back(sizes_tensor);
@@ -299,6 +305,9 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
                      res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
                 WARN);
     }
+
+    cleanup();
+
     return OK;
 }
 
