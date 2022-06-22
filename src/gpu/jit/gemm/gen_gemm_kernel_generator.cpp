@@ -6728,7 +6728,7 @@ bool gemm_kernel_generator_t<hw>::doStdCRemainder(
 
                 add(1 | sat, temp, remainder, -unroll + 1);
                 isGen12 ? mad(1, temp, 16, temp, 16) : shl(1, temp, temp, 4);
-                jmpi(1, temp);
+                jmpi(1, temp.d());
                 jmpi(1, labelRem);
 
                 state.ra.safeRelease(tempQ);
@@ -7153,9 +7153,12 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
     }
 
     GRFRange bases;
+    bool nonuniformSubs = false;
 
     if (!uniform) {
         uint8_t baseIndices[256] = {0};
+        uint16_t offIndices[256] = {0};
+
         if (state.Tacc.size() == 1) stub();
 
         xByteInc = div_up(nec * Tcx, GRF::bytes(hw));
@@ -7171,10 +7174,17 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
                 int ne;
                 auto sub = findBlockReg(Tc, state.C_layout, i, j,
                         state.C_regs[0], ne, blockPtr, 0);
-                if (sub.getOffset() != 0) stub();
+                nonuniformSubs |= (sub.getOffset() != 0);
                 if (ne < std::min(nec1, unrollX - x)) stub();
                 baseIndices[y * yByteInc + xx] = sub.getBase();
+                offIndices[y * yByteInc + xx]
+                        = sub.getByteOffset() + sub.getBase() * GRF::bytes(hw);
             }
+        }
+
+        if (nonuniformSubs) {
+            xByteInc *= 2;
+            yByteInc *= 2;
         }
 
         bases = state.ra.alloc_range(
@@ -7185,13 +7195,19 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
             for (int i = 0; i < unrollY * yByteInc; i += 8) {
                 auto sub = bases[i / GRF::bytes(hw)].df(
                         (i % GRF::bytes(hw)) / 8);
-                mov(1, sub, *reinterpret_cast<double *>(&baseIndices[i]));
+                auto data = nonuniformSubs
+                        ? reinterpret_cast<double *>(&offIndices[i / 2])
+                        : reinterpret_cast<double *>(&baseIndices[i]);
+                mov(1, sub, *data);
             }
         } else {
             for (int i = 0; i < unrollY * yByteInc; i += 4) {
                 auto sub = bases[i / GRF::bytes(hw)].ud(
                         (i % GRF::bytes(hw)) / 4);
-                mov(1, sub, *reinterpret_cast<uint32_t *>(&baseIndices[i]));
+                auto data = nonuniformSubs
+                        ? reinterpret_cast<uint32_t *>(&offIndices[i / 2])
+                        : reinterpret_cast<uint32_t *>(&baseIndices[i]);
+                mov(1, sub, *data);
             }
         }
     }
@@ -7337,8 +7353,11 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
         mod = InstructionModifier() | f0[0];
     }
 
-    if (!uniform)
-        shl(xByteInc, a0[2](1), indirect[a0[1]].ub(), GRF::log2Bytes(hw));
+    if (!uniform) {
+        nonuniformSubs ? mov(xByteInc, a0[2](1), indirect[a0[1]].uw())
+                       : shl(xByteInc, a0[2](1), indirect[a0[1]].ub(),
+                               GRF::log2Bytes(hw));
+    }
 
     if (!loadOnly) {
         if (uniform) switch (state.Tacc.size()) {
@@ -9767,6 +9786,32 @@ void gemm_kernel_generator_t<hw>::gemmSLMRemask(bool remaskA, bool remaskB,
     }
 }
 
+// Calculate kSLMA/kSLMB -- countdown variables for SLM copies.
+template <HW hw>
+void gemm_kernel_generator_t<hw>::gemmCalcKSLM(const Subregister &kSLM,
+        const Subregister &lid, int kgran, int kdiv, int krep,
+        const GEMMProblem &problem, const GEMMStrategy &strategy,
+        GEMMState &state) {
+    if (kdiv == 1)
+        mov(1, kSLM, state.K);
+    else {
+        auto modLID = lid;
+        if (krep > 1) {
+            if (!is_zero_or_pow2(krep)) stub();
+            modLID = state.ra.alloc_sub<uint16_t>();
+            shr(1, modLID, lid, log2(krep));
+        }
+        if (!problem.backward())
+            emad(1, kSLM, state.K.w(), -modLID, kgran, strategy, state);
+        else {
+            emad(1, kSLM, strategy.unrollKSLM - kgran, -modLID, kgran, strategy,
+                    state);
+            add(1, kSLM, state.K, -kSLM);
+        }
+        if (krep > 1) state.ra.safeRelease(modLID);
+    }
+}
+
 // Calculate barrier count for a k loop.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmCalcKLoopBarrierCount(Subregister &count,
@@ -10132,9 +10177,14 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
         Ai_layoutK.resize(ka_slm);
         Ai_addrsK.resize(ka_slm);
         for (int h = 0; h < ka_slm; h++) {
-            bool success = getSubblocks(Ta_ext, Ai_layoutK[h], Ai_addrsK[h],
-                    Ai_layoutRem, state.Ai_addrs, true, h, h + 1,
-                    state.Ai_strategy.padded, state.Ai, state.Ai_strategy);
+            bool success = false;
+
+            if (h < int(Ai_addrsK.size())) {
+                success = getSubblocks(Ta_ext, Ai_layoutK[h], Ai_addrsK[h],
+                        Ai_layoutRem, state.Ai_addrs, true, h, h + 1,
+                        state.Ai_strategy.padded, state.Ai, state.Ai_strategy);
+            }
+
             if (!success && h == 0) stub();
 
             if (!success) {
@@ -10168,9 +10218,14 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
         Bi_layoutK.resize(kb_slm);
         Bi_addrsK.resize(kb_slm);
         for (int h = 0; h < kb_slm; h++) {
-            bool success = getSubblocks(Tb_ext, Bi_layoutK[h], Bi_addrsK[h],
-                    Bi_layoutRem, state.Bi_addrs, false, h, h + 1,
-                    state.Bi_strategy.padded, state.Bi, state.Bi_strategy);
+            bool success = false;
+
+            if (h < int(Bi_addrsK.size())) {
+                success = getSubblocks(Tb_ext, Bi_layoutK[h], Bi_addrsK[h],
+                        Bi_layoutRem, state.Bi_addrs, false, h, h + 1,
+                        state.Bi_strategy.padded, state.Bi, state.Bi_strategy);
+            }
+
             if (!success && h == 0) stub();
 
             if (!success) {
@@ -10313,38 +10368,52 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(bool lateKLoopCheck,
 
             if (Ai_incrementalRem) {
                 kSLMA = kSLMStorage.w(0);
+                int kgran, kdiv, krep;
                 switch (state.effCoopA) {
-                    case CoopSplit::MN: mov(1, kSLMA, state.K); break;
-                    case CoopSplit::K:
-                        if (!problem.backward())
-                            emad(1, kSLMA, state.K.w(), -state.lidN,
-                                    state.ka_slm, strategy, state);
-                        else {
-                            emad(1, kSLMA, unrollKSLM - state.ka_slm,
-                                    -state.lidN, state.ka_slm, strategy, state);
-                            add(1, kSLMA, state.K, -kSLMA);
-                        }
+                    case CoopSplit::MN:
+                        kgran = unrollKSLM;
+                        kdiv = 1;
+                        krep = strategy.wg[LoopN];
                         break;
-                    case CoopSplit::Linear: stub();
+                    case CoopSplit::K:
+                        kgran = state.ka_slm;
+                        kdiv = strategy.wg[LoopN];
+                        krep = 1;
+                        break;
+                    case CoopSplit::Linear:
+                        kgran = std::max(state.Ai.crosspack, state.Ai.tileC);
+                        kdiv = unrollKSLM / kgran;
+                        krep = strategy.wg[LoopN] / kdiv;
+                        break;
+                    default: stub();
                 }
+                gemmCalcKSLM(kSLMA, state.lidN, kgran, kdiv, krep, problem,
+                        strategy, state);
             }
 
             if (Bi_incrementalRem) {
                 kSLMB = kSLMStorage.w(1);
+                int kgran, kdiv, krep;
                 switch (state.effCoopB) {
-                    case CoopSplit::MN: mov(1, kSLMB, state.K); break;
-                    case CoopSplit::K:
-                        if (!problem.backward())
-                            emad(1, kSLMB, state.K.w(), -state.lidM,
-                                    state.kb_slm, strategy, state);
-                        else {
-                            emad(1, kSLMB, unrollKSLM - state.kb_slm,
-                                    -state.lidM, state.kb_slm, strategy, state);
-                            add(1, kSLMB, state.K, -kSLMB);
-                        }
+                    case CoopSplit::MN:
+                        kgran = unrollKSLM;
+                        kdiv = 1;
+                        krep = strategy.wg[LoopM];
                         break;
-                    case CoopSplit::Linear: stub();
+                    case CoopSplit::K:
+                        kgran = state.kb_slm;
+                        kdiv = strategy.wg[LoopM];
+                        krep = 1;
+                        break;
+                    case CoopSplit::Linear:
+                        kgran = std::max(state.Bi.crosspack, state.Bi.tileR);
+                        kdiv = unrollKSLM / kgran;
+                        krep = strategy.wg[LoopM] / kdiv;
+                        break;
+                    default: stub();
                 }
+                gemmCalcKSLM(kSLMB, state.lidM, kgran, kdiv, krep, problem,
+                        strategy, state);
             }
 
             if ((Ai_incrementalRem || Bi_incrementalRem) && kOffset != 0)
@@ -14453,7 +14522,7 @@ void gemm_kernel_generator_t<hw>::gemmBoustrophedonOrder(
 
     auto s0 = state.inputs
                       .bslice; // Slice width/height in WGs. Sign interpretation:
-    //   + means slice in m dimension, - means n dimension
+            //   + means slice in m dimension, - means n dimension
     auto thresh = state.inputs.bthresh; // Slice size adjustment threshold
             //   + means increase slice size by 1 starting with this row/column
             //   - means decrease slice size by 1 starting with this row/column
