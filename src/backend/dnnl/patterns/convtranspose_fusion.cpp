@@ -75,6 +75,7 @@ features on GPU:
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
 4. Post-sum/binary with zero points
+5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -180,6 +181,7 @@ features on GPU:
 2. ConvTranspose with per_tensor output scale != 1
 3. ConvTranspose with zero points
 4. Post-sum/binary with zero points
+5. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -206,6 +208,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pm::pb_op_t *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize,
                             in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
                     dequant_weight->append_decision_function(
                             check_zps_values<0>);
 

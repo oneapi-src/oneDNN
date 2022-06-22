@@ -214,8 +214,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_matmul_div_add_fusion)
+/*
+MatMul: Currently DNNL Backend doesn't support Reorder with zero points
+(used in weight u8->s8) on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_matmul_div_add_fusion_cpu)
         .set_priority(10.5f)
+        .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -223,6 +229,42 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_matmul_div_add_fusion)
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *matmul
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    in_edges_t {in_edge(0, dequant_data, 0),
+                                            in_edge(1, dequant_weight, 0)});
+                    matmul->append_decision_function(check_input_num<2>);
+
+                    pm::pb_op_t *div = pgraph->append_op(impl::op_kind::Divide,
+                            in_edges_t {in_edge(0, matmul, 0)});
+                    pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, div, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_matmul_post_ops_fusion);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+MatMul: Currently DNNL Backend doesn't support Reorder with zero points
+(used in weight u8->s8) on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_matmul_div_add_fusion_gpu)
+        .set_priority(10.5f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_kind(impl::partition_kind::quantized_matmul_post_ops)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
                     pm::pb_op_t *matmul
                             = pgraph->append_op(impl::op_kind::MatMul,
                                     in_edges_t {in_edge(0, dequant_data, 0),
@@ -264,6 +306,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_matmul_div_add_fusion)
 MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Post-sum/binary with zero points
+2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -365,6 +408,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
 MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Post-sum/binary with zero points
+2. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -389,6 +433,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pm::pb_op_t *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize,
                             in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op_t *pmatmul
                             = pgraph->append_op(impl::op_kind::MatMul,
@@ -464,9 +510,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     return fused_op;
                 });
 
+/*
+MatMul: Currently DNNL Backend doesn't support Reorder with zero points
+(used in weight u8->s8) on GPU, while CPU supports.
+*/
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_bf16_matmul_div_add_fusion)
+        dnnl, int8_bf16_matmul_div_add_fusion_cpu)
         .set_priority(10.5f)
+        .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -474,6 +525,54 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *typecast_data
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_data, 0)});
+                    typecast_data->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op_t *typecast_weight
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_weight, 0)});
+                    typecast_weight->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op_t *matmul
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    in_edges_t {in_edge(0, typecast_data, 0),
+                                            in_edge(1, typecast_weight, 0)});
+                    matmul->append_decision_function(check_input_num<2>);
+
+                    pm::pb_op_t *div = pgraph->append_op(impl::op_kind::Divide,
+                            in_edges_t {in_edge(0, matmul, 0)});
+                    pgraph->append_op(impl::op_kind::Add,
+                            in_edges_t {in_edge(0, div, 0)});
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_matmul_post_ops_fusion);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+MatMul: Currently DNNL Backend doesn't support Reorder with zero points
+(used in weight u8->s8) on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_bf16_matmul_div_add_fusion_gpu)
+        .set_priority(10.5f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_kind(impl::partition_kind::quantized_matmul_post_ops)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(impl::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -520,9 +619,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                 |
   [typecast_out -> quant_out]*
 */
+/*
+MatMul: Currently DNNL Backend doesn't support Reorder with zero points
+(used in weight u8->s8) on GPU, while CPU supports.
+*/
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
-        dnnl, int8_bf16_matmul_post_ops_fusion)
+        dnnl, int8_bf16_matmul_post_ops_fusion_cpu)
         .set_priority(10.4f)
+        .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -549,6 +653,130 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = pgraph->append_op(impl::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt_quant_wei, 0)},
                                     "dequant_weight");
+
+                    pm::pb_op_t *typecast_weight
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_weight, 0)});
+                    typecast_weight->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op_t *matmul
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    in_edges_t {in_edge(0, typecast_data, 0),
+                                            in_edge(1, typecast_weight, 0)});
+
+                    // Optional bias
+                    auto popt_bias_graph
+                            = std::make_shared<pb_graph_t>("poptional_bias");
+                    pm::pb_op_t *typecast_bias = popt_bias_graph->append_op(
+                            impl::op_kind::TypeCast, "tc_bias");
+                    typecast_bias->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
+                            impl::op_kind::BiasAdd,
+                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
+                    pbias->append_decision_function(
+                            check_producer_input_num<2>);
+                    popt_bias_graph->create_input_port(0, pbias, 0);
+                    popt_bias_graph->create_output_port(0, pbias, 0);
+                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+                            in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
+
+                    // post add with dequant->typecast
+                    auto padd_graph
+                            = std::make_shared<pb_graph_t>("padd_graph");
+                    pm::pb_op_t *pdequant_add = padd_graph->append_op(
+                            impl::op_kind::Dequantize, "dequant_add");
+                    pm::pb_op_t *typecast_add
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, pdequant_add, 0)});
+                    pm::pb_op_t *padd = padd_graph->append_op(
+                            impl::op_kind::Add,
+                            in_edges_t {in_edge(1, typecast_add, 0)}, "padd");
+                    padd_graph->create_input_port(0, padd, 0);
+                    padd_graph->create_input_port(1, pdequant_add, 0);
+                    padd_graph->create_output_port(0, padd, 0);
+
+                    auto other_postop_graph = std::make_shared<pb_graph_t>(
+                            "pother_postop_graph");
+                    pm::pb_op_t *pop = other_postop_graph->append_alternation(
+                            {impl::op_kind::ReLU, impl::op_kind::GELU,
+                                    impl::op_kind::Divide,
+                                    impl::op_kind::Multiply,
+                                    impl::op_kind::Add},
+                            "pother_postop");
+                    other_postop_graph->create_input_port(0, pop, 0);
+                    other_postop_graph->create_input_port(1, pop, 1);
+                    other_postop_graph->create_output_port(0, pop, 0);
+
+                    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+                    auto palt = alt_graph->append_alternation(
+                            {padd_graph, other_postop_graph}, "palt");
+                    alt_graph->create_input_port(0, palt, 0);
+                    alt_graph->create_output_port(0, palt, 0);
+
+                    auto prep = pgraph->append_optional(alt_graph,
+                            in_edges_t {in_edge(0, popt_bias, 0)},
+                            "prepetition");
+
+                    // Optional typecast_out + quant_out
+                    auto popt_qout_graph = std::make_shared<pb_graph_t>(
+                            "poptional_tc_quant_out");
+                    pm::pb_op_t *ptc_out = popt_qout_graph->append_op(
+                            impl::op_kind::TypeCast, "ptc_out");
+                    pm::pb_op_t *pquant_out = popt_qout_graph->append_op(
+                            impl::op_kind::Quantize,
+                            in_edges_t {in_edge(0, ptc_out, 0)}, "pquant_out");
+                    popt_qout_graph->create_input_port(0, ptc_out, 0);
+                    popt_qout_graph->create_output_port(0, pquant_out, 0);
+                    pgraph->append_optional(popt_qout_graph,
+                            in_edges_t {in_edge(0, prep, 0)},
+                            "popt_tc_quant_out");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_matmul_post_ops_fusion);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+MatMul: Currently DNNL Backend doesn't support Reorder with zero points
+(used in weight u8->s8) on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, int8_bf16_matmul_post_ops_fusion_gpu)
+        .set_priority(10.4f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_kind(impl::partition_kind::quantized_matmul_post_ops)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *typecast_data
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_data, 0)});
+                    typecast_data->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    // Optional quant_weight
+                    auto popt_quant_wei_graph = std::make_shared<pb_graph_t>(
+                            "poptional_quant_weight");
+                    pm::pb_op_t *pquant = popt_quant_wei_graph->append_op(
+                            impl::op_kind::Quantize, "pquant");
+                    pquant->append_decision_function(check_has_producer<false>);
+                    popt_quant_wei_graph->create_input_port(0, pquant, 0);
+                    popt_quant_wei_graph->create_output_port(0, pquant, 0);
+                    auto popt_quant_wei = pgraph->append_optional(
+                            popt_quant_wei_graph, "popt");
+
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    in_edges_t {in_edge(0, popt_quant_wei, 0)},
+                                    "dequant_weight");
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(impl::op_kind::TypeCast,
@@ -951,8 +1179,14 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bf16_MHA_fusion)
                     return fused_op;
                 });
 
-DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, x8x8bf16_div_matmul_fusion)
+/*
+MatMul: Currently DNNL Backend doesn't support Reorder with zero points
+(used in weight u8->s8) on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, x8x8bf16_div_matmul_fusion_cpu)
         .set_priority(10.5f)
+        .set_engine_kind(engine_kind::cpu)
         .set_kind(impl::partition_kind::quantized_matmul_post_ops)
         .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -960,6 +1194,52 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, x8x8bf16_div_matmul_fusion)
                             = pgraph->append_op(impl::op_kind::Dequantize);
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *typecast_data
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_data, 0)});
+                    typecast_data->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op_t *typecast_weight
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, dequant_weight, 0)});
+                    typecast_weight->append_decision_function(
+                            check_output_dtype<impl::data_type::bf16>);
+
+                    pm::pb_op_t *div = pgraph->append_op(impl::op_kind::Divide,
+                            in_edges_t {in_edge(0, typecast_data, 0)});
+
+                    pm::pb_op_t *matmul
+                            = pgraph->append_op(impl::op_kind::MatMul,
+                                    in_edges_t {in_edge(0, div, 0),
+                                            in_edge(1, typecast_weight, 0)});
+                    matmul->append_decision_function(check_input_num<2>);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            op_kind::int8_matmul_post_ops_fusion);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+MatMul: Currently DNNL Backend doesn't support Reorder with zero points
+(used in weight u8->s8) on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
+        dnnl, x8x8bf16_div_matmul_fusion_gpu)
+        .set_priority(10.5f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_kind(impl::partition_kind::quantized_matmul_post_ops)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *dequant_data
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    pm::pb_op_t *dequant_weight
+                            = pgraph->append_op(impl::op_kind::Dequantize);
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(impl::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});

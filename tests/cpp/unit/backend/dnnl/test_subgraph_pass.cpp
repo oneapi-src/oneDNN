@@ -1349,7 +1349,7 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulDivAddPasses) {
 
     agraph.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_bf16_matmul_div_add_fusion");
+    pass::pass_base_ptr apass = get_pass("int8_bf16_matmul_div_add_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1);
     ASSERT_EQ(get_fused_op(agraph.get_partitions()[0])->get_kind(),
@@ -1777,7 +1777,9 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     g.add_op(&qdst_op);
     g.build_graph();
 
-    pass::pass_base_ptr apass = get_pass("int8_bf16_matmul_post_ops_fusion");
+    pass::pass_base_ptr apass = get_pass(engine.kind() == impl::engine_kind::gpu
+                    ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                    : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
 

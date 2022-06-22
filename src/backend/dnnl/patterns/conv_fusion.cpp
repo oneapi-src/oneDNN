@@ -387,6 +387,7 @@ Conv: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Conv with dst zero points
 2. Post-sum/binary with zero points
+3. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -490,6 +491,7 @@ Conv: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Conv with dst zero points
 2. Post-sum/binary with zero points
+3. Reorder with zero points (used in weight u8->s8)
 While CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
@@ -514,6 +516,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                     pm::pb_op_t *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize,
                             in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op_t *pconv
                             = pgraph->append_op(impl::op_kind::Convolution,
@@ -610,8 +614,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                 |
 */
 /*
-Conv: Currently DNNL Backend doesn't support Conv with 
-dst zero points on GPU, while CPU supports.
+Conv: Currently DNNL Backend doesn't support below
+features on GPU:
+1. Conv with dst zero points
+2. Reorder with zero points (used in weight u8->s8)
+while CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_cpu)
         .set_priority(10.5f)
@@ -696,8 +703,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_cpu)
                 });
 
 /*
-Conv: Currently DNNL Backend doesn't support Conv with 
-dst zero points on GPU, while CPU supports.
+Conv: Currently DNNL Backend doesn't support below
+features on GPU:
+1. Conv with dst zero points
+2. Reorder with zero points (used in weight u8->s8)
+while CPU supports.
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
         .set_priority(10.5f)
@@ -720,6 +730,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
                     pm::pb_op_t *dequant_weight = pgraph->append_op(
                             impl::op_kind::Dequantize,
                             in_edges_t {in_edge(0, popt, 0)}, "dequant_weight");
+                    dequant_weight->append_decision_function(
+                            check_input_dtype<impl::data_type::s8>);
 
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(impl::op_kind::TypeCast,

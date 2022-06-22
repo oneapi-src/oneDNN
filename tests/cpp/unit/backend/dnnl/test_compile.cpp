@@ -4677,6 +4677,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     impl::op_t dequantize(0, impl::op_kind::Dequantize, "dq");
     dequantize.set_attr<std::vector<float>>(impl::op_attr::scales, {0.1f});
     int64_t zps = eng.kind() == impl::engine_kind::gpu ? 0 : 10;
+
     dequantize.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zps});
     dequantize.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
     dequantize.set_attr<int64_t>(impl::op_attr::axis, 0);
@@ -4707,7 +4708,9 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     g.add_op(&maxpool);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass1 = get_pass("dequant_pass");
+    impl::pass::pass_base_ptr apass1 = get_pass(
+            eng.kind() == impl::engine_kind::gpu ? "dequant_pass_gpu"
+                                                 : "dequant_pass_cpu");
     impl::pass::pass_base_ptr apass2 = get_pass("max_pool_pass");
     apass1->run(g);
     apass2->run(g);
@@ -10308,7 +10311,9 @@ TEST(Execute, QuantizePerTensor) {
     g.add_op(&quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
+    impl::pass::pass_base_ptr apass = get_pass(
+            engine.kind() == impl::engine_kind::cpu ? "quant_pass_cpu"
+                                                    : "quant_pass_gpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10367,7 +10372,9 @@ TEST(Execute, QuantizePerTensorAnyLayout) {
     g.add_op(&quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
+    impl::pass::pass_base_ptr apass = get_pass(
+            engine.kind() == impl::engine_kind::cpu ? "quant_pass_cpu"
+                                                    : "quant_pass_gpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10423,7 +10430,9 @@ TEST(Execute, QuantizePerChannelSymmetric) {
     g.add_op(&quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("quant_pass");
+    impl::pass::pass_base_ptr apass = get_pass(
+            engine.kind() == impl::engine_kind::cpu ? "quant_pass_cpu"
+                                                    : "quant_pass_gpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10541,7 +10550,9 @@ TEST(Execute, DequantizePerTensor) {
     g.add_op(&dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
+    impl::pass::pass_base_ptr apass = get_pass(
+            engine.kind() == impl::engine_kind::cpu ? "dequant_pass_cpu"
+                                                    : "dequant_pass_gpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10600,7 +10611,9 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
     g.add_op(&dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
+    impl::pass::pass_base_ptr apass = get_pass(
+            engine.kind() == impl::engine_kind::cpu ? "dequant_pass_cpu"
+                                                    : "dequant_pass_gpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -10657,7 +10670,9 @@ TEST(Execute, DequantizePerChannelSymmetric) {
     g.add_op(&dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
+    impl::pass::pass_base_ptr apass = get_pass(
+            engine.kind() == impl::engine_kind::cpu ? "dequant_pass_cpu"
+                                                    : "dequant_pass_gpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -17875,7 +17890,7 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
                                 ? "int8_pool_binary_fusion_gpu"
-                                : "int8_pool_binary_fusion");
+                                : "int8_pool_binary_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -18011,7 +18026,7 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
                                 ? "int8_pool_binary_fusion_gpu"
-                                : "int8_pool_binary_fusion");
+                                : "int8_pool_binary_fusion_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1);
         auto part = g.get_partitions()[0];
@@ -18191,7 +18206,7 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         impl::pass::pass_base_ptr apass
                 = get_pass(engine.kind() == impl::engine_kind::gpu
                                 ? "int8_pool_binary_fusion_gpu"
-                                : "int8_pool_binary_fusion");
+                                : "int8_pool_binary_fusion_cpu");
         apass->run(g);
 
         ASSERT_EQ(g.get_num_partitions(), 1);
@@ -19980,7 +19995,10 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
     g.add_op(&binary_op);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_matmul_post_ops_fusion_gpu"
+                            : "int8_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -20112,7 +20130,8 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
     g.add_op(&binary_op2);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("int8_matmul_div_add_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("int8_matmul_div_add_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -20251,7 +20270,9 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
             g.build_graph();
 
             impl::pass::pass_base_ptr apass
-                    = get_pass("int8_bf16_matmul_post_ops_fusion");
+                    = get_pass(engine.kind() == impl::engine_kind::gpu
+                                    ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                                    : "int8_bf16_matmul_post_ops_fusion_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1);
             auto part = g.get_partitions()[0];
@@ -20402,7 +20423,9 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
             ASSERT_EQ(g.build_graph(), impl::status::success);
 
             impl::pass::pass_base_ptr apass
-                    = get_pass("int8_bf16_matmul_post_ops_fusion");
+                    = get_pass(engine.kind() == impl::engine_kind::gpu
+                                    ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                                    : "int8_bf16_matmul_post_ops_fusion_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1);
             auto part = g.get_partitions()[0];
@@ -20565,7 +20588,7 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
             g.build_graph();
 
             impl::pass::pass_base_ptr apass
-                    = get_pass("int8_bf16_matmul_post_ops_fusion");
+                    = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1);
             auto part = g.get_partitions()[0];
@@ -20738,7 +20761,9 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
             g.build_graph();
 
             impl::pass::pass_base_ptr apass
-                    = get_pass("int8_bf16_matmul_div_add_fusion");
+                    = get_pass(engine.kind() == impl::engine_kind::gpu
+                                    ? "int8_bf16_matmul_div_add_fusion_gpu"
+                                    : "int8_bf16_matmul_div_add_fusion_cpu");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1);
             auto part = g.get_partitions()[0];
@@ -20866,7 +20891,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion");
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                            : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -21021,7 +21048,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion");
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                            : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -21159,7 +21188,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddBF16U8s8bf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion");
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                            : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -21328,7 +21359,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddAddBF16U8s8bf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion");
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                            : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -21472,7 +21505,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion");
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                            : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -21645,7 +21680,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion");
+            = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -21977,7 +22012,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion");
+            = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24121,7 +24156,7 @@ TEST(Execute, DynamicQuantizeS32ZpsPerTensor) {
     g.add_op(&dync_quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24198,7 +24233,7 @@ TEST(Execute, DynamicQuantizeS32ZpsPerChannel) {
     g.add_op(&dync_quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24269,7 +24304,7 @@ TEST(Execute, DynamicQuantizeS8ZpsPerTensor) {
     g.add_op(&dync_quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24336,7 +24371,7 @@ TEST(Execute, DynamicQuantizeNoZpsPerTensor) {
     g.add_op(&dync_quantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
+    impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24405,7 +24440,7 @@ TEST(Execute, DynamicDequantizeS32ZpsPerTensor) {
     g.add_op(&dync_dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
+    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -24472,7 +24507,7 @@ TEST(Execute, DynamicDequantizeNoZpsPerTensor) {
     g.add_op(&dync_dequantize);
     g.build_graph();
 
-    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
+    impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];
@@ -25425,7 +25460,8 @@ TEST(ExecuteSubgraphInt8, U8u8bf16DivBmm) {
     ASSERT_EQ(g.add_op(&binary_op), impl::status::success);
     ASSERT_EQ(g.build_graph(), impl::status::success);
 
-    impl::pass::pass_base_ptr apass = get_pass("x8x8bf16_div_matmul_fusion");
+    impl::pass::pass_base_ptr apass
+            = get_pass("x8x8bf16_div_matmul_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1);
     auto part = g.get_partitions()[0];

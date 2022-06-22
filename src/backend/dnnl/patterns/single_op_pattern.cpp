@@ -17,6 +17,7 @@
 #include "backend/dnnl/internal_ops.hpp"
 #include "backend/dnnl/patterns/fusions.hpp"
 #include "backend/dnnl/patterns/transformation_pattern.hpp"
+#include "backend/dnnl/patterns/utils.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -114,18 +115,6 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         logsoftmax_bwd_pass, dnnl, LogSoftmaxBackprop, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(softmax_pass, dnnl, SoftMax, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(softmax_bwd_pass, dnnl, SoftMaxBackprop, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(quant_pass, dnnl, Quantize, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
-
-// single quantize/dequantize op doesn't need to check data type,
-// because it's checked in opschema
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(quant_pass, dnnl, Quantize, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(dequant_pass, dnnl, Dequantize, 8.f)
-
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(dync_quant_pass, dnnl, DynamicQuantize, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        dync_dequant_pass, dnnl, DynamicDequantize, 8.f)
-
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, dnnl, Reorder, 8.f)
 
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
@@ -279,6 +268,167 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, softplus_bw_pass)
                 "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
                     std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
                             impl::op_kind::SoftPlusBackprop);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+Quantize: Currently DNNL Backend doesn't support Reorder with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, quant_pass_cpu)
+        .set_priority(8.f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pgraph->append_op(impl::op_kind::Quantize, "quant");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(impl::op_kind::Quantize);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+Quantize: Currently DNNL Backend doesn't support Reorder with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, quant_pass_gpu)
+        .set_priority(8.f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op_t *quant = pgraph->append_op(
+                            impl::op_kind::Quantize, "quant");
+                    quant->append_decision_function(check_zps_values<0>);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(impl::op_kind::Quantize);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+Dequantize: Currently DNNL Backend doesn't support Reorder with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, dequant_pass_cpu)
+        .set_priority(8.f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pgraph->append_op(impl::op_kind::Dequantize, "dequant");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(impl::op_kind::Dequantize);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+Dequantize: Currently DNNL Backend doesn't support Reorder with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, dequant_pass_gpu)
+        .set_priority(8.f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op_t *dequant = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequant");
+                    dequant->append_decision_function(check_zps_values<0>);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op
+                            = std::make_shared<op_t>(impl::op_kind::Dequantize);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+DynamicQuantize: Currently DNNL Backend doesn't support Reorder with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, dync_quant_pass_cpu)
+        .set_priority(8.f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pgraph->append_op(impl::op_kind::DynamicQuantize, "quant");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            impl::op_kind::DynamicQuantize);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+DynamicQuantize: Currently DNNL Backend doesn't support Reorder with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, dync_quant_pass_gpu)
+        .set_priority(8.f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op_t *quant = pgraph->append_op(
+                            impl::op_kind::DynamicQuantize, "quant");
+                    quant->append_decision_function(check_zps_values<0>);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            impl::op_kind::DynamicQuantize);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+DynamicDequantize: Currently DNNL Backend doesn't support Reorder with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, dync_dequant_pass_cpu)
+        .set_priority(8.f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pgraph->append_op(
+                            impl::op_kind::DynamicDequantize, "dequant");
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            impl::op_kind::DynamicDequantize);
+                    fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
+                    return fused_op;
+                });
+
+/*
+DynamicDequantize: Currently DNNL Backend doesn't support Reorder with zero points
+on GPU, while CPU supports.
+*/
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, dync_dequant_pass_gpu)
+        .set_priority(8.f)
+        .set_engine_kind(engine_kind::gpu)
+        .set_attr<FCreateV2Pattern>("FCreateV2Pattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op_t *dequant = pgraph->append_op(
+                            impl::op_kind::DynamicDequantize, "dequant");
+                    dequant->append_decision_function(check_zps_values<0>);
+                })
+        .set_attr<FCreateV2FusedOp>(
+                "FCreateV2FusedOp", []() -> std::shared_ptr<op_t> {
+                    std::shared_ptr<op_t> fused_op = std::make_shared<op_t>(
+                            impl::op_kind::DynamicDequantize);
                     fused_op->set_attr<std::string>(op_attr::backend, "dnnl");
                     return fused_op;
                 });
