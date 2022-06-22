@@ -2415,9 +2415,12 @@ private:
 #ifndef SANITY_CHECK
 // The following types are intrusive pointers and, as such, should have the same
 // size as a pointer.
-static_assert(sizeof(object_t) <= sizeof(void *));
-static_assert(sizeof(expr_t) <= sizeof(void *));
-static_assert(sizeof(stmt_t) <= sizeof(void *));
+static_assert(sizeof(object_t) <= sizeof(void *),
+        "intrusive pointer type object_t size is greater than void * size.");
+static_assert(sizeof(expr_t) <= sizeof(void *),
+        "intrusive pointer type expr_t size is greater than void * size.");
+static_assert(sizeof(stmt_t) <= sizeof(void *),
+        "intrusive pointer type stmt_t size is greater than void * size.");
 #endif
 
 } // namespace jit
