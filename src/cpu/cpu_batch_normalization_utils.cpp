@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, bool is_nspc,
         balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
     } else {
         if (is_nspc) {
-            if ((nthr <= C_blks && nthr == 1) || C_blks <= 8)
+            if (C_blks <= 8)
                 C_nthr = 1;
             else if (nthr >= 8 && C_blks <= 32)
                 C_nthr = 8;
