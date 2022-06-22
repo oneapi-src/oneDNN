@@ -1821,10 +1821,11 @@ struct driver_t : public c_compatible {
         dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
         size_t data_size = dt_size_ * bdesc_->MB() * C_PADDED * bdesc_->D()
                 * bdesc_->H() * bdesc_->W();
-        l3_size_ = platform::get_per_core_cache_size(3) * nthr / 2; // XXX
+        const size_t l3_size
+                = platform::get_per_core_cache_size(3) * nthr / 2; // XXX
         // TODO: cache balancing for nspc
-        do_blocking_ = is_nspc_ ? false
-                                : (data_size >= l3_size_ / 2 && l3_size_ > 0);
+        do_blocking_
+                = is_nspc_ ? false : (data_size >= l3_size / 2 && l3_size > 0);
     }
 
     ~driver_t() = default;
@@ -2032,7 +2033,6 @@ private:
     jit_bnorm_t<isa> ker_;
     bool do_blocking_;
     bool is_nspc_;
-    size_t l3_size_;
     size_t dt_size_;
 };
 } // namespace bnorm_impl
