@@ -181,58 +181,66 @@ status_t insert_singleton_dimension(arm_compute::TensorInfo &ti, size_t dim_i) {
     return status::success;
 }
 
-status_t permute_common_dense_dimension_to_last(memory_desc_t *d0_permed,
-        memory_desc_t *d1_permed, memory_desc_t *d2_permed,
-        const memory_desc_t *d0, const memory_desc_t *d1,
-        const memory_desc_t *d2) {
+int reorder_dimensions_by_stride(std::vector<memory_desc_t *> permuted_mds,
+        std::vector<const memory_desc_t *> mds) {
 
-    // Number of dimensions must match
-    int ndims = d0->ndims;
-    if (ndims != d1->ndims || ndims != d2->ndims) return status::unimplemented;
+    // Vectors must be the same length and not empty
+    if (permuted_mds.size() != mds.size() || mds.empty()) return 0;
 
-    if (d0->format_kind != format_kind::blocked
-            || d1->format_kind != format_kind::blocked
-            || d2->format_kind != format_kind::blocked)
-        return status::unimplemented;
+    const dim_t ndims = mds[0]->ndims;
 
-    const dnnl_dims_t &d0_strides = d0->format_desc.blocking.strides;
-    const dnnl_dims_t &d1_strides = d1->format_desc.blocking.strides;
-    const dnnl_dims_t &d2_strides = d2->format_desc.blocking.strides;
+    for (const auto &md : mds) {
+        // Number of dimensions must match and must be blocked
+        if (md->ndims != ndims || md->format_kind != format_kind::blocked)
+            return 0;
 
-    int inner_dim = ndims - 1;
-
-    // descs already share a common dense axis, no need to permute, just copy
-    // By dense we mean that it has a stride of 1
-    if (d0_strides[inner_dim] == 1 && d1_strides[inner_dim] == 1
-            && d2_strides[inner_dim] == 1) {
-        *d0_permed = *d0;
-        *d1_permed = *d1;
-        *d2_permed = *d2;
-        return status::success;
+        // Check all the dimensions are the same size
+        if (!utils::array_cmp(md->dims, mds[0]->dims, (size_t)ndims)) return 0;
     }
 
-    // Create permutation which swaps nothing
+    int reordered_dims = 0;
+
+    // Create initial permutation which swaps nothing
     std::vector<int> perm(ndims);
-    for (int i = inner_dim; i >= 0; --i) {
-        perm[i] = i;
-    }
+    std::iota(perm.begin(), perm.end(), 0);
 
-    // Look for the innermost common dense axis
-    for (int i = inner_dim; i >= 0; --i) {
-        if (d0_strides[i] == 1 && d1_strides[i] == 1 && d2_strides[i] == 1) {
-            // We have found it! Swap this dimension with inner one
-            perm[i] = inner_dim;
-            perm[inner_dim] = i;
-            break;
+    // For each dimension d1, look for a dimension (d2) in which every md has
+    // the target stride. Target stride is initially 1 (i.e. dense) but will
+    // increase each time we find a dimension which matches.
+    dim_t target_stride = 1;
+    for (dim_t d1 = ndims - 1; d1 >= 0; --d1) {
+        bool found_target = false;
+        for (dim_t d2 = d1; d2 >= 0; --d2) {
+            found_target = std::all_of(
+                    mds.begin(), mds.end(), [=](const memory_desc_t *m) {
+                        return m->format_desc.blocking.strides[perm[d2]]
+                                == target_stride;
+                    });
+            if (found_target) {
+                // Multiply target stride by dimension
+                target_stride *= mds[0]->dims[perm[d2]];
+                // Swap the found dimension (d2) into d1
+                nstl::swap(perm[d2], perm[d1]);
+                ++reordered_dims;
+                break;
+            }
         }
-        // Got to the outermost dimension without finding a common dense axis
-        if (i == 0) return status::unimplemented;
+        // If we didn't find the target, we can't move onto the next dimension
+        if (!found_target) break;
     }
 
-    dnnl_memory_desc_permute_axes(d0_permed, d0, perm.data());
-    dnnl_memory_desc_permute_axes(d1_permed, d1, perm.data());
-    dnnl_memory_desc_permute_axes(d2_permed, d2, perm.data());
-    return status::success;
+    // dnnl_memory_desc_permute_axes applies the inverse of the permutation
+    // so we need to invert our permutation to get what we want
+    std::vector<int> invperm(ndims);
+    for (dim_t d = 0; d < ndims; ++d)
+        invperm[perm[d]] = d;
+
+    // Apply the inverse permutation to each dimension axis
+    for (size_t i = 0; i < mds.size(); i++) {
+        dnnl_memory_desc_permute_axes(permuted_mds[i], mds[i], invperm.data());
+    }
+
+    return reordered_dims;
 }
 
 } // namespace acl_utils
