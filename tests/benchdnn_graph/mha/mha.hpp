@@ -27,6 +27,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
 #include "dnnl_graph_common.hpp"
+#include "dnnl_graph_common_ext.hpp"
 #include "utils/perf_report.hpp"
 
 namespace mha {
