@@ -407,16 +407,34 @@ void block_helper_t::init_bmnk_blocks() {
         }
         case fma_kind_t::dp4a:
         case fma_kind_t::dpas:
-        case fma_kind_t::dpasw:
+        case fma_kind_t::dpasw: {
             ir_assert(vectorize_by_n())
                     << "dpas can support N vectorization only.";
-            m_inst_blk = 8;
+            int max_iter_dim = prb_max_dim('M', tile_level_t::iter);
+            int target_m_blk = reduce_m_block ? 16 : 32;
+            if (max_iter_dim % target_m_blk != 0 && max_iter_dim > 32) {
+                float max_utilization_rate = 0.;
+                for (int i
+                        = min(32, utils::rnd_dn((int)(1.5 * target_m_blk), 4));
+                        i > target_m_blk; i -= 4) {
+                    float utilization_rate = (float)max_iter_dim
+                            / utils::rnd_up(max_iter_dim, i);
+                    // Heuristic constant preferring larger blocks, experimentally determined.
+                    const float threshhold = 1.05;
+                    if (utilization_rate > threshhold * max_utilization_rate) {
+                        max_utilization_rate = utilization_rate;
+                        target_m_blk = i;
+                    }
+                }
+            }
+            m_blk = target_m_blk;
+            m_inst_blk = m_blk % 8 == 0 ? 8 : m_blk;
             bn_inst_blk = 8;
             k_inst_blk = is_x8x8s32() ? 32 : 16;
-            m_blk = (reduce_m_block ? 16 : 32);
             bn_blk = is_ge_hpc ? 64 : 32;
             k_blk = k_inst_blk;
             break;
+        }
         default: ir_error_not_expected();
     }
 

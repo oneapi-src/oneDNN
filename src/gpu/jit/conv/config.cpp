@@ -38,7 +38,9 @@ status_t conv_config_t::init_common_blocking() {
     bh->set_dim("mb", mb);
     bh->set_dim("g", g);
     bh->set_dim("oc", oc);
-    bh->set_dim("ic", ic);
+    //take into account blocked ic channels when selecting block sizes
+    bh->set_dim("ic",
+            is_bwd_w && is_compute_nhwc("src") ? wei_layout.dims()[2] : ic);
     bh->set_dims({"kd", "kh", "kw"}, {kd, kh, kw});
 
     bh->set_b_dims({"g"});
@@ -177,6 +179,9 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
         if (is_dw) bh->set_pref_tg_block(osp_name);
         bh->allow_split({osp_name, "mb"});
         bh->reorder({osp_name, "mb"});
+        if (!fuse_spatial && mb < 16 && iw % 8 != 0) {
+            bh->set_max_m_tg_dim(1);
+        }
     } else {
         const int large_sp_threshold = is_ge_xe_hpc() ? 128 : 256;
         if (!is_dw && osp > large_sp_threshold) bh->set_pref_tg_block("oc");
