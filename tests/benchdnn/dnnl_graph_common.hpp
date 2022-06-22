@@ -60,7 +60,6 @@ enum class fill_status {
 };
 typedef fill_status fill_status_t;
 
-bool check_graph_creation_status(const struct graph_prb_t *prb, res_t *res);
 void check_known_skipped_case_graph_common(
         const std::vector<dnnl_data_type_t> &v_dt, const std::string &tag,
         const dir_t &dir, res_t *res);
@@ -273,11 +272,6 @@ dnn_mem_t make_dnn_mem(
 
 dims_t calculate_strides(dims_t dims, dt dtype, const std::string &tag);
 
-template <typename T, std::size_t N>
-constexpr T *end(T (&arr)[N]) noexcept {
-    return arr + N;
-}
-
 typedef std::function<void(const dnnl::graph::engine &,
         const std::vector<dnnl::graph::logical_tensor> &,
         const std::vector<dnnl::graph::logical_tensor> &)>
@@ -397,8 +391,6 @@ protected:
     bool has_post_sum_ {false};
     bool has_post_eltwise_ {false};
     bool with_quantization_ {false};
-
-    friend struct po_handlers_t;
 };
 
 struct quant_data_t {
@@ -450,102 +442,6 @@ quant_data_t bin_po_entry2quant_data(const attr_t::post_ops_t::entry_t &e,
         dnnl::graph::logical_tensor::data_type default_dt);
 
 bool is_dequantize_required_for(const attr_t::post_ops_t::entry_t &e);
-
-struct po_handlers_t {
-    using dt = dnnl::graph::logical_tensor::data_type;
-    using lt = dnnl::graph::logical_tensor::layout_type;
-
-private:
-    struct eltwise_po_handler_t {
-        fill_status_t operator()(graph_prb_t &p,
-                const attr_t::post_ops_t::entry_t &po_entry,
-                bool allow_swish_fuse = false);
-    };
-
-    struct binary_po_handler_t {
-        fill_status_t operator()(
-                graph_prb_t &p, const attr_t::post_ops_t::entry_t &po_entry);
-    };
-
-    struct sum_po_handler_t {
-        fill_status_t operator()(graph_prb_t &p);
-    };
-
-    struct low_precision_handler_t {
-        fill_status_t insert_dequant_before(const std::string &lt_id,
-                const quant_data_t &qdata, graph_prb_t &p,
-                bool as_constant = false);
-        fill_status_t insert_quant_after(const std::string &lt_id,
-                const quant_data_t &qdata, graph_prb_t &p);
-        fill_status_t handle_quant_dequant_(const std::string &lt_id,
-                const quant_data_t &qdata, graph_prb_t &p, bool as_constant,
-                dnnl::graph::op::kind op_kind);
-    };
-
-public:
-    union {
-        struct {
-            low_precision_handler_t low_precision_handler;
-        } concat;
-
-        struct {
-            eltwise_po_handler_t eltw_handler;
-            sum_po_handler_t sum_handler;
-            binary_po_handler_t bin_handler;
-            low_precision_handler_t low_precision_handler;
-        } conv;
-
-        struct {
-            eltwise_po_handler_t eltw_handler;
-            sum_po_handler_t sum_handler;
-            binary_po_handler_t bin_handler;
-            low_precision_handler_t low_precision_handler;
-        } deconv;
-
-        struct {
-            eltwise_po_handler_t eltw_handler;
-            sum_po_handler_t sum_handler;
-            binary_po_handler_t bin_handler;
-            low_precision_handler_t low_precision_handler;
-        } matmul;
-
-        struct {
-            eltwise_po_handler_t eltw_handler;
-            sum_po_handler_t sum_handler;
-            binary_po_handler_t bin_handler;
-        } binary;
-
-        struct {
-            binary_po_handler_t bin_handler;
-            low_precision_handler_t low_precision_handler;
-        } eltwise;
-
-        struct {
-            eltwise_po_handler_t eltw_handler;
-        } bnorm;
-
-        struct {
-            binary_po_handler_t bin_handler;
-            low_precision_handler_t low_precision_handler;
-        } pool;
-
-        struct {
-            eltwise_po_handler_t eltw_handler;
-            sum_po_handler_t sum_handler;
-            binary_po_handler_t bin_handler;
-        } reduction;
-
-        struct {
-            sum_po_handler_t sum_handler;
-        } reorder;
-
-        struct {
-            eltwise_po_handler_t eltw_handler;
-            sum_po_handler_t sum_handler;
-            binary_po_handler_t bin_handler;
-        } resampling;
-    };
-};
 
 fill_status_t append_graph_with_eltwise(
         const attr_t::post_ops_t::entry_t &eltw_entry);
