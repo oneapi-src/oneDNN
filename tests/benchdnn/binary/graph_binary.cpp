@@ -22,10 +22,12 @@
 #include "binary/binary.hpp"
 #include "binary/graph_binary.hpp"
 
+#include <tuple>
+
 namespace benchdnnext {
 namespace binary {
 
-void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
+static void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
     const auto src0_dims = prb->vdims[0];
     const auto src1_dims = prb->vdims[1];
 
@@ -44,7 +46,8 @@ void check_broadcast_rules(const ::binary::prb_t *prb, res_t *res) {
     }
 }
 
-void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
+static void check_known_skipped_case_graph(
+        const ::binary::prb_t *prb, res_t *res) {
     using p = attr_t::post_ops_t;
     // Binary ops supports relu, sigmoid, sum and binary post-ops.
     // Other cases are being skipped.
@@ -62,55 +65,57 @@ void check_known_skipped_case_graph(const ::binary::prb_t *prb, res_t *res) {
     if (res->state == SKIPPED) return;
 }
 
-fill_status_t binary_graph_prb_t::handle_main_op_(const ::binary::prb_t *prb) {
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
-    const std::string SRC0 {TENSOR_ID + "_SRC"};
-    const std::string SRC1 {TENSOR_ID + "_SRC1"};
-    const std::string DST {TENSOR_ID + "_DST"};
+fill_status_t append_graph_with_block(const ::binary::prb_t *prb) {
+    graph_t &graph = graph_t::get();
 
-    tensor_descs_.emplace(
-            SRC0, convert_dt(prb->sdt[0]), prb->vdims[0], prb->stag[0]);
-    tensor_descs_.emplace(
-            SRC1, convert_dt(prb->sdt[1]), prb->vdims[1], prb->stag[1]);
-    tensor_descs_.emplace(DST, convert_dt(prb->ddt), prb->dst_dims, prb->dtag);
+    const auto connect_to_previous_block = graph.has_blocks();
 
-    const auto op_kind
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::BINARY);
+    const auto src0_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, lt_kind::SRC);
+    const auto src1_id = graph.generate_id_for(op_id, lt_kind::SRC1);
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+
+    graph.create_lt(
+            src0_id, convert_dt(prb->sdt[0]), prb->vdims[0], prb->stag[0]);
+    graph.create_lt(
+            src1_id, convert_dt(prb->sdt[1]), prb->vdims[1], prb->stag[1]);
+    graph.create_lt(dst_id, convert_dt(prb->ddt), prb->dst_dims, prb->dtag);
+
+    const auto binary_kind
             = convert_alg_kind(attr_t::post_ops_t::kind2dnnl_kind(prb->alg));
-
-    dnnl::graph::op binary(new_op_id, op_kind,
-            {tensor_descs_[SRC0], tensor_descs_[SRC1]}, {tensor_descs_[DST]},
-            "binary");
-
     bool has_post_sum = false;
-    for (const auto &po : prb->attr.post_ops.entry) {
-        if (po.is_sum_kind()) { has_post_sum = true; }
-    }
+    for (const auto &po : prb->attr.post_ops.entry)
+        if (po.is_sum_kind()) has_post_sum = true;
     const std::string auto_broadcast
             = (prb->vdims[0] == prb->vdims[1] && !has_post_sum) ? "none"
                                                                 : "numpy";
 
-    binary.set_attr("auto_broadcast", auto_broadcast);
+    dnnl::graph::op binary_op(op_id, binary_kind, graph.stringify_id(op_id));
+    binary_op.set_attr("auto_broadcast", auto_broadcast);
 
-    ops_.emplace_back(binary);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, binary_op, {src0_id, src1_id}, {dst_id});
+
+    // handle post ops
+    fill_status_t status;
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        if (entry.is_binary_kind()) {
+            std::tie(status, std::ignore) = append_graph_with_binary(entry);
+            BENCHDNNEXT_VERIFY(status);
+        } else if (entry.is_eltwise_kind()) {
+            status = append_graph_with_eltwise(entry);
+            BENCHDNNEXT_VERIFY(status);
+        } else if (entry.is_sum_kind()) {
+            std::tie(status, std::ignore) = append_graph_with_sum(entry);
+            BENCHDNNEXT_VERIFY(status);
+        }
+    }
+
+    graph.close_block();
 
     return fill_status::DONE;
-}
-
-fill_status_t binary_graph_prb_t::handle_elt_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.binary.eltw_handler(*this, po_entry);
-}
-
-fill_status_t binary_graph_prb_t::handle_bin_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.binary.bin_handler(*this, po_entry);
-}
-
-fill_status_t binary_graph_prb_t::handle_sum_() {
-    return po_handler.binary.sum_handler(*this);
 }
 
 int doit(const ::binary::prb_t *prb, res_t *res) {
@@ -127,21 +132,27 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
     check_broadcast_rules(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    binary_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
     // Filter partitions
-    const auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -216,6 +227,8 @@ int doit(const ::binary::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
+
+    cleanup();
 
     return OK;
 }
