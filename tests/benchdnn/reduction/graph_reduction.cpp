@@ -23,35 +23,38 @@
 #include "reduction/graph_reduction.hpp"
 #include "reduction/reduction.hpp"
 
+#include <tuple>
+
 namespace benchdnnext {
 namespace reduction {
 
-void check_known_skipped_case_graph(const ::reduction::prb_t *prb, res_t *res) {
+static void check_known_skipped_case_graph(
+        const ::reduction::prb_t *prb, res_t *res) {
     // TODO: to align with original benchdnn, we should consider moving
     // skip_unimplemented_prb call after compilation step
     skip_invalid_and_unimplemented_prb(prb, res);
 }
 
-fill_status_t reduction_graph_prb_t::handle_main_op_(
-        const ::reduction::prb_t *prb) {
-    const size_t new_op_id = ops_.size();
-    const std::string TENSOR_ID = std::to_string(new_op_id);
-    tensor_id["main"].push_back(TENSOR_ID);
-    const std::string SRC {TENSOR_ID + "_SRC"};
-    const std::string DST {TENSOR_ID + "_DST"};
+fill_status_t append_graph_with_block(const ::reduction::prb_t *prb) {
+    graph_t &graph = graph_t::get();
 
-    const auto src_dt = convert_dt(prb->sdt);
-    const auto dst_dt = convert_dt(prb->ddt);
+    const auto connect_to_previous_block = graph.has_blocks();
+
+    // handle main op
+    const auto op_id = graph.generate_id_for(entry_kind::REDUCTION);
+    const auto src_id = connect_to_previous_block
+            ? graph.get_last_block_out_id()
+            : graph.generate_id_for(op_id, lt_kind::SRC);
+    const auto dst_id = graph.generate_id_for(op_id, lt_kind::DST);
+
     const auto src_dims = prb->vdims[0];
     const auto dst_dims = prb->vdims[1];
 
-    tensor_descs_.emplace(SRC, src_dt, src_dims, prb->stag);
-    tensor_descs_.emplace(DST, dst_dt, dst_dims, prb->dtag);
+    graph.create_lt(src_id, convert_dt(prb->sdt), src_dims, prb->stag);
+    graph.create_lt(dst_id, convert_dt(prb->ddt), dst_dims, prb->dtag);
 
-    const auto op_kind = convert_alg_kind(::reduction::alg2alg_kind(prb->alg));
-    dnnl::graph::op reduction(new_op_id, op_kind, {tensor_descs_[SRC]},
-            {tensor_descs_[DST]}, "reduction");
-
+    const auto reduction_kind
+            = convert_alg_kind(::reduction::alg2alg_kind(prb->alg));
     std::vector<int64_t> axes;
     const int reduction_dim_size = 1;
     for (auto d = 0; d < prb->ndims; ++d) {
@@ -60,26 +63,30 @@ fill_status_t reduction_graph_prb_t::handle_main_op_(
         if (is_reduction_dim) axes.push_back(d);
     }
 
-    reduction.set_attr("keep_dims", true).set_attr("axes", axes);
+    dnnl::graph::op reduction_op(
+            op_id, reduction_kind, graph.stringify_id(op_id));
+    reduction_op.set_attr("keep_dims", true).set_attr("axes", axes);
 
-    ops_.emplace_back(reduction);
-    curr_out_map_ids_.assign({TENSOR_ID});
+    graph.append(op_id, reduction_op, {src_id}, {dst_id});
+
+    // handle post ops
+    fill_status_t status;
+    for (const auto &entry : prb->attr.post_ops.entry) {
+        if (entry.is_binary_kind()) {
+            std::tie(status, std::ignore) = append_graph_with_binary(entry);
+            BENCHDNNEXT_VERIFY(status);
+        } else if (entry.is_eltwise_kind()) {
+            status = append_graph_with_eltwise(entry);
+            BENCHDNNEXT_VERIFY(status);
+        } else if (entry.is_sum_kind()) {
+            std::tie(status, std::ignore) = append_graph_with_sum(entry);
+            BENCHDNNEXT_VERIFY(status);
+        }
+    }
+
+    graph.close_block();
 
     return fill_status::DONE;
-}
-
-fill_status_t reduction_graph_prb_t::handle_bin_(
-        const attr_t::post_ops_t::entry_t &po_entry) {
-    return po_handler.reduction.bin_handler(*this, po_entry);
-}
-
-fill_status_t reduction_graph_prb_t::handle_elt_(
-        const attr_t::post_ops_t::entry_t &po) {
-    return po_handler.reduction.eltw_handler(*this, po);
-}
-
-fill_status_t reduction_graph_prb_t::handle_sum_() {
-    return po_handler.reduction.sum_handler(*this);
 }
 
 int doit(const ::reduction::prb_t *prb, res_t *res) {
@@ -89,21 +96,27 @@ int doit(const ::reduction::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    reduction_graph_prb_t graph_prb(prb);
-    if (graph_prb.ctor_status != fill_status::DONE
-            && graph_prb.ctor_status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+    const auto status = append_graph_with_block(prb);
+    if (status != fill_status::DONE
+            && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
+        cleanup();
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
-    auto graph_h = graph_prb.to_graph();
+    auto &graph = graph_t::get();
 
     // Filter partitions
-    auto partitions = graph_h.get_partitions();
-    if (partitions.empty() || partitions.size() > 1)
+    const auto partitions = graph.get_partitions();
+    if (partitions.empty() || partitions.size() > 1) {
+        cleanup();
         return res->state = FAILED, FAIL;
+    }
 
     const auto par = partitions[0];
-    if (!par.is_supported()) return res->state = UNIMPLEMENTED, FAIL;
+    if (!par.is_supported()) {
+        cleanup();
+        return res->state = UNIMPLEMENTED, FAIL;
+    }
 
     const auto ins = par.get_in_ports();
     const auto outs = par.get_out_ports();
@@ -174,6 +187,8 @@ int doit(const ::reduction::prb_t *prb, res_t *res) {
 
     SAFE(measure_perf(res->timer_map.perf_timer(), cp, tensors_in, tensors_out),
             WARN);
+
+    cleanup();
 
     return OK;
 }
